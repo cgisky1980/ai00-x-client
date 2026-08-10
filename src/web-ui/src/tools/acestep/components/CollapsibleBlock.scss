@@ -1,0 +1,104 @@
+/**
+ * CollapsibleBlock styles.
+ *
+ * Low-key card visual: subtle border + soft background so it sits inside the
+ * chat column without competing with the user/assistant bubbles.
+ */
+
+.ace-collapsible {
+  align-self: stretch;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--element-bg-soft);
+  overflow: hidden;
+  animation: ace-collapsible-in 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &--open {
+    background: var(--element-bg-base);
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    padding: 0.45rem 0.7rem;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 0.76rem;
+    font-weight: 500;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+
+    &:hover {
+      background: var(--card-bg-accent);
+      color: var(--color-text-primary);
+    }
+  }
+
+  &__chevron {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+
+    .ace-collapsible--open & {
+      transform: rotate(90deg);
+    }
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-accent-500, var(--color-text-secondary));
+    flex-shrink: 0;
+  }
+
+  &__title {
+    flex-shrink: 0;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  &__summary {
+    flex: 1;
+    margin-left: 0.4rem;
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    font-weight: 400;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__body {
+    padding: 0.55rem 0.75rem 0.65rem;
+    border-top: 1px solid var(--border-subtle);
+    color: var(--color-text-primary);
+    font-size: 0.8rem;
+    line-height: 1.6;
+    max-height: 360px;
+    overflow-y: auto;
+
+    &::-webkit-scrollbar {
+      width: 5px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+      border-radius: 3px;
+    }
+  }
+}
+
+@keyframes ace-collapsible-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

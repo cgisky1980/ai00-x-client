@@ -1,0 +1,83 @@
+{
+  "title": "任务配置",
+  "subtitle": "任务相关 AI 功能与工具执行行为",
+  "features": {
+    "sessionTitle": {
+      "title": "任务标题自动生成",
+      "subtitle": "新对话时 AI 自动生成简洁标题",
+      "warning": "任务标题将使用用户消息的前 20 个字符"
+    },
+    "agentCompanion": {
+      "title": "Agent 伙伴",
+      "subtitle": "在收起的任务输入框中显示像素风格伙伴动画。",
+      "enable": "显示 Agent 伙伴"
+    }
+  },
+  "toolExecution": {
+    "sectionTitle": "工具执行行为",
+    "sectionDescription": "本任务中 AI 调用工具时的确认与超时策略。"
+  },
+  "computerUse": {
+    "sectionTitle": "Computer use（桌面自动化）",
+    "sectionDescription": "在 Ai00-X 桌面端允许助理截取屏幕并控制键鼠；需多模态模型理解画面。",
+    "enable": "启用 Computer use",
+    "enableDesc": "关闭时，任何任务模式都不会启用 ComputerUse 工具。",
+    "accessibility": "辅助功能",
+    "accessibilityDesc": "",
+    "screenCapture": "屏幕录制",
+    "screenCaptureDesc": "",
+    "granted": "已授权",
+    "notGranted": "未授权",
+    "openSettings": "系统设置",
+    "refreshStatus": "刷新状态",
+    "desktopOnly": "Computer use 仅在 Ai00-X 桌面应用中可用。",
+    "platformNote": "说明"
+  },
+  "browserControl": {
+    "sectionTitle": "浏览器控制",
+    "sectionDescription": "通过浏览器扩展（推荐）或 Chrome DevTools Protocol 控制默认浏览器。扩展模式无需重启浏览器，即可保留登录状态、Cookie 和扩展。",
+    "desktopOnly": "浏览器控制设置仅在 Ai00-X 桌面应用中可用。",
+    "extensionStatus": "扩展连接",
+    "extensionStatusDesc": "浏览器助手扩展的连接状态。这是推荐的连接方式，无需重启浏览器。",
+    "extensionConnected": "扩展已连接",
+    "daemonRunningNoExt": "守护进程运行中，扩展未连接",
+    "daemonNotRunning": "守护进程未运行",
+    "status": "CDP 连接",
+    "statusDesc": "备用：Chrome DevTools Protocol 连接（需要带调试端口重启浏览器）。",
+    "notConnected": "未连接",
+    "refreshStatus": "刷新状态",
+    "connect": "连接浏览器",
+    "connectSuccess": "{{browser}} 已通过 CDP 连接",
+    "connectFailed": "启动浏览器 CDP 失败",
+    "recommendedMode": "推荐模式",
+    "recommendedModeDesc": "当前最佳的浏览器连接模式。扩展模式优先，因为不需要重启浏览器。",
+    "modeExtension": "扩展模式（推荐）",
+    "modeCdp": "CDP 模式（备用）",
+    "modeNone": "无可用浏览器",
+    "createLauncher": "创建启动器",
+    "createLauncherSuccess": "启动器已创建：{{path}}",
+    "createLauncherFailed": "创建启动器失败",
+    "createLauncherDesc": "创建一个快捷应用，每次打开都自动带 CDP 调试端口。",
+    "tabs": "个标签页"
+  },
+  "model": {
+    "label": "模型",
+    "primary": "主力模型",
+    "fast": "快速模型"
+  },
+  "common": {
+    "enable": "启用"
+  },
+  "models": {
+    "empty": "暂无可用模型，请先在「模型」中添加模型。",
+    "updateSuccess": "{{agentName}} 将使用 {{modelName}}"
+  },
+  "loading": {
+    "text": "加载配置中..."
+  },
+  "messages": {
+    "saveSuccess": "设置已保存",
+    "saveFailed": "保存失败",
+    "updateFailed": "设置失败"
+  }
+}

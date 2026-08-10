@@ -1,0 +1,636 @@
+@use '../styles/tokens' as t;
+
+.chat-create {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.75rem;
+
+  // ---- Split layout (two-column) ----
+
+  &--split {
+    gap: 0.75rem;
+  }
+
+  &__body {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    gap: 0.75rem;
+    overflow: hidden;
+  }
+
+  &__chat {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    // Match flow_chat: constrain content width and center it.
+    align-items: center;
+
+    // Direct children (messages list + input bar) share the same max-width.
+    > * {
+      width: 100%;
+      max-width: 700px;
+    }
+  }
+
+  &__sidebar {
+    width: 360px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+    min-height: 0;
+    padding-left: 0.75rem;
+    border-left: 1px solid var(--border-subtle);
+  }
+
+  // ---- Message list ----
+
+  &__messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding: 0.25rem 0;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+      border-radius: 3px;
+    }
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex: 1;
+    color: var(--color-text-secondary);
+
+    &-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--card-bg-accent);
+      box-shadow: 0 0 24px var(--glow-blue), inset 0 0 12px var(--glass-blue-subtle);
+      animation: acestep-glow 3s ease-in-out infinite;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.82rem;
+      text-align: center;
+      max-width: 280px;
+      line-height: 1.5;
+    }
+  }
+
+  &__empty-prompts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    justify-content: center;
+    max-width: 340px;
+  }
+
+  &__empty-prompt {
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 20px;
+    background: var(--element-bg-soft);
+    color: var(--color-text-secondary);
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover {
+      background: var(--card-bg-accent);
+      border-color: var(--border-accent-subtle);
+      color: var(--color-accent-500);
+    }
+  }
+
+  // ---- Chat bubbles ----
+
+  &__bubble {
+    max-width: 82%;
+    display: flex;
+    flex-direction: column;
+    animation: acestep-msg-in 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &--user {
+      align-self: flex-end;
+      .chat-create__bubble-content {
+        background: var(--element-bg-medium);
+        border: 1px solid var(--border-medium);
+        color: var(--color-text-primary);
+        border-radius: 14px 14px 4px 14px;
+      }
+    }
+
+    &--assistant {
+      align-self: flex-start;
+      .chat-create__bubble-content {
+        background: var(--element-bg-soft);
+        border: 1px solid var(--border-subtle);
+        color: var(--color-text-primary);
+        border-radius: 14px 14px 14px 4px;
+      }
+    }
+  }
+
+  &__bubble-content {
+    padding: 0.7rem 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  &__bubble-text {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.65;
+    word-break: break-word;
+    font-family: inherit;
+
+    // User messages keep pre-wrap (preserve user-typed newlines/spaces).
+    // Assistant messages render via Markdown which handles its own spacing.
+    .chat-create__bubble--user & {
+      white-space: pre-wrap;
+    }
+  }
+
+  // Markdown inside bubbles — reset margins so it sits cleanly in the bubble.
+  &__bubble-markdown {
+    font-size: 0.82rem;
+    line-height: 1.65;
+
+    p:first-child { margin-top: 0; }
+    p:last-child { margin-bottom: 0; }
+  }
+
+  &__card-markdown {
+    font-size: 0.78rem;
+    line-height: 1.6;
+
+    p:first-child { margin-top: 0; }
+    p:last-child { margin-bottom: 0; }
+  }
+
+  &__bubble-error {
+    font-size: 0.72rem;
+    color: var(--color-error);
+    padding: 0.3rem 0.55rem;
+    border-radius: 6px;
+    background: var(--color-error-bg, transparent);
+    border: 1px solid var(--color-error);
+  }
+
+  // ---- Typing indicator ----
+
+  &__typing {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    padding: 0.2rem 0;
+
+    span {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--color-text-muted);
+      animation: typing-bounce 1.4s infinite ease-in-out;
+
+      &:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      &:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+    }
+  }
+
+  // ---- Input bar ----
+  // Visual styles (box, actions, send button) come from flow_chat's ChatInput.scss
+  // (imported in ChatCreateView.tsx). We only keep a textarea override here because
+  // flow_chat uses RichTextInput while we use a plain <textarea>.
+
+  &__input-bar-wrap {
+    flex-shrink: 0;
+    width: 100%;
+  }
+
+  &__input {
+    flex: 1;
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: 0.82rem;
+    line-height: 1.45;
+    resize: none;
+    min-height: 36px;
+    max-height: 120px;
+    font-family: inherit;
+
+    &::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    &:focus {
+      outline: none;
+    }
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+  }
+
+  // ---- Buttons ----
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s, background 0.15s, transform 0.15s;
+    font-family: inherit;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &__btn--ghost {
+    padding: 0.35rem 0.65rem;
+    background: var(--element-bg-soft);
+    border: 1px solid var(--border-subtle);
+    color: var(--color-text-secondary);
+    font-size: 0.74rem;
+    border-radius: 8px;
+
+    &:hover:not(:disabled) {
+      background: var(--element-bg-base);
+      color: var(--color-text-primary);
+    }
+  }
+
+  // ---- Status / errors ----
+
+  &__error {
+    padding: 0.5rem 0.75rem;
+    border-radius: 10px;
+    background: var(--color-error-bg, transparent);
+    border: 1px solid var(--color-error);
+    color: var(--color-error);
+    font-size: 0.78rem;
+    animation: acestep-msg-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+  }
+
+  // ---- Plan-ready reminder banner ----
+  // Pops up above the input bar when the LLM just produced a CreationPlan.
+  // Draws the eye to the right-side panel where the user can confirm/edit
+  // parameters and kick off generation.
+
+  &__plan-ready {
+    position: relative;
+    flex-shrink: 0;
+    padding: 0.7rem 0.9rem;
+    border-radius: 12px;
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-accent-500) 14%, transparent),
+      color-mix(in srgb, var(--color-purple-500, var(--color-accent-500)) 10%, transparent)
+    );
+    border: 1px solid color-mix(in srgb, var(--color-accent-400) 55%, transparent);
+    box-shadow:
+      0 4px 18px color-mix(in srgb, var(--color-accent-500) 18%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--color-accent-300) 25%, transparent);
+    animation: acestep-plan-ready-in 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+  }
+
+  &__plan-ready-close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+
+    &:hover {
+      background: var(--element-bg-medium);
+      color: var(--color-text-primary);
+    }
+  }
+
+  &__plan-ready-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-right: 1.2rem; // leave room for the close button
+  }
+
+  &__plan-ready-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-accent-500, var(--color-text-primary));
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  &__plan-ready-hint {
+    font-size: 0.74rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+  }
+
+  &__plan-ready-actions {
+    display: flex;
+    gap: 0.45rem;
+    margin-top: 0.35rem;
+    flex-wrap: wrap;
+  }
+
+  &__plan-ready-goto,
+  &__plan-ready-generate {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 8px;
+    font-size: 0.74rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    font-family: inherit;
+
+    span { white-space: nowrap; }
+
+    &:hover {
+      transform: translateY(-1px);
+    }
+  }
+
+  &__plan-ready-goto {
+    background: var(--element-bg-soft);
+    border-color: var(--border-subtle);
+    color: var(--color-text-secondary);
+
+    &:hover {
+      background: var(--element-bg-base);
+      color: var(--color-text-primary);
+    }
+  }
+
+  &__plan-ready-generate {
+    background: var(--color-accent-500);
+    border-color: var(--color-accent-500);
+    color: #fff;
+
+    &:hover {
+      background: var(--color-accent-600);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  // ---- Progress ----
+
+  &__progress {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 12px;
+    background: var(--element-bg-soft);
+    border: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  &__progress-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--element-bg-base);
+    overflow: hidden;
+  }
+
+  &__progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--acestep-progress-gradient, linear-gradient(90deg, var(--color-accent-500), var(--color-purple-500)));
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  &__progress-text {
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+  }
+
+  // ---- Inline ask options (rendered inside the assistant bubble) ----
+
+  &__ask {
+    margin-top: 0.6rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--border-subtle);
+    animation: acestep-msg-in 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  &__ask-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    // Left-aligned inside the assistant bubble to match reading order.
+    justify-content: flex-start;
+  }
+
+  &__ask-option {
+    padding: 0.4rem 0.85rem;
+    border: 1px solid var(--border-accent-subtle, var(--border-medium));
+    border-radius: 14px;
+    background: var(--card-bg-accent, var(--element-bg-soft));
+    color: var(--color-accent-500, var(--color-text-primary));
+    font-size: 0.76rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover:not(:disabled) {
+      background: var(--color-accent-500);
+      border-color: var(--color-accent-500);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    // When the ask has been answered, dim all options (the user's choice
+    // is echoed as a separate user message in the chat).
+    &--answered {
+      opacity: 0.4;
+    }
+  }
+
+  // ---- "Other" custom input (below the option buttons) ----
+
+  &__ask-custom {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.45rem;
+  }
+
+  &__ask-custom-input {
+    flex: 1;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    background: var(--element-bg-soft);
+    color: var(--color-text-primary);
+    font-size: 0.74rem;
+    font-family: inherit;
+
+    &::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--border-accent);
+    }
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+  }
+
+  &__ask-custom-btn {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-accent-500);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover:not(:disabled) {
+      transform: scale(1.08);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+}
+
+// ---- Animations ----
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes typing-bounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes acestep-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes acestep-glow {
+  0%, 100% {
+    box-shadow: 0 0 24px var(--glow-blue), inset 0 0 12px var(--glass-blue-subtle);
+  }
+  50% {
+    box-shadow: 0 0 36px var(--color-accent-500), inset 0 0 16px var(--glass-blue-subtle);
+  }
+}
+
+@keyframes acestep-plan-ready-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

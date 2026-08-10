@@ -1,0 +1,16 @@
+
+base/head.png
+size:143,132
+filter:Linear,Linear
+pma:true
+Base/Head
+  bounds: 0,0,143,132
+  offsets: 9,10,162,148
+
+base/tail.png
+size:38,25
+filter:Linear,Linear
+pma:true
+Base/Tails
+  bounds: 0,0,38,25
+  offsets: 5,6,48,36

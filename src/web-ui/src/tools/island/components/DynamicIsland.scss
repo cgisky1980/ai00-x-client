@@ -1,0 +1,188 @@
+// === Dynamic Island — iOS-style pill with two morphing states ===
+// States: compact (160×40) | expanded (380×96)
+// (Full state removed — full operations moved to standalone MusicPopup / SfxPopup)
+// Spring easing: cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s
+// KEY: All transitions use the SAME spring curve + duration for "liquid" continuity
+
+// === Activity layer base (parent-driven visibility) ===
+// Unified definition — Activity scss must NOT redefine this class
+.island-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+  // CRITICAL: Sync with pill morph — same duration + spring curve
+  // Previous 0.3s ease caused content to settle before pill finished → "flicker" not "flow"
+  transition:
+    opacity 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dynamic-island {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50010;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+
+  // 固定暗色背景和文字 — 主题色(accent/primary)仍跟随全局主题
+  --color-bg-primary: #0e0e14;
+  --color-bg-elevated: #42425a;
+  --color-text-primary: #f8f8fa;
+  --color-text-secondary: #d6d6dc;
+  --color-text-muted: #b0b0b8;
+
+  // Base pill shape
+  background: color-mix(in oklch, var(--color-bg-elevated) 92%, transparent);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  border: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    0 0 16px color-mix(in oklch, var(--color-primary) 8%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 10%, transparent);
+
+  transition:
+    width 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+    height 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-radius 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease;
+
+  // === Compact state: 160×40 full pill ===
+  &--compact {
+    width: 160px;
+    height: 40px;
+    border-radius: 999px;
+  }
+
+  // === Expanded state: 400×96 rounded ===
+  &--expanded {
+    width: 400px;
+    height: 96px;
+    border-radius: 28px;
+  }
+
+  // === Playing highlight: inner glow + breathing animation ===
+  &--playing {
+    animation: islandBreathe 2.4s ease-in-out infinite;
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.3),
+      0 0 24px color-mix(in oklch, var(--color-primary) 20%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 10%, transparent),
+      inset 0 0 16px color-mix(in oklch, var(--color-primary) 8%, transparent);
+  }
+
+  // === Parent-driven layer visibility (iOS "liquid" continuity) ===
+  // No React --visible class; CSS parent state controls child opacity + transform
+  &--compact  .island-layer--compact  { opacity: 1; pointer-events: auto; transform: scale(1); }
+  &--expanded .island-layer--expanded { opacity: 1; pointer-events: auto; transform: scale(1); }
+}
+
+// === Breathing animation (preserves translateX(-50%) centering) ===
+@keyframes islandBreathe {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.015); }
+}
+
+// === Content wrapper ===
+.dynamic-island__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+// === Activity wrapper (for slide animation on switch) ===
+.dynamic-island__activity-wrapper {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+.dynamic-island__activity-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+// === Slide animations for activity switching ===
+@keyframes slideInLeft {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(-40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+// === Navigation bar (full state) ===
+.dynamic-island__nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 20%, transparent);
+  flex-shrink: 0;
+  background: color-mix(in oklch, var(--color-bg-elevated) 85%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.dynamic-island__nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+    color: var(--color-text-primary);
+  }
+
+  &--active {
+    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 18%, transparent);
+    color: var(--color-accent-400, #06b6d4);
+    box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400, #06b6d4) 12%, transparent);
+  }
+}
+
+// === Compact indicator dots ===
+.dynamic-island__indicators {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+}
+
+.dynamic-island__indicator {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  opacity: 0.4;
+  transition: all 0.2s ease;
+
+  &--active {
+    background: var(--color-accent-400, #06b6d4);
+    opacity: 1;
+    box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400, #06b6d4) 50%, transparent);
+  }
+}

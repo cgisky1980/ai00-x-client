@@ -1,0 +1,47 @@
+{
+  "title": "Voice",
+  "subtitle": "Audio device and voice input settings",
+  "voiceModels": {
+    "title": "Voice & Audio Models",
+    "subtitle": "ASR speech recognition, TTS speech synthesis and audio generation engine management"
+  },
+  "voiceSettings": {
+    "title": "Voice Settings",
+    "subtitle": "Audio device selection and voice input configuration"
+  },
+  "deviceSelection": {
+    "title": "Device Selection",
+    "inputDevice": "Input Device (Microphone)",
+    "outputDevice": "Output Device (Speaker)",
+    "defaultDevice": "Default Device",
+    "refresh": "Refresh devices"
+  },
+  "voiceInput": {
+    "title": "Voice Input",
+    "enabled": "Enable Global Voice Input",
+    "enabledDesc": "Long press left mouse button to trigger voice recording",
+    "triggerDuration": "Trigger Duration",
+    "triggerDurationDesc": "How long to hold before recording starts",
+    "chargeDelay": "Charge Animation Delay",
+    "chargeDelayDesc": "Delay before showing the charge animation",
+    "status": "Service Status",
+    "statusRunning": "Running",
+    "statusStopped": "Stopped"
+  },
+  "engineStatus": {
+    "title": "Engine Status",
+    "description": "ASR (speech recognition), TTS (speech synthesis) and audio generation engine initialization status",
+    "asrLabel": "ASR",
+    "ttsLabel": "TTS",
+    "audioGenLabel": "Audio Gen",
+    "asrDesc": "Speech recognition engine",
+    "ttsDesc": "Speech synthesis engine",
+    "audioGenDesc": "Music and sound effect generation engine (MNN)",
+    "initialized": "Initialized",
+    "notInitialized": "Not Initialized",
+    "reinitAsr": "Re-initialize ASR engine",
+    "reinitTts": "Re-initialize TTS engine",
+    "reinitAudioGen": "Re-initialize Audio Generation engine",
+    "error": "Error"
+  }
+}

@@ -1,0 +1,365 @@
+/* WallpaperDesignView — AI-powered wallpaper designer entry page */
+
+.wallpaper-design {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 2rem;
+
+  &__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 640px;
+    gap: 1.5rem;
+    animation: wp-fade-in 0.4s ease-out;
+  }
+
+  // ── Hero ──────────────────────────────────────────────
+
+  &__hero {
+    text-align: center;
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    margin-bottom: 0.75rem;
+  }
+
+  &__title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0 0 0.35rem;
+    color: var(--color-text-primary);
+  }
+
+  &__subtitle {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  // ── Style cards ───────────────────────────────────────
+
+  &__styles {
+    width: 100%;
+  }
+
+  &__section-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 0.75rem;
+  }
+
+  &__cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.625rem;
+  }
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem 0.5rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    background: var(--color-bg-secondary, var(--element-bg-soft));
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
+    position: relative;
+    overflow: hidden;
+
+    // Color accent bar at top
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--card-color);
+      opacity: 0.5;
+      transition: opacity 0.15s, height 0.15s;
+    }
+
+    &:hover {
+      background: var(--element-bg-hover, var(--color-bg-hover));
+      border-color: var(--card-color);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+      &::before {
+        opacity: 1;
+        height: 4px;
+      }
+    }
+
+    &--selected {
+      border-color: var(--card-color);
+      background: color-mix(in srgb, var(--card-color) 8%, transparent);
+      box-shadow: 0 0 0 1px var(--card-color);
+
+      &::before {
+        opacity: 1;
+        height: 4px;
+      }
+
+      .wallpaper-design__card-label {
+        color: var(--color-text-primary);
+      }
+    }
+  }
+
+  &__card-emoji {
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+
+  &__card-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    transition: color 0.15s;
+  }
+
+  &__card-desc {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    line-height: 1.3;
+    display: none;
+  }
+
+  // ── Divider ───────────────────────────────────────────
+
+  &__divider {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+
+    &::before,
+    &::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-subtle);
+    }
+
+    span {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      white-space: nowrap;
+    }
+  }
+
+  // ── Form ──────────────────────────────────────────────
+
+  &__form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  &__input {
+    width: 100%;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--color-bg-secondary, var(--element-bg-soft));
+    color: var(--color-text-primary);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 90px;
+    transition: border-color 0.15s;
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-accent, #667eea);
+    }
+
+    &::placeholder {
+      color: var(--color-text-tertiary, var(--color-text-muted));
+    }
+  }
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    align-self: flex-end;
+    padding: 0.55rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 8px;
+
+    &--secondary {
+      background: var(--color-bg-secondary, var(--element-bg-soft));
+      color: var(--color-text-secondary);
+
+      &:hover {
+        background: var(--element-bg-hover, var(--color-bg-hover));
+      }
+    }
+  }
+
+  // ── Existing projects ──────────────────────────────────
+
+  &__existing {
+    width: 100%;
+  }
+
+  &__project-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  &__project-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--color-bg-secondary, var(--element-bg-soft));
+    transition: background 0.15s;
+
+    &:hover {
+      background: var(--element-bg-hover, var(--color-bg-hover));
+    }
+  }
+
+  &__project-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  &__project-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__project-date {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+  }
+
+  &__project-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  // ── Error ─────────────────────────────────────────────
+
+  &__error {
+    color: var(--color-error, #e74c3c);
+    font-size: 0.82rem;
+    margin: 0;
+  }
+
+  // ── Creating step ─────────────────────────────────────
+
+  &__creating {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 2rem 0;
+  }
+
+  &__spinner {
+    color: var(--color-accent, #667eea);
+    animation: wp-spin 0.8s linear infinite;
+  }
+
+  &__creating-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin: 0;
+  }
+
+  &__creating-desc {
+    font-size: 0.82rem;
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+}
+
+// ── Animations ──────────────────────────────────────────
+
+@keyframes wp-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes wp-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+// ── Responsive ──────────────────────────────────────────
+
+@media (max-width: 560px) {
+  .wallpaper-design {
+    padding: 1rem;
+
+    &__cards {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    &__project-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+    }
+
+    &__project-label {
+      min-width: unset;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallpaper-design__inner {
+    animation: none;
+  }
+
+  .wallpaper-design__spinner {
+    animation: none;
+  }
+}

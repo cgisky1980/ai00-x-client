@@ -1,0 +1,164 @@
+/**
+ * Token usage indicator styles.
+ */
+
+@use '../../component-library/styles/tokens' as *;
+
+.ai00-x-token-usage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  transition: all 0.25s ease;
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 48px;
+  height: 6px;
+  opacity: 0;
+  pointer-events: none;
+  
+  // Show on input focus
+  .ai00-x-chat-input__box:focus-within & {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  
+  // Progress track (background)
+  &__progress-track {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  
+  // Progress fill
+  &__progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    transition: width 0.3s ease, background 0.2s ease;
+    border-radius: 8px 0 0 8px;
+    
+    // When nearly full, round the right edge
+    &[style*="100%"] {
+      border-radius: 8px;
+    }
+  }
+  
+  // Hover content
+  &__hover-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    white-space: nowrap;
+  }
+  
+  &__percentage {
+    line-height: 1;
+    font-weight: 600;
+    font-size: 10px;
+  }
+  
+  // Hover behavior
+  &:hover {
+    height: 18px;
+    
+    .ai00-x-token-usage__hover-content {
+      opacity: 1;
+    }
+  }
+  
+  // Normal state (0-69%)
+  &--normal {
+    background: rgba(59, 130, 246, 0.08);
+    color: rgb(96, 165, 250);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    
+    .ai00-x-token-usage__progress-fill {
+      background: linear-gradient(
+        90deg,
+        rgba(59, 130, 246, 0.3),
+        rgba(96, 165, 250, 0.5)
+      );
+    }
+    
+    &:hover {
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(96, 165, 250, 0.4);
+      
+      .ai00-x-token-usage__progress-fill {
+        background: linear-gradient(
+          90deg,
+          rgba(59, 130, 246, 0.4),
+          rgba(96, 165, 250, 0.6)
+        );
+      }
+    }
+  }
+  
+  // Warning state (80%+)
+  &--warning {
+    background: rgba(251, 146, 60, 0.08);
+    color: rgb(251, 146, 60);
+    border: 1px solid rgba(251, 146, 60, 0.25);
+    animation: pulse-warning 2s ease-in-out infinite;
+    
+    .ai00-x-token-usage__progress-fill {
+      background: linear-gradient(
+        90deg,
+        rgba(251, 146, 60, 0.3),
+        rgba(251, 146, 60, 0.5)
+      );
+      animation: progress-pulse 2s ease-in-out infinite;
+    }
+    
+    &:hover {
+      background: rgba(251, 146, 60, 0.12);
+      border-color: rgba(251, 146, 60, 0.4);
+      
+      .ai00-x-token-usage__progress-fill {
+        background: linear-gradient(
+          90deg,
+          rgba(251, 146, 60, 0.4),
+          rgba(251, 146, 60, 0.6)
+        );
+      }
+    }
+  }
+}
+
+// Warning pulse animation
+@keyframes pulse-warning {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(251, 146, 60, 0);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(251, 146, 60, 0.4);
+  }
+}
+
+// Progress pulse animation (warning state)
+@keyframes progress-pulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+

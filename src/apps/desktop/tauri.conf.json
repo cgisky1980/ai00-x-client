@@ -1,0 +1,98 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Ai00-X",
+  "identifier": "com.ai00-x.desktop",
+  "build": {
+    "beforeDevCommand": {
+      "script": "npx pnpm run dev:loader",
+      "cwd": "../../../"
+    },
+    "devUrl": "http://localhost:1423",
+    "beforeBuildCommand": {
+      "script": "npx pnpm run build:all",
+      "cwd": "../../../"
+    },
+    "frontendDist": "../../../dist/loader"
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "resources": {
+      "../../../dist/main.zip": "main.zip",
+      "../../../dist/underlay.zip": "underlay.zip",
+      "sounds": "sounds"
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0"
+        ],
+        "files": {
+          "/usr/share/icons/hicolor/16x16/apps/ai00-x-desktop.png": "icons/hicolor/16x16/apps/ai00-x-desktop.png",
+          "/usr/share/icons/hicolor/32x32/apps/ai00-x-desktop.png": "icons/hicolor/32x32/apps/ai00-x-desktop.png",
+          "/usr/share/icons/hicolor/48x48/apps/ai00-x-desktop.png": "icons/hicolor/48x48/apps/ai00-x-desktop.png",
+          "/usr/share/icons/hicolor/64x64/apps/ai00-x-desktop.png": "icons/hicolor/64x64/apps/ai00-x-desktop.png",
+          "/usr/share/icons/hicolor/96x96/apps/ai00-x-desktop.png": "icons/hicolor/96x96/apps/ai00-x-desktop.png",
+          "/usr/share/icons/hicolor/128x128/apps/ai00-x-desktop.png": "icons/hicolor/128x128/apps/ai00-x-desktop.png",
+          "/usr/share/icons/hicolor/256x256/apps/ai00-x-desktop.png": "icons/hicolor/256x256/apps/ai00-x-desktop.png",
+          "/usr/share/icons/hicolor/512x512/apps/ai00-x-desktop.png": "icons/hicolor/512x512/apps/ai00-x-desktop.png"
+        },
+        "postInstallScript": "scripts/post-install-icons.sh"
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "loader",
+        "title": "Ai00-X",
+        "center": true,
+        "width": 1024,
+        "height": 680,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "url": "index.html"
+      },
+      {
+        "label": "overlay",
+        "create": false,
+        "visible": false,
+        "maximized": false,
+        "minimizable": true,
+        "maximizable": true,
+        "closable": false,
+        "alwaysOnTop": false,
+        "focus": false,
+        "width": 800,
+        "height": 600,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "resizable": true,
+        "skipTaskbar": true,
+        "title": " ",
+        "url": "http://localhost:2100/main/"
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
+    },
+    "withGlobalTauri": true
+  }
+}

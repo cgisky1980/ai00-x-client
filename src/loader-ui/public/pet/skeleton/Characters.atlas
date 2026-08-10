@@ -1,0 +1,152 @@
+
+../base/body.png
+size:128,103
+filter:Linear,Linear
+pma:true
+Base/Body
+  bounds: 0,0,128,103
+  offsets: 3,14,141,127
+
+../base/head.png
+size:150,129
+filter:Linear,Linear
+pma:true
+Base/Head
+  bounds: 0,0,150,129
+  offsets: 9,9,173,143
+
+../base/hand_f.png
+size:34,58
+filter:Linear,Linear
+pma:true
+Base/Hand_F
+  bounds: 0,0,34,58
+  offsets: 5,5,45,69
+
+../base/hand_b.png
+size:42,56
+filter:Linear,Linear
+pma:true
+Base/Hand_B
+  bounds: 0,0,42,56
+  offsets: 5,3,51,65
+
+../base/leg_f.png
+size:35,23
+filter:Linear,Linear
+pma:true
+Base/Leg_F
+  bounds: 0,0,35,23
+  offsets: 5,5,43,32
+
+../base/leg_b.png
+size:31,22
+filter:Linear,Linear
+pma:true
+Base/Leg_B
+  bounds: 0,0,31,22
+  offsets: 4,3,38,28
+
+../base/eye1.png
+size:56,24
+filter:Linear,Linear
+pma:true
+Base/Eye1
+  bounds: 0,0,56,24
+  offsets: 3,4,61,32
+
+../weapons/umbrella.png
+size:221,238
+filter:Linear,Linear
+pma:true
+Extra/Umbrella
+  bounds: 0,0,221,238
+  offsets: 8,5,239,253
+
+../weapons/candy.png
+size:133,220
+filter:Linear,Linear
+pma:true
+Extra/Candy
+  bounds: 0,0,133,220
+  offsets: 17,13,162,241
+
+../effects/splash.png
+size:408,313
+filter:Linear,Linear
+pma:true
+Extra/Splash
+  bounds: 0,0,408,313
+  offsets: 17,3,439,335
+
+../effects/splash2.png
+size:96,166
+filter:Linear,Linear
+pma:true
+Extra/Splash2
+  bounds: 0,0,96,166
+  offsets: 10,10,117,181
+
+../effects/star.png
+size:55,52
+filter:Linear,Linear
+pma:true
+Extra/Star
+  bounds: 0,0,55,52
+  offsets: 6,7,66,66
+
+../effects/confuse_fx1.png
+size:97,49
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx1
+  bounds: 0,0,97,49
+  offsets: 10,9,120,65
+
+../effects/confuse_fx2.png
+size:195,50
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx2
+  bounds: 0,0,195,50
+  offsets: 17,13,220,75
+
+../effects/confuse_fx3.png
+size:98,43
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx3
+  bounds: 0,0,98,43
+  offsets: 16,7,125,59
+
+../effects/confuse_fx4.png
+size:97,48
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx4
+  bounds: 0,0,97,48
+  offsets: 8,3,113,61
+
+../effects/confuse_fx5.png
+size:196,34
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx5
+  bounds: 0,0,196,34
+  offsets: 12,8,217,58
+
+../effects/confuse_fx6.png
+size:100,39
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx6
+  bounds: 0,0,100,39
+  offsets: 10,7,120,59
+
+../effects/shadow.png
+size:107,32
+filter:Linear,Linear
+pma:true
+Extra/Shadow
+  bounds: 0,0,107,32
+  offsets: 7,7,119,47

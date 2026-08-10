@@ -1,0 +1,7 @@
+/* Z-index utilities bound to tokens */
+
+.u-z-base { z-index: var(--z-base); }
+.u-z-header { z-index: var(--z-header); }
+.u-z-floating { z-index: var(--z-floating); }
+.u-z-overlay { z-index: var(--z-overlay); }
+

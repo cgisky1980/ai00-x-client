@@ -1,0 +1,312 @@
+// === Music Activity — three stacked layers ===
+// Visibility is PARENT-driven: .dynamic-island--{state} .island-layer--{state} { opacity: 1 }
+// .island-layer base class is defined in DynamicIsland.scss (unified, do NOT redefine here)
+
+.music-activity {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+
+  // === Compact — spectrum as background, icon left + time right on top ===
+  &--compact {
+    justify-content: space-between;
+    gap: 6px;
+    padding: 0 12px;
+    width: 100%;
+    position: relative; // for spectrum-bg absolute positioning
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+    transition: color 0.3s ease;
+    position: relative;
+    z-index: 1;
+
+    &--playing {
+      color: var(--color-accent-400, #06b6d4);
+      animation: iconSpin 3s linear infinite;
+    }
+  }
+
+  @keyframes iconSpin {
+    to { transform: rotate(360deg); }
+  }
+
+  // === Spectrum background (compact + expanded) — mirrored two columns from center ===
+  &__spectrum-bg {
+    position: absolute;
+    inset: 0; // fill entire pill
+    display: flex;
+    align-items: flex-end; // bars grow from bottom up
+    justify-content: center;
+    gap: 0; // no gap between left/right columns — seamless center
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  &__spectrum-bg-col {
+    display: flex;
+    align-items: flex-end; // bottom aligned
+    gap: 1px;
+    flex: 1;
+    height: 100%;
+
+    &--left {
+      flex-direction: row-reverse; // bars radiate from center outward to the left
+      justify-content: flex-start; // flex-start in row-reverse = right edge (center)
+    }
+
+    &--right {
+      flex-direction: row; // bars radiate from center outward to the right
+      justify-content: flex-start; // flex-start = left edge (center)
+    }
+  }
+
+  &__spectrum-bg-bar {
+    flex: 1; // auto-fill column width
+    border-radius: 1px;
+    background: color-mix(in oklch, var(--color-accent-500, #60a5fa) 85%, transparent);
+    transition: height 0.06s linear;
+    min-height: 2px;
+  }
+
+  &__mini-time {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  // === Expanded — column layout: top row (info+controls) + bottom progress bar ===
+  &--expanded {
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 14px 8px;
+    position: relative; // for spectrum-bg absolute positioning
+    width: 100%;
+    height: 100%;
+  }
+
+  // Top row inside expanded: info (left, flex:1) + controls (right)
+  &__expanded-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  // === Page indicator dots (expanded, top center) ===
+  &__indicators {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 3px;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  &__indicator {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: color-mix(in oklch, var(--color-text-muted) 40%, transparent);
+    transition: all 0.2s ease;
+
+    &--active {
+      background: var(--color-accent-400, #06b6d4);
+      box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400, #06b6d4) 50%, transparent);
+    }
+  }
+
+  // === Volume group (icon + slider) — used in universal bar ===
+  &__volume-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  &__volume-slider {
+    width: 50px;
+    height: 3px;
+  }
+
+  &__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    position: relative;
+    z-index: 1;
+  }
+
+  &__name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__artist {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__p2p-status {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  &__time {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  // === Progress bar ===
+  // Three variants:
+  //   --bar     : expanded layer bottom (full-width, static flow)
+  //   --inline  : universal player bar (static flow, thinner)
+  //   (default) : legacy absolute — no longer used but kept for safety
+  &__progress {
+    border-radius: 2px;
+    overflow: hidden;
+    z-index: 1;
+
+    // ---- Bar variant: expanded layer bottom, full width, static flow ----
+    &--bar {
+      position: static;
+      width: 100%;
+      height: 3px;
+      background: color-mix(in oklch, var(--color-primary) 15%, transparent);
+      flex-shrink: 0;
+    }
+
+    &--clickable {
+      cursor: pointer;
+    }
+
+    // ---- Inline variant: inside universal player bar ----
+    &--inline {
+      position: static;
+      width: 100%;
+      height: 3px;
+      margin: 2px 0;
+      background: color-mix(in oklch, var(--color-primary) 15%, transparent);
+      flex-shrink: 0;
+    }
+  }
+
+  &__progress-fill {
+    height: 100%;
+    background: var(--color-accent-400, #06b6d4);
+    border-radius: 1px;
+    transition: width 0.5s linear;
+    box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400, #06b6d4) 50%, transparent);
+  }
+
+  &__controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  // === Buttons (shared across all layers) ===
+  &__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-primary) 30%, transparent);
+      color: var(--color-text-primary);
+    }
+
+    &:active {
+      transform: scale(0.9);
+    }
+
+    &--volume {
+      color: var(--color-text-muted);
+      &:hover {
+        background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+      }
+    }
+
+    &--glow {
+      color: var(--color-accent-400, #06b6d4);
+      &:hover {
+        background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 22%, transparent);
+        box-shadow: 0 0 10px color-mix(in oklch, var(--color-accent-400, #06b6d4) 18%, transparent);
+      }
+    }
+
+    &--skip {
+      color: var(--color-accent-400, #06b6d4);
+      &:hover {
+        background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 22%, transparent);
+      }
+    }
+
+    &--expand {
+      margin-left: auto; // pin to the right edge of the controls row
+      color: var(--color-text-muted);
+      &:hover {
+        background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+        color: var(--color-text-primary);
+      }
+    }
+
+    &--collapse {
+      margin-left: auto; // pin to the right edge of the sub-tab bar (visual top-right)
+      color: var(--color-text-muted);
+      &:hover {
+        background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+        color: var(--color-text-primary);
+      }
+    }
+
+    &--active {
+      color: var(--color-accent-400, #06b6d4);
+      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 15%, transparent);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+}
+
+// Reuse AudioOverlay.scss styles for panels
+@import '../../../vrm/components/AudioOverlay';

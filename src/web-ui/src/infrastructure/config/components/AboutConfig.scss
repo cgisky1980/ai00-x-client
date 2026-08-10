@@ -1,0 +1,63 @@
+.ai00-x-about-config__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 0 2rem;
+  gap: 0.5rem;
+}
+
+.ai00-x-about-config__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--element-bg-subtle);
+  color: var(--color-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.ai00-x-about-config__app-name {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.ai00-x-about-config__version {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.ai00-x-about-config__description {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.ai00-x-about-config__check-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+
+  &:hover {
+    background: var(--color-primary);
+    color: var(--color-bg-primary);
+  }
+}
+
+.ai00-x-about-config__value {
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}

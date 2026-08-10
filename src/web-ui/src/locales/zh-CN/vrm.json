@@ -1,0 +1,181 @@
+{
+  "chatWindow": {
+    "thinking": "思考中...",
+    "startConversation": "开始对话吧...",
+    "inputPlaceholder": "输入消息...",
+    "stop": "停止",
+    "send": "发送"
+  },
+  "voiceIndicator": {
+    "charging": "充电中...",
+    "recording": "录音中...",
+    "dialog": "对话中...",
+    "error": "出错"
+  },
+  "chatDialog": {
+    "screenshot": "截屏聊天内容",
+    "restart": "重新开始"
+  },
+  "patternGrid": {
+    "showVrm": "显示VRM",
+    "hideVrm": "隐藏VRM",
+    "openSettings": "打开设置",
+    "openMain": "打开主窗口",
+    "customCommand": "自定义命令",
+    "effectOnly": "仅特效"
+  },
+  "gestureTrail": {
+    "seal": "◯ 符",
+    "vrmShow": "▼◀ VRM",
+    "vrmHide": "▼▶ VRM"
+  },
+  "acestep": {
+    "unknownTitle": "未知标题",
+    "unknownArtist": "未知艺术家",
+    "prev": "上一首",
+    "next": "下一首",
+    "play": "播放",
+    "pause": "暂停",
+    "toggleLyrics": "歌词",
+    "playMode": {
+      "sequential": "顺序播放",
+      "repeat-all": "列表循环",
+      "repeat-one": "单曲循环",
+      "shuffle": "随机播放"
+    },
+    "p2p": {
+      "connecting": "P2P 连接中",
+      "downloading": "{{count}} 节点",
+      "seeding": "做种中",
+      "error": "连接失败"
+    }
+  },
+  "audio": {
+    "nowPlaying": {
+      "noBgm": "未播放 BGM",
+      "pause": "暂停",
+      "play": "播放",
+      "minimize": "最小化",
+      "addToPlaylist": "加入播放列表",
+      "alreadyInPlaylist": "已在播放列表中",
+      "skipNext": "下一首",
+      "confirm": "确认",
+      "cancel": "取消"
+    },
+    "island": {
+      "expand": "展开",
+      "collapse": "收起",
+      "nowPlaying": "正在播放",
+      "openAudio": "点击打开音乐",
+      "activity": {
+        "music": "音乐",
+        "song": "歌曲",
+        "theme": "主题",
+        "sfx": "环境音效",
+        "sfxEmpty": "暂无环境音效"
+      },
+      "action": {
+        "toggleDesktop": "切换桌面",
+        "openTask": "打开任务窗口"
+      },
+      "music": {
+        "segment": {
+          "radio": "电台",
+          "local": "本地",
+          "hot": "全网热门",
+          "recommend": "为你推荐"
+        },
+        "nothingPlaying": "未播放",
+        "browseToPlay": "点击展开浏览",
+        "browseSongs": "点击展开选歌",
+        "playing": "播放中",
+        "paused": "已暂停",
+        "radio": "电台",
+        "hotEmpty": "暂无热门分享",
+        "switchToSongs": "切换到歌曲",
+        "switchToRadio": "切换到电台",
+        "switchSource": "切换音源",
+        "like": "喜欢",
+        "dislike": "不喜欢",
+        "recommendEmpty": "暂无推荐，播放或点赞几首歌后再来",
+        "recommendLoading": "正在为你找歌...",
+        "recommendError": "推荐加载失败，请稍后重试",
+        "recommendRefresh": "刷新推荐",
+        "recommendColdStart": "热门推荐",
+        "recommendProfile": "为你推荐"
+      }
+    },
+    "mode": {
+      "radio": "电台",
+      "list": "音效",
+      "create": "创作"
+    },
+    "theme": {
+      "presets": "主题预设",
+      "accentColor": "强调色",
+      "reset": "重置",
+      "toggleDarkLight": "切换明暗主题",
+      "default": "默认主题"
+    },
+    "radio": {
+      "live": "直播中",
+      "stopRadio": "停止电台",
+      "generatingNext": "正在生成下一首...",
+      "selectStyle": "选择风格",
+      "info": "选择风格开始无限 AI 音乐生成。当前曲目播放到一半时会自动生成下一首。",
+      "random": "风格随机",
+      "lofi": "Lo-Fi 节拍",
+      "rock": "摇滚",
+      "eightbit": "8Bit",
+      "anime": "二次元",
+      "ambient": "氛围音乐",
+      "cinematic": "电影配乐",
+      "jazz": "爵士乐",
+      "electronic": "电子音乐",
+      "classical": "古典音乐",
+      "meditation": "冥想音乐",
+      "rnb": "R&B 灵魂",
+      "country": "乡村",
+      "folk": "民谣"
+    },
+    "list": {
+      "music": "音乐",
+      "sfx": "音效",
+      "playlist": "播放列表",
+      "clearAll": "清空",
+      "previous": "上一首",
+      "next": "下一首",
+      "pause": "暂停",
+      "play": "播放",
+      "remove": "移除",
+      "noMusic": "播放列表中没有音乐",
+      "noMusicHint": "按正在播放栏的 ♥ 或生成音乐来添加",
+      "soundLibrary": "音效库",
+      "clickToToggle": "点击 开启/关闭",
+      "noSounds": "此分类没有音效",
+      "activeSfx": "活动音效",
+      "stopAll": "全部停止",
+      "stop": "停止",
+      "delete": "删除"
+    },
+    "create": {
+      "music": "音乐",
+      "sfx": "音效",
+      "prompt": "提示词",
+      "promptPlaceholderMusic": "描述你想要的音乐风格...",
+      "promptPlaceholderSfx": "描述你想要的音效...",
+      "negativePrompt": "负面提示词（可选）",
+      "negativePromptPlaceholder": "要避免的内容...",
+      "duration": "时长（秒）",
+      "generateMusic": "生成音乐",
+      "generateSfx": "生成音效",
+      "generating": "生成中...",
+      "generated": "已生成 - 试听中",
+      "addToPlaylist": "加入播放列表",
+      "saveToLibrary": "保存到音效库",
+      "saveName": "名称",
+      "save": "保存",
+      "engineNotInitialized": "音频生成引擎未初始化，请先在设置中配置模型路径。"
+    }
+  }
+}

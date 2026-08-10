@@ -1,0 +1,181 @@
+{
+  "chatWindow": {
+    "thinking": "Thinking...",
+    "startConversation": "Start a conversation...",
+    "inputPlaceholder": "Type a message...",
+    "stop": "Stop",
+    "send": "Send"
+  },
+  "voiceIndicator": {
+    "charging": "Charging...",
+    "recording": "Recording...",
+    "dialog": "In dialog...",
+    "error": "Error"
+  },
+  "chatDialog": {
+    "screenshot": "Screenshot chat",
+    "restart": "Restart"
+  },
+  "patternGrid": {
+    "showVrm": "Show VRM",
+    "hideVrm": "Hide VRM",
+    "openSettings": "Open Settings",
+    "openMain": "Open Main Window",
+    "customCommand": "Custom Command",
+    "effectOnly": "Effect Only"
+  },
+  "gestureTrail": {
+    "seal": "◯ Seal",
+    "vrmShow": "▼◀ VRM",
+    "vrmHide": "▼▶ VRM"
+  },
+  "acestep": {
+    "unknownTitle": "Unknown title",
+    "unknownArtist": "Unknown artist",
+    "prev": "Previous",
+    "next": "Next",
+    "play": "Play",
+    "pause": "Pause",
+    "toggleLyrics": "Lyrics",
+    "playMode": {
+      "sequential": "Sequential",
+      "repeat-all": "Repeat all",
+      "repeat-one": "Repeat one",
+      "shuffle": "Shuffle"
+    },
+    "p2p": {
+      "connecting": "P2P connecting",
+      "downloading": "{{count}} peer(s)",
+      "seeding": "Seeding",
+      "error": "Connection failed"
+    }
+  },
+  "audio": {
+    "nowPlaying": {
+      "noBgm": "No BGM Playing",
+      "pause": "Pause",
+      "play": "Play",
+      "minimize": "Minimize",
+      "addToPlaylist": "Add to playlist",
+      "alreadyInPlaylist": "Already in playlist",
+      "skipNext": "Next track",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "island": {
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "nowPlaying": "Now Playing",
+      "openAudio": "Tap to open music",
+      "activity": {
+        "music": "Music",
+        "song": "Song",
+        "theme": "Theme",
+        "sfx": "Sound Effects",
+        "sfxEmpty": "No sound effects"
+      },
+      "action": {
+        "toggleDesktop": "Switch Desktop",
+        "openTask": "Open Task Window"
+      },
+      "music": {
+        "segment": {
+          "radio": "Radio",
+          "local": "Local",
+          "hot": "Trending",
+          "recommend": "For You"
+        },
+        "nothingPlaying": "Nothing playing",
+        "browseToPlay": "Click to browse",
+        "browseSongs": "Browse songs",
+        "playing": "Playing",
+        "paused": "Paused",
+        "radio": "Radio",
+        "hotEmpty": "No trending shares",
+        "switchToSongs": "Switch to Songs",
+        "switchToRadio": "Switch to Radio",
+        "switchSource": "Switch Source",
+        "like": "Like",
+        "dislike": "Dislike",
+        "recommendEmpty": "No recommendations yet. Play or like a few songs first.",
+        "recommendLoading": "Finding songs for you...",
+        "recommendError": "Failed to load recommendations. Please try again later.",
+        "recommendRefresh": "Refresh",
+        "recommendColdStart": "Trending",
+        "recommendProfile": "For You"
+      }
+    },
+    "mode": {
+      "radio": "Radio",
+      "list": "SFX",
+      "create": "Create"
+    },
+    "theme": {
+      "presets": "Theme Presets",
+      "accentColor": "Accent Color",
+      "reset": "Reset",
+      "toggleDarkLight": "Toggle Dark/Light Theme",
+      "default": "Default Theme"
+    },
+    "radio": {
+      "live": "Live",
+      "stopRadio": "Stop Radio",
+      "generatingNext": "Generating next track...",
+      "selectStyle": "Select Style",
+      "info": "Select a style to start infinite AI music generation. A new track will be generated automatically when the current one is halfway through.",
+      "random": "Random",
+      "lofi": "Lo-Fi Beats",
+      "rock": "Rock",
+      "eightbit": "8Bit",
+      "anime": "Anime",
+      "ambient": "Ambient",
+      "cinematic": "Cinematic",
+      "jazz": "Jazz",
+      "electronic": "Electronic",
+      "classical": "Classical",
+      "meditation": "Meditation",
+      "rnb": "R&B / Soul",
+      "country": "Country",
+      "folk": "Folk"
+    },
+    "list": {
+      "music": "Music",
+      "sfx": "SFX",
+      "playlist": "Playlist",
+      "clearAll": "Clear All",
+      "previous": "Previous",
+      "next": "Next",
+      "pause": "Pause",
+      "play": "Play",
+      "remove": "Remove",
+      "noMusic": "No music in playlist",
+      "noMusicHint": "Press ♥ on Now Playing bar or generate music to add",
+      "soundLibrary": "Sound Library",
+      "clickToToggle": "Click to toggle on/off",
+      "noSounds": "No sounds in this category",
+      "activeSfx": "Active SFX",
+      "stopAll": "Stop All",
+      "stop": "Stop",
+      "delete": "Delete"
+    },
+    "create": {
+      "music": "Music",
+      "sfx": "SFX",
+      "prompt": "Prompt",
+      "promptPlaceholderMusic": "Describe the music style you want...",
+      "promptPlaceholderSfx": "Describe the sound effect you want...",
+      "negativePrompt": "Negative Prompt (optional)",
+      "negativePromptPlaceholder": "What to avoid...",
+      "duration": "Duration (seconds)",
+      "generateMusic": "Generate Music",
+      "generateSfx": "Generate SFX",
+      "generating": "Generating...",
+      "generated": "Generated - Previewing",
+      "addToPlaylist": "Add to Playlist",
+      "saveToLibrary": "Save to Library",
+      "saveName": "Name",
+      "save": "Save",
+      "engineNotInitialized": "Audio generation engine not initialized. Please configure model path in settings first."
+    }
+  }
+}

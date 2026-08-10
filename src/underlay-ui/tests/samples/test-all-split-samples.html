@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Split Samples Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .section {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            min-width: 60px;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .instrument-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 5px;
+            margin: 15px 0;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #FF6B6B;
+        }
+        .instrument-section {
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .instrument-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #FFD700;
+        }
+        .note-range {
+            font-size: 12px;
+            color: #AAA;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎼 长笛和萨克斯采样测试</h1>
+    <p>测试从音阶文件分割出的57个高质量单音符采样（移除大提琴）</p>
+    
+    <div class="status" id="status">
+        <div>状态: <span id="statusText">未初始化</span></div>
+        <div>音频上下文: <span id="audioContext">未知</span></div>
+        <div>已加载采样: <span id="loadedCount">0</span> / <span id="totalCount">57</span></div>
+    </div>
+
+    <div class="section">
+        <h2>🎶 系统控制</h2>
+        <button id="initBtn">初始化音频系统</button>
+        <button id="stopBtn" disabled>停止所有声音</button>
+        <button id="playAllScalesBtn" disabled>播放所有音阶</button>
+    </div>
+
+    <!-- 长笛 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎵 长笛 (Flute)</div>
+        <div class="note-range">音域: B3 - B5 (25个音符) - VAD 智能分割</div>
+        <div class="instrument-grid" id="flute-grid"></div>
+    </div>
+
+    <!-- 萨克斯 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎷 萨克斯 (Soprano Saxophone)</div>
+        <div class="note-range">音域: G#3 - B5 (32个音符) - VAD 智能分割</div>
+        <div class="instrument-grid" id="soprano-grid"></div>
+    </div>
+
+    <div id="logs" class="logs"></div>
+
+    <script>
+        // 音频系统
+        let audioContext = null;
+        let audioBuffers = new Map();
+        let isInitialized = false;
+
+        // DOM元素
+        const statusText = document.getElementById('statusText');
+        const audioContextStatus = document.getElementById('audioContext');
+        const loadedCount = document.getElementById('loadedCount');
+        const totalCount = document.getElementById('totalCount');
+        const initBtn = document.getElementById('initBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const playAllScalesBtn = document.getElementById('playAllScalesBtn');
+        const logsDiv = document.getElementById('logs');
+
+        // 乐器配置 - 只保留长笛和萨克斯（移除大提琴）
+        const instruments = {
+            flute: {
+                name: 'Flute',
+                prefix: 'flute_',
+                notes: [
+                    'B3',
+                    'C4', 'Cs4', 'D4', 'Ds4', 'E4', 'F4', 'Fs4', 'G4', 'Gs4', 'A4', 'As4', 'B4',
+                    'C5', 'Cs5', 'D5', 'Ds5', 'E5', 'F5', 'Fs5', 'G5', 'Gs5', 'A5', 'As5', 'B5'
+                ]
+            },
+            soprano: {
+                name: 'Soprano Saxophone',
+                prefix: 'soprano_',
+                notes: [
+                    'Gs3', 'A3', 'As3', 'B3',
+                    'C4', 'Cs4', 'D4', 'Ds4', 'E4', 'F4', 'Fs4', 'G4', 'Gs4', 'A4', 'As4', 'B4',
+                    'C5', 'Cs5', 'D5', 'Ds5', 'E5', 'F5', 'Fs5', 'G5', 'Gs5', 'A5', 'As5', 'B5'
+                ]
+            }
+        };
+
+        // 文件名映射函数 - 现在不需要特殊处理
+        function getActualFilename(prefix, note) {
+            const noteStr = note.toLowerCase();
+            return `${prefix}${noteStr}.wav`;
+        }
+
+        // 显示函数 - 将s转换为♯显示
+        function noteDisplayName(note) {
+            return note.replace('s', '♯');
+        }
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[AllSplitTest] ${message}`);
+        }
+
+        // 更新UI状态
+        function updateUI() {
+            if (isInitialized) {
+                statusText.textContent = '已就绪';
+                audioContextStatus.textContent = audioContext.state;
+                initBtn.disabled = true;
+                stopBtn.disabled = false;
+                playAllScalesBtn.disabled = false;
+            } else {
+                statusText.textContent = '未初始化';
+                audioContextStatus.textContent = '未知';
+                initBtn.disabled = false;
+                stopBtn.disabled = true;
+                playAllScalesBtn.disabled = true;
+            }
+        }
+
+        // 创建音符按钮
+        function createNoteButtons() {
+            Object.keys(instruments).forEach(instrumentKey => {
+                const instrument = instruments[instrumentKey];
+                const grid = document.getElementById(`${instrumentKey}-grid`);
+                
+                instrument.notes.forEach(note => {
+                    const button = document.createElement('button');
+                    const noteDisplay = noteDisplayName(note);
+                    button.textContent = noteDisplay;
+                    button.disabled = true;
+                    button.dataset.instrument = instrumentKey;
+                    button.dataset.note = note;
+                    
+                    button.addEventListener('click', () => {
+                        const filename = getActualFilename(instrument.prefix, note);
+                        playSample(filename);
+                    });
+                    
+                    grid.appendChild(button);
+                });
+            });
+        }
+
+        // 初始化音频系统
+        async function initializeAudio() {
+            try {
+                log('🚀 初始化音频系统...');
+                
+                // 创建音频上下文
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 确保音频上下文运行
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
+                log(`✅ 音频上下文创建成功: ${audioContext.state}`, 'success');
+                
+                // 预加载所有采样
+                await preloadAllSamples();
+                
+                isInitialized = true;
+                updateUI();
+                
+                // 启用所有按钮
+                document.querySelectorAll('button[data-note]').forEach(btn => {
+                    btn.disabled = false;
+                });
+                
+                log('🎉 音频系统初始化完成！可以测试所有分割后的采样了', 'success');
+                
+            } catch (error) {
+                log(`❌ 初始化失败: ${error.message}`, 'error');
+                console.error('Audio initialization error:', error);
+            }
+        }
+
+        // 预加载所有采样
+        async function preloadAllSamples() {
+            const allSamples = [];
+            
+            // 收集所有采样文件名
+            Object.keys(instruments).forEach(instrumentKey => {
+                const instrument = instruments[instrumentKey];
+                instrument.notes.forEach(note => {
+                    const filename = getActualFilename(instrument.prefix, note);
+                    allSamples.push(filename);
+                });
+            });
+
+            log(`📥 开始加载 ${allSamples.length} 个分割后的采样文件...`);
+            totalCount.textContent = allSamples.length;
+
+            let loadedSamples = 0;
+            const loadPromises = allSamples.map(async (filename) => {
+                try {
+                    const url = `public/sounds/instruments/split/${filename}`;
+                    
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    
+                    audioBuffers.set(filename, audioBuffer);
+                    loadedSamples++;
+                    loadedCount.textContent = loadedSamples;
+                    
+                    if (loadedSamples % 10 === 0) {
+                        log(`📦 已加载 ${loadedSamples}/${allSamples.length} 个采样...`);
+                    }
+                    
+                } catch (error) {
+                    log(`❌ 加载失败: ${filename} - ${error.message}`, 'error');
+                }
+            });
+
+            await Promise.all(loadPromises);
+            log(`🎉 采样加载完成！成功加载 ${audioBuffers.size}/${allSamples.length} 个文件`, 'success');
+        }
+
+        // 播放采样
+        function playSample(filename, delay = 0) {
+            if (!isInitialized || !audioContext) {
+                log('❌ 音频系统未初始化', 'error');
+                return;
+            }
+
+            const audioBuffer = audioBuffers.get(filename);
+            if (!audioBuffer) {
+                log(`❌ 未找到采样: ${filename}`, 'error');
+                return;
+            }
+
+            try {
+                // 创建音频源
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                
+                // 连接到输出
+                source.connect(audioContext.destination);
+                
+                // 播放
+                const startTime = audioContext.currentTime + delay;
+                source.start(startTime);
+                
+                log(`🎵 播放: ${filename} ${delay > 0 ? `(延迟${delay}s)` : ''}`);
+                
+            } catch (error) {
+                log(`❌ 播放失败: ${filename} - ${error.message}`, 'error');
+            }
+        }
+
+        // 播放所有音阶
+        function playAllScales() {
+            log('🎼 播放长笛和萨克斯音阶演示...');
+            
+            let delay = 0;
+            
+            // 长笛音阶 (C5-B5)
+            const fluteScale = ['C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5'];
+            fluteScale.forEach((note, index) => {
+                const filename = getActualFilename('flute_', note);
+                playSample(filename, delay + index * 0.4);
+            });
+            delay += fluteScale.length * 0.4 + 1;
+            
+            // 萨克斯音阶 (C4-B4)
+            const saxScale = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4'];
+            saxScale.forEach((note, index) => {
+                const filename = getActualFilename('soprano_', note);
+                playSample(filename, delay + index * 0.6);
+            });
+        }
+
+        // 停止所有声音
+        function stopAllSounds() {
+            if (audioContext) {
+                log('🛑 停止所有声音');
+            }
+        }
+
+        // 事件监听器
+        initBtn.addEventListener('click', initializeAudio);
+        stopBtn.addEventListener('click', stopAllSounds);
+        playAllScalesBtn.addEventListener('click', playAllScales);
+
+        // 初始化
+        createNoteButtons();
+        updateUI();
+        log('🎵 分割采样测试页面加载完成');
+        log('📊 共有129个分割后的单音符采样等待测试');
+        log('🎯 点击"初始化音频系统"开始测试');
+    </script>
+</body>
+</html>

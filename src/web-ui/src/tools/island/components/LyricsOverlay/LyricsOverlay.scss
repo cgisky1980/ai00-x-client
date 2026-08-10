@@ -1,0 +1,504 @@
+// === Lyrics Overlay — 桌面歌词风格透明浮层 ===
+// 透明背景、无边框；文字带阴影保证任意背景下可读。
+// z-index 高于 DynamicIsland (50010)，确保歌词始终可见。
+
+.lyrics-overlay {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50020;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 20px;
+
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  user-select: none;
+  cursor: grab;
+  touch-action: none; // allow pointer-drag on touch devices
+  overflow: hidden; // clip lyrics within the fixed-size box
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  // ---- Hover background frame (lyrics mode only) ----
+  &--hovered {
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(12px);
+  }
+
+  // ---- Title bar (lyrics mode, hover only) ----
+  // Absolutely positioned at the top so it stays fixed regardless of
+  // lyrics content or resize. Does not participate in the flex flow.
+  // Single row: [prev|play|next|expand] ←spacer→ [sync-|offset|sync+] [close]
+  &__titlebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 6px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    z-index: 12;
+  }
+
+  &__titlebar-spacer {
+    flex: 1;
+  }
+
+  // ---- Lyrics-mode body row: cover + lyric lines (side by side) ----
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(12px * var(--overlay-scale, 1));
+    width: 100%;
+    min-width: 0;
+  }
+
+  // ---- Cover thumbnail (lyrics mode) ----
+  &__cover {
+    width: calc(64px * var(--overlay-scale, 1));
+    height: calc(64px * var(--overlay-scale, 1));
+    border-radius: calc(10px * var(--overlay-scale, 1));
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.08);
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+  }
+
+  // ---- Lyrics-mode lines column ----
+  &__lines {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  &__titlebar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+
+    &:active {
+      transform: scale(0.92);
+    }
+  }
+
+  // ---- Sync fine-tune control (inside title bar) ----
+  &__sync {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  &__sync-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+  }
+
+  &__sync-value {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.6);
+    font-variant-numeric: tabular-nums;
+    min-width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  // ---- Resize handle (bottom-right corner) ----
+  &__resize {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 18px;
+    height: 18px;
+    cursor: se-resize;
+    z-index: 11;
+    touch-action: none;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 3px;
+      right: 3px;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid rgba(255, 255, 255, 0.3);
+      border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+      border-bottom-right-radius: 2px;
+    }
+
+    &:hover::after {
+      border-color: rgba(255, 255, 255, 0.7);
+    }
+  }
+
+  &__line {
+    max-width: 100%;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #fff;
+    text-shadow:
+      0 0 8px rgba(0, 0, 0, 0.8),
+      0 0 4px rgba(0, 0, 0, 0.6),
+      0 1px 2px rgba(0, 0, 0, 0.9);
+
+    &--current {
+      font-size: calc(26px * var(--overlay-scale, 1));
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    &--adjacent {
+      font-size: calc(14px * var(--overlay-scale, 1));
+      font-weight: 500;
+      opacity: 0.55;
+    }
+
+    &--empty {
+      font-size: calc(16px * var(--overlay-scale, 1));
+      font-weight: 500;
+      opacity: 0.45;
+    }
+  }
+
+  &__word {
+    transition: color 0.12s linear;
+    color: rgba(255, 255, 255, 0.65);
+
+    &--sung {
+      color: var(--color-accent-400, #06b6d4);
+      text-shadow:
+        0 0 10px color-mix(in oklch, var(--color-accent-400, #06b6d4) 60%, transparent),
+        0 0 8px rgba(0, 0, 0, 0.8),
+        0 1px 2px rgba(0, 0, 0, 0.9);
+    }
+  }
+
+  // ============================================================
+  // Player mode — vertical mini player (cover / lyrics / controls)
+  // Width/height come from inline style (resizeable). Font sizes and
+  // key element sizes scale with --overlay-scale.
+  // ============================================================
+  &--player {
+    padding: calc(16px * var(--overlay-scale, 1));
+    align-items: stretch;
+    gap: calc(12px * var(--overlay-scale, 1));
+    background: rgba(18, 18, 24, 0.82);
+    backdrop-filter: blur(20px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  // ---- Header: cover + meta + actions ----
+  &__player-header {
+    display: flex;
+    align-items: center;
+    gap: calc(12px * var(--overlay-scale, 1));
+    flex-shrink: 0;
+  }
+
+  &__player-cover {
+    width: calc(56px * var(--overlay-scale, 1));
+    height: calc(56px * var(--overlay-scale, 1));
+    border-radius: calc(10px * var(--overlay-scale, 1));
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.5);
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+  }
+
+  &__player-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__player-title {
+    font-size: calc(14px * var(--overlay-scale, 1));
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__player-artist {
+    font-size: calc(12px * var(--overlay-scale, 1));
+    color: rgba(255, 255, 255, 0.55);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__player-header-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  &__player-icon-btn {
+    width: calc(26px * var(--overlay-scale, 1));
+    height: calc(26px * var(--overlay-scale, 1));
+    border-radius: calc(8px * var(--overlay-scale, 1));
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+  }
+
+  // ---- Scrolling lyrics area ----
+  &__player-lyrics {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: calc(8px * var(--overlay-scale, 1)) calc(4px * var(--overlay-scale, 1));
+    scroll-behavior: smooth;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 15%, #000 85%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 15%, #000 85%, transparent);
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+  }
+
+  &__player-lyric-line {
+    text-align: center;
+    font-size: calc(13px * var(--overlay-scale, 1));
+    line-height: 1.7;
+    padding: calc(4px * var(--overlay-scale, 1)) calc(8px * var(--overlay-scale, 1));
+    color: rgba(255, 255, 255, 0.4);
+    transition: color 0.3s ease, font-size 0.3s ease;
+
+    &.is-adjacent {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    &.is-current {
+      color: var(--color-accent-400, #06b6d4);
+      font-size: calc(15px * var(--overlay-scale, 1));
+      font-weight: 600;
+      text-shadow: 0 0 12px color-mix(in oklch, var(--color-accent-400, #06b6d4) 30%, transparent);
+    }
+  }
+
+  &__player-lyrics-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 0;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: calc(13px * var(--overlay-scale, 1));
+  }
+
+  // ---- Progress bar + times ----
+  &__player-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  &__player-time {
+    font-size: calc(11px * var(--overlay-scale, 1));
+    color: rgba(255, 255, 255, 0.55);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    min-width: calc(34px * var(--overlay-scale, 1));
+
+    &:last-child {
+      text-align: right;
+    }
+  }
+
+  &__player-progress-track {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: height 0.15s ease;
+
+    &:hover {
+      height: 6px;
+    }
+  }
+
+  &__player-progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--color-accent-400, #06b6d4);
+    box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-400, #06b6d4) 50%, transparent);
+    transition: width 0.3s linear;
+    pointer-events: none;
+  }
+
+  // ---- Control bar ----
+  &__player-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  &__player-main-controls {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  &__player-btn {
+    width: calc(30px * var(--overlay-scale, 1));
+    height: calc(30px * var(--overlay-scale, 1));
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
+    &:active:not(:disabled) {
+      transform: scale(0.92);
+    }
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    &--glow {
+      width: calc(40px * var(--overlay-scale, 1));
+      height: calc(40px * var(--overlay-scale, 1));
+      background: var(--color-accent-400, #06b6d4);
+      color: #0b0e14;
+      box-shadow: 0 0 14px color-mix(in oklch, var(--color-accent-400, #06b6d4) 45%, transparent);
+
+      &:hover:not(:disabled) {
+        background: var(--color-accent-300, #22d3ee);
+        color: #0b0e14;
+        transform: scale(1.05);
+      }
+    }
+  }
+
+  &__player-volume {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  &__player-volume-slider {
+    width: calc(56px * var(--overlay-scale, 1));
+    height: 3px;
+    accent-color: var(--color-accent-400, #06b6d4);
+    cursor: pointer;
+  }
+
+  // ---- Sync control inside the player control bar: flatten to inline ----
+  &--player &__sync {
+    background: transparent;
+    backdrop-filter: none;
+    padding: 0;
+  }
+}

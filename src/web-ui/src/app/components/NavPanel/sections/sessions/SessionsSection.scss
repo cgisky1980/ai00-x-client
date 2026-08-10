@@ -1,0 +1,502 @@
+/**
+ * SessionsSection styles — inline accordion shown under the Sessions nav item.
+ *
+ * Uses the parent BEM block (.ai00-x-nav-panel) to stay consistent with the
+ * rest of the navigation styling, while being self-contained in this file.
+ */
+
+@use '../../../../../component-library/styles/tokens.scss' as *;
+@use '../../../../../component-library/styles/nav-panel-font-scope.scss' as nav-font;
+
+.ai00-x-nav-panel {
+  &__inline-list {
+    display: flex;
+    flex-direction: column;
+    padding: 2px 0;
+    gap: 1px;
+  }
+
+  &__inline-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 $size-gap-1;
+    border: 1px dashed var(--border-subtle);
+    border-radius: $size-radius-sm;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    flex: 1;
+    min-width: 0;
+    transition: color $motion-fast $easing-standard,
+                background $motion-fast $easing-standard,
+                border-color $motion-fast $easing-standard;
+
+    svg { flex-shrink: 0; }
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+  }
+
+  &__inline-empty {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    padding: 4px $size-gap-1;
+    font-style: italic;
+  }
+
+  &__inline-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 $size-gap-1;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 400;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: color $motion-fast $easing-standard,
+                background $motion-fast $easing-standard;
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--element-bg-soft);
+    }
+
+    &.is-active {
+      color: var(--color-text-primary);
+      background: var(--element-bg-soft);
+    }
+
+    &.is-editing {
+      cursor: default;
+      background: color-mix(in srgb, var(--element-bg-soft) 82%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 1px solid var(--color-accent-500);
+      outline-offset: -1px;
+    }
+
+    &.is-child {
+      min-height: 24px;
+      font-size: var(--font-size-xs);
+      padding-left: calc(#{$size-gap-1} + 14px);
+      position: relative;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 8px;
+        top: 0;
+        width: 1px;
+        height: 50%;
+        background: color-mix(in srgb, var(--border-subtle) 88%, transparent);
+        opacity: 0.95;
+      }
+
+      &::after {
+        content: '';
+        position: absolute;
+        left: 8px;
+        top: 50%;
+        width: 10px;
+        height: 1px;
+        background: color-mix(in srgb, var(--border-subtle) 92%, transparent);
+        opacity: 0.95;
+        transform: translateY(-50%);
+      }
+
+      .ai00-x-nav-panel__inline-item-icon {
+        opacity: 0.72;
+      }
+    }
+  }
+
+  &__inline-item-icon {
+    flex-shrink: 0;
+    opacity: 0.78;
+    display: flex;
+    align-items: center;
+    color: inherit;
+    transform: scale(1);
+    transform-origin: center;
+    transition: opacity $motion-fast $easing-standard,
+                transform $motion-fast $easing-standard;
+
+    &.is-core {
+      color: var(--color-text-secondary);
+    }
+
+    &.is-running {
+      color: var(--color-text-secondary);
+      transition: opacity $motion-fast $easing-standard;
+      animation: ai00-x-nav-session-spin 1s linear infinite;
+    }
+
+    &.is-error {
+      color: var(--color-error);
+      opacity: 1;
+    }
+
+    &.is-archived {
+      color: var(--color-success);
+      opacity: 1;
+    }
+
+    &.is-agent {
+      color: var(--color-primary);
+      opacity: 0.85;
+    }
+
+    .ai00-x-nav-panel__inline-item:hover &,
+    .ai00-x-nav-panel__inline-item.is-active & {
+      opacity: 1;
+    }
+  }
+
+  // 「助理会话」区块：行前导图标悬停微微放大（与顶部 __top-action-icon-slot 的 1.07 一致；运行中 Loader 仅用旋转动画）
+  &__items--session-blocks &__inline-item:hover &__inline-item-icon:not(.is-running) {
+    transform: scale(1.07);
+  }
+
+  &__inline-item-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__inline-item-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__inline-item-branch {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    color: var(--color-accent);
+    font-size: var(--font-size-xxs);
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  &__inline-item-tooltip {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 260px;
+  }
+
+  &__inline-item-tooltip-title {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  &__inline-item-tooltip-meta {
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-secondary);
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  &__inline-item-actions {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    margin-left: auto;
+
+    .ai00-x-nav-panel__inline-item:hover & {
+      display: flex;
+    }
+  }
+
+  &__inline-item-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: color $motion-fast $easing-standard,
+                background $motion-fast $easing-standard;
+
+    &:hover,
+    &.is-open {
+      color: var(--color-text-primary);
+      background: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+    }
+  }
+
+  &__inline-item-menu-popover {
+    @include nav-font.nav-panel-font-token-scope;
+
+    position: fixed;
+    width: max-content;
+    min-width: 140px;
+    max-width: min(220px, calc(100vw - 24px));
+    padding: $size-gap-1 0;
+    border-radius: $size-radius-base;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--border-subtle);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    z-index: 10000;
+    transform-origin: top left;
+    animation: ai00-x-footer-menu-in $motion-fast $easing-decelerate forwards;
+  }
+
+  &__inline-item-menu-item {
+    display: flex;
+    align-items: center;
+    gap: $size-gap-2;
+    width: 100%;
+    min-height: 28px;
+    padding: 0 $size-gap-2;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 400;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    transition: color $motion-fast $easing-standard,
+                background $motion-fast $easing-standard;
+
+    svg {
+      flex-shrink: 0;
+      opacity: 0.7;
+      transition: opacity $motion-fast $easing-standard;
+    }
+
+    &:hover:not(:disabled) {
+      color: var(--color-text-primary);
+      background: var(--element-bg-soft);
+
+      svg { opacity: 1; }
+    }
+
+    &.is-danger:hover:not(:disabled) {
+      color: var(--color-error);
+      background: color-mix(in srgb, var(--color-error) 10%, transparent);
+    }
+  }
+
+  &__inline-item-edit {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__inline-item-edit-field {
+    flex: 1;
+    min-width: 0;
+
+    .ai00-x-input-container {
+      height: 18px;
+      min-height: 18px;
+      padding: 0 6px;
+      border-radius: 4px;
+      border-color: var(--border-subtle);
+      background: color-mix(in srgb, var(--element-bg-soft) 55%, transparent);
+    }
+
+    .ai00-x-input {
+      font-size: var(--font-size-xs);
+      line-height: 16px;
+    }
+
+    .ai00-x-input-container:focus-within {
+      border-color: color-mix(in srgb, var(--color-text-primary) 35%, var(--border-subtle));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
+    }
+  }
+
+  &__inline-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 $size-gap-1;
+    margin-top: 2px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-2xs);
+    cursor: pointer;
+    width: 100%;
+    transition: color $motion-fast $easing-standard,
+                background $motion-fast $easing-standard;
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--element-bg-soft);
+    }
+  }
+
+  &__inline-toggle-dots {
+    letter-spacing: 1px;
+    font-size: var(--font-size-sm);
+    line-height: 1;
+    opacity: 0.7;
+  }
+
+  &__inline-item-edit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color $motion-fast $easing-standard,
+                background $motion-fast $easing-standard;
+
+    &.confirm:hover {
+      color: var(--color-success);
+      background: color-mix(in srgb, var(--color-success) 12%, transparent);
+    }
+
+    &.cancel:hover {
+      color: var(--color-text-primary);
+      background: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+    }
+  }
+
+  // Shell running-status dot
+  &__shell-dot {
+    flex-shrink: 0;
+    border-radius: 50%;
+
+    &.is-running {
+      color: var(--color-success);
+      fill: currentColor;
+    }
+
+    &.is-stopped {
+      color: var(--color-text-muted);
+      fill: transparent;
+      stroke: currentColor;
+    }
+  }
+
+  // Inline item badge (count / status text)
+  &__inline-item-badge {
+    flex-shrink: 0;
+    font-size: var(--font-size-xxs);
+    line-height: 1;
+    color: var(--color-text-muted);
+    margin-left: auto;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--color-text-muted) 12%, transparent);
+
+    &--dim {
+      opacity: 0.55;
+      font-style: italic;
+    }
+  }
+
+  // Inline item dot (health status indicator for MCP etc.)
+  &__inline-item-dot {
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-left: auto;
+
+    &.is-healthy {
+      background: var(--color-success);
+      box-shadow: 0 0 4px color-mix(in srgb, var(--color-success) 40%, transparent);
+    }
+
+    &.is-error {
+      background: var(--color-warning);
+      box-shadow: 0 0 4px color-mix(in srgb, var(--color-warning) 40%, transparent);
+    }
+  }
+
+  // Disabled inline item (agent/skill not enabled)
+  &__inline-item.is-disabled {
+    opacity: 0.5;
+  }
+
+  // Unhealthy MCP server indicator
+  &__inline-item.is-unhealthy {
+    .ai00-x-nav-panel__inline-item-icon {
+      color: var(--color-warning);
+      opacity: 0.9;
+    }
+  }
+}
+
+// Session running spin animation
+@keyframes ai00-x-nav-session-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai00-x-nav-panel {
+    &__inline-item,
+    &__inline-action {
+      transition: none;
+    }
+  }
+
+  .ai00-x-nav-panel__inline-item-icon.is-running {
+    animation: none;
+    opacity: 0.8;
+  }
+
+  .ai00-x-nav-panel__items--session-blocks .ai00-x-nav-panel__inline-item:hover .ai00-x-nav-panel__inline-item-icon:not(.is-running) {
+    transform: scale(1);
+  }
+
+  .ai00-x-nav-panel__items--session-blocks .ai00-x-nav-panel__inline-item-icon:not(.is-running) {
+    transition: opacity $motion-fast $easing-standard;
+  }
+}

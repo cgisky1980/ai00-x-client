@@ -1,0 +1,51 @@
+site: medium
+name: feed
+description: Medium popular articles by topic
+domain: medium.com
+strategy: cookie
+browser: true
+
+args:
+  topic:
+    default: technology
+    description: Topic tag (technology, programming, ai, etc.)
+  limit:
+    type: int
+    default: 20
+    description: Number of articles
+
+pipeline:
+  - navigate:
+      url: "https://medium.com/tag/${{ args.topic | urlencode }}"
+  - evaluate: |
+      (() => {
+        const limit = Math.max(1, Math.min(20, 50));
+        const normalize = (v) => (v || '').replace(/\s+/g, ' ').trim();
+        const posts = [];
+        const seen = new Set();
+        for (const article of Array.from(document.querySelectorAll('article'))) {
+          try {
+            const titleEl = article.querySelector('h2, h3, h1');
+            const title = normalize(titleEl?.textContent);
+            if (!title) continue;
+            const linkEl = titleEl?.closest('a') || article.querySelector('a[href*="/@"], a[href*="/p/"]');
+            let postUrl = linkEl?.getAttribute('href') || '';
+            if (!postUrl) continue;
+            if (!postUrl.startsWith('http')) postUrl = 'https://medium.com' + postUrl;
+            if (seen.has(postUrl)) continue;
+            const author = normalize(
+              Array.from(article.querySelectorAll('a[href^="/@"]'))
+                .map(n => normalize(n.textContent))
+                .find(t => t && t !== title)
+            );
+            const dateEl = article.querySelector('time');
+            const date = normalize(dateEl?.textContent) || dateEl?.getAttribute('datetime') || '';
+            seen.add(postUrl);
+            posts.push({ rank: posts.length + 1, title, author, date, url: postUrl });
+            if (posts.length >= limit) break;
+          } catch {}
+        }
+        return posts;
+      })()
+
+columns: [rank, title, author, date, url]

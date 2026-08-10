@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单个分割文件测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #FF6B6B;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 单个分割文件测试</h1>
+    <p>测试重新编码后的分割文件是否能正确加载和播放</p>
+    
+    <div>
+        <button onclick="testFile('cello_c4.wav')">测试大提琴 C4</button>
+        <button onclick="testFile('flute_c5.wav')">测试长笛 C5</button>
+        <button onclick="testFile('soprano_c4.wav')">测试萨克斯 C4</button>
+        <button onclick="testFile('cello_fs4.wav')">测试大提琴 F#4</button>
+    </div>
+
+    <div id="logs" class="logs"></div>
+
+    <script>
+        let audioContext = null;
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            document.getElementById('logs').appendChild(logEntry);
+            document.getElementById('logs').scrollTop = document.getElementById('logs').scrollHeight;
+            console.log(`[SingleTest] ${message}`);
+        }
+
+        // 初始化音频上下文
+        async function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                log('✅ 音频上下文初始化成功', 'success');
+            }
+        }
+
+        // 测试单个文件
+        async function testFile(filename) {
+            try {
+                await initAudio();
+                
+                log(`🔍 测试文件: ${filename}`);
+                
+                // 获取文件
+                const url = `public/sounds/instruments/split/${filename}`;
+                log(`📥 加载: ${url}`);
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                log(`✅ 文件获取成功，大小: ${(response.headers.get('content-length') / 1024).toFixed(1)}KB`);
+                
+                // 解码音频
+                const arrayBuffer = await response.arrayBuffer();
+                log(`📊 ArrayBuffer 大小: ${(arrayBuffer.byteLength / 1024).toFixed(1)}KB`);
+                
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                log(`🎵 音频解码成功！`, 'success');
+                log(`   - 时长: ${audioBuffer.duration.toFixed(2)}秒`);
+                log(`   - 采样率: ${audioBuffer.sampleRate}Hz`);
+                log(`   - 声道数: ${audioBuffer.numberOfChannels}`);
+                
+                // 播放音频
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioContext.destination);
+                source.start();
+                
+                log(`🔊 开始播放 ${filename}`, 'success');
+                
+            } catch (error) {
+                log(`❌ 测试失败: ${error.message}`, 'error');
+                console.error('Test error:', error);
+            }
+        }
+
+        log('🎵 单个文件测试页面加载完成');
+        log('🎯 点击按钮测试不同的分割文件');
+    </script>
+</body>
+</html>

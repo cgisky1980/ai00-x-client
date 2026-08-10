@@ -1,0 +1,123 @@
+/**
+ * NavBar styles — mode tabs + window controls in title-bar-row.
+ *
+ * Full-width draggable bar: [ModeTabs]  <spacer>  [Pin] [_][□][×]
+ */
+
+@use '../../../component-library/styles/tokens.scss' as *;
+
+.ai00-x-nav-bar {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  flex: 1;
+  min-width: 0;
+  padding: 0 $size-gap-2;
+  gap: $size-gap-1;
+  user-select: none;
+  background: transparent;
+
+  &--macos {
+    padding-left: calc(#{$size-gap-2} + 72px);
+  }
+
+  &__spacer {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__quick-controls {
+    display: flex;
+    align-items: center;
+    gap: $size-gap-1;
+    flex-shrink: 0;
+    align-self: center;
+  }
+
+  &__window-controls {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  &__pin-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    align-self: center;
+    transition: color $motion-fast $easing-standard,
+                background $motion-fast $easing-standard;
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--element-bg-soft);
+    }
+
+    &.is-pinned {
+      color: var(--color-accent-500);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent-500);
+      outline-offset: -1px;
+    }
+  }
+
+  &__settings-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: center;
+  }
+
+  &__settings-back {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    transition: color $motion-fast $easing-standard,
+                background $motion-fast $easing-standard;
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--element-bg-soft);
+    }
+
+    &:active {
+      background: var(--element-bg-medium);
+    }
+  }
+
+  &__settings-title {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .window-controls {
+    flex-shrink: 0;
+    align-self: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai00-x-nav-bar__pin-btn {
+    transition: none;
+  }
+}

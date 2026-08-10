@@ -1,0 +1,234 @@
+{
+  "title": "Basics",
+  "subtitle": "Interface language, theme, logging, terminal, and login startup",
+  "uiSettings": {
+    "title": "UI Settings",
+    "subtitle": "Language, theme, fonts, and notifications"
+  },
+  "systemSettings": {
+    "title": "System Settings",
+    "subtitle": "Launch at login, logging level, and terminal configuration"
+  },
+  "webSearch": {
+    "title": "Web Search",
+    "description": "Configure the AnySearch API key for web search. When empty, anonymous access is used (10 req/min per IP).",
+    "apiKeyLabel": "AnySearch API Key",
+    "apiKeyPlaceholder": "as_sk_...",
+    "hint": "Optional. Each client IP gets 10 req/min anonymously. With a key, the limit raises to 20 req/min (shared across all users of the key).",
+    "save": "Save",
+    "saving": "Saving...",
+    "showKey": "Show key",
+    "hideKey": "Hide key",
+    "messages": {
+      "saveSuccess": "API key saved.",
+      "saveFailed": "Failed to save API key."
+    }
+  },
+  "appearance": {
+    "title": "Appearance",
+    "hint": "Interface language and visual theme",
+    "language": "Language",
+    "themes": "Themes",
+    "builtIn": "Built-in",
+    "custom": "Custom",
+    "export": "Export",
+    "delete": "Delete",
+    "confirmDelete": "Are you sure you want to delete theme \"{{name}}\"?",
+    "languageRowHint": "Choose one language pack as the active UI language.",
+    "themeRowHint": "Choose the interface color theme.",
+    "lightMode": "Light",
+    "darkMode": "Dark",
+    "mode": "Mode",
+    "modeRowHint": "Switch between light and dark mode.",
+    "accentColor": "Accent Color",
+    "accentColorRowHint": "Pick the accent color for the interface.",
+    "systemTheme": "Match system",
+    "systemThemeDescription": "Use light or dark theme based on your OS appearance. Updates when the system switches.",
+    "presets": {
+      "ai00-x-dark": {
+        "name": "Dark",
+        "description": "Default dark theme"
+      },
+      "ai00-x-light": {
+        "name": "Light",
+        "description": "Light theme - Elegant and refined, soft blue-gray tones"
+      },
+      "ai00-x-midnight": {
+        "name": "Midnight",
+        "description": "Midnight gray dark theme - Professional and elegant, inspired by JetBrains IDE"
+      },
+      "ai00-x-china-style": {
+        "name": "Ink Charm",
+        "description": "Chinese style theme - Rice paper and ink, blue and vermilion, warm and elegant"
+      },
+      "ai00-x-china-night": {
+        "name": "Ink Night",
+        "description": "Chinese dark theme - Starlit ink night, moonlight like water, serene and elegant"
+      },
+      "ai00-x-cyber": {
+        "name": "Cyber",
+        "description": "Tech-style theme - Deep black hole, neon future, ultimate tech aesthetics"
+      },
+      "ai00-x-slate": {
+        "name": "Slate",
+        "description": "Slate gray geometric theme - Deep immersion, high contrast grayscale aesthetics"
+      }
+    },
+    "fontSize": {
+      "title": "Font Size",
+      "hint": "Adjust font size for the UI and chat area (editor font is configured in the editor settings).",
+      "uiSizeLabel": "UI Font",
+      "uiSizeHint": "Controls font size across navigation, panels, settings, and all other UI elements.",
+      "levels": {
+        "compact": "Compact",
+        "small": "Small",
+        "default": "Default",
+        "medium": "Medium",
+        "large": "Large",
+        "custom": "Custom"
+      },
+      "customPxLabel": "Custom size (12–20 px)",
+      "customPxPlaceholder": "14",
+      "customPxOutOfRange": "Please enter an integer between 12 and 20",
+      "resetButton": "Reset to Default",
+      "previewText": "Ai00-X is an AI-driven programming environment. The quick brown fox jumps over the lazy dog.",
+      "fontSizePreview": "Font size preview",
+      "flowChatLabel": "Chat area",
+      "flowChatHint": "When off, chat uses UI +1 px and tracks UI presets. When on, pick a size (12–20 px) from the list below.",
+      "flowChatCustomToggle": "Custom chat font size",
+      "flowChatPxOption": "{{n}} px"
+    }
+  },
+  "launchAtLogin": {
+    "sections": {
+      "title": "Login",
+      "hint": "Start Ai00-X when you sign in to this account"
+    },
+    "toggleLabel": "Launch at login",
+    "toggleDescription": "Automatically start Ai00-X after you log in. Exact behavior depends on your operating system.",
+    "messages": {
+      "loading": "Loading...",
+      "loadFailed": "Failed to read launch-at-login setting",
+      "saveFailed": "Failed to update launch-at-login setting"
+    }
+  },
+  "logging": {
+    "sections": {
+      "logging": "Logging",
+      "loggingHint": "Log level and directory for this task",
+      "level": "Log Level",
+      "path": "Startup Log Path"
+    },
+    "level": {
+      "description": "Controls log verbosity in real time. Changes apply immediately."
+    },
+    "path": {
+      "description": "Directory where log files for this run are written."
+    },
+    "levels": {
+      "trace": "Trace",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error",
+      "off": "Off"
+    },
+    "actions": {
+      "refreshTooltip": "Refresh runtime status",
+      "openFolder": "Open Folder",
+      "openFolderTooltip": "Open log folder in file explorer"
+    },
+    "messages": {
+      "loading": "Loading...",
+      "loadFailed": "Failed to load logging configuration",
+      "saveFailed": "Failed to save logging level",
+      "levelUpdated": "Logging level updated",
+      "refreshed": "Runtime status refreshed",
+      "openedFolder": "Log folder opened",
+      "openFailed": "Failed to open log folder",
+      "pathUnavailable": "Log folder path is unavailable"
+    }
+  },
+  "terminal": {
+    "sections": {
+      "terminal": "Terminal",
+      "terminalHint": "Default shell and new terminal behavior",
+      "defaultTerminal": "Default Terminal"
+    },
+    "controls": {
+      "refreshTooltip": "Refresh available terminals",
+      "autoDetect": "Auto Detect (Recommended)",
+      "description": "Default shell type for new terminals",
+      "placeholder": "Select default terminal",
+      "noShells": "No available terminals detected"
+    },
+    "warnings": {
+      "cmd": "CMD does not support shell integration. AI commands will execute via PowerShell.",
+      "gitBash": "Git Bash with oh-my-zsh may cause shell integration to fail. If issues occur, switch to PowerShell."
+    },
+    "recommendations": {
+      "pwsh": {
+        "prefix": "We recommend installing",
+        "name": "PowerShell Core",
+        "suffix": "for better cross-platform experience and modern features",
+        "link": "Download"
+      }
+    },
+    "messages": {
+      "loading": "Loading...",
+      "loadFailed": "Failed to load configuration",
+      "updated": "Default terminal updated",
+      "saveFailed": "Failed to save configuration",
+      "refreshed": "Available terminals list refreshed"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "hint": "Toast notification preferences",
+    "dialogCompletion": {
+      "label": "Task completion notification",
+      "description": "Show a toast notification when an AI task completes while the window is not in focus"
+    },
+    "messages": {
+      "saveSuccess": "Notification settings saved",
+      "saveFailed": "Failed to save notification settings"
+    }
+  },
+  "smartDesktop": {
+    "title": "Smart Desktop",
+    "subtitle": "Desktop replacement mode and smart desktop features",
+    "underlay": {
+      "title": "Desktop Replacement",
+      "description": "Replace system desktop with smart desktop, supporting grid layout, widgets, and pet system",
+      "enabled": "Enable Smart Desktop",
+      "enabledHint": "When enabled, the system desktop will be replaced. When disabled, the original desktop will be restored."
+    },
+    "background": {
+      "title": "Dynamic Background",
+      "description": "Choose the background type for the smart desktop",
+      "type": "Background Type",
+      "typeHint": "Switch between different background effects",
+      "transparent": "Solid Color",
+      "gradient": "Animated Gradient",
+      "video": "Video Background",
+      "image": "Static Image",
+      "gradientColors": "Gradient Colors (space-separated hex)",
+      "gradientAngle": "Gradient Angle",
+      "gradientSpeed": "Animation Speed (seconds)",
+      "videoSrc": "Video Path or URL",
+      "imageSrc": "Image Path or URL",
+      "imageFit": "Image Fit Mode",
+      "web": "Web Embed",
+      "webSrc": "Web URL",
+      "aiCustom": "AI Custom Wallpaper",
+      "aiCustomHint": "Chat with the AI Agent to design your dream wallpaper in real time",
+      "aiNavHint": "Open from the left nav \"Wallpaper Editor\" in the main window",
+      "mode": "Background Mode",
+      "modeHint": "Use the same background for all monitors, or configure each independently",
+      "modeSingle": "Unified",
+      "modePerMonitor": "Per Monitor",
+      "monitorLabel": "Monitor {{id}}",
+      "monitorPrimary": "Primary"
+    }
+  }
+}

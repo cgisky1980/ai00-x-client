@@ -1,0 +1,83 @@
+{
+  "title": "记忆",
+  "subtitle": "知识图谱与记忆管理",
+  "memoryTypes": {
+    "tech_preference": "技术偏好",
+    "project_context": "项目上下文",
+    "user_habit": "用户习惯",
+    "code_pattern": "代码模式",
+    "decision": "决策",
+    "other": "其他"
+  },
+  "section": {
+    "memoryList": {
+      "title": "AI 记忆",
+      "description": "管理注入到 AI 提示中的记忆点"
+    },
+    "insights": {
+      "title": "洞察报告",
+      "description": "基于会话的 AI 洞察分析",
+      "recentReports": "最近报告"
+    },
+    "knowledgeGraph": {
+      "title": "知识图谱",
+      "description": "结构化的知识关系",
+      "comingSoon": "知识图谱功能即将上线。"
+    }
+  },
+  "list": {
+    "loading": "加载中...",
+    "empty": {
+      "title": "暂无记忆点"
+    },
+    "item": {
+      "contentLabel": "内容",
+      "sourcePrefix": "来源：",
+      "createdPrefix": "创建于："
+    }
+  },
+  "toolbar": {
+    "addTooltip": "添加记忆"
+  },
+  "actions": {
+    "enable": "启用",
+    "disable": "禁用",
+    "edit": "编辑",
+    "delete": "删除"
+  },
+  "messages": {
+    "loadFailed": "加载记忆失败：{{error}}",
+    "confirmDelete": "确定要删除这条记忆吗？",
+    "deleteSuccess": "记忆已删除",
+    "deleteFailed": "删除失败：{{error}}",
+    "toggleFailed": "切换失败：{{error}}",
+    "validationError": "标题和内容不能为空",
+    "createSuccess": "记忆已创建",
+    "updateSuccess": "记忆已更新",
+    "saveFailed": "保存失败：{{error}}"
+  },
+  "dialog": {
+    "titleCreate": "添加记忆",
+    "titleEdit": "编辑记忆",
+    "fields": {
+      "title": "标题",
+      "titlePlaceholder": "输入标题...",
+      "type": "类型",
+      "importance": "重要性",
+      "content": "内容",
+      "contentPlaceholder": "输入内容...",
+      "tags": "标签",
+      "tagsPlaceholder": "逗号分隔的标签..."
+    },
+    "actions": {
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中..."
+    }
+  },
+  "date": {
+    "today": "今天",
+    "yesterday": "昨天",
+    "daysAgo": "{{days}}天前"
+  }
+}

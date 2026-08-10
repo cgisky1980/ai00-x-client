@@ -1,0 +1,37 @@
+.sandbox-creation-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+
+  &__loading {
+    display: flex;
+    justify-content: center;
+  }
+
+  &__info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+  }
+
+  &__session-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  &__phase {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 4px;
+  }
+}

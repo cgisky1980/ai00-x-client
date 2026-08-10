@@ -1,0 +1,26 @@
+site: linux-do
+name: hot
+description: linux.do hot topics
+domain: linux.do
+strategy: public
+browser: false
+
+args:
+  limit:
+    type: int
+    default: 20
+    description: Number of topics
+
+pipeline:
+  - fetch:
+      url: "https://linux.do/top.json"
+  - select: topic_list.topics
+  - map:
+      rank: ${{ index + 1 }}
+      title: ${{ item.title }}
+      replies: ${{ item.posts_count }}
+      views: ${{ item.views }}
+      likes: ${{ item.like_count }}
+  - limit: ${{ args.limit }}
+
+columns: [rank, title, replies, views, likes]

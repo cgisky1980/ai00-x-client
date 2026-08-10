@@ -1,0 +1,230 @@
+/**
+ * FlowTextBlock styles
+ */
+
+.flow-text-block {
+  width: 100%;
+
+  /*
+   * Flow chat: global Markdown.scss uses root `rem` and ignores panel font-size.
+   * Tie body + structure to --flowchat-font-size-* so settings / lift mode apply here.
+   */
+  .markdown-renderer {
+    font-size: var(--flowchat-font-size-base);
+    line-height: 1.65;
+    letter-spacing: 0.01em;
+  }
+
+  .markdown-renderer p,
+  .markdown-renderer li,
+  .markdown-renderer ul,
+  .markdown-renderer ol {
+    font-size: inherit;
+  }
+
+  .markdown-renderer h1 {
+    font-size: var(--flowchat-font-size-3xl);
+  }
+
+  .markdown-renderer h2 {
+    font-size: var(--flowchat-font-size-2xl);
+  }
+
+  .markdown-renderer h3 {
+    font-size: var(--flowchat-font-size-xl);
+  }
+
+  .markdown-renderer h4 {
+    font-size: var(--flowchat-font-size-lg);
+  }
+
+  .markdown-renderer h5 {
+    font-size: var(--flowchat-font-size-base);
+  }
+
+  .markdown-renderer h6 {
+    font-size: var(--flowchat-font-size-sm);
+  }
+
+  .markdown-renderer pre {
+    font-size: var(--flowchat-font-size-sm);
+  }
+
+  /* Markdown.scss sets 0.875rem !important on fenced blocks — override with flow-chat scale. */
+  .markdown-renderer .code-block-wrapper pre[class*='language-'],
+  .markdown-renderer .code-block-wrapper pre code,
+  .markdown-renderer .code-block-wrapper pre[style],
+  .markdown-renderer .code-block-wrapper code[style],
+  .markdown-renderer pre code {
+    font-size: var(--flowchat-font-size-sm) !important;
+  }
+
+  .markdown-renderer .table-wrapper table {
+    font-size: var(--flowchat-font-size-sm);
+  }
+
+  /* Inline `code`: no chip background in chat (code blocks unchanged). */
+  .markdown-renderer .inline-code {
+    background: transparent;
+    border: none;
+    padding: 0.1em 0.2em;
+  }
+
+  .markdown-renderer .inline-code:hover {
+    background: transparent;
+    border: none;
+  }
+
+  /* Tighter code fence toolbar than global Markdown.scss (flow chat only). */
+  .markdown-renderer .code-block-toolbar {
+    min-height: 1.625rem;
+    padding: 0.2rem 0.45rem 0.2rem 0.6rem;
+  }
+
+  .markdown-renderer .code-block-lang {
+    font-size: var(--flowchat-font-size-xxs);
+    line-height: 1.2;
+  }
+
+  .markdown-renderer .code-block-wrapper .copy-button {
+    width: 26px;
+    height: 26px;
+    padding: 0.2rem;
+    transition:
+      transform 0.15s ease,
+      opacity 0.2s ease;
+  }
+
+  .markdown-renderer .code-block-wrapper .copy-button:hover {
+    background: transparent;
+    color: var(--color-text-muted);
+    transform: scale(1.08);
+  }
+
+  .markdown-renderer .code-block-wrapper .copy-button:active {
+    background: transparent;
+    color: var(--color-text-muted);
+    transform: scale(1.02);
+  }
+
+  .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover {
+    color: #22c55e;
+    transform: scale(1.08);
+  }
+
+  /* MermaidBlock.scss adds a heavy hover shadow; keep chat diagrams flat. */
+  .markdown-renderer .mermaid-block:hover {
+    box-shadow: none;
+  }
+
+  .text-content {
+    color: var(--color-text-primary);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    
+    // Streaming output uses an ink seep effect
+    &--streaming {
+      -webkit-mask-image: linear-gradient(
+        90deg,
+        #000 0%,
+        #000 50%,
+        rgba(0, 0, 0, 0.7) 70%,
+        rgba(0, 0, 0, 0.4) 85%,
+        rgba(0, 0, 0, 0.15) 100%
+      );
+      mask-image: linear-gradient(
+        90deg,
+        #000 0%,
+        #000 50%,
+        rgba(0, 0, 0, 0.7) 70%,
+        rgba(0, 0, 0, 0.4) 85%,
+        rgba(0, 0, 0, 0.15) 100%
+      );
+      animation: ink-fade-pulse 2s ease-in-out infinite;
+    }
+  }
+  
+  &.streaming {
+  }
+}
+
+/* Light theme: copy button icon color (scoped to flow chat). */
+:root[data-theme='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button:hover,
+:root[data-theme-type='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button:hover,
+[data-theme-type='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button:hover,
+.light .flow-text-block .markdown-renderer .code-block-wrapper .copy-button:hover {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover,
+:root[data-theme-type='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover,
+[data-theme-type='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover,
+.light .flow-text-block .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover {
+  color: #1a7f37;
+}
+
+:root[data-theme='light'] .flow-text-block .markdown-renderer .inline-code,
+:root[data-theme-type='light'] .flow-text-block .markdown-renderer .inline-code,
+[data-theme-type='light'] .flow-text-block .markdown-renderer .inline-code,
+.light .flow-text-block .markdown-renderer .inline-code {
+  background: transparent;
+  border: none;
+}
+
+:root[data-theme='light'] .flow-text-block .markdown-renderer .inline-code:hover,
+:root[data-theme-type='light'] .flow-text-block .markdown-renderer .inline-code:hover,
+[data-theme-type='light'] .flow-text-block .markdown-renderer .inline-code:hover,
+.light .flow-text-block .markdown-renderer .inline-code:hover {
+  background: transparent;
+  border: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .flow-text-block .markdown-renderer .inline-code,
+  .flow-text-block .markdown-renderer .inline-code:hover {
+    background: transparent;
+    border: none;
+  }
+}
+
+/* Ink seep pulse animation */
+@keyframes ink-fade-pulse {
+  0%, 100% {
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      #000 0%,
+      #000 50%,
+      rgba(0, 0, 0, 0.7) 70%,
+      rgba(0, 0, 0, 0.4) 85%,
+      rgba(0, 0, 0, 0.15) 100%
+    );
+    mask-image: linear-gradient(
+      90deg,
+      #000 0%,
+      #000 50%,
+      rgba(0, 0, 0, 0.7) 70%,
+      rgba(0, 0, 0, 0.4) 85%,
+      rgba(0, 0, 0, 0.15) 100%
+    );
+  }
+  50% {
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      #000 0%,
+      #000 55%,
+      rgba(0, 0, 0, 0.75) 75%,
+      rgba(0, 0, 0, 0.5) 90%,
+      rgba(0, 0, 0, 0.25) 100%
+    );
+    mask-image: linear-gradient(
+      90deg,
+      #000 0%,
+      #000 55%,
+      rgba(0, 0, 0, 0.75) 75%,
+      rgba(0, 0, 0, 0.5) 90%,
+      rgba(0, 0, 0, 0.25) 100%
+    );
+  }
+}
+

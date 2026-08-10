@@ -1,0 +1,93 @@
+/**
+ * SplashScreen styles.
+ *
+ * Full-screen opaque overlay. No rings.
+ * Exit: logo scales up and fades, backdrop dissolves.
+ */
+
+@use '../../../component-library/styles/tokens.scss' as *;
+
+// ── Container ────────────────────────────────────────────────────────────────
+
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  // Explicit dark background as fallback for Linux WebKitGTK
+  // where CSS variable might not load synchronously
+  background: var(--color-bg-primary);
+  pointer-events: none;
+
+  // ── Exit state ─────────────────────────────────────────────────────────────
+  // Whole container fades together — logo and backdrop in sync.
+
+  &--exiting {
+    animation: splash-bg-exit 0.5s ease-in-out both;
+
+    .splash-screen__logo-wrap {
+      animation: none; // Stop idle pulse; let container opacity drive the fade
+    }
+  }
+}
+
+// ── Center cluster ────────────────────────────────────────────────────────────
+
+.splash-screen__center {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+// ── Logo ──────────────────────────────────────────────────────────────────────
+
+.splash-screen__logo-wrap {
+  animation: splash-logo-idle 3.2s ease-in-out infinite;
+  // WebKit prefix for Linux WebKitGTK compatibility
+  -webkit-animation: splash-logo-idle 3.2s ease-in-out infinite;
+}
+
+.splash-screen__logo-text {
+  display: block;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+// ── Keyframes ─────────────────────────────────────────────────────────────────
+
+// Idle logo: soft opacity pulse with a slight breathing scale
+@keyframes splash-logo-idle {
+  0%, 100% {
+    opacity: 0.85;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+// Exit: whole container fades to transparent
+@keyframes splash-bg-exit {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+// ── Reduced motion ────────────────────────────────────────────────────────────
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-screen__logo-wrap {
+    animation: none;
+  }
+
+  .splash-screen--exiting {
+    animation: splash-bg-exit 0.15s ease-out both;
+  }
+}

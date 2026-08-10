@@ -1,0 +1,130 @@
+{
+  "general": {
+    "unknown": "发生未知错误",
+    "network": "网络错误",
+    "timeout": "请求超时",
+    "serverError": "服务器错误",
+    "notFound": "未找到资源",
+    "unauthorized": "未授权",
+    "forbidden": "禁止访问",
+    "badRequest": "请求无效",
+    "conflict": "资源冲突",
+    "tooManyRequests": "请求过于频繁",
+    "copyFailed": "复制失败，请重试。"
+  },
+  "file": {
+    "notFound": "文件未找到：{{path}}",
+    "readError": "读取文件失败：{{path}}",
+    "writeError": "写入文件失败：{{path}}",
+    "deleteError": "删除文件失败：{{path}}",
+    "permissionDenied": "权限不足：{{path}}",
+    "alreadyExists": "文件已存在：{{path}}",
+    "invalidPath": "无效的文件路径：{{path}}",
+    "tooLarge": "文件过大：{{path}}",
+    "encodingError": "文件编码错误：{{path}}",
+    "createFileFailed": "创建文件失败",
+    "createFolderFailed": "创建文件夹失败",
+    "renameFailed": "重命名失败",
+    "revealFailed": "打开文件管理器失败"
+  },
+  "workspace": {
+    "notFound": "工作区未找到",
+    "openError": "打开工作区失败",
+    "invalidPath": "无效的工作区路径",
+    "alreadyOpen": "工作区已打开"
+  },
+  "git": {
+    "notRepository": "当前目录不是 Git 仓库",
+    "cloneError": "克隆仓库失败",
+    "commitError": "提交失败",
+    "pushError": "推送失败",
+    "pullError": "拉取失败",
+    "mergeConflict": "存在合并冲突",
+    "branchError": "分支操作失败",
+    "stashError": "贮藏操作失败",
+    "authError": "认证失败",
+    "remoteError": "远程仓库错误"
+  },
+  "ai": {
+    "connectionError": "连接 AI 服务失败",
+    "apiKeyInvalid": "API 密钥无效",
+    "modelNotFound": "模型未找到",
+    "contextTooLong": "上下文超出限制",
+    "rateLimited": "请求频率超出限制",
+    "generationError": "生成内容失败",
+    "streamError": "流式响应错误",
+    "timeout": "AI 响应超时",
+    "initializeFailedTitle": "AI 客户端初始化失败",
+    "configRequired": "需要配置模型"
+  },
+  "aiRules": {
+    "loadFailed": "加载 AI 规则失败",
+    "createFailed": "创建规则失败",
+    "updateFailed": "更新规则失败",
+    "deleteFailed": "删除规则失败",
+    "toggleFailed": "切换规则状态失败"
+  },
+  "terminal": {
+    "createError": "创建终端失败",
+    "executeError": "执行命令失败",
+    "killError": "终止进程失败",
+    "shellNotFound": "Shell 未找到"
+  },
+  "window": {
+    "maximizeFailed": "最大化窗口失败：{{error}}",
+    "closeFailed": "关闭窗口失败：{{error}}"
+  },
+  "editor": {
+    "openError": "打开编辑器失败",
+    "saveError": "保存文件失败",
+    "formatError": "格式化失败",
+    "parseError": "解析文件失败",
+    "lspError": "语言服务器错误"
+  },
+  "config": {
+    "loadError": "加载配置失败",
+    "saveError": "保存配置失败",
+    "invalidFormat": "配置格式无效",
+    "validationError": "配置校验失败"
+  },
+  "snapshot": {
+    "createError": "创建快照失败",
+    "restoreError": "恢复快照失败",
+    "notFound": "快照未找到",
+    "corrupted": "快照已损坏",
+    "loadStatsFailed": "加载快照统计失败",
+    "loadSessionsFailed": "加载快照任务失败",
+    "loadOperationsFailed": "加载任务操作失败",
+    "getDiffFailed": "获取文件差异失败",
+    "acceptOperationFailed": "接受操作失败",
+    "rejectOperationFailed": "拒绝操作失败",
+    "rollbackSessionFailed": "回滚任务失败",
+    "cleanupFailed": "清理过期数据失败"
+  },
+  "contextMenu": {
+    "noSelection": "未选中文本",
+    "notEditable": "内容不可编辑",
+    "readOnlyEditor": "编辑器为只读模式",
+    "clipboardUnavailable": "剪贴板不可用",
+    "clipboardEmpty": "剪贴板为空",
+    "copyFailed": "复制失败",
+    "cutFailed": "剪切失败",
+    "pasteFailed": "粘贴失败",
+    "selectAllFailed": "全选失败",
+    "refreshFailed": "刷新失败",
+    "deleteFailed": "删除失败",
+    "deleteCancelled": "删除已取消",
+    "editorModelUnavailable": "编辑器模型不可用",
+    "copyPathFailed": "复制路径失败",
+    "copyRelativePathFailed": "复制相对路径失败"
+  },
+  "core": {
+    "initializationFailed": "核心系统初始化失败"
+  },
+  "boundary": {
+    "title": "应用错误",
+    "reload": "重新加载",
+    "technicalDetails": "技术详情",
+    "unknown": "未知错误"
+  }
+}

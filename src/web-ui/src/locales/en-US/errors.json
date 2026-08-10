@@ -1,0 +1,130 @@
+{
+  "general": {
+    "unknown": "An unknown error occurred",
+    "network": "Network error",
+    "timeout": "Request timeout",
+    "serverError": "Server error",
+    "notFound": "Resource not found",
+    "unauthorized": "Unauthorized",
+    "forbidden": "Access forbidden",
+    "badRequest": "Bad request",
+    "conflict": "Resource conflict",
+    "tooManyRequests": "Too many requests",
+    "copyFailed": "Copy failed. Please try again."
+  },
+  "file": {
+    "notFound": "File not found: {{path}}",
+    "readError": "Failed to read file: {{path}}",
+    "writeError": "Failed to write file: {{path}}",
+    "deleteError": "Failed to delete file: {{path}}",
+    "permissionDenied": "Permission denied: {{path}}",
+    "alreadyExists": "File already exists: {{path}}",
+    "invalidPath": "Invalid file path: {{path}}",
+    "tooLarge": "File is too large: {{path}}",
+    "encodingError": "File encoding error: {{path}}",
+    "createFileFailed": "Failed to create file",
+    "createFolderFailed": "Failed to create folder",
+    "renameFailed": "Rename failed",
+    "revealFailed": "Failed to open file manager"
+  },
+  "workspace": {
+    "notFound": "Workspace not found",
+    "openError": "Failed to open workspace",
+    "invalidPath": "Invalid workspace path",
+    "alreadyOpen": "Workspace is already open"
+  },
+  "git": {
+    "notRepository": "Current directory is not a Git repository",
+    "cloneError": "Failed to clone repository",
+    "commitError": "Commit failed",
+    "pushError": "Push failed",
+    "pullError": "Pull failed",
+    "mergeConflict": "Merge conflict exists",
+    "branchError": "Branch operation failed",
+    "stashError": "Stash operation failed",
+    "authError": "Authentication failed",
+    "remoteError": "Remote repository error"
+  },
+  "ai": {
+    "connectionError": "Failed to connect to AI service",
+    "apiKeyInvalid": "Invalid API key",
+    "modelNotFound": "Model not found",
+    "contextTooLong": "Context exceeds limit",
+    "rateLimited": "Rate limit exceeded",
+    "generationError": "Failed to generate content",
+    "streamError": "Stream response error",
+    "timeout": "AI response timeout",
+    "initializeFailedTitle": "AI client initialization failed",
+    "configRequired": "Model configuration is required"
+  },
+  "aiRules": {
+    "loadFailed": "Failed to load AI rules",
+    "createFailed": "Failed to create rule",
+    "updateFailed": "Failed to update rule",
+    "deleteFailed": "Failed to delete rule",
+    "toggleFailed": "Failed to toggle rule status"
+  },
+  "terminal": {
+    "createError": "Failed to create terminal",
+    "executeError": "Failed to execute command",
+    "killError": "Failed to kill process",
+    "shellNotFound": "Shell not found"
+  },
+  "window": {
+    "maximizeFailed": "Failed to maximize window: {{error}}",
+    "closeFailed": "Failed to close window: {{error}}"
+  },
+  "editor": {
+    "openError": "Failed to open editor",
+    "saveError": "Failed to save file",
+    "formatError": "Formatting failed",
+    "parseError": "Failed to parse file",
+    "lspError": "Language server error"
+  },
+  "config": {
+    "loadError": "Failed to load configuration",
+    "saveError": "Failed to save configuration",
+    "invalidFormat": "Invalid configuration format",
+    "validationError": "Configuration validation failed"
+  },
+  "snapshot": {
+    "createError": "Failed to create snapshot",
+    "restoreError": "Failed to restore snapshot",
+    "notFound": "Snapshot not found",
+    "corrupted": "Snapshot is corrupted",
+    "loadStatsFailed": "Failed to load snapshot stats",
+    "loadSessionsFailed": "Failed to load snapshot tasks",
+    "loadOperationsFailed": "Failed to load task operations",
+    "getDiffFailed": "Failed to get file diff",
+    "acceptOperationFailed": "Failed to accept operation",
+    "rejectOperationFailed": "Failed to reject operation",
+    "rollbackSessionFailed": "Failed to rollback task",
+    "cleanupFailed": "Failed to cleanup expired data"
+  },
+  "contextMenu": {
+    "noSelection": "No text selected",
+    "notEditable": "Content is not editable",
+    "readOnlyEditor": "Editor is read-only",
+    "clipboardUnavailable": "Clipboard access is unavailable",
+    "clipboardEmpty": "Clipboard is empty",
+    "copyFailed": "Copy failed",
+    "cutFailed": "Cut failed",
+    "pasteFailed": "Paste failed",
+    "selectAllFailed": "Select all failed",
+    "refreshFailed": "Refresh failed",
+    "deleteFailed": "Delete failed",
+    "deleteCancelled": "Delete canceled",
+    "editorModelUnavailable": "Editor model is unavailable",
+    "copyPathFailed": "Copy path failed",
+    "copyRelativePathFailed": "Copy relative path failed"
+  },
+  "core": {
+    "initializationFailed": "Core system initialization failed"
+  },
+  "boundary": {
+    "title": "Application Error",
+    "reload": "Reload",
+    "technicalDetails": "Technical Details",
+    "unknown": "Unknown error"
+  }
+}

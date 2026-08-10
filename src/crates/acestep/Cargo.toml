@@ -1,0 +1,48 @@
+[package]
+name = "ai00-x-acestep"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Ai00-X AceStep (text-to-music) integration via FFI to acestep.cpp"
+
+[lib]
+name = "acestep"
+path = "src/lib.rs"
+
+[dependencies]
+# Inherited from workspace
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+once_cell = { workspace = true }
+zip = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# FFI dynamic loading (matches sa3/inference pattern)
+libloading = "0.9"
+
+# .a00m package format: WAV reading + FLAC lossless encoding + cover image dimensions
+hound = "3.5"
+flacenc = "0.4"
+imagesize = "0.15"
+
+# Song scoring: FFT for spectral analysis
+rustfft = "6.2"
+
+# .a00m v1.2.0 encrypted container: AES-256-GCM + Argon2id key derivation
+aes-gcm = { workspace = true }
+argon2 = { workspace = true }
+rand = { workspace = true }
+
+# .a00m v1.3.0 DRM container: X25519 ECIES + HKDF-SHA256 + zeroization
+x25519-dalek = { workspace = true }
+hkdf = { workspace = true }
+sha2 = { workspace = true }
+zeroize = { workspace = true }
+
+# .a00m v5.1 chunked encryption: ChaCha20-Poly1305 algorithm rotation + decoy blocks
+chacha20poly1305 = { workspace = true }

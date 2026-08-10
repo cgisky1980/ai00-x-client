@@ -1,0 +1,85 @@
+/**
+ * SongMetaEditDialog — 编辑歌曲元数据对话框样式。
+ *
+ * 视觉规范遵循 AGENTS.md 中的"前端视觉规范"：
+ * - 内容内边距: 16px (--spacing-4)
+ * - 字段间距: 12px (--spacing-3)
+ * - 圆角: 8px (--radius-base)
+ * - 颜色: 使用 CSS 变量，跟随主题
+ */
+
+.song-edit-dialog {
+  // ---- 表单容器 ----
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3, 12px);
+    padding: var(--spacing-4, 16px);
+  }
+
+  // ---- 单个字段 ----
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1, 4px);
+  }
+
+  // ---- 字段标签 ----
+  &__label {
+    display: flex;
+    align-items: center;
+    font-size: var(--font-size-xs, 12px);
+    font-weight: var(--font-weight-medium, 500);
+    color: var(--color-text-secondary, #d6d6dc);
+    user-select: none;
+  }
+
+  // ---- 封面行 ----
+  &__cover-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2, 8px);
+  }
+
+  &__cover-preview {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-sm, 6px);
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  &__cover-placeholder {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-sm, 6px);
+    background: var(--element-bg-base, rgba(255, 255, 255, 0.1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted, #b0b0b8);
+    flex-shrink: 0;
+  }
+
+  // ---- 错误提示 ----
+  &__error {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2, 8px);
+    padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+    border-radius: var(--radius-sm, 6px);
+    background: var(--color-error-bg, rgba(239, 68, 68, 0.1));
+    color: var(--color-error, #ef4444);
+    font-size: var(--font-size-xs, 12px);
+  }
+
+  // ---- 操作按钮区 ----
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-2, 8px);
+    padding-top: var(--spacing-2, 8px);
+    border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.26));
+    margin-top: var(--spacing-1, 4px);
+  }
+}

@@ -1,0 +1,227 @@
+.click-effect-settings {
+  &__section-body {
+    padding: 16px;
+  }
+
+  &__toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+  }
+
+  &__switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+
+    input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+  }
+
+  &__slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--color-border);
+    border-radius: 24px;
+    transition: background 0.2s;
+
+    &::before {
+      content: '';
+      position: absolute;
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+  }
+
+  &__switch input:checked + &__slider {
+    background: var(--color-primary);
+  }
+
+  &__switch input:checked + &__slider::before {
+    transform: translateX(20px);
+  }
+
+  &__hint {
+    font-size: 12px;
+    color: var(--color-text-secondary, #888);
+    margin: 0 0 12px 0;
+  }
+
+  &__words-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  &__word-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 16px;
+    background: var(--color-bg-secondary, #f0f0f0);
+    border: 1px solid var(--color-border, #ddd);
+    font-size: 13px;
+    transition: background 0.15s, border-color 0.15s;
+
+    &:hover {
+      border-color: var(--color-primary, #4a90d9);
+    }
+  }
+
+  &__word-text {
+    cursor: pointer;
+    color: var(--color-text-primary, #333);
+
+    &:hover {
+      color: var(--color-primary, #4a90d9);
+    }
+  }
+
+  &__word-edit-input {
+    width: 60px;
+    padding: 2px 6px;
+    font-size: 13px;
+    border: 1px solid var(--color-primary, #4a90d9);
+    border-radius: 4px;
+    background: var(--color-bg-primary, #fff);
+    color: var(--color-text-primary, #333);
+    outline: none;
+  }
+
+  &__word-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary, #999);
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 50%;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.15s, background 0.15s;
+
+    &:hover {
+      color: #e74c3c;
+      background: rgba(231, 76, 60, 0.1);
+    }
+  }
+
+  &__add-word {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  &__add-word-input {
+    flex: 1;
+    max-width: 200px;
+    padding: 6px 10px;
+    font-size: 13px;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 6px;
+    background: var(--color-bg-primary, #fff);
+    color: var(--color-text-primary, #333);
+    outline: none;
+    transition: border-color 0.15s;
+
+    &:focus {
+      border-color: var(--color-primary, #4a90d9);
+    }
+  }
+
+  &__add-word-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+    border: 1px solid var(--color-primary, #4a90d9);
+    border-radius: 6px;
+    background: var(--color-primary, #4a90d9);
+    color: #fff;
+    cursor: pointer;
+    transition: opacity 0.15s;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &:hover:not(:disabled) {
+      opacity: 0.85;
+    }
+  }
+
+  &__range-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  &__range-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    label {
+      font-size: 12px;
+      color: var(--color-text-secondary, #888);
+    }
+
+    input {
+      width: 80px;
+      padding: 6px 10px;
+      font-size: 13px;
+      border: 1px solid var(--color-border, #ddd);
+      border-radius: 6px;
+      background: var(--color-bg-primary, #fff);
+      color: var(--color-text-primary, #333);
+      outline: none;
+
+      &:focus {
+        border-color: var(--color-primary, #4a90d9);
+      }
+    }
+  }
+
+  &__range-separator {
+    font-size: 18px;
+    color: var(--color-text-secondary, #888);
+    padding-bottom: 6px;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  &__reset-btn {
+    padding: 8px 20px;
+    font-size: 13px;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-secondary, #888);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+
+    &:hover {
+      border-color: #e74c3c;
+      color: #e74c3c;
+    }
+  }
+}

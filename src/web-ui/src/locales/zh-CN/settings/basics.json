@@ -1,0 +1,234 @@
+{
+  "title": "基础",
+  "subtitle": "界面语言、主题、日志、终端与登录启动",
+  "uiSettings": {
+    "title": "界面设置",
+    "subtitle": "语言、主题外观、字体与通知"
+  },
+  "systemSettings": {
+    "title": "系统设置",
+    "subtitle": "开机启动、日志级别与终端配置"
+  },
+  "webSearch": {
+    "title": "网页搜索",
+    "description": "配置 AnySearch API 密钥。留空则使用匿名访问（每 IP 每分钟 10 次请求）。",
+    "apiKeyLabel": "AnySearch API 密钥",
+    "apiKeyPlaceholder": "as_sk_...",
+    "hint": "可选。每个 IP 匿名访问有 10 次/分钟配额；配置密钥后提升至 20 次/分钟（所有用户共享该密钥配额）。",
+    "save": "保存",
+    "saving": "保存中...",
+    "showKey": "显示密钥",
+    "hideKey": "隐藏密钥",
+    "messages": {
+      "saveSuccess": "API 密钥已保存。",
+      "saveFailed": "保存 API 密钥失败。"
+    }
+  },
+  "appearance": {
+    "title": "外观",
+    "hint": "界面语言与视觉主题",
+    "language": "语言",
+    "themes": "主题",
+    "builtIn": "内置",
+    "custom": "自定义",
+    "export": "导出",
+    "delete": "删除",
+    "confirmDelete": "确定删除主题 \"{{name}}\" 吗？",
+    "languageRowHint": "选择一个语言包作为当前界面语言。",
+    "themeRowHint": "选择界面配色主题。",
+    "lightMode": "浅色",
+    "darkMode": "深色",
+    "mode": "模式",
+    "modeRowHint": "在浅色和深色模式之间切换。",
+    "accentColor": "强调色",
+    "accentColorRowHint": "选择界面的强调色。",
+    "systemTheme": "跟随系统",
+    "systemThemeDescription": "根据系统浅色/深色外观自动在亮暗主题间切换，并随系统切换而更新。",
+    "presets": {
+      "ai00-x-dark": {
+        "name": "暗色",
+        "description": "默认暗色主题"
+      },
+      "ai00-x-light": {
+        "name": "亮色",
+        "description": "亮色主题 - 素雅高级，淡蓝灰调"
+      },
+      "ai00-x-midnight": {
+        "name": "午夜",
+        "description": "午夜灰暗色主题 - 专业优雅，灵感来自 JetBrains IDE"
+      },
+      "ai00-x-china-style": {
+        "name": "墨韵",
+        "description": "中国风主题 - 宣纸墨香，青花朱砂，温润典雅"
+      },
+      "ai00-x-china-night": {
+        "name": "墨夜",
+        "description": "中国风暗色主题 - 墨夜星辰，月华如水，沉静典雅"
+      },
+      "ai00-x-cyber": {
+        "name": "赛博",
+        "description": "科技感主题 - 深邃黑洞，霓虹未来，极致科技美学"
+      },
+      "ai00-x-slate": {
+        "name": "石板灰",
+        "description": "石板灰几何主题 - 极深沉浸，高对比度灰度美学"
+      }
+    },
+    "fontSize": {
+      "title": "字体大小",
+      "hint": "调整界面与对话区域的字体大小（编辑器字号在编辑器设置中配置）。",
+      "uiSizeLabel": "界面字体",
+      "uiSizeHint": "调整导航、面板、设置等所有界面元素的字体大小。",
+      "levels": {
+        "compact": "紧凑",
+        "small": "小",
+        "default": "默认",
+        "medium": "中等",
+        "large": "大",
+        "custom": "自定义"
+      },
+      "customPxLabel": "自定义大小（12–20 px）",
+      "customPxPlaceholder": "14",
+      "customPxOutOfRange": "请输入 12–20 之间的整数",
+      "resetButton": "恢复默认",
+      "previewText": "Ai00-X 是一个由 AI 驱动的编程环境。The quick brown fox jumps over the lazy dog.",
+      "fontSizePreview": "字体大小预览",
+      "flowChatLabel": "对话区域",
+      "flowChatHint": "关闭时对话区域比界面大 1 px，并随界面档位变化。开启后在下方从列表中选择 12–20 px。",
+      "flowChatCustomToggle": "自定义对话字号",
+      "flowChatPxOption": "{{n}} px"
+    }
+  },
+  "launchAtLogin": {
+    "sections": {
+      "title": "登录时启动",
+      "hint": "登录本用户后是否自动运行 Ai00-X"
+    },
+    "toggleLabel": "开机自动启动",
+    "toggleDescription": "登录系统后自动启动 Ai00-X；具体表现因操作系统而异。",
+    "messages": {
+      "loading": "加载中…",
+      "loadFailed": "无法读取开机启动设置",
+      "saveFailed": "无法更新开机启动设置"
+    }
+  },
+  "logging": {
+    "sections": {
+      "logging": "日志",
+      "loggingHint": "日志级别与本次启动日志目录",
+      "level": "日志级别",
+      "path": "本次启动日志路径"
+    },
+    "level": {
+      "description": "实时控制日志输出级别，修改后立即生效。"
+    },
+    "path": {
+      "description": "本次启动写入日志文件所在的目录。"
+    },
+    "levels": {
+      "trace": "Trace",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error",
+      "off": "Off"
+    },
+    "actions": {
+      "refreshTooltip": "刷新运行时状态",
+      "openFolder": "打开文件夹",
+      "openFolderTooltip": "在文件管理器中打开日志文件夹"
+    },
+    "messages": {
+      "loading": "加载中...",
+      "loadFailed": "加载日志配置失败",
+      "saveFailed": "保存日志级别失败",
+      "levelUpdated": "日志级别已更新",
+      "refreshed": "运行时状态已刷新",
+      "openedFolder": "日志文件夹已打开",
+      "openFailed": "打开日志文件夹失败",
+      "pathUnavailable": "日志文件夹路径不可用"
+    }
+  },
+  "terminal": {
+    "sections": {
+      "terminal": "终端",
+      "terminalHint": "默认 Shell 与新建终端行为",
+      "defaultTerminal": "默认终端"
+    },
+    "controls": {
+      "refreshTooltip": "刷新可用终端列表",
+      "autoDetect": "自动检测 (推荐)",
+      "description": "新建终端时使用的默认 Shell 类型",
+      "placeholder": "选择默认终端",
+      "noShells": "未检测到可用的终端"
+    },
+    "warnings": {
+      "cmd": "CMD 不支持 Shell 集成，AI 命令将通过 PowerShell 执行。",
+      "gitBash": "Git Bash 安装 oh-my-zsh 后可能导致 Shell 集成失效，如遇异常建议切换至 PowerShell。"
+    },
+    "recommendations": {
+      "pwsh": {
+        "prefix": "推荐安装使用",
+        "name": "PowerShell Core",
+        "suffix": "以获得更好的跨平台体验和现代化功能",
+        "link": "前往下载"
+      }
+    },
+    "messages": {
+      "loading": "加载中...",
+      "loadFailed": "加载配置失败",
+      "updated": "默认终端已更新",
+      "saveFailed": "保存配置失败",
+      "refreshed": "已刷新可用终端列表"
+    }
+  },
+  "notifications": {
+    "title": "通知",
+    "hint": "Toast 弹窗通知偏好设置",
+    "dialogCompletion": {
+      "label": "任务完成通知",
+      "description": "当 AI 任务完成且窗口不在焦点时，弹出 Toast 通知"
+    },
+    "messages": {
+      "saveSuccess": "通知设置已保存",
+      "saveFailed": "保存通知设置失败"
+    }
+  },
+  "smartDesktop": {
+    "title": "智能桌面",
+    "subtitle": "桌面替换模式与智能桌面功能",
+    "underlay": {
+      "title": "桌面替换",
+      "description": "用智能桌面替换系统桌面，支持网格布局、小组件和宠物系统",
+      "enabled": "启用智能桌面",
+      "enabledHint": "开启后将替换系统桌面，关闭后恢复原始桌面"
+    },
+    "background": {
+      "title": "动态背景",
+      "description": "选择智能桌面的背景类型",
+      "type": "背景类型",
+      "typeHint": "切换不同的背景效果",
+      "transparent": "透明（默认）",
+      "gradient": "渐变动画",
+      "video": "视频背景",
+      "image": "静态图片",
+      "gradientColors": "渐变颜色（空格分隔的色值）",
+      "gradientAngle": "渐变角度",
+      "gradientSpeed": "动画速度（秒）",
+      "videoSrc": "视频路径或 URL",
+      "imageSrc": "图片路径或 URL",
+      "imageFit": "图片填充方式",
+      "web": "网页嵌入",
+      "webSrc": "网页 URL",
+      "aiCustom": "AI 自定义壁纸",
+      "aiCustomHint": "与 AI Agent 对话，实时创作你想要的动态壁纸",
+      "aiNavHint": "请从主窗口左侧「桌面背景编辑器」打开",
+      "mode": "背景模式",
+      "modeHint": "所有显示器共用同一背景，或每个显示器独立配置",
+      "modeSingle": "统一背景",
+      "modePerMonitor": "每屏独立",
+      "monitorLabel": "显示器 {{id}}",
+      "monitorPrimary": "主屏"
+    }
+  }
+}

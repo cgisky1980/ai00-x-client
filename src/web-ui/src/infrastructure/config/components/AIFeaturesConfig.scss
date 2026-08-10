@@ -1,0 +1,65 @@
+@use '../../../component-library/styles/tokens' as *;
+
+.ai00-x-func-agent-config {
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: $size-gap-6;
+  }
+
+  &__row-control {
+    width: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: $size-gap-2;
+  }
+
+  /** Computer use: authorized status label (Granted / 已授权) */
+  &__perm-status--granted {
+    color: var(--color-text-muted);
+  }
+
+  /** Computer use permission row: keep label short, avoid squashing action buttons (nowrap). */
+  &__row-action-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  &__row-control--model {
+    width: 100%;
+    align-items: stretch;
+
+    .model-selection-radio {
+      width: auto;
+      justify-content: flex-end;
+    }
+
+    .model-selection-radio--horizontal .model-selection-radio__option--custom {
+      flex-grow: 0;
+    }
+  }
+
+  .ai00-x-config-page-row.ai00-x-func-agent-config__model-row {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 6fr);
+  }
+
+  &__warning {
+    max-width: 100%;
+    padding: 6px 10px;
+    border-radius: $size-radius-sm;
+    border: 1px dashed rgba(234, 179, 8, 0.4);
+    color: var(--color-warning);
+    font-size: var(--font-size-xs);
+    line-height: $line-height-relaxed;
+    background: transparent;
+  }
+}
+
+@container config-panel (max-width: 520px) {
+  .ai00-x-func-agent-config {
+    &__row-control {
+      align-items: flex-start;
+    }
+  }
+}

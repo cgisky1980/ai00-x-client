@@ -1,0 +1,75 @@
+@use '../../../component-library/styles/tokens' as *;
+
+.ai00-x-remote-disclaimer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--color-text-secondary);
+  padding: 12px 0 14px;
+}
+
+.ai00-x-remote-disclaimer__meta {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.ai00-x-remote-disclaimer__text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.ai00-x-remote-disclaimer__list {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  li {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+  }
+}
+
+.ai00-x-remote-disclaimer__actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ai00-x-remote-disclaimer__btn {
+  border-radius: 6px;
+  border: 1px solid transparent;
+  min-width: 112px;
+  padding: 7px 16px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all $motion-fast $easing-standard;
+}
+
+.ai00-x-remote-disclaimer__btn--secondary {
+  background: var(--element-bg-subtle);
+  color: var(--color-text-secondary);
+  border-color: var(--border-subtle);
+
+  &:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    border-color: var(--border-medium);
+  }
+}
+
+.ai00-x-remote-disclaimer__btn--primary {
+  background: var(--color-accent-600);
+  color: #fff;
+  border-color: color-mix(in srgb, var(--color-accent-700) 35%, transparent);
+
+  &:hover:not(:disabled) {
+    background: var(--color-accent-700);
+  }
+}

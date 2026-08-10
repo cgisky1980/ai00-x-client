@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Philharmonia 打击乐器测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .section {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            margin: 3px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 11px;
+            min-width: 80px;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .instrument-section {
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .instrument-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #FFD700;
+        }
+        .technique-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 5px;
+            margin: 10px 0;
+        }
+        .dynamics-selector {
+            margin: 10px 0;
+        }
+        .dynamics-selector select {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #FF6B6B;
+        }
+        .info {
+            color: #87CEEB;
+        }
+    </style>
+</head>
+<body>
+    <h1>🥁 Philharmonia 打击乐器标准化测试</h1>
+    <p>测试 66 个标准化打击乐器采样 - 统一 Piano/Forte 两种力度，6种打击乐器</p>
+    
+    <div class="status" id="status">
+        <div>状态: <span id="statusText">未初始化</span></div>
+        <div>音频上下文: <span id="audioContext">未知</span></div>
+        <div>当前乐器: <span id="currentInstrument">无</span></div>
+        <div>当前力度: <span id="currentDynamics">piano</span></div>
+    </div>
+
+    <div class="section">
+        <h2>🎶 系统控制</h2>
+        <button id="initBtn">初始化音频系统</button>
+        <button id="stopBtn" disabled>停止所有声音</button>
+        
+        <div class="dynamics-selector">
+            <label>力度选择: </label>
+            <select id="dynamicsSelect">
+                <option value="piano">Piano (轻柔) - 标准化力度</option>
+                <option value="forte">Forte (强烈) - 标准化力度</option>
+            </select>
+            <small style="color: #AAA; display: block; margin-top: 5px;">
+                所有打击乐器都已标准化为这两种力度，便于后续音乐生成使用
+            </small>
+        </div>
+    </div>
+
+    <!-- 低音鼓 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🥁 低音鼓 (Bass Drum) - 20 个标准化采样</div>
+        <div style="font-size: 12px; color: #AAA; margin-bottom: 10px;">
+            技法: bass-drum-mallet, flam, rhythm, rute, sticks, struck-singly
+        </div>
+        <div class="technique-grid" id="bass_drum-grid"></div>
+        <button onclick="playTechniques('bass_drum')">播放所有技法</button>
+    </div>
+
+    <!-- 撞击镲 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🥁 撞击镲 (Clash Cymbals) - 14 个标准化采样</div>
+        <div style="font-size: 12px; color: #AAA; margin-bottom: 10px;">
+            技法: damped, struck-together, undamped
+        </div>
+        <div class="technique-grid" id="clash_cymbals-grid"></div>
+        <button onclick="playTechniques('clash_cymbals')">播放所有技法</button>
+    </div>
+
+    <!-- 锣 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🥁 锣 (Tam-Tam) - 8 个标准化采样</div>
+        <div style="font-size: 12px; color: #AAA; margin-bottom: 10px;">
+            技法: damped, rimshot, scraped, undamped
+        </div>
+        <div class="technique-grid" id="tam-tam-grid"></div>
+        <button onclick="playTechniques('tam-tam')">播放所有技法</button>
+    </div>
+
+    <!-- 铃鼓 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🥁 铃鼓 (Tambourine) - 12 个标准化采样</div>
+        <div style="font-size: 12px; color: #AAA; margin-bottom: 10px;">
+            技法: body, hand, shaken
+        </div>
+        <div class="technique-grid" id="tambourine-grid"></div>
+        <button onclick="playTechniques('tambourine')">播放所有技法</button>
+    </div>
+
+    <!-- 三角铁 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🥁 三角铁 (Triangle) - 8 个标准化采样</div>
+        <div style="font-size: 12px; color: #AAA; margin-bottom: 10px;">
+            技法: damped, rhythm, roll, struck-singly
+        </div>
+        <div class="technique-grid" id="triangle-grid"></div>
+        <button onclick="playTechniques('triangle')">播放所有技法</button>
+    </div>
+
+    <!-- 木鱼 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🥁 木鱼 (Woodblock) - 4 个标准化采样</div>
+        <div style="font-size: 12px; color: #AAA; margin-bottom: 10px;">
+            技法: rhythm, struck-singly
+        </div>
+        <div class="technique-grid" id="woodblock-grid"></div>
+        <button onclick="playTechniques('woodblock')">播放所有技法</button>
+    </div>
+
+    <div id="logs" class="logs"></div>
+
+    <script>
+        // 音频系统
+        let audioContext = null;
+        let isInitialized = false;
+
+        // DOM元素
+        const statusText = document.getElementById('statusText');
+        const audioContextStatus = document.getElementById('audioContext');
+        const currentInstrument = document.getElementById('currentInstrument');
+        const currentDynamics = document.getElementById('currentDynamics');
+        const initBtn = document.getElementById('initBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const dynamicsSelect = document.getElementById('dynamicsSelect');
+        const logsDiv = document.getElementById('logs');
+
+        // 打击乐器精确配置
+        const percussion = {
+            bass_drum: {
+                name: 'Bass Drum',
+                techniques: ['bass-drum-mallet', 'flam', 'rhythm', 'rute', 'sticks', 'struck-singly'],
+                path: '../../public/sounds/philharmonia/instruments/percussion/bass drum',
+                technique_duration_map: {
+                    'bass-drum-mallet': ['025', '1'], 
+                    'rute': ['025', '05', 'phrase'], 
+                    'rhythm': ['15', 'phrase'], 
+                    'flam': ['1'], 
+                    'struck-singly': ['1'], 
+                    'sticks': ['phrase']
+                }
+            },
+            clash_cymbals: {
+                name: 'Clash Cymbals',
+                techniques: ['damped', 'struck-together', 'undamped'],
+                path: '../../public/sounds/philharmonia/instruments/percussion/clash cymbals',
+                technique_duration_map: {
+                    'undamped': ['025', 'long'], 
+                    'damped': ['05', '1'], 
+                    'struck-together': ['1', '15', 'long']
+                }
+            },
+            'tam-tam': {
+                name: 'Tam-Tam',
+                techniques: ['damped', 'rimshot', 'scraped', 'undamped'],
+                path: '../../public/sounds/philharmonia/instruments/percussion/tam-tam',
+                technique_duration_map: {
+                    'damped': ['long'], 
+                    'scraped': ['long'], 
+                    'undamped': ['long'], 
+                    'rimshot': ['phrase']
+                }
+            },
+            tambourine: {
+                name: 'Tambourine',
+                techniques: ['body', 'hand', 'shaken'],
+                path: '../../public/sounds/philharmonia/instruments/percussion/tambourine',
+                technique_duration_map: {
+                    'hand': ['025', '05', 'phrase'], 
+                    'shaken': ['1', 'phrase'], 
+                    'body': ['phrase']
+                }
+            },
+            triangle: {
+                name: 'Triangle',
+                techniques: ['damped', 'rhythm', 'roll', 'struck-singly'],
+                path: '../../public/sounds/philharmonia/instruments/percussion/triangle',
+                technique_duration_map: {
+                    'struck-singly': ['long'], 
+                    'damped': ['phrase'], 
+                    'rhythm': ['phrase'], 
+                    'roll': ['very-long']
+                }
+            },
+            woodblock: {
+                name: 'Woodblock',
+                techniques: ['rhythm', 'struck-singly'],
+                path: '../../public/sounds/philharmonia/instruments/percussion/woodblock',
+                technique_duration_map: {
+                    'struck-singly': ['025'], 
+                    'rhythm': ['phrase']
+                }
+            }
+        };
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[Percussion] ${message}`);
+        }
+
+        // 更新UI状态
+        function updateUI() {
+            if (isInitialized) {
+                statusText.textContent = '已就绪';
+                audioContextStatus.textContent = audioContext.state;
+                initBtn.disabled = true;
+                stopBtn.disabled = false;
+            } else {
+                statusText.textContent = '未初始化';
+                audioContextStatus.textContent = '未知';
+                initBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        }
+
+        // 创建技法按钮
+        function createTechniqueButtons() {
+            Object.keys(percussion).forEach(instrumentKey => {
+                const instrument = percussion[instrumentKey];
+                const grid = document.getElementById(`${instrumentKey}-grid`);
+                
+                instrument.techniques.forEach(technique => {
+                    const button = document.createElement('button');
+                    button.textContent = technique;
+                    button.disabled = true;
+                    button.dataset.instrument = instrumentKey;
+                    button.dataset.technique = technique;
+                    
+                    button.addEventListener('click', () => {
+                        playSample(instrumentKey, technique);
+                    });
+                    
+                    grid.appendChild(button);
+                });
+            });
+        }
+
+        // 初始化音频系统
+        async function initializeAudio() {
+            try {
+                log('🚀 初始化 Philharmonia 打击乐器音频系统...');
+                
+                // 创建音频上下文
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 确保音频上下文运行
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
+                log(`✅ 音频上下文创建成功: ${audioContext.state}`, 'success');
+                
+                isInitialized = true;
+                updateUI();
+                
+                // 启用所有按钮
+                document.querySelectorAll('button[data-technique]').forEach(btn => {
+                    btn.disabled = false;
+                });
+                
+                log('🎉 Philharmonia 打击乐器系统初始化完成！', 'success');
+                log('🎯 选择力度，然后点击技法按钮测试采样', 'info');
+                
+            } catch (error) {
+                log(`❌ 初始化失败: ${error.message}`, 'error');
+                console.error('Audio initialization error:', error);
+            }
+        }
+
+        // 播放采样
+        async function playSample(instrumentKey, technique, delay = 0) {
+            if (!isInitialized || !audioContext) {
+                log('❌ 音频系统未初始化', 'error');
+                return;
+            }
+
+            const dynamics = dynamicsSelect.value;
+            const instrument = percussion[instrumentKey];
+            const instrumentName = instrumentKey.replace('_', '-');
+            
+            // 获取该技法的可用时长
+            const availableDurations = instrument.technique_duration_map[technique];
+            if (!availableDurations || availableDurations.length === 0) {
+                log(`❌ 技法 ${technique} 没有可用的时长`, 'error');
+                return;
+            }
+            
+            let foundFile = false;
+            
+            // 尝试每个可用的时长
+            for (const duration of availableDurations) {
+                const filename = `${instrumentName}__${duration}_${dynamics}_${technique}.mp3`;
+                const url = `${instrument.path}/${filename}`;
+                
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        continue; // 尝试下一个时长
+                    }
+                    
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    
+                    // 创建音频源
+                    const source = audioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    
+                    // 连接到输出
+                    source.connect(audioContext.destination);
+                    
+                    // 播放
+                    const startTime = audioContext.currentTime + delay;
+                    source.start(startTime);
+                    
+                    log(`✅ 播放成功: ${instrument.name} ${technique} (${dynamics}, ${duration})`, 'success');
+                    currentInstrument.textContent = instrument.name;
+                    currentDynamics.textContent = dynamics;
+                    foundFile = true;
+                    break;
+                    
+                } catch (error) {
+                    continue; // 尝试下一个时长
+                }
+            }
+            
+            // 如果没有找到当前力度的文件，尝试另一种力度
+            if (!foundFile) {
+                const backupDynamics = dynamics === 'piano' ? 'forte' : 'piano';
+                
+                for (const duration of availableDurations) {
+                    const backupFilename = `${instrumentName}__${duration}_${backupDynamics}_${technique}.mp3`;
+                    const backupUrl = `${instrument.path}/${backupFilename}`;
+                    
+                    try {
+                        const backupResponse = await fetch(backupUrl);
+                        if (!backupResponse.ok) {
+                            continue;
+                        }
+                        
+                        const backupArrayBuffer = await backupResponse.arrayBuffer();
+                        const backupAudioBuffer = await audioContext.decodeAudioData(backupArrayBuffer);
+                        
+                        const backupSource = audioContext.createBufferSource();
+                        backupSource.buffer = backupAudioBuffer;
+                        backupSource.connect(audioContext.destination);
+                        backupSource.start(audioContext.currentTime + delay);
+                        
+                        log(`✅ 备用播放成功: ${instrument.name} ${technique} (${backupDynamics}, ${duration})`, 'success');
+                        currentInstrument.textContent = instrument.name;
+                        currentDynamics.textContent = backupDynamics;
+                        foundFile = true;
+                        break;
+                        
+                    } catch (backupError) {
+                        continue;
+                    }
+                }
+            }
+            
+            if (!foundFile) {
+                log(`❌ 无法找到可播放的文件: ${instrumentKey} ${technique}`, 'error');
+            }
+        }
+
+        // 播放所有技法
+        function playTechniques(instrumentKey) {
+            const instrument = percussion[instrumentKey];
+            
+            log(`🥁 播放 ${instrument.name} 所有技法...`);
+            
+            instrument.techniques.forEach((technique, index) => {
+                playSample(instrumentKey, technique, index * 0.8);
+            });
+        }
+
+        // 停止所有声音
+        function stopAllSounds() {
+            if (audioContext) {
+                log('🛑 停止所有声音');
+            }
+        }
+
+        // 事件监听器
+        initBtn.addEventListener('click', initializeAudio);
+        stopBtn.addEventListener('click', stopAllSounds);
+
+        // 初始化
+        createTechniqueButtons();
+        updateUI();
+        log('🥁 Philharmonia 打击乐器测试页面加载完成');
+        log('📊 包含 66 个专业级打击乐器采样');
+        log('🎯 点击"初始化音频系统"开始测试');
+    </script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Worker Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .log {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #FF6B6B; }
+        .info { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Web Worker Test</h1>
+    <p>Testing Magenta.js Web Worker loading...</p>
+    
+    <button onclick="testWorker()">Test Worker</button>
+    <button onclick="clearLog()">Clear Log</button>
+    
+    <div id="log" class="log"></div>
+
+    <script>
+        const logDiv = document.getElementById('log');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[WorkerTest] ${message}`);
+        }
+        
+        function clearLog() {
+            logDiv.innerHTML = '';
+        }
+        
+        function testWorker() {
+            log('Starting Web Worker test...', 'info');
+            
+            try {
+                // Create worker
+                const worker = new Worker('./src/lib/lofi/magenta-worker.js');
+                
+                // Set up message handler
+                worker.onmessage = (event) => {
+                    const data = event.data;
+                    log(`Worker message: ${JSON.stringify(data)}`, 'success');
+                    
+                    if (data.type === 'ready' && data.msg === 'init') {
+                        log('✅ Worker initialized successfully!', 'success');
+                        
+                        // Test melody generation
+                        log('Testing melody generation...', 'info');
+                        worker.postMessage({
+                            type: 'continue',
+                            id: 'test-melody',
+                            steps: 32
+                        });
+                    } else if (data.type === 'melody') {
+                        log('✅ Melody generated successfully!', 'success');
+                        log(`Melody has ${data.result.notes.length} notes`, 'info');
+                        worker.terminate();
+                    } else if (data.msg === 'error') {
+                        log(`❌ Worker error: ${data.result}`, 'error');
+                        worker.terminate();
+                    }
+                };
+                
+                // Set up error handler
+                worker.onerror = (error) => {
+                    log(`❌ Worker error: ${error.message}`, 'error');
+                };
+                
+                // Send init message
+                log('Sending init message to worker...', 'info');
+                worker.postMessage({ type: 'init' });
+                
+                // Set timeout
+                setTimeout(() => {
+                    log('⚠️ Test timeout after 60 seconds', 'error');
+                    worker.terminate();
+                }, 60000);
+                
+            } catch (error) {
+                log(`❌ Failed to create worker: ${error.message}`, 'error');
+            }
+        }
+        
+        log('Worker test page loaded. Click "Test Worker" to start.', 'info');
+    </script>
+</body>
+</html>

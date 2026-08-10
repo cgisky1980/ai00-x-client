@@ -1,0 +1,10 @@
+{
+    "lm_model": "acestep-5Hz-lm-4B-Q8_0.gguf",
+    "synth_model": "acestep-v15-turbo-Q8_0.gguf",
+    "caption": "Upbeat pop rock anthem with driving electric guitars, punchy drums, catchy vocal hooks, and a singalong chorus",
+    "vocal_language": "fr",
+    "lm_batch_size": 2,
+    "inference_steps": 8,
+    "guidance_scale": 1.0,
+    "shift": 3.0
+}

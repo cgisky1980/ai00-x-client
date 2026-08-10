@@ -1,0 +1,47 @@
+/**
+ * ACE-Step shared design tokens.
+ *
+ * Aligned with the main window's CSS-variable-based theme system so the
+ * ACE-Step window follows the user's light/dark theme automatically.
+ * Import via: `@use '../styles/tokens' as acestep-tokens;`
+ */
+@use '../../../component-library/styles/tokens' as *;
+
+// ---- Surfaces (mapped to CSS variables for theme-aware rendering) ----
+$acestep-bg: var(--color-bg-scene);
+$acestep-surface: var(--element-bg-soft);
+$acestep-surface-elevated: var(--element-bg-base);
+$acestep-surface-hover: var(--element-bg-medium);
+
+// ---- Blur (kept minimal to match main window's flat style) ----
+$acestep-blur-sm: blur(6px);
+$acestep-blur: blur(8px);
+$acestep-blur-lg: blur(10px);
+
+// ---- Shadows (neutral, theme-agnostic) ----
+$acestep-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.10);
+$acestep-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+$acestep-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
+$acestep-shadow-glow: 0 0 16px var(--color-accent-500);
+
+// ---- Radius ----
+$acestep-radius-sm: 8px;
+$acestep-radius: 12px;
+$acestep-radius-lg: 14px;
+$acestep-radius-pill: 18px;
+
+// ---- Colors ----
+$acestep-accent: var(--color-accent-500);
+$acestep-accent-600: var(--color-accent-600);
+$acestep-accent-gradient: linear-gradient(135deg, var(--color-accent-500), var(--color-accent-600));
+$acestep-purple: var(--color-purple-500);
+$acestep-progress-gradient: linear-gradient(90deg, var(--color-accent-500), var(--color-purple-500));
+
+// ---- Borders ----
+$acestep-border: var(--border-subtle);
+$acestep-border-hover: var(--border-medium);
+$acestep-border-accent: var(--border-accent);
+
+// ---- Transitions ----
+$acestep-transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+$acestep-transition-slow: 0.32s cubic-bezier(0.4, 0, 0.2, 1);

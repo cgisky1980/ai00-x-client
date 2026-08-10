@@ -1,0 +1,83 @@
+{
+  "title": "Assistant",
+  "subtitle": "VRM avatar, persona and TTS voice settings",
+  "comingSoon": "Assistant settings will be available soon.",
+  "roster": {
+    "title": "Character Roster",
+    "subtitle": "Summon and manage your VRM assistants",
+    "summon": "Summon New Character"
+  },
+  "persona": {
+    "title": "Assistants",
+    "description": "Manage your VRM assistants",
+    "add": "Add Assistant",
+    "edit": "Edit",
+    "editTitle": "Edit Assistant",
+    "delete": "Delete",
+    "activate": "Activate",
+    "active": "Active",
+    "newName": "New Assistant",
+    "name": "Name",
+    "namePlaceholder": "Enter a name...",
+    "gender": "Gender",
+    "identity": "Identity",
+    "personality": "Personality",
+    "userTitle": "User Title",
+    "language": "Language",
+    "optionalTics": "Optional Tics",
+    "noTics": "None",
+    "customPrompt": "Custom Prompt"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "vrmModel": "VRM Model",
+    "defaultModel": "Default",
+    "scale": "Avatar Scale",
+    "headScale": "Head Scale",
+    "captureAvatar": "Capture Avatar"
+  },
+  "display": {
+    "title": "Display",
+    "visible": "Show Avatar",
+    "visibleDesc": "Display the VRM avatar on screen",
+    "scale": "Avatar Scale",
+    "headScale": "Head Scale"
+  },
+  "voice": {
+    "title": "Voice",
+    "ttsSpeaker": "TTS Speaker",
+    "voiceStyle": "Voice Style",
+    "noSpeaker": "Default"
+  },
+  "tts": {
+    "title": "TTS Voice",
+    "selectSpeaker": "Select Speaker",
+    "noSpeaker": "Default",
+    "preview": "Preview",
+    "playing": "Playing",
+    "noSpeakers": "No speakers available. Initialize TTS engine first.",
+    "noMatchingSpeakers": "No matching speakers for the selected filter.",
+    "autoFilter": "Auto",
+    "femaleVoice": "Female",
+    "maleVoice": "Male",
+    "allVoices": "All"
+  },
+  "editor": {
+    "createTitle": "Summon Character",
+    "editTitle": "Edit Character",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "save": "Save",
+    "summon": "Complete Summoning"
+  },
+  "card": {
+    "activeLabel": "Active",
+    "editCharacter": "Edit Character",
+    "deleteCharacter": "Delete Character",
+    "rarityN": "Normal",
+    "rarityR": "Rare",
+    "raritySR": "Epic",
+    "raritySSR": "Legendary"
+  }
+}

@@ -1,0 +1,134 @@
+.plan-input-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--card-bg-elevated);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    gap: 8px;
+    min-height: 36px;
+  }
+
+  &__info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    color: var(--color-text-secondary);
+
+    .spin {
+      animation: spin 1s linear infinite;
+    }
+
+    &--idle { color: var(--color-text-secondary); }
+    &--awaiting { color: var(--color-warning); }
+    &--reviewing { color: var(--color-warning); }
+    &--executing { color: var(--color-accent-500); }
+    &--done { color: var(--color-success); }
+  }
+
+  &__progress-text {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover { background: var(--element-bg-soft); }
+    &:disabled { opacity: 0.5; cursor: default; }
+
+    &--confirm {
+      background: var(--color-success);
+      color: #fff;
+      border-color: var(--color-success);
+      &:hover { filter: brightness(0.85); }
+    }
+
+    &--view {
+      color: var(--color-accent-400);
+      border-color: var(--color-accent-200);
+    }
+  }
+
+  &__progress {
+    padding: 0 12px 4px;
+
+    &-track {
+      height: 3px;
+      background: var(--border-subtle);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    &-fill {
+      height: 100%;
+      background: var(--color-accent-500);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+  }
+
+  &__revise {
+    padding: 0 12px 8px;
+
+    &-input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      background: var(--color-bg-primary);
+      color: var(--color-text-primary);
+      font-size: 12px;
+      resize: vertical;
+      min-height: 40px;
+
+      &::placeholder {
+        color: var(--color-text-secondary);
+      }
+    }
+
+    &-actions {
+      margin-top: 4px;
+      display: flex;
+      gap: 6px;
+    }
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

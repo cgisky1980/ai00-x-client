@@ -1,0 +1,27 @@
+site: bilibili
+name: hot
+description: Bilibili hot videos
+domain: www.bilibili.com
+strategy: public
+browser: false
+
+args:
+  limit:
+    type: int
+    default: 20
+    description: Number of videos
+
+pipeline:
+  - fetch:
+      url: "https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all"
+  - select: data.list
+  - map:
+      rank: ${{ index + 1 }}
+      title: ${{ item.title }}
+      author: ${{ item.owner.name }}
+      plays: ${{ item.stat.view }}
+      likes: ${{ item.stat.like }}
+      url: "https://www.bilibili.com/video/${{ item.bvid }}"
+  - limit: ${{ args.limit }}
+
+columns: [rank, title, author, plays, likes, url]

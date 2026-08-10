@@ -1,0 +1,289 @@
+/**
+ * CommentSection — 评论区样式。
+ *
+ * 视觉模式：与 ShareDetailDialog 的 metadata grid 对齐，使用相同的
+ * 字号/颜色/间距。评论项之间用细线分隔，回复表单缩进显示。
+ */
+
+.comment-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary, #e5e5e5);
+
+    svg {
+      opacity: 0.7;
+    }
+
+    // 让标题文字与排序按钮组之间留出间距，排序按钮组靠右对齐
+    > span:first-of-type {
+      margin-right: auto;
+    }
+  }
+
+  // ---- 评论总数徽章 ----
+  &__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 9px;
+    background: var(--bg-info, rgba(74, 158, 255, 0.12));
+    color: var(--text-secondary, #999);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  // ---- 排序切换按钮组 ----
+  &__sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+    padding: 2px;
+    border-radius: 6px;
+    background: var(--bg-input, rgba(0, 0, 0, 0.2));
+  }
+
+  &__sort-btn {
+    background: none;
+    border: none;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--text-secondary, #999);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+
+    &:hover:not(:disabled) {
+      color: var(--text-primary, #e5e5e5);
+    }
+
+    &.is-active {
+      background: var(--accent-primary, #4a9eff);
+      color: #fff;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  // ---- 添加评论表单 ----
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  &__textarea {
+    width: 100%;
+    min-height: 72px;
+    max-height: 200px;
+    resize: vertical;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    border-radius: 6px;
+    background: var(--bg-input, rgba(0, 0, 0, 0.2));
+    color: var(--text-primary, #e5e5e5);
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.5;
+
+    &:focus {
+      outline: none;
+      border-color: var(--accent-primary, #4a9eff);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &__form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  // ---- 登录提示 ----
+  &__login-required {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--bg-info, rgba(74, 158, 255, 0.08));
+    color: var(--text-secondary, #999);
+    font-size: 12px;
+    text-align: center;
+  }
+
+  // ---- 错误提示 ----
+  &__error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--bg-error, rgba(255, 80, 80, 0.08));
+    color: var(--text-error, #ff6b6b);
+    font-size: 12px;
+
+    button {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0 4px;
+    }
+  }
+
+  // ---- 加载中 / 空状态 ----
+  &__loading,
+  &__empty {
+    margin: 12px 0;
+    padding: 16px;
+    text-align: center;
+    color: var(--text-secondary, #999);
+    font-size: 12px;
+  }
+
+  &__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  // ---- 评论列表 ----
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    // 限制列表最大高度，超出滚动（避免评论区过长撑爆对话框）
+    max-height: 360px;
+    overflow-y: auto;
+  }
+
+  &__item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.04));
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    // 回复评论缩进显示（parent_id !== null）
+    &.is-reply {
+      padding-left: 16px;
+      border-left: 2px solid var(--border-color, rgba(255, 255, 255, 0.06));
+      margin-left: 8px;
+    }
+  }
+
+  &__item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  &__item-author {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary, #e5e5e5);
+  }
+
+  &__item-date {
+    font-size: 11px;
+    color: var(--text-tertiary, #666);
+  }
+
+  &__item-edited {
+    font-size: 10px;
+    color: var(--text-tertiary, #666);
+    font-style: italic;
+  }
+
+  &__item-content {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary, #e5e5e5);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__item-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 6px;
+
+    button {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 11px;
+      color: var(--text-secondary, #999);
+      cursor: pointer;
+
+      &:hover {
+        color: var(--text-primary, #e5e5e5);
+      }
+
+      &.is-danger:hover {
+        color: var(--text-error, #ff6b6b);
+      }
+    }
+  }
+
+  // ---- 编辑/回复表单（缩进显示）----
+  &__edit-form,
+  &__reply-form {
+    margin-top: 8px;
+    padding-left: 12px;
+    border-left: 2px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__replying-to {
+    margin: 0;
+    font-size: 11px;
+    color: var(--text-secondary, #999);
+  }
+
+  // ---- 加载更多按钮 ----
+  &__load-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.04));
+  }
+
+  &__count-info {
+    font-size: 11px;
+    color: var(--text-tertiary, #666);
+    font-variant-numeric: tabular-nums;
+  }
+}

@@ -1,0 +1,8 @@
+
+tail.c.png
+size:35,32
+filter:Linear,Linear
+pma:true
+Base/Tails
+  bounds: 0,0,35,32
+  offsets: 5,2,48,36

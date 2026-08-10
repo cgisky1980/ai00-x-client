@@ -1,0 +1,502 @@
+/**
+ * ModelSelector styles.
+ * Shows current model info at the bottom when ChatInput is expanded,
+ * with quick switching support.
+ *
+ * Design guidelines:
+ * - Radius: 4px (button/badge), 6px (dropdown)
+ * - Border: light gray; blue-purple gradient on hover/active
+ * - Shadow: layered soft shadows, avoid harsh glow
+ */
+
+@use '../../component-library/styles/tokens' as *;
+
+.ai00-x-model-selector {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  
+  // ==================== Trigger button ====================
+  
+  &__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 9px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+    opacity: 0.3;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+    
+    // More visible while input is focused
+    .ai00-x-chat-input__box:focus-within & {
+      opacity: 1;
+    }
+    
+    &:hover {
+      background: var(--element-bg-medium);
+      color: var(--color-text-primary);
+      opacity: 1;
+    }
+    
+    &--open {
+      background: rgba(100, 140, 255, 0.15);
+      color: var(--color-text-primary);
+      opacity: 1;
+    }
+    
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+  }
+  
+  &__icon {
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+  }
+  
+  &__name {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  &__thinking-icon {
+    color: var(--color-purple-400);
+    flex-shrink: 0;
+  }
+  
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(100, 140, 255, 0.15);
+    color: rgba(140, 180, 255, 0.9);
+    font-size: 7px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    line-height: 1;
+  }
+
+  &__effort-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(100, 200, 160, 0.15);
+    color: rgba(100, 200, 160, 0.9);
+    font-size: 7px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  &__tier-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    margin-left: 4px;
+
+    &--free {
+      background: rgba(34, 197, 94, 0.15);
+      color: rgba(34, 197, 94, 0.9);
+    }
+
+    &--vip {
+      background: rgba(251, 146, 60, 0.15);
+      color: rgba(251, 146, 60, 0.9);
+    }
+
+    &--svip {
+      background: rgba(168, 85, 247, 0.15);
+      color: rgba(168, 85, 247, 0.9);
+    }
+  }
+
+  // ===== Phase 5.1: 价格徽章 + 模态标签 + 分组图标 =====
+
+  &__price-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 7px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-left: 4px;
+    text-transform: uppercase;
+
+    &--economy {
+      background: rgba(34, 197, 94, 0.18);
+      color: rgba(74, 222, 128, 0.95);
+    }
+  }
+
+  &__modality-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(100, 140, 255, 0.12);
+    color: rgba(140, 180, 255, 0.85);
+    font-size: 7px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-left: 4px;
+  }
+
+  &__group-icon {
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+    margin-right: 3px;
+  }
+
+  &__section-hint {
+    margin-left: auto;
+    font-size: 8px;
+    color: var(--color-text-muted);
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0.7;
+  }
+
+  &__upgrade-hint {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    margin-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--color-text-tertiary);
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+    background: rgba(251, 146, 60, 0.04);
+  }
+
+  &__upgrade-icon {
+    color: rgba(251, 146, 60, 0.8);
+    flex-shrink: 0;
+  }
+
+  &__option--disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+
+    &:hover {
+      background: transparent;
+    }
+  }
+  
+  &__ctx-usage {
+    font-size: 9px;
+    font-weight: 400;
+    color: var(--color-text-muted);
+    opacity: 0.55;
+    letter-spacing: 0.2px;
+    transition: color 0.3s ease, opacity 0.3s ease;
+    flex-shrink: 0;
+
+    &--warning {
+      color: rgba(251, 146, 60, 0.9);
+      opacity: 0.9;
+    }
+
+    &--critical {
+      color: rgba(248, 113, 113, 0.95);
+      opacity: 1;
+      animation: ai00-x-ctx-critical-pulse 2s ease-in-out infinite;
+    }
+  }
+
+  &__chevron {
+    color: var(--color-text-tertiary);
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+    
+    .ai00-x-model-selector__trigger--open & {
+      transform: rotate(180deg);
+    }
+  }
+  
+  // ==================== Dropdown menu ====================
+  
+  &__dropdown {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    min-width: 220px;
+    max-width: 280px;
+    background: var(--color-bg-elevated);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    overflow: hidden;
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.5),
+      0 0 1px rgba(255, 255, 255, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    z-index: $z-dropdown;
+    animation: ai00-x-model-dropdown-fade-in 0.15s ease-out;
+  }
+  
+  &__dropdown-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  &__dropdown-hint {
+    font-size: 9px;
+    color: var(--color-text-tertiary);
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  
+  &__divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 4px 12px;
+  }
+  
+  &__list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 4px 0;
+    
+    // Scrollbar styling
+    &::-webkit-scrollbar {
+      width: 3px;
+    }
+    
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+    }
+  }
+  
+  // ==================== Options ====================
+  
+  &__option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    
+    &:hover {
+      background: var(--color-accent-100);
+    }
+    
+    &--selected {
+      background: var(--element-bg-subtle);
+
+      .ai00-x-model-selector__option-name {
+        color: rgba(140, 180, 255, 0.95);
+      }
+
+      &:hover {
+        background: var(--color-accent-200);
+      }
+    }
+    
+    &--primary {
+      .ai00-x-model-selector__option-name {
+        color: rgba(160, 140, 255, 0.9);
+      }
+      
+      &:hover {
+        background: var(--color-accent-100);
+      }
+    }
+  }
+  
+  &__option-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+  
+  &__option-name {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  &__option-desc {
+    font-size: 9px;
+    color: var(--color-text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__option-provider {
+    color: var(--color-text-muted);
+  }
+
+  &__option-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  &__option-subdesc {
+    font-size: 9px;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  &__option-thinking {
+    color: rgba(180, 160, 255, 0.8);
+    flex-shrink: 0;
+  }
+  
+  &__option-check {
+    color: rgba(100, 180, 255, 0.8);
+    flex-shrink: 0;
+  }
+
+  &__option-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: rgba(100, 140, 255, 0.15);
+    color: rgba(140, 180, 255, 0.9);
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1.4;
+    flex-shrink: 0;
+    margin-left: 4px;
+  }
+
+  &__section-title {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 12px 2px;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--color-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  &__option--locked {
+    opacity: 0.55;
+
+    &:hover {
+      background: rgba(251, 146, 60, 0.08);
+    }
+  }
+
+  &__option-lock {
+    color: rgba(251, 146, 60, 0.9);
+    flex-shrink: 0;
+    margin-left: 2px;
+  }
+
+  :root[data-theme="light"] &,
+  :root[data-theme-type="light"] &,
+  .light & {
+    &__dropdown {
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--border-subtle);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      box-shadow:
+        0 4px 18px rgba(15, 23, 42, 0.04),
+        0 1px 3px rgba(15, 23, 42, 0.03),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    }
+
+    &__dropdown-header {
+      border-bottom-color: var(--border-subtle);
+    }
+
+    &__list::-webkit-scrollbar-thumb {
+      background: rgba(15, 23, 42, 0.08);
+
+      &:hover {
+        background: rgba(15, 23, 42, 0.14);
+      }
+    }
+  }
+}
+
+// Dropdown fade-in animation
+@keyframes ai00-x-model-dropdown-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ai00-x-ctx-critical-pulse {
+  0%, 100% { opacity: 0.8; }
+  50%       { opacity: 1; }
+}

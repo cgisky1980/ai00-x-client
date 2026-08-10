@@ -1,0 +1,16 @@
+
+umbrella.png
+size:221,238
+filter:Linear,Linear
+pma:true
+Extra/Umbrella
+  bounds: 0,0,221,238
+  offsets: 8,5,239,253
+
+candy.png
+size:133,220
+filter:Linear,Linear
+pma:true
+Extra/Candy
+  bounds: 0,0,133,220
+  offsets: 17,13,162,241

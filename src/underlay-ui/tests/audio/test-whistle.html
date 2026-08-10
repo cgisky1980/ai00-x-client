@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whistle Sound Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+            text-align: center;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .whistle-test {
+            background: #2a2a4a;
+            padding: 30px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .note-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .note-btn {
+            padding: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎶 Whistle Sound Test</h1>
+    
+    <div class="status" id="status">
+        <div>Status: <span id="statusText">Not initialized</span></div>
+    </div>
+
+    <div>
+        <button id="initBtn">Initialize System</button>
+    </div>
+
+    <div class="whistle-test">
+        <h2>🎵 Test Whistle Notes</h2>
+        <p>Click on different notes to test the whistle sound:</p>
+        
+        <div class="note-buttons">
+            <button class="note-btn" data-note="C4">C4</button>
+            <button class="note-btn" data-note="D4">D4</button>
+            <button class="note-btn" data-note="E4">E4</button>
+            <button class="note-btn" data-note="F4">F4</button>
+            <button class="note-btn" data-note="G4">G4</button>
+            <button class="note-btn" data-note="A4">A4</button>
+            <button class="note-btn" data-note="B4">B4</button>
+            <button class="note-btn" data-note="C5">C5</button>
+            <button class="note-btn" data-note="D5">D5</button>
+            <button class="note-btn" data-note="E5">E5</button>
+            <button class="note-btn" data-note="F5">F5</button>
+            <button class="note-btn" data-note="G5">G5</button>
+        </div>
+        
+        <div>
+            <button id="melodyBtn" disabled>Play Whistle Melody</button>
+            <button id="stopBtn" disabled>Stop</button>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <label for="volumeSlider">Whistle Volume:</label>
+            <input type="range" id="volumeSlider" min="0" max="100" value="30" style="width: 200px;">
+            <span id="volumeValue">30%</span>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the lofi music system
+        import { LofiMusicSystem } from './src/lib/lofi/lofi-music-system.js';
+
+        let lofiSystem = null;
+
+        // DOM elements
+        const statusText = document.getElementById('statusText');
+        const initBtn = document.getElementById('initBtn');
+        const melodyBtn = document.getElementById('melodyBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const noteButtons = document.querySelectorAll('.note-btn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+
+        // Update UI state
+        function updateUI() {
+            if (!lofiSystem) return;
+            
+            const state = lofiSystem.getState();
+            statusText.textContent = state.isReady ? 'Ready - Whistle selected' : state.isLoading ? 'Loading...' : 'Not Ready';
+            
+            // Update button states
+            initBtn.disabled = state.isReady || state.isLoading;
+            melodyBtn.disabled = !state.isReady;
+            stopBtn.disabled = !state.isReady;
+            
+            noteButtons.forEach(btn => {
+                btn.disabled = !state.isReady;
+            });
+        }
+
+        // Test single note
+        function testNote(note) {
+            if (!lofiSystem || !lofiSystem.getState().isReady) return;
+            
+            try {
+                console.log(`Testing whistle note: ${note}`);
+                lofiSystem.testInstrument(note);
+            } catch (error) {
+                console.error(`Failed to test note ${note}:`, error);
+            }
+        }
+
+        // Play a simple melody
+        async function playWhistleMelody() {
+            if (!lofiSystem || !lofiSystem.getState().isReady) return;
+            
+            try {
+                // Create a simple whistle preset
+                const whistlePreset = {
+                    id: 'whistle-test',
+                    name: 'Whistle Test',
+                    bpm: 90,
+                    chords: ['C', 'Am', 'F', 'G'],
+                    instrument: 'whistle'
+                };
+
+                console.log('Playing whistle melody...');
+                await lofiSystem.loadPreset(whistlePreset);
+                
+            } catch (error) {
+                console.error('Failed to play whistle melody:', error);
+            }
+        }
+
+        // Event listeners
+        initBtn.addEventListener('click', async () => {
+            try {
+                console.log('Initializing system...');
+                lofiSystem = new LofiMusicSystem();
+                
+                lofiSystem.on('ready', () => {
+                    console.log('System ready, switching to whistle...');
+                    // Switch to whistle instrument
+                    lofiSystem.switchInstrument('whistle');
+                    updateUI();
+                });
+                
+                lofiSystem.on('loading', () => {
+                    updateUI();
+                });
+                
+                lofiSystem.on('error', (data) => {
+                    console.error('System error:', data.error);
+                    updateUI();
+                });
+                
+                await lofiSystem.initialize();
+                updateUI();
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                updateUI();
+            }
+        });
+
+        // Note button listeners
+        noteButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const note = btn.dataset.note;
+                testNote(note);
+            });
+        });
+
+        melodyBtn.addEventListener('click', playWhistleMelody);
+
+        stopBtn.addEventListener('click', () => {
+            if (lofiSystem) {
+                lofiSystem.stop();
+            }
+        });
+
+        // Volume control
+        volumeSlider.addEventListener('input', (e) => {
+            const volume = e.target.value / 100;
+            volumeValue.textContent = `${e.target.value}%`;
+            if (lofiSystem && lofiSystem.getState().isReady) {
+                lofiSystem.setVolume(volume);
+                console.log(`Volume set to ${e.target.value}%`);
+            }
+        });
+
+        // Initialize UI
+        updateUI();
+    </script>
+</body>
+</html>

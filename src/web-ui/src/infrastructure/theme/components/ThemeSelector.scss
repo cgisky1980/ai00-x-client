@@ -1,0 +1,99 @@
+.theme-selector {
+    display: flex;
+    align-items: center;
+
+    &--compact {
+        gap: 6px;
+
+        .theme-selector__mode-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            padding: 0;
+            border: 1px solid transparent;
+            border-radius: var(--radius-sm, 4px);
+            background: transparent;
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+
+            &:hover:not(:disabled) {
+                background: var(--element-bg-base, var(--color-bg-tertiary));
+                color: var(--color-text-primary);
+            }
+
+            &:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+        }
+
+        .theme-selector__hue-slider {
+            width: 80px;
+            flex-shrink: 0;
+        }
+    }
+
+    &--full {
+        flex-direction: column;
+        gap: 8px;
+        width: 100%;
+
+        .theme-selector__controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .theme-selector__mode-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: 1px solid transparent;
+            border-radius: var(--radius-sm, 4px);
+            background: transparent;
+            color: var(--color-text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+
+            &:hover:not(:disabled) {
+                background: var(--element-bg-base, var(--color-bg-tertiary));
+                color: var(--color-text-primary);
+            }
+
+            &--active {
+                background: var(--element-bg-medium, var(--color-accent-100));
+                color: var(--color-accent-500);
+                border-color: var(--color-accent-200);
+            }
+
+            &:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+        }
+
+        .theme-selector__hue-section {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .theme-selector__hue-label {
+            font-size: 11px;
+            color: var(--color-text-muted);
+            flex-shrink: 0;
+        }
+
+        .theme-selector__hue-slider {
+            flex: 1;
+            min-width: 0;
+        }
+    }
+}

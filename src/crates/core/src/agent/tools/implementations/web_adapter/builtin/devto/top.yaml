@@ -1,0 +1,26 @@
+site: devto
+name: top
+description: DEV Community top posts
+domain: dev.to
+strategy: public
+browser: false
+
+args:
+  limit:
+    type: int
+    default: 20
+    description: Number of posts
+
+pipeline:
+  - fetch:
+      url: "https://dev.to/api/articles?top=true&per_page=${{ args.limit }}"
+  - map:
+      rank: ${{ index + 1 }}
+      title: ${{ item.title }}
+      author: ${{ item.user.name }}
+      reactions: ${{ item.positive_reactions_count }}
+      comments: ${{ item.comments_count }}
+      url: ${{ item.url }}
+  - limit: ${{ args.limit }}
+
+columns: [rank, title, author, reactions, comments, url]

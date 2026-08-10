@@ -1,0 +1,537 @@
+{
+  "title": "Settings",
+  "exitSettings": "Exit Settings",
+  "configCenter": {
+    "title": "Settings",
+    "selectConfig": "Select Configuration",
+    "searchPlaceholder": "Search settings…",
+    "searchNoResults": "No matching settings",
+    "searchClear": "Clear search",
+    "beta": "Beta",
+    "tabDescriptions": {
+      "ui": "Interface language, theme, fonts, and notification preferences.",
+      "system": "Launch at login, logging level, and default terminal shell.",
+      "voiceSettings": "Audio input/output devices and voice input trigger parameters.",
+      "basics": "Language, theme, logging, terminal shell, and launch at login.",
+      "taskModels": "AI text models, API keys, providers, and proxy.",
+      "voiceModels": "ASR speech recognition and TTS speech synthesis engine management.",
+      "models": "AI models, API keys, providers, and proxy.",
+      "voice": "Audio devices, voice input, and speech recognition.",
+      "assistant": "VRM avatar, persona, and TTS voice.",
+      "gesture": "Mouse spell recognition and custom spells.",
+      "gestureConfig": "Enable spell functionality and set grid spacing.",
+      "gestureTemplates": "Record, edit, and manage custom spell templates and action bindings.",
+      "gestureActions": "Manage saved actions such as running programs and scripts.",
+      "clickEffect": "Customize mouse click effects and blessing words.",
+      "smartDesktop": "Desktop replacement mode, grid layout, and smart desktop features.",
+      "memory": "Knowledge graph, search, and maintenance.",
+      "account": "User account and sign out.",
+      "about": "Version, updates, and license."
+    },
+    "categories": {
+      "basic": "Basic",
+      "models": "Models",
+      "assistant": "Assistant",
+      "spells": "Spells",
+      "desktopBeautify": "Desktop"
+    },
+    "tabs": {
+      "ui": "UI Settings",
+      "system": "System Settings",
+      "voiceSettings": "Voice Settings",
+      "basics": "Basics",
+      "taskModels": "Task Models",
+      "voiceModels": "Voice Models",
+      "models": "Models",
+      "voice": "Voice",
+      "assistant": "Assistant",
+      "gesture": "Spell",
+      "gestureConfig": "Spell Settings",
+      "gestureTemplates": "Gesture List",
+      "gestureActions": "Action Settings",
+      "clickEffect": "Click Effects",
+      "smartDesktop": "Smart Desktop",
+      "memory": "Memory",
+      "account": "Account",
+      "about": "About"
+    },
+    "gesture": {
+      "enabled": "Enable Spell",
+      "configSubtitle": "Enable or disable spell recognition and adjust mouse trail capture grid accuracy",
+      "templateSubtitle": "Record, edit, and manage custom spell templates with action bindings",
+      "gridSize": "Grid Size",
+      "gridSpacing": "Grid Spacing",
+      "longPress": "Long Press Threshold",
+      "builtinPatterns": "Built-in Spells",
+      "customTemplates": "Custom Spells",
+      "recordPattern": "Record Spell",
+      "recording": "Recording...",
+      "drawPatternHint": "Drag across dots on the grid to draw a spell",
+      "minTwoPointsHint": "At least 2 points required to save",
+      "enterName": "Enter spell name",
+      "save": "Save",
+      "retry": "Retry",
+      "cancel": "Cancel",
+      "deleteTemplate": "Delete",
+      "edit": "Edit",
+      "clickToRename": "Click to rename",
+      "startNode": "Group {{node}}",
+      "clickToRenameGroup": "Click to rename group",
+      "pointCount": "{{count}} points",
+      "templateCount": "{{count}} templates",
+      "bindAction": "Bind Action",
+      "commandPlaceholder": "Enter command...",
+      "actions": {
+        "VrmShow": "Show VRM",
+        "VrmHide": "Hide VRM",
+        "OpenSettings": "Open Settings",
+        "OpenMain": "Open Main",
+        "ToggleUnderlay": "Toggle Smart Desktop",
+        "CustomCommand": "Custom Command",
+        "None": "Effects Only",
+        "savedActions": "Saved Actions",
+        "addAction": "Add Action",
+        "editAction": "Edit Action",
+        "deleteAction": "Delete Action",
+        "actionName": "Action Name",
+        "command": "Command / Program Path",
+        "args": "Arguments (space separated)",
+        "workingDir": "Working Directory",
+        "noActions": "No saved actions. Click the button below to add one.",
+        "browseFile": "Browse...",
+        "browseDir": "Browse Directory..."
+      }
+    }
+  },
+  "clickEffect": {
+    "title": "Click Effects",
+    "subtitle": "Customize blessing words and effects shown on mouse click",
+    "enabled": "Enable Click Effects",
+    "blessingWords": "Blessing Words",
+    "blessingWordsHint": "Click to edit or delete, press Enter to add new word",
+    "addWord": "Add Word",
+    "addWordPlaceholder": "Enter blessing word…",
+    "resetToDefault": "Reset to Default",
+    "preview": "Preview",
+    "valueRange": "Value Range",
+    "valueRangeHint": "Random number range displayed on click",
+    "minValue": "Min Value",
+    "maxValue": "Max Value"
+  },
+  "general": {
+    "title": "General",
+    "language": {
+      "title": "Language",
+      "description": "Select interface language",
+      "auto": "Auto Detect"
+    },
+    "theme": {
+      "title": "Theme",
+      "description": "Select interface theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "Follow System"
+    },
+    "startup": {
+      "title": "Startup",
+      "restoreSession": "Restore Previous Task",
+      "showWelcome": "Show Welcome Page"
+    }
+  },
+  "editor": {
+    "title": "Editor",
+    "font": {
+      "title": "Font",
+      "family": "Font Family",
+      "size": "Font Size",
+      "lineHeight": "Line Height"
+    },
+    "display": {
+      "title": "Display",
+      "wordWrap": "Word Wrap",
+      "minimap": "Show Minimap",
+      "lineNumbers": "Show Line Numbers",
+      "breadcrumbs": "Show Breadcrumbs",
+      "whitespace": "Show Whitespace"
+    },
+    "behavior": {
+      "title": "Behavior",
+      "autoSave": "Auto Save",
+      "autoSaveDelay": "Auto Save Delay",
+      "formatOnSave": "Format on Save",
+      "formatOnPaste": "Format on Paste"
+    },
+    "indentation": {
+      "title": "Indentation",
+      "type": "Indentation Type",
+      "spaces": "Spaces",
+      "tabs": "Tabs",
+      "size": "Indentation Size"
+    }
+  },
+  "ai": {
+    "title": "AI Settings",
+    "model": {
+      "title": "Model",
+      "select": "Select Model",
+      "provider": "Provider",
+      "apiKey": "API Key",
+      "baseUrl": "Base URL",
+      "add": "Add Model",
+      "edit": "Edit Model",
+      "delete": "Delete Model"
+    },
+    "behavior": {
+      "title": "Behavior",
+      "streaming": "Streaming",
+      "temperature": "Temperature",
+      "maxTokens": "Max Tokens",
+      "contextLength": "Context Length"
+    },
+    "agent": {
+      "title": "Agent",
+      "defaultAgent": "Default Agent",
+      "customAgents": "Custom Agents"
+    }
+  },
+  "terminal": {
+    "title": "Terminal",
+    "shell": {
+      "title": "Shell",
+      "default": "Default Shell",
+      "profiles": "Shell Profiles"
+    },
+    "display": {
+      "title": "Display",
+      "fontSize": "Font Size",
+      "fontFamily": "Font Family",
+      "cursorStyle": "Cursor Style",
+      "scrollback": "Scrollback Lines"
+    }
+  },
+  "workspace": {
+    "title": "Workspace",
+    "files": {
+      "title": "Files",
+      "exclude": "Exclude Files",
+      "watcherExclude": "Exclude from Watcher",
+      "associations": "File Associations"
+    },
+    "search": {
+      "title": "Search",
+      "exclude": "Exclude from Search",
+      "useIgnoreFiles": "Use Ignore Files"
+    }
+  },
+  "advanced": {
+    "title": "Advanced",
+    "experimental": {
+      "title": "Experimental Features",
+      "description": "These features may be unstable"
+    },
+    "debug": {
+      "title": "Debug",
+      "logging": "Enable Logging",
+      "developerTools": "Developer Tools"
+    },
+    "data": {
+      "title": "Data",
+      "export": "Export Settings",
+      "import": "Import Settings",
+      "reset": "Reset All Settings",
+      "resetConfirm": "Are you sure you want to reset all settings? This action cannot be undone."
+    }
+  },
+  "about": {
+    "title": "About",
+    "version": "Version",
+    "checkUpdate": "Check for Updates",
+    "changelog": "Changelog",
+    "license": "License",
+    "openSource": "Open Source Licenses",
+    "feedback": "Feedback",
+    "reportIssue": "Report Issue",
+    "documentation": "Documentation"
+  },
+  "aiModel": {
+    "title": "Model Configuration",
+    "subtitle": "Configure AI models and API keys",
+    "addModel": "Add Model",
+    "editModel": "Edit Model Configuration",
+    "newModel": "New Model Configuration",
+    "editSubtitle": "Basic Model Parameters",
+    "deleteModel": "Delete Model",
+    "confirmDelete": "Are you sure you want to delete this configuration?",
+    "modelName": "Model Name",
+    "modelId": "Model ID",
+    "provider": "Request Format",
+    "providerPlaceholder": "Select request format",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter your API Key",
+    "baseUrl": "API URL",
+    "baseUrlPlaceholder": "Enter API URL (optional)",
+    "configName": "Configuration Name",
+    "configNamePlaceholder": "Give this configuration a name",
+    "maxTokens": "Max Output Tokens",
+    "maxTokensHint": "Maximum tokens for model output per request (affects response length)",
+    "contextWindow": "Context Window Size",
+    "contextWindowHint": "Maximum context window size supported by the model (for calculating token usage percentage)",
+    "temperature": "Temperature",
+    "streaming": "Streaming",
+    "enabled": "Enabled",
+    "test": "Test Connection",
+    "testing": "Testing...",
+    "testSuccess": "Connection successful",
+    "testFailed": "Connection failed",
+    "noModels": "No model configurations",
+    "noModelsHint": "Click the button above to add your first AI model",
+    "createFirst": "Create First Configuration",
+    "noMatchingModels": "No matching models found",
+    "searchPlaceholder": "Search model name, provider...",
+    "newConfig": "New Configuration",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "description": "Description",
+    "descriptionPlaceholder": "Configuration description (optional)",
+    "tabs": {
+      "api": "API Configuration",
+      "proxy": "Proxy Configuration"
+    },
+    "categories": {
+      "all": "All",
+      "text": "Text",
+      "multimodal": "Image",
+      "other": "Utility"
+    },
+    "category": {
+      "label": "Model Category",
+      "placeholder": "Select model category",
+      "general_chat": "Text Generation",
+      "multimodal": "Image Understanding",
+      "image_generation": "Image Generation",
+      "speech_recognition": "Speech Recognition"
+    },
+    "categoryHints": {
+      "general_chat": "Text Generation: Generate text responses, code, etc. for most conversation scenarios",
+      "multimodal": "Image Understanding: Understand image content and have mixed text-image conversations",
+      "image_generation": "Image Generation: Generate images from text descriptions",
+      "speech_recognition": "Speech Recognition: Convert speech to text (e.g., GLM-ASR)"
+    },
+    "modelNameHint": "GLM-ASR uses glm-asr, other speech models use their corresponding model names",
+    "thinking": {
+      "enable": "Enable Thinking",
+      "enableHint": "Requires model to support thinking mode"
+    },
+    "details": {
+      "basicInfo": "Basic Information",
+      "modelName": "Model Name",
+      "provider": "Request Format",
+      "apiUrl": "API URL",
+      "contextWindow": "Context Window",
+      "maxOutput": "Max Output",
+      "description": "Description",
+      "tokens": "tokens"
+    },
+    "proxy": {
+      "enable": "Enable Proxy",
+      "enableHint": "When enabled, all AI requests will be sent through proxy (requires IDE restart)",
+      "url": "Proxy URL",
+      "urlPlaceholder": "http://127.0.0.1:7890 or socks5://127.0.0.1:1080",
+      "urlHint": "Supports HTTP/HTTPS/SOCKS5 proxy, format: protocol://address:port",
+      "username": "Username (optional)",
+      "usernamePlaceholder": "Proxy authentication username",
+      "password": "Password (optional)",
+      "passwordPlaceholder": "Proxy authentication password",
+      "save": "Save Proxy Configuration",
+      "saveSuccess": "Proxy configuration saved, restart IDE to take effect"
+    },
+    "messages": {
+      "fillRequired": "Please fill in required fields",
+      "fillModelName": "Please fill in model name",
+      "saveFailed": "Save failed",
+      "deleteFailed": "Failed to delete configuration",
+      "loadFailed": "Failed to load AI configuration",
+      "errorDetails": "Error details"
+    },
+    "capabilities": {
+      "text_chat": "Chat",
+      "image_understanding": "Vision",
+      "image_generation": "Image",
+      "search": "Search",
+      "function_calling": "Tools",
+      "speech_recognition": "Speech"
+    }
+  },
+  "superAgent": {
+    "title": "Super Agent",
+    "subtitle": "Configure main agent model assignments",
+    "textChat": "Text Task",
+    "textChatDesc": "Handle daily tasks and Q&A",
+    "codeGeneration": "Code Generation",
+    "codeGenerationDesc": "Generate and complete code",
+    "codeReview": "Code Review",
+    "codeReviewDesc": "Review and optimize code",
+    "planning": "Task Planning",
+    "planningDesc": "Decompose and plan complex tasks",
+    "selectModel": "Select Model",
+    "notConfigured": "Not Configured",
+    "configured": "Configured",
+    "modelUpdated": "{{capability}} updated to {{modelName}}",
+    "capabilities": {
+      "text_chat": "Text Task Model",
+      "image_understanding": "Image Understanding Model",
+      "image_generation": "Image Generation Model",
+      "search": "Search API Model",
+      "speech_recognition": "Speech Recognition Model"
+    },
+    "capabilityDescs": {
+      "text_chat": "Handles all text tasks, code generation, tool calls, etc.",
+      "image_understanding": "Analyzes and understands image content, supports mixed text-image conversations",
+      "image_generation": "Generates images from text descriptions (e.g., DALL-E, Stable Diffusion)",
+      "search": "Real-time web search for latest data support",
+      "speech_recognition": "Converts speech to text, supports voice input (e.g., GLM-ASR)"
+    }
+  },
+  "aiFeatures": {
+    "title": "AI Features",
+    "subtitle": "Configure AI enhancement features",
+    "codeCompletion": "Code Completion",
+    "codeCompletionDesc": "Intelligent code completion suggestions",
+    "inlineChat": "Inline Task",
+    "inlineChatDesc": "Interact with AI directly in the editor",
+    "semanticSearch": "Semantic Search",
+    "semanticSearchDesc": "Semantic-based code search",
+    "autoFix": "Auto Fix",
+    "autoFixDesc": "Automatically fix code errors and warnings"
+  },
+  "aiRules": {
+    "title": "Rules",
+    "subtitle": "Configure AI behavior rules and constraints",
+    "addRule": "Add Rule",
+    "editRule": "Edit Rule",
+    "deleteRule": "Delete Rule",
+    "ruleName": "Rule Name",
+    "ruleContent": "Rule Content",
+    "priority": "Priority",
+    "enabled": "Enabled",
+    "noRules": "No rules",
+    "noRulesHint": "Add rules to constrain AI behavior"
+  },
+  "aiMemory": {
+    "title": "Memory",
+    "subtitle": "Manage AI context memory",
+    "clearMemory": "Clear Memory",
+    "confirmClear": "Are you sure you want to clear all memory? This action cannot be undone.",
+    "memorySize": "Memory Size",
+    "lastUpdated": "Last Updated"
+  },
+  "modes": {
+    "title": "Modes",
+    "subtitle": "Configure different working modes",
+    "agentMode": "Agent Mode",
+    "agentModeDesc": "AI can execute code and use tools",
+    "chatMode": "Task Mode",
+    "chatModeDesc": "Pure task, no actions",
+    "askMode": "Ask Mode",
+    "askModeDesc": "Read-only mode, only answer questions"
+  },
+  "agentTools": {
+    "title": "Tool Settings",
+    "subtitle": "Configure Core tool permissions and behavior",
+    "fileOperations": "File Operations",
+    "fileOperationsDesc": "Allow AI to read and write files",
+    "terminalAccess": "Terminal Access",
+    "terminalAccessDesc": "Allow AI to execute terminal commands",
+    "webSearch": "Web Search",
+    "webSearchDesc": "Allow AI to search the web",
+    "browserControl": "Browser Control",
+    "browserControlDesc": "Allow AI to control the browser"
+  },
+  "skills": {
+    "title": "Skills",
+    "subtitle": "Manage AI skill extensions",
+    "addSkill": "Add Skill",
+    "noSkills": "No skills",
+    "noSkillsHint": "Skills can extend AI capabilities"
+  },
+  "agents": {
+    "title": "Agents",
+    "subtitle": "Configure agents",
+    "addAgent": "Add Agent",
+    "noAgents": "No sub-agents",
+    "noAgentsHint": "Sub-agents can handle specific types of tasks"
+  },
+  "mcp": {
+    "title": "MCP",
+    "subtitle": "Manage MCP server connections",
+    "addServer": "Add Server",
+    "serverName": "Server Name",
+    "serverUrl": "Server URL",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "noServers": "No MCP servers",
+    "noServersHint": "Add MCP servers to extend functionality"
+  },
+  "editorConfig": {
+    "title": "Editor",
+    "subtitle": "Configure code editor",
+    "fontSize": "Font Size",
+    "fontFamily": "Font Family",
+    "lineHeight": "Line Height",
+    "tabSize": "Tab Size",
+    "wordWrap": "Word Wrap",
+    "minimap": "Show Minimap",
+    "lineNumbers": "Show Line Numbers"
+  },
+  "lspConfig": {
+    "title": "LSP",
+    "subtitle": "Configure language servers",
+    "installedServers": "Installed Language Servers",
+    "noServers": "No language servers",
+    "noServersHint": "Language servers provide code intelligence features"
+  },
+  "debugConfig": {
+    "title": "Debug",
+    "subtitle": "Configure debug options",
+    "enableLogging": "Enable Logging",
+    "logLevel": "Log Level",
+    "developerTools": "Developer Tools"
+  },
+  "terminalConfig": {
+    "title": "Terminal",
+    "subtitle": "Configure integrated terminal",
+    "shell": "Default Shell",
+    "fontSize": "Font Size",
+    "fontFamily": "Font Family",
+    "cursorStyle": "Cursor Style",
+    "scrollback": "Scrollback Lines"
+  },
+  "configPageHeaderExample": {
+    "basic": {
+      "title": "Basic Settings"
+    },
+    "apiNetwork": {
+      "title": "API & Network",
+      "subtitle": "Configure and manage AI models, including API keys and default model settings"
+    },
+    "learning": {
+      "title": "Learning & Knowledge",
+      "subtitle": "Manage AI memory, knowledge bases, and skills",
+      "import": "Import",
+      "addMemory": "Add Memory"
+    },
+    "agents": {
+      "title": "Agent Configuration",
+      "subtitle": "Configure and manage agents, including function agents and super agents",
+      "create": "Create Agent"
+    },
+    "theme": {
+      "title": "Theme Settings",
+      "subtitle": "Customize the app appearance and theme colors",
+      "import": "Import Theme",
+      "export": "Export Current Theme"
+    }
+  }
+}

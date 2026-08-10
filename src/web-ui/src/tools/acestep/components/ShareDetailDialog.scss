@@ -1,0 +1,209 @@
+@use '../styles/tokens' as t;
+
+.share-detail-dialog {
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  // ---- Cover (large, centered) ----
+  &__cover {
+    width: 100%;
+    max-width: 220px;
+    aspect-ratio: 1 / 1;
+    margin: 0 auto;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--element-bg-base);
+  }
+
+  &__cover-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  &__cover-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    background: linear-gradient(
+      135deg,
+      var(--element-bg-base),
+      var(--element-bg-strong)
+    );
+  }
+
+  // ---- Header (title + author) ----
+  &__header {
+    text-align: center;
+  }
+
+  &__header-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__header-artist {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    svg {
+      opacity: 0.7;
+    }
+  }
+
+  // ---- Stats banner ----
+  &__stats {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    background: var(--element-bg-soft);
+    border: 1px solid var(--border-subtle);
+  }
+
+  &__stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+
+    svg {
+      color: var(--color-text-muted);
+    }
+  }
+
+  &__stat-label {
+    color: var(--color-text-muted);
+  }
+
+  &__stat-value {
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  &__stats-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.72rem;
+    color: var(--color-warning, #f5a623);
+    background: rgba(245, 166, 35, 0.1);
+    border-radius: 6px;
+  }
+
+  // ---- Metadata grid (dl) ----
+  &__meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    background: var(--element-bg-soft);
+    border: 1px solid var(--border-subtle);
+  }
+
+  &__meta-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.8rem;
+    min-width: 0;
+  }
+
+  &__meta-row dt {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    min-width: 110px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+
+    svg {
+      opacity: 0.7;
+    }
+  }
+
+  &__meta-row dd {
+    margin: 0;
+    flex: 1;
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // ---- Share ID (mono) ----
+  &__share-id {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    padding: 0.4rem 0.6rem;
+    background: var(--element-bg-base);
+    border-radius: 6px;
+    border: 1px dashed var(--border-subtle);
+
+    code {
+      font-family: 'Menlo', 'Consolas', monospace;
+      color: var(--color-text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+  }
+
+  &__share-id-label {
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  // ---- Actions ----
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  &__btn-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: ai00-x-share-detail-spin 0.8s linear infinite;
+  }
+}
+
+@keyframes ai00-x-share-detail-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

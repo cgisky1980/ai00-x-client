@@ -1,0 +1,23 @@
+[package]
+name = "ai00-x-git"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Ai00-X Git Service - Git operations and repository management"
+
+[lib]
+name = "ai00_x_git"
+crate-type = ["rlib"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+tokio = { workspace = true }
+log = { workspace = true }
+
+git2 = { workspace = true }
+
+[target.'cfg(not(windows))'.dependencies]
+git2 = { workspace = true, features = ["vendored-openssl"] }

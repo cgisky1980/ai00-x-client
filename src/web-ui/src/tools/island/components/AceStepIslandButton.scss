@@ -1,0 +1,56 @@
+// ACE-Step island-side launcher button.
+// Sits to the right of the Dynamic Island (which is fixed at top:8px, centered,
+// max half-width 190px in expanded state). Same visual language as the island:
+// dark elevated bg, blur, primary-tinted border.
+
+.ai00-x-acestep-island-btn {
+  position: fixed;
+  top: 8px;
+  // 190px = half of island expanded width (380px); 12px gap
+  left: calc(50% + 190px + 12px);
+  z-index: 50009;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  pointer-events: auto;
+  border-radius: 20px;
+  border: 1px solid color-mix(in oklch, var(--color-primary, #6c8aff) 25%, transparent);
+  background: color-mix(in oklch, #42425a 92%, transparent);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    0 0 16px color-mix(in oklch, var(--color-primary, #6c8aff) 8%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 10%, transparent);
+  color: #f8f8fa;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    background: color-mix(in oklch, #52526a 92%, transparent);
+    box-shadow:
+      0 6px 28px rgba(0, 0, 0, 0.35),
+      0 0 20px color-mix(in oklch, var(--color-primary, #6c8aff) 16%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 14%, transparent);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &.is-busy {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  &:disabled {
+    cursor: wait;
+  }
+}

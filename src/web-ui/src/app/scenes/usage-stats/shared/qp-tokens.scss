@@ -1,0 +1,74 @@
+// Patina Quiet Pro design tokens — bridged to web-ui's --color-* system.
+//
+// All --qp-* variables are scoped to .usage-stats-scene so they don't leak
+// into the rest of the app. Light and dark themes are derived automatically
+// from the underlying --color-* variables that already switch with the
+// data-theme-type attribute.
+
+.usage-stats-scene {
+  // ── Backgrounds ───────────────────────────────────────────────────────
+  --qp-bg-app: var(--color-bg-scene);
+  --qp-bg-canvas: var(--color-bg-primary);
+  --qp-bg-panel: var(--card-bg);
+  --qp-bg-elevated: var(--color-bg-tertiary);
+
+  // ── Borders ──────────────────────────────────────────────────────────
+  --qp-border-subtle: var(--border-base);
+  --qp-border-strong: var(--border-medium);
+
+  // ── Text ─────────────────────────────────────────────────────────────
+  --qp-text-primary: var(--color-text-primary);
+  --qp-text-secondary: var(--color-text-secondary);
+  --qp-text-tertiary: var(--color-text-muted);
+  --qp-text-disabled: var(--color-text-disabled);
+
+  // ── Accent ────────────────────────────────────────────────────────────
+  --qp-accent-default: var(--color-accent-500);
+  --qp-accent-muted: var(--color-accent-100);
+
+  // ── Status colors ────────────────────────────────────────────────────
+  --qp-success: var(--color-success, #34d399);
+  --qp-warning: var(--color-warning, #f59e0b);
+  --qp-danger: var(--color-error, #ef4444);
+  --qp-participation: var(--color-accent-400);
+
+  // ── Controls ─────────────────────────────────────────────────────────
+  --qp-control-off: var(--color-text-disabled);
+  --qp-track-muted: var(--element-bg-subtle, rgba(128, 128, 128, 0.12));
+  --qp-badge-subtle: var(--color-bg-tertiary);
+  --qp-control-thumb: var(--color-text-primary);
+
+  // ── Scrollbars ───────────────────────────────────────────────────────
+  --qp-scrollbar-default: var(--color-text-muted);
+  --qp-scrollbar-hover: var(--color-text-secondary);
+
+  // ── Charts ───────────────────────────────────────────────────────────
+  --qp-chart-cursor: color-mix(in srgb, var(--color-accent-500) 12%, transparent);
+  --qp-chart-grid: color-mix(in srgb, var(--color-text-muted) 25%, transparent);
+
+  // ── Radii ────────────────────────────────────────────────────────────
+  --qp-radius-panel: 14px;
+  --qp-radius-control: 10px;
+  --qp-radius-chip: 8px;
+
+  // ── Shadows ──────────────────────────────────────────────────────────
+  --qp-shadow-overlay: 0 10px 24px rgba(17, 24, 39, 0.08);
+  --qp-shadow-toast: 0 8px 20px rgba(17, 24, 39, 0.1);
+
+  // ── Spacing ──────────────────────────────────────────────────────────
+  --qp-space-page: 24px;
+  --qp-space-section: 20px;
+  --qp-space-group: 14px;
+  --qp-row-height: 42px;
+
+  // ── Motion ──────────────────────────────────────────────────────────
+  --qp-motion-fast: 120ms;
+  --qp-motion-base: 180ms;
+  --qp-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+// Dark-mode-specific shadow adjustments.
+:root[data-theme-type='dark'] .usage-stats-scene {
+  --qp-shadow-overlay: 0 10px 24px rgba(0, 0, 0, 0.28);
+  --qp-shadow-toast: 0 8px 20px rgba(0, 0, 0, 0.3);
+}

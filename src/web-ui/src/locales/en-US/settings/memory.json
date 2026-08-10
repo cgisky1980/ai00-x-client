@@ -1,0 +1,83 @@
+{
+  "title": "Memory",
+  "subtitle": "Knowledge graph and memory management",
+  "memoryTypes": {
+    "tech_preference": "Tech Preference",
+    "project_context": "Project Context",
+    "user_habit": "User Habit",
+    "code_pattern": "Code Pattern",
+    "decision": "Decision",
+    "other": "Other"
+  },
+  "section": {
+    "memoryList": {
+      "title": "AI Memory",
+      "description": "Manage memory points injected into AI prompts"
+    },
+    "insights": {
+      "title": "Insights Reports",
+      "description": "AI-generated insights from your sessions",
+      "recentReports": "Recent Reports"
+    },
+    "knowledgeGraph": {
+      "title": "Knowledge Graph",
+      "description": "Structured knowledge relationships",
+      "comingSoon": "Knowledge graph features will be available soon."
+    }
+  },
+  "list": {
+    "loading": "Loading...",
+    "empty": {
+      "title": "No memory points yet"
+    },
+    "item": {
+      "contentLabel": "Content",
+      "sourcePrefix": "Source: ",
+      "createdPrefix": "Created: "
+    }
+  },
+  "toolbar": {
+    "addTooltip": "Add Memory"
+  },
+  "actions": {
+    "enable": "Enable",
+    "disable": "Disable",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "messages": {
+    "loadFailed": "Failed to load memories: {{error}}",
+    "confirmDelete": "Are you sure you want to delete this memory?",
+    "deleteSuccess": "Memory deleted",
+    "deleteFailed": "Failed to delete: {{error}}",
+    "toggleFailed": "Failed to toggle: {{error}}",
+    "validationError": "Title and content are required",
+    "createSuccess": "Memory created",
+    "updateSuccess": "Memory updated",
+    "saveFailed": "Failed to save: {{error}}"
+  },
+  "dialog": {
+    "titleCreate": "Add Memory",
+    "titleEdit": "Edit Memory",
+    "fields": {
+      "title": "Title",
+      "titlePlaceholder": "Enter title...",
+      "type": "Type",
+      "importance": "Importance",
+      "content": "Content",
+      "contentPlaceholder": "Enter content...",
+      "tags": "Tags",
+      "tagsPlaceholder": "Comma-separated tags..."
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving..."
+    }
+  },
+  "date": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "daysAgo": "{{days}}d ago"
+  }
+}

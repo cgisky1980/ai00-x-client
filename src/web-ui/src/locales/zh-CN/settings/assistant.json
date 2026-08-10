@@ -1,0 +1,83 @@
+{
+  "title": "助手",
+  "subtitle": "VRM 虚拟形象、人设与 TTS 语音设置",
+  "comingSoon": "助手设置即将上线。",
+  "roster": {
+    "title": "角色阵容",
+    "subtitle": "召唤和管理你的 VRM 助手",
+    "summon": "召唤新角色"
+  },
+  "persona": {
+    "title": "助手",
+    "description": "管理你的 VRM 助手",
+    "add": "添加助手",
+    "edit": "编辑",
+    "editTitle": "编辑助手",
+    "delete": "删除",
+    "activate": "激活",
+    "active": "当前使用",
+    "newName": "新助手",
+    "name": "名称",
+    "namePlaceholder": "输入名称...",
+    "gender": "性别",
+    "identity": "身份",
+    "personality": "性格",
+    "userTitle": "用户称呼",
+    "language": "语言",
+    "optionalTics": "口癖",
+    "noTics": "无",
+    "customPrompt": "自定义提示词"
+  },
+  "appearance": {
+    "title": "外观",
+    "vrmModel": "VRM 模型",
+    "defaultModel": "默认",
+    "scale": "形象大小",
+    "headScale": "头部大小",
+    "captureAvatar": "截取头像"
+  },
+  "display": {
+    "title": "显示",
+    "visible": "显示虚拟形象",
+    "visibleDesc": "在屏幕上显示 VRM 虚拟形象",
+    "scale": "形象大小",
+    "headScale": "头部大小"
+  },
+  "voice": {
+    "title": "声音",
+    "ttsSpeaker": "TTS 说话人",
+    "voiceStyle": "声音风格",
+    "noSpeaker": "默认"
+  },
+  "tts": {
+    "title": "TTS 语音",
+    "selectSpeaker": "选择说话人",
+    "noSpeaker": "默认",
+    "preview": "试听",
+    "playing": "播放中",
+    "noSpeakers": "暂无可用说话人，请先初始化 TTS 引擎。",
+    "noMatchingSpeakers": "当前筛选条件下没有匹配的说话人。",
+    "autoFilter": "自动",
+    "femaleVoice": "女声",
+    "maleVoice": "男声",
+    "allVoices": "全部"
+  },
+  "editor": {
+    "createTitle": "召唤角色",
+    "editTitle": "编辑角色",
+    "close": "关闭",
+    "back": "上一步",
+    "next": "下一步",
+    "save": "保存",
+    "summon": "完成召唤"
+  },
+  "card": {
+    "activeLabel": "使用中",
+    "editCharacter": "编辑角色",
+    "deleteCharacter": "删除角色",
+    "rarityN": "普通",
+    "rarityR": "稀有",
+    "raritySR": "史诗",
+    "raritySSR": "传说"
+  }
+}

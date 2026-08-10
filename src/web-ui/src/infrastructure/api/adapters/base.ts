@@ -1,0 +1,49 @@
+ 
+
+ 
+export interface ITransportAdapter {
+   
+  connect(): Promise<void>;
+  
+   
+  request<T>(action: string, params?: any): Promise<T>;
+  
+   
+  listen<T>(event: string, callback: (data: T) => void): () => void;
+  
+   
+  disconnect(): Promise<void>;
+  
+   
+  isConnected(): boolean;
+}
+
+ 
+export interface StreamEvent {
+  type: 'text-chunk' | 'tool-event' | 'stream-start' | 'stream-end' | string;
+  sessionId: string;
+  turnId: string;
+  roundId?: string;
+  payload: any;
+}
+
+ 
+export interface TextChunkEvent extends StreamEvent {
+  type: 'text-chunk';
+  payload: {
+    content: string;
+    accumulated: string;
+  };
+}
+
+ 
+export interface ToolEvent extends StreamEvent {
+  type: 'tool-event';
+  payload: {
+    toolName: string;
+    status: 'start' | 'progress' | 'end' | 'error';
+    data?: any;
+  };
+}
+
+

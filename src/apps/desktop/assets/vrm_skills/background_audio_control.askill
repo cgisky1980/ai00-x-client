@@ -1,0 +1,35 @@
+---
+name: background_audio_control
+alias: 乐章执掌
+brief: "Background audio: play, pause, volume, generate audio/SFX"
+description: "背景音频控制：播放、暂停、音量调节，以及通过文字描述生成音频/音效"
+keywords:
+  - 音乐
+  - 音频
+  - 音效
+  - 播放
+  - 音量
+  - bgm
+  - audio
+  - music
+  - sfx
+when_to_use: "When user wants to control background audio, generate music/SFX, or adjust volume"
+parameters:
+  - name: action
+    type: string
+    description: "play/pause/stop/volume_up/volume_down/set_volume/generate/generate_sfx/help"
+    required: true
+  - name: volume
+    type: number
+    description: "音量 0-100"
+    required: false
+  - name: audio_id
+    type: string
+    description: "音频 ID"
+    required: false
+  - name: prompt
+    type: string
+    description: "生成音频的文本描述"
+    required: false
+executor: builtin:background_audio_control
+---

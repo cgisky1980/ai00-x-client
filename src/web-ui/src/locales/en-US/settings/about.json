@@ -1,0 +1,15 @@
+{
+  "title": "About",
+  "subtitle": "Application information",
+  "description": "AI Assistant Desktop Application",
+  "updates": {
+    "title": "Updates"
+  },
+  "checkUpdate": "Check for Updates",
+  "checkUpdateDesc": "Check if a newer version is available",
+  "checkNow": "Check Now",
+  "legal": {
+    "title": "Legal"
+  },
+  "license": "License"
+}

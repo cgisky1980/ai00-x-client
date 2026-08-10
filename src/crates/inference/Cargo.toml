@@ -1,0 +1,74 @@
+[package]
+name = "ai00-x-inference"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Ai00-X Model Inference Engine (RWKV, ASR, TTS, Embedding)"
+build = "build.rs"
+
+[dependencies]
+# Internal crates
+ai00-x-ai-adapters = { path = "../ai-adapters" }
+ai00-x-core = { path = "../core" }
+ai00-x-acestep = { path = "../acestep" }
+
+# Inherited from workspace
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+chrono = { workspace = true }
+regex = { workspace = true }
+dirs = { workspace = true }
+reqwest = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+once_cell = { workspace = true }
+zip = { workspace = true }
+sha2 = { workspace = true }
+base64 = { workspace = true }
+flate2 = { workspace = true }
+urlencoding = { workspace = true }
+
+# Engine dependencies
+web-rwkv = { version = "0.10.20", default-features = false, features = ["native"] }
+model2vec-rs = "0.1.4"
+tokenizers = "0.22"
+kbnf = "0.5.7"
+cbor4ii = { version = "1.2.0", features = ["serde1"] }
+safetensors = "0.6.2"
+memmap2 = "0.9"
+ndarray = "0.17"
+half = "2"
+hound = "3.5"
+cpal = "0.17"
+rubato = "2.0.0"
+symphonia = { version = "0.5.5", features = ["all"] }
+libloading = "0.9.0"
+rustfft = "6.4"
+rand = "0.8"
+fastrand = "2.4.0"
+hex = "0.4"
+tar = "0.4"
+indicatif = "0.18"
+thiserror = "1.0"
+dashmap = { workspace = true }
+uuid = { workspace = true }
+indexmap = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9"
+core-graphics = "0.23"
+dispatch = "0.2"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = "0.3"
+ort = { version = "=2.0.0-rc.11", features = ["ndarray", "coreml", "load-dynamic"] }
+
+[target.'cfg(windows)'.dependencies]
+ort = { version = "=2.0.0-rc.11", features = ["ndarray", "directml", "load-dynamic"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+leptess = "0.14.0"
+ort = { version = "=2.0.0-rc.11", features = ["ndarray", "cuda", "load-dynamic"] }

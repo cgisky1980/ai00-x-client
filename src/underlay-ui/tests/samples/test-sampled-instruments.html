@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sampled Instruments Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .section {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            margin: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .instrument-section {
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .instrument-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #FFD700;
+        }
+        .sample-info {
+            font-size: 12px;
+            color: #AAA;
+            margin-bottom: 10px;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #FF6B6B;
+        }
+        .warning {
+            color: #FFA726;
+        }
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 15px 0;
+        }
+        .comparison-section {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .comparison-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎼 高质量采样乐器测试</h1>
+    <p>测试Iowa大学分割采样 vs 合成音色的对比</p>
+    
+    <div class="status" id="status">
+        <div>状态: <span id="statusText">未初始化</span></div>
+        <div>音频上下文: <span id="audioContext">未知</span></div>
+        <div>已加载采样: <span id="loadedSamples">0</span></div>
+    </div>
+
+    <div class="section">
+        <h2>🎶 系统控制</h2>
+        <button id="initBtn">初始化音频系统</button>
+        <button id="stopBtn" disabled>停止所有声音</button>
+        <button id="playDemoBtn" disabled>播放演示旋律</button>
+    </div>
+
+    <!-- 大提琴对比 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎻 大提琴 (Cello)</div>
+        <div class="sample-info">Iowa大学采样: 34个音符 (D3-B5) | 合成音色: Triangle波 + 滤波器</div>
+        <div class="comparison-grid">
+            <div class="comparison-section">
+                <div class="comparison-title">🎵 高质量采样版本</div>
+                <button class="test-btn" data-instrument="cello" data-type="sampled" disabled>播放C大调音阶</button>
+                <button class="test-btn" data-instrument="cello" data-type="sampled" data-melody="true" disabled>播放测试旋律</button>
+            </div>
+            <div class="comparison-section">
+                <div class="comparison-title">🎹 合成音色版本</div>
+                <button class="test-btn" data-instrument="cello" data-type="synth" disabled>播放C大调音阶</button>
+                <button class="test-btn" data-instrument="cello" data-type="synth" data-melody="true" disabled>播放测试旋律</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 萨克斯对比 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎷 萨克斯 (Soprano Saxophone)</div>
+        <div class="sample-info">Iowa大学采样: 32个音符 (G#3-B5) | 合成音色: Sawtooth波 + 滤波器</div>
+        <div class="comparison-grid">
+            <div class="comparison-section">
+                <div class="comparison-title">🎵 高质量采样版本</div>
+                <button class="test-btn" data-instrument="saxophone" data-type="sampled" disabled>播放C大调音阶</button>
+                <button class="test-btn" data-instrument="saxophone" data-type="sampled" data-melody="true" disabled>播放测试旋律</button>
+            </div>
+            <div class="comparison-section">
+                <div class="comparison-title">🎹 合成音色版本</div>
+                <button class="test-btn" data-instrument="saxophone" data-type="synth" disabled>播放C大调音阶</button>
+                <button class="test-btn" data-instrument="saxophone" data-type="synth" data-melody="true" disabled>播放测试旋律</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 长笛对比 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎵 长笛 (Flute)</div>
+        <div class="sample-info">Iowa大学采样: 25个音符 (B3-B5) | 合成音色: Triangle波 + 滤波器</div>
+        <div class="comparison-grid">
+            <div class="comparison-section">
+                <div class="comparison-title">🎵 高质量采样版本</div>
+                <button class="test-btn" data-instrument="flute" data-type="sampled" disabled>播放C大调音阶</button>
+                <button class="test-btn" data-instrument="flute" data-type="sampled" data-melody="true" disabled>播放测试旋律</button>
+            </div>
+            <div class="comparison-section">
+                <div class="comparison-title">🎹 合成音色版本</div>
+                <button class="test-btn" data-instrument="flute" data-type="synth" disabled>播放C大调音阶</button>
+                <button class="test-btn" data-instrument="flute" data-type="synth" data-melody="true" disabled>播放测试旋律</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="logs" class="logs"></div>
+
+    <!-- 加载Tone.js和Lofi系统 -->
+    <script src="/libs/tone.js"></script>
+    <script type="module">
+        import { LofiMusicSystem } from '/src/lib/lofi/lofi-music-system.js';
+
+        // 全局变量
+        let lofiSystem = null;
+        let isInitialized = false;
+
+        // DOM元素
+        const statusText = document.getElementById('statusText');
+        const audioContextStatus = document.getElementById('audioContext');
+        const loadedSamples = document.getElementById('loadedSamples');
+        const initBtn = document.getElementById('initBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const playDemoBtn = document.getElementById('playDemoBtn');
+        const testButtons = document.querySelectorAll('.test-btn');
+        const logsDiv = document.getElementById('logs');
+
+        // 测试旋律
+        const testMelody = [
+            { note: 'C4', duration: '4n', time: 0 },
+            { note: 'E4', duration: '4n', time: 0.5 },
+            { note: 'G4', duration: '4n', time: 1.0 },
+            { note: 'C5', duration: '4n', time: 1.5 },
+            { note: 'G4', duration: '4n', time: 2.0 },
+            { note: 'E4', duration: '4n', time: 2.5 },
+            { note: 'C4', duration: '2n', time: 3.0 }
+        ];
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[SampledTest] ${message}`);
+        }
+
+        // 更新UI状态
+        function updateUI() {
+            if (isInitialized) {
+                statusText.textContent = '已就绪';
+                audioContextStatus.textContent = Tone.context.state;
+                initBtn.disabled = true;
+                stopBtn.disabled = false;
+                playDemoBtn.disabled = false;
+                
+                testButtons.forEach(btn => {
+                    btn.disabled = false;
+                });
+            } else {
+                statusText.textContent = '未初始化';
+                audioContextStatus.textContent = '未知';
+                initBtn.disabled = false;
+                stopBtn.disabled = true;
+                playDemoBtn.disabled = true;
+                
+                testButtons.forEach(btn => {
+                    btn.disabled = true;
+                });
+            }
+        }
+
+        // 初始化音频系统
+        async function initializeAudio() {
+            try {
+                log('🚀 初始化Lofi音乐系统...');
+                
+                lofiSystem = new LofiMusicSystem();
+                await lofiSystem.initialize();
+                
+                isInitialized = true;
+                updateUI();
+                
+                // 获取加载的采样数量
+                const engine = lofiSystem.getEngine();
+                if (engine && engine.sampler) {
+                    const loadedInstruments = engine.sampler.getLoadedInstruments();
+                    loadedSamples.textContent = loadedInstruments.length;
+                    log(`✅ 已加载 ${loadedInstruments.length} 个采样乐器: ${loadedInstruments.join(', ')}`, 'success');
+                }
+                
+                log('🎉 系统初始化完成！可以测试采样乐器了', 'success');
+                
+            } catch (error) {
+                log(`❌ 初始化失败: ${error.message}`, 'error');
+                console.error('Audio initialization error:', error);
+            }
+        }
+
+        // 播放音阶
+        function playScale(instrumentName, useSampled = true) {
+            if (!isInitialized || !lofiSystem) {
+                log('❌ 系统未初始化', 'error');
+                return;
+            }
+
+            const scale = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+            const notes = scale.map((note, index) => ({
+                note,
+                duration: '4n',
+                time: index * 0.5
+            }));
+
+            const type = useSampled ? '采样' : '合成';
+            log(`🎵 播放${instrumentName} ${type}音阶`);
+
+            try {
+                // 强制使用指定类型的乐器
+                lofiSystem.playMelody(notes, instrumentName, useSampled);
+            } catch (error) {
+                log(`❌ 播放失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 播放测试旋律
+        function playTestMelody(instrumentName, useSampled = true) {
+            if (!isInitialized || !lofiSystem) {
+                log('❌ 系统未初始化', 'error');
+                return;
+            }
+
+            const type = useSampled ? '采样' : '合成';
+            log(`🎼 播放${instrumentName} ${type}测试旋律`);
+
+            try {
+                lofiSystem.playMelody(testMelody, instrumentName, useSampled);
+            } catch (error) {
+                log(`❌ 播放失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 播放演示
+        function playDemo() {
+            if (!isInitialized || !lofiSystem) {
+                log('❌ 系统未初始化', 'error');
+                return;
+            }
+
+            log('🎭 播放多乐器演示...');
+            
+            // 大提琴低音
+            const bassLine = [
+                { note: 'C3', duration: '2n', time: 0 },
+                { note: 'F3', duration: '2n', time: 2 },
+                { note: 'G3', duration: '2n', time: 4 },
+                { note: 'C3', duration: '2n', time: 6 }
+            ];
+            
+            // 萨克斯主旋律
+            const melody = [
+                { note: 'C5', duration: '4n', time: 0.5 },
+                { note: 'E5', duration: '4n', time: 1 },
+                { note: 'G5', duration: '4n', time: 1.5 },
+                { note: 'F5', duration: '4n', time: 2.5 },
+                { note: 'E5', duration: '4n', time: 3 },
+                { note: 'D5', duration: '4n', time: 3.5 },
+                { note: 'C5', duration: '2n', time: 4 }
+            ];
+            
+            // 长笛装饰音
+            const decoration = [
+                { note: 'G5', duration: '8n', time: 1.75 },
+                { note: 'A5', duration: '8n', time: 2 },
+                { note: 'F5', duration: '8n', time: 4.75 },
+                { note: 'E5', duration: '8n', time: 5 }
+            ];
+
+            try {
+                // 同时播放多个乐器
+                setTimeout(() => lofiSystem.playMelody(bassLine, 'cello', true), 0);
+                setTimeout(() => lofiSystem.playMelody(melody, 'saxophone', true), 500);
+                setTimeout(() => lofiSystem.playMelody(decoration, 'flute', true), 1000);
+            } catch (error) {
+                log(`❌ 演示播放失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 停止所有声音
+        function stopAllSounds() {
+            if (lofiSystem) {
+                lofiSystem.stop();
+                log('🛑 停止所有声音');
+            }
+        }
+
+        // 事件监听器
+        initBtn.addEventListener('click', initializeAudio);
+        stopBtn.addEventListener('click', stopAllSounds);
+        playDemoBtn.addEventListener('click', playDemo);
+
+        // 测试按钮监听器
+        testButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const instrument = btn.dataset.instrument;
+                const type = btn.dataset.type;
+                const ismelody = btn.dataset.melody === 'true';
+                const useSampled = type === 'sampled';
+                
+                if (ismelody) {
+                    playTestMelody(instrument, useSampled);
+                } else {
+                    playScale(instrument, useSampled);
+                }
+            });
+        });
+
+        // 初始化UI
+        updateUI();
+        log('🎵 采样乐器测试页面加载完成');
+        log('📊 将测试Iowa大学高质量采样 vs 合成音色的音质差异');
+        log('🎯 点击"初始化音频系统"开始测试');
+    </script>
+</body>
+</html>

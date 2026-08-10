@@ -1,0 +1,58 @@
+/**
+ * TerminalScene — renders a ConnectedTerminal for the session selected
+ * via terminalSceneStore (set from the Shell navigation).
+ *
+ * When no session is active, shows a minimal empty state prompting the
+ * user to open a terminal from the navigation panel.
+ */
+
+import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { SquareTerminal } from 'lucide-react';
+import { useTerminalSceneStore } from '../../stores/terminalSceneStore';
+import ConnectedTerminal from '../../../tools/terminal/components/ConnectedTerminal';
+import './TerminalScene.scss';
+
+interface TerminalSceneProps {
+  isActive?: boolean;
+}
+
+const TerminalScene: React.FC<TerminalSceneProps> = ({ isActive = true }) => {
+  const { activeSessionId, setActiveSession } = useTerminalSceneStore();
+  const { t } = useTranslation('panels/terminal');
+
+  const handleExit = useCallback(() => {
+    setActiveSession(null);
+  }, [setActiveSession]);
+
+  const handleClose = useCallback(() => {
+    setActiveSession(null);
+  }, [setActiveSession]);
+
+  if (!isActive) {
+    return <div className="ai00-x-terminal-scene" aria-hidden="true" />;
+  }
+
+  return (
+    <div className="ai00-x-terminal-scene">
+      {activeSessionId ? (
+        <ConnectedTerminal
+          key={activeSessionId}
+          sessionId={activeSessionId}
+          autoFocus
+          showToolbar
+          showStatusBar
+          onExit={handleExit}
+          onClose={handleClose}
+        />
+      ) : (
+        <div className="ai00-x-terminal-scene__empty">
+          <SquareTerminal size={32} className="ai00-x-terminal-scene__empty-icon" />
+          <p className="ai00-x-terminal-scene__empty-hint">{t('emptyState')}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default TerminalScene;

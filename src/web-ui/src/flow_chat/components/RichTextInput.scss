@@ -1,0 +1,226 @@
+/**
+ * Rich text input styles
+ */
+
+@use '../../component-library/styles/tokens' as *;
+@use '../../component-library/styles/_extended-mixins' as mixins;
+
+.rich-text-input {
+  flex: 1;
+  background: transparent;
+  border: none !important;
+  outline: none !important;
+  color: var(--color-text-primary);
+  font-size: var(--flowchat-font-size-base);
+  line-height: $line-height-base;
+  padding: 0;
+  vertical-align: top;
+  min-height: 24px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: $font-family-sans;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-word;
+  cursor: text;
+  box-shadow: none !important;
+  
+  &:empty::before {
+    content: attr(data-placeholder);
+    color: color-mix(in srgb, var(--color-text-muted) 52%, transparent);
+    pointer-events: none;
+    animation: rich-text-placeholder-fade-in 0.25s ease-out;
+  }
+  
+  @keyframes rich-text-placeholder-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  &:focus {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  
+  &[contenteditable="false"] {
+    opacity: 0.6;
+    cursor: default;
+  }
+  
+}
+
+// Light theme: placeholder slightly softer than body text.
+:root[data-theme="light"] .rich-text-input,
+:root[data-theme-type="light"] .rich-text-input,
+.light .rich-text-input {
+  &:empty::before {
+    color: color-mix(in srgb, var(--color-text-secondary) 48%, transparent);
+  }
+}
+
+// Placeholder styles
+
+.rich-text-placeholder {
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 0 2px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px dashed rgba(99, 102, 241, 0.35);
+  border-radius: 6px;
+  font-size: var(--flowchat-font-size-sm);
+  font-weight: 500;
+  color: var(--color-accent-400);
+  cursor: pointer;
+  user-select: text;
+  vertical-align: middle;
+  line-height: 1.5;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  
+  &:hover {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.5);
+  }
+  
+  &--active {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.5);
+    color: var(--color-accent-400);
+    
+    &:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: rgba(99, 102, 241, 0.6);
+    }
+  }
+  
+  &:focus {
+    outline: none;
+    background: rgba(99, 102, 241, 0.18);
+    border-color: rgba(99, 102, 241, 0.6);
+  }
+}
+
+// Pill tag styles
+// Matches mode badges with soft fill and no border.
+
+.rich-text-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  margin: 0 3px;
+  background: rgba(96, 165, 250, 0.12);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--flowchat-font-size-sm);
+  font-weight: 500;
+  color: rgba(96, 165, 250, 0.95);
+  cursor: default;
+  user-select: none;
+  vertical-align: middle;
+  line-height: 1.5;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  &:hover {
+    background: rgba(96, 165, 250, 0.18);
+  }
+  
+  // Context type colors.
+  &[data-context-type="file"] {
+    background: rgba(96, 165, 250, 0.12);
+    color: rgba(96, 165, 250, 0.95);
+    
+    &:hover {
+      background: rgba(96, 165, 250, 0.18);
+    }
+  }
+  
+  &[data-context-type="directory"] {
+    background: rgba(168, 85, 247, 0.12);
+    color: rgba(192, 132, 252, 0.95);
+    
+    &:hover {
+      background: rgba(168, 85, 247, 0.18);
+    }
+  }
+  
+  &[data-context-type="code-snippet"] {
+    background: rgba(74, 222, 128, 0.12);
+    color: rgba(74, 222, 128, 0.95);
+    
+    &:hover {
+      background: rgba(74, 222, 128, 0.18);
+    }
+  }
+  
+  &[data-context-type="mermaid-diagram"] {
+    background: rgba(34, 197, 94, 0.12);
+    color: rgba(52, 211, 153, 0.95);
+    
+    &:hover {
+      background: rgba(34, 197, 94, 0.18);
+    }
+  }
+  
+  &[data-context-type="mermaid-node"] {
+    background: rgba(6, 182, 212, 0.12);
+    color: rgba(34, 211, 238, 0.95);
+    
+    &:hover {
+      background: rgba(6, 182, 212, 0.18);
+    }
+  }
+  
+  &[data-context-type="image"] {
+    background: rgba(251, 146, 60, 0.12);
+    color: rgba(251, 146, 60, 0.95);
+    
+    &:hover {
+      background: rgba(251, 146, 60, 0.18);
+    }
+  }
+}
+
+.rich-text-tag-pill__text {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.5;
+  font-family: $font-family-mono;
+  font-size: 0.85em;
+}
+
+.rich-text-tag-pill__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: currentColor;
+  opacity: 0.6;
+  font-size: var(--flowchat-font-size-2xl);
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+    opacity: 1;
+  }
+  
+  &:active {
+    transform: scale(0.85);
+  }
+}
+

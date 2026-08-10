@@ -1,0 +1,287 @@
+/**
+ * CodeReview tool card styles
+ * Only adds CodeReview-specific styles; container styling is handled by BaseToolCard.
+ */
+
+@use './BaseToolCard.scss';
+
+/* ========== Tool icon styles ========== */
+.code-review-card {
+  .tool-identifier-icon.code-review-icon {
+    color: var(--color-accent-400);
+  }
+}
+
+/* ========== preview-toggle-btn (consistent with FileOperationToolCard) ========== */
+.code-review-card .preview-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+}
+
+/* ========== Code review details (expanded content) ========== */
+.code-review-details {
+
+  /* ---------- Summary section — vertical layout ---------- */
+  .review-summary {
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--border-base);
+
+    .summary-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin-bottom: 8px;
+    }
+
+    .summary-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--border-base);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .summary-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      border-bottom: 1px dashed var(--border-base);
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      /* Rows that hold long text: stack label above value */
+      &.summary-row--full {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+    }
+
+    .summary-label {
+      font-weight: 600;
+      color: var(--color-text-muted);
+      font-size: 11px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-width: 90px;
+    }
+
+    .summary-value {
+      color: var(--color-text-primary);
+      word-wrap: break-word;
+      word-break: break-word;
+      min-width: 0;
+
+      &.risk-level {
+        display: inline-flex;
+        align-items: center;
+        font-weight: 600;
+        gap: 4px;
+        white-space: nowrap;
+      }
+
+      &.note {
+        color: var(--color-text-muted);
+        font-style: italic;
+      }
+    }
+  }
+
+  /* ---------- Issues section ---------- */
+  .review-issues {
+    margin-bottom: 12px;
+
+    .issues-header {
+      display: flex;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin-bottom: 8px;
+    }
+
+    .issues-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+
+      .review-issue-item {
+        background: var(--color-bg-elevated);
+        border: 1px solid var(--border-base);
+        border-radius: 6px;
+        padding: 10px;
+        font-size: 12px;
+        line-height: 1.5;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+
+        &:hover {
+          background: var(--color-bg-hover);
+          border-color: var(--border-medium);
+        }
+
+        /* Severity left-border indicators */
+        &.severity-critical {
+          border-left: 3px solid var(--color-error);
+        }
+
+        &.severity-high {
+          border-left: 3px solid var(--color-warning);
+        }
+
+        &.severity-medium {
+          border-left: 3px solid var(--color-accent-400);
+        }
+
+        &.severity-low {
+          border-left: 3px solid var(--color-info);
+        }
+
+        &.severity-info {
+          border-left: 3px solid var(--color-accent-300);
+        }
+
+        .issue-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 6px;
+          flex-wrap: wrap;
+          gap: 4px;
+
+          .issue-left {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+            min-width: 0;
+
+            .issue-category {
+              font-weight: 600;
+              color: var(--color-text-secondary);
+              flex-shrink: 0;
+              font-size: 10px;
+              padding: 1px 5px;
+              background: var(--color-bg-elevated);
+              border-radius: 3px;
+              border: 1px solid var(--border-base);
+            }
+
+            .issue-location {
+              color: var(--color-text-muted);
+              font-family: var(--tool-card-font-mono);
+              font-size: 11px;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+          }
+
+          .issue-certainty {
+            font-size: 10px;
+            color: var(--color-text-muted);
+            background: var(--color-bg-elevated);
+            padding: 1px 6px;
+            border-radius: 3px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            border: 1px solid var(--border-base);
+          }
+        }
+
+        .issue-title {
+          font-weight: 600;
+          color: var(--color-text-primary);
+          margin-bottom: 4px;
+          font-size: 12px;
+        }
+
+        .issue-description {
+          color: var(--color-text-secondary);
+          margin-bottom: 6px;
+          line-height: 1.5;
+        }
+
+        .issue-suggestion {
+          background: rgba(34, 197, 94, 0.06);
+          border: 1px solid rgba(34, 197, 94, 0.15);
+          border-radius: 4px;
+          padding: 8px;
+          display: flex;
+          align-items: flex-start;
+          gap: 6px;
+          margin-top: 6px;
+
+          .suggestion-label {
+            font-weight: 600;
+            color: var(--color-success);
+            flex-shrink: 0;
+            font-size: 11px;
+          }
+
+          .suggestion-text {
+            color: var(--color-text-primary);
+            flex: 1;
+            line-height: 1.5;
+          }
+        }
+      }
+    }
+  }
+
+  /* ---------- Positive points section ---------- */
+  .review-positive {
+    .positive-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-success);
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px dashed var(--border-base);
+    }
+
+    .positive-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+
+      .positive-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        color: var(--color-text-primary);
+        font-size: 12px;
+        line-height: 1.5;
+        padding: 6px 8px;
+        background: var(--color-bg-elevated);
+        border-radius: 4px;
+        border: 1px solid var(--border-base);
+      }
+    }
+  }
+}

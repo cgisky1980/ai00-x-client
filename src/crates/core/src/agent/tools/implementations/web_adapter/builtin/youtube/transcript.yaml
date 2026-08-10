@@ -1,0 +1,50 @@
+site: youtube
+name: transcript
+description: Get YouTube video transcript/subtitles
+domain: www.youtube.com
+strategy: cookie
+browser: true
+
+args:
+  url:
+    type: string
+    required: true
+    description: YouTube video URL or video ID
+
+pipeline:
+  - evaluate: |
+      (() => {
+        const input = ${{ args.url | json }};
+        if (!input.startsWith('http')) return input;
+        try {
+          const parsed = new URL(input);
+          if (parsed.searchParams.has('v')) return parsed.searchParams.get('v');
+          if (parsed.hostname === 'youtu.be') return parsed.pathname.slice(1).split('/')[0];
+          const m = parsed.pathname.match(/^\/(shorts|embed|live|v)\/([^/?]+)/);
+          if (m) return m[2];
+        } catch {}
+        return input;
+      })()
+  - navigate: "https://www.youtube.com/watch?v=${{ data }}"
+  - evaluate: |
+      (async () => {
+        await new Promise(r => setTimeout(r, 3000));
+        const player = window.ytInitialPlayerResponse;
+        if (!player) return [{ error: 'ytInitialPlayerResponse not found' }];
+        const details = player.videoDetails || {};
+        const captionTracks = player.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+        if (!captionTracks.length) return [{ title: details.title, transcript: 'No captions available' }];
+        const track = captionTracks.find(t => t.languageCode === 'en') || captionTracks[0];
+        const resp = await fetch(track.baseUrl);
+        const xml = await resp.text();
+        const texts = [];
+        const regex = /<text start="([^"]*)" dur="[^"]*"[^>]*>(.*?)<\/text>/g;
+        let match;
+        while ((match = regex.exec(xml))) {
+          const text = match[2].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/<[^>]+>/g, '');
+          if (text.trim()) texts.push(text.trim());
+        }
+        return [{ title: details.title, channel: details.author, transcript: texts.join(' ') }];
+      })()
+
+columns: [title, channel, transcript]

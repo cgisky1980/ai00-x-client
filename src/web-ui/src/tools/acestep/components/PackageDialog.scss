@@ -1,0 +1,126 @@
+/**
+ * PackageDialog styles.
+ *
+ * Layout: grouped sections with titles, each containing form fields.
+ * Sections are separated by subtle borders for visual hierarchy.
+ */
+
+.package-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  // 左右留白避免内容顶格；上方紧接标题栏，下方留出呼吸空间
+  padding: 4px 20px 16px;
+
+  // ---- Section (visual grouping) ----
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.06));
+
+    &:first-child {
+      padding-top: 4px;
+    }
+
+    &:last-of-type {
+      border-bottom: none;
+    }
+  }
+
+  // ---- Section title ----
+  &__section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary, rgba(255, 255, 255, 0.6));
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    user-select: none;
+  }
+
+  // ---- Cover picker ----
+  &__cover {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  &__cover-preview {
+    flex-shrink: 0;
+    width: 72px;
+    height: 72px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+    background: var(--color-bg-secondary, rgba(0, 0, 0, 0.2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  &__cover-placeholder {
+    color: var(--color-text-tertiary, rgba(255, 255, 255, 0.25));
+  }
+
+  &__cover-actions {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__cover-name {
+    font-size: 12px;
+    color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__cover-buttons {
+    display: flex;
+    gap: 6px;
+  }
+
+  // ---- Directory row (input + browse button) ----
+  &__dir-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+
+    > :first-child {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  // ---- Footer (cancel + confirm) ----
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 14px;
+  }
+
+  // ---- Hint text under a field ----
+  &__hint {
+    font-size: 11px;
+    color: var(--color-text-tertiary, rgba(255, 255, 255, 0.35));
+    line-height: 1.4;
+  }
+
+  // ---- Error text under a field ----
+  &__error {
+    font-size: 11px;
+    color: var(--color-danger, #ef4444);
+    line-height: 1.4;
+  }
+}

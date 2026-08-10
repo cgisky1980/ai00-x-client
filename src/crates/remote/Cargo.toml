@@ -1,0 +1,28 @@
+[package]
+name = "ai00-x-remote"
+version.workspace = true
+edition = "2021"
+description = "Ai00-X Remote — SSH workspace and remote connect"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+log = { workspace = true }
+
+# Tool framework for remote tools
+ai00-x-tool-framework = { path = "../tool-framework" }
+# Core for workspace types (WorkspaceSessionIdentity, etc.)
+ai00-x-core = { path = "../core" }
+
+# SSH (russh) — direct version spec (not workspace-level)
+russh = { version = "0.45", optional = true }
+russh-sftp = { version = "2.1", optional = true }
+russh-keys = { version = "0.45", optional = true }
+shellexpand = { version = "3", optional = true }
+ssh_config = { version = "0.1", optional = true }
+
+[features]
+default = ["ssh-remote"]
+ssh-remote = ["dep:russh", "dep:russh-sftp", "dep:russh-keys", "dep:shellexpand", "dep:ssh_config"]

@@ -1,0 +1,166 @@
+@use '../styles/tokens' as t;
+
+.ai00-x-share-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.6rem;
+  border-radius: 12px;
+  background: var(--element-bg-soft);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s,
+    box-shadow 0.2s;
+  outline: none;
+
+  &:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-accent-subtle);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  }
+
+  &:focus-visible {
+    border-color: var(--color-accent-500);
+    box-shadow: 0 0 0 2px var(--color-accent-500);
+  }
+
+  &.is-playing {
+    border-color: var(--color-accent-500);
+    box-shadow: 0 0 0 1px var(--color-accent-500),
+      0 6px 20px rgba(0, 0, 0, 0.18);
+  }
+
+  // ---- Cover area ----
+  &__cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--element-bg-base);
+  }
+
+  &__cover-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  &__cover-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    background: linear-gradient(
+      135deg,
+      var(--element-bg-base),
+      var(--element-bg-strong)
+    );
+  }
+
+  &__play {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-accent-500);
+    color: #fff;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.2s, transform 0.2s, background 0.15s;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    padding: 0;
+
+    // Touch devices (no hover): always show the play CTA.
+    @media (hover: none) {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .ai00-x-share-card:hover & {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--color-accent-400);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    // Filled play triangle to look nicer against colored backgrounds.
+    svg {
+      fill: currentColor;
+    }
+  }
+
+  &__spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: ai00-x-share-card-spin 0.8s linear infinite;
+  }
+
+  // ---- Info area ----
+  &__info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__artist {
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-height: 1rem;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    font-size: 0.68rem;
+    color: var(--color-text-muted);
+  }
+
+  &__duration,
+  &__plays,
+  &__date {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+}
+

@@ -1,0 +1,90 @@
+.ai00-x-assistant-config {
+  display: flex;
+  height: 100%;
+  position: relative;
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  &--with-editor &__main {
+    display: none;
+  }
+
+  &__editor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    background: var(--color-bg-scene);
+    animation: assistant-editor-fade-in 0.25s ease-out;
+  }
+
+  &__roster {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+    padding: 14px 0;
+  }
+
+  &__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-sm, 4px);
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+
+    &.is-active {
+      background: var(--color-primary);
+      color: var(--color-bg-primary);
+      border-color: var(--color-primary);
+    }
+
+    &:hover {
+      background: var(--element-bg-subtle);
+    }
+
+    &.is-active:hover {
+      opacity: 0.9;
+    }
+  }
+}
+
+@keyframes assistant-editor-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 720px) {
+  .ai00-x-assistant-config__roster {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .ai00-x-assistant-config__roster {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai00-x-assistant-config__editor {
+    animation: none;
+  }
+}

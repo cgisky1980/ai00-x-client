@@ -1,0 +1,254 @@
+/**
+ * Mermaid-specific design tokens.
+ * Derived from global tokens.scss to stay aligned with the theme system.
+ *
+ * Principles:
+ * - Derive all colors from global CSS variables, no hard-coded values
+ * - Allow deep customization by overriding CSS variables
+ * - Support automatic light/dark theme switching
+ */
+
+@use '../../../component-library/styles/tokens' as *;
+
+// ==================== Mermaid CSS variables ====================
+// Define dark theme defaults in :root
+
+:root {
+  // ==================== Node styles ====================
+  --mermaid-node-fill: #{$element-bg-base};
+  --mermaid-node-fill-hover: #{$element-bg-medium};
+  --mermaid-node-stroke: #{$border-medium};
+  --mermaid-node-stroke-hover: #{$border-strong};
+  --mermaid-node-stroke-width: 1.5px;
+  --mermaid-node-text: #{$color-text-primary};
+  --mermaid-node-radius: #{$size-radius-sm};
+  --mermaid-node-dash-array: 4 2;
+  
+  // ==================== Edge styles ====================
+  --mermaid-edge-stroke: #{$border-medium};
+  --mermaid-edge-stroke-hover: #{$border-strong};
+  --mermaid-edge-stroke-width: 1.5px;
+  --mermaid-edge-label-bg: #{$color-bg-secondary};
+  --mermaid-edge-label-border: #{$border-subtle};
+  --mermaid-edge-label-text: #{$color-text-secondary};
+  --mermaid-arrow-color: #{$color-text-muted};
+  
+  // ==================== Subgraph/cluster styles ====================
+  --mermaid-cluster-fill: #{$element-bg-subtle};
+  --mermaid-cluster-stroke: #{$border-subtle};
+  --mermaid-cluster-stroke-width: 1px;
+  --mermaid-cluster-radius: #{$size-radius-base};
+  --mermaid-cluster-text: #{$color-text-secondary};
+  --mermaid-cluster-dash-array: 5 3;
+  
+  // ==================== Status colors ====================
+  --mermaid-success: #{$color-success};
+  --mermaid-success-bg: #{$color-success-bg};
+  --mermaid-error: #{$color-error};
+  --mermaid-error-bg: #{$color-error-bg};
+  --mermaid-warning: #{$color-warning};
+  --mermaid-warning-bg: #{$color-warning-bg};
+  --mermaid-info: #{$color-info};
+  --mermaid-info-bg: #{$color-info-bg};
+  
+  // ==================== Highlight styles ====================
+  --mermaid-highlight-stroke: #{$color-accent-500};
+  --mermaid-highlight-glow: #{$glow-shadow-blue};
+  --mermaid-selected-stroke: #{$color-accent-600};
+  
+  // ==================== Interaction effects ====================
+  --mermaid-transition-duration: #{$motion-base};
+  --mermaid-transition-easing: #{$easing-standard};
+  --mermaid-hover-filter: brightness(1.08);
+  
+  // ==================== Sequence diagram ====================
+  --mermaid-actor-fill: #{$element-bg-base};
+  --mermaid-actor-stroke: #{$border-medium};
+  --mermaid-actor-text: #{$color-text-primary};
+  --mermaid-signal-stroke: #{$border-medium};
+  --mermaid-signal-text: #{$color-text-primary};
+  --mermaid-note-fill: rgba(30, 40, 58, 0.9);
+  --mermaid-note-stroke: #{$border-subtle};
+  --mermaid-note-text: #{$color-text-secondary};
+  --mermaid-activation-fill: rgba(74, 144, 217, 0.15);
+  --mermaid-activation-stroke: #{$border-medium};
+  
+  // ==================== Gantt chart ====================
+  --mermaid-section-fill: #{$color-bg-primary};
+  --mermaid-section-alt-fill: #{$color-bg-secondary};
+  --mermaid-grid-stroke: #{$border-subtle};
+  --mermaid-task-text: #{$color-text-primary};
+  --mermaid-done-fill: #{$color-success-bg};
+  --mermaid-done-stroke: #{$color-success};
+  --mermaid-active-fill: #{$color-info-bg};
+  --mermaid-active-stroke: #{$color-info};
+  --mermaid-crit-fill: #{$color-error-bg};
+  --mermaid-crit-stroke: #{$color-error};
+  
+  // ==================== Pie chart ====================
+  --mermaid-pie-stroke: #{$color-bg-primary};
+  --mermaid-pie-stroke-width: 2px;
+  --mermaid-pie-title-text: #{$color-text-primary};
+  --mermaid-pie-legend-text: #{$color-text-secondary};
+  --mermaid-pie-1: #{$color-accent-500};
+  --mermaid-pie-2: #{$color-success};
+  --mermaid-pie-3: #{$color-warning};
+  --mermaid-pie-4: #{$color-error};
+  --mermaid-pie-5: #{$color-purple-500};
+  --mermaid-pie-6: #d890b8;
+  --mermaid-pie-7: #68c8d8;
+  --mermaid-pie-8: #a8d868;
+  
+  // ==================== Class/ER diagram ====================
+  --mermaid-class-fill: #{$element-bg-base};
+  --mermaid-class-stroke: #{$border-medium};
+  --mermaid-class-text: #{$color-text-primary};
+  --mermaid-class-divider: #{$border-subtle};
+  
+  // ==================== Git diagram ====================
+  --mermaid-commit-text: #{$color-text-primary};
+  --mermaid-branch-label: #{$color-text-primary};
+  
+  // ==================== Background and container ====================
+  --mermaid-bg: var(--color-bg-scene);
+  --mermaid-container-border: #{$border-subtle};
+}
+
+// ==================== Light theme overrides ====================
+// Neutral gray surfaces (aligned with ai00-x-light accent).
+[data-theme-type="light"],
+[data-theme*="light"],
+.light {
+  // Node styles
+  --mermaid-node-fill: rgba(15, 23, 42, 0.06);
+  --mermaid-node-fill-hover: rgba(15, 23, 42, 0.10);
+  --mermaid-node-stroke: rgba(100, 116, 139, 0.35);
+  --mermaid-node-stroke-hover: rgba(51, 65, 85, 0.55);
+  --mermaid-node-text: #1e293b;
+  
+  // Edges
+  --mermaid-edge-stroke: rgba(100, 116, 139, 0.35);
+  --mermaid-edge-stroke-hover: rgba(51, 65, 85, 0.5);
+  --mermaid-edge-label-bg: #f7f8fa;
+  --mermaid-edge-label-border: rgba(100, 116, 139, 0.25);
+  --mermaid-edge-label-text: #475569;
+  --mermaid-arrow-color: #64748b;
+  
+  // Subgraph/cluster
+  --mermaid-cluster-fill: rgba(15, 23, 42, 0.04);
+  --mermaid-cluster-stroke: rgba(100, 116, 139, 0.25);
+  --mermaid-cluster-text: #475569;
+  
+  // Highlight - slate (matches light theme focus / accent)
+  --mermaid-highlight-stroke: #334155;
+  --mermaid-highlight-glow: drop-shadow(0 0 6px rgba(15, 23, 42, 0.18));
+  --mermaid-selected-stroke: #1e293b;
+  
+  // Interaction effects
+  --mermaid-hover-filter: brightness(0.97);
+  
+  // Sequence diagram
+  --mermaid-actor-fill: rgba(15, 23, 42, 0.06);
+  --mermaid-actor-stroke: rgba(100, 116, 139, 0.35);
+  --mermaid-actor-text: #1e293b;
+  --mermaid-signal-stroke: rgba(100, 116, 139, 0.35);
+  --mermaid-signal-text: #1e293b;
+  --mermaid-note-fill: rgba(184, 134, 58, 0.12);
+  --mermaid-note-stroke: rgba(192, 140, 66, 0.4);
+  --mermaid-note-text: #92400e;
+  --mermaid-activation-fill: rgba(15, 23, 42, 0.10);
+  --mermaid-activation-stroke: rgba(51, 65, 85, 0.35);
+  
+  // Gantt chart
+  --mermaid-section-fill: #f7f8fa;
+  --mermaid-section-alt-fill: #f0f1f3;
+  --mermaid-grid-stroke: rgba(100, 116, 139, 0.15);
+  --mermaid-task-text: #1e293b;
+  --mermaid-done-fill: rgba(91, 154, 111, 0.15);
+  --mermaid-done-stroke: #5b9a6f;
+  --mermaid-active-fill: rgba(15, 23, 42, 0.08);
+  --mermaid-active-stroke: #334155;
+  --mermaid-crit-fill: rgba(194, 101, 101, 0.15);
+  --mermaid-crit-stroke: #c26565;
+  
+  // Pie chart - cohesive colors.
+  --mermaid-pie-stroke: #f7f8fa;
+  --mermaid-pie-title-text: #1e293b;
+  --mermaid-pie-legend-text: #475569;
+  --mermaid-pie-1: #475569;
+  
+  // Class diagram
+  --mermaid-class-fill: rgba(15, 23, 42, 0.06);
+  --mermaid-class-stroke: rgba(100, 116, 139, 0.35);
+  --mermaid-class-text: #1e293b;
+  --mermaid-class-divider: rgba(100, 116, 139, 0.20);
+  
+  // Git diagram
+  --mermaid-commit-text: #1e293b;
+  --mermaid-branch-label: #1e293b;
+  
+  // Background
+  --mermaid-bg: var(--color-bg-scene);
+  --mermaid-container-border: rgba(100, 116, 139, 0.18);
+}
+
+// ==================== Mixins ====================
+
+/// Node base styles
+@mixin mermaid-node-base {
+  fill: var(--mermaid-node-fill);
+  stroke: var(--mermaid-node-stroke);
+  stroke-width: var(--mermaid-node-stroke-width);
+  stroke-dasharray: var(--mermaid-node-dash-array);
+  transition: all var(--mermaid-transition-duration) var(--mermaid-transition-easing);
+}
+
+/// Node hover styles
+@mixin mermaid-node-hover {
+  fill: var(--mermaid-node-fill-hover);
+  stroke: var(--mermaid-highlight-stroke);
+  stroke-dasharray: none;
+  filter: var(--mermaid-hover-filter);
+}
+
+/// Cluster base styles
+@mixin mermaid-cluster-base {
+  fill: var(--mermaid-cluster-fill);
+  stroke: var(--mermaid-cluster-stroke);
+  stroke-width: var(--mermaid-cluster-stroke-width);
+  stroke-dasharray: var(--mermaid-cluster-dash-array);
+  rx: var(--mermaid-cluster-radius);
+  ry: var(--mermaid-cluster-radius);
+  transition: all var(--mermaid-transition-duration) var(--mermaid-transition-easing);
+}
+
+/// Cluster hover styles
+@mixin mermaid-cluster-hover {
+  stroke: var(--mermaid-highlight-stroke);
+  stroke-dasharray: none;
+  filter: var(--mermaid-highlight-glow);
+}
+
+/// Edge label styles
+@mixin mermaid-edge-label {
+  fill: var(--mermaid-edge-label-bg);
+  stroke: var(--mermaid-edge-label-border);
+  stroke-width: 1px;
+  stroke-dasharray: 3 2;
+  rx: 4px;
+  ry: 4px;
+  transition: all var(--mermaid-transition-duration) var(--mermaid-transition-easing);
+}
+
+/// Edge label hover styles
+@mixin mermaid-edge-label-hover {
+  stroke: var(--mermaid-highlight-stroke);
+  stroke-dasharray: none;
+  filter: var(--mermaid-highlight-glow);
+}
+
+/// Interactive element styles
+@mixin mermaid-interactive {
+  cursor: pointer;
+  transition: all var(--mermaid-transition-duration) var(--mermaid-transition-easing);
+}

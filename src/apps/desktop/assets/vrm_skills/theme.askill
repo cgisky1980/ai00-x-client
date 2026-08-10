@@ -1,0 +1,31 @@
+---
+name: theme
+alias: 万象结界
+brief: "Theme control: season, weather, visual effects, preset lists"
+description: "统一主题控制：季节切换、天气效果、视觉特效、预设列表查询"
+keywords:
+  - 主题
+  - 季节
+  - 天气
+  - 视觉
+  - 特效
+  - theme
+  - season
+  - weather
+  - effect
+when_to_use: "When user wants to change visual theme, season, weather, or visual effects"
+parameters:
+  - name: action
+    type: string
+    description: "set_season/set_weather/set_effects/list_presets/help"
+    required: true
+  - name: season
+    type: string
+    description: "spring/summer/autumn/winter"
+    required: false
+  - name: weather
+    type: string
+    description: "sunny/rainy/snowy/cloudy"
+    required: false
+executor: builtin:theme
+---

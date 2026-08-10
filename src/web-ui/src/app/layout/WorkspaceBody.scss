@@ -1,0 +1,173 @@
+/**
+ * WorkspaceBody styles.
+ *
+ * Root:       flex-column
+ *   .title-bar-row  (full-width, 40px — NavBar + SceneBar combined)
+ *   .content-row    (flex:1, flex-row)
+ *     .nav-area     (240px) ← NavPanel
+ *     .scene-area   (flex:1) ← SceneViewport
+ */
+
+@use '../../component-library/styles/tokens.scss' as *;
+
+$_nav-width: 240px;
+$_nav-collapsed-width: 80px;
+
+// ── Root: top-bottom split (title bar + content) ─────────
+
+.ai00-x-workspace-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  padding: 0;
+}
+
+// ── Title bar row: full-width draggable bar ───────────────
+
+.ai00-x-workspace-body__title-bar-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  height: 40px;
+  flex-shrink: 0;
+  padding: 0 $size-gap-2;
+  gap: $size-gap-2;
+  user-select: none;
+  background: var(--nav-bg);
+}
+
+// ── Content row: nav panel + scene viewport ───────────────
+
+.ai00-x-workspace-body__content-row {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  padding: 0 $size-gap-2 $size-gap-2 $size-gap-2;
+  gap: $size-gap-2;
+  background: var(--nav-bg);
+}
+
+// ── Left column: NavPanel only ────────────────────────────
+
+.ai00-x-workspace-body__nav-area {
+  display: flex;
+  flex-direction: column;
+  width: var(--nav-width, $_nav-width);
+  flex-shrink: 0;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  z-index: 3;
+  transition: width $motion-base $easing-standard;
+
+  &.is-collapsed {
+    width: 0;
+    pointer-events: none;
+  }
+}
+
+.ai00-x-is-resizing-nav .ai00-x-workspace-body__nav-area {
+  transition: none;
+}
+
+.ai00-x-workspace-body.is-entering .ai00-x-workspace-body__nav-area:not(.is-collapsed) {
+  animation: wb-nav-slide-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ai00-x-workspace-body.is-exiting .ai00-x-workspace-body__nav-area:not(.is-collapsed) {
+  animation: wb-nav-slide-out 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ai00-x-workspace-body__collapsed-nav {
+  position: absolute;
+  top: 0;
+  left: $size-gap-2;
+  z-index: $z-dropdown;
+  width: $_nav-collapsed-width;
+  height: 40px;
+}
+
+// ── Right column: scene viewport ──────────────────────────
+
+.ai00-x-workspace-body__scene-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  gap: 0;
+  transition: opacity $motion-fast $easing-standard;
+}
+
+// When nav is collapsed, the floating collapsed-nav (80px wide) overlays
+// the top-left area. No longer need to offset SceneBar since it's in title-bar-row.
+.ai00-x-workspace-body__nav-area.is-collapsed + .ai00-x-workspace-body__scene-area {
+  // No padding offset needed — SceneBar is now in title-bar-row
+}
+
+.ai00-x-app-layout--macos .ai00-x-workspace-body__collapsed-nav {
+  left: calc(#{$size-gap-2} + 72px);
+}
+
+// When the left nav is collapsed, the hidden nav area still mounts a NavBar.
+// Suppress its macOS fixed logo button to avoid duplicate icons.
+.ai00-x-workspace-body__nav-area.is-collapsed .ai00-x-nav-bar--macos .ai00-x-nav-bar__logo-menu {
+  display: none;
+}
+
+.ai00-x-workspace-body__nav-panel {
+  min-width: 0;
+}
+
+.ai00-x-workspace-body.is-full-window-scene {
+  .ai00-x-workspace-body__content-row {
+    padding: 0;
+    gap: 0;
+  }
+
+  .ai00-x-workspace-body__scene-area {
+    border-radius: 0;
+  }
+
+  .ai00-x-scene-viewport {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+}
+
+@keyframes wb-nav-slide-in {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+  to {
+    width: var(--nav-width, $_nav-width);
+    opacity: 1;
+  }
+}
+
+@keyframes wb-nav-slide-out {
+  from {
+    width: var(--nav-width, $_nav-width);
+    opacity: 1;
+  }
+  to {
+    width: 0;
+    opacity: 0;
+  }
+}

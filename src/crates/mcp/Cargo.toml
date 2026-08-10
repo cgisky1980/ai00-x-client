@@ -1,0 +1,17 @@
+[package]
+name = "ai00-x-mcp"
+version.workspace = true
+edition = "2021"
+description = "Ai00-X MCP (Model Context Protocol) — server management and tools"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+log = { workspace = true }
+
+# Tool framework types (Tool trait, ToolResult, etc.)
+ai00-x-tool-framework = { path = "../tool-framework" }
+# Core for MCP infrastructure (server manager, protocol, etc.)
+ai00-x-core = { path = "../core" }

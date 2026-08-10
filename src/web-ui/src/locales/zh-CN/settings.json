@@ -1,0 +1,537 @@
+{
+  "title": "设置",
+  "exitSettings": "退出设置",
+  "configCenter": {
+    "title": "设置",
+    "selectConfig": "选择配置项",
+    "searchPlaceholder": "搜索配置…",
+    "searchNoResults": "没有匹配的配置",
+    "searchClear": "清除搜索",
+    "beta": "Beta",
+    "tabDescriptions": {
+      "ui": "界面语言、主题外观、字体与通知偏好。",
+      "system": "开机自启、日志级别与默认终端 Shell。",
+      "voiceSettings": "音频输入输出设备、语音输入触发参数。",
+      "basics": "语言、主题、日志、终端 Shell 与开机启动。",
+      "taskModels": "AI 文本模型、API 密钥、供应商与代理。",
+      "voiceModels": "ASR 语音识别与 TTS 语音合成引擎管理。",
+      "models": "AI 模型、API 密钥、供应商与代理。",
+      "voice": "音频设备、语音输入与语音识别。",
+      "assistant": "VRM 虚拟形象、人设与 TTS 语音。",
+      "gesture": "鼠标符咒识别与自定义符咒。",
+      "gestureConfig": "启用符咒功能、设置网格间距。",
+      "gestureTemplates": "录制、编辑和管理自定义符咒模板与动作绑定。",
+      "gestureActions": "管理保存的动作，如运行程序和脚本。",
+      "clickEffect": "鼠标点击特效与吉祥话自定义。",
+      "smartDesktop": "桌面替换模式、网格布局与智能桌面功能。",
+      "memory": "知识图谱、搜索与维护。",
+      "account": "用户账户与退出登录。",
+      "about": "版本、更新与许可证。"
+    },
+    "categories": {
+      "basic": "基础",
+      "models": "模型",
+      "assistant": "助手",
+      "spells": "符咒",
+      "desktopBeautify": "桌面美化"
+    },
+    "tabs": {
+      "ui": "界面设置",
+      "system": "系统设置",
+      "voiceSettings": "语音设置",
+      "basics": "基础",
+      "taskModels": "任务模型",
+      "voiceModels": "语音模型",
+      "models": "模型",
+      "voice": "语音",
+      "assistant": "助手",
+      "gesture": "符咒",
+      "gestureConfig": "符咒设置",
+      "gestureTemplates": "符咒列表",
+      "gestureActions": "动作设置",
+      "clickEffect": "鼠标特效",
+      "smartDesktop": "智能桌面",
+      "memory": "记忆",
+      "account": "账户",
+      "about": "关于"
+    },
+    "gesture": {
+      "enabled": "启用符咒",
+      "configSubtitle": "启用或禁用符咒识别，并调整鼠标轨迹捕获的网格精度",
+      "templateSubtitle": "录制、编辑和管理自定义符咒模板，绑定触发动作",
+      "gridSize": "网格大小",
+      "gridSpacing": "网格间距",
+      "longPress": "长按触发时间",
+      "builtinPatterns": "内置符咒",
+      "customTemplates": "自定义符咒",
+      "recordPattern": "录制符咒",
+      "recording": "正在录制...",
+      "drawPatternHint": "在网格上拖拽选择点来绘制符咒",
+      "minTwoPointsHint": "至少需要选择 2 个点才能保存",
+      "enterName": "输入符咒名称",
+      "save": "保存",
+      "retry": "重录",
+      "cancel": "取消",
+      "deleteTemplate": "删除",
+      "edit": "编辑",
+      "clickToRename": "点击重命名",
+      "startNode": "Group {{node}}",
+      "clickToRenameGroup": "点击编辑分组名称",
+      "pointCount": "{{count}} 个点",
+      "templateCount": "{{count}} 个模板",
+      "bindAction": "绑定操作",
+      "commandPlaceholder": "输入命令...",
+      "actions": {
+        "VrmShow": "显示VRM",
+        "VrmHide": "隐藏VRM",
+        "OpenSettings": "打开设置",
+        "OpenMain": "打开主窗口",
+        "ToggleUnderlay": "切换智能桌面",
+        "CustomCommand": "自定义命令",
+        "None": "仅特效",
+        "savedActions": "已保存动作",
+        "addAction": "添加动作",
+        "editAction": "编辑动作",
+        "deleteAction": "删除动作",
+        "actionName": "动作名称",
+        "command": "命令/程序路径",
+        "args": "参数（空格分隔）",
+        "workingDir": "工作目录",
+        "noActions": "暂无保存的动作，点击下方按钮添加",
+        "browseFile": "浏览...",
+        "browseDir": "选择目录..."
+      }
+    }
+  },
+  "clickEffect": {
+    "title": "鼠标特效",
+    "subtitle": "自定义鼠标点击时显示的吉祥话和特效",
+    "enabled": "启用点击特效",
+    "blessingWords": "吉祥话列表",
+    "blessingWordsHint": "点击编辑或删除，按回车添加新词",
+    "addWord": "添加吉祥话",
+    "addWordPlaceholder": "输入吉祥话…",
+    "resetToDefault": "恢复默认",
+    "preview": "预览",
+    "valueRange": "数值范围",
+    "valueRangeHint": "点击时显示的随机数值范围",
+    "minValue": "最小值",
+    "maxValue": "最大值"
+  },
+  "general": {
+    "title": "通用",
+    "language": {
+      "title": "语言",
+      "description": "选择界面显示语言",
+      "auto": "自动检测"
+    },
+    "theme": {
+      "title": "主题",
+      "description": "选择界面主题",
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    },
+    "startup": {
+      "title": "启动",
+      "restoreSession": "恢复上次任务",
+      "showWelcome": "显示欢迎页面"
+    }
+  },
+  "editor": {
+    "title": "编辑器",
+    "font": {
+      "title": "字体",
+      "family": "字体族",
+      "size": "字体大小",
+      "lineHeight": "行高"
+    },
+    "display": {
+      "title": "显示",
+      "wordWrap": "自动换行",
+      "minimap": "显示缩略图",
+      "lineNumbers": "显示行号",
+      "breadcrumbs": "显示面包屑",
+      "whitespace": "显示空白字符"
+    },
+    "behavior": {
+      "title": "行为",
+      "autoSave": "自动保存",
+      "autoSaveDelay": "自动保存延迟",
+      "formatOnSave": "保存时格式化",
+      "formatOnPaste": "粘贴时格式化"
+    },
+    "indentation": {
+      "title": "缩进",
+      "type": "缩进类型",
+      "spaces": "空格",
+      "tabs": "制表符",
+      "size": "缩进大小"
+    }
+  },
+  "ai": {
+    "title": "AI 设置",
+    "model": {
+      "title": "模型",
+      "select": "选择模型",
+      "provider": "服务商",
+      "apiKey": "API 密钥",
+      "baseUrl": "基础 URL",
+      "add": "添加模型",
+      "edit": "编辑模型",
+      "delete": "删除模型"
+    },
+    "behavior": {
+      "title": "行为",
+      "streaming": "流式输出",
+      "temperature": "温度",
+      "maxTokens": "最大令牌数",
+      "contextLength": "上下文长度"
+    },
+    "agent": {
+      "title": "智能体",
+      "defaultAgent": "默认智能体",
+      "customAgents": "自定义智能体"
+    }
+  },
+  "terminal": {
+    "title": "终端",
+    "shell": {
+      "title": "Shell",
+      "default": "默认 Shell",
+      "profiles": "Shell 配置"
+    },
+    "display": {
+      "title": "显示",
+      "fontSize": "字体大小",
+      "fontFamily": "字体族",
+      "cursorStyle": "光标样式",
+      "scrollback": "回滚行数"
+    }
+  },
+  "workspace": {
+    "title": "工作区",
+    "files": {
+      "title": "文件",
+      "exclude": "排除文件",
+      "watcherExclude": "排除监视",
+      "associations": "文件关联"
+    },
+    "search": {
+      "title": "搜索",
+      "exclude": "排除搜索",
+      "useIgnoreFiles": "使用忽略文件"
+    }
+  },
+  "advanced": {
+    "title": "高级",
+    "experimental": {
+      "title": "实验性功能",
+      "description": "这些功能可能不稳定"
+    },
+    "debug": {
+      "title": "调试",
+      "logging": "启用日志",
+      "developerTools": "开发者工具"
+    },
+    "data": {
+      "title": "数据",
+      "export": "导出设置",
+      "import": "导入设置",
+      "reset": "重置所有设置",
+      "resetConfirm": "确定要重置所有设置吗？此操作不可撤销。"
+    }
+  },
+  "about": {
+    "title": "关于",
+    "version": "版本",
+    "checkUpdate": "检查更新",
+    "changelog": "更新日志",
+    "license": "许可证",
+    "openSource": "开源许可",
+    "feedback": "反馈",
+    "reportIssue": "报告问题",
+    "documentation": "文档"
+  },
+  "aiModel": {
+    "title": "模型配置",
+    "subtitle": "配置 AI 模型和 API 密钥",
+    "addModel": "添加模型",
+    "editModel": "编辑模型配置",
+    "newModel": "新建模型配置",
+    "editSubtitle": "基础模型参数配置",
+    "deleteModel": "删除模型",
+    "confirmDelete": "确定删除此配置？",
+    "modelName": "模型名称",
+    "modelId": "模型 ID",
+    "provider": "请求规范",
+    "providerPlaceholder": "选择请求格式",
+    "apiKey": "API密钥",
+    "apiKeyPlaceholder": "输入您的 API Key",
+    "baseUrl": "API地址",
+    "baseUrlPlaceholder": "请输入 API 地址（可选）",
+    "configName": "配置名称",
+    "configNamePlaceholder": "为此配置起个名字",
+    "maxTokens": "最大输出Tokens",
+    "maxTokensHint": "单次请求时限制模型输出的最大token数量（影响响应长度）",
+    "contextWindow": "上下文窗口大小",
+    "contextWindowHint": "模型支持的最大上下文窗口大小（用于计算token占用百分比）",
+    "temperature": "温度",
+    "streaming": "流式输出",
+    "enabled": "启用",
+    "test": "测试连接",
+    "testing": "测试中...",
+    "testSuccess": "连接成功",
+    "testFailed": "连接失败",
+    "noModels": "暂无模型配置",
+    "noModelsHint": "点击上方按钮添加您的第一个 AI 模型",
+    "createFirst": "创建第一个配置",
+    "noMatchingModels": "没有找到匹配的模型",
+    "searchPlaceholder": "搜索模型名称、提供商...",
+    "newConfig": "新建配置",
+    "save": "保存",
+    "cancel": "取消",
+    "edit": "编辑",
+    "delete": "删除",
+    "description": "描述",
+    "descriptionPlaceholder": "配置说明（可选）",
+    "tabs": {
+      "api": "API配置",
+      "proxy": "代理配置"
+    },
+    "categories": {
+      "all": "全部",
+      "text": "文本",
+      "multimodal": "图像",
+      "other": "辅助"
+    },
+    "category": {
+      "label": "模型分类",
+      "placeholder": "选择模型分类",
+      "general_chat": "文本生成",
+      "multimodal": "图像理解",
+      "image_generation": "图像生成",
+      "speech_recognition": "语音识别"
+    },
+    "categoryHints": {
+      "general_chat": "文本生成：生成文本回复、代码等，适用于大多数对话场景",
+      "multimodal": "图像理解：理解图片内容并进行图文混合对话",
+      "image_generation": "图像生成：根据文字描述生成图片",
+      "speech_recognition": "语音识别：将语音转换为文字（如智谱 GLM-ASR）"
+    },
+    "modelNameHint": "智谱 GLM-ASR 使用 glm-asr，其他语音模型填写对应的模型名称",
+    "thinking": {
+      "enable": "启用思考",
+      "enableHint": "需要模型支持思考模式"
+    },
+    "details": {
+      "basicInfo": "基本信息",
+      "modelName": "模型名称",
+      "provider": "请求规范",
+      "apiUrl": "API地址",
+      "contextWindow": "上下文窗口",
+      "maxOutput": "最大输出",
+      "description": "描述",
+      "tokens": "tokens"
+    },
+    "proxy": {
+      "enable": "启用代理",
+      "enableHint": "启用后所有AI请求将通过代理发送（需重启IDE生效）",
+      "url": "代理地址",
+      "urlPlaceholder": "http://127.0.0.1:7890 或 socks5://127.0.0.1:1080",
+      "urlHint": "支持 HTTP/HTTPS/SOCKS5 代理，格式：协议://地址:端口",
+      "username": "用户名（可选）",
+      "usernamePlaceholder": "代理认证用户名",
+      "password": "密码（可选）",
+      "passwordPlaceholder": "代理认证密码",
+      "save": "保存代理配置",
+      "saveSuccess": "代理配置已保存，重启IDE后生效"
+    },
+    "messages": {
+      "fillRequired": "请填写必要字段",
+      "fillModelName": "请填写模型名称",
+      "saveFailed": "保存失败",
+      "deleteFailed": "删除配置失败",
+      "loadFailed": "加载AI配置失败",
+      "errorDetails": "详细错误"
+    },
+    "capabilities": {
+      "text_chat": "对话",
+      "image_understanding": "多模态",
+      "image_generation": "绘图",
+      "search": "搜索",
+      "function_calling": "工具",
+      "speech_recognition": "语音"
+    }
+  },
+  "superAgent": {
+    "title": "Super Agent",
+    "subtitle": "配置主智能体的模型分配",
+    "textChat": "文本任务",
+    "textChatDesc": "处理日常任务和问答",
+    "codeGeneration": "代码生成",
+    "codeGenerationDesc": "生成和补全代码",
+    "codeReview": "代码审查",
+    "codeReviewDesc": "审查和优化代码",
+    "planning": "任务规划",
+    "planningDesc": "分解和规划复杂任务",
+    "selectModel": "选择模型",
+    "notConfigured": "未配置",
+    "configured": "已配置",
+    "modelUpdated": "{{capability}}已更新为 {{modelName}}",
+    "capabilities": {
+      "text_chat": "文本任务模型",
+      "image_understanding": "图片理解模型",
+      "image_generation": "图片生成模型",
+      "search": "搜索API模型",
+      "speech_recognition": "语音识别模型"
+    },
+    "capabilityDescs": {
+      "text_chat": "处理所有文本任务、代码生成、工具调用等任务",
+      "image_understanding": "当主模型不支持图片输入时，用于分析和理解图片内容",
+      "image_generation": "根据文字描述生成图片（如 DALL-E、Stable Diffusion）",
+      "search": "实时搜索网络信息，提供最新数据支持",
+      "speech_recognition": "将语音转换为文字，支持语音输入功能（如智谱 GLM-ASR）"
+    }
+  },
+  "aiFeatures": {
+    "title": "智能特性",
+    "subtitle": "配置 AI 增强功能",
+    "codeCompletion": "代码补全",
+    "codeCompletionDesc": "智能代码补全建议",
+    "inlineChat": "行内任务",
+    "inlineChatDesc": "在编辑器中直接与 AI 交互",
+    "semanticSearch": "语义搜索",
+    "semanticSearchDesc": "基于语义理解的代码搜索",
+    "autoFix": "自动修复",
+    "autoFixDesc": "自动修复代码错误和警告"
+  },
+  "aiRules": {
+    "title": "规则",
+    "subtitle": "配置 AI 行为规则和约束",
+    "addRule": "添加规则",
+    "editRule": "编辑规则",
+    "deleteRule": "删除规则",
+    "ruleName": "规则名称",
+    "ruleContent": "规则内容",
+    "priority": "优先级",
+    "enabled": "启用",
+    "noRules": "暂无规则",
+    "noRulesHint": "添加规则来约束 AI 的行为"
+  },
+  "aiMemory": {
+    "title": "记忆",
+    "subtitle": "管理 AI 的上下文记忆",
+    "clearMemory": "清除记忆",
+    "confirmClear": "确定要清除所有记忆吗？此操作不可撤销。",
+    "memorySize": "记忆大小",
+    "lastUpdated": "最后更新"
+  },
+  "modes": {
+    "title": "模式",
+    "subtitle": "配置不同的工作模式",
+    "agentMode": "Agent 模式",
+    "agentModeDesc": "AI 可以执行代码和使用工具",
+    "chatMode": "任务模式",
+    "chatModeDesc": "纯任务，不执行任何操作",
+    "askMode": "Ask 模式",
+    "askModeDesc": "只读模式，仅回答问题"
+  },
+  "agentTools": {
+    "title": "工具设置",
+    "subtitle": "配置 Core 工具权限和行为",
+    "fileOperations": "文件操作",
+    "fileOperationsDesc": "允许 AI 读写文件",
+    "terminalAccess": "终端访问",
+    "terminalAccessDesc": "允许 AI 执行终端命令",
+    "webSearch": "网络搜索",
+    "webSearchDesc": "允许 AI 搜索网络信息",
+    "browserControl": "浏览器控制",
+    "browserControlDesc": "允许 AI 控制浏览器"
+  },
+  "skills": {
+    "title": "技能",
+    "subtitle": "管理 AI 技能扩展",
+    "addSkill": "添加技能",
+    "noSkills": "暂无技能",
+    "noSkillsHint": "技能可以扩展 AI 的能力"
+  },
+  "agents": {
+    "title": "智能体",
+    "subtitle": "配置智能体",
+    "addAgent": "添加智能体",
+    "noAgents": "暂无子智能体",
+    "noAgentsHint": "子智能体可以处理特定类型的任务"
+  },
+  "mcp": {
+    "title": "MCP",
+    "subtitle": "管理 MCP 服务器连接",
+    "addServer": "添加服务器",
+    "serverName": "服务器名称",
+    "serverUrl": "服务器地址",
+    "connected": "已连接",
+    "disconnected": "已断开",
+    "noServers": "暂无 MCP 服务器",
+    "noServersHint": "添加 MCP 服务器以扩展功能"
+  },
+  "editorConfig": {
+    "title": "编辑器",
+    "subtitle": "配置代码编辑器",
+    "fontSize": "字体大小",
+    "fontFamily": "字体",
+    "lineHeight": "行高",
+    "tabSize": "Tab 大小",
+    "wordWrap": "自动换行",
+    "minimap": "显示缩略图",
+    "lineNumbers": "显示行号"
+  },
+  "lspConfig": {
+    "title": "语言服务",
+    "subtitle": "配置语言服务器",
+    "installedServers": "已安装的语言服务器",
+    "noServers": "暂无语言服务器",
+    "noServersHint": "语言服务器提供代码智能功能"
+  },
+  "debugConfig": {
+    "title": "调试",
+    "subtitle": "配置调试选项",
+    "enableLogging": "启用日志",
+    "logLevel": "日志级别",
+    "developerTools": "开发者工具"
+  },
+  "terminalConfig": {
+    "title": "终端",
+    "subtitle": "配置集成终端",
+    "shell": "默认 Shell",
+    "fontSize": "字体大小",
+    "fontFamily": "字体",
+    "cursorStyle": "光标样式",
+    "scrollback": "回滚行数"
+  },
+  "configPageHeaderExample": {
+    "basic": {
+      "title": "基础配置"
+    },
+    "apiNetwork": {
+      "title": "API & 网络",
+      "subtitle": "配置和管理系统中的 AI 模型，包括 API 密钥、默认模型等设置"
+    },
+    "learning": {
+      "title": "学习 & 知识",
+      "subtitle": "管理 AI 记忆、知识库和技能配置",
+      "import": "导入",
+      "addMemory": "添加记忆"
+    },
+    "agents": {
+      "title": "智能体配置",
+      "subtitle": "配置和管理系统中的智能体，包括功能代理、超级代理等",
+      "create": "创建智能体"
+    },
+    "theme": {
+      "title": "主题配置",
+      "subtitle": "自定义应用的外观和主题色彩",
+      "import": "导入主题",
+      "export": "导出当前主题"
+    }
+  }
+}

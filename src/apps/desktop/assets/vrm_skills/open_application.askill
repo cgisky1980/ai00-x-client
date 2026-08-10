@@ -1,0 +1,30 @@
+---
+name: open_application
+alias: 启灵术
+brief: "Launch applications: notepad, calculator, browser, etc."
+description: "启动指定的应用程序，可选择直接打开网址"
+keywords:
+  - 打开
+  - 启动
+  - 应用
+  - 程序
+  - open
+  - launch
+  - app
+  - application
+when_to_use: "When user wants to open or launch an application"
+parameters:
+  - name: name
+    type: string
+    description: "notepad/calculator/explorer/chrome/edge/firefox/vscode/word/excel/powerpoint/terminal/powershell/help"
+    required: true
+  - name: path
+    type: string
+    description: "自定义路径"
+    required: false
+  - name: arguments
+    type: string
+    description: "启动参数"
+    required: false
+executor: builtin:open_application
+---

@@ -1,0 +1,1534 @@
+//! Workspace service - advanced workspace management API
+//!
+//! Provides comprehensive workspace management functionality.
+
+use super::manager::{
+    ScanOptions, WorkspaceIdentity, WorkspaceInfo, WorkspaceKind, WorkspaceManager,
+    WorkspaceManagerConfig, WorkspaceManagerStatistics, WorkspaceOpenOptions, WorkspaceStatus,
+    WorkspaceSummary, WorkspaceType,
+};
+use crate::agent::persistence::{PersistenceManager, SessionWorkspaceMaintenanceService};
+use crate::infrastructure::storage::{PersistenceService, StorageOptions};
+use crate::infrastructure::{try_get_path_manager_arc, PathManager};
+use crate::service::remote_ssh::workspace_state::local_workspace_roots_equal;
+use crate::service::workspace_runtime::{
+    try_get_workspace_runtime_service_arc, WorkspaceRuntimeService,
+};
+use crate::util::errors::*;
+use log::{info, warn};
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Workspace service.
+pub struct WorkspaceService {
+    manager: Arc<RwLock<WorkspaceManager>>,
+    #[allow(dead_code)]
+    config: WorkspaceManagerConfig,
+    persistence: Arc<PersistenceService>,
+    path_manager: Arc<PathManager>,
+    runtime_service: Arc<WorkspaceRuntimeService>,
+    session_workspace_maintenance: Arc<SessionWorkspaceMaintenanceService>,
+}
+
+/// Workspace creation options.
+#[derive(Debug, Clone)]
+pub struct WorkspaceCreateOptions {
+    pub scan_options: ScanOptions,
+    pub auto_set_current: bool,
+    pub add_to_recent: bool,
+    pub workspace_kind: WorkspaceKind,
+    pub display_name: Option<String>,
+    pub description: Option<String>,
+    pub tags: Vec<String>,
+    /// See [`crate::service::workspace::manager::WorkspaceOpenOptions::remote_connection_id`].
+    pub remote_connection_id: Option<String>,
+    /// SSH `host` from connection config; used for `~/.ai00-x/remote_ssh/...` and stable remote ids.
+    pub remote_ssh_host: Option<String>,
+    /// Deterministic id for [`WorkspaceKind::Remote`] (host + remote path hash).
+    pub stable_workspace_id: Option<String>,
+}
+
+impl Default for WorkspaceCreateOptions {
+    fn default() -> Self {
+        Self {
+            scan_options: ScanOptions::default(),
+            auto_set_current: true,
+            add_to_recent: true,
+            workspace_kind: WorkspaceKind::Normal,
+            display_name: None,
+            description: None,
+            tags: Vec::new(),
+            remote_connection_id: None,
+            remote_ssh_host: None,
+            stable_workspace_id: None,
+        }
+    }
+}
+
+/// Batch import result.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BatchImportResult {
+    pub successful: Vec<String>,
+    pub failed: Vec<(String, String)>, // (path, error_message)
+    pub total_processed: usize,
+    pub skipped: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceIdentityChangedEvent {
+    pub workspace_id: String,
+    pub workspace_path: String,
+    pub name: String,
+    pub identity: Option<WorkspaceIdentity>,
+    pub changed_fields: Vec<String>,
+}
+
+impl WorkspaceService {
+    fn collect_startup_restored_workspaces(
+        manager: &WorkspaceManager,
+    ) -> Vec<(PathBuf, WorkspaceKind)> {
+        let mut targets = Vec::new();
+        let mut seen_workspace_ids = HashSet::new();
+
+        if let Some(workspace) = manager.get_current_workspace() {
+            Self::push_startup_restored_workspace(&mut targets, &mut seen_workspace_ids, workspace);
+        }
+
+        for workspace in manager.get_opened_workspace_infos() {
+            Self::push_startup_restored_workspace(&mut targets, &mut seen_workspace_ids, workspace);
+        }
+
+        targets
+    }
+
+    fn push_startup_restored_workspace(
+        targets: &mut Vec<(PathBuf, WorkspaceKind)>,
+        seen_workspace_ids: &mut HashSet<String>,
+        workspace: &WorkspaceInfo,
+    ) {
+        if seen_workspace_ids.insert(workspace.id.clone()) {
+            targets.push((
+                workspace.root_path.clone(),
+                workspace.workspace_kind.clone(),
+            ));
+        }
+    }
+
+    async fn prepare_startup_restored_workspaces(&self, workspaces: Vec<(PathBuf, WorkspaceKind)>) {
+        for (workspace_path, workspace_kind) in workspaces {
+            if workspace_kind == WorkspaceKind::Remote || !workspace_path.exists() {
+                continue;
+            }
+
+            if let Err(e) = self
+                .runtime_service
+                .ensure_local_workspace_runtime(&workspace_path)
+                .await
+            {
+                warn!(
+                    "Failed to initialize restored project storage: workspace_path={} error={}",
+                    workspace_path.display(),
+                    e
+                );
+            }
+
+            self.maintain_workspace_sessions_best_effort(
+                &workspace_path,
+                "workspace_history_restored",
+            )
+            .await;
+        }
+    }
+
+    async fn maintain_workspace_sessions_best_effort(&self, workspace_path: &Path, trigger: &str) {
+        match self
+            .session_workspace_maintenance
+            .ensure_workspace_maintained(workspace_path)
+            .await
+        {
+            Ok(report) if report.skipped || report.deleted_sessions == 0 => {}
+            Ok(report) => {
+                info!(
+                    "Workspace session maintenance finished: trigger={}, workspace_path={}, scanned_sessions={}, hidden_sessions={}, deleted_sessions={}",
+                    trigger,
+                    workspace_path.display(),
+                    report.scanned_sessions,
+                    report.hidden_sessions,
+                    report.deleted_sessions
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to maintain workspace sessions: trigger={}, workspace_path={}, error={}",
+                    trigger,
+                    workspace_path.display(),
+                    e
+                );
+            }
+        }
+    }
+
+    /// Creates a new workspace service.
+    pub async fn new() -> Ai00XResult<Self> {
+        let config = WorkspaceManagerConfig::default();
+        Self::with_config(config).await
+    }
+
+    /// Creates a workspace service with a custom configuration.
+    pub async fn with_config(config: WorkspaceManagerConfig) -> Ai00XResult<Self> {
+        let path_manager = try_get_path_manager_arc()?;
+        let runtime_service = try_get_workspace_runtime_service_arc()?;
+
+        path_manager.initialize_user_directories().await?;
+
+        let persistence = Arc::new(
+            PersistenceService::new_user_level(path_manager.clone())
+                .await
+                .map_err(|e| {
+                    Ai00XError::service(format!("Failed to create persistence service: {}", e))
+                })?,
+        );
+
+        let manager = WorkspaceManager::new(config.clone());
+        let session_workspace_maintenance = Arc::new(SessionWorkspaceMaintenanceService::new(
+            Arc::new(PersistenceManager::new(path_manager.clone())?),
+        ));
+
+        let service = Self {
+            manager: Arc::new(RwLock::new(manager)),
+            config,
+            persistence,
+            path_manager,
+            runtime_service,
+            session_workspace_maintenance,
+        };
+
+        if let Err(e) = service.load_workspace_history_only().await {
+            warn!("Failed to load workspace history on startup: {}", e);
+        }
+
+        Ok(service)
+    }
+
+    /// Returns the path manager.
+    pub fn path_manager(&self) -> &Arc<PathManager> {
+        &self.path_manager
+    }
+
+    /// Returns the persistence service.
+    pub fn persistence(&self) -> &Arc<PersistenceService> {
+        &self.persistence
+    }
+
+    pub fn runtime_service(&self) -> &Arc<WorkspaceRuntimeService> {
+        &self.runtime_service
+    }
+
+    /// Opens a workspace.
+    pub async fn open_workspace(&self, path: PathBuf) -> Ai00XResult<WorkspaceInfo> {
+        self.open_workspace_with_options(path, WorkspaceCreateOptions::default())
+            .await
+    }
+
+    /// Opens a workspace with explicit workspace metadata.
+    pub async fn open_workspace_with_options(
+        &self,
+        path: PathBuf,
+        options: WorkspaceCreateOptions,
+    ) -> Ai00XResult<WorkspaceInfo> {
+        let options = self.normalize_workspace_options_for_path(&path, options);
+        let result = {
+            let mut manager = self.manager.write().await;
+            manager
+                .open_workspace_with_options(path, Self::to_manager_open_options(&options))
+                .await
+        };
+
+        if let Ok(workspace) = result.as_ref() {
+            if workspace.workspace_kind != WorkspaceKind::Remote {
+                if let Err(e) = self
+                    .runtime_service
+                    .ensure_local_workspace_runtime(&workspace.root_path)
+                    .await
+                {
+                    warn!(
+                        "Failed to initialize project storage: workspace_path={} error={}",
+                        workspace.root_path.display(),
+                        e
+                    );
+                }
+            }
+        }
+
+        if result.is_ok() {
+            if let Err(e) = self.save_workspace_data().await {
+                warn!("Failed to save workspace data after opening: {}", e);
+            }
+        }
+
+        if let Ok(workspace) = result.as_ref() {
+            self.maintain_workspace_sessions_best_effort(&workspace.root_path, "workspace_opened")
+                .await;
+        }
+
+        result
+    }
+
+    /// Quickly opens a workspace (using default options).
+    pub async fn quick_open(&self, path: &str) -> Ai00XResult<WorkspaceInfo> {
+        let path_buf = PathBuf::from(path);
+        self.open_workspace(path_buf).await
+    }
+
+    /// Creates a workspace (for a new project).
+    pub async fn create_workspace(
+        &self,
+        path: PathBuf,
+        options: WorkspaceCreateOptions,
+    ) -> Ai00XResult<WorkspaceInfo> {
+        if !path.exists() {
+            tokio::fs::create_dir_all(&path).await.map_err(|e| {
+                Ai00XError::service(format!("Failed to create workspace directory: {}", e))
+            })?;
+        }
+
+        let mut workspace = self
+            .open_workspace_with_options(path, options.clone())
+            .await?;
+
+        if let Some(description) = options.description {
+            workspace.description = Some(description);
+        }
+
+        workspace.tags = options.tags;
+
+        {
+            let mut manager = self.manager.write().await;
+            manager
+                .get_workspaces_mut()
+                .insert(workspace.id.clone(), workspace.clone());
+        }
+
+        self.save_workspace_data().await?;
+
+        Ok(workspace)
+    }
+
+    /// Closes the current workspace.
+    pub async fn close_current_workspace(&self) -> Ai00XResult<()> {
+        let current_id = {
+            let manager = self.manager.read().await;
+            manager.get_current_workspace().map(|w| w.id.clone())
+        };
+
+        if let Some(ref id) = current_id {
+            if self.is_protected_workspace(id).await {
+                return Err(Ai00XError::service(
+                    "Cannot close the task workspace".to_string(),
+                ));
+            }
+        }
+
+        let result = {
+            let mut manager = self.manager.write().await;
+            manager.close_current_workspace()
+        };
+
+        if result.is_ok() {
+            if let Err(e) = self.save_workspace_data().await {
+                warn!("Failed to save workspace data after closing: {}", e);
+            }
+        }
+
+        result
+    }
+
+    /// Closes the specified workspace.
+    pub async fn close_workspace(&self, workspace_id: &str) -> Ai00XResult<()> {
+        if self.is_protected_workspace(workspace_id).await {
+            return Err(Ai00XError::service(
+                "Cannot close the task workspace".to_string(),
+            ));
+        }
+
+        let result = {
+            let mut manager = self.manager.write().await;
+            manager.close_workspace(workspace_id)
+        };
+
+        if result.is_ok() {
+            if let Err(e) = self.save_workspace_data().await {
+                warn!("Failed to save workspace data after closing: {}", e);
+            }
+        }
+
+        result
+    }
+
+    /// Sets the active workspace from the opened workspace list.
+    pub async fn set_active_workspace(&self, workspace_id: &str) -> Ai00XResult<()> {
+        let result = {
+            let mut manager = self.manager.write().await;
+            manager.set_active_workspace(workspace_id)
+        };
+
+        if result.is_ok() {
+            if let Err(e) = self.save_workspace_data().await {
+                warn!(
+                    "Failed to save workspace data after switching active workspace: {}",
+                    e
+                );
+            }
+        }
+
+        if result.is_ok() {
+            if let Some(workspace) = self.get_workspace(workspace_id).await {
+                if workspace.workspace_kind != WorkspaceKind::Remote {
+                    if let Err(e) = self
+                        .runtime_service
+                        .ensure_local_workspace_runtime(&workspace.root_path)
+                        .await
+                    {
+                        warn!(
+                            "Failed to initialize activated project storage: workspace_path={} error={}",
+                            workspace.root_path.display(),
+                            e
+                        );
+                    }
+                }
+                self.maintain_workspace_sessions_best_effort(
+                    &workspace.root_path,
+                    "workspace_activated",
+                )
+                .await;
+            }
+        }
+
+        result
+    }
+
+    /// Reorders the opened workspaces without changing active or recent state.
+    pub async fn reorder_opened_workspaces(&self, workspace_ids: Vec<String>) -> Ai00XResult<()> {
+        let current_ids = {
+            let manager = self.manager.read().await;
+            manager.get_opened_workspace_ids().clone()
+        };
+
+        if workspace_ids.len() != current_ids.len() {
+            return Err(Ai00XError::service(format!(
+                "Opened workspace count mismatch: expected {}, got {}",
+                current_ids.len(),
+                workspace_ids.len()
+            )));
+        }
+
+        let requested_ids = workspace_ids.iter().cloned().collect::<HashSet<_>>();
+        if requested_ids.len() != workspace_ids.len() {
+            return Err(Ai00XError::service(
+                "Opened workspace order contains duplicate ids".to_string(),
+            ));
+        }
+
+        let current_id_set = current_ids.iter().cloned().collect::<HashSet<_>>();
+        if requested_ids != current_id_set {
+            return Err(Ai00XError::service(
+                "Opened workspace order must contain exactly the currently opened workspace ids"
+                    .to_string(),
+            ));
+        }
+
+        {
+            let mut manager = self.manager.write().await;
+            manager.set_opened_workspace_ids(workspace_ids.clone());
+        }
+
+        if let Err(error) = self.save_workspace_data().await {
+            let mut manager = self.manager.write().await;
+            manager.set_opened_workspace_ids(current_ids);
+            return Err(error);
+        }
+
+        Ok(())
+    }
+
+    /// Switches to the specified workspace.
+    pub async fn switch_to_workspace(&self, workspace_id: &str) -> Ai00XResult<()> {
+        self.set_active_workspace(workspace_id).await
+    }
+
+    /// Returns the current workspace.
+    pub async fn get_current_workspace(&self) -> Option<WorkspaceInfo> {
+        let manager = self.manager.read().await;
+        manager.get_current_workspace().cloned()
+    }
+
+    /// Best-effort synchronous read for contexts that cannot `await`.
+    pub fn try_get_current_workspace_path(&self) -> Option<PathBuf> {
+        self.manager.try_read().ok().and_then(|manager| {
+            manager
+                .get_current_workspace()
+                .map(|workspace| workspace.root_path.clone())
+        })
+    }
+
+    /// Returns workspace details.
+    pub async fn get_workspace(&self, workspace_id: &str) -> Option<WorkspaceInfo> {
+        let manager = self.manager.read().await;
+        manager.get_workspace(workspace_id).cloned()
+    }
+
+    /// Returns workspace details by root path.
+    pub async fn get_workspace_by_path(&self, path: &Path) -> Option<WorkspaceInfo> {
+        let manager = self.manager.read().await;
+        manager
+            .get_workspaces()
+            .values()
+            .find(|workspace| {
+                if workspace.workspace_kind == WorkspaceKind::Remote {
+                    workspace.root_path == path
+                } else {
+                    local_workspace_roots_equal(&workspace.root_path, path)
+                }
+            })
+            .cloned()
+    }
+
+    /// Returns all currently opened workspaces.
+    pub async fn get_opened_workspaces(&self) -> Vec<WorkspaceInfo> {
+        let manager = self.manager.read().await;
+        manager
+            .get_opened_workspace_infos()
+            .into_iter()
+            .cloned()
+            .collect()
+    }
+
+    /// All tracked workspaces with full metadata (insights, maintenance, etc.).
+    pub async fn list_workspace_infos(&self) -> Vec<WorkspaceInfo> {
+        let manager = self.manager.read().await;
+        manager.get_workspaces().values().cloned().collect()
+    }
+
+    /// `metadata["sshHost"]` for a remote workspace matching `connection_id` and normalized remote root.
+    ///
+    /// Used when session APIs receive `remote_connection_id` but the client omitted `remote_ssh_host`:
+    /// session files live under `~/.ai00-x/remote_ssh/{sshHost}/...`, not the legacy per-connection tree.
+    /// This reads only persisted workspace records (no filesystem guessing, no DNS).
+    pub async fn remote_ssh_host_for_remote_workspace(
+        &self,
+        connection_id: &str,
+        remote_workspace_path: &str,
+    ) -> Option<String> {
+        use crate::service::remote_ssh::normalize_remote_workspace_path;
+        let cid = connection_id.trim();
+        if cid.is_empty() {
+            return None;
+        }
+        let want = normalize_remote_workspace_path(remote_workspace_path);
+        let manager = self.manager.read().await;
+        for w in manager.get_workspaces().values() {
+            if w.workspace_kind != WorkspaceKind::Remote {
+                continue;
+            }
+            let wcid = w.remote_ssh_connection_id()?;
+            if wcid != cid {
+                continue;
+            }
+            let root = normalize_remote_workspace_path(&w.root_path.to_string_lossy());
+            if root != want {
+                continue;
+            }
+            let host = w
+                .metadata
+                .get("sshHost")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())?;
+            return Some(host.to_string());
+        }
+        None
+    }
+
+    /// Lists all workspaces.
+    pub async fn list_workspaces(&self) -> Vec<WorkspaceSummary> {
+        let manager = self.manager.read().await;
+        manager.list_workspaces()
+    }
+
+    /// Lists workspaces by type.
+    pub async fn list_workspaces_by_type(
+        &self,
+        workspace_type: WorkspaceType,
+    ) -> Vec<WorkspaceSummary> {
+        let manager = self.manager.read().await;
+        manager
+            .list_workspaces()
+            .into_iter()
+            .filter(|ws| ws.workspace_type == workspace_type)
+            .collect()
+    }
+
+    /// Lists workspaces by status.
+    pub async fn list_workspaces_by_status(
+        &self,
+        status: WorkspaceStatus,
+    ) -> Vec<WorkspaceSummary> {
+        let manager = self.manager.read().await;
+        manager
+            .list_workspaces()
+            .into_iter()
+            .filter(|ws| ws.status == status)
+            .collect()
+    }
+
+    /// Returns recently accessed workspaces.
+    pub async fn get_recent_workspaces(&self) -> Vec<WorkspaceInfo> {
+        let manager = self.manager.read().await;
+        let recent_ids = manager.get_recent_workspaces();
+        let mut recent_workspaces = Vec::new();
+
+        for workspace_id in recent_ids {
+            if let Some(workspace) = manager.get_workspaces().get(workspace_id) {
+                recent_workspaces.push(workspace.clone());
+            }
+        }
+
+        recent_workspaces
+    }
+
+    /// Drops a workspace from recent lists only (workspace record and open state unchanged).
+    pub async fn remove_workspace_from_recent(&self, workspace_id: &str) -> Ai00XResult<()> {
+        let changed = {
+            let mut manager = self.manager.write().await;
+            manager.remove_from_recent_workspaces_only(workspace_id)
+        };
+        if changed {
+            self.save_workspace_data().await?;
+        }
+        Ok(())
+    }
+
+    /// Searches workspaces.
+    pub async fn search_workspaces(&self, query: &str) -> Vec<WorkspaceSummary> {
+        let manager = self.manager.read().await;
+        manager.search_workspaces(query)
+    }
+
+    /// Removes a workspace.
+    pub async fn remove_workspace(&self, workspace_id: &str) -> Ai00XResult<()> {
+        if self.is_protected_workspace(workspace_id).await {
+            return Err(Ai00XError::service(
+                "Cannot remove the task workspace".to_string(),
+            ));
+        }
+
+        let result = {
+            let mut manager = self.manager.write().await;
+            manager.remove_workspace(workspace_id)
+        };
+
+        if result.is_ok() {
+            if let Err(e) = self.save_workspace_data().await {
+                warn!("Failed to save workspace data after removal: {}", e);
+            }
+        }
+
+        result
+    }
+
+    async fn is_protected_workspace(&self, workspace_id: &str) -> bool {
+        use crate::infrastructure::PathManager;
+        use crate::service::config::get_global_config_service;
+
+        let manager = self.manager.read().await;
+        let Some(workspace) = manager.get_workspace(workspace_id) else {
+            return false;
+        };
+
+        let Ok(config_service) = get_global_config_service() else {
+            return false;
+        };
+
+        let Ok(config) = config_service
+            .get_config::<crate::service::config::GlobalConfig>(None)
+            .await
+        else {
+            return false;
+        };
+
+        // Task workspace is protected (cannot be closed/removed)
+        PathManager::is_task_workspace(
+            &workspace.root_path,
+            config.workspace.default_workspace_parent_dir.as_deref(),
+        )
+    }
+
+    /// Removes workspaces in batch.
+    pub async fn batch_remove_workspaces(
+        &self,
+        workspace_ids: Vec<String>,
+    ) -> Ai00XResult<BatchRemoveResult> {
+        let mut result = BatchRemoveResult {
+            successful: Vec::new(),
+            failed: Vec::new(),
+            total_processed: workspace_ids.len(),
+        };
+
+        for workspace_id in workspace_ids {
+            match self.remove_workspace(&workspace_id).await {
+                Ok(_) => result.successful.push(workspace_id),
+                Err(e) => result.failed.push((workspace_id, e.to_string())),
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Rescans a workspace.
+    pub async fn rescan_workspace(&self, workspace_id: &str) -> Ai00XResult<WorkspaceInfo> {
+        let workspace_path = {
+            let manager = self.manager.read().await;
+            if let Some(workspace) = manager.get_workspace(workspace_id) {
+                workspace.root_path.clone()
+            } else {
+                return Err(Ai00XError::service(format!(
+                    "Workspace not found: {}",
+                    workspace_id
+                )));
+            }
+        };
+
+        let existing_workspace = {
+            let manager = self.manager.read().await;
+            manager.get_workspace(workspace_id).cloned()
+        };
+        let Some(existing_workspace) = existing_workspace else {
+            return Err(Ai00XError::service(format!(
+                "Workspace not found: {}",
+                workspace_id
+            )));
+        };
+        let new_workspace = WorkspaceInfo::new(
+            workspace_path,
+            WorkspaceOpenOptions {
+                scan_options: ScanOptions::default(),
+                auto_set_current: existing_workspace.status == WorkspaceStatus::Active,
+                add_to_recent: false,
+                workspace_kind: existing_workspace.workspace_kind.clone(),
+                display_name: Some(existing_workspace.name.clone()),
+                remote_connection_id: existing_workspace
+                    .remote_ssh_connection_id()
+                    .map(str::to_string),
+                remote_ssh_host: existing_workspace
+                    .metadata
+                    .get("sshHost")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string()),
+                stable_workspace_id: None,
+            },
+        )
+        .await?;
+        let mut new_workspace = new_workspace;
+        new_workspace.id = existing_workspace.id.clone();
+        new_workspace.opened_at = existing_workspace.opened_at;
+        new_workspace.description = existing_workspace.description.clone();
+        new_workspace.tags = existing_workspace.tags.clone();
+        new_workspace.metadata = existing_workspace.metadata.clone();
+
+        {
+            let mut manager = self.manager.write().await;
+            manager
+                .get_workspaces_mut()
+                .insert(workspace_id.to_string(), new_workspace.clone());
+        }
+
+        if let Err(e) = self.save_workspace_data().await {
+            warn!("Failed to save workspace data after rescan: {}", e);
+        }
+
+        Ok(new_workspace)
+    }
+
+    /// Refreshes the parsed `IDENTITY.md` content for a workspace.
+    pub async fn refresh_workspace_identity(
+        &self,
+        workspace_id: &str,
+    ) -> Ai00XResult<Option<WorkspaceIdentityChangedEvent>> {
+        let workspace = {
+            let manager = self.manager.read().await;
+            manager.get_workspace(workspace_id).cloned()
+        }
+        .ok_or_else(|| Ai00XError::service(format!("Workspace not found: {}", workspace_id)))?;
+
+        let updated_identity =
+            match WorkspaceIdentity::load_from_workspace_root(&workspace.root_path).await {
+                Ok(identity) => identity,
+                Err(error) => {
+                    warn!(
+                        "Failed to refresh workspace identity: workspace_id={} path={} error={}",
+                        workspace_id,
+                        workspace.root_path.display(),
+                        error
+                    );
+                    return Ok(None);
+                }
+            };
+
+        let changed_fields = WorkspaceIdentity::collect_changed_fields(
+            workspace.identity.as_ref(),
+            updated_identity.as_ref(),
+        );
+        let updated_name = updated_identity
+            .as_ref()
+            .and_then(|identity| identity.name.clone())
+            .unwrap_or_else(|| workspace.name.clone());
+
+        if changed_fields.is_empty() && workspace.name == updated_name {
+            return Ok(None);
+        }
+
+        {
+            let mut manager = self.manager.write().await;
+            let workspace = manager
+                .get_workspaces_mut()
+                .get_mut(workspace_id)
+                .ok_or_else(|| {
+                    Ai00XError::service(format!("Workspace not found: {}", workspace_id))
+                })?;
+
+            workspace.identity = updated_identity.clone();
+            workspace.name = updated_name.clone();
+        }
+
+        if let Err(e) = self.save_workspace_data().await {
+            warn!(
+                "Failed to save workspace data after identity refresh: workspace_id={} error={}",
+                workspace_id, e
+            );
+        }
+
+        Ok(Some(WorkspaceIdentityChangedEvent {
+            workspace_id: workspace.id,
+            workspace_path: workspace.root_path.to_string_lossy().to_string(),
+            name: updated_name,
+            identity: updated_identity,
+            changed_fields,
+        }))
+    }
+
+    /// Updates workspace information.
+    pub async fn update_workspace_info(
+        &self,
+        workspace_id: &str,
+        updates: WorkspaceInfoUpdates,
+    ) -> Ai00XResult<()> {
+        let mut manager = self.manager.write().await;
+
+        if let Some(workspace) = manager.get_workspaces_mut().get_mut(workspace_id) {
+            if let Some(name) = updates.name {
+                workspace.name = name;
+            }
+
+            if let Some(description) = updates.description {
+                workspace.description = Some(description);
+            }
+
+            if let Some(tags) = updates.tags {
+                workspace.tags = tags;
+            }
+
+            workspace.last_accessed = chrono::Utc::now();
+
+            Ok(())
+        } else {
+            Err(Ai00XError::service(format!(
+                "Workspace not found: {}",
+                workspace_id
+            )))
+        }
+    }
+
+    /// Imports workspaces in batch.
+    pub async fn batch_import_workspaces(
+        &self,
+        paths: Vec<String>,
+    ) -> Ai00XResult<BatchImportResult> {
+        let mut result = BatchImportResult {
+            successful: Vec::new(),
+            failed: Vec::new(),
+            total_processed: paths.len(),
+            skipped: Vec::new(),
+        };
+
+        for path_str in paths {
+            let path = PathBuf::from(&path_str);
+
+            if !path.exists() {
+                result
+                    .failed
+                    .push((path_str, "Path does not exist".to_string()));
+                continue;
+            }
+
+            if !path.is_dir() {
+                result
+                    .failed
+                    .push((path_str, "Path is not a directory".to_string()));
+                continue;
+            }
+
+            {
+                let manager = self.manager.read().await;
+                if manager.get_workspaces().values().any(|w| {
+                    if w.workspace_kind == WorkspaceKind::Remote {
+                        w.root_path == path
+                    } else {
+                        local_workspace_roots_equal(&w.root_path, &path)
+                    }
+                }) {
+                    result.skipped.push(path_str);
+                    continue;
+                }
+            }
+
+            match self.open_workspace(path).await {
+                Ok(workspace) => {
+                    result.successful.push(workspace.id);
+                }
+                Err(e) => {
+                    result.failed.push((path_str, e.to_string()));
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Cleans up invalid workspaces.
+    pub async fn cleanup_invalid_workspaces(&self) -> Ai00XResult<usize> {
+        let result = {
+            let mut manager = self.manager.write().await;
+            manager.cleanup_invalid_workspaces().await
+        };
+
+        if result.is_ok() {
+            if let Err(e) = self.save_workspace_data().await {
+                warn!("Failed to save workspace data after cleanup: {}", e);
+            }
+        }
+
+        result
+    }
+
+    /// Returns statistics.
+    pub async fn get_statistics(&self) -> WorkspaceManagerStatistics {
+        let manager = self.manager.read().await;
+        manager.get_statistics()
+    }
+
+    /// Returns the workspace count.
+    pub async fn get_workspace_count(&self) -> usize {
+        let manager = self.manager.read().await;
+        manager.get_workspace_count()
+    }
+
+    /// Runs a health check.
+    pub async fn health_check(&self) -> Ai00XResult<WorkspaceHealthStatus> {
+        let stats = self.get_statistics().await;
+
+        let mut warnings = Vec::new();
+        let mut issues = Vec::new();
+
+        if stats.total_workspaces == 0 {
+            warnings.push("No workspaces found".to_string());
+        }
+
+        if stats.active_workspaces == 0 {
+            warnings.push("No active workspaces".to_string());
+        }
+
+        if stats.inactive_workspaces > stats.active_workspaces * 3 {
+            issues.push("Too many inactive workspaces, consider cleanup".to_string());
+        }
+
+        let current_workspace_valid = match self.get_current_workspace().await {
+            Some(current) => current.is_valid().await,
+            None => true,
+        };
+
+        if !current_workspace_valid {
+            issues.push("Current workspace path is invalid".to_string());
+        }
+
+        let healthy = issues.is_empty() && current_workspace_valid;
+
+        Ok(WorkspaceHealthStatus {
+            healthy,
+            total_workspaces: stats.total_workspaces,
+            active_workspaces: stats.active_workspaces,
+            current_workspace_valid,
+            total_files: stats.total_files,
+            total_size_mb: stats.total_size_bytes / (1024 * 1024),
+            warnings,
+            issues: issues.clone(),
+            message: if healthy {
+                "Workspace system is healthy".to_string()
+            } else {
+                format!("{} issues detected", issues.len())
+            },
+        })
+    }
+
+    /// Exports workspace configuration.
+    pub async fn export_workspaces(&self) -> Ai00XResult<WorkspaceExport> {
+        let manager = self.manager.read().await;
+        let workspaces: Vec<WorkspaceInfo> = manager.get_workspaces().values().cloned().collect();
+        let current_workspace_id = manager.get_current_workspace().map(|w| w.id.clone());
+        let _recent_workspaces = manager.get_recent_workspaces().clone();
+
+        Ok(WorkspaceExport {
+            workspaces,
+            current_workspace_id,
+            recent_workspaces: manager
+                .get_recent_workspace_infos()
+                .iter()
+                .map(|w| w.id.clone())
+                .collect(),
+            export_timestamp: chrono::Utc::now().to_rfc3339(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        })
+    }
+
+    /// Imports workspace configuration.
+    pub async fn import_workspaces(
+        &self,
+        export: WorkspaceExport,
+        overwrite: bool,
+    ) -> Ai00XResult<WorkspaceImportResult> {
+        let mut result = WorkspaceImportResult {
+            imported_workspaces: 0,
+            skipped_workspaces: 0,
+            errors: Vec::new(),
+            warnings: Vec::new(),
+        };
+
+        let mut manager = self.manager.write().await;
+
+        for workspace in export.workspaces {
+            if !workspace.is_valid().await {
+                result.warnings.push(format!(
+                    "Workspace path no longer valid: {:?}",
+                    workspace.root_path
+                ));
+                continue;
+            }
+
+            if !overwrite && manager.get_workspaces().contains_key(&workspace.id) {
+                result.skipped_workspaces += 1;
+                continue;
+            }
+
+            manager
+                .get_workspaces_mut()
+                .insert(workspace.id.clone(), workspace);
+            result.imported_workspaces += 1;
+        }
+
+        manager.set_recent_workspaces(export.recent_workspaces.clone());
+
+        if let Some(current_id) = export.current_workspace_id {
+            if manager.get_workspaces().contains_key(&current_id) {
+                if let Err(e) = manager.set_current_workspace(current_id) {
+                    result
+                        .warnings
+                        .push(format!("Failed to restore current workspace: {}", e));
+                }
+            } else {
+                result
+                    .warnings
+                    .push("Current workspace not found in import".to_string());
+            }
+        }
+
+        drop(manager);
+
+        Ok(result)
+    }
+
+    /// Returns a quick summary.
+    pub async fn get_quick_summary(&self) -> WorkspaceQuickSummary {
+        let stats = self.get_statistics().await;
+        let current_workspace = self.get_current_workspace().await;
+        let recent_workspaces = self.get_recent_workspaces().await;
+
+        WorkspaceQuickSummary {
+            total_workspaces: stats.total_workspaces,
+            active_workspaces: stats.active_workspaces,
+            current_workspace: current_workspace.map(|w| w.get_summary()),
+            recent_workspaces: recent_workspaces
+                .into_iter()
+                .take(5)
+                .map(|w| w.get_summary())
+                .collect(),
+            workspace_types: stats.workspaces_by_type,
+        }
+    }
+
+    /// Saves workspace data locally.
+    async fn save_workspace_data(&self) -> Ai00XResult<()> {
+        let manager = self.manager.read().await;
+
+        let workspace_data = WorkspacePersistenceData {
+            workspaces: manager.get_workspaces().clone(),
+            opened_workspace_ids: manager.get_opened_workspace_ids().clone(),
+            current_workspace_id: manager.get_current_workspace().map(|w| w.id.clone()),
+            recent_workspaces: manager.get_recent_workspaces().clone(),
+            saved_at: chrono::Utc::now(),
+        };
+
+        self.persistence
+            .save_json("workspace_data", &workspace_data, StorageOptions::default())
+            .await
+            .map_err(|e| Ai00XError::service(format!("Failed to save workspace data: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Loads workspace data from local storage.
+    #[allow(dead_code)]
+    async fn load_workspace_data(&self) -> Ai00XResult<()> {
+        let workspace_data: Option<WorkspacePersistenceData> = self
+            .persistence
+            .load_json("workspace_data")
+            .await
+            .map_err(|e| Ai00XError::service(format!("Failed to load workspace data: {}", e)))?;
+
+        if let Some(data) = workspace_data {
+            let mut manager = self.manager.write().await;
+
+            *manager.get_workspaces_mut() = data.workspaces;
+            manager.set_opened_workspace_ids(data.opened_workspace_ids);
+            manager.set_recent_workspaces(data.recent_workspaces);
+            let id_remap = manager.migrate_local_workspace_ids_to_stable_storage();
+
+            if let Some(raw_current) = data.current_workspace_id {
+                let current_id = id_remap.get(&raw_current).cloned().unwrap_or(raw_current);
+                if let Some(workspace) = manager.get_workspaces().get(&current_id) {
+                    if workspace.is_valid().await {
+                        if let Err(e) = manager.set_current_workspace(current_id) {
+                            warn!("Failed to restore current workspace: {}", e);
+                        }
+                    } else {
+                        warn!("Current workspace path no longer valid, skipping restore");
+                    }
+                }
+            }
+
+            info!(
+                "Loaded {} workspaces from local storage",
+                manager.get_workspaces().len()
+            );
+        } else {
+            info!("No saved workspace data found, starting fresh");
+        }
+
+        Ok(())
+    }
+
+    /// Loads workspace history only without restoring the current workspace (used on startup).
+    async fn load_workspace_history_only(&self) -> Ai00XResult<()> {
+        let workspace_data: Option<WorkspacePersistenceData> = self
+            .persistence
+            .load_json("workspace_data")
+            .await
+            .map_err(|e| Ai00XError::service(format!("Failed to load workspace data: {}", e)))?;
+
+        let mut workspaces_to_restore = Vec::new();
+
+        if let Some(data) = workspace_data {
+            let mut manager = self.manager.write().await;
+
+            let mut workspaces = data.workspaces;
+            // Filter out legacy remote workspaces that don't have the required metadata (sshHost and connectionId)
+            workspaces.retain(|_id, ws| {
+                if ws.workspace_kind == WorkspaceKind::Remote {
+                    // Check if this remote workspace has the required metadata
+                    let has_ssh_host = ws.metadata.get("sshHost").and_then(|v| v.as_str()).is_some_and(|s| !s.trim().is_empty());
+                    let has_connection_id = ws.metadata.get("connectionId").and_then(|v| v.as_str()).is_some_and(|s| !s.trim().is_empty());
+                    if !has_ssh_host || !has_connection_id {
+                        // Skip this legacy remote workspace
+                        info!("Skipping legacy remote workspace without required metadata: id={}, root_path={}", _id, ws.root_path.display());
+                        return false;
+                    }
+                }
+                true
+            });
+
+            *manager.get_workspaces_mut() = workspaces;
+            // Also filter opened/recent lists to remove references to removed legacy workspaces
+            let filtered_opened_ids: Vec<String> = data
+                .opened_workspace_ids
+                .clone()
+                .into_iter()
+                .filter(|id| manager.get_workspaces().contains_key(id))
+                .collect();
+            manager.set_opened_workspace_ids(filtered_opened_ids);
+
+            let filtered_recent: Vec<String> = data
+                .recent_workspaces
+                .clone()
+                .into_iter()
+                .filter(|id| manager.get_workspaces().contains_key(id))
+                .collect();
+            manager.set_recent_workspaces(filtered_recent);
+
+            let id_remap = manager.migrate_local_workspace_ids_to_stable_storage();
+
+            let raw_current = data
+                .current_workspace_id
+                .or_else(|| data.opened_workspace_ids.first().cloned());
+
+            if let Some(raw) = raw_current {
+                let current_id = id_remap.get(&raw).cloned().unwrap_or(raw);
+                if manager.get_workspaces().contains_key(&current_id) {
+                    if let Err(e) = manager.set_current_workspace(current_id) {
+                        warn!("Failed to restore current workspace on startup: {}", e);
+                    }
+                }
+            }
+
+            workspaces_to_restore = Self::collect_startup_restored_workspaces(&manager);
+        }
+
+        self.prepare_startup_restored_workspaces(workspaces_to_restore)
+            .await;
+
+        Ok(())
+    }
+
+    fn to_manager_open_options(options: &WorkspaceCreateOptions) -> WorkspaceOpenOptions {
+        WorkspaceOpenOptions {
+            scan_options: options.scan_options.clone(),
+            auto_set_current: options.auto_set_current,
+            add_to_recent: options.add_to_recent,
+            workspace_kind: options.workspace_kind.clone(),
+            display_name: options.display_name.clone(),
+            remote_connection_id: options.remote_connection_id.clone(),
+            remote_ssh_host: options.remote_ssh_host.clone(),
+            stable_workspace_id: options.stable_workspace_id.clone(),
+        }
+    }
+
+    fn normalize_workspace_options_for_path(
+        &self,
+        _path: &Path,
+        options: WorkspaceCreateOptions,
+    ) -> WorkspaceCreateOptions {
+        if options.workspace_kind == WorkspaceKind::Remote {
+            return options;
+        }
+
+        options
+    }
+
+    /// Saves workspace data manually (public API).
+    pub async fn manual_save(&self) -> Ai00XResult<()> {
+        self.save_workspace_data().await
+    }
+
+    /// Clears all persisted data.
+    pub async fn clear_persistent_data(&self) -> Ai00XResult<()> {
+        self.persistence
+            .delete("workspace_data")
+            .await
+            .map_err(|e| Ai00XError::service(format!("Failed to clear workspace data: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Returns the underlying `WorkspaceManager` handle.
+    /// Used to share workspace state with other services (e.g. Agent).
+    pub fn get_manager(&self) -> Arc<RwLock<WorkspaceManager>> {
+        self.manager.clone()
+    }
+}
+
+/// Workspace info updates.
+#[derive(Debug, Clone)]
+pub struct WorkspaceInfoUpdates {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
+
+/// Batch remove result.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BatchRemoveResult {
+    pub successful: Vec<String>,
+    pub failed: Vec<(String, String)>,
+    pub total_processed: usize,
+}
+
+/// Workspace health status.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkspaceHealthStatus {
+    pub healthy: bool,
+    pub total_workspaces: usize,
+    pub active_workspaces: usize,
+    pub current_workspace_valid: bool,
+    pub total_files: usize,
+    pub total_size_mb: u64,
+    pub warnings: Vec<String>,
+    pub issues: Vec<String>,
+    pub message: String,
+}
+
+/// Workspace export format.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkspaceExport {
+    pub workspaces: Vec<WorkspaceInfo>,
+    pub current_workspace_id: Option<String>,
+    pub recent_workspaces: Vec<String>,
+    pub export_timestamp: String,
+    pub version: String,
+}
+
+/// Workspace import result.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkspaceImportResult {
+    pub imported_workspaces: usize,
+    pub skipped_workspaces: usize,
+    pub errors: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+/// Workspace quick summary.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkspaceQuickSummary {
+    pub total_workspaces: usize,
+    pub active_workspaces: usize,
+    pub current_workspace: Option<WorkspaceSummary>,
+    pub recent_workspaces: Vec<WorkspaceSummary>,
+    pub workspace_types: std::collections::HashMap<WorkspaceType, usize>,
+}
+
+/// Workspace persistence data.
+#[derive(Debug, Serialize, Deserialize)]
+struct WorkspacePersistenceData {
+    pub workspaces: std::collections::HashMap<String, WorkspaceInfo>,
+    #[serde(default)]
+    pub opened_workspace_ids: Vec<String>,
+    pub current_workspace_id: Option<String>,
+    #[serde(default)]
+    pub recent_workspaces: Vec<String>,
+    pub saved_at: chrono::DateTime<chrono::Utc>,
+}
+
+// ── Global workspace service singleton ──────────────────────────────
+
+static GLOBAL_WORKSPACE_SERVICE: std::sync::OnceLock<Arc<WorkspaceService>> =
+    std::sync::OnceLock::new();
+
+pub fn set_global_workspace_service(service: Arc<WorkspaceService>) {
+    match GLOBAL_WORKSPACE_SERVICE.set(service) {
+        Ok(_) => info!("Global workspace service set"),
+        Err(_) => info!("Global workspace service already exists, skipping set"),
+    }
+}
+
+pub fn get_global_workspace_service() -> Option<Arc<WorkspaceService>> {
+    GLOBAL_WORKSPACE_SERVICE.get().cloned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::storage::{PersistenceService, StorageOptions};
+    use crate::service::session::SessionMetadata;
+    use std::collections::HashMap;
+    use uuid::Uuid;
+
+    struct TestEnvironment {
+        root: PathBuf,
+        path_manager: Arc<PathManager>,
+    }
+
+    impl TestEnvironment {
+        fn new() -> Self {
+            let root = std::env::temp_dir()
+                .join(format!("ai00-x-workspace-service-test-{}", Uuid::new_v4()));
+            std::fs::create_dir_all(&root).expect("test root should be created");
+
+            let path_manager = Arc::new(PathManager::with_user_root_for_tests(
+                root.join("user-root"),
+            ));
+
+            Self { root, path_manager }
+        }
+
+        fn create_workspace_dir(&self, name: &str) -> PathBuf {
+            let path = self.root.join(name);
+            std::fs::create_dir_all(&path).expect("workspace directory should be created");
+            path
+        }
+    }
+
+    impl Drop for TestEnvironment {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    async fn build_test_workspace_service(path_manager: Arc<PathManager>) -> WorkspaceService {
+        path_manager
+            .initialize_user_directories()
+            .await
+            .expect("user directories should initialize");
+
+        let config = WorkspaceManagerConfig::default();
+        let persistence = Arc::new(
+            PersistenceService::new_user_level(path_manager.clone())
+                .await
+                .expect("persistence should initialize"),
+        );
+        let runtime_service = Arc::new(WorkspaceRuntimeService::new(path_manager.clone()));
+        let session_workspace_maintenance =
+            Arc::new(SessionWorkspaceMaintenanceService::new(Arc::new(
+                PersistenceManager::new(path_manager.clone())
+                    .expect("persistence manager should initialize"),
+            )));
+
+        WorkspaceService {
+            manager: Arc::new(RwLock::new(WorkspaceManager::new(config.clone()))),
+            config,
+            persistence,
+            path_manager,
+            runtime_service,
+            session_workspace_maintenance,
+        }
+    }
+
+    #[tokio::test]
+    async fn load_workspace_history_only_ensures_all_opened_local_workspaces() {
+        let env = TestEnvironment::new();
+        let service = build_test_workspace_service(env.path_manager.clone()).await;
+        let persistence_manager = PersistenceManager::new(env.path_manager.clone())
+            .expect("persistence manager should initialize");
+
+        let first_workspace_root = env.create_workspace_dir("workspace-one");
+        let second_workspace_root = env.create_workspace_dir("workspace-two");
+
+        let first_workspace = WorkspaceInfo::new(
+            first_workspace_root.clone(),
+            WorkspaceOpenOptions {
+                auto_set_current: false,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("first workspace should initialize");
+        let second_workspace = WorkspaceInfo::new(
+            second_workspace_root.clone(),
+            WorkspaceOpenOptions {
+                auto_set_current: false,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("second workspace should initialize");
+
+        let legacy_session = SessionMetadata::new(
+            Uuid::new_v4().to_string(),
+            "Legacy Session".to_string(),
+            "agent".to_string(),
+            "model".to_string(),
+        );
+        persistence_manager
+            .save_session_metadata(&second_workspace_root, &legacy_session)
+            .await
+            .expect("legacy session metadata should save");
+
+        let second_runtime = persistence_manager
+            .runtime_service()
+            .context_for_local_workspace(&second_workspace_root);
+        let legacy_sessions_root = second_workspace_root.join(".ai00-x").join("sessions");
+        std::fs::create_dir_all(&legacy_sessions_root)
+            .expect("legacy sessions root should be created");
+        std::fs::rename(
+            second_runtime.sessions_dir.join(&legacy_session.session_id),
+            legacy_sessions_root.join(&legacy_session.session_id),
+        )
+        .expect("session directory should move to legacy path");
+        let _ = std::fs::remove_dir_all(&second_runtime.runtime_root);
+
+        let first_runtime = service
+            .runtime_service
+            .context_for_local_workspace(&first_workspace_root);
+        assert!(
+            !first_runtime.runtime_root.exists(),
+            "startup should begin without a runtime root for the first workspace"
+        );
+        assert!(
+            !second_runtime.runtime_root.exists(),
+            "startup should begin without a runtime root for the second workspace"
+        );
+
+        let workspace_data = WorkspacePersistenceData {
+            workspaces: HashMap::from([
+                (first_workspace.id.clone(), first_workspace.clone()),
+                (second_workspace.id.clone(), second_workspace.clone()),
+            ]),
+            opened_workspace_ids: vec![first_workspace.id.clone(), second_workspace.id.clone()],
+            current_workspace_id: Some(first_workspace.id.clone()),
+            recent_workspaces: vec![first_workspace.id.clone(), second_workspace.id.clone()],
+            saved_at: chrono::Utc::now(),
+        };
+
+        service
+            .persistence
+            .save_json("workspace_data", &workspace_data, StorageOptions::default())
+            .await
+            .expect("workspace data should save");
+
+        service
+            .load_workspace_history_only()
+            .await
+            .expect("workspace history should restore");
+
+        let restored_current = service
+            .get_current_workspace()
+            .await
+            .expect("current workspace should be restored");
+        assert_eq!(restored_current.id, first_workspace.id);
+        assert!(
+            first_runtime.runtime_root.exists(),
+            "active workspace runtime should be ensured on startup"
+        );
+        assert!(
+            second_runtime
+                .sessions_dir
+                .join(&legacy_session.session_id)
+                .exists(),
+            "non-active opened workspace sessions should migrate into the shared runtime root"
+        );
+
+        let restored_sessions = persistence_manager
+            .list_session_metadata(&second_workspace_root)
+            .await
+            .expect("restored workspace sessions should list successfully");
+        assert_eq!(restored_sessions.len(), 1);
+        assert_eq!(restored_sessions[0].session_id, legacy_session.session_id);
+        assert!(
+            !legacy_sessions_root
+                .join(&legacy_session.session_id)
+                .exists(),
+            "legacy session directory should be removed after startup migration"
+        );
+    }
+}

@@ -1,0 +1,42 @@
+[package]
+name = "ai00-x-relay"
+version.workspace = true
+authors = ["Ai00-X Team"]
+edition = "2021"
+description = "Ai00-X Relay - WebSocket relay for Remote Connect (standalone server + lib)"
+
+[lib]
+name = "ai00_x_relay"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ai00-x-relay"
+path = "src/main.rs"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["json", "ws"] }
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+futures-util = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde", "clock"] }
+dashmap = "5.5"
+rand = "0.8"
+base64 = "0.21"
+sha2 = "0.10"

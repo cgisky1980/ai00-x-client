@@ -1,0 +1,45 @@
+site: youtube
+name: search
+description: Search YouTube videos
+domain: www.youtube.com
+strategy: cookie
+browser: true
+
+args:
+  query:
+    type: string
+    required: true
+    description: Search keyword
+  limit:
+    type: int
+    default: 20
+    description: Number of results
+
+pipeline:
+  - navigate: "https://www.youtube.com/results?search_query=${{ args.query | urlencode }}"
+  - evaluate: |
+      (async () => {
+        await new Promise(r => setTimeout(r, 3000));
+        const limit = Math.max(1, Math.min(20, 50));
+        const videos = [];
+        const ytc = window.ytInitialData;
+        if (!ytc) return [];
+        const contents = ytc?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
+        for (const item of contents) {
+          try {
+            const v = item.videoRenderer;
+            if (!v) continue;
+            const title = v.title?.runs?.[0]?.text || '';
+            const channel = v.ownerText?.runs?.[0]?.text || v.shortBylineText?.runs?.[0]?.text || '';
+            const views = v.viewCountText?.simpleText || '';
+            const duration = v.lengthText?.simpleText || '';
+            const url = 'https://www.youtube.com/watch?v=' + v.videoId;
+            if (!title) continue;
+            videos.push({ rank: videos.length + 1, title, channel, views, duration, url });
+            if (videos.length >= limit) break;
+          } catch {}
+        }
+        return videos;
+      })()
+
+columns: [rank, title, channel, views, duration, url]

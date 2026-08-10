@@ -1,0 +1,8 @@
+
+head.c.png
+size:1400,2000
+filter:Linear,Linear
+pma:true
+Base/Head
+  bounds: 0,0,1400,2000
+  offsets: 0,0,1400,2000

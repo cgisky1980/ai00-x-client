@@ -1,0 +1,134 @@
+/**
+ * Tooltip component styles
+ */
+@use '../../styles/tokens.scss' as tokens;
+
+.ai00-x-tooltip {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  z-index: tokens.$z-tooltip;
+
+  transform: scale(0.98);
+  transition:
+    opacity 0.12s ease-out,
+    transform 0.12s ease-out;
+
+  &--visible {
+    opacity: 1;
+    pointer-events: none;
+    transform: scale(1);
+  }
+
+  &--interactive.ai00-x-tooltip--visible {
+    pointer-events: auto;
+  }
+
+  &__content {
+    padding: 6px 10px;
+
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-xs, 12px);
+    font-weight: var(--font-weight-normal, 400);
+    line-height: 1.4;
+    color: var(--color-text-primary);
+
+    background: var(--color-bg-tooltip);
+
+    border: 1px solid var(--border-base);
+    border-radius: var(--size-radius-sm, 6px);
+
+    backdrop-filter: blur(8px) saturate(1.1);
+    -webkit-backdrop-filter: blur(8px) saturate(1.1);
+
+    box-shadow: var(--shadow-sm);
+
+    max-width: 280px;
+    word-wrap: break-word;
+    user-select: text;
+  }
+
+  &--top.ai00-x-tooltip--visible {
+    animation: ai00-x-tooltip-fade-in-top 0.12s ease-out;
+  }
+
+  &--bottom.ai00-x-tooltip--visible {
+    animation: ai00-x-tooltip-fade-in-bottom 0.12s ease-out;
+  }
+
+  &--left.ai00-x-tooltip--visible {
+    animation: ai00-x-tooltip-fade-in-left 0.12s ease-out;
+  }
+
+  &--right.ai00-x-tooltip--visible {
+    animation: ai00-x-tooltip-fade-in-right 0.12s ease-out;
+  }
+}
+
+
+@keyframes ai00-x-tooltip-fade-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ai00-x-tooltip-fade-in-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ai00-x-tooltip-fade-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes ai00-x-tooltip-fade-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+
+@media (prefers-contrast: high) {
+  .ai00-x-tooltip {
+    &__content {
+      border-width: 1px;
+      border-color: rgba(255, 255, 255, 0.4);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai00-x-tooltip {
+    transition: opacity 0.08s ease;
+    transform: none;
+
+    &--visible {
+      transform: none;
+      animation: none;
+    }
+  }
+}

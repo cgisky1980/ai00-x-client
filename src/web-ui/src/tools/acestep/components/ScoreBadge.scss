@@ -1,0 +1,85 @@
+/**
+ * ScoreBadge styles.
+ *
+ * Color coding:
+ * - high (80-100): green
+ * - mid  (60-79):  yellow
+ * - low  (40-59):  orange
+ * - bad  (0-39):   red
+ *
+ * Note: the hover tooltip is rendered via a portal (shared Tooltip component),
+ * so the inner content classes below are layout-only — no positioning/z-index.
+ */
+
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: default;
+  flex-shrink: 0;
+
+  // ---- Color variants ----
+  &--high {
+    background: rgba(34, 197, 94, 0.18);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+
+  &--mid {
+    background: rgba(234, 179, 8, 0.18);
+    color: #facc15;
+    border: 1px solid rgba(234, 179, 8, 0.3);
+  }
+
+  &--low {
+    background: rgba(249, 115, 22, 0.18);
+    color: #fb923c;
+    border: 1px solid rgba(249, 115, 22, 0.3);
+  }
+
+  &--bad {
+    background: rgba(239, 68, 68, 0.18);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  // ---- Tooltip content (rendered via portal) ----
+  &__tooltip {
+    min-width: 180px;
+    white-space: nowrap;
+  }
+
+  &__tooltip-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-secondary, rgba(255, 255, 255, 0.6));
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 2px 0;
+    font-size: 12px;
+  }
+
+  &__label {
+    color: var(--color-text-secondary, rgba(255, 255, 255, 0.6));
+  }
+
+  &__num {
+    font-weight: 600;
+    color: var(--color-text-primary, rgba(255, 255, 255, 0.9));
+  }
+}

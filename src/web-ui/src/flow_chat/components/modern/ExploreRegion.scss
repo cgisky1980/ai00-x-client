@@ -1,0 +1,227 @@
+/* Explore region styling for consecutive explore tool calls. */
+
+.explore-region {
+  position: relative;
+  padding: 0 3rem; // Match model-round-item horizontal padding.
+
+  @media (max-width: 768px) {
+    padding: 0 1.5rem;
+  }
+}
+
+// ==================== Non-collapsible (streaming / no auto-collapse yet) ====================
+
+.explore-region--expanded:not(.explore-region--collapsible) {
+  margin: 4px 0;
+
+  .explore-region__content {
+    position: relative;
+    // Match the pre-grouped model-round layout. A non-collapsible explore group
+    // should not push the first summary line downward when the round is
+    // re-wrapped from `model-round` into `explore-group`.
+    padding: 0;
+
+    // In the plain model-round layout, the first/last flow item margins can
+    // collapse with the parent. Once wrapped by explore-group, that collapse no
+    // longer happens consistently, which leaves a residual 4px vertical drift.
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--border-base);
+      border-radius: 2px;
+
+      &:hover {
+        background: var(--border-hover);
+      }
+    }
+  }
+}
+
+// ==================== Collapsible (header + animated content) ====================
+
+.explore-region--collapsible {
+  margin: 4px 0;
+
+  .explore-region__header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 0;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    border-radius: 6px;
+    transition: color 0.15s ease;
+
+    &:hover {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+  }
+
+  .explore-region__icon {
+    flex-shrink: 0;
+    opacity: 0.6;
+    // Rotate 90° when expanded; 0° = pointing right (collapsed).
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: rotate(0deg);
+  }
+
+  .explore-region__summary {
+    opacity: 0.8;
+  }
+
+  // Animated content wrapper using the CSS Grid row technique.
+  // grid-template-rows: 0fr → 1fr smoothly animates height without needing
+  // to know the actual pixel height.
+  .explore-region__content-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  // Inner div must have min-height: 0 for the 0fr trick to work.
+  .explore-region__content-inner {
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .explore-region__content {
+    position: relative;
+    padding: 4px 0;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--border-base);
+      border-radius: 2px;
+
+      &:hover {
+        background: var(--border-hover);
+      }
+    }
+  }
+}
+
+// Expanded state: rotate icon + reveal content.
+.explore-region--collapsible.explore-region--expanded {
+  .explore-region__icon {
+    transform: rotate(90deg); // pointing down = expanded
+  }
+
+  .explore-region__content-wrapper {
+    grid-template-rows: 1fr;
+  }
+}
+
+// ==================== Streaming adjustments ====================
+
+// Top gradient mask during streaming.
+.explore-region--expanded.explore-region--streaming {
+  &::before {
+    content: none;
+  }
+
+  &::after {
+    content: none;
+  }
+}
+
+.explore-region--expanded.explore-region--streaming.explore-region--has-scroll:not(.explore-region--at-top) {
+  &::before {
+    content: '';
+    position: absolute;
+    // Default: account for collapsible header height.
+    top: 28px;
+    left: 0;
+    right: 0;
+    height: 16px;
+    pointer-events: none;
+    z-index: 3;
+    background: linear-gradient(
+      to bottom,
+      var(--color-bg-flowchat) 0%,
+      color-mix(in srgb, var(--color-bg-flowchat) 60%, transparent) 50%,
+      transparent 100%
+    );
+  }
+
+  // Non-collapsible has no header, start mask from the very top.
+  &:not(.explore-region--collapsible)::before {
+    top: 0;
+  }
+}
+
+.explore-region--expanded.explore-region--streaming.explore-region--has-scroll:not(.explore-region--at-bottom) {
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 16px;
+    pointer-events: none;
+    z-index: 3;
+    background: linear-gradient(
+      to top,
+      var(--color-bg-flowchat) 0%,
+      color-mix(in srgb, var(--color-bg-flowchat) 60%, transparent) 50%,
+      transparent 100%
+    );
+  }
+}
+
+// Limit height and enable scroll during streaming.
+.explore-region--expanded.explore-region--streaming {
+  .explore-region__content {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+}
+
+// ==================== Adjacent collapsed regions ====================
+
+// Reduce spacing between adjacent collapsed regions.
+.explore-region--collapsed + .explore-region--collapsed {
+  margin-top: -2px;
+}
+
+// ==================== Cross-ModelRound collapse ====================
+
+// Reduce spacing for explore-only model rounds.
+.model-round-item--explore-only {
+  margin-bottom: 0;
+
+  // Remove spacing when a hidden collapsed region is present.
+  &:has(.explore-region--hidden) {
+    margin: 0;
+    padding: 0;
+    min-height: 0;
+  }
+}
+
+// Hidden collapsed region (not the last one).
+.explore-region--hidden {
+  display: none;
+}

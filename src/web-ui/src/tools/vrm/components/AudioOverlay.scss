@@ -1,0 +1,1311 @@
+// Audio Overlay SCSS - Liquid Glass theme
+// Design tokens:
+//   Border radius: panel 16px, card/input 8px, button 6px, pill 20px
+//   Padding H: 12px, V: 8px
+//   Gap: 6px (items), 4px (inline)
+
+// === Backdrop ===
+.audio-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50008;
+  pointer-events: auto;
+}
+
+// === FAB (Floating Action Button) ===
+.audio-overlay-fab {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in oklch, var(--color-primary) 50%, transparent);
+  background: color-mix(in oklch, var(--color-bg-elevated) 70%, transparent);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50010;
+  pointer-events: auto;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background 0.3s ease;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.35),
+    0 0 16px color-mix(in oklch, var(--color-primary) 20%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 15%, transparent);
+
+  &:hover {
+    transform: scale(1.1);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.45),
+      0 0 24px color-mix(in oklch, var(--color-primary) 35%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 20%, transparent);
+  }
+
+  &:active {
+    transform: scale(0.92);
+  }
+
+  // Playing state: theme-colored background + spinning icon
+  &--playing {
+    background: color-mix(in oklch, var(--color-primary) 60%, var(--color-bg-elevated));
+    border-color: var(--color-primary);
+    box-shadow:
+      0 4px 20px rgba(0, 0, 0, 0.35),
+      0 0 24px color-mix(in oklch, var(--color-primary) 40%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 15%, transparent);
+
+    .audio-overlay-fab__icon {
+      animation: audioFabSpin 3s linear infinite;
+    }
+  }
+}
+
+.audio-overlay-fab__icon {
+  transition: color 0.3s ease;
+}
+
+@keyframes audioFabSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+// === Overlay Panel ===
+.audio-overlay-panel {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  width: 400px;
+  height: 600px;
+  border-radius: 16px;
+  border: 1.5px solid color-mix(in oklch, var(--color-primary) 40%, transparent);
+  background: color-mix(in oklch, var(--color-bg-elevated) 92%, transparent);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.45),
+    0 0 40px rgba(0, 0, 0, 0.2),
+    0 0 20px color-mix(in oklch, var(--color-primary) 15%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 12%, transparent),
+    inset 0 -1px 0 color-mix(in oklch, var(--color-primary) 8%, transparent);
+  z-index: 50010;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: audioPanelSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.audio-overlay-panel__content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes audioPanelSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+// === Mode Switcher (top bar) ===
+.audio-mode-switcher {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent);
+  background: color-mix(in oklch, var(--color-bg-elevated) 85%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.audio-mode-close {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.audio-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.03em;
+
+  &:hover {
+    color: var(--color-text-secondary);
+    background: color-mix(in oklch, var(--color-primary) 20%, transparent);
+  }
+
+  &--active {
+    color: var(--color-accent-400, #06b6d4);
+    background: color-mix(in oklch, var(--color-accent-400) 15%, transparent);
+    box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 15%, transparent);
+
+    &:hover {
+      color: var(--color-accent-400, #06b6d4);
+      background: color-mix(in oklch, var(--color-accent-400) 22%, transparent);
+    }
+  }
+}
+
+// === Now Playing Bar (bottom bar) ===
+.audio-now-playing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent);
+  background: color-mix(in oklch, var(--color-accent-50) 40%, transparent);
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.audio-now-playing__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.audio-now-playing__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &--idle {
+    color: var(--color-text-muted);
+    font-weight: 400;
+    font-style: italic;
+  }
+}
+
+.audio-now-playing__time {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-now-playing__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: color-mix(in oklch, var(--color-primary) 20%, transparent);
+}
+
+.audio-now-playing__progress-fill {
+  height: 100%;
+  background: var(--color-accent-400, #06b6d4);
+  border-radius: 1px;
+  transition: width 0.5s linear;
+  box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
+}
+
+.audio-now-playing__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.audio-now-playing__volume {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-accent-400, #06b6d4);
+  flex-shrink: 0;
+}
+
+.audio-slider--mini {
+  width: 60px;
+  height: 3px;
+}
+
+// === Spectrum Animation ===
+.audio-spectrum {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+
+  &--active {
+    opacity: 1;
+  }
+}
+
+.audio-spectrum__bar {
+  width: 2px;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--color-accent-400, #06b6d4);
+  transition: height 0.1s ease;
+
+  .audio-spectrum--active & {
+    animation: spectrumBounce 0.8s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes spectrumBounce {
+  0% { height: 3px; }
+  50% { height: 14px; }
+  100% { height: 6px; }
+}
+
+// === Sections ===
+.audio-section__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+  padding: 0 2px;
+
+  svg {
+    color: var(--color-accent-400, #06b6d4);
+  }
+}
+
+.audio-volume-pct {
+  margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+// === Channel Row ===
+.audio-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.audio-channel-name {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+// === Slider ===
+.audio-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in oklch, var(--color-accent-400) 18%, var(--color-bg-quaternary));
+  outline: none;
+  cursor: pointer;
+
+  &--flex {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-accent-400, #06b6d4);
+    border: 2px solid var(--color-bg-primary);
+    cursor: pointer;
+    box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 40%, transparent);
+    transition: transform 0.15s ease;
+    margin-top: -5px;
+
+    &:hover {
+      transform: scale(1.2);
+    }
+  }
+
+  &::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-accent-400, #06b6d4);
+    border: 2px solid var(--color-bg-primary);
+    cursor: pointer;
+    box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 40%, transparent);
+  }
+
+  &::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+  }
+
+  &::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: color-mix(in oklch, var(--color-accent-400) 18%, var(--color-bg-quaternary));
+  }
+}
+
+// === Icon Button ===
+.audio-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+
+  &:hover {
+    background: color-mix(in oklch, var(--color-primary) 35%, transparent);
+    color: var(--color-text-primary);
+  }
+
+  &:active {
+    transform: scale(0.9);
+  }
+
+  &--danger:hover {
+    background: color-mix(in oklch, var(--color-error) 35%, transparent);
+    color: var(--color-error);
+  }
+
+  &--accent:hover {
+    background: color-mix(in oklch, var(--color-accent-400) 35%, transparent);
+    color: var(--color-accent-400, #06b6d4);
+  }
+
+  &--glow {
+    color: var(--color-accent-400, #06b6d4);
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-accent-400) 25%, transparent);
+      box-shadow: 0 0 12px color-mix(in oklch, var(--color-accent-400) 20%, transparent);
+    }
+  }
+
+  &--muted {
+    opacity: 0.3;
+    cursor: default;
+
+    &:hover {
+      background: transparent;
+    }
+  }
+
+  &--favorite {
+    color: var(--color-text-muted);
+
+    &:hover {
+      color: #f43f5e;
+      background: color-mix(in oklch, #f43f5e 20%, transparent);
+    }
+  }
+
+  &--favorited {
+    color: #f43f5e;
+
+    &:hover {
+      background: color-mix(in oklch, #f43f5e 15%, transparent);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &--skip {
+    color: var(--color-accent-400, #06b6d4);
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-accent-400) 25%, transparent);
+      box-shadow: 0 0 12px color-mix(in oklch, var(--color-accent-400) 20%, transparent);
+    }
+  }
+
+  &--confirm {
+    color: #22c55e;
+
+    &:hover {
+      background: color-mix(in oklch, #22c55e 25%, transparent);
+    }
+  }
+
+  &--cancel {
+    color: var(--color-text-muted);
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-error) 25%, transparent);
+      color: var(--color-error);
+    }
+  }
+}
+
+// === Text Button ===
+.audio-text-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--color-accent-400, #06b6d4);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
+  }
+}
+
+// === Action Button ===
+.audio-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-accent-400) 45%, transparent);
+  background: color-mix(in oklch, var(--color-accent-400) 12%, transparent);
+  color: var(--color-accent-400, #06b6d4);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 6px;
+
+  &:hover {
+    background: color-mix(in oklch, var(--color-accent-400) 22%, transparent);
+    border-color: color-mix(in oklch, var(--color-accent-400) 65%, transparent);
+    box-shadow: 0 0 12px color-mix(in oklch, var(--color-accent-400) 15%, transparent);
+  }
+
+  &--playlist {
+    border-color: color-mix(in oklch, #a78bfa 45%, transparent);
+    background: color-mix(in oklch, #a78bfa 12%, transparent);
+    color: #a78bfa;
+
+    &:hover {
+      background: color-mix(in oklch, #a78bfa 22%, transparent);
+      border-color: color-mix(in oklch, #a78bfa 65%, transparent);
+      box-shadow: 0 0 12px color-mix(in oklch, #a78bfa 15%, transparent);
+    }
+  }
+}
+
+// === Save Inline ===
+.audio-save-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.audio-save-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 35%, transparent);
+  background: color-mix(in oklch, var(--color-bg-primary) 55%, transparent);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  outline: none;
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  &:focus {
+    border-color: var(--color-accent-400, #06b6d4);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-accent-400) 20%, transparent);
+  }
+}
+
+.audio-save-select {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 35%, transparent);
+  background: color-mix(in oklch, var(--color-bg-primary) 75%, transparent);
+  color: var(--color-text-primary);
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+
+  option {
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+  }
+}
+
+// === Audio List Panel ===
+.audio-list-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+// === List Sub-tabs (Music / SFX) ===
+.audio-list-subtabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 15%, transparent);
+  flex-shrink: 0;
+}
+
+.audio-list-subtab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: var(--color-text-secondary);
+    background: color-mix(in oklch, var(--color-primary) 18%, transparent);
+  }
+
+  &--active {
+    color: var(--color-accent-400, #06b6d4);
+    background: color-mix(in oklch, var(--color-accent-400) 12%, transparent);
+    border-color: color-mix(in oklch, var(--color-accent-400) 30%, transparent);
+  }
+}
+
+.audio-list-subtab__badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--color-accent-400) 25%, transparent);
+  color: var(--color-accent-400, #06b6d4);
+  min-width: 14px;
+  text-align: center;
+  line-height: 14px;
+}
+
+.audio-music-section,
+.audio-sfx-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.audio-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+
+  svg {
+    opacity: 0.3;
+  }
+}
+
+.audio-list-empty__hint {
+  font-size: 11px;
+  opacity: 0.6;
+  line-height: 1.4;
+}
+
+// === Playlist ===
+.audio-playlist-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+}
+
+.audio-playlist-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.1)) transparent;
+
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.1));
+    border-radius: 2px;
+  }
+}
+
+.audio-playlist-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+  }
+
+  &--active {
+    background: color-mix(in oklch, var(--color-accent-400) 15%, transparent);
+
+    .audio-playlist-item__name {
+      color: var(--color-accent-400, #06b6d4);
+    }
+
+    .audio-playlist-item__index {
+      color: var(--color-accent-400, #06b6d4);
+    }
+  }
+}
+
+.audio-playlist-item__index {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-playlist-item__name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audio-playlist-item__remove {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+
+  .audio-playlist-item:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    background: color-mix(in oklch, var(--color-error) 40%, transparent);
+    color: var(--color-error);
+  }
+}
+
+// === Sound Category Tabs ===
+.sound-category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 15%, transparent);
+}
+
+.sound-category-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+
+  &:hover {
+    background: color-mix(in oklch, var(--color-primary) 22%, transparent);
+    border-color: color-mix(in oklch, var(--color-primary) 40%, transparent);
+  }
+
+  &--active {
+    background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
+    border-color: color-mix(in oklch, var(--color-accent-400) 45%, transparent);
+    color: var(--color-accent-400, #06b6d4);
+    box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 10%, transparent);
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-accent-400) 25%, transparent);
+    }
+  }
+}
+
+.sound-category-icon {
+  font-size: 14px;
+}
+
+// === Sound Grid ===
+.sound-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 8px 12px;
+  overflow-y: auto;
+  flex: 1;
+  max-height: 200px;
+  align-content: start;
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12)) transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12));
+    border-radius: 2px;
+  }
+}
+
+.sound-grid-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  padding: 20px 0;
+}
+
+.sound-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px;
+  min-height: 52px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 20%, transparent);
+  background: color-mix(in oklch, var(--color-bg-quaternary) 30%, transparent);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: hidden;
+
+  // Shine sweep effect on hover
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, color-mix(in oklch, white 8%, transparent), transparent);
+    transition: left 0.4s ease;
+    pointer-events: none;
+  }
+
+  &:hover {
+    background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+    border-color: color-mix(in oklch, var(--color-primary) 40%, transparent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+    &::before {
+      left: 120%;
+    }
+  }
+
+  &:active {
+    transform: translateY(0) scale(0.97);
+  }
+
+  &--active {
+    border-color: color-mix(in oklch, var(--color-accent-400) 55%, transparent);
+    background: color-mix(in oklch, var(--color-accent-400) 12%, transparent);
+    box-shadow:
+      0 0 12px color-mix(in oklch, var(--color-accent-400) 15%, transparent),
+      inset 0 0 8px color-mix(in oklch, var(--color-accent-400) 5%, transparent);
+
+    .sound-card__name {
+      color: var(--color-accent-400, #06b6d4);
+    }
+  }
+}
+
+.sound-card__name {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  text-align: center;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  transition: color 0.15s ease;
+}
+
+.sound-card__indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent-400, #06b6d4);
+  animation: soundCardPulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
+}
+
+@keyframes soundCardPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.4); }
+}
+
+.sound-card__delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: color-mix(in oklch, var(--color-error) 45%, transparent);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+
+  .sound-card:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    background: color-mix(in oklch, var(--color-error) 65%, transparent);
+  }
+}
+
+// === Active SFX Section ===
+.audio-active-sfx {
+  border-top: 1px solid color-mix(in oklch, var(--color-primary) 15%, transparent);
+  flex: 1;
+  flex-shrink: 0;
+  background: color-mix(in oklch, var(--color-bg-elevated) 95%, transparent);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.audio-active-sfx__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.audio-active-sfx__list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 0 12px 8px;
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12)) transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12));
+    border-radius: 2px;
+  }
+}
+
+// === Audio Gen Panel ===
+.audio-gen-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12)) transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12));
+    border-radius: 2px;
+  }
+}
+
+// === Gen Sub-tabs ===
+.audio-gen-subtabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 15%, transparent);
+}
+
+.audio-gen-subtab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: var(--color-text-secondary);
+    background: color-mix(in oklch, var(--color-primary) 18%, transparent);
+  }
+
+  &--active {
+    color: var(--color-accent-400, #06b6d4);
+    background: color-mix(in oklch, var(--color-accent-400) 12%, transparent);
+    border-color: color-mix(in oklch, var(--color-accent-400) 30%, transparent);
+  }
+}
+
+.audio-gen-field {
+  padding: 8px 12px;
+}
+
+.audio-gen-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.audio-gen-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 35%, transparent);
+  background: color-mix(in oklch, var(--color-bg-primary) 55%, transparent);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+  outline: none;
+  min-height: 56px;
+  font-family: inherit;
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  &:focus {
+    border-color: var(--color-accent-400, #06b6d4);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-accent-400) 20%, transparent);
+  }
+}
+
+.audio-gen-input {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 35%, transparent);
+  background: color-mix(in oklch, var(--color-bg-primary) 55%, transparent);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  &:focus {
+    border-color: var(--color-accent-400, #06b6d4);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-accent-400) 20%, transparent);
+  }
+}
+
+.audio-gen-error {
+  margin: 4px 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--color-error) 12%, transparent);
+  border: 1px solid color-mix(in oklch, var(--color-error) 35%, transparent);
+  color: var(--color-error);
+  font-size: 12px;
+}
+
+.audio-gen-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-accent-400) 45%, transparent);
+  background: color-mix(in oklch, var(--color-accent-400) 15%, transparent);
+  color: var(--color-accent-400, #06b6d4);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+
+  // Shimmer effect
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, color-mix(in oklch, white 10%, transparent), transparent);
+    transition: left 0.5s ease;
+  }
+
+  &:hover:not(:disabled) {
+    background: color-mix(in oklch, var(--color-accent-400) 25%, transparent);
+    border-color: color-mix(in oklch, var(--color-accent-400) 65%, transparent);
+    box-shadow: 0 0 16px color-mix(in oklch, var(--color-accent-400) 15%, transparent);
+
+    &::after {
+      left: 120%;
+    }
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.audio-gen-spinner {
+  animation: audioGenSpin 1s linear infinite;
+}
+
+@keyframes audioGenSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.audio-gen-result {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audio-gen-result-text {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.audio-gen-result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+// === Audio Radio Panel ===
+.audio-radio-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  padding: 12px;
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12)) transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12));
+    border-radius: 2px;
+  }
+}
+
+.audio-radio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.audio-radio-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 4px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--radio-color, var(--color-primary)) 30%, transparent);
+  background: color-mix(in oklch, var(--radio-color, var(--color-primary)) 8%, transparent);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  overflow: hidden;
+
+  // Glass shine
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(180deg, color-mix(in oklch, white 8%, transparent), transparent);
+    pointer-events: none;
+  }
+
+  &:hover {
+    border-color: color-mix(in oklch, var(--radio-color, var(--color-primary)) 50%, transparent);
+    background: color-mix(in oklch, var(--radio-color, var(--color-primary)) 15%, transparent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 0 12px color-mix(in oklch, var(--radio-color, var(--color-primary)) 15%, transparent);
+  }
+
+  &:active {
+    transform: translateY(0) scale(0.97);
+  }
+
+  &--active {
+    border-color: color-mix(in oklch, var(--radio-color, var(--color-primary)) 60%, transparent);
+    background: color-mix(in oklch, var(--radio-color, var(--color-primary)) 18%, transparent);
+    box-shadow:
+      0 0 20px color-mix(in oklch, var(--radio-color, var(--color-primary)) 20%, transparent),
+      inset 0 0 12px color-mix(in oklch, var(--radio-color, var(--color-primary)) 5%, transparent);
+  }
+}
+
+.audio-radio-card__icon {
+  font-size: 20px;
+  margin-bottom: 3px;
+}
+
+.audio-radio-card__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.audio-radio-card__name-en {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
+
+.audio-radio-card__wave {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 12px;
+}
+
+.audio-radio-card__wave-bar {
+  width: 2px;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--radio-color, var(--color-accent-400));
+  animation: radioWaveBar 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes radioWaveBar {
+  0% { height: 3px; }
+  100% { height: 10px; }
+}

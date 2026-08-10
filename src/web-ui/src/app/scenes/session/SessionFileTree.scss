@@ -1,0 +1,26 @@
+@use '../../../component-library/styles/tokens.scss' as *;
+
+.ai00-x-session-file-tree {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--nav-bg);
+
+  .ai00-x-files-panel {
+    height: 100%;
+    background: transparent;
+  }
+
+  .ai00-x-files-panel__content {
+    background: transparent;
+  }
+
+  .ai00-x-files-panel__main-content {
+    background: transparent;
+  }
+
+  .ai00-x-file-explorer {
+    background: var(--nav-bg);
+  }
+}

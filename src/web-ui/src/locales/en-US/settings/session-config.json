@@ -1,0 +1,83 @@
+{
+  "title": "Task Config",
+  "subtitle": "Task-related AI features and tool execution behavior",
+  "features": {
+    "sessionTitle": {
+      "title": "Auto Task Title",
+      "subtitle": "AI automatically generates concise titles for new conversations",
+      "warning": "Task title will use first 20 characters of user message"
+    },
+    "agentCompanion": {
+      "title": "Agent companion",
+      "subtitle": "Show a pixel-style companion animation in the collapsed task input.",
+      "enable": "Show Agent companion"
+    }
+  },
+  "toolExecution": {
+    "sectionTitle": "Tool execution behavior",
+    "sectionDescription": "Confirmation and timeout settings when tools run in a task."
+  },
+  "computerUse": {
+    "sectionTitle": "Computer use (desktop)",
+    "sectionDescription": "In the Ai00-X desktop app, the assistant can capture the screen and control the mouse and keyboard; requires a multimodal model for vision.",
+    "enable": "Enable Computer use",
+    "enableDesc": "When off, the ComputerUse tool stays disabled in every task mode.",
+    "accessibility": "Accessibility",
+    "accessibilityDesc": "",
+    "screenCapture": "Screen recording",
+    "screenCaptureDesc": "",
+    "granted": "Granted",
+    "notGranted": "Not granted",
+    "openSettings": "Setting",
+    "refreshStatus": "Refresh status",
+    "desktopOnly": "Computer use settings are only available in the Ai00-X desktop app.",
+    "platformNote": "Note"
+  },
+  "browserControl": {
+    "sectionTitle": "Browser control",
+    "sectionDescription": "Control your default browser through the Browser Extension (recommended) or Chrome DevTools Protocol. The Extension mode preserves your login sessions, cookies, and extensions without needing to restart the browser.",
+    "desktopOnly": "Browser control settings are only available in the Ai00-X desktop app.",
+    "extensionStatus": "Extension connection",
+    "extensionStatusDesc": "Status of the Browser Helper Extension connection. This is the recommended mode — no browser restart needed.",
+    "extensionConnected": "Extension connected",
+    "daemonRunningNoExt": "Daemon running, extension not connected",
+    "daemonNotRunning": "Daemon not running",
+    "status": "CDP connection",
+    "statusDesc": "Fallback: Chrome DevTools Protocol connection (requires browser restart with debug port).",
+    "notConnected": "Not connected",
+    "refreshStatus": "Refresh status",
+    "connect": "Connect browser",
+    "connectSuccess": "{{browser}} connected with CDP",
+    "connectFailed": "Failed to launch browser with CDP",
+    "recommendedMode": "Recommended mode",
+    "recommendedModeDesc": "The best available browser connection mode. Extension mode is preferred as it does not require a browser restart.",
+    "modeExtension": "Extension (recommended)",
+    "modeCdp": "CDP (fallback)",
+    "modeNone": "No browser available",
+    "createLauncher": "Create launcher app",
+    "createLauncherSuccess": "Launcher created at {{path}}",
+    "createLauncherFailed": "Failed to create launcher app",
+    "createLauncherDesc": "Create a shortcut app that always starts the browser with CDP debug port enabled.",
+    "tabs": "tab(s)"
+  },
+  "model": {
+    "label": "Model",
+    "primary": "Primary Model",
+    "fast": "Fast Model"
+  },
+  "common": {
+    "enable": "Enable"
+  },
+  "models": {
+    "empty": "No available models. Please add models in \"Models\" first.",
+    "updateSuccess": "{{agentName}} will use {{modelName}}"
+  },
+  "loading": {
+    "text": "Loading configuration..."
+  },
+  "messages": {
+    "saveSuccess": "Settings saved",
+    "saveFailed": "Save failed",
+    "updateFailed": "Update failed"
+  }
+}

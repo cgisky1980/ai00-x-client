@@ -1,0 +1,70 @@
+{
+  "title": "文件浏览器",
+  "search": {
+    "placeholder": "搜索工作区...",
+    "noResults": "未找到匹配的结果",
+    "enterKeyword": "输入关键词开始搜索",
+    "modeFiles": "文件",
+    "modeContent": "内容",
+    "limitReachedFiles": "当前仅显示前 {{count}} 个文件匹配结果，请继续缩小查询范围。",
+    "limitReachedContent": "当前仅显示前 {{count}} 个内容匹配结果，请继续缩小查询范围。"
+  },
+  "options": {
+    "caseSensitive": "区分大小写 (Aa)",
+    "wholeWord": "全字匹配 (Ab)",
+    "useRegex": "使用正则表达式 (.*)"
+  },
+  "actions": {
+    "switchToSearch": "切换到搜索",
+    "switchToTree": "切换到文件树",
+    "retry": "重试"
+  },
+  "status": {
+    "searchingFilename": "搜索文件名...",
+    "searchingContent": "搜索内容...",
+    "loadingFileTree": "正在加载文件树..."
+  },
+  "empty": {
+    "selectWorkspace": "选择工作区后将显示文件树"
+  },
+  "dialog": {
+    "newFile": {
+      "title": "新建文件",
+      "placeholder": "请输入文件名",
+      "confirm": "创建",
+      "cancel": "取消"
+    },
+    "newFolder": {
+      "title": "新建文件夹",
+      "placeholder": "请输入文件夹名",
+      "confirm": "创建",
+      "cancel": "取消"
+    }
+  },
+  "validation": {
+    "invalidFilename": "文件名包含非法字符"
+  },
+  "transfer": {
+    "downloading": "正在下载",
+    "uploading": "正在上传",
+    "missingConnection": "远程工作区缺少 SSH 连接信息。",
+    "failed": "文件传输失败：{{error}}",
+    "dropHint": "将文件拖放到此处以上传"
+  },
+  "notifications": {
+    "createFileSuccess": "文件创建成功",
+    "createFileFailed": "创建文件失败: {{error}}",
+    "createFolderSuccess": "文件夹创建成功",
+    "createFolderFailed": "创建文件夹失败: {{error}}",
+    "renameSuccess": "重命名成功",
+    "renameFailed": "重命名失败: {{error}}",
+    "deleteSuccess": "删除成功",
+    "deleteFailed": "删除失败: {{error}}",
+    "pasteSuccess": "成功粘贴 {{count}} 个文件",
+    "pasteFailed": "{{count}} 个文件粘贴失败",
+    "pasteNoFiles": "剪贴板中没有文件",
+    "pastingFiles": "正在粘贴 {{count}} 个文件到 {{target}}...",
+    "openExplorerFailed": "打开文件管理器失败: {{error}}",
+    "selectWorkspaceFirst": "请先打开工作区"
+  }
+}

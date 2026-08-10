@@ -1,0 +1,8 @@
+
+body.c.png
+size:128,103
+filter:Linear,Linear
+pma:true
+Base/Body
+  bounds: 0,0,128,103
+  offsets: 3,14,141,127

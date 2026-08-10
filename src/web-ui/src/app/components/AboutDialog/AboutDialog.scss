@@ -1,0 +1,510 @@
+/**
+ * About dialog styles.
+ * Uses component library Modal for overlay and shell; only content layout here.
+ */
+
+@use '../../../component-library/styles/tokens' as *;
+
+// ==================== Content area (inside Modal) ====================
+
+.ai00-x-about-dialog__content {
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+  max-height: min(680px, calc(100vh - 48px));
+  overflow: hidden;
+}
+
+// ==================== Hero section ====================
+
+.ai00-x-about-dialog__hero {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 32px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.ai00-x-about-dialog__title {
+  font-family: var(--font-family-sans);
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 10px 0;
+  letter-spacing: -0.03em;
+  color: var(--color-text-primary);
+  position: relative;
+  z-index: 1;
+  animation: about-title-enter 0.5s ease-out 0.1s both;
+  line-height: 1.2;
+}
+
+@keyframes about-title-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ai00-x-about-dialog__version-badge {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 400;
+  font-family: 'Consolas', 'Monaco', monospace;
+  letter-spacing: 0.02em;
+  position: relative;
+  z-index: 1;
+  animation: about-badge-enter 0.5s ease-out 0.15s both;
+}
+
+@keyframes about-badge-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Decorative divider
+.ai00-x-about-dialog__divider {
+  width: 60px;
+  height: 1px;
+  background: var(--border-subtle);
+  margin-top: 18px;
+  position: relative;
+  z-index: 1;
+  animation: about-divider-enter 0.6s ease-out 0.2s both;
+}
+
+@keyframes about-divider-enter {
+  from {
+    opacity: 0;
+    width: 0;
+  }
+  to {
+    opacity: 1;
+    width: 60px;
+  }
+}
+
+// Decorative dots
+.ai00-x-about-dialog__dots {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  position: relative;
+  z-index: 1;
+  animation: about-dots-enter 0.6s ease-out 0.25s both;
+
+  span {
+    width: 3px;
+    height: 3px;
+    background: var(--color-text-muted);
+    border-radius: 50%;
+    opacity: 0.45;
+  }
+}
+
+@keyframes about-dots-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+// ==================== Scrollable area ====================
+
+.ai00-x-about-dialog__scrollable {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 24px;
+  
+}
+
+// ==================== Info section ====================
+
+.ai00-x-about-dialog__info-section {
+  margin-bottom: 16px;
+  animation: about-section-enter 0.4s ease-out 0.2s both;
+}
+
+@keyframes about-section-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ai00-x-about-dialog__info-card {
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 8px;
+}
+
+.ai00-x-about-dialog__info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  min-height: 28px;
+  
+  &:first-child {
+    padding-top: 0;
+  }
+  
+  &:last-child {
+    padding-bottom: 0;
+  }
+}
+
+.ai00-x-about-dialog__info-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.ai00-x-about-dialog__info-value {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  font-weight: 400;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  
+  &--mono {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 11px;
+    font-weight: 500;
+  }
+}
+
+.ai00-x-about-dialog__info-value-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ai00-x-about-dialog__copy-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  
+  &:hover {
+    background: var(--element-bg-subtle);
+    border-color: var(--border-subtle);
+    color: var(--color-accent-400);
+  }
+  
+  &:active {
+    transform: scale(0.9);
+  }
+}
+
+// ==================== Dependencies section ====================
+
+.ai00-x-about-dialog__dependencies-section {
+  margin-bottom: 16px;
+  animation: about-section-enter 0.4s ease-out 0.25s both;
+}
+
+.ai00-x-about-dialog__dependencies-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  
+  &:hover {
+    background: var(--element-bg-subtle);
+    border-color: var(--border-base);
+    border-style: solid;
+    color: var(--color-text-primary);
+    
+    svg {
+      color: var(--color-accent-500);
+    }
+  }
+  
+  span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  svg {
+    color: var(--color-text-muted);
+    transition: all 0.2s ease;
+  }
+}
+
+.ai00-x-about-dialog__dependencies-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--color-accent-400);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 9px;
+}
+
+.ai00-x-about-dialog__dependencies-list {
+  margin-top: 8px;
+  padding: 4px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  animation: about-list-expand 0.25s ease-out;
+}
+
+@keyframes about-list-expand {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ai00-x-about-dialog__dependencies-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+
+.ai00-x-about-dialog__dependency-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  min-width: 0;
+  
+  &:hover {
+    background: var(--element-bg-subtle);
+    border-color: var(--border-subtle);
+    
+    .ai00-x-about-dialog__dependency-icon {
+      background: rgba(99, 102, 241, 0.1);
+      
+      svg {
+        color: var(--color-accent-500);
+      }
+    }
+  }
+}
+
+.ai00-x-about-dialog__dependency-icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--element-bg-subtle);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+
+  svg {
+    width: 12px;
+    height: 12px;
+    color: var(--color-text-secondary);
+    transition: color 0.2s ease;
+  }
+}
+
+.ai00-x-about-dialog__dependency-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ai00-x-about-dialog__dependency-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  font-family: 'Consolas', 'Monaco', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai00-x-about-dialog__dependency-license {
+  font-size: 9px;
+  color: var(--color-text-muted);
+}
+
+.ai00-x-about-dialog__dependency-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  font-size: 8px;
+  font-weight: 600;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-left: auto;
+  flex-shrink: 0;
+  
+  // Frontend tag - blue
+  &--frontend {
+    background: rgba(59, 130, 246, 0.12);
+    color: #60A5FA;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+  
+  // Backend tag - green
+  &--backend {
+    background: rgba(34, 197, 94, 0.12);
+    color: #4ADE80;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+  }
+  
+  // General tag - purple
+  &--general {
+    background: rgba(168, 85, 247, 0.12);
+    color: #C084FC;
+    border: 1px solid rgba(168, 85, 247, 0.2);
+  }
+}
+
+// ==================== Footer ====================
+
+.ai00-x-about-dialog__footer {
+  flex-shrink: 0;
+  padding: 16px 24px 20px;
+  text-align: center;
+  position: relative;
+  animation: about-section-enter 0.4s ease-out 0.3s both;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 24px;
+    right: 24px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--border-subtle) 50%, transparent 100%);
+  }
+}
+
+.ai00-x-about-dialog__license {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 0 0 6px 0;
+}
+
+.ai00-x-about-dialog__copyright {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+// ==================== Responsive layout ====================
+
+@media (max-width: 580px) {
+  .ai00-x-about-dialog__content {
+    min-height: 360px;
+    max-height: calc(100vh - 32px);
+  }
+
+  .ai00-x-about-dialog__hero {
+    padding: 24px 20px 20px;
+  }
+
+  .ai00-x-about-dialog__title {
+    font-size: 20px;
+  }
+
+  .ai00-x-about-dialog__scrollable {
+    padding: 0 16px;
+  }
+
+  .ai00-x-about-dialog__dependencies-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ai00-x-about-dialog__footer {
+    padding: 14px 16px 16px;
+
+    &::before {
+      left: 16px;
+      right: 16px;
+    }
+  }
+}
+
+@media (max-height: 500px) {
+  .ai00-x-about-dialog__content {
+    min-height: 320px;
+  }
+
+  .ai00-x-about-dialog__hero {
+    padding: 20px 24px 16px;
+  }
+
+  .ai00-x-about-dialog__title {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .ai00-x-about-dialog__divider {
+    margin-top: 12px;
+  }
+
+  .ai00-x-about-dialog__dots {
+    margin-top: 8px;
+  }
+
+  .ai00-x-about-dialog__footer {
+    padding: 12px 24px 14px;
+  }
+}

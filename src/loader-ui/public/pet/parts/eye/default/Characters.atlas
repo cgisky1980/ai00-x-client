@@ -1,0 +1,8 @@
+
+eye1.png
+size:56,24
+filter:Linear,Linear
+pma:true
+Base/Eye1
+  bounds: 0,0,56,24
+  offsets: 3,4,61,32

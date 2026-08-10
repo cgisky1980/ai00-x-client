@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title></title>
+    <link rel="preload" href="/shared/fonts/cjk.ttf" as="font" type="font/ttf" crossorigin>
+    <link rel="stylesheet" href="/shared/css/main.css" />
+  </head>
+  <body class="underlay-main">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Audio control: muted by default; wallpapers can request audio permission
+      (function() {
+        window.__ai00_audio_allowed = false;
+
+        var mute = function(el) {
+          try { el.muted = true; el.volume = 0; } catch(e) {}
+        };
+
+        var origPlay = HTMLMediaElement.prototype.play;
+        HTMLMediaElement.prototype.play = function() {
+          if (!window.__ai00_audio_allowed) {
+            mute(this);
+          }
+          return origPlay.call(this);
+        };
+
+        var observer = new MutationObserver(function() {
+          if (!window.__ai00_audio_allowed) {
+            document.querySelectorAll('video, audio').forEach(mute);
+          }
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+
+        // Listen for audio permission requests from wallpaper iframes
+        window.addEventListener('message', function(e) {
+          if (e.data && e.data.type === 'ai00-request-audio') {
+            window.__ai00_audio_allowed = true;
+            // Unmute existing media elements
+            document.querySelectorAll('video, audio').forEach(function(el) {
+              try { el.muted = false; el.volume = 1; } catch(e) {}
+            });
+          }
+          if (e.data && e.data.type === 'ai00-revoke-audio') {
+            window.__ai00_audio_allowed = false;
+            document.querySelectorAll('video, audio').forEach(mute);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

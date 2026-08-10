@@ -1,0 +1,291 @@
+/**
+ * Ai00-X main layout styles (SCSS).
+ * Token-driven application shell with a consistent dark background.
+ * Follows BEM naming and design tokens.
+ */
+
+@use '../../component-library/styles/tokens.scss' as *;
+
+// ==================== CSS reset ====================
+// Note: keep box-sizing !important for global consistency.
+*, *::before, *::after {
+  box-sizing: border-box !important;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+  background: var(--color-bg-primary);
+  overflow: hidden;
+}
+
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+// ==================== Main layout container ====================
+.ai00-x-app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  
+  // Use theme background
+  background: var(--color-bg-primary);
+  
+  color: var(--color-text-primary);
+  font-family: $font-family-sans;
+  position: relative;
+
+  // Ensure layout stability
+  min-height: 100vh;
+  max-height: 100vh;
+
+  // Font rendering
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+
+  // All children
+  * {
+    box-sizing: border-box;
+  }
+
+  // Focus management
+  *:focus-visible {
+    outline: 2px solid var(--color-accent-500);
+    outline-offset: 2px;
+    border-radius: $size-radius-sm;
+  }
+
+  // ==================== Overlay mode (Windows) ====================
+  &--overlay {
+    background: transparent !important;
+    pointer-events: none;
+  }
+
+  // ==================== Startup mode ====================
+  &--startup-mode {
+    background: var(--color-bg-primary);
+  }
+  
+  // ==================== Transitioning ====================
+  &--transitioning {
+    // Styles during transition
+    .ai00-x-app-main-workspace {
+      // Content transition handled by child components
+    }
+  }
+
+  // ==================== Modifier - loading ====================
+  &--loading {
+    pointer-events: none;
+    opacity: var(--opacity-focus);
+  }
+
+  // ==================== Modifier - error ====================
+  &--error {
+    .ai00-x-app-header {
+      border-bottom-color: var(--color-error);
+      background: linear-gradient(135deg, 
+        var(--color-error-bg) 0%, 
+        var(--element-bg-base) 100%);
+    }
+  }
+
+  // ==================== Modifier - modal open ====================
+  &--modal-open {
+    overflow: hidden;
+
+    .ai00-x-app-main {
+      filter: blur(2px);
+      pointer-events: none;
+    }
+  }
+
+}
+
+// ==================== Overlay mode transparent background ====================
+// Must be at top-level: html/body are ancestors of .ai00-x-app-layout,
+// so nested selectors like &--overlay html would never match.
+html:has(.ai00-x-app-layout--overlay),
+body:has(.ai00-x-app-layout--overlay) {
+  background: transparent !important;
+}
+
+.ai00-x-app-layout--overlay #root {
+  background: transparent !important;
+}
+
+// ==================== Overlay floating panel (Windows) ====================
+.ai00-x-overlay-panel {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  width: 1024px;
+  height: 768px;
+  min-width: 800px;
+  min-height: 600px;
+  border-radius: 12px;
+  overflow: visible;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-subtle);
+  pointer-events: auto;
+  background-color: var(--color-bg-primary);
+
+  & > .ai00-x-workspace-body {
+    overflow: hidden;
+    border-radius: 12px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  &--resizing {
+    user-select: none;
+    transition: none;
+  }
+
+  &__resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    pointer-events: auto;
+    z-index: 1;
+
+    &::after {
+      content: '';
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--color-text-muted);
+      border-bottom: 2px solid var(--color-text-muted);
+    }
+
+    &:hover::after {
+      border-color: var(--color-text-secondary);
+    }
+  }
+}
+
+// ==================== Portal container inside overlay panel ====================
+// All popups, dialogs, tooltips port into this container so they stay
+// inside the overlay panel and remain interactive.
+// Uses position:absolute + inset:0 to cover the overlay panel area,
+// and position:relative as the containing block for absolute-positioned
+// modal overlays (which use position:absolute instead of position:fixed).
+.ai00-x-portal-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 1;
+
+  & > * {
+    pointer-events: auto;
+  }
+}
+
+// ==================== Overlay dialog container (outside overlay panel) ====================
+// In overlay mode, dialogs and modals are rendered outside the overlay panel so
+// their fixed-position backdrops can receive pointer events across the full viewport.
+// This container re-enables pointer-events (which the parent layout disables in
+// overlay mode) and is marked as no-penetrate so the Rust overlay thread keeps
+// the window non-penetrating while a modal is open.
+.ai00-x-overlay-dialogs {
+  pointer-events: none;
+
+  // Any child that is visible (open modal) should capture events
+  & > * {
+    pointer-events: auto;
+  }
+}
+
+// ==================== Main content area (full height, no TitleBar) ====================
+.ai00-x-app-main-workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-top: 0;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  background: var(--color-bg-flowchat);
+}
+
+// ==================== Scrollbar styles ====================
+// Moved to global scrollbar.css for shared management.
+
+// ==================== Responsive ====================
+@media (max-width: 1024px) {
+  .ai00-x-app-layout {
+    --header-height: 34px;
+  }
+}
+
+@media (max-width: 768px) {
+  .ai00-x-app-layout {
+    --header-height: 32px;
+  }
+}
+
+// ==================== Dark theme tweaks ====================
+@media (prefers-color-scheme: dark) {
+  .ai00-x-app-layout {
+    background: var(--color-bg-flowchat);
+  }
+}
+
+// ==================== High-contrast mode ====================
+@media (prefers-contrast: high) {
+  .ai00-x-app-layout {
+    background: var(--color-bg-flowchat);
+  }
+}
+
+// ==================== Reduced motion preference ====================
+@media (prefers-reduced-motion: reduce) {
+  .ai00-x-app-layout * {
+    transition: none;
+    animation: none;
+  }
+}
+
+// ==================== Animations ====================
+@keyframes shimmer {
+  0%, 100% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+}
+
+// Startup sweep glow: icy blue band from left to right, no delay.
+@keyframes header-sweep-glow {
+  0% {
+    transform: translateX(-100%);
+    opacity: 1;
+  }
+  95% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(300%);
+    opacity: 0;
+  }
+}

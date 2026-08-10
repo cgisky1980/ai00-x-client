@@ -1,0 +1,4 @@
+{
+    "lm_model": "acestep-5Hz-lm-4B-Q8_0.gguf",
+    "synth_model": "acestep-v15-sft-Q8_0.gguf"
+}

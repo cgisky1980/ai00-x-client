@@ -1,0 +1,61 @@
+.turn-rollback-button {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  
+  &:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    background: #94a3b8;
+    cursor: default;
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+.turn-rollback-button-current {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #22c55e;
+  color: white;
+  border-radius: 4px;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+// Dark theme support
+@media (prefers-color-scheme: dark) {
+  .turn-rollback-button {
+    background: #2563eb;
+    
+    &:hover {
+      background: #1d4ed8;
+    }
+    
+    &:disabled {
+      background: #64748b;
+    }
+  }
+  
+  .turn-rollback-button-current {
+    background: #059669;
+  }
+}
+
+

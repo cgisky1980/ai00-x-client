@@ -1,0 +1,192 @@
+// === SfxActivity — DynamicIsland 中的环境音效快捷入口 ===
+// 仅显示当前正在播放的音效胶囊（一行水平排列，可左右拖动滚动）
+
+.sfx-activity {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px;
+  gap: 6px;
+  position: relative;
+
+  &--empty {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  &__empty-text {
+    color: var(--color-text-muted);
+    font-size: 12px;
+    flex: 1;
+  }
+
+  // ===== Header =====
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  &__title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__count {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--color-accent-400, #06b6d4);
+    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 18%, transparent);
+    padding: 1px 6px;
+    border-radius: 8px;
+    line-height: 1.4;
+  }
+
+  &__header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  &__header-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+      color: var(--color-text-primary);
+    }
+  }
+
+  &__expand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+      color: var(--color-text-primary);
+    }
+  }
+
+  // ===== Chips container (horizontal scroll + drag) =====
+  &__chips {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    cursor: grab;
+    user-select: none;
+    min-height: 28px;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  // ===== Single chip (active sfx capsule) =====
+  &__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 10px;
+    border-radius: 14px;
+    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 16%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-accent-400, #06b6d4) 30%, transparent);
+    color: var(--color-accent-400, #06b6d4);
+    font-size: 11px;
+    flex-shrink: 0;
+    height: 24px;
+  }
+
+  &__chip-name {
+    font-weight: 500;
+    white-space: nowrap;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__chip-volume {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 40px;
+    height: 2px;
+    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 30%, transparent);
+    border-radius: 1px;
+    outline: none;
+    cursor: pointer;
+
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-accent-400, #06b6d4);
+      cursor: pointer;
+    }
+
+    &::-moz-range-thumb {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-accent-400, #06b6d4);
+      border: none;
+      cursor: pointer;
+    }
+  }
+
+  &__chip-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-accent-400, #06b6d4);
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 25%, transparent);
+    }
+  }
+}

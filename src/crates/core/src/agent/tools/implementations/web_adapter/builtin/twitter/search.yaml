@@ -1,0 +1,44 @@
+site: twitter
+name: search
+description: Search Twitter/X posts
+domain: x.com
+strategy: cookie
+browser: true
+
+args:
+  query:
+    type: string
+    required: true
+    description: Search keyword
+  limit:
+    type: int
+    default: 20
+    description: Number of tweets
+
+pipeline:
+  - navigate: "https://x.com/search?q=${{ args.query | urlencode }}&f=top"
+  - evaluate: |
+      (async () => {
+        await new Promise(r => setTimeout(r, 3000));
+        const limit = Math.max(1, Math.min(20, 50));
+        const tweets = [];
+        const articles = document.querySelectorAll('article[data-testid="tweet"]');
+        for (const article of Array.from(articles)) {
+          try {
+            const timeEl = article.querySelector('time');
+            const textEl = article.querySelector('[data-testid="tweetText"]');
+            const userEl = article.querySelector('[data-testid="User-Name"]');
+            const linkEl = article.querySelector('a[href*="/status/"]');
+            const text = (textEl?.textContent || '').trim();
+            const user = (userEl?.textContent || '').trim().split('\n')[0];
+            const url = linkEl?.getAttribute('href') || '';
+            const time = timeEl?.getAttribute('datetime') || '';
+            if (!text) continue;
+            tweets.push({ rank: tweets.length + 1, user, text: text.substring(0, 200), time, url: url ? 'https://x.com' + url : '' });
+            if (tweets.length >= limit) break;
+          } catch {}
+        }
+        return tweets;
+      })()
+
+columns: [rank, user, text, time, url]

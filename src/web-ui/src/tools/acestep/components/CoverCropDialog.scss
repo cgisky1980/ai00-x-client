@@ -1,0 +1,83 @@
+/**
+ * CoverCropDialog — 封面裁剪对话框样式。
+ *
+ * 视觉模式：复用现有对话框的字号/颜色/间距。Cropper 区域固定 320×320
+ * 正方形（1:1 aspect），适合 512×512 输出预览。
+ */
+
+.cover-crop-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+
+  // ---- Cropper 区域 ----
+  &__cropper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-height: 400px;
+    background: var(--element-bg-base, #1a1a1a);
+    border-radius: 8px;
+    overflow: hidden;
+
+    // react-easy-crop 内部容器
+    & > div {
+      position: absolute;
+      inset: 0;
+    }
+  }
+
+  // ---- 加载中 ----
+  &__loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--color-text-muted, #888);
+    font-size: 13px;
+
+    .is-spinning {
+      animation: cover-crop-spin 0.8s linear infinite;
+    }
+  }
+
+  // ---- 提示 ----
+  &__hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--color-text-muted, #888);
+    text-align: center;
+  }
+
+  // ---- 错误提示 ----
+  &__error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: rgba(255, 80, 80, 0.08);
+    color: var(--color-text-error, #ff6b6b);
+    font-size: 12px;
+  }
+
+  // ---- 操作按钮 ----
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 4px;
+  }
+}
+
+@keyframes cover-crop-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

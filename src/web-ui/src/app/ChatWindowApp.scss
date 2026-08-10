@@ -1,0 +1,13 @@
+.ai00-x-chat-window-app {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--nav-bg);
+
+  .ai00-x-workspace-body {
+    flex: 1;
+    min-height: 0;
+  }
+}

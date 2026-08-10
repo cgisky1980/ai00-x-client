@@ -1,0 +1,16 @@
+
+leg_f.c.png
+size:35,23
+filter:Linear,Linear
+pma:true
+Base/Leg_F
+  bounds: 0,0,35,23
+  offsets: 5,5,43,32
+
+leg_b.c.png
+size:31,22
+filter:Linear,Linear
+pma:true
+Base/Leg_B
+  bounds: 0,0,31,22
+  offsets: 4,3,38,28

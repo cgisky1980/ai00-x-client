@@ -1,0 +1,81 @@
+@use '../../../../component-library/styles/tokens' as *;
+
+.ai00-x-config-collection-section__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-4, 16px);
+  padding: var(--size-gap-4, 16px);
+}
+
+.ai00-x-config-collection-section__toolbar,
+.ai00-x-config-collection-section__filters,
+.ai00-x-config-collection-section__editor,
+.ai00-x-config-collection-section__list {
+  min-width: 0;
+}
+
+.ai00-x-config-collection-section__toolbar {
+  padding-bottom: var(--size-gap-2, 8px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ai00-x-config-collection-section__filters {
+  padding-bottom: var(--size-gap-2, 8px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ai00-x-config-collection-section__editor {
+  background: var(--element-bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--size-radius-md, 10px);
+  padding: var(--size-gap-3, 12px);
+}
+
+.ai00-x-config-collection-section--with-editor .ai00-x-config-collection-section__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+  grid-template-areas:
+    'toolbar toolbar'
+    'filters filters'
+    'list editor';
+  align-items: start;
+}
+
+.ai00-x-config-collection-section--with-editor .ai00-x-config-collection-section__toolbar {
+  grid-area: toolbar;
+}
+
+.ai00-x-config-collection-section--with-editor .ai00-x-config-collection-section__filters {
+  grid-area: filters;
+}
+
+.ai00-x-config-collection-section--with-editor .ai00-x-config-collection-section__list {
+  grid-area: list;
+}
+
+.ai00-x-config-collection-section--with-editor .ai00-x-config-collection-section__editor {
+  grid-area: editor;
+  position: sticky;
+  top: var(--size-gap-2, 8px);
+}
+
+@container config-panel (max-width: 520px) {
+  .ai00-x-config-collection-section__content {
+    gap: var(--size-gap-3, 12px);
+    padding: var(--size-gap-3, 12px);
+  }
+
+  .ai00-x-config-collection-section__editor {
+    padding: var(--size-gap-2, 8px);
+  }
+
+  .ai00-x-config-collection-section--with-editor .ai00-x-config-collection-section__content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ai00-x-config-collection-section__toolbar,
+  .ai00-x-config-collection-section__filters {
+    padding-bottom: var(--size-gap-2, 8px);
+  }
+}

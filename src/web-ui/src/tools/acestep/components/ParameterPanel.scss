@@ -1,0 +1,107 @@
+@use '../styles/tokens' as t;
+
+.acestep-param {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  &__group {
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  &__group-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: var(--element-bg-soft);
+    color: var(--color-text-primary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover {
+      background: var(--element-bg-base);
+    }
+  }
+
+  &__chevron {
+    transition: transform 0.2s;
+
+    &.is-collapsed {
+      transform: rotate(-90deg);
+    }
+  }
+
+  &__group-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.6rem 1rem;
+    padding: 0.75rem;
+    background: var(--element-bg-subtle);
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    &--checkbox {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.4rem;
+      padding-top: 1.4rem;
+
+      label {
+        font-size: 0.78rem;
+        color: var(--color-text-primary);
+      }
+    }
+
+    textarea {
+      grid-column: span 2;
+    }
+  }
+
+  &__label {
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+  }
+
+  &__input,
+  &__select,
+  &__textarea {
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border-base);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--color-text-primary);
+    font-size: 0.8rem;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+
+    &:focus {
+      outline: none;
+      border-color: var(--input-border-focus);
+      box-shadow: 0 0 0 2px var(--glass-blue-subtle);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &__textarea {
+    resize: vertical;
+    min-height: 60px;
+  }
+}

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lofi Music System Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .preset-card {
+            background: #2a2a2a;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 2px solid transparent;
+        }
+        .preset-card.active {
+            border-color: #4CAF50;
+        }
+        .volume-control, .instrument-control {
+            margin: 10px 0;
+        }
+        .volume-control input {
+            width: 200px;
+        }
+        .instrument-control select {
+            background: #4a4a4a;
+            color: white;
+            border: 1px solid #666;
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin-left: 10px;
+        }
+        .instrument-control select:disabled {
+            background: #2a2a2a;
+            color: #666;
+        }
+        .status {
+            background: #333;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .loading {
+            color: #FFA500;
+        }
+        .error {
+            color: #FF6B6B;
+        }
+        .success {
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 Lofi Music System Test</h1>
+    
+    <div class="status" id="status">
+        <div>Status: <span id="statusText">Not initialized</span></div>
+        <div>Current Preset: <span id="currentPreset">None</span></div>
+        <div>Playing: <span id="playingStatus">No</span></div>
+    </div>
+
+    <div class="controls">
+        <button id="initBtn">Initialize System</button>
+        <button id="playBtn" disabled>Play</button>
+        <button id="pauseBtn" disabled>Pause</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <button id="generateBtn" disabled>Generate New Melody</button>
+    </div>
+
+    <div class="volume-control">
+        <label for="volumeSlider">Volume: <span id="volumeValue">50%</span></label>
+        <input type="range" id="volumeSlider" min="0" max="100" value="50">
+    </div>
+
+    <div class="instrument-control">
+        <label for="instrumentSelect">Instrument: </label>
+        <select id="instrumentSelect" disabled>
+            <option value="">Select instrument...</option>
+        </select>
+    </div>
+
+    <h2>Presets</h2>
+    <div id="presets"></div>
+
+    <div id="logs" style="background: #111; padding: 10px; border-radius: 5px; margin-top: 20px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
+
+    <script type="module">
+        // Import the lofi music system
+        import { LofiMusicSystem } from './src/lib/lofi/lofi-music-system.js';
+        import { LOFI_PRESETS } from './src/lib/lofi/presets.js';
+
+        let lofiSystem = null;
+        let currentPresetId = null;
+
+        // DOM elements
+        const statusText = document.getElementById('statusText');
+        const currentPresetEl = document.getElementById('currentPreset');
+        const playingStatus = document.getElementById('playingStatus');
+        const initBtn = document.getElementById('initBtn');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const generateBtn = document.getElementById('generateBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        const instrumentSelect = document.getElementById('instrumentSelect');
+        const presetsDiv = document.getElementById('presets');
+        const logsDiv = document.getElementById('logs');
+
+        // Logging function
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? '#FF6B6B' : type === 'success' ? '#4CAF50' : '#fff';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[LofiTest] ${message}`);
+        }
+
+        // Update UI state
+        function updateUI() {
+            if (!lofiSystem) return;
+            
+            const state = lofiSystem.getState();
+            statusText.textContent = state.isReady ? 'Ready' : state.isLoading ? 'Loading...' : 'Not Ready';
+            statusText.className = state.isReady ? 'success' : state.isLoading ? 'loading' : 'error';
+            
+            currentPresetEl.textContent = state.currentPreset ? state.currentPreset.name : 'None';
+            playingStatus.textContent = state.isPlaying ? 'Yes' : 'No';
+            playingStatus.className = state.isPlaying ? 'success' : '';
+            
+            // Update button states
+            initBtn.disabled = state.isReady || state.isLoading;
+            playBtn.disabled = !state.isReady || state.isPlaying;
+            pauseBtn.disabled = !state.isReady || !state.isPlaying;
+            stopBtn.disabled = !state.isReady || !state.isPlaying;
+            generateBtn.disabled = !state.isReady || !state.currentPreset;
+            instrumentSelect.disabled = !state.isReady;
+            
+            if (state.error) {
+                log(`Error: ${state.error}`, 'error');
+            }
+        }
+
+        // Update available instruments when system is ready
+        function updateInstrumentSelect() {
+            if (!lofiSystem || !lofiSystem.getState().isReady) return;
+            
+            const instruments = lofiSystem.getAvailableInstruments();
+            const currentInstrument = lofiSystem.getCurrentInstrument();
+            
+            // Clear existing options
+            instrumentSelect.innerHTML = '<option value="">Select instrument...</option>';
+            
+            // Add instrument options
+            instruments.forEach(instrument => {
+                const option = document.createElement('option');
+                option.value = instrument;
+                option.textContent = instrument.charAt(0).toUpperCase() + instrument.slice(1);
+                if (instrument === currentInstrument) {
+                    option.selected = true;
+                }
+                instrumentSelect.appendChild(option);
+            });
+            
+            log(`Available instruments: ${instruments.join(', ')}`, 'info');
+        }
+        // Create preset cards
+        function createPresetCards() {
+            LOFI_PRESETS.forEach(preset => {
+                const card = document.createElement('div');
+                card.className = 'preset-card';
+                card.innerHTML = `
+                    <h3>${preset.name}</h3>
+                    <p>BPM: ${preset.bpm} | Instrument: ${preset.instrument}</p>
+                    <p>Chords: ${preset.chords.join(' - ')}</p>
+                `;
+                card.addEventListener('click', () => loadPreset(preset));
+                card.dataset.presetId = preset.id;
+                presetsDiv.appendChild(card);
+            });
+        }
+
+        // Load a preset
+        async function loadPreset(preset) {
+            if (!lofiSystem || !lofiSystem.getState().isReady) {
+                log('System not ready', 'error');
+                return;
+            }
+
+            try {
+                log(`Loading preset: ${preset.name}`);
+                await lofiSystem.loadPreset(preset);
+                currentPresetId = preset.id;
+                
+                // Update active preset card
+                document.querySelectorAll('.preset-card').forEach(card => {
+                    card.classList.toggle('active', card.dataset.presetId === preset.id);
+                });
+                
+                log(`Preset loaded: ${preset.name}`, 'success');
+            } catch (error) {
+                log(`Failed to load preset: ${error.message}`, 'error');
+            }
+        }
+
+        // Event listeners
+        initBtn.addEventListener('click', async () => {
+            try {
+                log('Initializing lofi music system...');
+                lofiSystem = new LofiMusicSystem();
+                
+                // Set up event listeners
+                lofiSystem.on('ready', () => {
+                    log('System ready!', 'success');
+                    updateUI();
+                    updateInstrumentSelect();
+                });
+                
+                lofiSystem.on('loading', () => {
+                    log('Loading AI models...');
+                    updateUI();
+                });
+                
+                lofiSystem.on('playing', () => {
+                    log('Music started playing', 'success');
+                    updateUI();
+                });
+                
+                lofiSystem.on('stopped', () => {
+                    log('Music stopped');
+                    updateUI();
+                });
+                
+                lofiSystem.on('error', (data) => {
+                    log(`System error: ${data.error}`, 'error');
+                    updateUI();
+                });
+                
+                lofiSystem.on('melody-generated', () => {
+                    log('New melody generated!', 'success');
+                });
+                
+                await lofiSystem.initialize();
+                updateUI();
+            } catch (error) {
+                log(`Initialization failed: ${error.message}`, 'error');
+                updateUI();
+            }
+        });
+
+        playBtn.addEventListener('click', () => {
+            if (lofiSystem) {
+                lofiSystem.play();
+                log('Play requested');
+            }
+        });
+
+        pauseBtn.addEventListener('click', () => {
+            if (lofiSystem) {
+                lofiSystem.pause();
+                log('Pause requested');
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (lofiSystem) {
+                lofiSystem.stop();
+                log('Stop requested');
+            }
+        });
+
+        generateBtn.addEventListener('click', async () => {
+            if (lofiSystem) {
+                try {
+                    log('Generating new melody...');
+                    await lofiSystem.generateNewMelody();
+                    log('New melody generated!', 'success');
+                } catch (error) {
+                    log(`Failed to generate melody: ${error.message}`, 'error');
+                }
+            }
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+            const volume = e.target.value / 100;
+            volumeValue.textContent = `${e.target.value}%`;
+            if (lofiSystem) {
+                lofiSystem.setVolume(volume);
+                log(`Volume set to ${e.target.value}%`);
+            }
+        });
+
+        // Instrument selection handler
+        instrumentSelect.addEventListener('change', (e) => {
+            const instrument = e.target.value;
+            if (instrument && lofiSystem) {
+                try {
+                    const oldInstrument = lofiSystem.getCurrentInstrument();
+                    lofiSystem.switchInstrument(instrument);
+                    log(`Switched from ${oldInstrument} to ${instrument}`, 'success');
+                    
+                    // Update current instrument display
+                    updateUI();
+                } catch (error) {
+                    log(`Failed to switch instrument: ${error.message}`, 'error');
+                }
+            }
+        });
+
+        // Initialize UI
+        createPresetCards();
+        updateUI();
+        log('Test page loaded. Click "Initialize System" to start.');
+    </script>
+</body>
+</html>

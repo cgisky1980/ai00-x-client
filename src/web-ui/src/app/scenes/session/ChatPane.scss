@@ -1,0 +1,69 @@
+/**
+ * ChatPane styles — AI Agent scene left pane (FlowChat).
+ * Renamed from panels/CenterPanel.scss.
+ */
+
+@use '../../../component-library/styles/tokens.scss' as *;
+
+.ai00-x-chat-pane__content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-bg-flowchat);
+  position: relative;
+  font-family: var(--font-sans, var(--font-family-sans, inherit));
+  font-size: var(--flowchat-font-size-base);
+}
+
+.ai00-x-chat-pane__chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.ai00-x-chat-pane__bottom-bar {
+  position: absolute;
+  bottom: 0px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+  z-index: var(--z-overlay, 100);
+  pointer-events: none;
+
+  > * {
+    pointer-events: auto;
+  }
+
+  .plan-input-card {
+    margin: 0 auto;
+    flex-shrink: 0;
+    width: calc(100% - 36px);
+    min-height: 56px;
+    background: var(--card-bg-elevated);
+    border-radius: 12px 12px 0 0;
+    margin-bottom: -8px;
+    z-index: 0;
+    box-shadow:
+      0 -4px 16px rgba(0, 0, 0, 0.35),
+      0 -2px 4px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-subtle);
+    border-bottom: none;
+  }
+
+  .ai00-x-chat-input-drop-zone {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    max-width: none;
+    z-index: 1;
+  }
+}

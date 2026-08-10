@@ -1,0 +1,157 @@
+[package]
+name = "ai00-x-desktop"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Ai00-X Desktop Application (Tauri)"
+
+[lib]
+name = "ai00_x_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "ai00-x-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { workspace = true }
+serde_json = { workspace = true }
+
+[dependencies]
+# Internal crates
+ai00-x-core = { path = "../../crates/core", features = ["ssh-remote"] }
+ai00-x-transport = { path = "../../crates/transport", features = ["tauri-adapter"] }
+ai00-x-webdriver = { path = "../../crates/webdriver" }
+ai00-x-ai-adapters = { path = "../../crates/ai-adapters" }
+ai00-x-git = { path = "../../crates/git" }
+ai00-x-inference = { path = "../../crates/inference" }
+ai00-x-events = { path = "../../crates/events" }
+ai00-x-acestep = { path = "../../crates/acestep" }
+sa3-rs = { path = "../../crates/sa3" }
+
+# Tauri
+tauri = { workspace = true }
+tauri-plugin-opener = { workspace = true }
+tauri-plugin-dialog = { workspace = true }
+tauri-plugin-fs = { workspace = true }
+tauri-plugin-log = { workspace = true }
+tauri-plugin-autostart = { workspace = true }
+tauri-plugin-notification = { workspace = true }
+
+# Inherited from workspace
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+chrono = { workspace = true }
+regex = { workspace = true }
+dirs = { workspace = true }
+dark-light = { workspace = true }
+similar = { workspace = true }
+ignore = { workspace = true }
+urlencoding = { workspace = true }
+reqwest = { workspace = true }
+thiserror = "1.0"
+dashmap = { workspace = true }
+arc-swap = "1"
+futures = { workspace = true }
+async-trait = { workspace = true }
+salvo = { workspace = true }
+once_cell = { workspace = true }
+zip = { workspace = true }
+sha2 = { workspace = true }
+hex = "0.4"
+flate2 = { workspace = true }
+tar = "0.4"
+indicatif = "0.18"
+
+# Usage statistics (cross-platform foreground app tracking, SQLite storage, AFK detection)
+sysinfo = "0.33"
+rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
+r2d2 = "0.8"
+r2d2_sqlite = { version = "0.25", features = ["bundled"] }
+uuid = { workspace = true }
+
+# Device fingerprint for account-device binding
+gethostname = "0.5"
+
+# Chat history backup encryption (export/import encrypted archive)
+aes-gcm = { workspace = true }
+argon2 = { workspace = true }
+
+# Engine dependencies
+web-rwkv = { version = "0.10.19", features = ["tokio"] }
+model2vec-rs = "0.1.4"
+tokenizers = "0.22"
+kbnf = "0.5.7"
+cbor4ii = { version = "1.2.0", features = ["serde1"] }
+safetensors = "0.6.2"
+memmap2 = "0.9"
+ndarray = "0.17"
+half = "2"
+hound = "3.5"
+claxon = "0.4"
+cpal = "0.17"
+rubato = "2.0.0"
+symphonia = { version = "0.5.5", features = ["all"] }
+libloading = "0.9.0"
+screenshots = "0.8"
+enigo = "0.2"
+device_query = "4"
+image = { version = "0.24", default-features = false, features = ["png", "jpeg"] }
+resvg = { version = "0.47.0", default-features = false }
+fontdue = "0.9"
+rustfft = "6.4"
+rand = "0.8"
+fastrand = "2.4.0"
+base64 = { workspace = true }
+
+# P2P BitTorrent (v9: 替代 WebTorrent，纯 Rust 实现)
+fx-torrent = "0.9"
+# fx-torrent 的 Callback trait 需要 fx-callback 在作用域内才能调用 torrent.subscribe()
+fx-callback = "2.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9"
+core-graphics = "0.23"
+dispatch = "0.2"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = "0.3"
+objc2-vision = { version = "0.3.2", features = ["VNRecognizeTextRequest", "VNRequest", "VNObservation", "VNRequestHandler", "VNUtils", "VNTypes", "objc2-core-foundation"] }
+ort = { version = "=2.0.0-rc.11", features = ["ndarray", "coreml", "load-dynamic"] }
+
+[target.'cfg(windows)'.dependencies]
+win32job = { workspace = true }
+windows = { version = "0.62.2", features = [
+  "Foundation",
+  "Globalization",
+  "Graphics_Imaging",
+  "Media_Ocr",
+  "Storage_Streams",
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Com",
+  "Win32_System_LibraryLoader",
+  "Win32_System_SystemInformation",
+  "Win32_System_Threading",
+  "Win32_UI_Accessibility",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+windows-future = "0.3.2"
+windows-collections = "0.3.2"
+ort = { version = "=2.0.0-rc.11", features = ["ndarray", "directml", "load-dynamic"] }
+wasapi = "0.23"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+atspi = "0.29"
+leptess = "0.14.0"
+ort = { version = "=2.0.0-rc.11", features = ["ndarray", "cuda", "load-dynamic"] }
+# Usage statistics: X11 active window query (Wayland falls back to atspi)
+x11rb = "0.13"

@@ -1,0 +1,27 @@
+site: zhihu
+name: hot
+description: Zhihu hot topics
+domain: www.zhihu.com
+strategy: public
+browser: false
+
+args:
+  limit:
+    type: int
+    default: 20
+    description: Number of topics
+
+pipeline:
+  - fetch:
+      url: "https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit=50&desktop=true"
+      headers:
+        User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  - select: data
+  - map:
+      rank: ${{ index + 1 }}
+      title: ${{ item.target.title }}
+      hot: ${{ item.detail_text }}
+      url: "https://www.zhihu.com/question/${{ item.target.id }}"
+  - limit: ${{ args.limit }}
+
+columns: [rank, title, hot, url]

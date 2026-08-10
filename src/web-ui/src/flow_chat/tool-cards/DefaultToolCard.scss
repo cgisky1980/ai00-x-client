@@ -1,0 +1,201 @@
+/**
+ * Default tool card styles
+ * Used for tool types without specific customization
+ */
+
+@use './_tool-card-common.scss';
+
+@keyframes defaultToolConfirmationPulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(245, 158, 11, 0.14),
+      0 0 12px rgba(245, 158, 11, 0.16);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(245, 158, 11, 0.2),
+      0 0 16px rgba(245, 158, 11, 0.22);
+  }
+}
+
+.default-tool-card {
+  .compact-tool-card {
+    min-height: 28px;
+    padding-right: 10px !important;
+  }
+
+  .compact-card-action {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+  }
+
+  .compact-card-content {
+    color: var(--color-text-muted);
+  }
+
+  .compact-card-extra {
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
+  .compact-card-right-icon {
+    color: var(--color-text-muted);
+  }
+
+  .default-tool-card__icon-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 18px;
+    padding: 0 6px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .default-tool-card__expanded {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .default-tool-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .default-tool-card__meta-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-subtle);
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--tool-card-font-mono);
+  }
+
+  .default-tool-card__meta-description {
+    color: var(--color-text-muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .default-tool-card__section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .default-tool-card__section-label {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .default-tool-card__code-block {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    font-family: var(--tool-card-font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: auto;
+    max-height: 320px;
+  }
+
+  .default-tool-card__error-message {
+    padding: 10px 12px;
+    border: 1px solid rgba(239, 68, 68, 0.24);
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--color-error);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .default-tool-card__actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .default-tool-card__button {
+    appearance: none;
+    border: 1px solid var(--border-base);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .default-tool-card__button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .default-tool-card__button--confirm {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.26);
+    color: #86efac;
+  }
+
+  .default-tool-card__button--confirm:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.18);
+    border-color: rgba(34, 197, 94, 0.4);
+  }
+
+  .default-tool-card__button--reject {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--color-text-secondary);
+  }
+
+  .default-tool-card__button--reject:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-primary);
+  }
+
+  &.requires-confirmation {
+    .compact-tool-card {
+      border-radius: 8px;
+      background: rgba(245, 158, 11, 0.05) !important;
+      box-shadow:
+        inset 0 0 0 1px rgba(245, 158, 11, 0.18),
+        0 0 0 1px rgba(245, 158, 11, 0.1);
+      animation: defaultToolConfirmationPulse 2s ease-in-out infinite;
+    }
+
+    .compact-card-status-icon,
+    .compact-card-right-icon {
+      color: var(--color-warning);
+    }
+  }
+}
+

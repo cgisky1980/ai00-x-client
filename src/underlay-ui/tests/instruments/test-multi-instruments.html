@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lofi Multi-Instrument Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .combination-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .combination-card {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #4a4a6a;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .combination-card:hover {
+            border-color: #6a6aaa;
+            background: #3a3a5a;
+            transform: translateY(-2px);
+        }
+        .combination-card h3 {
+            margin: 0 0 10px 0;
+            color: #8a8aff;
+        }
+        .combination-card p {
+            margin: 5px 0;
+            color: #ccc;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .loading {
+            color: #FFA500;
+        }
+        .error {
+            color: #FF6B6B;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .volume-control {
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .volume-control input {
+            width: 200px;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 Lofi Multi-Instrument AI Music</h1>
+    
+    <div class="status" id="status">
+        <div>Status: <span id="statusText">Not initialized</span></div>
+        <div>Playing: <span id="playingStatus">No</span></div>
+    </div>
+
+    <div class="controls">
+        <button id="initBtn">Initialize System</button>
+        <button id="stopBtn" disabled>Stop All</button>
+        <button id="generateBtn" disabled>Generate New Melody</button>
+    </div>
+
+    <div class="volume-control">
+        <label for="volumeSlider">Volume:</label>
+        <input type="range" id="volumeSlider" min="0" max="100" value="50">
+        <span id="volumeValue">50%</span>
+    </div>
+
+    <h2>🎼 AI-Generated Multi-Instrument Combinations</h2>
+    <p>Click on a combination card to play AI-generated lofi music with multiple instruments:</p>
+    <div id="combinationGrid" class="combination-grid"></div>
+
+    <div id="logs" class="logs"></div>
+
+    <script type="module">
+        // Import the lofi music system
+        import { LofiMusicSystem } from './src/lib/lofi/lofi-music-system.js';
+
+        let lofiSystem = null;
+
+        // Multi-instrument combinations
+        const instrumentCombinations = [
+            {
+                id: 'classic-lofi',
+                name: '经典 Lofi',
+                description: '经典的 lofi hip-hop 组合',
+                instruments: ['piano', 'bass', 'drums'],
+                characteristics: '钢琴主旋律 + 贝斯低音 + 鼓点节奏'
+            },
+            {
+                id: 'full-band',
+                name: '完整乐队',
+                description: '所有乐器的丰富编排',
+                instruments: ['piano', 'bass', 'synth', 'drums', 'vibes'],
+                characteristics: '多层次的完整音乐体验'
+            },
+            {
+                id: 'ambient-chill',
+                name: '氛围放松',
+                description: '柔和的氛围音乐组合',
+                instruments: ['synth', 'vibes', 'epiano', 'strings'],
+                characteristics: '合成器垫音 + 颤音琴 + 电钢琴 + 弦乐'
+            },
+            {
+                id: 'rhythm-section',
+                name: '节奏组',
+                description: '强调节奏的组合',
+                instruments: ['bass', 'drums', 'guitar'],
+                characteristics: '贝斯 + 鼓组 + 吉他的节奏基础'
+            },
+            {
+                id: 'melodic-focus',
+                name: '旋律焦点',
+                description: '突出旋律的组合',
+                instruments: ['piano', 'vibes', 'synth'],
+                characteristics: '钢琴 + 颤音琴 + 合成器的旋律层次'
+            },
+            {
+                id: 'minimal-beats',
+                name: '极简节拍',
+                description: '简约的鼓点和贝斯',
+                instruments: ['bass', 'drums'],
+                characteristics: '最基础的节奏组合'
+            },
+            {
+                id: 'folk-whistle',
+                name: '民谣口哨',
+                description: '温暖的民谣风格组合',
+                instruments: ['whistle', 'guitar', 'harmonica', 'strings'],
+                characteristics: '口哨主旋律 + 吉他 + 口琴 + 弦乐伴奏'
+            },
+            {
+                id: 'jazz-lounge',
+                name: '爵士酒廊',
+                description: '慵懒的爵士氛围',
+                instruments: ['saxophone', 'piano', 'bass', 'drums'],
+                characteristics: '萨克斯风 + 钢琴 + 贝斯 + 轻柔鼓点'
+            },
+            {
+                id: 'nature-sounds',
+                name: '自然之声',
+                description: '清新自然的音乐组合',
+                instruments: ['flute', 'whistle', 'vibes', 'strings'],
+                characteristics: '长笛 + 口哨 + 颤音琴 + 弦乐的自然和谐'
+            },
+            {
+                id: 'harmonica-blues',
+                name: '口琴布鲁斯',
+                description: '温暖的布鲁斯风格',
+                instruments: ['harmonica', 'guitar', 'bass', 'drums'],
+                characteristics: '口琴主奏 + 吉他 + 贝斯 + 节拍'
+            }
+        ];
+
+        // Instrument descriptions
+        const instrumentInfo = {
+            piano: { name: 'Piano' },
+            synth: { name: 'Synth Pad' },
+            bass: { name: 'Bass' },
+            guitar: { name: 'Guitar' },
+            epiano: { name: 'Electric Piano' },
+            vibes: { name: 'Vibraphone' },
+            harmonica: { name: 'Harmonica' },
+            whistle: { name: 'Whistle' },
+            flute: { name: 'Flute' },
+            saxophone: { name: 'Saxophone' },
+            strings: { name: 'Strings' },
+            drums: { name: 'Drums' }
+        };
+
+        // DOM elements
+        const statusText = document.getElementById('statusText');
+        const playingStatus = document.getElementById('playingStatus');
+        const initBtn = document.getElementById('initBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const generateBtn = document.getElementById('generateBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        const combinationGrid = document.getElementById('combinationGrid');
+        const logsDiv = document.getElementById('logs');
+
+        // Logging function
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? '#FF6B6B' : type === 'success' ? '#4CAF50' : '#fff';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[MultiInstrumentTest] ${message}`);
+        }
+
+        // Update UI state
+        function updateUI() {
+            if (!lofiSystem) return;
+            
+            const state = lofiSystem.getState();
+            statusText.textContent = state.isReady ? 'Ready' : state.isLoading ? 'Loading...' : 'Not Ready';
+            statusText.className = state.isReady ? 'success' : state.isLoading ? 'loading' : 'error';
+            
+            playingStatus.textContent = state.isPlaying ? 'Yes' : 'No';
+            playingStatus.className = state.isPlaying ? 'success' : '';
+            
+            // Update button states
+            initBtn.disabled = state.isReady || state.isLoading;
+            stopBtn.disabled = !state.isReady || !state.isPlaying;
+            generateBtn.disabled = !state.isReady;
+            
+            if (state.error) {
+                log(`Error: ${state.error}`, 'error');
+            }
+        }
+
+        // Create combination cards
+        function createCombinationCards() {
+            if (!lofiSystem || !lofiSystem.getState().isReady) return;
+            
+            combinationGrid.innerHTML = '';
+            
+            instrumentCombinations.forEach(combination => {
+                const card = document.createElement('div');
+                card.className = 'combination-card';
+                card.dataset.combination = combination.id;
+                card.innerHTML = `
+                    <h3>🎵 ${combination.name}</h3>
+                    <p><strong>Description:</strong> ${combination.description}</p>
+                    <p><strong>Instruments:</strong> ${combination.instruments.map(inst => instrumentInfo[inst]?.name || inst).join(', ')}</p>
+                    <p><strong>特色:</strong> ${combination.characteristics}</p>
+                `;
+                
+                card.addEventListener('click', () => playInstrumentCombination(combination));
+                combinationGrid.appendChild(card);
+            });
+            
+            log(`Created ${instrumentCombinations.length} combination cards`, 'info');
+        }
+
+        // Play instrument combination with AI-generated melody
+        async function playInstrumentCombination(combination) {
+            if (!lofiSystem || !lofiSystem.getState().isReady) {
+                log('System not ready', 'error');
+                return;
+            }
+
+            try {
+                log(`🎵 Generating AI melody for: ${combination.name}`, 'info');
+                log(`Instruments: ${combination.instruments.map(inst => instrumentInfo[inst]?.name || inst).join(', ')}`, 'info');
+                
+                // Create a preset for this combination
+                const comboPreset = {
+                    id: `combo-${combination.id}`,
+                    name: combination.name,
+                    bpm: 80,
+                    chords: ['C', 'Am', 'F', 'G'],
+                    instrument: combination.instruments[0] // Primary instrument for AI generation
+                };
+
+                // Generate AI melody first
+                log('🤖 Generating AI melody...', 'info');
+                
+                // Generate the melody and wait for completion
+                await lofiSystem.loadPreset(comboPreset);
+                
+                // Wait a moment for the melody to be generated and cached
+                setTimeout(() => {
+                    const melodyData = lofiSystem.getCachedMelody(comboPreset.id);
+                    if (melodyData) {
+                        log('✅ AI melody generated, creating multi-instrument arrangement...', 'success');
+                        
+                        // Get the tone engine and play with selected instruments
+                        const toneEngine = lofiSystem.getToneEngine();
+                        if (toneEngine) {
+                            toneEngine.playMultiInstrument(melodyData, comboPreset, combination.instruments);
+                            
+                            log(`✅ ${combination.name} 组合播放开始！`, 'success');
+                            log(`特色: ${combination.characteristics}`, 'info');
+                            log(`🎼 使用 AI 生成的旋律`, 'success');
+                            
+                            // Update UI to reflect playing state
+                            setTimeout(() => updateUI(), 100);
+                        }
+                    } else {
+                        log('❌ Failed to get generated melody data', 'error');
+                    }
+                }, 2000); // Wait 2 seconds for AI generation
+                
+            } catch (error) {
+                log(`❌ Failed to play combination: ${error.message}`, 'error');
+            }
+        }
+
+        // Event listeners
+        initBtn.addEventListener('click', async () => {
+            try {
+                log('Initializing lofi music system...');
+                lofiSystem = new LofiMusicSystem();
+                
+                // Set up event listeners
+                lofiSystem.on('ready', () => {
+                    log('System ready!', 'success');
+                    updateUI();
+                    createCombinationCards();
+                });
+                
+                lofiSystem.on('loading', () => {
+                    log('Loading AI models...');
+                    updateUI();
+                });
+                
+                lofiSystem.on('playing', () => {
+                    log('Music started playing', 'success');
+                    updateUI();
+                });
+                
+                lofiSystem.on('stopped', () => {
+                    log('Music stopped');
+                    updateUI();
+                });
+                
+                lofiSystem.on('error', (data) => {
+                    log(`System error: ${data.error}`, 'error');
+                    updateUI();
+                });
+                
+                lofiSystem.on('melody-generated', () => {
+                    log('New melody generated!', 'success');
+                });
+                
+                await lofiSystem.initialize();
+                updateUI();
+            } catch (error) {
+                log(`Initialization failed: ${error.message}`, 'error');
+                updateUI();
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (lofiSystem) {
+                lofiSystem.stop();
+                log('Stopped all playback');
+            }
+        });
+
+        generateBtn.addEventListener('click', async () => {
+            if (lofiSystem) {
+                try {
+                    log('Generating new melody...');
+                    await lofiSystem.generateNewMelody();
+                    log('New melody generated!', 'success');
+                } catch (error) {
+                    log(`Failed to generate melody: ${error.message}`, 'error');
+                }
+            }
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+            const volume = e.target.value / 100;
+            volumeValue.textContent = `${e.target.value}%`;
+            if (lofiSystem) {
+                lofiSystem.setVolume(volume);
+                log(`Volume set to ${e.target.value}%`);
+            }
+        });
+
+        // Initialize UI
+        updateUI();
+        log('Multi-instrument test page loaded. Click "Initialize System" to start.');
+    </script>
+</body>
+</html>

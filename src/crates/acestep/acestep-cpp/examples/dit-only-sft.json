@@ -1,0 +1,14 @@
+{
+    "lm_model": "acestep-5Hz-lm-4B-Q8_0.gguf",
+    "synth_model": "acestep-v15-sft-Q8_0.gguf",
+    "caption": "Ambient electronic soundscape with warm analog pads",
+    "lyrics": "",
+    "bpm": 90,
+    "duration": 180,
+    "keyscale": "C minor",
+    "timesignature": "4",
+    "vocal_language": "en",
+    "inference_steps": 50,
+    "guidance_scale": 1.0,
+    "shift": 1.0
+}

@@ -1,0 +1,72 @@
+/* Context compression card styles. */
+.context-compression-display {
+  .compression-icon {
+    color: var(--color-text-secondary);
+  }
+
+  .tool-card-icon.compression-icon {
+    color: var(--color-text-secondary);
+  }
+
+  .compression-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+
+    .token-stat {
+      font-weight: 600;
+      color: var(--tool-card-text-primary);
+      white-space: nowrap;
+    }
+
+    .savings-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      flex-shrink: 0;
+      white-space: nowrap;
+      color: rgba(34, 197, 94, 0.75);
+      background: rgba(34, 197, 94, 0.08);
+    }
+
+    .processing-text {
+      color: var(--tool-card-text-secondary);
+      font-style: italic;
+    }
+  }
+
+  .compression-meta {
+    font-size: 12px;
+    color: var(--tool-card-text-secondary);
+    white-space: nowrap;
+  }
+
+  .error-content {
+    padding: 12px 16px;
+    background: rgba(239, 68, 68, 0.05);
+    border-top: 1px solid rgba(239, 68, 68, 0.2);
+
+    .error-message {
+      color: rgba(239, 68, 68, 0.9);
+      font-size: 13px;
+    }
+  }
+
+  .icon-completed {
+    color: rgba(34, 197, 94, 0.9);
+  }
+
+  .compression-detail-note {
+    padding: 12px 16px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--tool-card-text-secondary);
+    background: rgba(148, 163, 184, 0.08);
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+  }
+}
+

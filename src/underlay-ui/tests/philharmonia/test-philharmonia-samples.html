@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Philharmonia 采样测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .section {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            margin: 3px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 11px;
+            min-width: 50px;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .instrument-section {
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .instrument-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #FFD700;
+        }
+        .note-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 3px;
+            margin: 10px 0;
+        }
+        .dynamics-selector {
+            margin: 10px 0;
+        }
+        .dynamics-selector select {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #FF6B6B;
+        }
+        .info {
+            color: #87CEEB;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎼 Philharmonia Orchestra 标准化采样测试</h1>
+    <p>测试 706 个标准化专业级乐器采样 - 统一 Piano/Forte 两种力度，8种乐器</p>
+    
+    <div class="status" id="status">
+        <div>状态: <span id="statusText">未初始化</span></div>
+        <div>音频上下文: <span id="audioContext">未知</span></div>
+        <div>当前乐器: <span id="currentInstrument">无</span></div>
+        <div>当前力度: <span id="currentDynamics">piano</span></div>
+    </div>
+
+    <div class="section">
+        <h2>🎶 系统控制</h2>
+        <button id="initBtn">初始化音频系统</button>
+        <button id="stopBtn" disabled>停止所有声音</button>
+        
+        <div class="dynamics-selector">
+            <label>力度选择: </label>
+            <select id="dynamicsSelect">
+                <option value="piano">Piano (轻柔) - 标准化力度</option>
+                <option value="forte">Forte (强烈) - 标准化力度</option>
+            </select>
+            <small style="color: #AAA; display: block; margin-top: 5px;">
+                所有乐器都已标准化为这两种力度，便于后续音乐生成使用
+            </small>
+        </div>
+    </div>
+
+    <!-- 吉他 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎸 吉他 (Guitar) - 76 个标准化采样</div>
+        <div class="note-grid" id="guitar-grid"></div>
+        <button onclick="playScale('guitar')">播放吉他音阶</button>
+    </div>
+
+    <!-- 长笛 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎵 长笛 (Flute) - 84 个标准化采样</div>
+        <div class="note-grid" id="flute-grid"></div>
+        <button onclick="playScale('flute')">播放长笛音阶</button>
+    </div>
+
+    <!-- 萨克斯 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎷 萨克斯 (Saxophone) - 82 个标准化采样</div>
+        <div class="note-grid" id="saxophone-grid"></div>
+        <button onclick="playScale('saxophone')">播放萨克斯音阶</button>
+    </div>
+
+    <!-- 小提琴 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎻 小提琴 (Violin) - 98 个标准化采样</div>
+        <div class="note-grid" id="violin-grid"></div>
+        <button onclick="playScale('violin')">播放小提琴音阶</button>
+    </div>
+
+    <!-- 小号 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎺 小号 (Trumpet) - 110 个标准化采样 (混合时长)</div>
+        <div style="font-size: 12px; color: #AAA; margin-bottom: 10px;">
+            低音区 (E2-Cs3): long 时长 | 中高音区 (E3+): 025 时长
+        </div>
+        <div class="note-grid" id="trumpet-grid"></div>
+        <button onclick="playScale('trumpet')">播放小号音阶</button>
+    </div>
+
+    <!-- 单簧管 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎼 单簧管 (Clarinet) - 94 个标准化采样</div>
+        <div class="note-grid" id="clarinet-grid"></div>
+        <button onclick="playScale('clarinet')">播放单簧管音阶</button>
+    </div>
+
+    <!-- 双簧管 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎶 双簧管 (Oboe) - 74 个标准化采样</div>
+        <div class="note-grid" id="oboe-grid"></div>
+        <button onclick="playScale('oboe')">播放双簧管音阶</button>
+    </div>
+
+    <!-- 法国号 -->
+    <div class="instrument-section">
+        <div class="instrument-title">🎺 法国号 (French Horn) - 88 个标准化采样</div>
+        <div class="note-grid" id="french_horn-grid"></div>
+        <button onclick="playScale('french_horn')">播放法国号音阶</button>
+    </div>
+
+    <div id="logs" class="logs"></div>
+
+    <script>
+        // 音频系统
+        let audioContext = null;
+        let isInitialized = false;
+
+        // DOM元素
+        const statusText = document.getElementById('statusText');
+        const audioContextStatus = document.getElementById('audioContext');
+        const currentInstrument = document.getElementById('currentInstrument');
+        const currentDynamics = document.getElementById('currentDynamics');
+        const initBtn = document.getElementById('initBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const dynamicsSelect = document.getElementById('dynamicsSelect');
+        const logsDiv = document.getElementById('logs');
+
+        // 乐器配置 - 使用标准化的 piano 和 forte 两种力度
+        const instruments = {
+            guitar: {
+                name: 'Guitar',
+                notes: ['A2', 'A3', 'A4', 'As2', 'As3', 'As4', 'B2', 'B3', 'B4', 'C3', 'C4', 'C6', 'Cs3', 'Cs4', 'D3', 'D4', 'D5', 'Ds3', 'Ds4', 'Ds5', 'E2', 'E3', 'E4', 'E5', 'F2', 'F3', 'F4', 'Fs2', 'Fs3', 'Fs4', 'G2', 'G3', 'G4', 'G5', 'Gs2', 'Gs3', 'Gs4', 'Gs5'],
+                duration: 'very-long',
+                path: '../../public/sounds/philharmonia/instruments/guitar'
+            },
+            flute: {
+                name: 'Flute',
+                notes: ['A4', 'A5', 'A6', 'As4', 'As5', 'As6', 'B4', 'B5', 'B6', 'C4', 'C5', 'C6', 'C7', 'Cs4', 'Cs5', 'Cs6', 'Cs7', 'D4', 'D5', 'D6', 'D7', 'Ds4', 'Ds5', 'Ds6', 'Ds7', 'E4', 'E5', 'E6', 'E7', 'F4', 'F5', 'F6', 'F7', 'Fs4', 'Fs5', 'Fs6', 'G4', 'G5', 'G6', 'Gs4', 'Gs5', 'Gs6'],
+                duration: '025',
+                path: '../../public/sounds/philharmonia/instruments/flute'
+            },
+            saxophone: {
+                name: 'Saxophone',
+                notes: ['A3', 'A4', 'A5', 'As3', 'As4', 'As5', 'B3', 'B4', 'B5', 'C4', 'C5', 'C6', 'Cs4', 'Cs5', 'Cs6', 'D3', 'D4', 'D5', 'D6', 'Ds3', 'Ds4', 'Ds5', 'Ds6', 'E3', 'E4', 'E5', 'E6', 'F3', 'F4', 'F5', 'F6', 'Fs3', 'Fs4', 'Fs5', 'G3', 'G4', 'G5', 'G6', 'Gs3', 'Gs4', 'Gs5'],
+                duration: '025',
+                path: '../../public/sounds/philharmonia/instruments/saxophone'
+            },
+            violin: {
+                name: 'Violin',
+                notes: ['A3', 'A4', 'A5', 'A6', 'As3', 'As4', 'As5', 'As6', 'B3', 'B4', 'B5', 'B6', 'C4', 'C5', 'C6', 'C7', 'Cs4', 'Cs5', 'Cs6', 'Cs7', 'D4', 'D5', 'D6', 'D7', 'Ds4', 'Ds5', 'Ds6', 'Ds7', 'E4', 'E5', 'E6', 'E7', 'F4', 'F5', 'F6', 'F7', 'Fs4', 'Fs5', 'Fs6', 'Fs7', 'G3', 'G4', 'G5', 'G6', 'G7', 'Gs3', 'Gs4', 'Gs5', 'Gs6'],
+                duration: '025',
+                path: '../../public/sounds/philharmonia/instruments/violin'
+            },
+            trumpet: {
+                name: 'Trumpet',
+                notes: ['A3', 'A4', 'A5', 'As3', 'As4', 'As5', 'B3', 'B4', 'B5', 'C4', 'C5', 'C6', 'Cs4', 'Cs5', 'Cs6', 'D4', 'D5', 'D6', 'Ds4', 'Ds5', 'Ds6', 'E3', 'E4', 'E5', 'E6', 'F3', 'F4', 'F5', 'Fs4', 'G3', 'G4', 'G5', 'Gs3', 'Gs4', 'Gs5', 'E2', 'F2', 'Fs2', 'G2', 'Gs2', 'A2', 'As2', 'Cs3', 'Ds3'],
+                duration: 'mixed',
+                path: '../../public/sounds/philharmonia/instruments/trumpet'
+            },
+            clarinet: {
+                name: 'Clarinet',
+                notes: ['A3', 'A4', 'A5', 'A6', 'As3', 'As4', 'As5', 'As6', 'B3', 'B4', 'B5', 'B6', 'C4', 'C5', 'C6', 'C7', 'Cs4', 'Cs5', 'Cs6', 'D3', 'D4', 'D5', 'D6', 'Ds3', 'Ds4', 'Ds5', 'Ds6', 'E3', 'E4', 'E5', 'E6', 'F3', 'F4', 'F5', 'F6', 'Fs3', 'Fs4', 'Fs5', 'Fs6', 'G3', 'G4', 'G5', 'G6', 'Gs3', 'Gs4', 'Gs5', 'Gs6'],
+                duration: '025',
+                path: '../../public/sounds/philharmonia/instruments/clarinet'
+            },
+            oboe: {
+                name: 'Oboe',
+                notes: ['A4', 'A5', 'A6', 'As3', 'As4', 'As5', 'As6', 'B3', 'B4', 'B5', 'C4', 'C5', 'C6', 'Cs4', 'Cs5', 'Cs6', 'D4', 'D5', 'D6', 'Ds4', 'Ds5', 'Ds6', 'E4', 'E5', 'E6', 'F4', 'F5', 'F6', 'Fs4', 'Fs5', 'Fs6', 'G4', 'G5', 'G6', 'Gs4', 'Gs5', 'Gs6'],
+                duration: '025',
+                path: '../../public/sounds/philharmonia/instruments/oboe'
+            },
+            french_horn: {
+                name: 'French Horn',
+                notes: ['A2', 'A3', 'A4', 'As1', 'As2', 'As3', 'As4', 'B1', 'B2', 'B3', 'B4', 'C2', 'C3', 'C4', 'C5', 'Cs2', 'Cs3', 'Cs4', 'Cs5', 'D2', 'D3', 'D4', 'D5', 'Ds2', 'Ds3', 'Ds4', 'Ds5', 'E2', 'E3', 'E4', 'E5', 'F2', 'F3', 'F4', 'F5', 'Fs2', 'Fs3', 'Fs4', 'G2', 'G3', 'G4', 'Gs2', 'Gs3', 'Gs4'],
+                duration: '025',
+                path: '../../public/sounds/philharmonia/instruments/french_horn'
+            }
+        };
+
+        // 显示函数 - 将s转换为♯显示
+        function noteDisplayName(note) {
+            return note.replace('s', '♯');
+        }
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[Philharmonia] ${message}`);
+        }
+
+        // 更新UI状态
+        function updateUI() {
+            if (isInitialized) {
+                statusText.textContent = '已就绪';
+                audioContextStatus.textContent = audioContext.state;
+                initBtn.disabled = true;
+                stopBtn.disabled = false;
+            } else {
+                statusText.textContent = '未初始化';
+                audioContextStatus.textContent = '未知';
+                initBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        }
+
+        // 创建音符按钮
+        function createNoteButtons() {
+            Object.keys(instruments).forEach(instrumentKey => {
+                const instrument = instruments[instrumentKey];
+                const grid = document.getElementById(`${instrumentKey}-grid`);
+                
+                instrument.notes.forEach(note => {
+                    const button = document.createElement('button');
+                    const noteDisplay = noteDisplayName(note);
+                    button.textContent = noteDisplay;
+                    button.disabled = true;
+                    button.dataset.instrument = instrumentKey;
+                    button.dataset.note = note;
+                    
+                    button.addEventListener('click', () => {
+                        playSample(instrumentKey, note);
+                    });
+                    
+                    grid.appendChild(button);
+                });
+            });
+        }
+
+        // 初始化音频系统
+        async function initializeAudio() {
+            try {
+                log('🚀 初始化 Philharmonia 音频系统...');
+                
+                // 创建音频上下文
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 确保音频上下文运行
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
+                log(`✅ 音频上下文创建成功: ${audioContext.state}`, 'success');
+                
+                isInitialized = true;
+                updateUI();
+                
+                // 启用所有按钮
+                document.querySelectorAll('button[data-note]').forEach(btn => {
+                    btn.disabled = false;
+                });
+                
+                log('🎉 Philharmonia 采样系统初始化完成！', 'success');
+                log('🎯 选择力度，然后点击音符按钮测试采样', 'info');
+                
+            } catch (error) {
+                log(`❌ 初始化失败: ${error.message}`, 'error');
+                console.error('Audio initialization error:', error);
+            }
+        }
+
+        // 播放采样
+        async function playSample(instrumentKey, note, delay = 0) {
+            if (!isInitialized || !audioContext) {
+                log('❌ 音频系统未初始化', 'error');
+                return;
+            }
+
+            const dynamics = dynamicsSelect.value;
+            const instrument = instruments[instrumentKey];
+            
+            // 检查乐器是否有音符
+            if (!instrument.notes || instrument.notes.length === 0) {
+                log(`❌ ${instrument.name} 暂无标准化采样文件`, 'error');
+                return;
+            }
+            
+            // 根据乐器和音符确定时长
+            let duration;
+            if (instrumentKey === 'guitar') {
+                duration = 'very-long';
+            } else if (instrumentKey === 'trumpet') {
+                // 小号低音区使用 long，中高音区使用 025
+                const trumpetLowNotes = ['E2', 'F2', 'Fs2', 'G2', 'Gs2', 'A2', 'As2', 'Cs3'];
+                duration = trumpetLowNotes.includes(note) ? 'long' : '025';
+            } else {
+                duration = '025';
+            }
+            
+            const filename = `${instrumentKey}_${note}_${duration}_${dynamics}_normal.mp3`;
+            const url = `${instrument.path}/${filename}`;
+            
+            try {
+                log(`🎵 播放: ${instrument.name} ${noteDisplayName(note)} (${dynamics}, ${duration})`);
+                currentInstrument.textContent = instrument.name;
+                currentDynamics.textContent = dynamics;
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                // 创建音频源
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                
+                // 连接到输出
+                source.connect(audioContext.destination);
+                
+                // 播放
+                const startTime = audioContext.currentTime + delay;
+                source.start(startTime);
+                
+                log(`✅ 播放成功: ${filename}`, 'success');
+                
+            } catch (error) {
+                log(`❌ 播放失败: ${filename} - ${error.message}`, 'error');
+                
+                // 尝试另一种力度
+                const backupDynamics = dynamics === 'piano' ? 'forte' : 'piano';
+                const backupFilename = `${instrumentKey}_${note}_${duration}_${backupDynamics}_normal.mp3`;
+                const backupUrl = `${instrument.path}/${backupFilename}`;
+                
+                try {
+                    const backupResponse = await fetch(backupUrl);
+                    if (backupResponse.ok) {
+                        const backupArrayBuffer = await backupResponse.arrayBuffer();
+                        const backupAudioBuffer = await audioContext.decodeAudioData(backupArrayBuffer);
+                        
+                        const backupSource = audioContext.createBufferSource();
+                        backupSource.buffer = backupAudioBuffer;
+                        backupSource.connect(audioContext.destination);
+                        backupSource.start(audioContext.currentTime + delay);
+                        
+                        log(`✅ 备用播放成功: ${backupFilename} (${backupDynamics})`, 'success');
+                    } else {
+                        log(`❌ 所有备用选项都失败了: ${instrumentKey} ${note}`, 'error');
+                    }
+                } catch (backupError) {
+                    log(`❌ 所有备用选项都失败了: ${instrumentKey} ${note}`, 'error');
+                }
+            }
+        }
+
+        // 播放音阶
+        function playScale(instrumentKey) {
+            const instrument = instruments[instrumentKey];
+            const scaleNotes = instrument.notes.slice(0, 8); // 播放前8个音符
+            
+            log(`🎼 播放 ${instrument.name} 音阶...`);
+            
+            scaleNotes.forEach((note, index) => {
+                playSample(instrumentKey, note, index * 0.5);
+            });
+        }
+
+        // 停止所有声音
+        function stopAllSounds() {
+            if (audioContext) {
+                log('🛑 停止所有声音');
+            }
+        }
+
+        // 事件监听器
+        initBtn.addEventListener('click', initializeAudio);
+        stopBtn.addEventListener('click', stopAllSounds);
+
+        // 初始化
+        createNoteButtons();
+        updateUI();
+        log('🎼 Philharmonia Orchestra 测试页面加载完成');
+        log('📊 包含 5946 个专业级乐器采样');
+        log('🎯 点击"初始化音频系统"开始测试');
+    </script>
+</body>
+</html>

@@ -1,0 +1,313 @@
+@use '../../../component-library/styles/tokens.scss' as *;
+@use '../../../component-library/styles/nav-panel-font-scope.scss' as nav-font;
+
+// ── Overlay (backdrop for closing) ────────────────────────────────────────────
+
+.ai00-x-nav-search-dialog__overlay {
+  @include nav-font.nav-panel-font-token-scope;
+
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: transparent;
+}
+
+// ── Results panel (floating, anchored below search input) ─────────────────────
+
+.ai00-x-nav-search-dialog__results-panel {
+  position: fixed;
+  z-index: 600;
+  background: var(--color-bg-scene);
+  border-radius: calc(#{$size-radius-base} + 2px);
+  border: 1px solid var(--border-subtle);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-text-primary) 4%, transparent),
+    0 2px 4px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.08),
+    0 24px 56px -12px rgba(15, 23, 42, 0.22),
+    0 48px 80px -24px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 120px);
+  animation: ai00-x-nav-search-card-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+:root[data-theme-type='light'] .ai00-x-nav-search-dialog__results-panel {
+  border-color: var(--border-medium);
+}
+
+:root[data-theme-type='dark'] .ai00-x-nav-search-dialog__results-panel {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #fff 6%, transparent),
+    0 1px 0 color-mix(in srgb, #fff 5%, transparent),
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    0 20px 48px -8px rgba(0, 0, 0, 0.65),
+    0 40px 72px -20px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes ai00-x-nav-search-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.982);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ai00-x-nav-search-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// ── Results ──────────────────────────────────────────────────────────────────
+
+.ai00-x-nav-search-dialog__results {
+  overflow-y: auto;
+  flex: 1;
+  padding: $size-gap-1 $size-gap-2 $size-gap-2;
+
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-subtle);
+    border-radius: 2px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+.ai00-x-nav-search-dialog__empty {
+  padding: $size-gap-4 $size-gap-2;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  animation: ai00-x-nav-search-fade-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
+}
+
+// ── Groups ───────────────────────────────────────────────────────────────────
+
+.ai00-x-nav-search-dialog__group {
+  animation: ai00-x-nav-search-fade-rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  &:nth-of-type(1) {
+    animation-delay: 0.04s;
+  }
+
+  &:nth-of-type(2) {
+    animation-delay: 0.08s;
+  }
+
+  &:nth-of-type(3) {
+    animation-delay: 0.12s;
+  }
+
+  & + & {
+    margin-top: $size-gap-1;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: $size-gap-1;
+  }
+}
+
+.ai00-x-nav-search-dialog__group-label {
+  padding: $size-gap-1 $size-gap-1 $size-gap-1 2px;
+  font-size: var(--font-size-xxs);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  user-select: none;
+  opacity: 0.88;
+}
+
+// Default (no query): sessions column — label only, no rows; hint below label.
+.ai00-x-nav-search-dialog__session-hint {
+  padding: $size-gap-2 $size-gap-2 $size-gap-1 2px;
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+// ── Result item ──────────────────────────────────────────────────────────────
+
+.ai00-x-nav-search-dialog__item {
+  display: flex;
+  align-items: center;
+  gap: $size-gap-2;
+  width: 100%;
+  padding: 6px $size-gap-2;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-text-primary);
+  transition: background 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+
+  &:hover {
+    background: var(--element-bg-soft);
+  }
+
+  &--active {
+    background: var(--element-bg-medium);
+  }
+}
+
+.ai00-x-nav-search-dialog__item-icon {
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0.82;
+  transition: opacity 0.2s ease;
+
+  .ai00-x-nav-search-dialog__item:hover &,
+  .ai00-x-nav-search-dialog__item--active & {
+    opacity: 1;
+  }
+}
+
+.ai00-x-nav-search-dialog__item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ai00-x-nav-search-dialog__item-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai00-x-nav-search-dialog__item-sublabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// ── Inline search input (in NavPanel brand-header) ───────────────────────────
+
+.ai00-x-nav-panel__search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 $size-gap-2;
+  border-radius: $size-radius-full;
+  background: var(--color-bg-scene);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-subtle) 65%, transparent);
+  box-sizing: border-box;
+  transition:
+    background $motion-fast $easing-standard,
+    box-shadow $motion-fast $easing-standard;
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-bg-scene) 88%, var(--element-bg-medium));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-medium) 55%, transparent);
+  }
+
+  &:focus-within {
+    background: color-mix(in srgb, var(--color-bg-scene) 82%, var(--element-bg-medium));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-medium) 68%, transparent);
+  }
+}
+
+.ai00-x-nav-panel__search-input-icon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.ai00-x-nav-panel__search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  font-family: inherit;
+  line-height: 1;
+
+  &::placeholder {
+    color: var(--color-text-disabled);
+  }
+
+  &:focus::placeholder {
+    color: color-mix(in srgb, var(--color-text-disabled) 72%, transparent);
+  }
+}
+
+.ai00-x-nav-panel__search-input-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: $size-radius-full;
+  background: var(--element-bg-medium);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background $motion-fast $easing-standard,
+    color $motion-fast $easing-standard;
+
+  &:hover {
+    background: var(--element-bg-soft);
+    color: var(--color-text-primary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai00-x-nav-search-dialog__results-panel,
+  .ai00-x-nav-search-dialog__group,
+  .ai00-x-nav-search-dialog__empty {
+    animation: none !important;
+  }
+
+  .ai00-x-nav-search-dialog__group {
+    animation-delay: 0s !important;
+    opacity: 1;
+    transform: none;
+  }
+
+  .ai00-x-nav-search-dialog__empty {
+    opacity: 1;
+    transform: none;
+  }
+
+  .ai00-x-nav-search-dialog__item {
+    transition: background 0.12s ease;
+  }
+
+  .ai00-x-nav-panel__search-input-wrap {
+    transition:
+      background 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+}

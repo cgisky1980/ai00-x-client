@@ -1,0 +1,206 @@
+ 
+
+@use '../../../../component-library/styles/tokens' as *;
+@use '../../../../component-library/styles/_extended-mixins' as mixins;
+
+
+.ai00-x-config-page-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--color-bg-scene);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
+  /* Shared layout contract for settings pages in wide scenes. */
+  --config-page-content-inline-padding: clamp(16px, 2.2vw, 28px);
+  --config-page-content-bottom-padding: var(--size-gap-12, 48px);
+  --config-page-content-max-width: 600px;
+  /* Vertical gap between top-level sections (ConfigPageSection blocks) inside ConfigPageContent. */
+  --config-page-section-gap: var(--size-gap-10, 40px);
+  container-type: inline-size;
+  container-name: config-panel;
+}
+
+.ai00-x-config-page-layout__scroll-end-spacer {
+  flex-shrink: 0;
+  width: 100%;
+  height: var(--config-page-content-bottom-padding);
+  pointer-events: none;
+}
+
+.ai00-x-config-page-content {
+  /* flex-shrink: 0 — do NOT shrink below natural content height.
+   * This ensures the flex layout positions the scroll-end spacer AFTER
+   * the actual content, not at the flex-allocated truncated position. */
+  flex-shrink: 0;
+  overflow: visible;
+  padding: 0 var(--config-page-content-inline-padding);
+}
+
+.ai00-x-config-page-content__inner {
+  width: min(100%, var(--config-page-content-max-width));
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--config-page-section-gap);
+}
+
+.ai00-x-config-page-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-4, 16px);
+}
+
+.ai00-x-config-page-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--size-gap-3, 12px);
+}
+
+.ai00-x-config-page-section__heading {
+  min-width: 0;
+  flex: 1;
+}
+
+.ai00-x-config-page-section__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-gap-2, 8px);
+  min-width: 0;
+}
+
+.ai00-x-config-page-section__title {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.ai00-x-config-page-section__description {
+  margin: var(--size-gap-1, 4px) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.ai00-x-config-page-section__extra {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--size-gap-2, 8px);
+}
+
+.ai00-x-config-page-section__body {
+  background: var(--element-bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--size-radius-md, 10px);
+  overflow: visible;
+}
+
+.ai00-x-config-page-row {
+  --row-grid-cols: minmax(0, 7fr) minmax(0, 3fr);
+  display: grid;
+  grid-template-columns: var(--row-grid-cols);
+  gap: var(--size-gap-4, 16px);
+  padding: var(--size-gap-4, 16px);
+}
+
+.ai00-x-config-page-row + .ai00-x-config-page-row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ai00-x-config-page-row--center {
+  align-items: center;
+}
+
+.ai00-x-config-page-row--start {
+  align-items: flex-start;
+}
+
+.ai00-x-config-page-row--multiline {
+  --row-grid-cols: 1fr;
+  gap: var(--size-gap-2, 8px);
+
+  .ai00-x-config-page-row__control {
+    justify-content: flex-start;
+    align-items: stretch;
+    justify-self: stretch;
+  }
+}
+
+
+.ai00-x-config-page-row__meta {
+  min-width: 0;
+}
+
+.ai00-x-config-page-row__label {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-normal);
+}
+
+.ai00-x-config-page-row__description {
+  margin: var(--size-gap-1, 4px) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.ai00-x-config-page-row__control {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: stretch;
+
+  > .ai00-x-input-wrapper,
+  > .select {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@container config-panel (max-width: 900px) {
+  .ai00-x-config-page-layout {
+    --config-page-content-inline-padding: var(--size-gap-4, 16px);
+    --config-page-content-bottom-padding: var(--size-gap-10, 40px);
+    --config-page-content-max-width: 100%;
+    --config-page-section-gap: var(--size-gap-8, 32px);
+  }
+}
+
+@container config-panel (max-width: 520px) {
+  .ai00-x-config-page-section {
+    gap: var(--size-gap-3, 12px);
+  }
+
+  .ai00-x-config-page-section__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ai00-x-config-page-section__extra {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .ai00-x-config-page-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--size-gap-2, 8px);
+    padding: var(--size-gap-3, 12px);
+  }
+
+  .ai00-x-config-page-row__control {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
+

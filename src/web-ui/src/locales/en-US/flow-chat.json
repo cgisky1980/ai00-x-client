@@ -1,0 +1,1175 @@
+{
+  "emptyState": {
+    "welcomeBack": "Welcome back!",
+    "workingIn": "You are working in <workspace>{{workspace}}</workspace>",
+    "workingInWithBranch": "You are working in <workspace>{{workspace}}</workspace>, on branch <branch>{{branch}}</branch>",
+    "capabilities": "I can help you understand complex code, quickly implement new features,",
+    "capabilities2": "refactor legacy projects, or solve those annoying bugs.",
+    "readyToHelp": "Tell me your ideas, I'm ready to help",
+    "noWorkspace": "Nothing here yet",
+    "openProject": "Open a project and start plan-driven work"
+  },
+  "panel": {
+    "noTabs": "No tabs open",
+    "selectFromLeft": "Select a file or content from the left to create a new tab",
+    "dragTabHere": "Drag tabs here",
+    "releaseToAdd": "Release to add to this column"
+  },
+  "layout": {
+    "noPanels": "Ai00-X",
+    "noPanelsHint": "Use the bottom bar to toggle panels or press <kbd>Ctrl+\\</kbd> <kbd>Ctrl+]</kbd> to expand panels",
+    "chatHiddenTitle": "Chat is hidden",
+    "chatHiddenDesc": "Use the Chat toggle in the top-right to show it again.",
+    "chatHiddenAction": "Show Chat",
+    "panelCollapseHintLeft": "<- Release to collapse",
+    "panelCollapseHintRight": "Release to collapse ->",
+    "panelMode": {
+      "collapsed": "Collapsed",
+      "compact": "Compact",
+      "comfortable": "Comfortable",
+      "expanded": "Expanded"
+    },
+    "resizer": {
+      "leftAriaLabel": "Resize left panel",
+      "centerAriaLabel": "Resize panel",
+      "rightAriaLabel": "Resize right panel",
+      "fileTreeAriaLabel": "File tree resizer",
+      "title": "Drag to resize | Double-click to switch mode | Current: {{mode}}"
+    }
+  },
+  "session": {
+    "new": "New Task",
+    "newWithIndex": "New Task {{count}}",
+    "title": "Task",
+    "chatWithAgent": "Chat with {{name}}",
+    "rename": "Rename Task",
+    "delete": "Delete Task",
+    "deleteConfirm": "Are you sure you want to delete this task?",
+    "empty": "No Tasks",
+    "untitled": "Untitled Task",
+    "history": "Task History",
+    "current": "Current Task",
+    "management": "Task Management",
+    "close": "Close",
+    "dialogTurns": "{{count}} turns",
+    "noSession": "No Task",
+    "switchSession": "Switch Task",
+    "create": "Create New Task",
+    "more": "More Tasks",
+    "restoreMain": "Restore Main Window",
+    "backendSessionNotFound": "Session data not found on the backend. If you recently reconnected to an SSH remote workspace, please close and reopen the remote project, or create a new task and try again."
+  },
+  "scroll": {
+    "toBottom": "Back to bottom",
+    "toBottomWithCount": "Back to bottom ({{count}} new messages)",
+    "toLatest": "Jump to latest message",
+    "clickToLatest": "Click to jump to latest"
+  },
+  "message": {
+    "user": "User",
+    "assistant": "Assistant",
+    "system": "System",
+    "thinking": "Thinking...",
+    "generating": "Generating...",
+    "copy": "Copy Message",
+    "copied": "Copied",
+    "copyFailed": "Copied!",
+    "regenerate": "Regenerate",
+    "edit": "Edit Message",
+    "delete": "Delete Message",
+    "retry": "Retry",
+    "clickToExpand": "Click to expand",
+    "clickToCollapse": "Click to collapse",
+    "fillToInput": "Fill to input",
+    "cannotRollback": "Cannot rollback",
+    "rollbackTo": "Rollback to before turn {{index}} (delete this and following turns)",
+    "rollbackDialogTitle": "Rollback to before turn {{index}}?",
+    "rollbackDialogIntro": "This will:",
+    "rollbackDialogBulletFiles": "Undo all file modifications from that turn onwards",
+    "rollbackDialogBulletHistory": "Delete that turn and all following dialog records (irreversible)",
+    "rollbackPanelDialogTitle": "Roll back to before turn {{index}}?",
+    "rollbackPanelDialogIntro": "This will:",
+    "rollbackPanelBulletRestore": "Restore files to the state before turn {{index}}",
+    "rollbackPanelBulletUndo": "Undo all file changes from that turn onward",
+    "rollbackPanelBulletHistory": "Keep the task history (you can roll forward again anytime)",
+    "rollbackSuccess": "Rolled back and deleted subsequent dialog records",
+    "rollbackFailed": "Rollback failed"
+  },
+  "contextMenu": {
+    "copySelection": "Copy Selection",
+    "copyFullContent": "Copy Full Content",
+    "copyContent": "Copy Content",
+    "copyDialog": "Copy Entire Dialog",
+    "copyToolInput": "Copy Tool Input",
+    "copyToolOutput": "Copy Tool Output"
+  },
+  "input": {
+    "placeholder": "How can I help you...",
+    "placeholderWithContext": "Type a message, or drag and drop files to add context...",
+    "send": "Send",
+    "sendShortcut": "Send (⏎)",
+    "stop": "Stop",
+    "stopGeneration": "Stop Generation (Esc)",
+    "processingCapsule": "Processing",
+    "cancelShortcut": "Cancel",
+    "clear": "Clear",
+    "attach": "Attach File",
+    "collapseInput": "Collapse input",
+    "expandInput": "Expand input",
+    "retry": "Retry",
+    "addImage": "Add image",
+    "maxImagesWarning": "Maximum {{count}} images allowed",
+    "imageAddedSuccess": "Successfully added {{count}} images",
+    "imageAddedSingle": "Added clipboard image: {{name}}",
+    "imagePasteFailed": "Image paste failed",
+    "imageNotSupported": "The current model does not support image input. Please select a multimodal model.",
+    "largePastePlaceholder": "[Pasted Content {{count}} chars]",
+    "messageTooLarge": "Message exceeds the maximum length of {{max}} characters ({{count}} provided).",
+    "openWorkspaceFolder": "Open workspace folder",
+    "openWorkspaceFolderFailed": "Failed to open workspace folder: {{error}}",
+    "spaceToActivate": "Press <space>Space</space> to type"
+  },
+  "context": {
+    "title": "Context",
+    "add": "Add Context",
+    "remove": "Remove Context",
+    "clear": "Clear Context",
+    "file": "File",
+    "folder": "Folder",
+    "selection": "Selection",
+    "codeBlock": "Code Block",
+    "image": "Image",
+    "url": "URL",
+    "dragHint": "Drop files here to add context"
+  },
+  "agent": {
+    "title": "Agent",
+    "select": "Select Agent",
+    "default": "Default Assistant",
+    "coding": "Coding Assistant",
+    "review": "Code Review",
+    "architect": "Architect",
+    "custom": "Custom Agent"
+  },
+  "model": {
+    "title": "Model",
+    "select": "Select Model",
+    "temperature": "Temperature",
+    "maxTokens": "Max Tokens",
+    "topP": "Top P",
+    "streaming": "Streaming"
+  },
+  "toolbar": {
+    "newSession": "New Task",
+    "history": "History",
+    "settings": "Settings",
+    "export": "Export Chat",
+    "clear": "Clear Chat",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen"
+  },
+  "status": {
+    "ready": "Ready",
+    "thinking": "Thinking",
+    "generating": "Generating",
+    "error": "Error Occurred",
+    "offline": "Offline",
+    "connecting": "Connecting",
+    "connected": "Connected"
+  },
+  "error": {
+    "sendFailed": "Send Failed",
+    "connectionError": "Connection Error",
+    "timeout": "Request Timeout",
+    "modelError": "Model Error",
+    "contextTooLong": "Context Too Long",
+    "rateLimited": "Rate Limited",
+    "unknown": "Unknown error"
+  },
+  "chatInput": {
+    "addBoostTooltip": "Agent modes, image, or skills",
+    "addModeTooltip": "Switch mode",
+    "boostSectionAgent": "Agent",
+    "boostSectionContext": "Context",
+    "boostAddContext": "Reference file or folder",
+    "boostSkills": "Skills",
+    "boostSkillsLoading": "Loading skills…",
+    "boostSkillsEmpty": "No enabled skills",
+    "openSkillsLibrary": "Manage skills…",
+    "insertSkillLine": "Please use the Skill tool with command \"{{name}}\".",
+    "addModeMenuTitle": "Add mode",
+    "resetToCore": "Back to default mode",
+    "noIncrementalModes": "No add-on modes available",
+    "switchMode": "Switch Mode",
+    "quickAction": "Quick action",
+    "selectSkill": "Choose a skill",
+    "compactAction": "Compact task",
+    "compactNoSession": "No active task for /compact",
+    "compactBusy": "Wait until the task is idle before using /compact.",
+    "compactUsage": "Use /compact without extra arguments.",
+    "compactFailed": "Task compaction failed",
+    "initAction": "Generate AGENTS.md",
+    "initNoSession": "No active task for /init",
+    "initBusy": "Wait until the task is idle before using /init.",
+    "initUsage": "Use /init without extra arguments.",
+    "initFailed": "AGENTS.md initialization failed",
+    "initPrompt": "Please generate or update AGENTS.md based on the current project content",
+    "currentMode": "Current mode: {{mode}}",
+    "noMatchingMode": "No matching mode",
+    "noMatchingCommand": "No matching command",
+    "mcpPromptMissingArgs": "This MCP prompt requires arguments: {{args}}",
+    "mcpPromptFailed": "MCP prompt failed",
+    "loadingMcpPrompts": "Loading MCP prompts…",
+    "selectHint": "↑↓ Select · Enter Confirm · Esc Cancel",
+    "current": "Current",
+    "professionalMode": "Expert Mode",
+    "designMode": "Design Mode",
+    "wip": "WIP",
+    "sendTarget": "Send to",
+    "conversationTarget": "Conversation target",
+    "targetMain": "Main",
+    "sendingToMain": "Main task: {{title}}",
+    "modeDescriptions": {
+      "Core": "Full-featured AI assistant with access to all tools for comprehensive software development tasks"
+    },
+    "modeNames": {
+      "Core": "Core"
+    },
+    "openFolder": "Open folder…",
+    "selectWorkspaceTitle": "Select workspace directory",
+    "switchWorkspaceFailed": "Failed to switch workspace: {{error}}"
+  },
+  "planner": {
+    "title": "Task Planning",
+    "completed": "Completed",
+    "completedCount": "{{count}} Completed",
+    "inProgress": "In Progress",
+    "inProgressCount": "{{count}} In Progress",
+    "pending": "Pending",
+    "pendingCount": "{{count}} Pending",
+    "todoItems": "Todo Items ({{count}})",
+    "save": "Save",
+    "cancel": "Cancel",
+    "sendToModel": "Send changes to model",
+    "sending": "Sending...",
+    "doubleClickToEdit": "Double-click to edit",
+    "percentComplete": "{{percent}}% Complete",
+    "currentStatus": "Current status: {{status}}"
+  },
+  "fileMention": {
+    "searchResults": "Search Results",
+    "loading": "Loading...",
+    "noMatchingFiles": "No matching files found",
+    "emptyDirectory": "Empty directory",
+    "rootDirectory": "Root",
+    "goBack": "Go back",
+    "navHint": "Navigate",
+    "enterHint": "Enter",
+    "backHint": "Back",
+    "selectHint": "Select"
+  },
+  "copyOutput": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyOutputContent": "Copy output content",
+    "copiedOutputContent": "Output content copied",
+    "edit": "Edit",
+    "openInEditor": "Open in editor",
+    "aiReply": "AI Reply {{timestamp}}",
+    "toolCall": "🔧 Tool call: {{name}}",
+    "unknownTool": "Unknown tool"
+  },
+  "smartRecommendations": {
+    "title": "💡 Smart Recommendations",
+    "close": "Close"
+  },
+  "flowChatHeader": {
+    "turnList": "Turn list",
+    "untitledTurn": "Untitled turn",
+    "previousTurn": "Previous turn",
+    "nextTurn": "Next turn",
+    "turnBadge": "Turn {{current}}"
+  },
+  "taskShow": {
+    "planning": "Creating a plan...",
+    "awaitingConfirmation": "Awaiting Confirmation",
+    "executing": "Executing",
+    "reviewing": "Reviewing...",
+    "viewPlan": "View Plan",
+    "multiReviewing": "Multi-angle Reviewing...",
+    "reviewCompleted": "Review Completed, Awaiting Confirmation",
+    "allCompleted": "All tasks completed"
+  },
+  "sessionFilesBadge": {
+    "files": "files",
+    "reviewLabel": "Review",
+    "reviewAll": "Review All",
+    "loadFailed": "Load failed",
+    "clickToViewDiff": "Click to view diff",
+    "review": {
+      "displayMessage": "Review modified files:\n{{files}}",
+      "displayMessageFiltered": "Review filtered files:\n{{files}}\n\nSkipped {{skipped}} excluded files.",
+      "filteredNotice": "Review will analyze {{included}} files and skip {{skipped}} excluded files such as lock, generated, or binary assets.",
+      "noEligibleFiles": "No reviewable files remain after excluded files were filtered out in this task.",
+      "prompt": "Please review the following files modified in this task:\n\n{{files}}",
+      "promptFiltered": "Please review the following modified files in this task:\n\n{{files}}\n\nDo not review the {{skipped}} skipped files because they matched the excluded lock, generated, or binary file rules.",
+      "threadTitle": "Code review"
+    }
+  },
+  "sessionFileModificationsBar": {
+    "filesCount": "{{count}} files",
+    "expandList": "Expand list",
+    "collapseList": "Collapse list"
+  },
+  "snapshotSystem": {
+    "errors": {
+      "refreshSessionFailed": "Failed to refresh task state",
+      "acceptFileFailed": "Failed to accept file changes",
+      "rejectFileFailed": "Failed to reject file changes",
+      "acceptSessionFailed": "Failed to accept task changes",
+      "rejectSessionFailed": "Failed to reject task changes",
+      "acceptBlockFailed": "Failed to accept change block",
+      "rejectBlockFailed": "Failed to reject change block"
+    }
+  },
+  "exportImage": {
+    "subtitle": "AI Programming Assistant · Task Record",
+    "poweredBy": "Powered by",
+    "aiAssistant": "AI Programming Assistant",
+    "dialogNotFound": "Dialog data not found",
+    "containerNotFound": "Export container not found",
+    "generateFailed": "Failed to generate image",
+    "fileNamePrefix": "Ai00-X-Task",
+    "exportSuccess": "Image exported: {{filePath}}",
+    "exportSuccessPrefix": "Image exported: ",
+    "exportFailed": "Export failed, please try again",
+    "exporting": "Exporting...",
+    "exportToImage": "Export as Image"
+  },
+  "modelRound": {
+    "copyDialog": "Copy dialog",
+    "copiedDialog": "Copied!",
+    "like": "Like",
+    "dislike": "Dislike",
+    "report": "Report",
+    "feedbackThanks": "Thank you for your feedback!",
+    "feedbackDevVersion": "Feedback is not available in dev version",
+    "userLabel": "👤 User:",
+    "toolCallLabel": "🔧 Tool call: {{name}}"
+  },
+  "exploreRegion": {
+    "readFiles_one": "Read {{count}} file",
+    "readFiles_other": "Read {{count}} files",
+    "readFiles": "Read {{count}} file(s)",
+    "searchCount_one": "{{count}} search",
+    "searchCount_other": "{{count}} searches",
+    "searchCount": "{{count}} search(es)",
+    "thinkingCount_one": "Thought {{count}} time",
+    "thinkingCount_other": "Thought {{count}} times",
+    "thinkingCount": "Thought {{count}} time(s)",
+    "exploreCount_one": "{{count}} exploration",
+    "exploreCount_other": "{{count}} explorations",
+    "exploreCount": "{{count}} exploration(s)",
+    "separator": ", ",
+    "collapse": "Collapse exploration"
+  },
+  "toolCards": {
+    "file": {
+      "write": "Write File",
+      "edit": "Edit File",
+      "delete": "Delete File",
+      "deletedLabel": "Deleted",
+      "failed": "Failed",
+      "parsingPath": "Parsing file path...",
+      "unknownFile": "Unknown file",
+      "receivingParams": "Receiving parameters...",
+      "analyzing": "Analyzing...",
+      "expandPreview": "Expand preview",
+      "collapsePreview": "Collapse preview",
+      "viewGitDiff": "View Diff",
+      "viewBaselineDiff": "View Baseline Diff"
+    },
+    "getFileDiff": {
+      "diffFile": "Diff",
+      "gettingDiff": "Getting diff",
+      "preparing": "Preparing diff",
+      "failed": "Diff failed"
+    },
+    "git": {
+      "title": "Git",
+      "commandFailed": "Git command failed",
+      "executionFailed": "Git command execution failed",
+      "failed": "Failed",
+      "confirmExecute": "Confirm execute",
+      "cancel": "Cancel",
+      "expandOutput": "Expand output",
+      "collapseOutput": "Collapse output",
+      "noOutput": "(no output)",
+      "exitCode": "Exit code: {{code}}",
+      "duration": "Duration: {{time}}",
+      "directory": "Directory: {{dir}}",
+      "output": "Output:",
+      "warning": "Warning:",
+      "error": "Error:",
+      "operation": "Operation: git {{op}}",
+      "args": "Args: {{args}}",
+      "status": "Status",
+      "diff": "Diff",
+      "log": "Log",
+      "add": "Stage",
+      "commit": "Commit",
+      "branch": "Branch",
+      "checkout": "Checkout",
+      "switch": "Switch",
+      "pull": "Pull",
+      "push": "Push",
+      "fetch": "Fetch",
+      "merge": "Merge",
+      "rebase": "Rebase",
+      "stash": "Stash",
+      "reset": "Reset",
+      "restore": "Restore",
+      "show": "Show",
+      "tag": "Tag",
+      "remote": "Remote",
+      "clone": "Clone",
+      "init": "Init",
+      "blame": "Blame",
+      "cherryPick": "Cherry-pick"
+    },
+    "initMiniApp": {
+      "title": "Mini App",
+      "operationInit": "Init",
+      "skeletonReady": "Ready",
+      "creatingShort": "…",
+      "untitled": "(unnamed)",
+      "failed": "Failed",
+      "createFailed": "Could not create Mini App",
+      "openInMiniApp": "Open in Mini App",
+      "openInMiniAppTitle": "Open in Mini App",
+      "labelAppId": "app_id",
+      "labelPath": "path",
+      "nameLabel": "App: {{name}}"
+    },
+    "terminal": {
+      "executeCommand": "Execute command:",
+      "commandEmpty": "[Command empty - please edit]",
+      "noCommand": "[No command]",
+      "clickToEditCommand": "Click to edit command",
+      "inputPlaceholder": "Enter command...",
+      "commandEmptyWarning": "Command is empty, cannot execute",
+      "executeCommandTitle": "Execute command",
+      "cancel": "Cancel",
+      "interrupt": "Interrupt command",
+      "openInPanel": "Open Terminal in panel",
+      "expandOutput": "Expand output",
+      "collapseOutput": "Collapse output",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "completed": "Completed",
+      "failed": "Execution failed",
+      "executingCommand": "Executing command...",
+      "workingDirectory": "Working directory:",
+      "exitCode": "Exit code: {{code}}",
+      "commandInterrupted": "Command interrupted",
+      "executionFailed": "Command execution failed"
+    },
+    "plan": {
+      "loadingPlan": "Loading plan...",
+      "generating": "Generating...",
+      "clickToOpenPlan": "Click to open plan file",
+      "remainingTodos": "{{count}} Remaining To-dos",
+      "viewPlan": "View Plan",
+      "build": "Build",
+      "building": "Building...",
+      "built": "Built",
+      "awaitingConfirmation": "Use the confirmation panel above to proceed",
+      "confirmAndExecute": "Confirm & Execute",
+      "revisePlan": "Revise Plan",
+      "autoReview": "Auto Review & Refine",
+      "autoReviewing": "AI is reviewing the plan...",
+      "autoReviewSummary": "Auto Review Summary:",
+      "revisePlaceholder": "Describe what changes you want...",
+      "submitFeedback": "Submit Feedback"
+    },
+    "common": {
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "loading": "Loading...",
+      "success": "Success",
+      "failed": "Failed",
+      "error": "Error",
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "collapseContent": "Collapse content",
+      "expandContent": "Expand content",
+      "inputParams": "Input Parameters",
+      "executionResult": "Execution Result",
+      "viewDetails": "View Details"
+    },
+    "askUser": {
+      "completed": "Completed",
+      "submittedWaiting": "Submitted, waiting for processing",
+      "submitting": "Submitting...",
+      "waitingAnswer": "Waiting for answer",
+      "questionsCount": "{{count}} questions",
+      "answerAllBeforeSubmit": "Please answer all questions before submitting",
+      "submit": "Submit",
+      "questionsAnswered": "{{count}} questions answered",
+      "notAnswered": "Not answered",
+      "timeout": "Timeout (10 minutes)",
+      "parseError": "Unable to parse question data",
+      "loadingQuestions": "Receiving questions…",
+      "other": "Other",
+      "customInputHint": "Provide custom text input",
+      "pleaseSpecify": "Please specify..."
+    },
+    "think": {
+      "analysis": "Thinking Analysis",
+      "thinking": "Thinking...",
+      "preparing": "Preparing to think",
+      "thinkingProcess": "Thinking Process",
+      "thinkingComplete": "Thinking complete",
+      "thinkingCharacters": "Thought {{count}} characters"
+    },
+    "webSearch": {
+      "parsingSearchTerm": "Parsing search term...",
+      "searchTitle": "Web Search: \"{{term}}\"",
+      "resultsCount": "{{count}} results",
+      "searching": "Searching \"{{term}}\"...",
+      "preparingSearch": "Preparing to search \"{{term}}\"",
+      "clickToOpenLink": "Click to open link",
+      "noTitle": "No title"
+    },
+    "todoWrite": {
+      "tasksCount": "{{count}} tasks",
+      "progress": "({{completed}}/{{total}} completed)",
+      "allCompleted": "All tasks completed",
+      "tasks": "Tasks",
+      "collapseList": "Collapse list",
+      "expandList": "Expand list"
+    },
+    "snapshot": {
+      "fileDiff": "Snapshot File Diff",
+      "filesCount": "{{count}} files",
+      "acceptAllTooltip": "Accept all file changes",
+      "acceptAll": "Accept All",
+      "rejectAllTooltip": "Reject all file changes",
+      "rejectAll": "Reject All",
+      "close": "Close",
+      "prevFile": "Previous file (←)",
+      "nextFile": "Next file (→)",
+      "acceptFileTooltip": "Accept current file changes",
+      "acceptFile": "Accept File",
+      "rejectFileTooltip": "Reject current file changes",
+      "rejectFile": "Reject File",
+      "processing": "Processing..."
+    },
+    "taskTool": {
+      "headerLine": "{{agentType}} agent: {{description}}",
+      "defaultAgentKind": "Sub-agent",
+      "waitingConfirm": "Waiting for confirmation",
+      "executing": "Executing...",
+      "subAgentFailed": "Sub-agent task execution failed",
+      "subAgentTaskFailed": "Sub-agent task failed",
+      "failed": "Failed",
+      "confirmDelegate": "Confirm Delegate",
+      "cancel": "Cancel",
+      "task": "Task",
+      "agent": "Agent",
+      "collapseDetails": "Collapse details",
+      "expandDetails": "Expand details",
+      "openInPanel": "Open details in panel"
+    },
+    "taskDetailPanel": {
+      "untitled": "Untitled Task",
+      "statusLabel": "Status",
+      "promptLabel": "Task Prompt",
+      "errorLabel": "Error",
+      "resultLabel": "Result",
+      "noData": "Unable to load task data",
+      "executionContent": "Execution Content",
+      "duration": "Duration",
+      "status": {
+        "pending": "Pending",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed"
+      }
+    },
+    "diagram": {
+      "interactive": "Interactive diagram:",
+      "preparing": "Preparing",
+      "creating": "Creating",
+      "mermaidInteractive": "Mermaid Interactive Chart"
+    },
+    "template": {
+      "get": "Get Template:",
+      "getTemplate": "Get Template",
+      "loading": "Loading",
+      "loaded": "Loaded",
+      "templateDetails": "Template Details",
+      "templateId": "Template ID:",
+      "templateName": "Template Name:",
+      "contentSize": "Content Size:",
+      "characters": "{{count}} characters",
+      "templateReady": "Template Ready",
+      "templateReadyDesc": "Template structure loaded successfully, ready for requirements document creation",
+      "templateLoadFailed": "Template loading failed",
+      "requirementFramework": "Requirement Framework Overview",
+      "productVision": "Product Vision",
+      "businessGoals": "Business Goals",
+      "userPersonas": "User Personas",
+      "userStories": "User Stories",
+      "featureList": "Feature List",
+      "functionalSpecTemplate": "Functional Specification Template",
+      "nonFunctionalRequirements": "Non-functional Requirements",
+      "acceptanceCriteria": "Acceptance Criteria"
+    },
+    "mcp": {
+      "confirmExecute": "Confirm Execute",
+      "cancel": "Cancel",
+      "loadingApp": "Loading interactive app...",
+      "appLoadError": "Failed to load app",
+      "interactiveApp": "interactive app",
+      "actionLabel": "MCP:",
+      "failedLabel": "MCP failed",
+      "executionFailed": "MCP execution failed",
+      "mcpApp": "MCP App"
+    },
+    "default": {
+      "waitingConfirm": "Waiting for confirmation",
+      "executing": "Executing...",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "failed": "Execution failed",
+      "preparing": "Preparing"
+    },
+    "skill": {
+      "unknownSkill": "Unknown skill",
+      "unknown": "Unknown",
+      "loadSkillFailed": "Load skill failed",
+      "skillAction": "Skill:",
+      "loadingSkill": "Loading",
+      "preparingSkill": "Preparing to load"
+    },
+    "readFile": {
+      "parsingParams": "Parsing parameters...",
+      "noFileSpecified": "No file specified",
+      "readFile": "Read file",
+      "readingFile": "Reading",
+      "preparingRead": "Preparing to read"
+    },
+    "terminalControl": {
+      "terminatingSession": "Terminating terminal",
+      "sessionKilled": "Terminal killed",
+      "killFailed": "Failed to kill terminal",
+      "preparingKill": "Preparing to kill terminal",
+      "interruptingSession": "Interrupting terminal",
+      "sessionInterrupted": "Terminal interrupted",
+      "interruptFailed": "Failed to interrupt terminal",
+      "preparingInterrupt": "Preparing to interrupt terminal"
+    },
+    "sessionControl": {
+      "title": "Task",
+      "currentWorkspace": "Current workspace",
+      "defaultSessionName": "New Task",
+      "unknownSession": "Unknown task",
+      "preparingCreate": "Preparing to create task {{session}}",
+      "creatingSession": "Creating task {{session}}",
+      "createdSession": "Created task {{session}}",
+      "preparingDelete": "Preparing to delete task {{session}}",
+      "deletingSession": "Deleting task {{session}}",
+      "deletedSession": "Deleted task {{session}}",
+      "preparingList": "Preparing to list tasks",
+      "listingSessions": "Listing tasks",
+      "listedSessions": "Found {{count}} tasks",
+      "actionFailed": "Task operation failed",
+      "workspace": "Workspace",
+      "sessionId": "Task ID",
+      "sessionName": "Task name",
+      "agentType": "Agent type",
+      "sessionCount": "Task count",
+      "noSessions": "No tasks found"
+    },
+    "sessionMessage": {
+      "title": "Task",
+      "unknownSession": "Unknown task",
+      "preparingSend": "Preparing to send message to {{session}}",
+      "sendingMessage": "Sending message to {{session}}",
+      "messageAccepted": "Message accepted for {{session}}",
+      "sendFailed": "Failed to send message to {{session}}",
+      "targetSession": "Target task",
+      "workspace": "Workspace",
+      "agentType": "Agent type",
+      "message": "Message"
+    },
+    "imageAnalysis": {
+      "parsingAnalysisInfo": "Parsing analysis info...",
+      "unknownImage": "Unknown image",
+      "clipboardImage": "Clipboard image",
+      "analyzeImageContent": "Analyze image content",
+      "imageAnalysis": "Image analysis",
+      "completed": "Completed",
+      "analyzing": "Analyzing",
+      "preparing": "Preparing",
+      "analysisPrompt": "Analysis prompt",
+      "focusAreas": "Focus areas",
+      "analysisResult": "Analysis result"
+    },
+    "contextCompression": {
+      "beforeUserMessage": "Before user message",
+      "toolBatchComplete": "Tool batch complete",
+      "manualTrigger": "Manual trigger",
+      "autoTrigger": "Auto trigger",
+      "contextCompressionFailed": "Context compression failed",
+      "contextCompression": "Context compression:",
+      "localFallbackHeader": "Model request failed; local structured trimming",
+      "localFallbackNotice": "Model-based summary was unavailable, so this compression used local structured truncation.",
+      "noSummaryNotice": "No additional summary was generated for this compaction pass.",
+      "tokens": "tokens",
+      "saved": "Saved {{count}}",
+      "ratio": "Ratio {{percent}}%",
+      "compressing": "Compressing context..."
+    },
+    "globSearch": {
+      "parsingPattern": "Parsing search pattern...",
+      "currentDirectory": "Current directory",
+      "searchFile": "Search files",
+      "searchingFile": "Searching",
+      "preparingSearch": "Preparing to search",
+      "filesCount": "{{count}} files",
+      "directoriesCount": "{{count}} directories",
+      "filesAndDirs": "{{files}} files, {{directories}} directories",
+      "moreFiles": "...{{count}} more files",
+      "labelPattern": "Pattern",
+      "labelPath": "Path",
+      "labelStats": "Stats"
+    },
+    "grepSearch": {
+      "parsingPattern": "Parsing search pattern...",
+      "currentDirectory": "Current directory",
+      "searchText": "Search text",
+      "searchingText": "Searching",
+      "preparingSearch": "Preparing to search",
+      "matchesCount": "{{count}} matches",
+      "matchesAndFiles": "{{matches}} matches in {{files}} files",
+      "labelPattern": "Pattern",
+      "labelPath": "Path",
+      "labelStats": "Stats"
+    },
+    "ideControl": {
+      "parsingOperation": "Parsing operation...",
+      "configCenter": "Config Center",
+      "planner": "Task Planner",
+      "terminal": "Terminal",
+      "fileViewer": "File Viewer",
+      "codeEditor": "Code Editor",
+      "navigateToPosition": "Navigate to position",
+      "adjustIdeLayout": "Adjust IDE layout",
+      "manageTab": "Manage tab",
+      "focusView": "Focus view",
+      "executeIdeOperation": "Execute IDE operation",
+      "operationType": "Operation type",
+      "panelType": "Panel type",
+      "configSection": "Config section",
+      "sessionId": "Task ID",
+      "filePath": "File path",
+      "workspacePath": "Workspace",
+      "panelPosition": "Panel position"
+    },
+    "linter": {
+      "parsingParams": "Parsing parameters...",
+      "checkFailed": "Check failed:",
+      "unknownError": "Unknown error"
+    },
+    "ls": {
+      "parsingPath": "Parsing path...",
+      "listDirectory": "List directory",
+      "listingDirectory": "Listing",
+      "preparingList": "Preparing to list",
+      "filesCount": "{{count}} files",
+      "directoriesCount": "{{count}} directories",
+      "filesAndDirs": "{{files}} files, {{directories}} directories",
+      "moreEntries": "...{{count}} more entries",
+      "labelPath": "Path",
+      "labelStats": "Stats",
+      "labelSort": "Sort",
+      "sortByModifiedTime": "By modified time (newest first)"
+    },
+    "userMessage": {
+      "file": "File",
+      "dir": "Directory",
+      "code": "Code",
+      "img": "Image",
+      "cmd": "Command",
+      "chart": "Chart",
+      "link": "Link"
+    },
+    "toolStatus": {
+      "pending": "Pending",
+      "paramsReceiving": "Receiving params",
+      "preparing": "Preparing",
+      "running": "Running",
+      "completed": "Completed",
+      "error": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "toolbar": {
+      "executing": "Executing...",
+      "collapseChat": "Collapse chat",
+      "expandChat": "Expand chat",
+      "aiProcessing": "AI is processing...",
+      "inputMessage": "Enter message...",
+      "processing": "Processing...",
+      "startNewChat": "Start new chat...",
+      "openSessionMenu": "Tasks & new",
+      "moreMenu": "More",
+      "newSessionItem": "New task"
+    },
+    "chatInput": {
+      "inputHint": "Enter content..."
+    },
+    "plannerButton": {
+      "planner": "Planner"
+    },
+    "turnRollback": {
+      "rollback": "Rollback",
+      "rollbackTooltip": "Rollback to this turn",
+      "current": "Current",
+      "rollbackToTurn": "Rollback to turn {{index}}",
+      "rollingBack": "Rolling back..."
+    },
+    "generativeWidget": {
+      "failed": "Failed",
+      "streamingPreview": "Streaming preview",
+      "interactivePreview": "Interactive preview",
+      "renderingFailed": "Widget rendering failed."
+    },
+    "codeReview": {
+      "reviewResult": "Review Result",
+      "reviewingCode": "Reviewing code...",
+      "preparingReview": "Preparing code review",
+      "reviewFailed": "Code review failed: {{error}}",
+      "unknownError": "Unknown error",
+      "collapseDetails": "Collapse Details",
+      "expandDetails": "Expand Details",
+      "overallAssessment": "Overall Assessment",
+      "riskLevel": "Risk Level",
+      "recommendedAction": "Recommended Action",
+      "contextLimitations": "Context Limitations",
+      "issuesCount": "Issues ({{count}})",
+      "suggestion": "Suggestion",
+      "codeStrengths": "Code Strengths",
+      "riskLevels": {
+        "low": "Low Risk",
+        "medium": "Medium Risk",
+        "high": "High Risk",
+        "critical": "Critical Risk"
+      },
+      "actions": {
+        "approve": "Approve",
+        "approve_with_suggestions": "Approve with Suggestions",
+        "request_changes": "Request Changes",
+        "block": "Block Merge"
+      },
+      "severities": {
+        "critical": "Critical",
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low",
+        "info": "Info"
+      },
+      "certainties": {
+        "confirmed": "Confirmed",
+        "likely": "Likely",
+        "possible": "Possible"
+      }
+    }
+  },
+  "welcome": {
+    "greetingMorning": "Good morning",
+    "subtitleMorning": "Plan first, act with purpose — every line of code has direction",
+    "greetingAfternoon": "Good afternoon",
+    "subtitleAfternoon": "Focus on the plan, execute with precision",
+    "greetingEvening": "Good evening",
+    "subtitleEvening": "Refine your thoughts, polish your plan",
+    "greetingNight": "Late night",
+    "subtitleNight": "Quiet hours, deep planning",
+    "aiPartner": "traveler",
+    "aiPartnerCowork": "collaborator",
+    "aiPartnerTask": "task assistant",
+    "subtitleMorningCowork": "Seamless collaboration, efficient progress",
+    "subtitleAfternoonCowork": "Teamwork, creating together",
+    "subtitleEveningCowork": "Review and plan for tomorrow",
+    "subtitleNightCowork": "Quiet collaboration, deep thinking",
+    "subtitleMorningTask": "Ask anything, get quick answers",
+    "subtitleAfternoonTask": "Focus on tasks, get things done",
+    "subtitleEveningTask": "Organize thoughts, summarize gains",
+    "subtitleNightTask": "Quiet hours, deep thinking",
+    "featureIntro": "",
+    "lastTimeYouWere": "Last time you were working on:",
+    "branch": "Branch:",
+    "aheadCommits": "{{count}} commits ahead",
+    "behindCommits": "{{count}} commits behind",
+    "unstagedFiles": "{{count}} unstaged files",
+    "stagedFiles": "{{count}} staged files",
+    "unpushedCommits": "{{count}} unpushed commits",
+    "timeSinceLastCommit": "Last commit: ",
+    "timeIcon": "Time",
+    "youMightWant": "You might want to:",
+    "defaultAction1": "Review recent changes",
+    "defaultAction1Command": "Review recent changes",
+    "defaultAction2": "Continue previous work",
+    "defaultAction2Command": "Continue previous work",
+    "defaultAction3": "Start a new feature",
+    "defaultAction3Command": "Start a new feature",
+    "workspace": "Workspace",
+    "noWorkspace": "No workspace open",
+    "openOtherProject": "Open other project...",
+    "noWorkspaceHint": "No project selected yet",
+    "openOne": "Open one",
+    "toStart": "to get started.",
+    "workingIn": "We are working in",
+    "gitClean": "All clean, ready to get to work ✦",
+    "gitUnstaged": "{{count}} file(s)",
+    "gitStaged": "{{count}} file(s)",
+    "gitUnpushed": "{{count}} commit(s)",
+    "waitingToStage": "waiting to stage",
+    "stagedReady": "staged and ready to commit",
+    "toPush": "to push",
+    "currentlyHas": "Currently there ",
+    "commaSeparator": ", ",
+    "period": ".",
+    "project": "working.",
+    "projectCowork": "co-working.",
+    "projectOf": "project's",
+    "worktree": "branch working."
+  },
+  "modelSelector": {
+    "model": "Model",
+    "modelExplanation": "Model explanation",
+    "modelSelection": "Select Model",
+    "currentMode": "Current Mode",
+    "autoModel": "Auto",
+    "autoModelDesc": "Automatically Routing",
+    "primaryModel": "Primary Model",
+    "fastModel": "Fast Model",
+    "modelNotConfigured": "Not Configured",
+    "primaryBadge": "Primary",
+    "priceLabel": "${{price}}/M tokens",
+    "upgrade": {
+      "title": "Upgrade Plan",
+      "required": "This model requires {{tier}} plan",
+      "current": "Your current plan is {{tier}}",
+      "comingSoon": "Upgrade feature coming soon",
+      "close": "Got it"
+    },
+    "upgradeHint": {
+      "freeTier": "Upgrade plan to unlock more premium models"
+    },
+    "badges": {
+      "economy": "Economy"
+    },
+    "priceGroups": {
+      "economy": {
+        "title": "Economy Models",
+        "hint": "Free upstream"
+      },
+      "standard": {
+        "title": "Standard Models",
+        "hint": "Cost-effective"
+      },
+      "premium": {
+        "title": "Premium Models",
+        "hint": "High performance"
+      }
+    },
+    "freeQuota": {
+      "remainingCount": "{{count}} requests left today",
+      "remainingTokens": "{{tokens}} tokens",
+      "exhausted": "Today's quota exhausted"
+    },
+    "xfModels": {
+      "sectionTitle": "Xunfei Models",
+      "empty": "No Xunfei models available",
+      "loadFailed": "Load failed, please retry later"
+    },
+    "defaultModels": {
+      "sectionTitle": "Default Models",
+      "empty": "No default models available"
+    },
+    "customModels": {
+      "sectionTitle": "Custom Models",
+      "empty": "No custom models"
+    }
+  },
+  "reasoningEffort": {
+    "title": "Reasoning Effort",
+    "tooltip": "Adjust model reasoning depth (Responses API only)",
+    "default": "Default",
+    "low": "Low",
+    "lowDesc": "Fast responses, light reasoning",
+    "medium": "Medium",
+    "mediumDesc": "Balance speed and reasoning depth",
+    "high": "High",
+    "highDesc": "Deep reasoning",
+    "xhigh": "Extra High",
+    "xhighDesc": "Maximum reasoning depth (slower)"
+  },
+  "coreScope": {
+    "title": "Choose a Core workspace",
+    "description": "Core mode needs a workspace folder to read/write files. Use the current project, or choose another folder.",
+    "recommended": "Recommended",
+    "current": {
+      "title": "Current workspace",
+      "subtitle": "Opened: {{name}}",
+      "description": "Artifacts are saved in the current project. Use this when you need to read or change project files."
+    },
+    "global": {
+      "title": "Other folder",
+      "subtitle": "Choose directory",
+      "description": "Use a different folder for Core tasks. Outputs will be saved in that folder."
+    },
+    "errors": {
+      "noWorkspace": "No workspace is currently open",
+      "openFailed": "Failed to open Core workspace"
+    }
+  },
+  "coreExamples": {
+    "title": "Examples",
+    "addPlugin": "Add plugin",
+    "addPluginDialogTitle": "Select a plugin folder",
+    "addPluginSuccess": "Plugin installed: {{name}}",
+    "addPluginFailed": "Failed to install plugin: {{error}}",
+    "refresh": "Shuffle",
+    "close": "Close",
+    "items": {
+      "desktop_cleanup": {
+        "title": "Organize desktop screenshots",
+        "description": "Rename, group, and file recent screenshots.",
+        "prompt": "Help me organize recent screenshots on my Desktop.\n\nFirst, scan my Desktop and count how many screenshots/images are there. Show me:\n\n- Total count\n\n- Date range (oldest to newest)\n\nThen, focus only on screenshots from the last 14 days. For each one:\n\n- Identify what it shows\n\n- Suggest a descriptive filename\n\n- Propose which folder it belongs in (or if it can be deleted)\n\nGroup similar screenshots together. Show me the plan before making any changes.\n\nAfter I approve, start by organizing just 10 files as a preview. If there are more than 10 files, check in with me before continuing with the rest."
+      },
+      "vacation_plan": {
+        "title": "Plan my vacation",
+        "description": "Build a day-by-day itinerary with budget + backups.",
+        "prompt": "Plan a vacation for me.\n\nBasics:\n- From:\n- Destinations (optional backups):\n- Dates / total days:\n- Travelers + preferences:\n- Budget range:\n- Interests (food / nature / museums / shopping / relax):\n- Hard constraints (no early mornings, no long drives, etc.):\n\nOutput:\n1) 2–3 destination options with pros/cons\n2) Best option: day-by-day plan (morning/afternoon/evening)\n3) Transport + lodging suggestions\n4) Budget breakdown\n5) Rainy-day/contingency alternatives"
+      },
+      "make_ppt": {
+        "title": "Draft a PPT",
+        "description": "Outline slides, talking points, and visuals.",
+        "prompt": "Help me create a PPT deck.\n\nTopic:\nAudience:\nTime limit:\nUse case (status update / pitch / training / sharing):\nPreferred style (clean / business / playful / minimal):\n\nDeliverable:\n1) Table of contents\n2) Slide-by-slide: title + 3–5 bullets\n3) Short speaker notes for key slides\n4) Visual/chart suggestions (what chart for what message)\n5) Export as a PPTX file (save it under artifacts/)"
+      },
+      "todo_breakdown": {
+        "title": "Break it into todos",
+        "description": "Turn a goal into executable tasks with estimates.",
+        "prompt": "Break the following goal into an executable todo list with priorities and time estimates.\n\nGoal:\nDeadline:\nCurrent status:\nResources (people/budget/tools):\nRisks/unknowns:\n\nOutput:\n1) Milestones\n2) Task list (owner / ETA / dependencies / acceptance criteria)\n3) Critical path + risks\n4) Three small things I can start tomorrow"
+      },
+      "optimize_week": {
+        "title": "Optimize my week",
+        "description": "Find patterns across messy notes and transcripts.",
+        "prompt": "Help me find patterns and insights across [my voice memos / meeting transcripts / documents / journal entries / specify folder]. I have messy, unstructured files and want to understand what themes are emerging.\n\nFirst, scan the folder and show me a summary:\n\n- Total files\n\n- Date range (oldest to newest)\n\n- Types of content\n\nBefore analyzing, ask me:\n\n- What I'm hoping to discover (recurring themes, contradictions, evolution of thinking, action items, or something else)\n\n- Whether certain files or time periods should be prioritized\n\n- What format would be most useful for the final analysis\n\nIf there are more than 20 files, start by analyzing just the 10 most recent files.\n\nShow me the top 3-5 patterns you found with 2-3 specific examples for each pattern. Once I confirm you're on the right track, analyze the remaining files."
+      },
+      "weekly_plan": {
+        "title": "Make a weekly plan",
+        "description": "Schedule priorities, meetings, and deep work blocks.",
+        "prompt": "Create a practical weekly plan for me.\n\nInputs:\n- Top goals (max 3):\n- Fixed meetings/commitments:\n- Deep work windows:\n- Must-do tasks:\n- Nice-to-have tasks:\n\nOutput:\n1) Priority order\n2) Day-by-day plan (2–3 core tasks per day)\n3) Risk + buffer time suggestions\n4) 5-minute daily wrap-up checklist"
+      },
+      "meeting_minutes": {
+        "title": "Write meeting minutes",
+        "description": "Summarize decisions, action items, and open questions.",
+        "prompt": "Turn my meeting notes into clear meeting minutes.\n\nTopic:\nAttendees:\nTime:\nRaw notes (paste here):\n\nOutput:\n1) Key outcomes (3–6)\n2) Decisions\n3) Action items (owner / due date / acceptance criteria)\n4) Risks + open questions\n5) Suggested agenda for the next meeting"
+      },
+      "reply_email": {
+        "title": "Reply to an email",
+        "description": "Generate a polite, clear email template (two tones).",
+        "prompt": "Help me write an email reply.\n\nOriginal email (paste here):\nMy goal (confirm / decline / push forward / clarify):\nTone (formal / friendly / firm but polite):\nKey points to include:\n\nOutput:\n1) Subject line suggestions\n2) Body (2 versions: more formal / more concise)\n3) Questions for the recipient to confirm (if any)"
+      },
+      "make_docx": {
+        "title": "Draft a DOCX",
+        "description": "Write a structured document and export as DOCX.",
+        "prompt": "Help me write a document and export it as a .docx file.\n\nDocument type (PRD / proposal / meeting summary / report / SOP):\nAudience:\nTone (formal / friendly / concise):\nMust-include points:\nLength target:\n\nDeliverable:\n1) Suggested outline\n2) Full content\n3) Export as a .docx file (save it under artifacts/)"
+      },
+      "make_spreadsheet": {
+        "title": "Design a spreadsheet",
+        "description": "Define fields and formulas for reusable tracking.",
+        "prompt": "Design a spreadsheet schema (columns + example rows) for the following purpose.\n\nPurpose:\nData sources:\nMetrics / aggregation needs:\nPreferred output (weekly report / dashboard / checklist):\n\nOutput:\n1) Recommended columns (type + notes)\n2) Example data (3–5 rows)\n3) Useful formulas / pivot suggestions\n4) Data validation + filling guidelines"
+      },
+      "budget_plan": {
+        "title": "Create a budget plan",
+        "description": "Allocate by category + timeline with review rules.",
+        "prompt": "Help me create a budget plan.\n\nContext:\n- Budget period (monthly / quarterly / project):\n- Total budget:\n- Fixed costs:\n- Variable costs:\n- Goal (save money / control spending / save for something):\n\nOutput:\n1) Suggested categories + ratios\n2) A category budget table (copy-paste friendly)\n3) Overrun rules + adjustment plan\n4) Weekly/monthly review checklist"
+      }
+    }
+  },
+  "taskComplete": {
+    "title": "Task Completed",
+    "message": "All tasks in plan \"{name}\" have been completed.",
+    "verifyArchive": "Verify, Rate & Archive",
+    "continueChat": "Continue Chat to Refine",
+    "finishAndRate": "Finish & Rate",
+    "archiving": "Archiving session...",
+    "merging": "Merging branch to main...",
+    "mergeSuccess": "Branch merged to main successfully",
+    "mergeConflict": "Merge conflict detected, please resolve manually",
+    "archived": "Session archived",
+    "planQuality": "Plan Quality",
+    "planFeedbackPlaceholder": "Feedback on plan quality (optional)...",
+    "completion": "Completion",
+    "completeFeedbackPlaceholder": "Feedback on task completion (optional)...",
+    "submitAndArchive": "Submit & Archive",
+    "skipRating": "Skip Rating",
+    "archive": "Archive"
+  },
+  "compactCompleteBar": {
+    "label": "Task paused — Finish review & rate",
+    "finishAndRate": "Finish & Rate"
+  },
+  "memoryHint": {
+    "collapsed": "Recalled {{count}} relevant memories",
+    "collapsed_one": "Recalled 1 relevant memory",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "dismiss": "Dismiss"
+  },
+  "altPreview": "Preview",
+  "turnHistory": {
+    "title": "Session History",
+    "turnsCount": "{{count}} turns",
+    "turnIndex": "Turn {{index}}",
+    "modifiedFiles": "Modified files:",
+    "moreFiles": "{{count}} more files...",
+    "loading": "Loading...",
+    "noHistory": "No turn history available.",
+    "snapshotHint": "A snapshot is created after each AI response."
+  },
+  "snapshotRollback": {
+    "currentCodeState": "Current code state",
+    "rolledBackToTurn": "Rolled back to this turn",
+    "rollbackFailed": "Rollback failed",
+    "rollbackToCodeState": "Rollback to code state at turn {{index}}",
+    "rollingBack": "Rolling back...",
+    "rollbackToThisTurn": "Rollback to this turn"
+  },
+  "tokenUsage": {
+    "title": "Token Usage",
+    "input": "In:",
+    "output": "Out:",
+    "total": "Total",
+    "tooltip": "Token usage: {{current}} / {{max}}"
+  },
+  "scrollAnchor": {
+    "userMessage": "User message"
+  },
+  "sandboxCreation": {
+    "title": "Creating Task",
+    "cancel": "Cancel",
+    "cancelled": "Task creation cancelled",
+    "phases": {
+      "detecting": "Detecting Git repository...",
+      "staging": "Staging workspace files...",
+      "creatingWorktree": "Creating sandbox branch...",
+      "finalizing": "Initializing session..."
+    }
+  }
+}

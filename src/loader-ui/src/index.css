@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+:root {
+  --page-bg: #f3f3f5;
+  --card-bg: #ffffff;
+  --primary: 100 100 240;
+  --secondary: #f1f5f9;
+  --border: #e2e8f0;
+  --text-90: #1e293b;
+  --text-50: #64748b;
+  --destructive: #ef4444;
+}
+
+[data-theme-type="dark"] {
+  --page-bg: #121214;
+  --card-bg: #1a1c1e;
+  --primary: 120 160 255;
+  --secondary: #1e2023;
+  --border: #2d3035;
+  --text-90: #e4e6e8;
+  --text-50: #8a8d92;
+  --destructive: #f87171;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.btn-plain {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-50);
+  transition: all 0.15s ease;
+}
+
+.btn-plain:hover {
+  color: var(--text-90);
+}
+
+.btn-primary {
+  background: rgb(var(--primary));
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--page-bg);
+  color: var(--text-90);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+input:focus {
+  border-color: rgb(var(--primary));
+}

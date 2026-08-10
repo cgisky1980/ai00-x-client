@@ -1,0 +1,61 @@
+{
+  "title": "AI 壁纸设计器",
+  "subtitle": "用自然语言描述，AI 为你创作桌面壁纸",
+  "navTitle": "壁纸",
+  "newDesign": "新建设计",
+  "myProjects": "我的壁纸",
+  "chooseStyle": "选择风格",
+  "orDescribe": "或直接描述你想要的效果",
+  "placeholder": "描述你想要的壁纸...",
+  "nextBtn": "下一步",
+  "backBtn": "返回",
+  "generatingName": "正在生成项目名称...",
+  "confirmTitle": "确认项目信息",
+  "confirmDesc": "根据你的描述，AI 建议以下项目名称",
+  "projectName": "项目名称",
+  "dirName": "目录名称",
+  "storagePath": "存储位置",
+  "editName": "修改名称",
+  "confirmBtn": "确认创建",
+  "creating": "正在创建项目...",
+  "created": "项目已创建",
+  "openingDesign": "正在打开设计会话...",
+  "subtitleInstant": "描述你梦想的壁纸，即刻开始设计",
+  "startDesign": "开始设计",
+  "existingProjects": "你的项目",
+  "continueDesign": "继续",
+  "applyToDesktop": "应用到桌面",
+  "appliedToDesktop": "壁纸已应用到桌面",
+  "published": "壁纸已发布到桌面",
+  "styles": {
+    "starfield": { "label": "星空", "desc": "闪烁的星点和星云背景" },
+    "matrix": { "label": "矩阵雨", "desc": "绿色代码雨落下" },
+    "waves": { "label": "波浪潮汐", "desc": "流动的色彩粒子" },
+    "aurora": { "label": "渐变极光", "desc": "全屏渐变极光效果" },
+    "visualizer": { "label": "音波可视化", "desc": "随节奏跳动的频谱" },
+    "clock": { "label": "极简时钟", "desc": "屏幕中央的数字时钟" }
+  },
+  "projectList": {
+    "empty": "暂无项目",
+    "publish": "发布壁纸",
+    "delete": "删除项目"
+  },
+  "error": {
+    "generateName": "生成项目名称失败",
+    "createProject": "创建项目失败"
+  },
+  "preview": {
+    "title": "壁纸预览",
+    "refresh": "刷新",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏",
+    "applyToDesktop": "应用到桌面",
+    "close": "关闭",
+    "ratio": "屏幕比例",
+    "rotate": "旋转竖屏",
+    "scale": "预览比例",
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "noProject": "未选择壁纸项目"
+  }
+}

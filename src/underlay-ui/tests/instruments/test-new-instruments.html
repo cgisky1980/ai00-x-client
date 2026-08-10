@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Instruments Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .instrument-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .instrument-card {
+            background: #2a2a4a;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #4a4a6a;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        .instrument-card:hover {
+            border-color: #6a6aaa;
+            background: #3a3a5a;
+            transform: translateY(-2px);
+        }
+        .instrument-card h3 {
+            margin: 0 0 10px 0;
+            color: #8a8aff;
+        }
+        .instrument-card p {
+            margin: 5px 0;
+            color: #ccc;
+            font-size: 12px;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 New Instruments Test</h1>
+    
+    <div class="status" id="status">
+        <div>Status: <span id="statusText">Not initialized</span></div>
+    </div>
+
+    <div class="controls">
+        <button id="initBtn">Initialize System</button>
+        <button id="stopBtn" disabled>Stop All</button>
+    </div>
+
+    <h2>🎼 Test Individual Instruments</h2>
+    <p>Click on an instrument to test its sound:</p>
+    <div id="instrumentGrid" class="instrument-grid"></div>
+
+    <div id="logs" class="logs"></div>
+
+    <script type="module">
+        // Import the lofi music system
+        import { LofiMusicSystem } from './src/lib/lofi/lofi-music-system.js';
+
+        let lofiSystem = null;
+
+        // New instruments to highlight
+        const newInstruments = [
+            { id: 'harmonica', name: '🎵 Harmonica', description: 'Breathy, warm harmonica sound' },
+            { id: 'whistle', name: '🎶 Whistle', description: 'Pure, airy whistle sound' },
+            { id: 'flute', name: '🎼 Flute', description: 'Soft, breathy flute sound' },
+            { id: 'saxophone', name: '🎷 Saxophone', description: 'Warm, jazzy sax sound' },
+            { id: 'strings', name: '🎻 Strings', description: 'Soft string ensemble' }
+        ];
+
+        // All instruments for comparison
+        const allInstruments = [
+            { id: 'piano', name: '🎹 Piano', description: 'Warm, mellow piano' },
+            { id: 'synth', name: '🎛️ Synth', description: 'Soft pad synthesizer' },
+            { id: 'bass', name: '🎸 Bass', description: 'Deep, warm bass' },
+            { id: 'guitar', name: '🎸 Guitar', description: 'Plucked string guitar' },
+            { id: 'epiano', name: '🎹 E-Piano', description: 'Vintage electric piano' },
+            { id: 'vibes', name: '🔔 Vibes', description: 'Mellow vibraphone' },
+            ...newInstruments
+        ];
+
+        // DOM elements
+        const statusText = document.getElementById('statusText');
+        const initBtn = document.getElementById('initBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const instrumentGrid = document.getElementById('instrumentGrid');
+        const logsDiv = document.getElementById('logs');
+
+        // Logging function
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? '#FF6B6B' : type === 'success' ? '#4CAF50' : '#fff';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[NewInstrumentTest] ${message}`);
+        }
+
+        // Update UI state
+        function updateUI() {
+            if (!lofiSystem) return;
+            
+            const state = lofiSystem.getState();
+            statusText.textContent = state.isReady ? 'Ready' : state.isLoading ? 'Loading...' : 'Not Ready';
+            
+            // Update button states
+            initBtn.disabled = state.isReady || state.isLoading;
+            stopBtn.disabled = !state.isReady;
+            
+            if (state.error) {
+                log(`Error: ${state.error}`, 'error');
+            }
+        }
+
+        // Create instrument cards
+        function createInstrumentCards() {
+            if (!lofiSystem || !lofiSystem.getState().isReady) return;
+            
+            instrumentGrid.innerHTML = '';
+            
+            allInstruments.forEach(instrument => {
+                const card = document.createElement('div');
+                card.className = 'instrument-card';
+                card.dataset.instrument = instrument.id;
+                
+                // Highlight new instruments
+                const isNew = newInstruments.some(ni => ni.id === instrument.id);
+                if (isNew) {
+                    card.style.borderColor = '#ff6b6b';
+                    card.style.background = '#4a2a2a';
+                }
+                
+                card.innerHTML = `
+                    <h3>${instrument.name} ${isNew ? '✨ NEW' : ''}</h3>
+                    <p>${instrument.description}</p>
+                `;
+                
+                card.addEventListener('click', () => testInstrument(instrument));
+                instrumentGrid.appendChild(card);
+            });
+            
+            log(`Created ${allInstruments.length} instrument cards (${newInstruments.length} new)`, 'info');
+        }
+
+        // Test individual instrument
+        function testInstrument(instrument) {
+            if (!lofiSystem || !lofiSystem.getState().isReady) {
+                log('System not ready', 'error');
+                return;
+            }
+
+            try {
+                log(`🎵 Testing ${instrument.name}...`, 'info');
+                
+                // Switch to the instrument
+                lofiSystem.switchInstrument(instrument.id);
+                
+                // Test with a simple note
+                lofiSystem.testInstrument('C4');
+                
+                log(`✅ ${instrument.name} test completed!`, 'success');
+                
+            } catch (error) {
+                log(`❌ Failed to test ${instrument.name}: ${error.message}`, 'error');
+            }
+        }
+
+        // Event listeners
+        initBtn.addEventListener('click', async () => {
+            try {
+                log('Initializing lofi music system...');
+                lofiSystem = new LofiMusicSystem();
+                
+                // Set up event listeners
+                lofiSystem.on('ready', () => {
+                    log('✅ System ready!', 'success');
+                    updateUI();
+                    createInstrumentCards();
+                });
+                
+                lofiSystem.on('loading', () => {
+                    log('Loading AI models...');
+                    updateUI();
+                });
+                
+                lofiSystem.on('error', (data) => {
+                    log(`❌ System error: ${data.error}`, 'error');
+                    updateUI();
+                });
+                
+                await lofiSystem.initialize();
+                updateUI();
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+                updateUI();
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (lofiSystem) {
+                lofiSystem.stop();
+                log('Stopped all playback');
+            }
+        });
+
+        // Initialize UI
+        updateUI();
+        log('New instruments test page loaded. Click "Initialize System" to start.');
+        log('✨ New instruments: Harmonica, Whistle, Flute, Saxophone, Strings');
+    </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+site: douban
+name: search
+description: Search Douban
+domain: www.douban.com
+strategy: public
+browser: false
+
+args:
+  query:
+    type: string
+    required: true
+    description: Search keyword
+  limit:
+    type: int
+    default: 20
+    description: Number of results
+
+pipeline:
+  - fetch:
+      url: "https://www.douban.com/j/search_suggest?q=${{ args.query | urlencode }}&limit=${{ args.limit }}"
+      headers:
+        User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  - map:
+      rank: ${{ index + 1 }}
+      title: ${{ item.title }}
+      url: ${{ item.url }}
+  - limit: ${{ args.limit }}
+
+columns: [rank, title, url]

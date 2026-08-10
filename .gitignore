@@ -1,0 +1,99 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs - Frontend
+dist
+dist-ssr
+*.local
+**/dist
+**/dist-ssr
+
+# Build outputs - Rust/Tauri
+target/
+**/target/
+
+# Dev models/runtime (outside target, survives cargo clean)
+.ai00-x-dev/
+.tools/
+
+# External CMake build dirs (llama.cpp, etc.) — use short paths to avoid
+# Windows MAX_PATH issues. Cached across cargo clean for fast incremental builds.
+.llama-build/
+.acestep-build/
+
+# Monaco Editor - copied from node_modules
+public/monaco-editor/
+src/web-ui/public/monaco-editor/
+
+# Vditor - copied from node_modules
+public/vditor/
+src/web-ui/public/vditor/
+
+# Generated version files
+src/generated/version.ts
+src/generated/version-injection.html
+public/version.json
+src/web-ui/src/generated/version.ts
+src/web-ui/src/generated/version-injection.html
+src/web-ui/public/version.json
+
+# Tauri generated files
+apps/desktop/gen/
+src/apps/desktop/gen/
+src-tauri/gen/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.claude
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Ai00-X sandbox data - auto managed
+.ai00-x/
+.cursor
+.cursor/rules/no-cargo.mdc
+
+ASSETS_LICENSES.md
+
+external/
+.bitfun/
+NUL
+
+# Large binary model/runtime assets (downloaded at runtime, not committed)
+src/apps/desktop/models/
+src/apps/desktop/runtime/
+
+# Secrets / credentials — NEVER commit
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+secrets.json
+servers.json
+.deploy/
+config/server.toml
+config/auth.toml
+config/jwt.toml
+.env
+.env.*
+!.env.example

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Sample Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            margin: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #FF6B6B;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 简单采样测试</h1>
+    <p>测试单个分割采样文件</p>
+    
+    <button id="testBtn">播放 Cello C4</button>
+    <button id="stopBtn">停止</button>
+
+    <div id="logs" class="logs"></div>
+
+    <script>
+        let audioContext = null;
+        let currentSource = null;
+        const logsDiv = document.getElementById('logs');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(message);
+        }
+
+        async function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                log('✅ 音频上下文初始化成功', 'success');
+            }
+        }
+
+        async function testSample() {
+            try {
+                await initAudio();
+                
+                if (currentSource) {
+                    currentSource.stop();
+                }
+                
+                const filename = 'cello_c4.wav';
+                const url = `public/sounds/instruments/split/${filename}`;
+                
+                log(`🎵 尝试加载: ${url}`);
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                log('📥 文件下载成功，解码音频...', 'success');
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                log(`✅ 音频解码成功: ${audioBuffer.duration.toFixed(2)}s`, 'success');
+                
+                // 播放音频
+                currentSource = audioContext.createBufferSource();
+                currentSource.buffer = audioBuffer;
+                currentSource.connect(audioContext.destination);
+                currentSource.start();
+                
+                log('🎶 开始播放采样', 'success');
+                
+            } catch (error) {
+                log(`❌ 测试失败: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        function stopSound() {
+            if (currentSource) {
+                currentSource.stop();
+                currentSource = null;
+                log('🛑 停止播放');
+            }
+        }
+
+        document.getElementById('testBtn').addEventListener('click', testSample);
+        document.getElementById('stopBtn').addEventListener('click', stopSound);
+
+        log('🎵 简单采样测试页面加载完成');
+        log('🎯 点击"播放 Cello C4"测试采样文件');
+    </script>
+</body>
+</html>

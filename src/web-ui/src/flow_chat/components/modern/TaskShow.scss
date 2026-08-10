@@ -1,0 +1,130 @@
+.task-show {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  border-radius: 8px;
+  border: 1px solid var(--border-base);
+  background: var(--color-bg-flowchat);
+  backdrop-filter: blur(10px);
+  padding: 0 12px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  transition: background 0.2s ease;
+
+  &--clickable {
+    cursor: pointer;
+
+    &:hover {
+      background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+    }
+  }
+
+  &--blue {
+    .task-show__icon,
+    .task-show__label {
+      color: #3b82f6;
+    }
+    .task-show__progress-fill {
+      background: #3b82f6;
+    }
+  }
+
+  &--purple {
+    .task-show__icon,
+    .task-show__label {
+      color: #8b5cf6;
+    }
+  }
+
+  &--yellow {
+    .task-show__icon,
+    .task-show__label {
+      color: #f59e0b;
+    }
+  }
+
+  &--green {
+    .task-show__icon,
+    .task-show__label {
+      color: #22c55e;
+    }
+  }
+
+  &__content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  &__name {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+
+  &__label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  &__count {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  &__progress-track {
+    flex: 1;
+    min-width: 40px;
+    max-width: 120px;
+    height: 3px;
+    background: var(--bg-tertiary, #313244);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  &__progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  &__action {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  &__spin {
+    animation: task-show-spin 1s linear infinite;
+  }
+}
+
+@keyframes task-show-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

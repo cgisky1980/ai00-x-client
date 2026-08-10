@@ -1,0 +1,225 @@
+name: Desktop Package
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag name to build (e.g. v0.2.0). Leave empty to build from HEAD."
+        required: false
+        type: string
+      upload_to_release:
+        description: "Upload built artifacts to the release specified by tag_name."
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-package-${{ github.event.release.tag_name || inputs.tag_name || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Resolve version info ───────────────────────────────────────────
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      upload_to_release: ${{ steps.meta.outputs.upload_to_release }}
+      checkout_ref: ${{ steps.meta.outputs.checkout_ref }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version metadata
+        id: meta
+        shell: bash
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          INPUT_TAG_NAME: ${{ inputs.tag_name }}
+          INPUT_UPLOAD_TO_RELEASE: ${{ inputs.upload_to_release }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            TAG="${RELEASE_TAG_NAME}"
+            VERSION="${TAG#v}"
+            UPLOAD="true"
+            CHECKOUT_REF="${TAG}"
+          elif [[ -n "${INPUT_TAG_NAME}" ]]; then
+            TAG="${INPUT_TAG_NAME}"
+            VERSION="${TAG#v}"
+            CHECKOUT_REF="${TAG}"
+            if [[ "${INPUT_UPLOAD_TO_RELEASE}" == "true" ]]; then
+              UPLOAD="true"
+            else
+              UPLOAD="false"
+            fi
+          else
+            VERSION="$(jq -r '.version' package.json)"
+            TAG="v${VERSION}"
+            UPLOAD="false"
+            CHECKOUT_REF="${GITHUB_SHA}"
+          fi
+
+          echo "version=$VERSION"          >> "$GITHUB_OUTPUT"
+          echo "release_tag=$TAG"          >> "$GITHUB_OUTPUT"
+          echo "upload_to_release=$UPLOAD" >> "$GITHUB_OUTPUT"
+          echo "checkout_ref=$CHECKOUT_REF" >> "$GITHUB_OUTPUT"
+
+  # ── Build per platform ─────────────────────────────────────────────
+  package:
+    name: Package (${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.os }}
+    needs: prepare
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os: ubuntu-latest
+            name: linux-x64
+            target: x86_64-unknown-linux-gnu
+            build_command: pnpm run desktop:build:linux -- --target x86_64-unknown-linux-gnu --bundles deb,rpm,appimage
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+            target: aarch64-unknown-linux-gnu
+            build_command: pnpm run desktop:build:linux -- --target aarch64-unknown-linux-gnu --bundles deb,rpm,appimage
+          - os: macos-15
+            name: macos-arm64
+            target: aarch64-apple-darwin
+            build_command: pnpm run desktop:build:arm64
+          - os: macos-15-intel
+            name: macos-x64
+            target: x86_64-apple-darwin
+            build_command: pnpm run desktop:build:x86_64
+          - os: windows-latest
+            name: windows-x64
+            target: x86_64-pc-windows-msvc
+            build_command: pnpm run desktop:build:nsis
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.checkout_ref }}
+          submodules: true
+
+      - name: Setup OpenSSL (Windows, prebuilt)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/ci/setup-openssl-windows.ps1
+
+      - name: Install Linux system dependencies (Tauri bundler)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+
+          if apt-cache show libwebkit2gtk-4.1-dev >/dev/null 2>&1; then
+            WEBKIT_PKG=libwebkit2gtk-4.1-dev
+          else
+            WEBKIT_PKG=libwebkit2gtk-4.0-dev
+          fi
+
+          if apt-cache show libappindicator3-dev >/dev/null 2>&1; then
+            APPINDICATOR_PKG=libappindicator3-dev
+          else
+            APPINDICATOR_PKG=libayatana-appindicator3-dev
+          fi
+
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            xdg-utils \
+            libglib2.0-dev \
+            libgtk-3-dev \
+            libxdo-dev \
+            "$WEBKIT_PKG" \
+            "$APPINDICATOR_PKG" \
+            librsvg2-dev \
+            patchelf \
+            fakeroot \
+            rpm \
+            libleptonica-dev \
+            libtesseract-dev \
+            tesseract-ocr \
+            tesseract-ocr-eng
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: "package-${{ matrix.platform.name }}"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check web UI
+        run: pnpm run type-check:web
+
+      - name: Build desktop app
+        run: ${{ matrix.platform.build_command }}
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai00-x-${{ needs.prepare.outputs.release_tag }}-${{ matrix.platform.name }}-bundle
+          if-no-files-found: error
+          path: |
+            target/*/release/bundle
+            target/release/bundle
+            src/apps/desktop/target/release/bundle
+
+  # ── Upload assets to GitHub Release ────────────────────────────────
+  upload-release-assets:
+    name: Upload Release Assets
+    needs: [prepare, package]
+    if: needs.prepare.outputs.upload_to_release == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download bundled artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ai00-x-${{ needs.prepare.outputs.release_tag }}-*-bundle
+          path: release-assets
+          merge-multiple: true
+
+      - name: List release assets
+        run: |
+          echo "Release assets:"
+          find release-assets -type f | sort
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.release_tag }}
+          files: |
+            release-assets/**/*.AppImage
+            release-assets/**/*.deb
+            release-assets/**/*.dmg
+            release-assets/**/*.rpm
+            release-assets/**/*.exe
+          fail_on_unmatched_files: true

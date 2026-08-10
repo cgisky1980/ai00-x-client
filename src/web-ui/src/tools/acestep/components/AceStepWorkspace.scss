@@ -1,0 +1,89 @@
+.ai00-x-acestep-workspace {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+
+  &__nav {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 0;
+    width: 60px;
+    flex-shrink: 0;
+    background: var(--element-bg-soft);
+    border-right: 1px solid var(--border-subtle);
+  }
+
+  &__nav-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 48px;
+    height: 48px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+
+    svg {
+      flex-shrink: 0;
+    }
+
+    &__label {
+      font-size: 9px;
+      font-weight: 500;
+      line-height: 1;
+      opacity: 0.8;
+    }
+
+    &:hover {
+      background: var(--element-bg-base);
+      color: var(--color-text-primary);
+    }
+
+    &.is-active {
+      background: var(--card-bg-accent);
+      color: var(--color-accent-500);
+
+      // Left accent bar
+      &::before {
+        content: '';
+        position: absolute;
+        left: -10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 24px;
+        border-radius: 0 2px 2px 0;
+        background: var(--color-accent-500);
+        box-shadow: 0 0 8px var(--color-accent-500);
+      }
+    }
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+  }
+}

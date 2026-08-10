@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sample System Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .section {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .sample-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .sample-btn {
+            padding: 8px;
+            font-size: 12px;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 Sample System Test</h1>
+    
+    <div class="status" id="status">
+        <div>Status: <span id="statusText">Not initialized</span></div>
+        <div>Cache Size: <span id="cacheSize">0 KB</span></div>
+    </div>
+
+    <div class="section">
+        <h2>🎶 System Control</h2>
+        <button id="initBtn">Initialize System</button>
+        <button id="downloadBtn" disabled>Download Samples</button>
+        <button id="clearCacheBtn" disabled>Clear Cache</button>
+        
+        <div class="progress" id="progressContainer" style="display: none;">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div id="progressText"></div>
+    </div>
+
+    <div class="section">
+        <h2>🎻 Cello Samples (Real Iowa University)</h2>
+        <p>Test real cello pizzicato notes:</p>
+        <div class="sample-grid">
+            <button class="sample-btn" data-instrument="cello" data-note="D3" disabled>D3</button>
+            <button class="sample-btn" data-instrument="cello" data-note="G3" disabled>G3</button>
+            <button class="sample-btn" data-instrument="cello" data-note="A3" disabled>A3</button>
+            <button class="sample-btn" data-instrument="cello" data-note="B3" disabled>B3</button>
+            <button class="sample-btn" data-instrument="cello" data-note="C4" disabled>C4</button>
+            <button class="sample-btn" data-instrument="cello" data-note="G4" disabled>G4</button>
+            <button class="sample-btn" data-instrument="cello" data-note="A4" disabled>A4</button>
+            <button class="sample-btn" data-instrument="cello" data-note="B4" disabled>B4</button>
+            <button class="sample-btn" data-instrument="cello" data-note="C5" disabled>C5</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🎺 Soprano Saxophone Samples (Real Iowa University)</h2>
+        <p>Test real soprano saxophone notes:</p>
+        <div class="sample-grid">
+            <button class="sample-btn" data-instrument="saxophone" data-note="B3" disabled>B3</button>
+            <button class="sample-btn" data-instrument="saxophone" data-note="C4" disabled>C4</button>
+            <button class="sample-btn" data-instrument="saxophone" data-note="C5" disabled>C5</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🎵 Flute Samples (Real Iowa University)</h2>
+        <p>Test real flute notes:</p>
+        <div class="sample-grid">
+            <button class="sample-btn" data-instrument="flute" data-note="B4" disabled>B4</button>
+            <button class="sample-btn" data-instrument="flute" data-note="C5" disabled>C5</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🥁 Percussion Samples (Real Iowa University)</h2>
+        <p>Test real percussion instruments:</p>
+        <div class="sample-grid">
+            <button class="sample-btn" data-instrument="percussion" data-note="triangle" disabled>Triangle</button>
+            <button class="sample-btn" data-instrument="percussion" data-note="castanet" disabled>Castanet</button>
+            <button class="sample-btn" data-instrument="percussion" data-note="clave" disabled>Clave</button>
+            <button class="sample-btn" data-instrument="percussion" data-note="guiro" disabled>Guiro</button>
+        </div>
+    </div>
+
+    <div id="logs" class="logs"></div>
+
+    <script type="module">
+        // Import the lofi music system and sample manager
+        import { LofiMusicSystem } from './src/lib/lofi/lofi-music-system.js';
+        import { sampleManager, SAMPLE_SOURCES } from './src/lib/lofi/sample-manager.js';
+
+        let lofiSystem = null;
+
+        // DOM elements
+        const statusText = document.getElementById('statusText');
+        const cacheSize = document.getElementById('cacheSize');
+        const initBtn = document.getElementById('initBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const clearCacheBtn = document.getElementById('clearCacheBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const sampleButtons = document.querySelectorAll('.sample-btn');
+        const logsDiv = document.getElementById('logs');
+
+        // Logging function
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? '#FF6B6B' : type === 'success' ? '#4CAF50' : '#fff';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[SampleTest] ${message}`);
+        }
+
+        // Update UI state
+        function updateUI() {
+            const size = sampleManager.getCacheSize();
+            cacheSize.textContent = `${(size / 1024).toFixed(1)} KB`;
+            
+            if (lofiSystem) {
+                const state = lofiSystem.getState();
+                statusText.textContent = state.isReady ? 'Ready' : state.isLoading ? 'Loading...' : 'Not Ready';
+                
+                initBtn.disabled = state.isReady || state.isLoading;
+                downloadBtn.disabled = !state.isReady;
+                clearCacheBtn.disabled = size === 0;
+            }
+        }
+
+        // Update progress
+        function updateProgress(current, total, text) {
+            const percentage = (current / total) * 100;
+            progressBar.style.width = `${percentage}%`;
+            progressText.textContent = text || `${current}/${total}`;
+        }
+
+        // Test sample playback
+        function testSample(instrument, note) {
+            if (!lofiSystem || !lofiSystem.getState().isReady) {
+                log('System not ready', 'error');
+                return;
+            }
+
+            try {
+                log(`🎵 Testing ${instrument} ${note}...`);
+                
+                // Switch to the instrument and test
+                lofiSystem.switchInstrument(instrument);
+                lofiSystem.testInstrument(note);
+                
+                log(`✅ ${instrument} ${note} played`, 'success');
+                
+            } catch (error) {
+                log(`❌ Failed to test ${instrument} ${note}: ${error.message}`, 'error');
+            }
+        }
+
+        // Download samples
+        async function downloadSamples() {
+            try {
+                log('📥 Starting sample download...');
+                progressContainer.style.display = 'block';
+                
+                const instruments = ['whistle', 'harmonica'];
+                let totalSamples = 0;
+                let downloadedSamples = 0;
+                
+                // Count total samples
+                instruments.forEach(instrument => {
+                    totalSamples += Object.keys(SAMPLE_SOURCES[instrument].samples).length;
+                });
+                
+                updateProgress(0, totalSamples, 'Preparing...');
+                
+                for (const instrument of instruments) {
+                    log(`📥 Downloading ${instrument} samples...`);
+                    
+                    try {
+                        const samples = await sampleManager.downloadInstrumentSamples(instrument);
+                        const sampleCount = Object.keys(samples).length;
+                        downloadedSamples += sampleCount;
+                        
+                        updateProgress(downloadedSamples, totalSamples, `Downloaded ${instrument}`);
+                        log(`✅ Downloaded ${sampleCount} ${instrument} samples`, 'success');
+                        
+                        // Enable sample buttons for this instrument
+                        sampleButtons.forEach(btn => {
+                            if (btn.dataset.instrument === instrument) {
+                                btn.disabled = false;
+                            }
+                        });
+                        
+                    } catch (error) {
+                        log(`❌ Failed to download ${instrument} samples: ${error.message}`, 'error');
+                    }
+                }
+                
+                updateProgress(totalSamples, totalSamples, 'Complete!');
+                log(`🎉 Sample download complete! Downloaded ${downloadedSamples}/${totalSamples} samples`, 'success');
+                
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                }, 2000);
+                
+            } catch (error) {
+                log(`❌ Sample download failed: ${error.message}`, 'error');
+                progressContainer.style.display = 'none';
+            }
+            
+            updateUI();
+        }
+
+        // Event listeners
+        initBtn.addEventListener('click', async () => {
+            try {
+                log('🚀 Initializing lofi music system...');
+                lofiSystem = new LofiMusicSystem();
+                
+                lofiSystem.on('ready', () => {
+                    log('✅ System ready!', 'success');
+                    updateUI();
+                });
+                
+                lofiSystem.on('loading', () => {
+                    log('⏳ Loading AI models...');
+                    updateUI();
+                });
+                
+                lofiSystem.on('error', (data) => {
+                    log(`❌ System error: ${data.error}`, 'error');
+                    updateUI();
+                });
+                
+                await lofiSystem.initialize();
+                updateUI();
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+                updateUI();
+            }
+        });
+
+        downloadBtn.addEventListener('click', downloadSamples);
+
+        clearCacheBtn.addEventListener('click', () => {
+            sampleManager.clearCache();
+            log('🗑️ Cache cleared');
+            
+            // Disable all sample buttons
+            sampleButtons.forEach(btn => {
+                btn.disabled = true;
+            });
+            
+            updateUI();
+        });
+
+        // Sample button listeners
+        sampleButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const instrument = btn.dataset.instrument;
+                const note = btn.dataset.note;
+                testSample(instrument, note);
+            });
+        });
+
+        // Initialize UI
+        updateUI();
+        log('🎵 Sample system test loaded');
+        log('📝 Note: This uses placeholder URLs for demonstration');
+        log('🔗 In production, replace with actual sample URLs from:');
+        log('   • Freesound.org (CC0 licensed)');
+        log('   • Philharmonia Orchestra samples');
+        log('   • University of Iowa Electronic Music Studios');
+    </script>
+</body>
+</html>

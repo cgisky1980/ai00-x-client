@@ -1,0 +1,51 @@
+/**
+ * Subagent items styles.
+ * When expanded, the subagent container merges with the task tool card header
+ * to form a single unified card with squared top corners.
+ */
+
+.subagent-items-wrapper {
+  position: relative;
+}
+
+.subagent-items-wrapper--collapsed {
+  display: none;
+}
+
+.subagent-items-wrapper--expanded {
+  display: block;
+}
+
+// Subagent container for items under the same parent task.
+.subagent-items-container {
+  padding: 12px 14px;
+
+  // Continue the task card border on left/right/bottom; top border is hidden.
+  background: var(--color-bg-flowchat);
+  border: 1px solid var(--border-base);
+  border-top: none;
+  // Top corners are square to merge with the header card above.
+  border-radius: 0 0 8px 8px;
+  backdrop-filter: blur(8px);
+
+  // Fixed height; overflow scrolls.
+  height: 400px;
+  overflow-y: auto;
+}
+
+.subagent-items-container--collapsed {
+  overflow: hidden;
+}
+
+// Keep the legacy subagent-item class for compatibility.
+.subagent-item {
+  display: block;
+
+  &.subagent-item--collapsed {
+    display: none;
+  }
+
+  &.subagent-item--expanded {
+    display: block;
+  }
+}

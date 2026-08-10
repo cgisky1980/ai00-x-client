@@ -1,0 +1,294 @@
+@use '../../../component-library/styles/tokens.scss' as *;
+
+.ai00-x-wallpaper-nav {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0 0 8px;
+  gap: 4px;
+  background: var(--bg-panel, var(--color-bg-base));
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    margin-bottom: 4px;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  &__items {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: none;
+    border-radius: var(--size-radius-base);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: var(--element-bg-soft);
+      color: var(--color-text-primary);
+    }
+
+    &:focus-visible {
+      outline: 1px solid var(--color-accent-500);
+      outline-offset: -1px;
+    }
+
+    &.is-active {
+      background: var(--color-accent-100);
+      color: var(--color-accent-600);
+    }
+  }
+
+  // Section header for "My Projects"
+  &__section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 8px 8px 4px;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  &__section-header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__section-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--element-bg-soft);
+    }
+
+    &:focus-visible {
+      outline: 1px solid var(--color-accent-500);
+      outline-offset: -1px;
+    }
+  }
+
+  // Project list
+  &__projects {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding: 0 $size-gap-2;
+  }
+
+  &__projects-empty {
+    padding: 8px 4px;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-style: italic;
+  }
+
+  // ── Project card ──
+  &__project {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--size-radius-base);
+  }
+
+  &__project-card {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 4px;
+    border-radius: var(--size-radius-base);
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: var(--element-bg-soft);
+    }
+  }
+
+  &__project-name-btn {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+
+    &:hover {
+      background: var(--element-bg-hover);
+    }
+
+    &.is-active {
+      background: var(--element-bg-soft);
+    }
+  }
+
+  &__project-icon {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+
+  &__project-name {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+  }
+
+  &__project-menu {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  &__project-menu-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+
+    &:hover {
+      background: var(--element-bg-hover);
+      color: var(--color-text-primary);
+    }
+
+    &.is-open {
+      opacity: 1;
+    }
+
+    .ai00-x-wallpaper-nav__project-card:hover & {
+      opacity: 1;
+    }
+  }
+
+  // ── Project action menu popover ──
+  &__project-menu-popover {
+    position: fixed;
+    z-index: 10000;
+    min-width: 180px;
+    padding: 4px;
+    border-radius: var(--size-radius-base);
+    background: var(--color-bg-elevated, var(--color-bg-base));
+    border: 1px solid var(--color-border-default, rgba(255, 255, 255, 0.1));
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  &__project-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    transition: color 0.15s, background 0.15s;
+
+    svg {
+      flex-shrink: 0;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+
+    &:hover:not(:disabled) {
+      color: var(--color-text-primary);
+      background: var(--element-bg-soft);
+
+      svg { opacity: 1; }
+    }
+
+    &.is-danger {
+      color: var(--color-error, #e74c3c);
+
+      &:hover {
+        background: rgba(239, 68, 68, 0.1);
+      }
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  &__project-menu-divider {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--color-border-default, rgba(255, 255, 255, 0.1));
+  }
+
+  // Mini spinner for publishing state
+  &__spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--color-text-muted);
+    border-top-color: var(--color-accent-500);
+    border-radius: 50%;
+    animation: wp-nav-spin 0.6s linear infinite;
+  }
+}
+
+@keyframes wp-nav-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -1,0 +1,92 @@
+// mirrors AceRequest from request.h
+// all fields optional except caption: empty/unset = server applies default
+export interface AceRequest {
+	caption: string;
+	lyrics?: string;
+	audio_codes?: string;
+	bpm?: number;
+	duration?: number;
+	keyscale?: string;
+	timesignature?: string;
+	vocal_language?: string;
+	seed?: number;
+	lm_batch_size?: number;
+	synth_batch_size?: number;
+	lm_temperature?: number;
+	lm_cfg_scale?: number;
+	lm_top_p?: number;
+	lm_top_k?: number;
+	lm_negative_prompt?: string;
+	lm_seed?: number;
+	use_cot_caption?: boolean;
+	inference_steps?: number;
+	guidance_scale?: number;
+	shift?: number;
+	dcw_scaler?: number;
+	dcw_high_scaler?: number;
+	dcw_mode?: string;
+	audio_cover_strength?: number;
+	cover_noise_strength?: number;
+	repainting_start?: number;
+	repainting_end?: number;
+	latent_shift?: number;
+	latent_rescale?: number;
+	custom_timesteps?: string;
+	task_type?: string;
+	track?: string;
+	solver?: string;
+	stork_substeps?: number;
+	peak_clip?: number;
+	mp3_bitrate?: number;
+	// server routing (not part of C++ AceRequest, parsed separately)
+	synth_model?: string;
+	lm_model?: string;
+	adapter?: string;
+	adapter_scale?: number;
+	vae?: string;
+}
+
+// GET /props response
+export interface AceProps {
+	version: string;
+	models: {
+		lm: string[];
+		embedding: string[];
+		dit: string[];
+		vae: string[];
+	};
+	adapters: string[];
+	cli: Record<string, string | number>;
+	default: AceRequest;
+	presets: {
+		turbo: { inference_steps: number; guidance_scale: number; shift: number };
+		sft: { inference_steps: number; guidance_scale: number; shift: number };
+	};
+}
+
+// what we store in IndexedDB per song
+export interface Song {
+	id?: number;
+	name: string;
+	format: string;
+	created: number;
+	caption: string;
+	seed: number;
+	duration: number;
+	request: AceRequest;
+	audio: Blob;
+	// user-marked favorite, persisted across reloads. Acts as a sticky
+	// flag for the bulk "Delete non-favorites" action.
+	favorite?: boolean;
+	// raw f32 [T*64] post-DiT latents that the VAE decoder produces this
+	// audio from. Always present for songs from /synth or /vae decode (the
+	// server emits them unconditionally). Absent only for songs imported
+	// from a raw audio file before Compute VAE latents has been run. When
+	// present, the client uploads them instead of audio on subsequent jobs
+	// that reuse this song as src or ref, skipping a VAE encode each time.
+	latents?: Blob;
+	// 4096 normalized peaks [0..1] cached after the first decode, so F5
+	// and re-mounts skip decodeAudioData entirely. Downsampled at draw
+	// time to whatever canvas width is on screen.
+	peaks?: Float32Array;
+}

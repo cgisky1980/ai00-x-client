@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 Lofi 音乐系统 - 测试中心</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #fff;
+            line-height: 1.6;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin: 0;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .category {
+            margin: 30px 0;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border-left: 4px solid #4ecdc4;
+        }
+        .category h2 {
+            color: #4ecdc4;
+            margin-top: 0;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .test-card {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        .test-card:hover {
+            background: rgba(255, 255, 255, 0.12);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+        .test-card h3 {
+            margin: 0 0 10px 0;
+            color: #fff;
+            font-size: 1.1em;
+        }
+        .test-card p {
+            margin: 0 0 15px 0;
+            color: #ccc;
+            font-size: 0.9em;
+        }
+        .test-link {
+            display: inline-block;
+            padding: 8px 16px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .test-link:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.4);
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.working { background: #4CAF50; }
+        .status.broken { background: #f44336; }
+        .status.testing { background: #ff9800; }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #888;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎵 Lofi 音乐系统测试中心</h1>
+        <p>专业级音乐生成与采样系统 - 统一测试平台</p>
+    </div>
+
+    <div class="category">
+        <h2>🎼 Philharmonia Orchestra 采样</h2>
+        <div class="test-grid">
+            <div class="test-card">
+                <h3>管弦乐器采样测试 <span class="status working">✅ 工作中</span></h3>
+                <p>测试 706 个标准化专业级乐器采样，包含吉他、长笛、萨克斯、小提琴、小号等</p>
+                <a href="philharmonia/test-philharmonia-samples.html" class="test-link">开始测试</a>
+            </div>
+            <div class="test-card">
+                <h3>打击乐器采样测试 <span class="status working">✅ 工作中</span></h3>
+                <p>测试 66 个标准化打击乐器采样，包含低音鼓、镲片、锣、铃鼓、三角铁、木鱼</p>
+                <a href="philharmonia/test-percussion.html" class="test-link">开始测试</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="category">
+        <h2>🎹 Lofi 音乐生成</h2>
+        <div class="test-grid">
+            <div class="test-card">
+                <h3>Lofi 主测试页面 <span class="status working">✅ 工作中</span></h3>
+                <p>AI 驱动的 Lofi 音乐生成系统，支持多种乐器组合</p>
+                <a href="lofi/test-lofi.html" class="test-link">开始测试</a>
+            </div>
+            <div class="test-card">
+                <h3>多乐器测试 <span class="status working">✅ 工作中</span></h3>
+                <p>测试 12 种乐器的多重组合和编排</p>
+                <a href="../test-multi-instruments.html" class="test-link">开始测试</a>
+            </div>
+            <div class="test-card">
+                <h3>新乐器测试 <span class="status working">✅ 工作中</span></h3>
+                <p>测试新增的乐器：口哨、口琴、萨克斯、弦乐、鼓组</p>
+                <a href="../test-new-instruments.html" class="test-link">开始测试</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="category">
+        <h2>🎵 采样系统</h2>
+        <div class="test-grid">
+            <div class="test-card">
+                <h3>所有分割采样 <span class="status testing">🧪 测试中</span></h3>
+                <p>测试 VAD 分割后的乐器采样文件</p>
+                <a href="test-all-split-samples.html" class="test-link">开始测试</a>
+            </div>
+            <div class="test-card">
+                <h3>基础分割采样 <span class="status working">✅ 工作中</span></h3>
+                <p>测试基础的采样分割功能</p>
+                <a href="test-basic-split-samples.html" class="test-link">开始测试</a>
+            </div>
+            <div class="test-card">
+                <h3>采样乐器测试 <span class="status working">✅ 工作中</span></h3>
+                <p>测试采样驱动的乐器播放</p>
+                <a href="test-sampled-instruments.html" class="test-link">开始测试</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="category">
+        <h2>🔊 音频系统</h2>
+        <div class="test-grid">
+            <div class="test-card">
+                <h3>基础音频测试 <span class="status working">✅ 工作中</span></h3>
+                <p>测试基础音频播放和 Web Audio API</p>
+                <a href="audio/test-audio-basic.html" class="test-link">开始测试</a>
+            </div>
+            <div class="test-card">
+                <h3>音量修复测试 <span class="status working">✅ 工作中</span></h3>
+                <p>测试音量控制和修复功能</p>
+                <a href="audio/test-volume-fix.html" class="test-link">开始测试</a>
+            </div>
+            <div class="test-card">
+                <h3>口哨音质测试 <span class="status working">✅ 工作中</span></h3>
+                <p>测试口哨乐器的音质和破音修复</p>
+                <a href="audio/test-whistle.html" class="test-link">开始测试</a>
+            </div>
+            <div class="test-card">
+                <h3>Web Worker 测试 <span class="status working">✅ 工作中</span></h3>
+                <p>测试 Magenta.js 在 Web Worker 中的运行</p>
+                <a href="audio/test-worker.html" class="test-link">开始测试</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="category">
+        <h2>🎸 乐器专项</h2>
+        <div class="test-grid">
+            <div class="test-card">
+                <h3>乐器切换测试 <span class="status working">✅ 工作中</span></h3>
+                <p>测试不同乐器之间的切换功能</p>
+                <a href="instruments/test-instrument-switching.html" class="test-link">开始测试</a>
+            </div>
+            <div class="test-card">
+                <h3>打击乐采样 <span class="status working">✅ 工作中</span></h3>
+                <p>测试鼓组和打击乐器采样</p>
+                <a href="test-percussion-samples.html" class="test-link">开始测试</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>🎼 Lofi 音乐系统 v2.0 | 基于 Magenta.js + Philharmonia Orchestra</p>
+        <p>包含 5946 个专业采样 + AI 音乐生成 + 12 种乐器支持</p>
+    </div>
+</body>
+</html>

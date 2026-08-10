@@ -1,0 +1,21 @@
+[package]
+name = "ai00-x-api-layer"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Ai00-X API Layer - Platform-agnostic business handlers"
+
+[lib]
+name = "ai00_x_api_layer"
+
+[dependencies]
+# Internal crates
+ai00-x-transport = { path = "../transport" }
+
+# Inherited from workspace
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+uuid = { workspace = true }

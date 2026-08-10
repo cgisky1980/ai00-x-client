@@ -1,0 +1,341 @@
+/**
+ * File operation tool card styles
+ * Specific styles based on BaseToolCard
+ */
+
+@use './BaseToolCard.scss';
+
+.file-operation-card {
+  cursor: pointer;
+
+  /* .status-error sets cursor:default on the card; header remains clickable (toggle error / open editor) */
+  .base-tool-card.status-error {
+    cursor: pointer;
+  }
+
+  /* Ensure header row shows hand; inner triggers (e.g. Tooltip) can otherwise show I-beam/default */
+  .base-tool-card-header {
+    cursor: pointer;
+  }
+
+  &.non-clickable {
+    cursor: default;
+    border-color: var(--border-light);
+    opacity: 0.85;
+
+    &:hover {
+      border-color: var(--border-medium);
+      opacity: 1;
+
+      .tool-identifier-icon.delete-icon {
+        opacity: 1;
+      }
+
+      .file-name--muted {
+        color: var(--color-text-primary);
+        font-weight: 500;
+      }
+
+      .delete-file-name {
+        text-decoration: line-through;
+        color: var(--color-text-muted);
+      }
+    }
+
+    .base-tool-card {
+      cursor: default;
+    }
+
+    .base-tool-card-header {
+      cursor: default;
+    }
+  }
+
+  .tool-identifier-icon {
+    &.write-icon {
+      color: var(--color-text-secondary);
+    }
+
+    &.edit-icon {
+      color: var(--color-text-secondary);
+    }
+
+    &.delete-icon {
+      color: var(--color-text-muted);
+      opacity: 0.6;
+    }
+
+    &.file-icon {
+      color: var(--color-text-secondary);
+    }
+  }
+
+  /*
+   * Git 轨道在 ToolCardHeader 里位于 .tool-card-extra 内；默认 extra 高度跟子项走，轨道只有图标高，
+   * 竖线与悬停底无法贴齐头部上下内边距、也无法铺到右侧 padding。与头部行同高后再用负 inset 顶满。
+   */
+  .base-tool-card-header .tool-card-extra:has(.file-op-git-rail) {
+    align-self: stretch;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+    min-height: 0;
+  }
+}
+
+.file-name {
+  font-weight: 500;
+  color: var(--color-text-primary);
+
+  &--muted {
+    color: var(--color-text-muted);
+    font-weight: 400;
+  }
+}
+
+.params-streaming-indicator {
+  font-size: 10px;
+  color: rgba(139, 92, 246, 0.75);
+  background: rgba(139, 92, 246, 0.08);
+  padding: 2px 6px;
+  border-radius: 3px;
+  animation: pulse-subtle 2s ease-in-out infinite;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+@keyframes pulse-subtle {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.delete-file-name {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.diff-preview-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  font-family: var(--tool-card-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  line-height: 1;
+
+  .additions {
+    color: var(--color-success);
+  }
+
+  .deletions {
+    color: var(--color-error);
+  }
+}
+
+/* Right rail for “查看 Git diff” — aligned with Task tool header rail (TaskToolDisplay). */
+.file-op-git-rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  flex-shrink: 0;
+  min-width: 32px;
+  padding: 0 0 0 8px;
+  margin-left: 4px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: calc(-1 * var(--tool-card-header-pad-x, 10px));
+    top: calc(-1 * var(--tool-card-header-pad-y, 10px));
+    bottom: calc(-1 * var(--tool-card-header-pad-y, 10px));
+    background-color: transparent;
+    border-radius: 0;
+    transition: background-color 0.15s ease;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  &:hover:not(.file-op-git-rail--disabled)::before {
+    background-color: var(--tool-card-bg-hover, var(--color-bg-hover));
+  }
+
+  &:hover:not(.file-op-git-rail--disabled) .file-op-git-rail__visual {
+    color: var(--color-text-primary);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: calc(-1 * var(--tool-card-header-pad-y, 10px));
+    bottom: calc(-1 * var(--tool-card-header-pad-y, 10px));
+    width: 0;
+    border-left: 1px solid var(--border-base);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  &--disabled {
+    opacity: 0.45;
+
+    .file-op-git-rail__visual {
+      color: var(--color-text-muted);
+    }
+  }
+}
+
+.file-op-git-rail__hit {
+  position: absolute;
+  left: 0;
+  top: calc(-1 * var(--tool-card-header-pad-y, 10px));
+  right: calc(-1 * var(--tool-card-header-pad-x, 10px));
+  bottom: calc(-1 * var(--tool-card-header-pad-y, 10px));
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  font: inherit;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-500);
+    outline-offset: -2px;
+  }
+}
+
+.file-op-git-rail__visual {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  pointer-events: none;
+
+  svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    stroke: currentColor;
+  }
+}
+
+.baseline-diff-btn {
+  svg {
+    stroke: currentColor;
+  }
+}
+
+.error-expand-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-muted);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-accent-500);
+  }
+}
+
+.streaming-content-preview {
+  width: 100%;
+  margin-top: 0;
+
+  .preview-text {
+    position: relative;
+    width: 100%;
+    background: none !important;
+    border-radius: 0;
+    padding: 0;
+    border: none !important;
+
+    .code-preview {
+      overflow: hidden;
+
+      pre {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+      }
+    }
+
+    .inline-diff-preview {
+      .diff-line__content {
+
+        pre,
+        code,
+        span {
+          border: none !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          background: transparent !important;
+        }
+      }
+    }
+
+    &.diff-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px;
+      color: var(--color-text-muted);
+      font-size: 12px;
+    }
+
+    >pre {
+      margin: 0;
+      padding: 0;
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--color-text-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+  }
+}
+
+.error-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-error);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+
+  svg {
+    flex-shrink: 0;
+  }
+}
+
+.error-message {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

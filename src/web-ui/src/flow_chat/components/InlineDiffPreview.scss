@@ -1,0 +1,263 @@
+/**
+ * InlineDiffPreview styles.
+ * Lightweight inline diff preview, similar to GitHub unified diff.
+ */
+
+.inline-diff-preview {
+  --markdown-font-mono: "Fira Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+
+  position: relative;
+  width: 100%;
+  background: transparent;
+  font-family: var(--markdown-font-mono, "Fira Code", "JetBrains Mono", Consolas, "Courier New", monospace);
+  font-size: 12px;
+  font-weight: 400;
+  
+  &__content {
+    overflow-y: auto;
+    overflow-x: hidden;
+    
+    // Custom scrollbar
+    &::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background: var(--color-scrollbar-thumb);
+      border-radius: 3px;
+      
+      &:hover {
+        background: var(--color-scrollbar-thumb-hover);
+      }
+    }
+  }
+  
+  &--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    font-style: italic;
+  }
+  
+  &__placeholder {
+    color: var(--color-text-muted);
+    font-style: italic;
+  }
+}
+
+.diff-line {
+  display: flex;
+  align-items: stretch;
+  min-height: 22px;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  
+  &:hover {
+    filter: brightness(1.05);
+  }
+  
+  &--unchanged {
+    background: transparent;
+    
+    .diff-line__prefix {
+      color: var(--color-text-muted);
+    }
+  }
+  
+  &--added {
+    background: rgba(63, 185, 80, 0.12);
+    
+    .diff-line__gutter {
+      background: rgba(63, 185, 80, 0.18);
+    }
+    
+    .diff-line__prefix {
+      color: #3fb950;
+      font-weight: 500;
+    }
+  }
+  
+  &--removed {
+    background: rgba(248, 81, 73, 0.12);
+    
+    .diff-line__gutter {
+      background: rgba(248, 81, 73, 0.18);
+    }
+    
+    .diff-line__prefix {
+      color: #f85149;
+      font-weight: 500;
+    }
+    
+    .diff-line__content {
+      opacity: 0.85;
+    }
+  }
+  
+  // Highlighted row (selected).
+  &--highlighted {
+    background: rgba(136, 182, 255, 0.15) !important;
+    
+    .diff-line__gutter {
+      background: rgba(136, 182, 255, 0.22) !important;
+    }
+  }
+  
+  &--separator {
+    background: var(--color-bg-tertiary);
+    justify-content: center;
+    padding: 4px 0;
+    cursor: default;
+    
+    &:hover {
+      filter: none;
+    }
+    
+    .diff-line__gutter--separator {
+      display: none;
+    }
+    
+    .diff-line__content--separator {
+      color: var(--color-text-muted);
+      font-size: 11px;
+      font-style: italic;
+      text-align: center;
+    }
+  }
+  
+  &__gutter {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 0 8px;
+    gap: 2px;
+    background: var(--color-bg-secondary);
+    user-select: none;
+    border-right: 1px solid var(--color-border-subtle);
+
+    &--single {
+      padding: 0 4px;
+      gap: 0;
+
+      .diff-line__num {
+        min-width: 24px;
+        padding: 0 4px;
+      }
+    }
+  }
+
+  &__num {
+    min-width: 32px;
+    padding: 0 6px;
+    text-align: right;
+    color: var(--color-text-muted);
+    opacity: 0.6;
+    font-size: 11px;
+
+    &--original {
+      border-right: 1px solid var(--color-border-subtle);
+      padding-right: 8px;
+    }
+
+    &--modified {
+      padding-left: 8px;
+    }
+  }
+
+  &__prefix {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    flex-shrink: 0;
+    font-weight: 500;
+    user-select: none;
+  }
+  
+  &__content {
+    flex: 1;
+    padding: 0 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: hidden;
+    
+    // Strip global and SyntaxHighlighter borders/backgrounds.
+    pre, code, span {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: none !important;
+      background-color: transparent !important;
+      border: none !important;
+      border-width: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      display: inline !important;
+      font-size: inherit !important;
+    }
+
+    code span[style] {
+      font-weight: 400 !important;
+    }
+  }
+}
+
+// Light theme: softer, lower-saturation palette.
+:root[data-theme="light"] .inline-diff-preview,
+:root[data-theme-type="light"] .inline-diff-preview,
+.light .inline-diff-preview {
+  .diff-line {
+    &--added {
+      background: rgba(91, 154, 111, 0.12);
+      
+      .diff-line__gutter {
+        background: rgba(91, 154, 111, 0.18);
+      }
+      
+      .diff-line__prefix {
+        color: #4a8560;
+      }
+    }
+    
+    &--removed {
+      background: rgba(194, 101, 101, 0.12);
+      
+      .diff-line__gutter {
+        background: rgba(194, 101, 101, 0.18);
+      }
+      
+      .diff-line__prefix {
+        color: #a85454;
+      }
+    }
+    
+    &--highlighted {
+      background: rgba(90, 123, 178, 0.10) !important;
+      
+      .diff-line__gutter {
+        background: rgba(90, 123, 178, 0.15) !important;
+      }
+    }
+  }
+  
+  .diff-line__gutter {
+    background: rgba(0, 0, 0, 0.03);
+    border-right-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .diff-line__num {
+    color: #6e7781;
+
+    &--original {
+      border-right-color: rgba(0, 0, 0, 0.1);
+    }
+  }
+}

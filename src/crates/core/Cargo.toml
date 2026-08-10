@@ -1,0 +1,156 @@
+[package]
+name = "ai00-x-core"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Ai00-X Core Library - Platform-agnostic business logic"
+
+[lib]
+name = "ai00_x_core"
+crate-type = ["rlib"]
+
+[dependencies]
+# Inherit shared dependencies from workspace
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+log = { workspace = true }
+
+uuid = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+cron = { workspace = true }
+regex = { workspace = true }
+base64 = { workspace = true }
+image = { workspace = true }
+md5 = { workspace = true }
+aes = "0.8"
+hex = "0.4"
+dashmap = { workspace = true }
+indexmap = { workspace = true }
+
+reqwest = { workspace = true }
+
+# Debug Log HTTP Server
+axum = { workspace = true }
+tower-http = { workspace = true }
+
+glob = { workspace = true }
+ignore = { workspace = true }
+notify = { workspace = true }
+dirs = { workspace = true }
+dunce = { workspace = true }
+filetime = { workspace = true }
+zip = { workspace = true }
+flate2 = { workspace = true }
+include_dir = { workspace = true }
+
+ai00-x-git = { path = "../git" }
+
+# Command detection (cross-platform)
+which = { workspace = true }
+similar = { workspace = true }
+urlencoding = { workspace = true }
+
+grep-searcher = { workspace = true }
+grep-regex = { workspace = true }
+globset = { workspace = true }
+
+eventsource-stream = { workspace = true }
+
+# MCP Streamable HTTP client (official rust-sdk used by Codex)
+rmcp = { version = "0.12.0", default-features = false, features = [
+    "auth",
+    "base64",
+    "client",
+    "macros",
+    "schemars",
+    "server",
+    "transport-streamable-http-client-reqwest",
+] }
+sse-stream = "0.2.1"
+
+# Shared AI protocol adapters
+ai00-x-ai-adapters = { path = "../ai-adapters" }
+
+# Tool framework (Tool trait + types)
+ai00-x-tool-framework = { path = "../tool-framework" }
+
+# Tool runtime
+tool-runtime = { path = "src/agent/tools/implementations/tool-runtime" }
+
+# terminal
+terminal-core = { path = "src/service/terminal" }
+
+# I18n internationalization (optional)
+fluent-bundle = { workspace = true, optional = true }
+unic-langid = { workspace = true, optional = true }
+
+# Encryption (Remote Connect E2E)
+x25519-dalek = { workspace = true, optional = true }
+aes-gcm = { workspace = true }
+sha2 = { workspace = true }
+rand = { workspace = true }
+
+# Device/Network info (Remote Connect)
+mac_address = { workspace = true, optional = true }
+local-ip-address = { workspace = true, optional = true }
+hostname = { workspace = true, optional = true }
+
+# QR code generation
+qrcode = { workspace = true, optional = true }
+
+# WebSocket client
+tokio-tungstenite = { workspace = true }
+
+# Browser automation (WebFetch)
+headless_chrome = { workspace = true, optional = true }
+
+# HTML to Markdown (WebFetch)
+htmd = { workspace = true, optional = true }
+
+# Text splitting (WebFetch content chunking)
+text-splitter = { version = "0.30.1", optional = true }
+
+# SSH - Remote SSH support (optional feature)
+russh = { version = "0.45", optional = true }
+russh-sftp = { version = "2.1", optional = true }
+russh-keys = { version = "0.45", optional = true }
+shellexpand = { version = "3", optional = true }
+ssh_config = { version = "0.1", optional = true }
+
+# Relay server shared library (embedded relay reuses standalone relay logic)
+ai00-x-relay = { path = "../relay" }
+
+# Event layer dependency (lowest layer)
+ai00-x-events = { path = "../events" }
+
+# Transport layer dependency
+ai00-x-transport = { path = "../transport" }
+
+# Tauri dependency (optional, enabled only when needed)
+tauri = { workspace = true, optional = true }
+
+# Non-Windows: vendored OpenSSL for libgit2 (no system install).
+# (handled internally by ai00-x-git crate)
+
+[target.'cfg(windows)'.dependencies]
+win32job = { workspace = true }
+
+[features]
+default = ["ssh-remote", "remote-connect", "web-fetch", "i18n"]
+tauri-support = ["tauri"]  # Optional tauri support
+ssh-remote = ["russh", "russh-sftp", "russh-keys", "shellexpand", "ssh_config"]  # russh-keys pure-Rust crypto backend (no openssl)
+remote-connect = ["dep:x25519-dalek", "dep:qrcode", "dep:mac_address", "dep:local-ip-address", "dep:hostname", "i18n"]
+web-fetch = ["dep:headless_chrome", "dep:htmd", "dep:text-splitter"]
+i18n = ["dep:fluent-bundle", "dep:unic-langid"]

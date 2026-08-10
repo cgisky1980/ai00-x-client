@@ -1,0 +1,215 @@
+/*
+ * WelcomePanel — mirrors WelcomeScene layout:
+ *   container centered in viewport, content block left-aligned.
+ */
+
+.welcome-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 32px 24px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: wp-fadeIn 0.35s ease-out;
+}
+
+.welcome-panel__content {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 520px;
+}
+
+/* ── Greeting ── */
+
+.welcome-panel__greeting {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.welcome-panel__greeting-inner {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.welcome-panel__greeting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* ── Panda mascot ── */
+
+.welcome-panel__panda {
+  position: relative;
+  flex-shrink: 0;
+  width: 88px;
+  user-select: none;
+  image-rendering: pixelated;
+  cursor: default;
+}
+
+.welcome-panel__panda-frame {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  transition: opacity 0.12s steps(1, end);
+}
+
+.welcome-panel__panda-frame--1 {
+  opacity: 1;
+}
+
+.welcome-panel__panda-frame--2 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+}
+
+.welcome-panel__panda:hover .welcome-panel__panda-frame--1 {
+  opacity: 0;
+}
+
+.welcome-panel__panda:hover .welcome-panel__panda-frame--2 {
+  opacity: 1;
+}
+
+.welcome-panel__heading {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.welcome-panel__tagline {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* ── Divider ── */
+
+.welcome-panel__divider {
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+/* ── Narrative ── */
+
+.welcome-panel__narrative {
+  position: relative;
+}
+
+.welcome-panel__narrative-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.welcome-panel__inline-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 5px;
+  margin: 0 1px;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  color: var(--color-text-primary);
+  font-size: inherit;
+  font-family: inherit;
+  font-weight: 600;
+  line-height: inherit;
+  cursor: default;
+  vertical-align: baseline;
+  transition: background 0.15s;
+}
+
+.welcome-panel__inline-btn--interactive {
+  cursor: pointer;
+}
+
+.welcome-panel__inline-btn--interactive:hover:not(:disabled) {
+  background: var(--element-bg-subtle);
+}
+
+.welcome-panel__inline-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.welcome-panel__inline-icon {
+  flex-shrink: 0;
+  display: block;
+}
+
+.welcome-panel__workspace-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 5px;
+  margin: 0 1px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.welcome-panel__worktree-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  margin: 0 1px;
+  background: var(--color-accent-100);
+  border-radius: 5px;
+  font-weight: 600;
+  color: var(--color-accent-600);
+}
+
+.welcome-panel__worktree-branch {
+  font-weight: 700;
+}
+
+/* ── Core ── */
+
+.welcome-panel__core {
+  width: 100%;
+}
+
+/* ── Animations ── */
+
+@keyframes wp-fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 480px) {
+  .welcome-panel {
+    padding: 20px 16px;
+  }
+
+  .welcome-panel__heading {
+    font-size: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-panel {
+    animation: none;
+  }
+}

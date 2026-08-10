@@ -1,0 +1,28 @@
+site: weibo
+name: hot
+description: Weibo hot search
+domain: weibo.com
+strategy: public
+browser: false
+
+args:
+  limit:
+    type: int
+    default: 20
+    description: Number of topics
+
+pipeline:
+  - fetch:
+      url: "https://weibo.com/ajax/side/hotSearch"
+      headers:
+        User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  - select: data.realtime
+  - map:
+      rank: ${{ index + 1 }}
+      title: ${{ item.note }}
+      hot: ${{ item.num }}
+      category: ${{ item.category }}
+      url: "https://s.weibo.com/weibo?q=${{ item.word | urlencode }}"
+  - limit: ${{ args.limit }}
+
+columns: [rank, title, hot, category, url]

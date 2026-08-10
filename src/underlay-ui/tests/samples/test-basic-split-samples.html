@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basic Split Samples Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .section {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            margin: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #FF6B6B;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 基础分割采样测试</h1>
+    <p>测试几个关键的分割采样文件</p>
+    
+    <div class="section">
+        <h2>🎶 测试采样</h2>
+        <button id="testC4">测试 Cello C4</button>
+        <button id="testF4">测试 Cello F4</button>
+        <button id="testFSharp4">测试 Cello F#4</button>
+        <button id="testSaxC4">测试 Soprano C4</button>
+        <button id="testFluteC5">测试 Flute C5</button>
+        <button id="stopBtn">停止所有声音</button>
+    </div>
+
+    <div id="logs" class="logs"></div>
+
+    <script>
+        // 简单的音频播放系统
+        let audioContext = null;
+        let currentSources = [];
+
+        // DOM元素
+        const logsDiv = document.getElementById('logs');
+
+        // 测试文件列表
+        const testFiles = {
+            'testC4': 'cello_c4.wav',
+            'testF4': 'cello_f4.wav',
+            'testFSharp4': 'cello_f#4.wav',
+            'testSaxC4': 'soprano_c4.wav',
+            'testFluteC5': 'flute_c5.wav'
+        };
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[BasicTest] ${message}`);
+        }
+
+        // 初始化音频上下文
+        async function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                log('✅ 音频上下文初始化成功', 'success');
+            }
+        }
+
+        // 播放采样
+        async function playSample(filename) {
+            try {
+                await initAudio();
+                
+                // 停止当前播放的声音
+                stopAllSounds();
+                
+                log(`🎵 尝试播放: ${filename}`);
+                
+                // 尝试不同的URL路径
+                const possibleUrls = [
+                    `public/sounds/instruments/split/${filename}`,
+                    `./public/sounds/instruments/split/${filename}`,
+                    `/underlay/public/sounds/instruments/split/${filename}`,
+                    `sounds/instruments/split/${filename}`,
+                    `/sounds/instruments/split/${filename}`
+                ];
+                
+                let success = false;
+                for (const url of possibleUrls) {
+                    try {
+                        log(`🔍 尝试路径: ${url}`);
+                        const response = await fetch(url);
+                        if (response.ok) {
+                            const arrayBuffer = await response.arrayBuffer();
+                            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                            
+                            // 播放音频
+                            const source = audioContext.createBufferSource();
+                            source.buffer = audioBuffer;
+                            source.connect(audioContext.destination);
+                            source.start();
+                            
+                            currentSources.push(source);
+                            
+                            log(`✅ 成功播放: ${filename} (${url})`, 'success');
+                            log(`📊 音频信息: ${audioBuffer.duration.toFixed(2)}s, ${audioBuffer.sampleRate}Hz`, 'success');
+                            success = true;
+                            break;
+                        }
+                    } catch (error) {
+                        log(`❌ 路径失败: ${url} - ${error.message}`, 'error');
+                    }
+                }
+                
+                if (!success) {
+                    log(`❌ 所有路径都失败了: ${filename}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ 播放失败: ${filename} - ${error.message}`, 'error');
+            }
+        }
+
+        // 停止所有声音
+        function stopAllSounds() {
+            currentSources.forEach(source => {
+                try {
+                    source.stop();
+                } catch (e) {
+                    // 忽略已经停止的源
+                }
+            });
+            currentSources = [];
+            log('🛑 停止所有声音');
+        }
+
+        // 事件监听器
+        Object.keys(testFiles).forEach(buttonId => {
+            document.getElementById(buttonId).addEventListener('click', () => {
+                const filename = testFiles[buttonId];
+                playSample(filename);
+            });
+        });
+
+        document.getElementById('stopBtn').addEventListener('click', stopAllSounds);
+
+        // 初始化
+        log('🎵 基础分割采样测试页面加载完成');
+        log('🎯 点击按钮测试不同的采样文件');
+        log('📝 这将帮助我们找到正确的文件路径');
+    </script>
+</body>
+</html>

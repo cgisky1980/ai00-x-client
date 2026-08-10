@@ -1,0 +1,80 @@
+
+shadow.png
+size:107,32
+filter:Linear,Linear
+pma:true
+Extra/Shadow
+  bounds: 0,0,107,32
+  offsets: 7,7,119,47
+
+splash.png
+size:408,313
+filter:Linear,Linear
+pma:true
+Extra/Splash
+  bounds: 0,0,408,313
+  offsets: 17,3,439,335
+
+splash2.png
+size:96,166
+filter:Linear,Linear
+pma:true
+Extra/Splash2
+  bounds: 0,0,96,166
+  offsets: 10,10,117,181
+
+star.png
+size:55,52
+filter:Linear,Linear
+pma:true
+Extra/Star
+  bounds: 0,0,55,52
+  offsets: 6,7,66,66
+
+confuse_fx1.png
+size:97,49
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx1
+  bounds: 0,0,97,49
+  offsets: 10,9,120,65
+
+confuse_fx2.png
+size:195,50
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx2
+  bounds: 0,0,195,50
+  offsets: 17,13,220,75
+
+confuse_fx3.png
+size:98,43
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx3
+  bounds: 0,0,98,43
+  offsets: 16,7,125,59
+
+confuse_fx4.png
+size:97,48
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx4
+  bounds: 0,0,97,48
+  offsets: 8,3,113,61
+
+confuse_fx5.png
+size:196,34
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx5
+  bounds: 0,0,196,34
+  offsets: 12,8,217,58
+
+confuse_fx6.png
+size:100,39
+filter:Linear,Linear
+pma:true
+Extra/Confuse Fx6
+  bounds: 0,0,100,39
+  offsets: 10,7,120,59

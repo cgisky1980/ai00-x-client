@@ -1,0 +1,261 @@
+.music-model-selector {
+  position: relative;
+  display: inline-flex;
+
+  &__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--border-base);
+    border-radius: 8px;
+    background: var(--element-bg-soft);
+    color: var(--color-text-secondary);
+    font-size: 0.74rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover {
+      border-color: var(--border-accent);
+      color: var(--color-accent-500);
+    }
+  }
+
+  &__label {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__progress-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    background: var(--color-accent-500);
+    color: var(--btn-primary-color, #fff);
+    white-space: nowrap;
+  }
+
+  // ---- Dropdown (opens upward) ----
+
+  &__dropdown {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 0;
+    min-width: 240px;
+    max-height: 380px;
+    overflow-y: auto;
+    border: 1px solid var(--border-base);
+    border-radius: 10px;
+    background: var(--color-bg-elevated);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+    z-index: 100;
+    padding: 0.25rem 0;
+  }
+
+  &__divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 0.3rem 0;
+  }
+
+  &__section-title {
+    padding: 0.3rem 0.7rem 0.2rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  // ---- Option row (wraps option button + download button + progress) ----
+
+  &__option-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0 0.4rem 0 0;
+
+    &.is-selected {
+      .music-model-selector__option {
+        color: var(--color-accent-500);
+      }
+    }
+
+    &.is-missing {
+      .music-model-selector__option {
+        opacity: 0.65;
+      }
+    }
+  }
+
+  &__option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0.5rem;
+    border: none;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: 0.74rem;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+
+    &:hover:not(:disabled) {
+      background: var(--card-bg-accent);
+      color: var(--color-accent-500);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+
+    &--special {
+      font-weight: 500;
+    }
+  }
+
+  &__option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__option-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__option-meta {
+    font-size: 0.66rem;
+    color: var(--color-text-muted);
+  }
+
+  // ---- DiT type badge ----
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+
+    &.is-base {
+      background: var(--card-bg-accent);
+      color: var(--color-accent-500);
+    }
+
+    &.is-xl-base {
+      background: var(--color-purple-500, #a855f7);
+      color: #fff;
+    }
+  }
+
+  &__check {
+    color: var(--color-accent-500);
+    font-size: 0.8rem;
+    flex-shrink: 0;
+
+    &--muted {
+      color: var(--color-success);
+      opacity: 0.6;
+    }
+  }
+
+  // ---- Download button ----
+
+  &__download-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--border-base);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+
+    &:hover:not(:disabled) {
+      border-color: var(--border-accent);
+      color: var(--color-accent-500);
+      background: var(--card-bg-accent);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  // ---- Inline progress bar ----
+
+  &__progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--element-bg-base);
+    overflow: hidden;
+    border-radius: 0 0 10px 10px;
+  }
+
+  &__progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-accent-500), var(--color-purple-500, #a855f7));
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  &__progress-text {
+    position: absolute;
+    bottom: 4px;
+    right: 0.5rem;
+    font-size: 0.58rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  &__error {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-error);
+    flex-shrink: 0;
+    margin-right: 0.3rem;
+  }
+
+  &__download-spinner {
+    flex-shrink: 0;
+    margin-right: 0.4rem;
+    color: var(--color-accent-500);
+  }
+
+  &__empty-hint {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+  }
+}

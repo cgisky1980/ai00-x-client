@@ -1,0 +1,61 @@
+{
+  "title": "AI Wallpaper Designer",
+  "subtitle": "Describe your dream wallpaper and AI brings it to life on your desktop",
+  "navTitle": "Wallpaper",
+  "newDesign": "New Design",
+  "myProjects": "My Wallpapers",
+  "chooseStyle": "Choose a style",
+  "orDescribe": "or describe what you want",
+  "placeholder": "Describe the wallpaper you want...",
+  "nextBtn": "Next",
+  "backBtn": "Back",
+  "generatingName": "Generating project name...",
+  "confirmTitle": "Confirm Project",
+  "confirmDesc": "AI suggests the following project name based on your description",
+  "projectName": "Project name",
+  "dirName": "Directory name",
+  "storagePath": "Storage path",
+  "editName": "Edit name",
+  "confirmBtn": "Create",
+  "creating": "Creating project...",
+  "created": "Project created",
+  "openingDesign": "Opening design session...",
+  "subtitleInstant": "Describe your dream wallpaper and start designing instantly",
+  "startDesign": "Start Designing",
+  "existingProjects": "Your Projects",
+  "continueDesign": "Continue",
+  "applyToDesktop": "Apply to Desktop",
+  "appliedToDesktop": "Wallpaper applied to desktop",
+  "published": "Wallpaper published to desktop",
+  "styles": {
+    "starfield": { "label": "Starfield", "desc": "Twinkling stars and nebula background" },
+    "matrix": { "label": "Matrix Rain", "desc": "Green code rain falling down" },
+    "waves": { "label": "Particle Waves", "desc": "Flowing colored particles" },
+    "aurora": { "label": "Gradient Aurora", "desc": "Full-screen aurora gradients" },
+    "visualizer": { "label": "Audio Visualizer", "desc": "Spectrum bars reacting to sound" },
+    "clock": { "label": "Minimal Clock", "desc": "A sleek digital clock centered" }
+  },
+  "projectList": {
+    "empty": "No projects yet",
+    "publish": "Publish wallpaper",
+    "delete": "Delete project"
+  },
+  "error": {
+    "generateName": "Failed to generate project name",
+    "createProject": "Failed to create project"
+  },
+  "preview": {
+    "title": "Wallpaper Preview",
+    "refresh": "Refresh",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen",
+    "applyToDesktop": "Apply to Desktop",
+    "close": "Close",
+    "ratio": "Screen Ratio",
+    "rotate": "Rotate Portrait",
+    "scale": "Preview Scale",
+    "pin": "Pin on Top",
+    "unpin": "Unpin",
+    "noProject": "No wallpaper project selected"
+  }
+}

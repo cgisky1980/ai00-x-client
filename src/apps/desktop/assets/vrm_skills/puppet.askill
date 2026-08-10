@@ -1,0 +1,39 @@
+---
+name: puppet
+alias: 傀儡术
+brief: "Task execution channel: file ops, coding, queries, scheduling"
+description: "唯一任务执行通道。将所有需要实际操作的任务（文件操作、代码编写执行、信息查询、消息发送、日程管理、天气查询、语音控制等）委派给专业的傀儡Agent执行。同时支持任务管理：查询列表、查看进度、取消任务、重试任务"
+keywords:
+  - 任务
+  - 执行
+  - 文件
+  - 代码
+  - 查询
+  - 日程
+  - puppet
+  - task
+  - execute
+  - file
+  - code
+when_to_use: "When user wants to perform any actual task: file ops, coding, queries, scheduling, messaging, etc."
+parameters:
+  - name: task
+    type: string
+    description: "任务描述"
+    required: true
+  - name: action_type
+    type: string
+    description: "execute/list/progress/cancel/retry"
+    required: false
+    default: execute
+  - name: context
+    type: string
+    description: "任务上下文"
+    required: false
+  - name: callback_preference
+    type: string
+    description: "report_warm/report_simple/celebrate/discuss/silent"
+    required: false
+    default: report_warm
+executor: builtin:puppet
+---

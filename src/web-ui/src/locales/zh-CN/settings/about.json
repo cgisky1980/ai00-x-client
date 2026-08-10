@@ -1,0 +1,15 @@
+{
+  "title": "关于",
+  "subtitle": "应用程序信息",
+  "description": "AI 助手桌面应用",
+  "updates": {
+    "title": "更新"
+  },
+  "checkUpdate": "检查更新",
+  "checkUpdateDesc": "检查是否有新版本可用",
+  "checkNow": "立即检查",
+  "legal": {
+    "title": "法律信息"
+  },
+  "license": "许可证"
+}

@@ -1,0 +1,495 @@
+/**
+ * Terminal tool card styles
+ * Specific styles based on BaseToolCard
+ */
+
+@use './BaseToolCard.scss';
+@use '../../component-library/styles/_extended-mixins' as mixins;
+
+/* ========== Terminal card specific styles ========== */
+
+.terminal-tool-card {
+  .tool-identifier-icon {
+    &.terminal-icon {
+      color: var(--color-text-secondary);
+    }
+  }
+}
+
+/* Entire header row shows pointer (card toggles expand); children must not force default cursor. */
+.base-tool-card-wrapper.terminal-tool-card .base-tool-card-header {
+  cursor: pointer;
+}
+
+/* Footer bar: full width + background to bottom inner edge of card (matches .base-tool-card-expanded padding). */
+.base-tool-card-wrapper.terminal-tool-card .terminal-result-footer {
+  margin-left: -10px;
+  margin-right: -10px;
+  margin-bottom: -10px;
+  padding: 6px 10px;
+  border-radius: 0 0 7px 7px;
+}
+
+/* ========== Fix scrollbar visibility on card hover ========== */
+.base-tool-card-wrapper.terminal-tool-card:hover {
+  .terminal-execution-output,
+  .terminal-result-output,
+  .xterm-viewport {
+    &::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+    }
+    
+    &::-webkit-scrollbar-thumb:hover {
+      background: var(--scrollbar-thumb-hover);
+    }
+    
+    /* Firefox */
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+}
+
+/* ========== Command display styles ========== */
+.terminal-command {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--tool-card-font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tool-card-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: inherit;
+  transition: none;
+  display: inline-block;
+  background: none !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 0;
+
+  &:not(.editable) {
+    &:hover,
+    &:focus,
+    &:focus-visible {
+      background: none !important;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      color: var(--text-secondary, var(--color-text-secondary));
+    }
+  }
+
+  &.editable {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      color: var(--color-accent-500);
+    }
+  }
+  
+  .command-empty {
+    color: #e06c75;
+    font-style: italic;
+  }
+}
+
+.terminal-command-input {
+  flex: 1;
+  min-width: 0;
+  cursor: text;
+  background: transparent;
+  padding: 0;
+  font-family: var(--tool-card-font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  transition: all 0.2s ease;
+  line-height: 1.2;
+  box-sizing: border-box;
+
+  &:focus {
+    background: transparent;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  &::placeholder {
+    color: var(--color-text-muted);
+    font-style: italic;
+  }
+}
+
+:root[data-theme="light"] .terminal-command-input,
+:root[data-theme-type="light"] .terminal-command-input,
+.light .terminal-command-input {
+  color: var(--color-text-secondary);
+}
+
+/* ========== Status text styles ========== */
+.terminal-status-text {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-right: 4px;
+
+  &.status-cancelled {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+  }
+
+  &.status-rejected {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+  }
+
+  &.status-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+  }
+}
+
+/* ========== Confirmation action button group ========== */
+.terminal-confirm-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  flex-shrink: 0;
+  width: auto;
+}
+
+/* ========== Common action button styles ========== */
+.terminal-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: none !important;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+  outline: none;
+  flex-shrink: 0;
+
+  svg {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 0;
+  }
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(1.05);
+  }
+
+  &:hover:not(:disabled)::before {
+    opacity: 1;
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: default;
+    transform: none;
+  }
+}
+
+.execute-btn {
+  color: var(--color-success);
+
+  &:hover:not(:disabled) {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+    box-shadow: 0 2px 8px var(--color-success-bg);
+  }
+}
+
+.cancel-btn {
+  color: var(--color-error);
+
+  &:hover:not(:disabled) {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    box-shadow: 0 2px 8px var(--color-error-bg);
+  }
+}
+
+.interrupt-btn {
+  color: var(--color-warning);
+
+  &:hover:not(:disabled) {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    box-shadow: 0 2px 8px var(--color-warning-bg);
+  }
+}
+
+.external-btn {
+  color: var(--color-text-muted);
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-text-secondary);
+    box-shadow: none;
+  }
+}
+
+/* ========== Execution output container (streaming) ========== */
+.terminal-execution-output,
+.terminal-result-output {
+  margin-bottom: 0;
+  background: transparent;
+  border: none;
+  overflow: hidden;
+  max-height: 300px;
+  overflow-y: auto;
+
+  &.terminal-waiting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
+
+    .waiting-text {
+      color: var(--color-text-muted);
+      font-size: 12px;
+      font-style: italic;
+    }
+  }
+}
+
+.terminal-output-pre {
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  font-family: var(--tool-card-font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text-secondary);
+}
+
+/* ========== Static result container (after command completion) ========== */
+.terminal-result-container {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  
+  &.cancelled {
+    .terminal-cancelled-text {
+      color: var(--color-warning);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+  }
+}
+
+.terminal-result-footer {
+  display: flex;
+  align-items: center;
+  align-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  line-height: 1.2;
+  background: var(--element-bg-subtle);
+  box-sizing: border-box;
+}
+
+.terminal-result-output + .terminal-result-footer {
+  margin-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.terminal-result-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.terminal-result-value {
+  font-family: var(--tool-card-font-mono);
+  font-size: 11px;
+  color: var(--color-text-primary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.terminal-exit-code {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  font-size: 9px;
+  font-weight: 600;
+  font-family: var(--tool-card-font-mono);
+  line-height: 1.2;
+  margin-left: auto;
+  background: transparent;
+
+  &.success {
+    color: var(--color-text-muted);
+  }
+
+  &.error {
+    color: var(--color-error);
+  }
+}
+
+.terminal-execution-time {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  font-family: var(--tool-card-font-mono);
+  line-height: 1.2;
+}
+
+/* ========== xterm output renderer styles ========== */
+.terminal-xterm-output {
+  width: 100%;
+  
+  .xterm {
+    padding: 0;
+
+    .xterm-viewport {
+      overflow-y: auto !important;
+    }
+
+    &:not(.allow-transparency) {
+      .xterm-viewport {
+        background-color: var(--color-bg-scene);
+      }
+    }
+
+    .xterm-screen {
+      width: 100%;
+      height: 100%;
+    }
+  }
+}
+.terminal-output-renderer {
+  background: var(--color-bg-scene);
+  border-radius: 4px;
+  overflow: hidden;
+  
+  .xterm {
+    height: 100%;
+  }
+}
+
+.terminal-command-tooltip {
+  .ai00-x-tooltip__content {
+    max-width: min(640px, calc(100vw - 32px));
+    cursor: text;
+  }
+}
+
+.terminal-command-tooltip-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  user-select: text;
+}
+
+
+/* ========== Error content styles ========== */
+.error-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.error-message {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  color: var(--color-text-muted) !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  text-align: left !important;
+  width: auto !important;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+/* ========== Narrow width adaptation (Toolbar mode) ========== */
+.ai00-x-toolbar-mode__flowchat-container {
+  .terminal-tool-card {
+    .tool-card-action {
+      display: none;
+    }
+    
+    .base-tool-card-header {
+      padding: 6px 8px;
+      gap: 2px;
+    }
+    
+    .terminal-action-btn {
+      width: 16px;
+      height: 16px;
+    }
+    
+    .terminal-confirm-actions {
+      gap: 1px;
+      width: auto !important;
+      justify-content: flex-start !important;
+    }
+    
+    .terminal-command,
+    .terminal-command-input {
+      font-size: 11px;
+    }
+  }
+}
+
+/* ========== Accessibility ========== */
+.terminal-action-btn:focus-visible {
+  outline: 2px solid var(--color-accent-500);
+  outline-offset: 2px;
+}
+

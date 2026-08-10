@@ -1,0 +1,352 @@
+{
+  "version": "2026-06-28-cd361dcc",
+  "generatedAt": "2026-06-28T16:48:38.697Z",
+  "fileCount": 86,
+  "totalSize": 912513,
+  "files": {
+    "10/base/head.png": {
+      "hash": "sha1:bfcfc711f7839003487821ae0fa69437c9469887",
+      "size": 3120
+    },
+    "10/base/tail.png": {
+      "hash": "sha1:39e40ab53471195d803839d7110f8683e830ac28",
+      "size": 669
+    },
+    "10/Characters.atlas": {
+      "hash": "sha1:567642f40b1892c14ce6062991cfaf6c920e4812",
+      "size": 221
+    },
+    "14/base/head.png": {
+      "hash": "sha1:c84659ee5b590839e2cf42044a247478431668f6",
+      "size": 5033
+    },
+    "14/base/tail.png": {
+      "hash": "sha1:2e591973e2eaee8dbe698063f1924fd36890b737",
+      "size": 726
+    },
+    "14/Characters.atlas": {
+      "hash": "sha1:cc3a5219443bc4cb5c15a4fa338a7c8c4b924b05",
+      "size": 222
+    },
+    "15/base/head.png": {
+      "hash": "sha1:be92415002d524ee8934cbb1558309b6c40595fa",
+      "size": 136069
+    },
+    "15/Characters.atlas": {
+      "hash": "sha1:2f83fcf2fad6ad78589958112b91a58927b3ba5c",
+      "size": 119
+    },
+    "3/base/head.png": {
+      "hash": "sha1:a743e291dcb73a9bb8289db0dc2a495ab1453901",
+      "size": 4055
+    },
+    "3/base/tail.png": {
+      "hash": "sha1:430776771e5c8d15b6153efa15cf6674da72ffb0",
+      "size": 613
+    },
+    "3/Characters.atlas": {
+      "hash": "sha1:4010a0c392cdb1301ce098a2890ac3f75fe5dc6a",
+      "size": 222
+    },
+    "5/base/head.png": {
+      "hash": "sha1:130eb3dd780d3354c2d26aa996a46de9bf80c523",
+      "size": 3190
+    },
+    "5/Characters.atlas": {
+      "hash": "sha1:06b845342cc7e5ae19e7b90fcf25e55270753be2",
+      "size": 115
+    },
+    "9/base/head.png": {
+      "hash": "sha1:e990a61d80e162fa79fb85d8bebc03108c7fa754",
+      "size": 3749
+    },
+    "9/base/tail.png": {
+      "hash": "sha1:10d8063a581791718f615964ab36ecd35548de96",
+      "size": 765
+    },
+    "9/Characters.atlas": {
+      "hash": "sha1:6e8e3eb1a55bf3f89b0feb708e8f47d9dcc48ff2",
+      "size": 222
+    },
+    "base/body.png": {
+      "hash": "sha1:1e9eb44c69c3c815c900b28edef57cb7440b47b9",
+      "size": 6257
+    },
+    "base/eye1.png": {
+      "hash": "sha1:6825534c07dfef157468123b5df5ea4b1b7598e9",
+      "size": 436
+    },
+    "base/hand_b.png": {
+      "hash": "sha1:e8be9a7e6f0b4d01335a615652713adc5b8d62bf",
+      "size": 865
+    },
+    "base/hand_f.png": {
+      "hash": "sha1:ba293c8c27f250c504e5c061a25483385bb10854",
+      "size": 763
+    },
+    "base/head.png": {
+      "hash": "sha1:2a942b3f03668835789611665b2374755ab8f3ed",
+      "size": 4418
+    },
+    "base/leg_b.png": {
+      "hash": "sha1:c0caa7d0f78382b0848b83550e7c9120154eb525",
+      "size": 491
+    },
+    "base/leg_f.png": {
+      "hash": "sha1:2a66724c2763c6a3c7f306a4e6d758c103652dce",
+      "size": 533
+    },
+    "Characters.atlas": {
+      "hash": "sha1:bd9aa118919101152b765e95cc9613df4e59da99",
+      "size": 2262
+    },
+    "Characters.json": {
+      "hash": "sha1:8f25dc0aeaebb79a4dc67e09eaf4165041b0e11c",
+      "size": 195554
+    },
+    "config.json": {
+      "hash": "sha1:16516856931b33d8855c78f82424890c08fd7bfb",
+      "size": 4251
+    },
+    "effects/confuse_fx1.png": {
+      "hash": "sha1:805b1d13eaa2bca277fb74835561e7f6c2613819",
+      "size": 694
+    },
+    "effects/confuse_fx2.png": {
+      "hash": "sha1:5d4f28345836c055ca15dc0c2fb864a33f54fa93",
+      "size": 1067
+    },
+    "effects/confuse_fx3.png": {
+      "hash": "sha1:c204119016f9444075e6d2d139e0f56a53afb934",
+      "size": 647
+    },
+    "effects/confuse_fx4.png": {
+      "hash": "sha1:f39bf3d249a98145f3c6e5a04a4c6046677d7f7b",
+      "size": 658
+    },
+    "effects/confuse_fx5.png": {
+      "hash": "sha1:bf32bec64a9b088d98d40e3fc2727330101ed85a",
+      "size": 760
+    },
+    "effects/confuse_fx6.png": {
+      "hash": "sha1:2ab825fc621c1b857032cdafe1038f3dbd56846d",
+      "size": 555
+    },
+    "effects/shadow.png": {
+      "hash": "sha1:0b241aef4b80469aff8b6872c81c8f898488783d",
+      "size": 577
+    },
+    "effects/splash.png": {
+      "hash": "sha1:99304542aee2ed33144360c0ff1ef44bf87a198e",
+      "size": 51430
+    },
+    "effects/splash2.png": {
+      "hash": "sha1:827ec7e6ba55a56af87abd2bb1d80895fa0ed03a",
+      "size": 13737
+    },
+    "effects/star.png": {
+      "hash": "sha1:8c9225e944ea1ac3b2a8ddc05da484bc0eea3e8c",
+      "size": 581
+    },
+    "parts/body/default/body.c.png": {
+      "hash": "sha1:1e9eb44c69c3c815c900b28edef57cb7440b47b9",
+      "size": 6257
+    },
+    "parts/body/default/Characters.atlas": {
+      "hash": "sha1:9c770bd3a4e75811e1e0a2140d779cecb8236fc7",
+      "size": 111
+    },
+    "parts/effects/default/Characters.atlas": {
+      "hash": "sha1:55d012e0630a421182d0505919d40ecd2112527f",
+      "size": 1162
+    },
+    "parts/effects/default/confuse_fx1.png": {
+      "hash": "sha1:805b1d13eaa2bca277fb74835561e7f6c2613819",
+      "size": 694
+    },
+    "parts/effects/default/confuse_fx2.png": {
+      "hash": "sha1:5d4f28345836c055ca15dc0c2fb864a33f54fa93",
+      "size": 1067
+    },
+    "parts/effects/default/confuse_fx3.png": {
+      "hash": "sha1:c204119016f9444075e6d2d139e0f56a53afb934",
+      "size": 647
+    },
+    "parts/effects/default/confuse_fx4.png": {
+      "hash": "sha1:f39bf3d249a98145f3c6e5a04a4c6046677d7f7b",
+      "size": 658
+    },
+    "parts/effects/default/confuse_fx5.png": {
+      "hash": "sha1:bf32bec64a9b088d98d40e3fc2727330101ed85a",
+      "size": 760
+    },
+    "parts/effects/default/confuse_fx6.png": {
+      "hash": "sha1:2ab825fc621c1b857032cdafe1038f3dbd56846d",
+      "size": 555
+    },
+    "parts/effects/default/shadow.png": {
+      "hash": "sha1:0b241aef4b80469aff8b6872c81c8f898488783d",
+      "size": 577
+    },
+    "parts/effects/default/splash.png": {
+      "hash": "sha1:99304542aee2ed33144360c0ff1ef44bf87a198e",
+      "size": 51430
+    },
+    "parts/effects/default/splash2.png": {
+      "hash": "sha1:827ec7e6ba55a56af87abd2bb1d80895fa0ed03a",
+      "size": 13737
+    },
+    "parts/effects/default/star.png": {
+      "hash": "sha1:8c9225e944ea1ac3b2a8ddc05da484bc0eea3e8c",
+      "size": 581
+    },
+    "parts/eye/default/Characters.atlas": {
+      "hash": "sha1:4a6a514a0270304dd8691e2faa6187e58556fde0",
+      "size": 102
+    },
+    "parts/eye/default/eye1.png": {
+      "hash": "sha1:6825534c07dfef157468123b5df5ea4b1b7598e9",
+      "size": 436
+    },
+    "parts/hands/default/Characters.atlas": {
+      "hash": "sha1:9bb1fe6e096e0d29bc491389a1500caa04b650fd",
+      "size": 216
+    },
+    "parts/hands/default/hand_b.c.png": {
+      "hash": "sha1:e8be9a7e6f0b4d01335a615652713adc5b8d62bf",
+      "size": 865
+    },
+    "parts/hands/default/hand_f.c.png": {
+      "hash": "sha1:ba293c8c27f250c504e5c061a25483385bb10854",
+      "size": 763
+    },
+    "parts/head/10/Characters.atlas": {
+      "hash": "sha1:135bb8ee467489e59576829ce745a109d23345c5",
+      "size": 110
+    },
+    "parts/head/10/head.c.png": {
+      "hash": "sha1:bfcfc711f7839003487821ae0fa69437c9469887",
+      "size": 3120
+    },
+    "parts/head/14/Characters.atlas": {
+      "hash": "sha1:d54bf2086bb40893702fab9e5407fad63d72f9e8",
+      "size": 111
+    },
+    "parts/head/14/head.c.png": {
+      "hash": "sha1:c84659ee5b590839e2cf42044a247478431668f6",
+      "size": 5033
+    },
+    "parts/head/15/Characters.atlas": {
+      "hash": "sha1:26316db651344c6948170ba777ae758e0c0f5053",
+      "size": 116
+    },
+    "parts/head/15/head.c.png": {
+      "hash": "sha1:be92415002d524ee8934cbb1558309b6c40595fa",
+      "size": 136069
+    },
+    "parts/head/3/Characters.atlas": {
+      "hash": "sha1:6cca9f0c9e3791527c2b0106ee47bf1248ead6bc",
+      "size": 111
+    },
+    "parts/head/3/head.c.png": {
+      "hash": "sha1:a743e291dcb73a9bb8289db0dc2a495ab1453901",
+      "size": 4055
+    },
+    "parts/head/5/Characters.atlas": {
+      "hash": "sha1:bf6da49c3e60c02abd9a31120def52764d68454b",
+      "size": 112
+    },
+    "parts/head/5/head.c.png": {
+      "hash": "sha1:130eb3dd780d3354c2d26aa996a46de9bf80c523",
+      "size": 3190
+    },
+    "parts/head/9/Characters.atlas": {
+      "hash": "sha1:1462467e3a701ccef1da37e512e0a1cd6dc2c8d7",
+      "size": 111
+    },
+    "parts/head/9/head.c.png": {
+      "hash": "sha1:e990a61d80e162fa79fb85d8bebc03108c7fa754",
+      "size": 3749
+    },
+    "parts/head/default/Characters.atlas": {
+      "hash": "sha1:59ca5c7e2740226a4811cb4fc6082bb0cdd2f551",
+      "size": 110
+    },
+    "parts/head/default/head.c.png": {
+      "hash": "sha1:2a942b3f03668835789611665b2374755ab8f3ed",
+      "size": 4418
+    },
+    "parts/legs/default/Characters.atlas": {
+      "hash": "sha1:5bb36cf59201a6208cd6a9e6b95b850e2730e9c4",
+      "size": 212
+    },
+    "parts/legs/default/leg_b.c.png": {
+      "hash": "sha1:c0caa7d0f78382b0848b83550e7c9120154eb525",
+      "size": 491
+    },
+    "parts/legs/default/leg_f.c.png": {
+      "hash": "sha1:2a66724c2763c6a3c7f306a4e6d758c103652dce",
+      "size": 533
+    },
+    "parts/tails/10/Characters.atlas": {
+      "hash": "sha1:0a3a04b7b3d0627b03b483cfdda215a8be3f8125",
+      "size": 105
+    },
+    "parts/tails/10/tail.c.png": {
+      "hash": "sha1:39e40ab53471195d803839d7110f8683e830ac28",
+      "size": 669
+    },
+    "parts/tails/14/Characters.atlas": {
+      "hash": "sha1:1cc173ca6ffd41bf064902cdc6c7caff0bbd97b6",
+      "size": 105
+    },
+    "parts/tails/14/tail.c.png": {
+      "hash": "sha1:2e591973e2eaee8dbe698063f1924fd36890b737",
+      "size": 726
+    },
+    "parts/tails/3/Characters.atlas": {
+      "hash": "sha1:c49b1a2784ebbf01596f2b0e33771fe6c99c8e63",
+      "size": 105
+    },
+    "parts/tails/3/tail.c.png": {
+      "hash": "sha1:430776771e5c8d15b6153efa15cf6674da72ffb0",
+      "size": 613
+    },
+    "parts/tails/9/Characters.atlas": {
+      "hash": "sha1:c42d921f83be666f5610a489a764c73ab0ade18d",
+      "size": 105
+    },
+    "parts/tails/9/tail.c.png": {
+      "hash": "sha1:10d8063a581791718f615964ab36ecd35548de96",
+      "size": 765
+    },
+    "parts/weapons/default/candy.png": {
+      "hash": "sha1:786b2cd567ec965817308975483ef521a51eeddf",
+      "size": 5807
+    },
+    "parts/weapons/default/Characters.atlas": {
+      "hash": "sha1:09cf7bab68cb9fd9e170a05b699cfa208d83fc03",
+      "size": 230
+    },
+    "parts/weapons/default/umbrella.png": {
+      "hash": "sha1:ce8c1ee14da81d46c9bb5ce98c8cf31d2e422fd0",
+      "size": 5844
+    },
+    "skeleton/Characters.atlas": {
+      "hash": "sha1:da981614a1ad3ef2c41b6957424e40f534a0292b",
+      "size": 2319
+    },
+    "skeleton/Characters.json": {
+      "hash": "sha1:8f25dc0aeaebb79a4dc67e09eaf4165041b0e11c",
+      "size": 195554
+    },
+    "weapons/candy.png": {
+      "hash": "sha1:786b2cd567ec965817308975483ef521a51eeddf",
+      "size": 5807
+    },
+    "weapons/umbrella.png": {
+      "hash": "sha1:ce8c1ee14da81d46c9bb5ce98c8cf31d2e422fd0",
+      "size": 5844
+    }
+  }
+}

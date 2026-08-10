@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volume Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        button {
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5a5a5a;
+        }
+        button:disabled {
+            background: #2a2a2a;
+            cursor: not-allowed;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .logs {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Volume Fix Test</h1>
+    
+    <div class="status" id="status">
+        <div>Status: <span id="statusText">Not initialized</span></div>
+    </div>
+
+    <div>
+        <button id="initBtn">Initialize System</button>
+        <button id="testVolumeBtn" disabled>Test Volume Setting</button>
+        <button id="testMultiBtn" disabled>Test Multi-Instrument</button>
+    </div>
+
+    <div id="logs" class="logs"></div>
+
+    <script type="module">
+        // Import the lofi music system
+        import { LofiMusicSystem } from './src/lib/lofi/lofi-music-system.js';
+
+        let lofiSystem = null;
+
+        // DOM elements
+        const statusText = document.getElementById('statusText');
+        const initBtn = document.getElementById('initBtn');
+        const testVolumeBtn = document.getElementById('testVolumeBtn');
+        const testMultiBtn = document.getElementById('testMultiBtn');
+        const logsDiv = document.getElementById('logs');
+
+        // Logging function
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? '#FF6B6B' : type === 'success' ? '#4CAF50' : '#fff';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(`[VolumeFix] ${message}`);
+        }
+
+        // Update UI state
+        function updateUI() {
+            if (!lofiSystem) return;
+            
+            const state = lofiSystem.getState();
+            statusText.textContent = state.isReady ? 'Ready' : state.isLoading ? 'Loading...' : 'Not Ready';
+            
+            // Update button states
+            initBtn.disabled = state.isReady || state.isLoading;
+            testVolumeBtn.disabled = !state.isReady;
+            testMultiBtn.disabled = !state.isReady;
+            
+            if (state.error) {
+                log(`Error: ${state.error}`, 'error');
+            }
+        }
+
+        // Event listeners
+        initBtn.addEventListener('click', async () => {
+            try {
+                log('Initializing lofi music system...');
+                lofiSystem = new LofiMusicSystem();
+                
+                // Set up event listeners
+                lofiSystem.on('ready', () => {
+                    log('✅ System ready!', 'success');
+                    updateUI();
+                });
+                
+                lofiSystem.on('loading', () => {
+                    log('Loading AI models...');
+                    updateUI();
+                });
+                
+                lofiSystem.on('error', (data) => {
+                    log(`❌ System error: ${data.error}`, 'error');
+                    updateUI();
+                });
+                
+                await lofiSystem.initialize();
+                updateUI();
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+                updateUI();
+            }
+        });
+
+        testVolumeBtn.addEventListener('click', () => {
+            if (lofiSystem) {
+                try {
+                    log('🔊 Testing volume setting...');
+                    const toneEngine = lofiSystem.getToneEngine();
+                    
+                    // Test setting volume to different levels
+                    toneEngine.setVolume(0.8);
+                    log('✅ Volume set to 80%', 'success');
+                    
+                    toneEngine.setVolume(0.3);
+                    log('✅ Volume set to 30%', 'success');
+                    
+                    toneEngine.setVolume(0.5);
+                    log('✅ Volume set to 50%', 'success');
+                    
+                    // Test individual instrument volumes
+                    toneEngine.setInstrumentVolume('piano', 0.7);
+                    log('✅ Piano volume set to 70%', 'success');
+                    
+                    toneEngine.setInstrumentVolume('drums', 0.6);
+                    log('✅ Drums volume set to 60%', 'success');
+                    
+                    log('🎉 Volume test completed successfully!', 'success');
+                } catch (error) {
+                    log(`❌ Volume test failed: ${error.message}`, 'error');
+                }
+            }
+        });
+
+        testMultiBtn.addEventListener('click', async () => {
+            if (lofiSystem) {
+                try {
+                    log('🎵 Testing multi-instrument playback...');
+                    
+                    const testPreset = {
+                        id: 'volume-test',
+                        name: 'Volume Test',
+                        bpm: 80,
+                        chords: ['C', 'Am', 'F', 'G'],
+                        instrument: 'piano'
+                    };
+
+                    // Generate AI melody
+                    await lofiSystem.loadPreset(testPreset);
+                    
+                    // Wait a bit for generation
+                    setTimeout(() => {
+                        const toneEngine = lofiSystem.getToneEngine();
+                        const melody = lofiSystem.getCachedMelody(testPreset.id);
+                        
+                        if (melody) {
+                            log('✅ AI melody generated, testing multi-instrument...', 'success');
+                            
+                            // Test multi-instrument with drums
+                            toneEngine.playMultiInstrument(melody, testPreset, ['piano', 'bass', 'drums']);
+                            log('🎼 Multi-instrument test started!', 'success');
+                        } else {
+                            log('❌ No melody generated', 'error');
+                        }
+                    }, 3000);
+                    
+                } catch (error) {
+                    log(`❌ Multi-instrument test failed: ${error.message}`, 'error');
+                }
+            }
+        });
+
+        // Initialize UI
+        updateUI();
+        log('Volume fix test page loaded. Click "Initialize System" to start.');
+    </script>
+</body>
+</html>

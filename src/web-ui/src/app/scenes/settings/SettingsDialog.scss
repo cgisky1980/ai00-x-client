@@ -1,0 +1,119 @@
+.settings-dialog {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+    background-color: var(--color-bg-primary);
+    border: 1px solid var(--border-subtle);
+    transition: box-shadow 0.2s ease;
+
+    &:hover {
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    &--resizing {
+        user-select: none;
+        transition: none;
+    }
+}
+
+.settings-dialog__titlebar {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 8px 0 16px;
+    cursor: grab;
+    flex-shrink: 0;
+    background-color: var(--nav-bg);
+    border-bottom: 1px solid var(--border-subtle);
+
+    &:active {
+        cursor: grabbing;
+    }
+}
+
+.settings-dialog__title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    user-select: none;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+}
+
+.settings-dialog__titlebar-extra {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+    margin-right: 4px;
+    pointer-events: auto;
+}
+
+.settings-dialog__controls {
+    display: flex;
+    align-items: center;
+    pointer-events: auto;
+    flex-shrink: 0;
+}
+
+.settings-dialog__content {
+    flex: 1;
+    overflow: hidden;
+    pointer-events: auto;
+    background-color: var(--color-bg-primary);
+    position: relative;
+}
+
+.settings-dialog__resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    pointer-events: auto;
+    z-index: 1;
+
+    &::after {
+        content: '';
+        position: absolute;
+        right: 4px;
+        bottom: 4px;
+        width: 8px;
+        height: 8px;
+        border-right: 2px solid var(--color-text-muted);
+        border-bottom: 2px solid var(--color-text-muted);
+    }
+
+    &:hover::after {
+        border-color: var(--color-text-secondary);
+    }
+}
+
+.settings-dialog__portal-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 10;
+
+    .modal-overlay {
+        pointer-events: auto;
+    }
+
+    .modal {
+        max-height: 100%;
+    }
+
+    .modal--xlarge,
+    .modal--large {
+        max-height: 100%;
+    }
+}

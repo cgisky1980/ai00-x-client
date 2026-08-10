@@ -1,0 +1,91 @@
+/* GetFileDiff card styles. */
+.get-file-diff-card {
+  .diff-icon {
+    color: var(--color-accent-500);
+  }
+
+  .diff-tool-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .diff-file-name {
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .diff-type-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 500;
+    border-radius: 4px;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+
+  .diff-stats {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 8px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+
+    .additions {
+      color: var(--color-success);
+    }
+
+    .deletions {
+      color: var(--color-error);
+    }
+  }
+}
+
+.diff-expanded-content {
+  .diff-message {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .diff-content-preview {
+    margin: 0;
+    padding: 12px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-text-primary);
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+
+    .diff-add {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--color-success);
+    }
+
+    .diff-del {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--color-error);
+    }
+  }
+}

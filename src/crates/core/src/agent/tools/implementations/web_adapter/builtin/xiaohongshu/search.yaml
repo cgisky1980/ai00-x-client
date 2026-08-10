@@ -1,0 +1,41 @@
+site: xiaohongshu
+name: search
+description: Search Xiaohongshu notes
+domain: www.xiaohongshu.com
+strategy: cookie
+browser: true
+
+args:
+  query:
+    type: string
+    required: true
+    description: Search keyword
+  limit:
+    type: int
+    default: 20
+    description: Number of results
+
+pipeline:
+  - navigate: "https://www.xiaohongshu.com/search_result?keyword=${{ args.query | urlencode }}"
+  - evaluate: |
+      (async () => {
+        await new Promise(r => setTimeout(r, 3000));
+        const limit = Math.max(1, Math.min(20, 50));
+        const items = [];
+        const sections = document.querySelectorAll('.note-item, section.note-item, [class*="note-item"]');
+        for (const el of Array.from(sections)) {
+          try {
+            const titleEl = el.querySelector('.title, [class*="title"], a');
+            const title = (titleEl?.textContent || '').trim();
+            if (!title) continue;
+            const linkEl = el.querySelector('a[href*="/explore/"], a[href*="/discovery/"]');
+            let url = linkEl?.getAttribute('href') || '';
+            if (url && !url.startsWith('http')) url = 'https://www.xiaohongshu.com' + url;
+            items.push({ rank: items.length + 1, title, url });
+            if (items.length >= limit) break;
+          } catch {}
+        }
+        return items;
+      })()
+
+columns: [rank, title, url]

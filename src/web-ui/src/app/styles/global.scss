@@ -1,0 +1,666 @@
+/**
+ * Ai00-X global styles entry point.
+ * Uses component library design tokens.
+ */
+
+/* ========== Import design tokens ========== */
+@use '../../component-library/styles/tokens.scss' as *;
+@use '../../component-library/styles/flowchat-markdown-table-vars.scss';
+@use '../../component-library/styles/flowchat-markdown-code-vars.scss';
+
+/* ========== Global CSS variables ========== */
+:root {
+  @include apply-design-tokens;
+
+  /* override index.html hardcoded background */
+  background-color: var(--color-bg-secondary);
+
+  /* ========== OKLCH three-variable system ========== */
+  --hue: 250;
+  --chroma: 0.12;
+  --chroma-surface: 0.12;
+  --gray-level: 0;
+
+  /* ── Background colors ── */
+  --color-bg-primary:    oklch(0.965 calc(var(--chroma-surface) * 0.05) var(--hue));
+  --color-bg-secondary:  oklch(0.965 calc(var(--chroma-surface) * 0.05) var(--hue));
+  --color-bg-tertiary:   oklch(0.945 calc(var(--chroma-surface) * 0.07) var(--hue));
+  --color-bg-quaternary: oklch(0.925 calc(var(--chroma-surface) * 0.09) var(--hue));
+  --color-bg-elevated:   oklch(0.995 calc(var(--chroma-surface) * 0.02) var(--hue));
+  --color-bg-workbench:  oklch(0.955 calc(var(--chroma-surface) * 0.06) var(--hue));
+  --color-bg-scene:      oklch(0.940 calc(var(--chroma-surface) * 0.07) var(--hue));
+  --color-bg-flowchat:   var(--color-bg-scene);
+  --color-bg-tooltip:    oklch(0.995 calc(var(--chroma-surface) * 0.02) var(--hue));
+
+  /* ── Text colors ── */
+  --color-text-primary:   oklch(0.18 calc(var(--chroma-surface) * 0.10) var(--hue));
+  --color-text-secondary: oklch(0.35 calc(var(--chroma-surface) * 0.08) var(--hue));
+  --color-text-muted:     oklch(0.52 calc(var(--chroma-surface) * 0.06) var(--hue));
+  --color-text-disabled:  oklch(0.65 calc(var(--chroma-surface) * 0.04) var(--hue));
+
+  /* ── Element backgrounds ── */
+  --element-bg-subtle:   oklch(0.965 calc(var(--chroma-surface) * 0.05) var(--hue));
+  --element-bg-soft:     oklch(0.945 calc(var(--chroma-surface) * 0.08) var(--hue));
+  --element-bg-base:     oklch(0.925 calc(var(--chroma-surface) * 0.10) var(--hue));
+  --element-bg-medium:   oklch(0.905 calc(var(--chroma-surface) * 0.13) var(--hue));
+  --element-bg-strong:   oklch(0.885 calc(var(--chroma-surface) * 0.16) var(--hue));
+  --element-bg-elevated: oklch(0.955 calc(var(--chroma-surface) * 0.06) var(--hue));
+
+  /* ── Border colors ── */
+  --border-subtle:    oklch(0.88 calc(var(--chroma-surface) * 0.06) var(--hue));
+  --border-base:      oklch(0.84 calc(var(--chroma-surface) * 0.08) var(--hue));
+  --border-medium:    oklch(0.80 calc(var(--chroma-surface) * 0.10) var(--hue));
+  --border-strong:    oklch(0.74 calc(var(--chroma-surface) * 0.14) var(--hue));
+  --border-prominent: oklch(0.68 calc(var(--chroma-surface) * 0.18) var(--hue));
+  --border-hover:     var(--border-medium);
+  --border-focus:     var(--border-strong);
+
+  /* ── Overlay ── */
+  --color-overlay: oklch(0.20 calc(var(--chroma-surface) * 0.02) var(--hue) / 0.30);
+
+  /* ── Accent scale ── */
+  --color-accent-50:  oklch(0.96 calc(var(--chroma) * 0.05 * (1 - var(--gray-level))) var(--hue));
+  --color-accent-100: oklch(0.92 calc(var(--chroma) * 0.12 * (1 - var(--gray-level))) var(--hue));
+  --color-accent-200: oklch(0.85 calc(var(--chroma) * 0.28 * (1 - var(--gray-level))) var(--hue));
+  --color-accent-300: oklch(0.78 calc(var(--chroma) * 0.50 * (1 - var(--gray-level))) var(--hue));
+  --color-accent-400: oklch(0.72 calc(var(--chroma) * 0.72 * (1 - var(--gray-level))) var(--hue));
+  --color-accent-500: oklch(0.70 var(--chroma) var(--hue));
+  --color-accent-600: oklch(0.62 var(--chroma) var(--hue));
+  --color-accent-700: oklch(0.55 calc(var(--chroma) * 0.85) var(--hue));
+  --color-accent-800: oklch(0.48 calc(var(--chroma) * 0.70) var(--hue));
+
+  /* ── Primary aliases ── */
+  --color-primary:        var(--color-accent-500);
+  --color-primary-hover:  var(--color-accent-600);
+  --color-accent:         var(--color-accent-500);
+  --color-accent-primary: var(--color-accent-500);
+
+  /* ── Accent borders ── */
+  --border-accent-soft:    oklch(0.80 calc(var(--chroma) * 0.45 * (1 - var(--gray-level))) var(--hue));
+  --border-accent-subtle:  oklch(0.85 calc(var(--chroma) * 0.25 * (1 - var(--gray-level))) var(--hue));
+  --border-accent:         oklch(0.75 calc(var(--chroma) * 0.65 * (1 - var(--gray-level))) var(--hue));
+  --border-accent-strong:  oklch(0.70 var(--chroma) var(--hue));
+
+  /* ── Input / card focus ── */
+  --input-border-focus: oklch(0.72 calc(var(--chroma) * 0.72 * (1 - var(--gray-level))) var(--hue));
+  --card-border-active: oklch(0.78 calc(var(--chroma) * 0.50 * (1 - var(--gray-level))) var(--hue));
+
+  /* ── Primary button ── */
+  --btn-primary-bg:              oklch(0.92 calc(var(--chroma) * 0.28 * (1 - var(--gray-level))) var(--hue));
+  --btn-primary-color:           oklch(0.35 var(--chroma) var(--hue));
+  --btn-primary-border:          transparent;
+  --btn-primary-shadow:          none;
+  --btn-primary-hover-bg:        oklch(0.88 calc(var(--chroma) * 0.40 * (1 - var(--gray-level))) var(--hue));
+  --btn-primary-hover-color:     var(--color-text-primary);
+  --btn-primary-hover-border:    transparent;
+  --btn-primary-hover-shadow:    none;
+  --btn-primary-hover-transform: none;
+  --btn-primary-active-bg:       oklch(0.85 calc(var(--chroma) * 0.50 * (1 - var(--gray-level))) var(--hue));
+  --btn-primary-active-color:    var(--color-text-primary);
+  --btn-primary-active-border:   transparent;
+  --btn-primary-active-shadow:   none;
+  --btn-primary-active-transform:none;
+
+  /* ── Default button ── */
+  --btn-default-bg:              var(--element-bg-base);
+  --btn-default-color:           var(--color-text-secondary);
+  --btn-default-border:          var(--border-base);
+  --btn-default-shadow:          none;
+  --btn-default-hover-bg:        var(--element-bg-medium);
+  --btn-default-hover-color:     var(--color-text-primary);
+  --btn-default-hover-border:    var(--border-medium);
+  --btn-default-hover-shadow:    none;
+  --btn-default-hover-transform: none;
+  --btn-default-active-bg:       var(--element-bg-strong);
+  --btn-default-active-color:    var(--color-text-primary);
+  --btn-default-active-border:   var(--border-strong);
+  --btn-default-active-shadow:   none;
+  --btn-default-active-transform:none;
+
+  /* ── Card backgrounds ── */
+  --card-bg-default:  oklch(0.925 calc(var(--chroma-surface) * 0.06) var(--hue) / 0.60);
+  --card-bg-elevated: oklch(0.955 calc(var(--chroma-surface) * 0.04) var(--hue) / 0.80);
+  --card-bg-subtle:   oklch(0.965 calc(var(--chroma-surface) * 0.04) var(--hue) / 0.40);
+  --card-bg-hover:    oklch(0.905 calc(var(--chroma-surface) * 0.08) var(--hue) / 0.65);
+  --card-bg-active:   oklch(0.885 calc(var(--chroma-surface) * 0.10) var(--hue) / 0.90);
+  --card-bg-accent:       oklch(0.70 var(--chroma) var(--hue) / 0.08);
+  --card-bg-accent-hover: oklch(0.70 var(--chroma) var(--hue) / 0.13);
+  --card-bg:         var(--element-bg-base);
+  --card-bg-hover:   var(--element-bg-medium);
+  --card-bg-active:  var(--element-bg-elevated);
+  --card-border:     var(--border-base);
+  --card-border-hover: var(--border-medium);
+
+  /* ── Input ── */
+  --input-bg:          var(--element-bg-base);
+  --input-bg-hover:    var(--element-bg-medium);
+  --input-bg-focus:    var(--element-bg-soft);
+  --input-bg-disabled: var(--element-bg-subtle);
+  --input-border:      var(--border-base);
+  --input-border-hover: var(--border-medium);
+  --input-border-error: var(--color-error);
+  --input-text:        var(--color-text-primary);
+  --input-placeholder: color-mix(in srgb, var(--color-text-muted) 40%, var(--color-bg-primary));
+
+  /* ── Modal ── */
+  --modal-bg:       var(--color-bg-elevated);
+  --modal-border:   var(--border-base);
+  --modal-overlay:  oklch(0.15 calc(var(--chroma-surface) * 0.02) var(--hue) / 0.50);
+
+  /* ── Nav ── */
+  --nav-bg:              var(--color-bg-secondary);
+  --nav-item-bg-hover:   var(--element-bg-base);
+  --nav-item-bg-active:  var(--element-bg-medium);
+  --nav-item-text:       var(--color-text-secondary);
+  --nav-item-text-active:var(--color-text-primary);
+
+  /* ── Panel ── */
+  --panel-bg:        var(--color-bg-primary);
+  --panel-header-bg: var(--color-bg-secondary);
+  --panel-border:    var(--border-base);
+
+  /* ── Tooltip ── */
+  --tooltip-bg:      var(--color-bg-elevated);
+  --tooltip-border:  var(--border-medium);
+  --tooltip-text:    var(--color-text-primary);
+
+  /* ── Tool card ── */
+  --tool-card-bg-primary:   var(--element-bg-base);
+  --tool-card-bg-secondary: var(--element-bg-soft);
+  --tool-card-bg-hover:     var(--element-bg-medium);
+  --tool-card-bg-elevated:  var(--element-bg-elevated);
+  --tool-card-border:       var(--border-base);
+  --tool-card-border-subtle:var(--border-subtle);
+  --tool-card-text-primary: var(--color-text-primary);
+  --tool-card-text-secondary:var(--color-text-secondary);
+  --tool-card-text-muted:   var(--color-text-muted);
+
+  /* ── Scrollbar ── */
+  --scrollbar-thumb:       oklch(0.50 calc(var(--chroma-surface) * 0.04) var(--hue) / 0.15);
+  --scrollbar-thumb-hover: oklch(0.50 calc(var(--chroma-surface) * 0.06) var(--hue) / 0.28);
+
+  /* ── Glow effects ── */
+  --glow-blue:        oklch(0.70 var(--chroma) var(--hue) / 0.15);
+  --glow-shadow-blue: 0 12px 32px oklch(0.70 var(--chroma) var(--hue) / 0.20),
+                       0 6px 16px oklch(0.70 var(--chroma) var(--hue) / 0.12),
+                       0 3px 8px rgba(0, 0, 0, 0.12);
+
+  /* ── Window controls ── */
+  --window-control-minimize-dot:            oklch(0.72 calc(var(--chroma) * 0.72 * (1 - var(--gray-level))) var(--hue));
+  --window-control-minimize-hover-bg:       oklch(0.92 calc(var(--chroma) * 0.12 * (1 - var(--gray-level))) var(--hue));
+  --window-control-minimize-hover-color:    oklch(0.70 var(--chroma) var(--hue));
+  --window-control-minimize-hover-border:   oklch(0.85 calc(var(--chroma) * 0.28 * (1 - var(--gray-level))) var(--hue));
+  --window-control-maximize-dot:            oklch(0.72 calc(var(--chroma) * 0.72 * (1 - var(--gray-level))) var(--hue));
+  --window-control-maximize-hover-bg:       oklch(0.92 calc(var(--chroma) * 0.12 * (1 - var(--gray-level))) var(--hue));
+  --window-control-maximize-hover-color:    oklch(0.70 var(--chroma) var(--hue));
+  --window-control-maximize-hover-border:   oklch(0.85 calc(var(--chroma) * 0.28 * (1 - var(--gray-level))) var(--hue));
+
+  /* ── Glass accent ── */
+  --glass-blue-subtle: oklch(0.70 var(--chroma) var(--hue) / 0.08);
+  --glass-blue-base:   linear-gradient(135deg, oklch(0.70 var(--chroma) var(--hue) / 0.12) 0%, oklch(0.70 var(--chroma) var(--hue) / 0.06) 60%, oklch(0.70 var(--chroma) var(--hue) / 0.15) 100%);
+  --glass-blue-hover:  linear-gradient(135deg, oklch(0.70 var(--chroma) var(--hue) / 0.15) 0%, oklch(0.70 var(--chroma) var(--hue) / 0.08) 60%, oklch(0.70 var(--chroma) var(--hue) / 0.18) 100%);
+
+  /* ── Inner glow ── */
+  --inner-glow-bottom-blue: inset 0 -1px 0 oklch(0.70 var(--chroma) var(--hue) / 0.12);
+
+  /* ── Button shadows ── */
+  --button-shadow-base:  0 2px 8px oklch(0.70 var(--chroma) var(--hue) / 0.08);
+  --button-shadow-hover: 0 4px 12px oklch(0.70 var(--chroma) var(--hue) / 0.12);
+  --button-shadow-active:0 1px 4px oklch(0.70 var(--chroma) var(--hue) / 0.06);
+
+  /* ── Badge accent ── */
+  --badge-accent-bg:   oklch(0.92 calc(var(--chroma) * 0.28 * (1 - var(--gray-level))) var(--hue));
+  --badge-accent-text: oklch(0.70 var(--chroma) var(--hue));
+}
+
+/* ========== OKLCH dark-mode overrides ========== */
+:root[data-theme-type="dark"] {
+  /* ── Background colors ── */
+  --color-bg-primary:    oklch(0.10 calc(var(--chroma-surface) * 0.04) var(--hue));
+  --color-bg-secondary:  oklch(0.18 calc(var(--chroma-surface) * 0.08) var(--hue));
+  --color-bg-tertiary:   oklch(0.26 calc(var(--chroma-surface) * 0.10) var(--hue));
+  --color-bg-quaternary: oklch(0.30 calc(var(--chroma-surface) * 0.10) var(--hue));
+  --color-bg-elevated:   oklch(0.36 calc(var(--chroma-surface) * 0.10) var(--hue));
+  --color-bg-workbench:  oklch(0.08 calc(var(--chroma-surface) * 0.04) var(--hue));
+  --color-bg-scene:      oklch(0.22 calc(var(--chroma-surface) * 0.12) var(--hue));
+  --color-bg-flowchat:   var(--color-bg-scene);
+  --color-bg-tooltip:    oklch(0.36 calc(var(--chroma-surface) * 0.10) var(--hue));
+
+  /* ── Text colors ── */
+  --color-text-primary:   oklch(0.97 calc(var(--chroma-surface) * 0.03) var(--hue));
+  --color-text-secondary: oklch(0.87 calc(var(--chroma-surface) * 0.04) var(--hue));
+  --color-text-muted:     oklch(0.74 calc(var(--chroma-surface) * 0.03) var(--hue));
+  --color-text-disabled:  oklch(0.60 calc(var(--chroma-surface) * 0.02) var(--hue));
+
+  /* ── Element backgrounds ── */
+  --element-bg-subtle:   oklch(0.26 calc(var(--chroma-surface) * 0.08) var(--hue));
+  --element-bg-soft:     oklch(0.30 calc(var(--chroma-surface) * 0.10) var(--hue));
+  --element-bg-base:     oklch(0.36 calc(var(--chroma-surface) * 0.12) var(--hue));
+  --element-bg-medium:   oklch(0.46 calc(var(--chroma-surface) * 0.14) var(--hue));
+  --element-bg-strong:   oklch(0.54 calc(var(--chroma-surface) * 0.14) var(--hue));
+  --element-bg-elevated: oklch(0.40 calc(var(--chroma-surface) * 0.10) var(--hue));
+
+  /* ── Border colors ── */
+  --border-subtle:    oklch(0.46 calc(var(--chroma-surface) * 0.06) var(--hue));
+  --border-base:      oklch(0.54 calc(var(--chroma-surface) * 0.08) var(--hue));
+  --border-medium:    oklch(0.62 calc(var(--chroma-surface) * 0.10) var(--hue));
+  --border-strong:    oklch(0.72 calc(var(--chroma-surface) * 0.12) var(--hue));
+  --border-prominent: oklch(0.80 calc(var(--chroma-surface) * 0.14) var(--hue));
+  --border-hover:     var(--border-medium);
+  --border-focus:     var(--border-strong);
+
+  /* ── Overlay ── */
+  --color-overlay: oklch(0.06 calc(var(--chroma-surface) * 0.02) var(--hue) / 0.65);
+
+  /* ── Accent scale ── */
+  --color-accent-50:  oklch(0.24 calc(var(--chroma) * 0.12) var(--hue));
+  --color-accent-100: oklch(0.30 calc(var(--chroma) * 0.22) var(--hue));
+  --color-accent-200: oklch(0.40 calc(var(--chroma) * 0.38) var(--hue));
+  --color-accent-300: oklch(0.52 calc(var(--chroma) * 0.58) var(--hue));
+  --color-accent-400: oklch(0.66 calc(var(--chroma) * 0.80) var(--hue));
+  --color-accent-500: oklch(0.74 var(--chroma) var(--hue));
+  --color-accent-600: oklch(0.64 var(--chroma) var(--hue));
+  --color-accent-700: oklch(0.58 calc(var(--chroma) * 0.80) var(--hue));
+  --color-accent-800: oklch(0.50 calc(var(--chroma) * 0.65) var(--hue));
+
+  /* ── Primary button ── */
+  --btn-primary-bg:              oklch(0.44 calc(var(--chroma) * 0.30 * (1 - var(--gray-level))) var(--hue));
+  --btn-primary-color:           oklch(0.94 calc(var(--chroma) * 0.50) var(--hue));
+  --btn-primary-hover-bg:        oklch(0.52 calc(var(--chroma) * 0.40 * (1 - var(--gray-level))) var(--hue));
+  --btn-primary-active-bg:       oklch(0.48 calc(var(--chroma) * 0.35 * (1 - var(--gray-level))) var(--hue));
+
+  /* ── Card backgrounds ── */
+  --card-bg-default:  oklch(0.36 calc(var(--chroma-surface) * 0.10) var(--hue) / 0.85);
+  --card-bg-elevated: oklch(0.40 calc(var(--chroma-surface) * 0.08) var(--hue) / 0.90);
+  --card-bg-subtle:   oklch(0.28 calc(var(--chroma-surface) * 0.08) var(--hue) / 0.60);
+  --card-bg-hover:    oklch(0.42 calc(var(--chroma-surface) * 0.12) var(--hue) / 0.80);
+  --card-bg-active:   oklch(0.48 calc(var(--chroma-surface) * 0.14) var(--hue) / 0.90);
+  --card-bg-accent:       oklch(0.74 var(--chroma) var(--hue) / 0.14);
+  --card-bg-accent-hover: oklch(0.74 var(--chroma) var(--hue) / 0.22);
+
+  /* ── Accent borders ── */
+  --border-accent-soft:    oklch(0.62 calc(var(--chroma) * 0.45 * (1 - var(--gray-level))) var(--hue));
+  --border-accent-subtle:  oklch(0.48 calc(var(--chroma) * 0.25 * (1 - var(--gray-level))) var(--hue));
+  --border-accent:         oklch(0.68 calc(var(--chroma) * 0.65 * (1 - var(--gray-level))) var(--hue));
+  --border-accent-strong:  oklch(0.74 var(--chroma) var(--hue));
+
+  /* ── Window controls ── */
+  --window-control-minimize-dot:            oklch(0.66 calc(var(--chroma) * 0.70 * (1 - var(--gray-level))) var(--hue));
+  --window-control-minimize-hover-bg:       oklch(0.34 calc(var(--chroma) * 0.25 * (1 - var(--gray-level))) var(--hue));
+  --window-control-minimize-hover-color:    oklch(0.88 calc(var(--chroma) * 0.50) var(--hue));
+  --window-control-minimize-hover-border:   oklch(0.48 calc(var(--chroma) * 0.30 * (1 - var(--gray-level))) var(--hue));
+  --window-control-maximize-dot:            oklch(0.66 calc(var(--chroma) * 0.70 * (1 - var(--gray-level))) var(--hue));
+  --window-control-maximize-hover-bg:       oklch(0.34 calc(var(--chroma) * 0.25 * (1 - var(--gray-level))) var(--hue));
+  --window-control-maximize-hover-color:    oklch(0.88 calc(var(--chroma) * 0.50) var(--hue));
+  --window-control-maximize-hover-border:   oklch(0.48 calc(var(--chroma) * 0.30 * (1 - var(--gray-level))) var(--hue));
+
+  /* ── Badge accent ── */
+  --badge-accent-bg:   oklch(0.42 calc(var(--chroma) * 0.30 * (1 - var(--gray-level))) var(--hue));
+  --badge-accent-text: oklch(0.90 calc(var(--chroma) * 0.50) var(--hue));
+
+  /* ── Nav ── */
+  --nav-bg:              var(--color-bg-tertiary);
+
+  /* ── Scrollbar ── */
+  --scrollbar-thumb:       oklch(0.62 calc(var(--chroma-surface) * 0.04) var(--hue) / 0.18);
+  --scrollbar-thumb-hover: oklch(0.62 calc(var(--chroma-surface) * 0.06) var(--hue) / 0.32);
+
+  /* ── Modal overlay ── */
+  --modal-overlay: oklch(0.04 calc(var(--chroma-surface) * 0.02) var(--hue) / 0.78);
+}
+
+/* ========== Global reset and base styles ========== */
+
+/* Ensure a unified box model for all elements */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Root element styles */
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-family-sans, #{$font-family-sans});
+  font-size: var(--font-size-base, #{$font-size-base});
+  line-height: $line-height-base;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  overflow: hidden;
+}
+
+/* Link styles */
+a {
+  color: var(--color-accent-500);
+  text-decoration: none;
+  transition: color $motion-fast $easing-standard;
+}
+
+a:hover {
+  color: var(--color-accent-400);
+  text-decoration: underline;
+}
+
+/* Text selection styles */
+::selection {
+  background: var(--color-accent-300);
+  color: var(--color-text-primary);
+}
+
+::-moz-selection {
+  background: var(--color-accent-300);
+  color: var(--color-text-primary);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--color-accent-400);
+  outline-offset: 2px;
+  border-radius: $size-radius-sm;
+}
+
+/* Font preference: compact number stepper — avoid stacking global accent ring on the input */
+.font-pref-panel__number-input:focus,
+.font-pref-panel__number-input:focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
+
+.font-pref-panel__flow-select:focus,
+.font-pref-panel__flow-select:focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
+
+/* Disabled state */
+:disabled {
+  opacity: $opacity-disabled;
+  cursor: default;
+}
+
+/* Image optimization */
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: $size-radius-sm;
+}
+
+/* Table styles */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  text-align: left;
+  padding: $size-gap-2 $size-gap-3;
+  border-bottom: 1px solid var(--border-base);
+}
+
+th {
+  font-weight: $font-weight-semibold;
+  color: var(--color-text-primary);
+  background: var(--element-bg-base);
+}
+
+/* Code styles */
+code,
+pre {
+  font-family: $font-family-mono;
+  font-size: 0.9em;
+  background: var(--element-bg-base);
+  border: 1px solid var(--border-base);
+  border-radius: $size-radius-sm;
+}
+
+code {
+  padding: 2px 4px;
+}
+
+pre {
+  padding: $size-gap-3;
+  overflow-x: auto;
+  line-height: $line-height-relaxed;
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* Blockquote styles */
+blockquote {
+  margin: $size-gap-4 0;
+  padding: $size-gap-3 $size-gap-4;
+  border-left: 3px solid var(--color-accent-500);
+  background: var(--element-bg-base);
+  border-radius: 0 $size-radius-base $size-radius-base 0;
+  font-style: italic;
+}
+
+/* Divider (skip m-editor: ProseMirror uses border-top hairline; global height+background stacks visually) */
+hr:not(:is(.m-editor hr)) {
+  border: none;
+  height: 1px;
+  background: var(--border-base);
+  margin: $size-gap-5 0;
+}
+
+/* List styles */
+ul,
+ol {
+  padding-left: $size-gap-5;
+}
+
+li {
+  margin-bottom: $size-gap-1;
+}
+
+/* Hide scrollbar while keeping functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Loading state */
+.loading {
+  pointer-events: none;
+  opacity: $opacity-hover;
+}
+
+/* Error state */
+.error {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+/* Success state */
+.success {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+/* Warning state */
+.warning {
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+/* Accessibility helpers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* High-contrast mode */
+@media (prefers-contrast: high) {
+  :root {
+    --glass-border-base: rgba(255, 255, 255, 0.3);
+    --glass-border-hover: rgba(255, 255, 255, 0.5);
+    --glass-border-focus: rgba(255, 255, 255, 0.7);
+  }
+}
+
+/* Reduced motion mode */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dark theme */
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+}
+
+/* Hide window size debug overlays */
+body::after,
+body::before,
+html::after,
+html::before {
+  display: none !important;
+  content: none !important;
+}
+
+/* Hide possible window size indicators */
+.resize-indicator,
+.window-size-display,
+.screen-size-indicator,
+.breakpoint-indicator,
+.viewport-indicator,
+[data-window-size],
+[data-screen-size],
+[data-viewport],
+[data-breakpoint] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Hide top-right floating debug info */
+div[style*="position: fixed"][style*="top"][style*="right"],
+div[style*="position:fixed"][style*="top"][style*="right"] {
+  &:not(.ai00-x-notification-container):not(.ai00-x-notification-center):not([class*="ai00-x"]) {
+    display: none !important;
+  }
+}
+
+/* Hide high z-index floating debug elements */
+body > div[style*="z-index: 9999"],
+body > div[style*="z-index:9999"],
+body > div[style*="z-index: 999999"],
+body > div[style*="z-index:999999"] {
+  &:not([class]):not([id]) {
+    display: none !important;
+  }
+}
+
+/* ========== Monaco Editor theme integration ========== */
+.monaco-editor,
+.monaco-editor .margin,
+.monaco-editor .monaco-editor-background,
+.monaco-editor .margin-view-overlays {
+  background-color: var(--color-bg-scene) !important;
+}
+
+.monaco-editor .view-overlays .current-line {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.monaco-editor .monaco-scrollable-element > .scrollbar {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.monaco-editor .monaco-scrollable-element > .scrollbar.vertical {
+  width: 8px !important;
+}
+
+.monaco-editor .monaco-scrollable-element > .scrollbar.horizontal {
+  height: 8px !important;
+}
+
+.monaco-editor .monaco-scrollable-element > .scrollbar > .slider {
+  background: var(--scrollbar-thumb) !important;
+  border-radius: 6px;
+}
+
+.monaco-editor .monaco-scrollable-element > .scrollbar.vertical > .slider {
+  left: 1px !important;
+  width: calc(100% - 2px) !important;
+}
+
+.monaco-editor .monaco-scrollable-element > .scrollbar.horizontal > .slider {
+  top: 1px !important;
+  height: calc(100% - 2px) !important;
+  border-radius: 3px;
+}
+
+.monaco-editor .monaco-scrollable-element > .scrollbar > .slider:hover {
+  background: var(--scrollbar-thumb-hover) !important;
+}
+
+.monaco-editor .monaco-scrollable-element > .scrollbar > .slider.active {
+  background: var(--scrollbar-thumb-hover) !important;
+}
+
+@media print {
+  * {
+    background: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  
+  a,
+  a:visited {
+    text-decoration: underline;
+  }
+  
+  a[href]::after {
+    content: " (" attr(href) ")";
+  }
+  
+  pre,
+  blockquote {
+    border: 1px solid #999;
+    page-break-inside: avoid;
+  }
+  
+  img {
+    page-break-inside: avoid;
+  }
+  
+  h2,
+  h3 {
+    page-break-after: avoid;
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "title": "Tool Settings",
+  "subtitle": "Tool execution configuration and available tool list",
+  "section": {
+    "config": {
+      "title": "Execution Behavior",
+      "description": "Control confirmation and timeout policies for tool calls."
+    },
+    "list": {
+      "title": "Tool List",
+      "description": "{{count}} tools available."
+    }
+  },
+  "config": {
+    "autoExecute": "Auto Execute",
+    "autoExecuteDesc": "Skip user confirmation before tool execution.",
+    "confirmTimeout": "Confirm Timeout",
+    "confirmTimeoutDesc": "Maximum time (seconds) to wait for user confirmation of tool calls.",
+    "executionTimeout": "Execution Timeout",
+    "executionTimeoutDesc": "Maximum time (seconds) for tool execution.",
+    "seconds": "sec"
+  },
+  "filters": {
+    "all": "All",
+    "readonly": "Read-only",
+    "writable": "Writable"
+  },
+  "search": {
+    "placeholder": "Search tools..."
+  },
+  "badges": {
+    "readonly": "Read-only",
+    "writable": "Writable",
+    "concurrent": "Concurrency Safe",
+    "permission": "Requires Permission"
+  },
+  "properties": {
+    "title": "Tool Properties",
+    "readonlyMode": "Read-only Mode",
+    "concurrencySafe": "Concurrency Safe",
+    "needsPermission": "Requires Permission",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "schema": {
+    "title": "Input Parameter Schema"
+  },
+  "messages": {
+    "loading": "Loading...",
+    "loadFailed": "Load failed",
+    "retry": "Retry",
+    "noTools": "No available tools",
+    "noMatchingTools": "No matching tools found",
+    "autoExecuteEnabled": "Auto execute enabled",
+    "autoExecuteDisabled": "Auto execute disabled",
+    "saveFailed": "Save failed"
+  }
+}

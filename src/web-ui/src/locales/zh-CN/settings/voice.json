@@ -1,0 +1,47 @@
+{
+  "title": "语音",
+  "subtitle": "音频设备与语音输入设置",
+  "voiceModels": {
+    "title": "语音与音频模型",
+    "subtitle": "ASR 语音识别、TTS 语音合成与音频生成引擎管理"
+  },
+  "voiceSettings": {
+    "title": "语音设置",
+    "subtitle": "音频设备选择与语音输入配置"
+  },
+  "deviceSelection": {
+    "title": "设备选择",
+    "inputDevice": "录音设备（麦克风）",
+    "outputDevice": "播放设备（扬声器）",
+    "defaultDevice": "默认设备",
+    "refresh": "刷新设备列表"
+  },
+  "voiceInput": {
+    "title": "语音输入",
+    "enabled": "启用全局语音输入",
+    "enabledDesc": "长按鼠标左键触发语音录音",
+    "triggerDuration": "触发时长",
+    "triggerDurationDesc": "长按多久后开始录音",
+    "chargeDelay": "充能动画延迟",
+    "chargeDelayDesc": "充能动画显示前的延迟时间",
+    "status": "服务状态",
+    "statusRunning": "运行中",
+    "statusStopped": "已停止"
+  },
+  "engineStatus": {
+    "title": "引擎状态",
+    "description": "ASR（语音识别）、TTS（语音合成）和音频生成引擎初始化状态",
+    "asrLabel": "ASR",
+    "ttsLabel": "TTS",
+    "audioGenLabel": "音频生成",
+    "asrDesc": "语音识别引擎",
+    "ttsDesc": "语音合成引擎",
+    "audioGenDesc": "音乐与音效生成引擎（MNN）",
+    "initialized": "已初始化",
+    "notInitialized": "未初始化",
+    "reinitAsr": "重新初始化 ASR 引擎",
+    "reinitTts": "重新初始化 TTS 引擎",
+    "reinitAudioGen": "重新初始化音频生成引擎",
+    "error": "错误"
+  }
+}
