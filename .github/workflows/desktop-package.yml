@@ -200,6 +200,18 @@ jobs:
           cuda: '12.4.0'
           method: 'network'
 
+      - name: Install Ninja (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Get-Command ninja -ErrorAction SilentlyContinue) {
+            Write-Host "ninja already on PATH"
+          } else {
+            choco install ninja -y --no-progress
+            Write-Host "ninja installed via choco"
+          }
+          ninja --version
+
       - name: Install Vulkan SDK (Linux)
         if: runner.os == 'Linux'
         shell: bash
