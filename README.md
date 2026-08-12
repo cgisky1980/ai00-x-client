@@ -18,7 +18,7 @@ Ai00-X is an AI personal-assistant desktop client, built on **Tauri 2.0** with *
 
 Ai00-X is built around **saving you money**: it adopts a **RWKV local inference + remote AI API** hybrid approach — **if it can run locally, it runs locally**.
 
-- **RWKV Local Inference**: runs RWKV models locally for LLM / ASR / TTS tasks first — **zero API cost, data never leaves your machine, private and secure**. RWKV's capabilities keep improving, so the local model can handle more and more.
+- **RWKV Local Inference**: runs RWKV models locally for LLM text inference first — **zero API cost, data never leaves your machine, private and secure**. RWKV's capabilities keep improving, so the local model can handle more and more. Local inference also covers Qwen3 ASR / TTS (speech recognition and synthesis), music and audio generation.
 - **Remote AI API**: when the local model is not strong enough for complex tasks (deep agentic coding, specialized domain knowledge), it automatically falls back to remote LLM APIs (Anthropic / OpenAI / Gemini, and more), paying per use.
 - **Smart Routing**: enjoy the free and private local inference while still having access to the strongest cloud models anytime — **pay only when it matters**.
 
@@ -44,13 +44,13 @@ Ai00-X is built around **saving you money**: it adopts a **RWKV local inference 
 
 ### Local Inference Engine
 
-| Component | Purpose | Source |
-| --------- | ------- | ------ |
-| llama.cpp | LLM / ASR / TTS | Compiled from source (per-platform CUDA / Vulkan / Metal backend) |
-| GGML | Shared inference runtime | Compiled from source (shared by llama & acestep) |
-| ACE-Step | Music generation | Compiled from source |
-| ONNX Runtime | TTS ONNX inference | Pre-downloaded official artifacts bundled with the app |
-| MNN | SA3 audio generation | Pre-downloaded upstream artifacts bundled with the app |
+| Component | Models | Purpose | Source |
+| --------- | ------ | ------- | ------ |
+| llama.cpp | RWKV (LLM), Qwen3 (ASR / TTS) | Local inference engine | Compiled from source (per-platform CUDA / Vulkan / Metal backend) |
+| GGML | — | Shared inference runtime | Compiled from source (shared by llama & acestep) |
+| ACE-Step | — | Music generation | Compiled from source |
+| ONNX Runtime | — | TTS ONNX inference | Pre-downloaded official artifacts bundled with the app |
+| MNN | — | SA3 audio generation | Pre-downloaded upstream artifacts bundled with the app |
 
 > **Runtime packaging principle**: components that can be compiled from source are built and shipped with the installer; large dependencies that cannot be compiled easily are pre-downloaded from official/upstream artifacts and bundled — **no runtime online download**. See `scripts/pack-runtime.mjs`.
 
