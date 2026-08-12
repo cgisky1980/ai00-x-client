@@ -1,5 +1,7 @@
 name: Desktop Package
 
+# Re-scan registration
+
 on:
   release:
     types:
