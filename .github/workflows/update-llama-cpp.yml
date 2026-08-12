@@ -39,15 +39,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          node scripts/update-llama-cpp.mjs
-          # 退出码 2 = 检测到更新并已修改；0 = 已是最新；1 = 出错
-          code=$?
-          if [ "$code" -eq 2 ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
+          # 退出码 2 = 检测到更新并已修改；0 = 已是最新；1 = 出错。
+          # 用 if 捕获退出码（默认 bash -e 会让非零退出码直接中止 shell）。
+          if node scripts/update-llama-cpp.mjs; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            code=$?
+            if [ "$code" -eq 2 ]; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+            else
+              # 真实错误（exit 1 等），让本步骤失败以便排查
+              echo "updater failed with exit code $code"
+              exit "$code"
+            fi
           fi
-          exit 0
 
       - name: Create pull request
         if: steps.bump.outputs.changed == 'true'
