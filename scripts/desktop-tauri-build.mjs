@@ -6,7 +6,7 @@
 import { spawnSync, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { readdirSync, existsSync } from 'fs';
+import { readdirSync, mkdirSync } from 'fs';
 import { ensureOpenSslWindows } from './ensure-openssl-windows.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -48,6 +48,13 @@ async function main() {
   const desktopDir = join(ROOT, 'src', 'apps', 'desktop');
   // Tauri CLI reads CI and rejects numeric "1" (common in CI providers).
   process.env.CI = 'true';
+
+  // tauri.conf.json lists ../../../target/release/runtime as a resource, and
+  // tauri-build validates resource existence during cargo build. The dir is
+  // populated by pack-runtime.mjs AFTER the pre-build, so create an empty
+  // placeholder here or the pre-build aborts with
+  // "resource path `../../../target/release/runtime` doesn't exist".
+  mkdirSync(join(ROOT, 'target', 'release', 'runtime'), { recursive: true });
 
   // Assemble locally-built runtime DLLs into target/release/runtime/ so they
   // get bundled into the installer (see tauri.conf.json resources).
