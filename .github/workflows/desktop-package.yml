@@ -195,9 +195,11 @@ jobs:
 
       - name: Install CUDA Toolkit (Windows)
         if: runner.os == 'Windows'
-        uses: Jimver/cuda-toolkit@v0.2.20
+        # CUDA 13.2+ is required for Visual Studio 2026 (MSVC 14.51) runners;
+        # older CUDA (<=12.8) rejects the host compiler in host_config.h.
+        uses: Jimver/cuda-toolkit@v0.2.36
         with:
-          cuda: '12.8.0'
+          cuda: '13.2.0'
           method: 'network'
 
       - name: Install Ninja (Windows)

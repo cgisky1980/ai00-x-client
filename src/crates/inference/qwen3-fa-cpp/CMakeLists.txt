@@ -28,6 +28,14 @@ add_library(mel_spectrogram STATIC
 target_include_directories(mel_spectrogram PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(mel_spectrogram PRIVATE Threads::Threads)
 
+# mel_spectrogram.cpp uses vDSP/cblas from Accelerate.framework on macOS
+# (#ifdef __APPLE__). Static libs don't link, so propagate the framework to
+# the final shared lib via PUBLIC, otherwise ld fails with undefined
+# _vDSP_* / _cblas_sgemv$NEWLAPACK symbols.
+if(APPLE)
+    target_link_libraries(mel_spectrogram PUBLIC "-framework Accelerate")
+endif()
+
 # ForcedAligner shared library (DLL)
 add_library(qwen3_fa SHARED
     forced_aligner.cpp

@@ -27,30 +27,22 @@ async function main() {
 
   await ensureOpenSslWindows();
 
-  // Build underlay-ui before tauri build
-  console.log('[underlay] Building underlay-ui...');
+  // Build all frontend artifacts (web UI, loader, main.zip, underlay.zip)
+  // BEFORE the cargo pre-build below. tauri-build validates the resources
+  // listed in tauri.conf.json (dist/main.zip, dist/underlay.zip) during
+  // cargo build, so they must exist by then. The previous PowerShell-only
+  // zip step silently failed on Linux/macOS runners, aborting the build
+  // with "resource path `../../../dist/underlay.zip` doesn't exist".
+  console.log('[frontend] Building web/loader/underlay + zips (build:all)...');
   try {
-    execSync('pnpm --dir src/underlay-ui build', {
+    execSync('pnpm run build:all', {
       cwd: ROOT,
       stdio: 'inherit',
     });
-    console.log('[underlay] underlay-ui built successfully');
+    console.log('[frontend] build:all completed');
   } catch (e) {
-    console.warn('[underlay] underlay-ui build failed (non-fatal, continuing...)');
-  }
-
-  // Package underlay into zip
-  const underlayDir = join(ROOT, 'dist', 'underlay');
-  if (existsSync(underlayDir)) {
-    try {
-      execSync(
-        'powershell -Command "Compress-Archive -Path dist/underlay/* -DestinationPath dist/underlay.zip -Force"',
-        { cwd: ROOT, stdio: 'pipe' }
-      );
-      console.log('[underlay] Packaged dist/underlay.zip');
-    } catch (e) {
-      console.warn('[underlay] Failed to package underlay.zip (non-fatal)');
-    }
+    console.error('[frontend] build:all failed:', e.message);
+    process.exit(1);
   }
 
   const desktopDir = join(ROOT, 'src', 'apps', 'desktop');

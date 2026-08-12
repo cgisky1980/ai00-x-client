@@ -157,6 +157,10 @@ fn main() {
                 configure.arg("-DGGML_CUDA=ON");
                 // Exclude Blackwell (120a/121a) to avoid nvcc errors.
                 configure.arg("-DCMAKE_CUDA_ARCHITECTURES=75;80;86;89");
+                // Don't let nvcc's host-compiler version check abort the
+                // build when CI runners ship a newer Visual Studio than the
+                // CUDA release officially supports.
+                configure.arg("-DCMAKE_CUDA_FLAGS=--allow-unsupported-compiler");
             }
             "vulkan" => {
                 configure.arg("-DGGML_VULKAN=ON");
