@@ -38,26 +38,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            name: windows-x64
-            artifact: acestep-windows-x64
-            backend: "cpu"
-            cmake_arch: "-A x64"
-          - os: ubuntu-latest
-            name: linux-x64
-            artifact: acestep-linux-x64
-            backend: "cpu"
-            cmake_arch: ""
-          - os: macos-15
-            name: macos-arm64-metal
-            artifact: acestep-macos-arm64-metal
-            backend: "metal"
-            cmake_arch: ""
-          - os: macos-15-intel
-            name: macos-x64
-            artifact: acestep-macos-x64
-            backend: "cpu"
-            cmake_arch: ""
+          - platform:
+              os: windows-latest
+              name: windows-x64
+              artifact: acestep-windows-x64
+              backend: "cpu"
+              cmake_arch: "-A x64"
+          - platform:
+              os: ubuntu-latest
+              name: linux-x64
+              artifact: acestep-linux-x64
+              backend: "cpu"
+              cmake_arch: ""
+          - platform:
+              os: macos-15
+              name: macos-arm64-metal
+              artifact: acestep-macos-arm64-metal
+              backend: "metal"
+              cmake_arch: ""
+          - platform:
+              os: macos-15-intel
+              name: macos-x64
+              artifact: acestep-macos-x64
+              backend: "cpu"
+              cmake_arch: ""
 
     steps:
       - name: Checkout
