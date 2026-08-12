@@ -5,6 +5,8 @@ use crate::util::process_manager;
 #[allow(unused_imports)]
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_os = "windows"))]
+use std::process::Command;
 
 /// Default CDP debug port.
 pub const DEFAULT_CDP_PORT: u16 = 9222;

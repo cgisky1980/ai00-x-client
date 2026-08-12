@@ -195,7 +195,7 @@ jobs:
 
       - name: Install CUDA Toolkit (Windows)
         if: runner.os == 'Windows'
-        uses: Jimver/cuda-toolkit@v0.2.16
+        uses: Jimver/cuda-toolkit@v0.2.20
         with:
           cuda: '12.8.0'
           method: 'network'
@@ -219,10 +219,12 @@ jobs:
           sudo apt-get update
           # glslc (compile GLSL shaders to SPIR-V) is required by ggml's Vulkan
           # backend (FindVulkan requires glslc); glslang-tools provides
-          # glslangValidator. libvulkan-dev + vulkan-tools provide the runtime.
+          # glslangValidator. spirv-headers is required by ggml-vulkan.cpp.
+          # libvulkan-dev + vulkan-tools provide the runtime.
           sudo apt-get install -y --no-install-recommends \
             glslang-tools \
             glslc \
+            spirv-headers \
             libvulkan-dev \
             vulkan-tools
 
