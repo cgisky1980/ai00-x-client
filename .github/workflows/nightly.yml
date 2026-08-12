@@ -1,5 +1,7 @@
 name: Nightly Build
 
+# Re-scan registration
+
 on:
   schedule:
     # Weekdays at 02:00 UTC

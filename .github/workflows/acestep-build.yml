@@ -1,5 +1,7 @@
 name: AceStep Build
 
+# Re-scan registration
+
 # Build the acestep_c runtime library (acestep_c.dll / .so / .dylib) from
 # the bundled acestep-cpp source across all supported platforms, and upload
 # the artifacts so downstream release packaging can bundle them. This avoids

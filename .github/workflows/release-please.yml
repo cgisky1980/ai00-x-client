@@ -1,8 +1,10 @@
 name: Release On Version Bump
 
+# Re-scan registration
+
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: write
