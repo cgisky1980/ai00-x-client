@@ -59,6 +59,24 @@ async function main() {
 
   // Assemble locally-built runtime DLLs into target/release/runtime/ so they
   // get bundled into the installer (see tauri.conf.json resources).
+  //
+  // pack-runtime.mjs collects build outputs (llama.dll, ggml, acestep_c.dll,
+  // qwen3_fa.dll) produced by the crate build.rs scripts. Those only exist
+  // after `cargo build`, but Tauri's beforeBuildCommand runs before cargo
+  // build, so we must compile first here. This mirrors what `tauri build`
+  // compiles (release, the ai00-x-desktop bin pulls in inference + acestep),
+  // and Tauri reuses the already-built artifacts.
+  console.log('[runtime] Pre-building release (so pack-runtime finds outputs)...');
+  try {
+    execSync('cargo build --release -p ai00-x-desktop', {
+      cwd: ROOT,
+      stdio: 'inherit',
+    });
+  } catch (e) {
+    console.error('[runtime] cargo pre-build failed:', e.message);
+    process.exit(1);
+  }
+
   console.log('[runtime] Collecting runtime DLLs...');
   try {
     execSync('node scripts/pack-runtime.mjs', { cwd: ROOT, stdio: 'inherit' });
