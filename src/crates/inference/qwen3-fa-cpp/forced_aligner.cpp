@@ -17,6 +17,10 @@
 #define FA_LOG(msg) do { fprintf(stderr, "[FA-CPP] %s\n", msg); fflush(stderr); OutputDebugStringA("[FA-CPP] " msg "\n"); } while (0)
 #define FA_LOGF(fmt, ...) do { fprintf(stderr, "[FA-CPP] " fmt "\n", __VA_ARGS__); fflush(stderr); char _b[512]; snprintf(_b, sizeof(_b), "[FA-CPP] " fmt "\n", __VA_ARGS__); OutputDebugStringA(_b); } while (0)
 #else
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #define FA_LOG(msg) do { fprintf(stderr, "[FA-CPP] %s\n", msg); fflush(stderr); } while (0)
 #define FA_LOGF(fmt, ...) do { fprintf(stderr, "[FA-CPP] " fmt "\n", __VA_ARGS__); fflush(stderr); } while (0)
 #endif

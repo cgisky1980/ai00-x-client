@@ -205,18 +205,22 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          # glslang-tools provides glslc (used by ggml's Vulkan shader compile);
-          # libvulkan-dev + vulkan-tools for the runtime. shaderc/libshaderc-dev
-          # are not present in all Ubuntu repos and are NOT needed for ggml's
-          # Vulkan backend, so they are intentionally omitted.
+          # glslc (provided by shaderc) is required by ggml's Vulkan backend
+          # (FindVulkan requires glslc); glslang-tools provides glslangValidator.
+          # libvulkan-dev + vulkan-tools provide the Vulkan runtime.
           sudo apt-get install -y --no-install-recommends \
             glslang-tools \
+            shaderc \
             libvulkan-dev \
             vulkan-tools
 
       - name: Build desktop app
         env:
           LLAMA_BACKEND: ${{ matrix.platform.llama_backend }}
+          # Windows CUDA: use the Ninja generator so nvcc is used directly.
+          # The Visual Studio generator fails with "No CUDA toolset found"
+          # when the CUDA VS integration extension isn't installed.
+          LLAMA_USE_NINJA: ${{ runner.os == 'Windows' && '1' || '' }}
         run: ${{ matrix.platform.build_command }}
 
       - name: Upload bundles
