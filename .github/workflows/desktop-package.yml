@@ -197,7 +197,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: Jimver/cuda-toolkit@v0.2.16
         with:
-          cuda: '12.4.0'
+          cuda: '12.8.0'
           method: 'network'
 
       - name: Install Ninja (Windows)
@@ -217,12 +217,12 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          # glslc (provided by shaderc) is required by ggml's Vulkan backend
-          # (FindVulkan requires glslc); glslang-tools provides glslangValidator.
-          # libvulkan-dev + vulkan-tools provide the Vulkan runtime.
+          # glslc (compile GLSL shaders to SPIR-V) is required by ggml's Vulkan
+          # backend (FindVulkan requires glslc); glslang-tools provides
+          # glslangValidator. libvulkan-dev + vulkan-tools provide the runtime.
           sudo apt-get install -y --no-install-recommends \
             glslang-tools \
-            shaderc \
+            glslc \
             libvulkan-dev \
             vulkan-tools
 
