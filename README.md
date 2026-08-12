@@ -14,8 +14,18 @@
 
 Ai00-X is an AI personal-assistant desktop client, built on **Tauri 2.0** with **Rust** and **TypeScript**. It integrates an Agent system, local inference engines, and desktop companion forms into a single standalone desktop application.
 
+### Hybrid Inference: RWKV Local + Remote AI API
+
+Ai00-X is built around **saving you money**: it adopts a **RWKV local inference + remote AI API** hybrid approach — **if it can run locally, it runs locally**.
+
+- **RWKV Local Inference**: runs RWKV models locally for LLM / ASR / TTS tasks first — **zero API cost, data never leaves your machine, private and secure**. RWKV's capabilities keep improving, so the local model can handle more and more.
+- **Remote AI API**: when the local model is not strong enough for complex tasks (deep agentic coding, specialized domain knowledge), it automatically falls back to remote LLM APIs (Anthropic / OpenAI / Gemini, and more), paying per use.
+- **Smart Routing**: enjoy the free and private local inference while still having access to the strongest cloud models anytime — **pay only when it matters**.
+
+### Core Features
+
 - **Agent System**: personal assistant, coding agent, knowledge-work agent, custom agents
-- **Local Inference**: llama.cpp (LLM / ASR / TTS), ACE-Step (music generation), SA3 (audio generation)
+- **Local Inference**: RWKV / llama.cpp (LLM / ASR / TTS), ACE-Step (music generation), SA3 (audio generation)
 - **Desktop Companion**: animated pet forms via overlay / underlay
 - **Remote Access**: phone browser, Telegram, Feishu, WeChat remote commands
 
