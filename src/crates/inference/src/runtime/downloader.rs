@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::Path;
 
 pub const ORT_VERSION: &str = "1.23.2";
-pub const LLAMA_CPP_VERSION: &str = "b9113";
+pub const LLAMA_CPP_VERSION: &str = "b10369";
 pub const MNN_VERSION: &str = "1.0.0";
 pub const ACESTEP_VERSION: &str = "0.0.1";
 
