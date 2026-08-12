@@ -120,6 +120,13 @@ add_library(acestep-core STATIC
 )
 target_link_libraries(acestep-core PUBLIC yyjson)
 link_ggml_backends(acestep-core)
+# acestep-core is linked into the shared acestep_c.so/.dylib/.dll, so its
+# objects must be compiled position-independent. Without this, Linux links
+# fail with "relocation R_X86_64_TPOFF32 ... can not be used when making a
+# shared object" (thread_local statics in pipeline-lm.cpp).
+set_target_properties(acestep-core yyjson PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+)
 
 # C ABI shared library for FFI (loaded dynamically by Rust via libloading).
 # Both acestep and llama use the same ggml-base.dll name. The Rust runtime
