@@ -93,9 +93,13 @@ function bumpConstants(version) {
   log(`  - ${PACK_RUNTIME.replace(ROOT, 'scripts/..').replace(/\\/g, '/')}`);
 }
 
-// Point the submodule at the (already fetched) release tag and stage the
-// gitlink change in the parent repo so the workflow can commit it.
+// Point the submodule at the release tag and stage the gitlink change in the
+// parent repo so the workflow can commit it. The submodule from
+// `actions/checkout` is a shallow clone (only the pinned commit), so the new
+// tag must be fetched before checkout.
 function bumpSubmodule(tag) {
+  log(`Fetching tag ${tag} into submodule...`);
+  execSync(`git -C "${SUBMODULE_DIR}" fetch --depth 1 origin tag ${tag}`, { stdio: 'inherit' });
   log(`Checking out submodule at ${tag}...`);
   execSync(`git -C "${SUBMODULE_DIR}" checkout ${tag}`, { stdio: 'inherit' });
   // Stage the submodule pointer change in the parent repository.
