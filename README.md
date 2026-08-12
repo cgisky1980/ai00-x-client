@@ -2,15 +2,9 @@
 
 <div align="center">
 
-![Ai00-X](./png/Ai00-X_title.png)
-
-</div>
-<div align="center">
-
-[![GitHub release](https://img.shields.io/github/v/release/GCWing/Ai00-X?style=flat-square&color=blue)](https://github.com/GCWing/Ai00-X/releases)
-[![Website](https://img.shields.io/badge/Website-ai00-x.com-6f42c1?style=flat-square)](https://ai00-x.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](https://github.com/GCWing/Ai00-X/blob/main/LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=flat-square)](https://github.com/GCWing/Ai00-X)
+[![GitHub release](https://img.shields.io/github/v/release/cgisky1980/ai00-x-client?style=flat-square&color=blue)](https://github.com/cgisky1980/ai00-x-client/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=flat-square)](https://github.com/cgisky1980/ai00-x-client)
 
 </div>
 
@@ -18,55 +12,70 @@
 
 ## Introduction
 
-Ai00-X is an Agentic OS—and a companion right beside you.
+Ai00-X is an AI personal-assistant desktop client, built on **Tauri 2.0** with **Rust** and **TypeScript**. It integrates an Agent system, local inference engines, and desktop companion forms into a single standalone desktop application.
 
-It will interact through phones, watches, desktop robots, and more. It is part of your everyday life, and it evolves with you.
-
-![first_screen_screenshot](./png/first_screen_screenshot.png)
-
----
-
-## Remote Control
-
-Pair by scanning a QR code, and your phone instantly becomes a remote command center for the desktop Agent. Send one message, and the AI on the desktop starts working right away.
-
-Besides the mobile browser scan, Ai00-X also supports Telegram / Feishu bots / WeChat bots for remote commands, with real-time visibility into Agent progress.
+- **Agent System**: personal assistant, coding agent, knowledge-work agent, custom agents
+- **Local Inference**: llama.cpp (LLM / ASR / TTS), ACE-Step (music generation), SA3 (audio generation)
+- **Desktop Companion**: animated pet forms via overlay / underlay
+- **Remote Access**: phone browser, Telegram, Feishu, WeChat remote commands
 
 ---
 
-## Dual Modes
+## Core Capabilities
 
-Ai00-X offers two modes for different scenarios:
+### Agent System
 
-- **Assistant Mode**: warm, remembers your preferences, with long-term memory. Best for ongoing collaboration—maintaining a project, continuing your aesthetic and working habits.
-- **Professional Mode**: saves tokens, execution-first, clean context. Best for immediate tasks—fixing a bug, tweaking a style.
+| Agent | Role | Core Capabilities |
+| ----- | ---- | ----------------- |
+| Personal Assistant | Your dedicated AI companion | Long-term memory and personality; orchestrates Code / Cowork / custom Agents on demand |
+| Code Agent | Coding agent | Agentic (autonomous read / edit / run / verify) / Plan (plan-then-execute) / Debug (instrument → root cause) / Review (standard-based review) |
+| Cowork Agent | Knowledge-work agent | Built-in PDF / DOCX / XLSX / PPTX handling |
+| Custom Agent | Domain specialist | Quickly define a domain-specific Agent with Markdown |
 
----
+### Local Inference Engine
 
-## Agent System
+| Component | Purpose | Source |
+| --------- | ------- | ------ |
+| llama.cpp | LLM / ASR / TTS | Compiled from source (per-platform CUDA / Vulkan / Metal backend) |
+| GGML | Shared inference runtime | Compiled from source (shared by llama & acestep) |
+| ACE-Step | Music generation | Compiled from source |
+| ONNX Runtime | TTS ONNX inference | Pre-downloaded official artifacts bundled with the app |
+| MNN | SA3 audio generation | Pre-downloaded upstream artifacts bundled with the app |
 
+> **Runtime packaging principle**: components that can be compiled from source are built and shipped with the installer; large dependencies that cannot be compiled easily are pre-downloaded from official/upstream artifacts and bundled — **no runtime online download**. See `scripts/pack-runtime.mjs`.
 
-| Agent            | Role                    | Core Capabilities                                                                                                                                                    |
-| ---------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Personal Assistant** | Your dedicated AI companion | Long-term memory and personality; orchestrates Code / Cowork / custom Agents on demand, and can iterate and grow                                                    |
-| **Code Agent**   | Coding agent            | Four modes: Agentic (autonomous read / edit / run / verify) / Plan (plan first, then execute) / Debug (instrument → gather evidence → root cause) / Review (repo-standard review) |
-| **Cowork Agent** | Knowledge-work agent    | Built-in PDF / DOCX / XLSX / PPTX; fetch and extend capability packs from the Skill marketplace as needed                                                           |
-| **Custom Agent** | Domain specialist       | Quickly define a domain-specific Agent with Markdown                                                                                                                 |
+### Ecosystem
 
-
----
-
-## Ecosystem
-
-> It grows on its own.
-
-Supports Skills, MCP (including MCP App), and custom Agents; also on-demand Mini Apps (from one line of requirements to a runnable UI, with one-click packaging into a desktop app).
+Supports Skills, MCP (including MCP App), custom Agents, and on-demand Mini Apps.
 
 ---
 
 ## Platform Support
 
-Built with Tauri for Windows, macOS, and Linux; mobile control works through the phone browser, Telegram, Feishu, WeChat, and more.
+Tauri 2.0: **Windows / macOS / Linux**. The desktop client talks to backend services through a unified API, and supports remote commands via phone browser, Telegram, Feishu, WeChat, and more.
+
+---
+
+## Architecture
+
+```
+src/
+├── apps/desktop/          # Tauri 2.0 desktop app (ffi, server, tts, asr, overlay, underlay)
+├── crates/                # Rust crate workspace
+│   ├── core/              # Agent core business logic (cross-platform)
+│   ├── inference/         # llama.cpp inference wrapper (compiled by build.rs)
+│   ├── acestep/           # ACE-Step music generation wrapper
+│   ├── sa3/               # SA3 audio generation wrapper
+│   ├── ai-adapters/       # AI client adapters (Anthropic / OpenAI / Gemini)
+│   ├── transport/         # Transport adapter (Tauri)
+│   ├── relay/             # Remote connect relay (HTTP <-> WebSocket)
+│   └── webdriver/         # WebDriver browser automation
+├── web-ui/                # React frontend (shared between desktop & web)
+├── loader-ui/             # Loader UI
+└── underlay-ui/           # Desktop pet underlay UI
+```
+
+Tech stack: **Rust** (Tokio, Tauri 2.0, Axum, Salvo) + **React 19 / TypeScript / Vite**, using **pnpm** for the monorepo.
 
 ---
 
@@ -74,7 +83,7 @@ Built with Tauri for Windows, macOS, and Linux; mobile control works through the
 
 ### Download and use
 
-Download the latest desktop installer from [Releases](https://github.com/GCWing/Ai00-X/releases). After installation, configure your model and start using Ai00-X.
+Download the installer for your platform from [Releases](https://github.com/cgisky1980/ai00-x-client/releases). After installation, configure your model and start using Ai00-X.
 
 ### Build from source
 
@@ -98,7 +107,16 @@ pnpm run desktop:dev
 pnpm run desktop:build
 ```
 
-For more details, see the [Contributing guide](./CONTRIBUTING_CN.md).
+> **Note**: The desktop client communicates with backend services through a unified API. Deploy and start the corresponding backend service first, and configure the client connection (including the `AI00_S_INTERNAL_TOKEN` environment variable for CSRF exemption).
+
+---
+
+## Development Guide
+
+- Use release mode for Rust build/checks: `cargo build --release` / `cargo clippy --all-targets --release -- -D warnings`
+- Run `cargo fmt --all` before committing
+- Frontend type check: `pnpm run type-check:web`
+- See [AGENTS.md](./AGENTS.md) for detailed conventions
 
 ---
 
@@ -111,14 +129,11 @@ We welcome great ideas and code; we are maximally open to AI-generated code. Ple
 1. Good ideas / creativity (features, interaction, visuals, etc.)—via Issues
 2. Improving the Agent system and outcomes
 3. Improving stability and foundational capabilities
-4. Growing the ecosystem (Skills, MCP, LSP plugins, or better support for certain vertical development scenarios)
+4. Growing the ecosystem (Skills, MCP, etc.)
 
 ---
 
 ## Disclaimer
 
 1. This project is spare-time exploration and research into next-generation human–machine collaboration, not a commercial profit-making project.
-2. More than 97% was built with Vibe Coding. Code feedback is welcome; refactoring and optimization via AI is encouraged.
-3. This project depends on and references many open-source projects. Thanks to all open-source authors. **If your rights are affected, please contact us for remediation.**
-
----
+2. This project depends on and references many open-source projects. Thanks to all open-source authors. **If your rights are affected, please contact us for remediation.**

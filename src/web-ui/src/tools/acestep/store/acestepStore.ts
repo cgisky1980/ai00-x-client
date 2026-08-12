@@ -95,7 +95,6 @@ function presetIdForDiTFilename(filename: string): string {
  */
 async function waitForDownloads(taskIds: string[]): Promise<void> {
   if (taskIds.length === 0) return;
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const results = await Promise.all(
       taskIds.map((id) => aceStepService.getDownloadProgress(id)),

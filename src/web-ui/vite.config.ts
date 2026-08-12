@@ -6,7 +6,7 @@ import { versionInjectionPlugin } from "./vite.config.version-plugin";
 
 const require = createRequire(import.meta.url);
 // 本地端口唯一来源：packages/shared/server-endpoints.json（与 Rust/TS 由同一脚本生成）
-const { localHost, localPorts } = require("../../packages/shared/server-endpoints.json");
+const { localPorts } = require("../../packages/shared/server-endpoints.json");
 
 const host = process.env.TAURI_DEV_HOST;
 
