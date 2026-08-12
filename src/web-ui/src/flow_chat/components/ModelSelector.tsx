@@ -174,6 +174,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const [upgradeDialog, setUpgradeDialog] = useState<{ modelName: string; requiredTier: string } | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const autoSelectedRef = useRef(false);
 
   const loadConfigData = useCallback(async () => {
     try {
@@ -472,6 +473,32 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       setLoading(false);
     }
   }, [currentMode, loading, sessionId, userTier]);
+
+  /// 自动默认选中：当 primary 指向 ai00s 且当前 model_name 是无效占位符（"ai00s" 或不在服务器模型列表）
+  /// 时，自动选中服务器标注的默认模型（isDefault），无默认则选第一个可访问模型。
+  /// 仅执行一次，避免覆盖用户手动选择。
+  useEffect(() => {
+    if (autoSelectedRef.current) return;
+    if (primaryModelId !== 'ai00s') return;
+    if (xfModels.length === 0) return;
+
+    const ai00sModel = allModels.find(m => m.id === 'ai00s');
+    const currentModelName = ai00sModel?.model_name || '';
+    // 无效判定：占位符 "ai00s" 或不在服务器返回的模型中
+    const isValid = currentModelName !== 'ai00s'
+      && xfModels.some(m => m.id === currentModelName);
+    if (isValid) return;
+
+    autoSelectedRef.current = true;
+    // 优先选服务器标注的默认模型，否则第一个可访问的模型
+    const defaultModel = xfModels.find(m => m.isDefault)
+      || xfModels.find(m => m.isUpstreamFree)
+      || xfModels[0];
+    if (defaultModel) {
+      log.info('Auto-selecting server default model', { modelId: defaultModel.id });
+      handleSelectXfModel(defaultModel);
+    }
+  }, [primaryModelId, xfModels, allModels, handleSelectXfModel]);
 
   const tokenPercentage = useMemo(() => {
     if (!maxTokens || maxTokens <= 0 || !currentTokens) return 0;

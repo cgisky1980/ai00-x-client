@@ -728,7 +728,8 @@ pub async fn execute_custom_command(app: tauri::AppHandle, command: String) -> R
         }
         "open_settings" => {
             if let Err(e) =
-                crate::task_window::open_task_window(app.clone(), None, None, Some(true)).await
+                crate::task_window::open_task_window(app.clone(), None, None, Some(true), None)
+                    .await
             {
                 log::warn!("open_settings: failed to open task window: {}", e);
             }

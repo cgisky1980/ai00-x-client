@@ -42,6 +42,26 @@ export async function getApiUrl(path: string): Promise<string> {
   return `${base}${path}`;
 }
 
+/**
+ * 获取头像/宠物资源根 URL（含 `/pet` 路径）。
+ *
+ * 优先使用独立的 `app.assets_base_url`（若配置），否则回退到 Ai00-S 服务器地址：
+ * - assets_base_url 已配置（如 http://127.0.0.1:2100）→ `${assets_base_url}/pet`
+ * - 未配置 → `${ai00_s_base_url}/pet`（沿用服务器资源）
+ *
+ * 独立配置让本地开发可指向嵌入服务器/后续 CDN，而不影响 AI00-S API 服务器地址。
+ */
+export async function getAssetsBaseUrl(): Promise<string> {
+  let assetsBase = '';
+  try {
+    assetsBase = (await invoke<string>('get_assets_base_url')) || '';
+  } catch {
+    assetsBase = '';
+  }
+  if (assetsBase) return `${assetsBase}/pet`;
+  return getApiUrl('/pet');
+}
+
 export const config = {
   apiBase: FALLBACK_BASE,
 };

@@ -182,6 +182,22 @@ pub fn get_exe_dir_cmd() -> Result<String, String> {
     get_exe_dir()
 }
 
+/// Resolve the models directory. Respects `AI00X_MODELS_DIR` when set
+/// (dev mode points it at `.ai00-x-dev/models`), otherwise falls back to
+/// `<exe_dir>/models`.
+#[tauri::command]
+pub fn get_models_dir_cmd() -> Result<String, String> {
+    Ok(get_models_dir_path()?.to_string_lossy().to_string())
+}
+
+/// Resolve the runtime directory. Respects `AI00X_RUNTIME_DIR` when set
+/// (dev mode points it at `.ai00-x-dev/runtime`), otherwise falls back to
+/// `<exe_dir>/runtime`.
+#[tauri::command]
+pub fn get_runtime_dir_cmd() -> Result<String, String> {
+    Ok(runtime::get_runtime_dir().to_string_lossy().to_string())
+}
+
 #[tauri::command]
 pub async fn check_model_updates() -> Result<CheckResult, String> {
     log::info!("[model_init] check_model_updates called");

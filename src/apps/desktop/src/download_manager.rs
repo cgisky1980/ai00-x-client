@@ -88,6 +88,10 @@ impl DownloadManager {
 
             let mut last_error = String::new();
 
+            // Number of attempts per mirror. Network errors on flaky mirrors
+            // (e.g. hf-mirror.com) are transient, so retry before giving up.
+            const MAX_ATTEMPTS_PER_MIRROR: usize = 3;
+
             for (attempt, url) in urls.iter().enumerate() {
                 log::info!(
                     "[DownloadManager] start download: id={}, attempt={}/{}, url={}",
@@ -107,71 +111,101 @@ impl DownloadManager {
                     }
                 }
 
-                let res = client.get(url).send().await;
+                let mut attempt_error = String::new();
+                let mut succeeded = false;
 
-                match res {
-                    Ok(response) => {
-                        if !response.status().is_success() {
-                            last_error = format!("HTTP {} from {}", response.status(), url);
-                            log::warn!(
-                                "[DownloadManager] download failed: id={}, error={}",
-                                id,
-                                last_error
-                            );
-                            if path.exists() {
-                                let _ = std::fs::remove_file(&path);
-                            }
-                            continue;
-                        }
-
-                        let total = response.content_length();
+                for retry in 0..MAX_ATTEMPTS_PER_MIRROR {
+                    if retry > 0 {
+                        // Backoff before retrying the same mirror.
+                        tokio::time::sleep(std::time::Duration::from_millis(800 * retry as u64))
+                            .await;
                         if let Some(t) = tasks.write().await.get_mut(&id) {
-                            t.total = total;
-                            t.status = DownloadStatus::Downloading;
+                            t.progress = 0;
+                            t.total = None;
+                            t.status = DownloadStatus::Pending;
+                            t.error = None;
                         }
+                    }
 
-                        use futures::StreamExt;
+                    let res = client.get(url).send().await;
 
-                        let file_result = tokio::fs::File::create(&path).await;
-                        if let Err(e) = file_result {
+                    match res {
+                        Ok(response) => {
+                            if !response.status().is_success() {
+                                attempt_error =
+                                    format!("HTTP {} from {}", response.status(), url);
+                                log::warn!(
+                                    "[DownloadManager] download failed: id={}, error={}",
+                                    id,
+                                    attempt_error
+                                );
+                                if path.exists() {
+                                    let _ = std::fs::remove_file(&path);
+                                }
+                                continue;
+                            }
+
+                            let total = response.content_length();
                             if let Some(t) = tasks.write().await.get_mut(&id) {
-                                t.status = DownloadStatus::Failed;
-                                t.error = Some(e.to_string());
+                                t.total = total;
+                                t.status = DownloadStatus::Downloading;
                             }
-                            return;
-                        }
-                        let mut file = file_result.unwrap();
 
-                        use tokio::io::AsyncWriteExt;
-                        let mut stream = response.bytes_stream();
-                        while let Some(chunk_result) = stream.next().await {
-                            match chunk_result {
-                                Ok(data) => {
-                                    if let Err(e) = file.write_all(&data).await {
-                                        if let Some(t) = tasks.write().await.get_mut(&id) {
-                                            t.status = DownloadStatus::Failed;
-                                            t.error = Some(e.to_string());
+                            use futures::StreamExt;
+
+                            let file_result = tokio::fs::File::create(&path).await;
+                            if let Err(e) = file_result {
+                                if let Some(t) = tasks.write().await.get_mut(&id) {
+                                    t.status = DownloadStatus::Failed;
+                                    t.error = Some(e.to_string());
+                                }
+                                return;
+                            }
+                            let mut file = file_result.unwrap();
+
+                            use tokio::io::AsyncWriteExt;
+                            let mut stream = response.bytes_stream();
+                            let mut stream_error: Option<String> = None;
+                            while let Some(chunk_result) = stream.next().await {
+                                match chunk_result {
+                                    Ok(data) => {
+                                        if let Err(e) = file.write_all(&data).await {
+                                            if let Some(t) =
+                                                tasks.write().await.get_mut(&id)
+                                            {
+                                                t.status = DownloadStatus::Failed;
+                                                t.error = Some(e.to_string());
+                                            }
+                                            return;
                                         }
-                                        return;
+                                        if let Some(t) = tasks.write().await.get_mut(&id) {
+                                            t.progress += data.len() as u64;
+                                        }
                                     }
-                                    if let Some(t) = tasks.write().await.get_mut(&id) {
-                                        t.progress += data.len() as u64;
+                                    Err(e) => {
+                                        attempt_error = e.to_string();
+                                        stream_error = Some(e.to_string());
+                                        log::warn!(
+                                            "[DownloadManager] stream error: id={}, error={}",
+                                            id,
+                                            attempt_error
+                                        );
+                                        break;
                                     }
-                                }
-                                Err(e) => {
-                                    last_error = e.to_string();
-                                    log::warn!(
-                                        "[DownloadManager] stream error: id={}, error={}",
-                                        id,
-                                        last_error
-                                    );
-                                    break;
                                 }
                             }
-                        }
 
-                        if let Ok(metadata) = std::fs::metadata(&path) {
-                            if metadata.len() > 0 {
+                            let bytes_written =
+                                std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+
+                            // Verify the download actually completed: a network error
+                            // mid-stream leaves a partial file that must NOT be treated
+                            // as a successful download.
+                            let complete = stream_error.is_none()
+                                && bytes_written > 0
+                                && total.map(|t| bytes_written >= t).unwrap_or(true);
+
+                            if complete {
                                 if let Err(e) = file.sync_all().await {
                                     if let Some(t) = tasks.write().await.get_mut(&id) {
                                         t.status = DownloadStatus::Failed;
@@ -186,30 +220,44 @@ impl DownloadManager {
                                 log::info!(
                                     "[DownloadManager] download completed: id={}, size={}",
                                     id,
-                                    metadata.len()
+                                    bytes_written
                                 );
-                                return;
+                                succeeded = true;
+                                break;
+                            }
+
+                            // Incomplete download (truncated or stream error): remove the
+                            // partial file and retry the same mirror before moving on.
+                            log::warn!(
+                                "[DownloadManager] download incomplete: id={}, size={}, total={:?}, error={:?}",
+                                id,
+                                bytes_written,
+                                total,
+                                stream_error
+                            );
+
+                            if path.exists() {
+                                let _ = std::fs::remove_file(&path);
                             }
                         }
-
-                        if path.exists() {
-                            let _ = std::fs::remove_file(&path);
+                        Err(e) => {
+                            attempt_error = e.to_string();
+                            log::warn!(
+                                "[DownloadManager] download failed: id={}, error={}",
+                                id,
+                                attempt_error
+                            );
+                            if path.exists() {
+                                let _ = std::fs::remove_file(&path);
+                            }
                         }
-                        continue;
-                    }
-                    Err(e) => {
-                        last_error = e.to_string();
-                        log::warn!(
-                            "[DownloadManager] download failed: id={}, error={}",
-                            id,
-                            last_error
-                        );
-                        if path.exists() {
-                            let _ = std::fs::remove_file(&path);
-                        }
-                        continue;
                     }
                 }
+
+                if succeeded {
+                    return;
+                }
+                last_error = attempt_error;
             }
 
             if let Some(t) = tasks.write().await.get_mut(&id) {

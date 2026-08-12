@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useWorkspaceContext } from '../infrastructure/contexts/WorkspaceContext';
 import { useSceneStore } from './stores/sceneStore';
+import { useModeStore } from './stores/modeStore';
 import { FlowChatManager } from '../flow_chat';
 import { useCoreLayoutInit } from './hooks/useCoreLayoutInit';
 import WorkspaceBody from './layout/WorkspaceBody';
@@ -11,9 +12,10 @@ import './ChatWindowApp.scss';
 interface ChatWindowAppProps {
   sessionId?: string;
   openSettings?: boolean;
+  openMusic?: boolean;
 }
 
-const ChatWindowApp: React.FC<ChatWindowAppProps> = ({ sessionId, openSettings }) => {
+const ChatWindowApp: React.FC<ChatWindowAppProps> = ({ sessionId, openSettings, openMusic }) => {
   const { activeWorkspace } = useWorkspaceContext();
   const openScene = useSceneStore((s) => s.openScene);
   const init = useCoreLayoutInit(false);
@@ -31,6 +33,15 @@ const ChatWindowApp: React.FC<ChatWindowAppProps> = ({ sessionId, openSettings }
     }, 300);
     return () => clearTimeout(timer);
   }, [openSettings, openScene]);
+
+  useEffect(() => {
+    if (!openMusic) return;
+    const timer = setTimeout(() => {
+      useModeStore.getState().setActiveMode('music');
+      openScene('acestep');
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [openMusic, openScene]);
 
   useEffect(() => {
     if (!sessionId) return;

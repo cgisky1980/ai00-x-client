@@ -58,10 +58,10 @@ export default defineConfig(({ mode, command }) => {
     // Tauri devUrl is fixed to http://localhost:1422.
     // If Vite silently falls back to another port, the desktop webview stays blank.
     strictPort: true,
-    host: host || "localhost",
+    host: host || "127.0.0.1",
     hmr: {
       protocol: "ws",
-      host: host || "localhost",
+      host: host || "127.0.0.1",
       port: localPorts.webUiHmr,
     },
     // Dev proxy → Salvo（注:fetchWithAuth 用绝对 URL,proxy 主要用于配置一致性）

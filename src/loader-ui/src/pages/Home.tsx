@@ -317,19 +317,29 @@ export function HomePage() {
           warnInit(t("homeInitRuntime"), e);
         }
 
-        // Step 3: Get exe directory
+        // Step 3: Get exe directory + models directory
         let exeDir = "";
+        let modelsDir = "";
         try {
           exeDir = await invoke<string>("get_exe_dir_cmd");
         } catch (e) {
           warnInit(t("homeInitRuntime"), e);
+        }
+        try {
+          // Respects AI00X_MODELS_DIR (dev → .ai00-x-dev/models), else exe_dir/models
+          modelsDir = await invoke<string>("get_models_dir_cmd");
+        } catch (e) {
+          warnInit(t("homeInitRuntime"), e);
+        }
+        if (!modelsDir) {
+          modelsDir = exeDir + "/models";
         }
 
         // Step 4: Initialize ASR engine
         setStatus(t("homeInitAsr"));
         try {
           await invoke("init_asr_engine", {
-            modelDir: exeDir + "/models/asr",
+            modelDir: modelsDir + "/asr",
           });
         } catch (e) {
           warnInit(t("homeInitAsr"), e);
@@ -345,7 +355,7 @@ export function HomePage() {
         // Step 6: Initialize TTS engine
         setStatus(t("homeInitTts"));
         try {
-          const modelDir = exeDir + "/models/tts";
+          const modelDir = modelsDir + "/tts";
           console.log("[HomePage] TTS model directory:", modelDir);
           await invoke("init_tts_engine", {
             modelDir,
@@ -403,7 +413,7 @@ export function HomePage() {
           const mnnGpu = gpuInfo.recommended_backend;
           console.log(`[Audio Gen] GPU detect: cuda=${gpuInfo.cuda_available}, vulkan=${gpuInfo.vulkan_available}, using=${mnnGpu}`);
           await invoke("init_audio_gen_engine", {
-            modelDir: exeDir + "/models/sa3",
+            modelDir: modelsDir + "/sa3",
             variant: "sm-music",
             mnnGpu,
             mnnInt8: true,

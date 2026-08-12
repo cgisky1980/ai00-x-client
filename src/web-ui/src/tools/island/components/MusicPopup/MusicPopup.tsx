@@ -29,7 +29,7 @@ import {
   HardDrive,
 } from 'lucide-react'
 import { listen, emit } from '@tauri-apps/api/event'
-import { convertFileSrc } from '@tauri-apps/api/core'
+import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import { useAudioPlaybackStore, RADIO_PRESETS } from '../../../vrm/store/audioPlaybackStore'
 import { useAudioPlayback } from '../../../vrm/hooks/useAudioPlayback'
 import { useIslandStore } from '../../store/islandStore'
@@ -274,6 +274,11 @@ export const MusicPopup: React.FC = () => {
   // ---- Active sidebar section (left menu) ----
   type Section = 'radio' | 'local' | 'community' | 'recommend' | 'seeding'
   const [activeSection, setActiveSection] = useState<Section>('radio')
+
+  // ---- Open the task window and switch to the music creation (AceStep) scene ----
+  const handleOpenCreator = useCallback(() => {
+    invoke('open_task_window', { sessionId: null, sessionTitle: null, openMusic: true }).catch(() => {})
+  }, [])
 
   // ---- Draggable, non-modal popup ----
   // Initial position: centered horizontally below the dynamic island
@@ -984,6 +989,16 @@ export const MusicPopup: React.FC = () => {
               <Music size={12} />
               <span>{t('acestep.library', { defaultValue: '本地作品' })}</span>
               <span className="music-popup__section-count">{acestepSongs.length}</span>
+              <button
+                type="button"
+                className="music-popup__create-btn"
+                onClick={(e) => { e.stopPropagation(); handleOpenCreator() }}
+                onMouseDown={(e) => e.stopPropagation()}
+                title={t('acestep.openCreator', { defaultValue: '打开音乐创作' })}
+              >
+                <Sparkles size={12} />
+                <span>{t('acestep.openCreator', { defaultValue: '打开音乐创作' })}</span>
+              </button>
             </h3>
             <div className="music-popup__song-list">
               {acestepSongsLoading ? (

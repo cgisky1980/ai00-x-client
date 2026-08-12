@@ -371,13 +371,21 @@ pub async fn acestep_list_local_models() -> Result<Vec<AceStepLocalModel>, Strin
     let models_dir = resolve_models_dir();
     let acestep_dir = models_dir.join("acestep");
 
+    // Build filename -> expected size lookup from the catalog so we can flag
+    // truncated files as missing (a non-empty but incomplete download must
+    // not be reported as a usable model).
+    let expected_sizes: std::collections::HashMap<&str, u64> = acestep_catalog()
+        .iter()
+        .map(|(_, filename, _, _, approx_size, _, _)| (*filename, *approx_size))
+        .collect();
+
     let result: Vec<AceStepLocalModel> = expected_models()
         .iter()
         .map(|(role, variant, filename)| {
             let path = acestep_dir.join(filename);
-            let (exists, size_bytes) = std::fs::metadata(&path)
-                .map(|m| (true, m.len()))
-                .unwrap_or((false, 0));
+            let size_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            let expected = expected_sizes.get(filename).copied().unwrap_or(0);
+            let exists = size_bytes > 0 && size_bytes >= expected;
             AceStepLocalModel {
                 role: role.to_string(),
                 variant: variant.to_string(),
@@ -1752,9 +1760,12 @@ pub async fn acestep_list_catalog() -> Result<Vec<AceStepCatalogEntry>, String> 
         .map(
             |(id, filename, role, variant, approx_size, recommended, dit_type)| {
                 let path = models_dir.join(filename);
-                let (exists, local_size) = std::fs::metadata(&path)
-                    .map(|m| (true, m.len()))
-                    .unwrap_or((false, 0));
+                let local_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                // Consider a file "present" only when it is large enough to be a
+                // complete model. A truncated download leaves a non-empty but
+                // incomplete file that previously showed as "downloaded" in the
+                // UI while actually being unusable.
+                let exists = local_size >= *approx_size;
                 AceStepCatalogEntry {
                     id: id.to_string(),
                     filename: filename.to_string(),
@@ -1801,17 +1812,25 @@ pub async fn acestep_download_model(id: String) -> Result<String, String> {
         .find(|(eid, _, _, _, _, _, _)| eid == &id)
         .ok_or_else(|| format!("Unknown ACE-Step model id: {}", id))?;
 
-    let (_, filename, _, _, _, _, _) = entry;
+    let (_, filename, _, _, approx_size, _, _) = entry;
     let save_dir = resolve_models_dir().join("acestep");
     std::fs::create_dir_all(&save_dir).map_err(|e| format!("Failed to create dir: {}", e))?;
     let save_path = save_dir.join(filename);
 
-    // Skip if already exists with non-zero size.
+    // Skip only if the file already exists AND looks complete. A truncated
+    // file (e.g. from an interrupted download) must be re-downloaded; it was
+    // previously treated as present because the check only required len > 0.
     if let Ok(meta) = std::fs::metadata(&save_path) {
-        if meta.len() > 0 {
+        if meta.len() >= *approx_size {
             log::info!("[AceStep] Model already exists, skipping: {}", filename);
             return Ok(id);
         }
+        log::warn!(
+            "[AceStep] Existing file incomplete ({} bytes, expected {}), re-downloading: {}",
+            meta.len(),
+            approx_size,
+            filename
+        );
     }
 
     // Refresh mirror speeds before selecting download URL (network-adaptive).
@@ -1846,16 +1865,22 @@ pub async fn acestep_download_all_recommended() -> Result<Vec<String>, String> {
     let mut started: Vec<String> = Vec::new();
     let mut seen_roles: std::collections::HashSet<&str> = std::collections::HashSet::new();
 
-    for (id, filename, role, _variant, _size, recommended, _dit_type) in catalog.iter() {
+    for (id, filename, role, _variant, size, recommended, _dit_type) in catalog.iter() {
         if !recommended || !seen_roles.insert(role) {
             continue;
         }
-        // Skip if already exists
+        // Skip only if already exists AND looks complete (see download_model).
         let path = resolve_models_dir().join("acestep").join(filename);
         if let Ok(meta) = std::fs::metadata(&path) {
-            if meta.len() > 0 {
+            if meta.len() >= *size {
                 continue;
             }
+            log::warn!(
+                "[AceStep] Batch: existing file incomplete ({} bytes, expected {}), re-downloading: {}",
+                meta.len(),
+                size,
+                filename
+            );
         }
 
         let urls = hf_urls_sorted(filename).await;
@@ -2217,16 +2242,16 @@ pub async fn acestep_download_preset(preset_id: String) -> Result<Vec<String>, S
 
     let mut started: Vec<String> = Vec::new();
     for mid in preset.model_ids {
-        let (id, filename, _, _, _, _, _) = catalog
+        let (id, filename, _, _, size, _, _) = catalog
             .iter()
             .find(|(cid, _, _, _, _, _, _)| cid == mid)
             .ok_or_else(|| format!("Catalog id '{}' not found in catalog", mid))?;
 
         let save_path = save_dir.join(filename);
 
-        // Skip if already exists with non-zero size.
+        // Skip only if already exists AND looks complete (see download_model).
         if let Ok(meta) = std::fs::metadata(&save_path) {
-            if meta.len() > 0 {
+            if meta.len() >= *size {
                 log::info!(
                     "[AceStep] Preset '{}': skipping existing {}",
                     preset_id,
@@ -2234,6 +2259,13 @@ pub async fn acestep_download_preset(preset_id: String) -> Result<Vec<String>, S
                 );
                 continue;
             }
+            log::warn!(
+                "[AceStep] Preset '{}': existing file incomplete ({} bytes, expected {}), re-downloading: {}",
+                preset_id,
+                meta.len(),
+                size,
+                filename
+            );
         }
 
         let urls = hf_urls_sorted(filename).await;

@@ -78,6 +78,110 @@ function newSessionId(): string {
 }
 
 /**
+ * Determine the preset id to download for a given DiT filename.
+ * Maps a DiT variant to its preset bundle (text encoder + DiT + VAE).
+ */
+function presetIdForDiTFilename(filename: string): string {
+  const isXl = filename.includes('xl');
+  const isQ8 = filename.includes('Q8');
+  const family = isXl ? 'xl-base' : 'base';
+  const quant = isQ8 ? 'q8' : 'q5';
+  return `${family}-${quant}`;
+}
+
+/**
+ * Wait (polling) until all given download tasks reach a terminal state.
+ * Resolves when every task is Completed. Throws if any task Failed.
+ */
+async function waitForDownloads(taskIds: string[]): Promise<void> {
+  if (taskIds.length === 0) return;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const results = await Promise.all(
+      taskIds.map((id) => aceStepService.getDownloadProgress(id)),
+    );
+    const done = results.filter((p) => p && p.status !== 'Downloading' && p.status !== 'Pending');
+    if (done.length === taskIds.length) {
+      const failed = done.filter((p) => p!.status === 'Failed');
+      if (failed.length > 0) {
+        throw new Error(
+          `Model download failed: ${failed.map((p) => p!.error ?? 'unknown error').join('; ')}`,
+        );
+      }
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+}
+
+/**
+ * Ensure the synth (text encoder + DiT + VAE) models are present on disk.
+ * If any are missing, auto-downloads the full bundle for the preferred DiT
+ * (falls back to a recommended 2B/4B preset) and waits for completion.
+ * Returns the resolved file paths.
+ */
+async function ensureSynthModels(): Promise<{
+  textEncoderPath: string;
+  ditPath: string;
+  vaePath: string;
+}> {
+  const models = await aceStepService.listLocalModels();
+  const pick = (role: string) => models.find((m) => m.role === role && m.exists);
+  const te = pick('text_encoder');
+  const vae = pick('vae');
+  const selectedFilename = (() => {
+    try {
+      return localStorage.getItem('acestep-selected-dit');
+    } catch {
+      return null;
+    }
+  })();
+  const dit =
+    (selectedFilename
+      ? models.find(
+          (m) => m.role === 'dit' && m.exists && m.filename === selectedFilename,
+        )
+      : undefined) ?? pick('dit');
+
+  if (te && dit && vae) {
+    return {
+      textEncoderPath: te.localPath,
+      ditPath: dit.localPath,
+      vaePath: vae.localPath,
+    };
+  }
+
+  // Missing something — auto-download the full bundle.
+  const preferredFilename =
+    selectedFilename ??
+    models.find((m) => m.role === 'dit')?.filename ??
+    'acestep-v15-base-Q8_0.gguf';
+  const presetId = presetIdForDiTFilename(preferredFilename);
+  const ids = await aceStepService.downloadPreset(presetId);
+  await waitForDownloads(ids);
+
+  // Re-resolve after download.
+  const refreshed = await aceStepService.listLocalModels();
+  const rpick = (role: string) => refreshed.find((m) => m.role === role && m.exists);
+  const rte = rpick('text_encoder');
+  const rvae = rpick('vae');
+  const rdit =
+    (selectedFilename
+      ? refreshed.find(
+          (m) => m.role === 'dit' && m.exists && m.filename === selectedFilename,
+        )
+      : undefined) ?? rpick('dit');
+  if (!rte || !rdit || !rvae) {
+    throw new Error('Missing model files. Model download did not complete.');
+  }
+  return {
+    textEncoderPath: rte.localPath,
+    ditPath: rdit.localPath,
+    vaePath: rvae.localPath,
+  };
+}
+
+/**
  * Try to extract a CreationPlan JSON from an assistant message.
  *
  * Handles three cases:
@@ -140,7 +244,18 @@ function tryParsePlan(text: string): CreationPlan | null {
     } catch {
       // fall through
     }
-    // Third attempt: repair common LLM JSON errors (e.g. `]` instead of
+    // Third attempt: escape raw control chars (real newlines/tabs) that the
+    // LLM left inside string values — e.g. multi-line `lyrics`/`existing_lyrics`
+    // fields. JSON.parse throws "Bad control character" otherwise, so the plan
+    // is never extracted and no plan/subagent runs.
+    try {
+      return buildPlan(
+        JSON.parse(escapeControlCharsInStrings(s)) as Record<string, unknown>,
+      );
+    } catch {
+      // fall through
+    }
+    // Fourth attempt: repair common LLM JSON errors (e.g. `]` instead of
     // `}`) and retry. This is the fix for the "write_lyrics JSON stored
     // as raw text" bug — the LLM closes the object with `]` after an
     // array-valued field, so extractJsonBlocks can't find a balanced
@@ -150,7 +265,7 @@ function tryParsePlan(text: string): CreationPlan | null {
     } catch {
       // fall through
     }
-    // Fourth attempt: sanitize + repair.
+    // Fifth attempt: sanitize + repair.
     try {
       return buildPlan(
         JSON.parse(repairJson(sanitize(s))) as Record<string, unknown>,
@@ -242,6 +357,53 @@ function extractJsonBlocks(text: string): string[] {
   }
 
   return blocks;
+}
+
+/**
+ * Escape raw control characters (newline / carriage-return / tab) that the
+ * LLM left INSIDE JSON string values, converting them to valid escape
+ * sequences (`\n` / `\r` / `\t`).
+ *
+ * Why needed: the LLM often emits multi-line fields such as `lyrics` or
+ * `existing_lyrics` with REAL newline characters instead of escaped `\n`.
+ * JSON spec forbids raw control characters inside strings, so `JSON.parse`
+ * throws "Bad control character in string literal" — and the whole action
+ * (write_lyrics / write_style) fails to be detected. This mirrors what was
+ * observed in production: the user clicks "确认歌词OK，生成其他参数" but the
+ * style subagent never runs because the write_style JSON can't be parsed.
+ *
+ * The function tracks in-string state (respecting `\"` escapes) so it only
+ * escapes control chars inside string values, leaving structural whitespace
+ * between JSON tokens untouched.
+ */
+function escapeControlCharsInStrings(s: string): string {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escaped) {
+      result += ch;
+      escaped = false;
+      continue;
+    }
+    if (inString && ch === '\\') {
+      result += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      result += ch;
+      continue;
+    }
+    if (inString && (ch === '\n' || ch === '\r' || ch === '\t')) {
+      result += ch === '\n' ? '\\n' : ch === '\r' ? '\\r' : '\\t';
+      continue;
+    }
+    result += ch;
+  }
+  return result;
 }
 
 /**
@@ -477,7 +639,17 @@ function tryParseLegoStep(text: string): LegoStepParseResult {
     } catch {
       // fall through
     }
-    // Third attempt: repair common LLM JSON errors (e.g. `]` instead of
+    // Third attempt: escape raw control chars (real newlines/tabs) that the
+    // LLM left inside string values — e.g. multi-line `lyrics`/`existing_lyrics`
+    // fields. This is the root cause of "write_style / write_lyrics emitted
+    // but the subagent never executes": JSON.parse throws "Bad control
+    // character" so the action is never detected and no plan/subagent runs.
+    try {
+      return build(JSON.parse(escapeControlCharsInStrings(s)));
+    } catch {
+      // fall through
+    }
+    // Fourth attempt: repair common LLM JSON errors (e.g. `]` instead of
     // `}`) and retry. This is the fix for the "调用歌词 subagent displayed
     // but never executed" bug — the LLM closes the write_lyrics object
     // with `]` after the existing_lyrics string field, so extractJsonBlocks
@@ -489,7 +661,7 @@ function tryParseLegoStep(text: string): LegoStepParseResult {
     } catch {
       // fall through
     }
-    // Fourth attempt: sanitize + repair.
+    // Fifth attempt: sanitize + repair.
     try {
       return build(JSON.parse(repairJson(sanitize(s))));
     } catch {
@@ -1137,30 +1309,12 @@ export const useAceStepStore = create<AceStepStore>((set, get) => ({
       // 1. Auto-load synth pipeline if not already loaded.
       const status = await aceStepService.getStatus();
       if (!status.synthLoaded) {
-        const models = await aceStepService.listLocalModels();
-        const pick = (role: string) =>
-          models.find((m) => m.role === role && m.exists);
-
-        const te = pick('text_encoder');
-        const vae = pick('vae');
-        // Prefer the user-selected DiT model; fall back to first available.
-        const selectedFilename = get().selectedDiTFilename;
-        const dit =
-          (selectedFilename
-            ? models.find(
-                (m) =>
-                  m.role === 'dit' && m.exists && m.filename === selectedFilename,
-              )
-            : undefined) ?? pick('dit');
-        if (!te || !dit || !vae) {
-          throw new Error(
-            'Missing model files. Download a model bundle first.',
-          );
-        }
+        // Auto-download the full bundle if any model file is missing.
+        const paths = await ensureSynthModels();
         await aceStepService.loadSynth({
-          textEncoderPath: te.localPath,
-          ditPath: dit.localPath,
-          vaePath: vae.localPath,
+          textEncoderPath: paths.textEncoderPath,
+          ditPath: paths.ditPath,
+          vaePath: paths.vaePath,
         });
         await get().refreshStatus();
       }
@@ -1690,29 +1844,12 @@ export const useAceStepStore = create<AceStepStore>((set, get) => ({
       const status = await aceStepService.getStatus();
       if (!status.synthLoaded) {
         set({ generationState: 'loading-models' });
-        const models = await aceStepService.listLocalModels();
-        const pick = (role: string) =>
-          models.find((m) => m.role === role && m.exists);
-        const te = pick('text_encoder');
-        const vae = pick('vae');
-        // Prefer the user-selected DiT model; fall back to first available.
-        const selectedFilename = get().selectedDiTFilename;
-        const dit =
-          (selectedFilename
-            ? models.find(
-                (m) =>
-                  m.role === 'dit' && m.exists && m.filename === selectedFilename,
-              )
-            : undefined) ?? pick('dit');
-        if (!te || !dit || !vae) {
-          throw new Error(
-            'Missing model files. Download a model bundle first.',
-          );
-        }
+        // Auto-download the full bundle if any model file is missing.
+        const paths = await ensureSynthModels();
         await aceStepService.loadSynth({
-          textEncoderPath: te.localPath,
-          ditPath: dit.localPath,
-          vaePath: vae.localPath,
+          textEncoderPath: paths.textEncoderPath,
+          ditPath: paths.ditPath,
+          vaePath: paths.vaePath,
         });
         await get().refreshStatus();
       }

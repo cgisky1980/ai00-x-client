@@ -162,6 +162,7 @@ export interface FreeQuotaInfo {
 /// - displayName: 显示名
 /// - tier: 'free'（保留兼容字段）
 /// - isUpstreamFree: 是否上游免费模型（NoneLinear 不收平台费，仍按定价扣 credit）
+/// - isDefault: 是否为默认模型（服务器指定，客户端默认选中）
 /// - modality: LLM/LMM/Image/Video
 /// - producer: 机构（OpenAI/Anthropic/Google/GLM/...）
 /// - pricing: 模型定价
@@ -172,6 +173,8 @@ export interface Ai00sModelInfo {
   tier: string;        // 'free' | 'cheap' | 'expensive'（保留兼容字段）
   /** 是否上游免费模型 */
   isUpstreamFree?: boolean;
+  /** 是否为默认模型（服务器指定，客户端默认选中） */
+  isDefault?: boolean;
   /** 模态：LLM/LMM/Image/Video */
   modality?: string | null;
   /** 机构：OpenAI/Anthropic/Google/GLM/... */
@@ -198,6 +201,7 @@ interface RawAi00sModel {
   display_name?: string;
   tier?: string;
   is_upstream_free?: boolean;
+  is_default?: boolean;
   modality?: string | null;
   producer?: string | null;
   pricing?: { input?: number; output?: number; cached?: number; currency?: string } | null;
@@ -236,6 +240,7 @@ export async function fetchAi00sModels(): Promise<Ai00sModelInfo[]> {
         tier: m.tier || 'free',
       };
       if (m.is_upstream_free !== undefined) info.isUpstreamFree = m.is_upstream_free;
+      if (m.is_default !== undefined) info.isDefault = m.is_default;
       if (m.modality !== undefined) info.modality = m.modality;
       if (m.producer !== undefined) info.producer = m.producer;
       if (m.pricing) {

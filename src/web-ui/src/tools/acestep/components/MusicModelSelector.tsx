@@ -72,11 +72,8 @@ export const MusicModelSelector: React.FC = () => {
   const [catalog, setCatalog] = useState<AceStepCatalogEntry[]>([]);
   const [open, setOpen] = useState(false);
   const [progress, setProgress] = useState<Record<string, AceStepDownloadProgress>>({});
-  // Track the single active download: { taskId, entryId }
-  const [activeDownload, setActiveDownload] = useState<{
-    taskId: string;
-    entryId: string;
-  } | null>(null);
+  // Task ids of the active bundle download (text encoder + DiT + VAE).
+  const [activeTasks, setActiveTasks] = useState<string[]>([]);
   const ref = useRef<HTMLDivElement>(null);
 
   const selectedDiTFilename = useAceStepStore((s) => s.selectedDiTFilename);
@@ -110,32 +107,41 @@ export const MusicModelSelector: React.FC = () => {
     refreshCatalog();
   }, [refreshCatalog]);
 
-  // ---- Download progress polling (single task) ----
+  // ---- Download progress polling (multi-task bundle) ----
 
   useEffect(() => {
-    if (!activeDownload) {
+    if (activeTasks.length === 0) {
       setProgress({});
       return;
     }
 
     const interval = setInterval(async () => {
-      try {
-        const p = await aceStepService.getDownloadProgress(activeDownload.taskId);
-        if (p) {
-          setProgress({ [activeDownload.taskId]: p });
-          if (p.status !== 'Downloading' && p.status !== 'Pending') {
-            // Download finished (Completed / Failed / cancelled).
-            refreshCatalog();
-            setActiveDownload(null);
+      const updates: Record<string, AceStepDownloadProgress> = {};
+      const still: string[] = [];
+      for (const taskId of activeTasks) {
+        try {
+          const p = await aceStepService.getDownloadProgress(taskId);
+          if (p) {
+            updates[taskId] = p;
+            if (p.status === 'Downloading' || p.status === 'Pending') {
+              still.push(taskId);
+            }
           }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
+      }
+      setProgress(updates);
+
+      // If any task finished, refresh catalog and prune the active set.
+      if (still.length < activeTasks.length) {
+        refreshCatalog();
+        setActiveTasks(still);
       }
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [activeDownload, refreshCatalog]);
+  }, [activeTasks, refreshCatalog]);
 
   // ---- Outside-click close ----
 
@@ -165,14 +171,16 @@ export const MusicModelSelector: React.FC = () => {
       : t('chatCreate.modelDownload', { defaultValue: 'Download model' });
   }, [selectedEntry, catalog, t]);
 
-  /** Progress for the active download (if any). */
-  const activeProgress = activeDownload
-    ? progress[activeDownload.taskId] ?? null
-    : null;
+  /** Overall progress across all active bundle tasks. */
   const overallPercent = useMemo(() => {
-    if (!activeProgress || activeProgress.total === 0) return null;
-    return Math.round((activeProgress.progress / activeProgress.total) * 100);
-  }, [activeProgress]);
+    const tasks = activeTasks
+      .map((id) => progress[id])
+      .filter((p): p is AceStepDownloadProgress => !!p && p.total > 0);
+    if (tasks.length === 0) return null;
+    const total = tasks.reduce((sum, p) => sum + p.total, 0);
+    const done = tasks.reduce((sum, p) => sum + p.progress, 0);
+    return Math.round((done / total) * 100);
+  }, [activeTasks, progress]);
 
   // ---- Handlers ----
 
@@ -186,17 +194,31 @@ export const MusicModelSelector: React.FC = () => {
     [setSelectedDiTFilename],
   );
 
+  /**
+   * Map a DiT catalog entry to its preset id so that clicking download on a
+   * single DiT variant auto-downloads the full required bundle (text encoder
+   * + this DiT + VAE). Returns null for non-DiT entries.
+   */
+  const presetIdForDit = useCallback((entry: AceStepCatalogEntry): string | null => {
+    if (entry.role !== 'dit') return null;
+    const family = entry.ditType === 'xl-base' ? 'xl-base' : 'base';
+    const quant = entry.variant.includes('Q8') ? 'q8' : 'q5';
+    return `${family}-${quant}`;
+  }, []);
+
   const handleDownload = useCallback(
     async (entry: AceStepCatalogEntry) => {
-      if (activeDownload) return; // Only one download at a time.
+      if (activeTasks.length > 0) return; // Only one bundle download at a time.
+      const presetId = presetIdForDit(entry);
+      if (!presetId) return;
       try {
-        const taskId = await aceStepService.downloadModel(entry.id);
-        setActiveDownload({ taskId, entryId: entry.id });
+        const ids = await aceStepService.downloadPreset(presetId);
+        setActiveTasks(ids);
       } catch {
         // ignore
       }
     },
-    [activeDownload],
+    [activeTasks, presetIdForDit],
   );
 
   // ---- Render ----
@@ -238,10 +260,9 @@ export const MusicModelSelector: React.FC = () => {
 
           {catalog.map((entry) => {
             const isSelected = selectedDiTFilename === entry.filename;
-            const isThisDownloading =
-              activeDownload?.entryId === entry.id;
-            const isAnyDownloading = activeDownload !== null;
-            const entryProgress = isThisDownloading ? activeProgress : null;
+            const isThisDownloading = activeTasks.includes(entry.id);
+            const isAnyDownloading = activeTasks.length > 0;
+            const entryProgress = isThisDownloading ? progress[entry.id] ?? null : null;
 
             return (
               <div

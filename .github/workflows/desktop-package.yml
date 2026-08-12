@@ -89,22 +89,27 @@ jobs:
           - os: ubuntu-latest
             name: linux-x64
             target: x86_64-unknown-linux-gnu
+            llama_backend: vulkan
             build_command: pnpm run desktop:build:linux -- --target x86_64-unknown-linux-gnu --bundles deb,rpm,appimage
           - os: ubuntu-24.04-arm
             name: linux-arm64
             target: aarch64-unknown-linux-gnu
+            llama_backend: vulkan
             build_command: pnpm run desktop:build:linux -- --target aarch64-unknown-linux-gnu --bundles deb,rpm,appimage
           - os: macos-15
             name: macos-arm64
             target: aarch64-apple-darwin
+            llama_backend: metal
             build_command: pnpm run desktop:build:arm64
           - os: macos-15-intel
             name: macos-x64
             target: x86_64-apple-darwin
+            llama_backend: metal
             build_command: pnpm run desktop:build:x86_64
           - os: windows-latest
             name: windows-x64
             target: x86_64-pc-windows-msvc
+            llama_backend: cuda
             build_command: pnpm run desktop:build:nsis
 
     steps:
@@ -179,7 +184,34 @@ jobs:
       - name: Type-check web UI
         run: pnpm run type-check:web
 
+      # ── GPU SDKs for llama.cpp / ggml compilation ───────────────────
+      # llama.cpp is compiled from source (build.rs) with the backend
+      # selected per platform. The Actions base image ships no CUDA / Vulkan
+      # SDK, so install them here or the CMake `-DGGML_CUDA=ON` / Vulkan
+      # configure step fails and the whole package build aborts.
+
+      - name: Install CUDA Toolkit (Windows)
+        if: runner.os == 'Windows'
+        uses: Jimver/cuda-toolkit@v0.2.16
+        with:
+          cuda: '12.4.0'
+          method: 'network'
+
+      - name: Install Vulkan SDK (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            glslang-tools \
+            libvulkan-dev \
+            vulkan-tools \
+            shaderc \
+            libshaderc-dev
+
       - name: Build desktop app
+        env:
+          LLAMA_BACKEND: ${{ matrix.platform.llama_backend }}
         run: ${{ matrix.platform.build_command }}
 
       - name: Upload bundles

@@ -169,6 +169,25 @@ export class SpineAvatarRenderer {
     this._variantAtlasRefs = [];
 
     try {
+      // 0. 容错归一化：持久化数据（avatar_data）中的旧 variantId 可能已不在 config 中，
+      //    对无效值回退到该部位的有效变体（优先 'default'，否则第一个），避免 404。
+      const safeParts: Record<string, string> = {};
+      for (const partDef of partDefs) {
+        const requested = selection.parts[partDef.partId];
+        if (requested === undefined) continue;
+        if (requested === 'none') {
+          safeParts[partDef.partId] = 'none';
+          continue;
+        }
+        if (partDef.variants.some(v => v.variantId === requested)) {
+          safeParts[partDef.partId] = requested;
+        } else {
+          const fallback =
+            partDef.variants.find(v => v.variantId === 'default') || partDef.variants[0];
+          if (fallback) safeParts[partDef.partId] = fallback.variantId;
+        }
+      }
+
       // 1. 加载共享 atlas + json
       const baseAssetManager = new AssetManager(skeletonPath + '/');
       baseAssetManager.loadTextureAtlas('Characters.atlas');
@@ -181,7 +200,7 @@ export class SpineAvatarRenderer {
       // 2. 对每个部位：加载 variant atlas，替换基础 atlas 的同名 region
       const variantAtlasRefs: spine.TextureAtlas[] = [];
       for (const partDef of partDefs) {
-        const variantId = selection.parts[partDef.partId];
+        const variantId = safeParts[partDef.partId];
         if (!variantId) continue;
 
         // "无"：隐藏该部位（清除 slot/skin/动画中对应的 attachment）

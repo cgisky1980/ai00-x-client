@@ -622,28 +622,18 @@ pub struct AppConfig {
     pub ai_experience: AIExperienceConfig,
     #[serde(default = "default_ai00_s_base_url")]
     pub ai00_s_base_url: String,
-    /// Ai00-Salvo 内部客户端共享密钥
+    /// 头像/宠物资源服务地址（独立于 ai00_s_base_url）
     ///
-    /// 非空时注入到 ai00s 请求的 `X-Ai00-Internal-Token` 头：
-    /// - CSRF 中间件识别此头放行（程序化客户端非 CSRF 威胁）
-    /// - `/api/v1/ai/chat` 路由强制要求此头
-    ///
-    /// 默认使用硬编码值（与 Salvo `security.internal_token` 默认值一致），无需配置即可工作。
-    #[serde(default = "default_ai00_s_internal_token")]
-    pub ai00_s_internal_token: String,
+    /// - 空字符串：回退到 `ai00_s_base_url` 的资源（沿用服务器地址，当前行为）
+    /// - 非空：头像资源从该地址的 `/pet` 加载（本地开发可指 http://127.0.0.1:2100，
+    ///   后续可改为 CDN/网络同步地址），不影响 AI00-S API 服务器地址
+    #[serde(default)]
+    pub assets_base_url: String,
 }
 
 /// Ai00-Salvo 默认基地址（唯一定义点在 `server_endpoints`，所有 fallback 引用此常量）
 fn default_ai00_s_base_url() -> String {
     super::server_endpoints::ai00_s_base_url()
-}
-
-/// 默认内部客户端共享密钥（从环境变量 `AI00_S_INTERNAL_TOKEN` 读取，未设置时为空）
-///
-/// 用于 Ai00-X 与 Salvo 之间的客户端识别（CSRF 豁免 + 强制头校验）。
-/// 真正的身份认证由下游 member JWT 保证，此密钥仅用于区分内部程序化客户端。
-fn default_ai00_s_internal_token() -> String {
-    std::env::var("AI00_S_INTERNAL_TOKEN").unwrap_or_default()
 }
 
 /// App logging configuration.
@@ -1716,7 +1706,7 @@ impl Default for AppConfig {
             session_config: AppSessionConfig::default(),
             ai_experience: AIExperienceConfig::default(),
             ai00_s_base_url: default_ai00_s_base_url(),
-            ai00_s_internal_token: default_ai00_s_internal_token(),
+            assets_base_url: String::new(),
         }
     }
 }

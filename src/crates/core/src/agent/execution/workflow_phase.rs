@@ -629,7 +629,12 @@ mod tests {
         machine.confirm_plan();
         let all_tools: Vec<String> = vec!["Read".into(), "Bash".into(), "Write".into()];
         let allowed = machine.get_allowed_tools_for_phase(&all_tools);
-        assert_eq!(allowed, all_tools);
+        // In the executing phase all tools are allowed, and TodoWrite is guaranteed
+        // to be present (it is mandatory for progress tracking).
+        assert!(allowed.contains(&"Read".to_string()));
+        assert!(allowed.contains(&"Bash".to_string()));
+        assert!(allowed.contains(&"Write".to_string()));
+        assert!(allowed.contains(&"TodoWrite".to_string()));
     }
 
     #[test]

@@ -15,7 +15,7 @@ import { PlantSystem } from '../lib/world/PlantSystem';
 import { PlantRenderer } from '../lib/world/PlantRenderer';
 import { VisitorManager } from '../lib/world/VisitorManager';
 import { storage } from '../lib/storage';
-import { getBaseUrl } from '../lib/config';
+import { PET_RESOURCE_BASE } from '../lib/api/gardenApi';
 
 interface GardenContextType {
     app: PIXI.Application | null;
@@ -314,9 +314,10 @@ export const MicroGardenLayer: React.FC<{ children?: React.ReactNode }> = ({ chi
 
             // --- USER AVATAR ---
             try {
-                // 测试：改回绝对 URL
-                const baseUrl = `${await getBaseUrl()}/pet`;
-                const avatar = new UserAvatar(app, baseUrl, physics, gardenMgr ?? undefined);
+                // 宠物头像资源统一走本地资源路径（PET_RESOURCE_BASE）：
+                // Tauri → 内嵌服务器 2100；浏览器开发 → vite 代理 → 2100。
+                // 不用远端 ai00_s_base_url/pet（跨域被 CORS 拦截）。
+                const avatar = new UserAvatar(app, PET_RESOURCE_BASE, physics, gardenMgr ?? undefined);
                 await avatar.load();
                 userAvatarRef.current = avatar;
                 setUserAvatar(avatar);

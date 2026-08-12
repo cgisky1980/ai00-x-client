@@ -7,7 +7,7 @@ import { ContextMenuRenderer } from '../shared/context-menu-system/components/Co
 import { NotificationContainer } from '../shared/notification-system';
 import { ConfirmDialogRenderer } from '../component-library';
 import { InteractionOverlay } from '../tools/vrm/components/InteractionOverlay';
-import { DynamicIsland, AceStepIslandButton, LyricsOverlay } from '../tools/island';
+import { DynamicIsland, LyricsOverlay } from '../tools/island';
 import { PlayerEngine } from '@/tools/acestep/components/PlayerEngine';
 import { startPlayerBridge } from '@/tools/acestep/services/PlayerBridge';
 
@@ -128,7 +128,6 @@ function App() {
           <AppLayout />
           <InteractionOverlay />
           <DynamicIsland />
-          <AceStepIslandButton />
           <LyricsOverlay />
           <PlayerEngine />
           <ContextMenuRenderer />

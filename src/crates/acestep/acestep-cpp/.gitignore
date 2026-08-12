@@ -2,6 +2,11 @@ build/
 *.wav
 *.bf16
 
+# ggml is a junction/symlink created by build.rs pointing to
+# <repo-root>/llama.cpp/ggml (shared with llama & qwen3_fa to keep versions
+# unified). It is not committed to git.
+ggml/
+
 tests/*/
 
 checkpoints/

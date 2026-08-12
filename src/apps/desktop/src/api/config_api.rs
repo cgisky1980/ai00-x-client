@@ -86,6 +86,24 @@ pub async fn get_ai00_s_base_url(state: State<'_, AppState>) -> Result<String, S
     }
 }
 
+/// 获取头像/宠物资源服务地址（独立于 ai00_s_base_url）。
+///
+/// 返回 `app.assets_base_url` 的配置值；空字符串表示未配置，前端应回退到
+/// `ai00_s_base_url` 的资源（沿用服务器地址）。用于本地开发指向嵌入服务器
+/// `/pet`（如 http://127.0.0.1:2100），后续可配置 CDN/网络同步地址，
+/// 不影响 AI00-S API 服务器地址。
+#[tauri::command]
+pub async fn get_assets_base_url(state: State<'_, AppState>) -> Result<String, String> {
+    let config_service = &state.config_service;
+    match config_service
+        .get_config::<Value>(Some("app.assets_base_url"))
+        .await
+    {
+        Ok(v) => Ok(v.as_str().map(|s| s.to_string()).unwrap_or_default()),
+        Err(_) => Ok(String::new()),
+    }
+}
+
 #[tauri::command]
 pub async fn set_config(
     state: State<'_, AppState>,

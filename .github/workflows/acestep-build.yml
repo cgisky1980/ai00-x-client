@@ -1,0 +1,163 @@
+name: AceStep Build
+
+# Build the acestep_c runtime library (acestep_c.dll / .so / .dylib) from
+# the bundled acestep-cpp source across all supported platforms, and upload
+# the artifacts so downstream release packaging can bundle them. This avoids
+# relying on a runtime download from GitHub, which is unreliable for many
+# users.
+#
+# The compiled library is normally produced automatically by the Rust
+# build.rs (default build). This workflow is a standalone job that emits the
+# per-platform artifacts as release assets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: "GGML backend to build (cpu|cuda+vulkan|vulkan|metal)"
+        required: false
+        default: "cpu"
+        type: string
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: acestep-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build acestep_c (${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x64
+            artifact: acestep-windows-x64
+            backend: "cpu"
+            cmake_arch: "-A x64"
+          - os: ubuntu-latest
+            name: linux-x64
+            artifact: acestep-linux-x64
+            backend: "cpu"
+            cmake_arch: ""
+          - os: macos-15
+            name: macos-arm64-metal
+            artifact: acestep-macos-arm64-metal
+            backend: "metal"
+            cmake_arch: ""
+          - os: macos-15-intel
+            name: macos-x64
+            artifact: acestep-macos-x64
+            backend: "cpu"
+            cmake_arch: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install Linux dependencies (build tools)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake build-essential
+
+      - name: Install macOS dependencies (build tools)
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake
+
+      - name: Link shared ggml source (from llama.cpp submodule)
+        shell: bash
+        working-directory: src/crates/acestep/acestep-cpp
+        run: |
+          # ggml is shared with llama.cpp so all components use one GGML
+          # version. acestep-cpp/ggml is a symlink pointing to
+          # <repo-root>/llama.cpp/ggml (created by build.rs on local builds;
+          # created manually here since this job runs CMake directly).
+          SHARED_GGML="../../../../llama.cpp/ggml"
+          if [ ! -d "ggml" ]; then
+            ln -s "$SHARED_GGML" ggml
+          fi
+          test -f ggml/CMakeLists.txt && echo "ggml linked OK" || { echo "ggml missing"; exit 1; }
+
+      - name: Configure CMake
+        shell: bash
+        working-directory: src/crates/acestep/acestep-cpp
+        run: |
+          cmake -B build-release -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=. \
+            -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=. \
+            ${{ matrix.platform.cmake_arch }} \
+            ${{ matrix.platform.backend == 'metal' && '-DGGML_METAL=ON' || '' }} \
+            ${{ matrix.platform.backend == 'vulkan' && '-DGGML_VULKAN=ON' || '' }}
+
+      - name: Build acestep_c
+        shell: bash
+        working-directory: src/crates/acestep/acestep-cpp
+        run: cmake --build build-release --target acestep_c --config Release
+
+      - name: Collect artifacts
+        shell: bash
+        working-directory: src/crates/acestep/acestep-cpp
+        run: |
+          # On Windows the CMake multi-config (Visual Studio) generator appends a
+          # per-config subdirectory (`Release/`) to the output directory even
+          # though CMAKE_RUNTIME_OUTPUT_DIRECTORY=. was requested. On the
+          # single-config generators used by Linux/macOS the outputs land in the
+          # build root itself.
+          OUT_DIR="build-release"
+          if [[ -f "build-release/Release/acestep_c.dll" ]]; then
+            OUT_DIR="build-release/Release"
+          fi
+          echo "Collecting from: ${OUT_DIR}"
+          mkdir -p ../../../../acestep-artifacts
+          if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
+            cp "$OUT_DIR"/acestep_c.dll ../../../../acestep-artifacts/
+            cp "$OUT_DIR"/ggml-base.dll ../../../../acestep-artifacts/
+            cp "$OUT_DIR"/ggml-cpu.dll ../../../../acestep-artifacts/
+            cp "$OUT_DIR"/ggml.dll ../../../../acestep-artifacts/
+          elif [[ "${{ matrix.platform.os }}" == macos-* ]]; then
+            cp "$OUT_DIR"/libacestep_c.dylib ../../../../acestep-artifacts/
+            cp "$OUT_DIR"/libggml-base.dylib ../../../../acestep-artifacts/
+          else
+            cp "$OUT_DIR"/libacestep_c.so ../../../../acestep-artifacts/
+            cp "$OUT_DIR"/libggml-base.so ../../../../acestep-artifacts/
+          fi
+          ls -la ../../../../acestep-artifacts
+
+      - name: Upload acestep artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.artifact }}
+          if-no-files-found: error
+          path: acestep-artifacts/
+
+  # ── Upload to GitHub Release ──────────────────────────────────────
+  upload-release:
+    name: Upload acestep_c to Release
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: acestep-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: release-assets/**
+          fail_on_unmatched_files: false

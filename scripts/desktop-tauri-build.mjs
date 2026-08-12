@@ -57,6 +57,16 @@ async function main() {
   // Tauri CLI reads CI and rejects numeric "1" (common in CI providers).
   process.env.CI = 'true';
 
+  // Assemble locally-built runtime DLLs into target/release/runtime/ so they
+  // get bundled into the installer (see tauri.conf.json resources).
+  console.log('[runtime] Collecting runtime DLLs...');
+  try {
+    execSync('node scripts/pack-runtime.mjs', { cwd: ROOT, stdio: 'inherit' });
+  } catch (e) {
+    console.error('[runtime] pack-runtime failed:', e.message);
+    process.exit(1);
+  }
+
   const tauriConfig = join(desktopDir, 'tauri.conf.json');
   const tauriBin = join(ROOT, 'node_modules', '.bin', 'tauri');
   const r = spawnSync(tauriBin, ['build', '--config', tauriConfig, ...forward], {

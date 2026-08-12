@@ -13,11 +13,15 @@ pub async fn open_task_window(
     session_id: Option<String>,
     session_title: Option<String>,
     open_settings: Option<bool>,
+    open_music: Option<bool>,
 ) -> Result<(), String> {
     if let Some(existing) = app.get_webview_window(TASK_WINDOW_LABEL) {
         let _ = existing.set_focus();
         if open_settings.unwrap_or(false) {
             let _ = app.emit("open-settings-scene", ());
+        }
+        if open_music.unwrap_or(false) {
+            let _ = app.emit("open-acestep-scene", ());
         }
         return Ok(());
     }
@@ -30,6 +34,9 @@ pub async fn open_task_window(
     }
     if open_settings.unwrap_or(false) {
         params.push("openSettings=1".to_string());
+    }
+    if open_music.unwrap_or(false) {
+        params.push("openMusic=1".to_string());
     }
     let query = if params.is_empty() {
         String::new()

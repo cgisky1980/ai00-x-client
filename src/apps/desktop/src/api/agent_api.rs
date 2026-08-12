@@ -790,6 +790,23 @@ pub async fn ensure_coordinator_session(
         .map_err(|e| e.to_string())
 }
 
+/// 若 member access token 已过期或即将过期，则刷新一次，避免 ai00s 对话
+/// 使用过期 token 导致服务器返回 401 "member authentication required"。
+/// 未登录或刷新失败时不阻塞（保持原有行为，交由后续请求上报错误）。
+async fn refresh_member_token_if_expired() {
+    if let Ok(Some(auth)) = crate::auth::ensure_auth_synced().await {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        const ACCESS_EXPIRES_SECS: u64 = 900; // 15 分钟（与 server.toml 一致）
+        const BUFFER_SECS: u64 = 60; // 60 秒缓冲
+        if now >= auth.logged_at + ACCESS_EXPIRES_SECS - BUFFER_SECS {
+            let _ = crate::auth::refresh_auth_token_impl().await;
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn start_dialog_turn(
     _app: AppHandle,
@@ -817,6 +834,11 @@ pub async fn start_dialog_turn(
     } else {
         None
     };
+
+    // 确保 member JWT 新鲜后再提交对话轮次。ai00s AI 客户端直接读取
+    // 静态 AI00S_AUTH_TOKEN（access token 仅 15 分钟有效），若不在此处刷新，
+    // 过期 token 会导致服务器返回 401 "member authentication required"。
+    refresh_member_token_if_expired().await;
 
     scheduler
         .submit(

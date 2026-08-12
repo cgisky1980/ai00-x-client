@@ -13,14 +13,23 @@ static AI00S_AUTH_TOKEN: std::sync::Mutex<String> = std::sync::Mutex::new(String
 
 /// Ai00-Salvo 内部客户端共享密钥。
 ///
-/// 用于 CSRF 豁免 + 强制头校验。值从环境变量 `AI00_S_INTERNAL_TOKEN` 读取，
-/// 未设置时返回空字符串（不注入该头）。此密钥为客户端与服务端之间的共享凭证，
-/// 不硬编码进公开源码，由部署方通过环境变量注入。
+/// 用于 CSRF 豁免 + 强制头校验。值优先从环境变量 `AI00_S_INTERNAL_TOKEN` 读取；
+/// 未设置时回退到服务器端 `security.internal_token` 的默认值（见
+/// `ai00-salvo` 的 `default_internal_token`），保证开箱即用，无需额外配置环境变量。
+/// 此密钥为客户端与服务端之间的共享凭证，若服务器在 `server.toml` 自定义了
+/// `[security].internal_token`，则客户端必须通过环境变量设置为同一值。
 /// 公开以便其他模块（如 `auth::refresh_auth_token_impl`）复用，确保所有 Ai00-X →
 /// Ai00-Salvo 的程序化请求都能通过 CSRF 中间件。
 pub fn ai00_s_internal_token() -> String {
-    std::env::var("AI00_S_INTERNAL_TOKEN").unwrap_or_default()
+    std::env::var("AI00_S_INTERNAL_TOKEN")
+        .unwrap_or_else(|_| DEFAULT_AI00_S_INTERNAL_TOKEN.to_string())
 }
+
+/// 与服务器端 `default_internal_token` 一致的默认共享密钥。
+/// 服务器 CSRF 中间件（`allowed_origins` 非空时启用）在无 `Origin` 头时要求
+/// `X-Ai00-Internal-Token` 匹配此值，客户端必须以同一值注入才能放行。
+const DEFAULT_AI00_S_INTERNAL_TOKEN: &str =
+    "7f3a9b2e8c1d4a6f5b0e9c2d7a4f1b8e6c3a9d2f7b4e1c8a5d0f3b6e9c2a7d4f1";
 
 pub fn set_ai00s_auth_token(token: String) {
     let mut guard = AI00S_AUTH_TOKEN.lock().unwrap_or_else(|e| e.into_inner());

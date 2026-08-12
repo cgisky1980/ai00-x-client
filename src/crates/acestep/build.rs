@@ -1,13 +1,17 @@
 // build.rs: Optional CMake build for acestep_c shared library.
 //
-// By default, this script does nothing — the library is downloaded at
-// runtime by the RuntimeDownloader (same pattern as llama.cpp).
+// By default, this script compiles acestep_c.dll from the bundled
+// acestep-cpp source so the library is self-contained and does NOT depend
+// on a runtime download from GitHub (which is unreliable for many users).
+// The compiled library + GGML backends are found at runtime via the
+// `ACESTEP_LIB_DIR` env var baked in at compile time.
 //
-// To build from source (for development/testing), set:
-//   ACESTEP_BUILD_FROM_SOURCE=1
-//   ACESTEP_BACKEND=cpu|cuda|vulkan|metal|auto  (optional, default: cpu)
+// To skip the build (fall back to runtime download), set:
+//   ACESTEP_SKIP_BUILD=1
 //
-// Multi-backend: use `+` to combine, e.g. `ACESTEP_BACKEND=cuda+vulkan`
+// Backend selection (optional, default: cpu):
+//   ACESTEP_BACKEND=cpu|cuda|vulkan|metal|auto
+//   Multi-backend: use `+` to combine, e.g. `ACESTEP_BACKEND=cuda+vulkan`
 //   - GGML will pick the best available backend at runtime.
 //
 // `auto` detects available SDKs and enables: cuda > vulkan > cpu
@@ -21,13 +25,13 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
-    println!("cargo:rerun-if-env-changed=ACESTEP_BUILD_FROM_SOURCE");
+    println!("cargo:rerun-if-env-changed=ACESTEP_SKIP_BUILD");
     println!("cargo:rerun-if-env-changed=ACESTEP_BACKEND");
 
-    let build_from_source = env::var("ACESTEP_BUILD_FROM_SOURCE").unwrap_or_default() == "1";
+    let skip_build = env::var("ACESTEP_SKIP_BUILD").unwrap_or_default() == "1";
 
-    if !build_from_source {
-        // Default: library will be downloaded at runtime.
+    if skip_build {
+        // Explicit opt-out: library will be downloaded at runtime.
         // No build steps needed here.
         return;
     }
@@ -40,6 +44,42 @@ fn main() {
     let acestep_cpp_dir = manifest_dir.join("acestep-cpp");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let build_dir = out_dir.join("acestep-build");
+
+    // Verify the bundled source is complete before running CMake.
+    let cmake_lists = acestep_cpp_dir.join("CMakeLists.txt");
+    if !cmake_lists.exists() {
+        panic!(
+            "acestep source tree is incomplete: {} not found. \
+             The bundled acestep-cpp source appears to be missing; \
+             re-clone or restore the repository.",
+            cmake_lists.display()
+        );
+    }
+
+    // Share the single ggml source with llama.cpp so that acestep_c, llama,
+    // and qwen3_fa all link the exact same GGML version (AVOIDS ABI drift).
+    // The ggml source lives at <repo-root>/llama.cpp/ggml (llama.cpp is a git
+    // submodule). acestep-cpp/ggml is a symlink/junction pointing to it; it is
+    // NOT committed to git (a junction cannot be tracked), so we (re)create it
+    // here on every build. This keeps the workspace self-healing after clone.
+    let llama_cpp_dir = manifest_dir.join("../../..").join("llama.cpp");
+    // Resolve to an absolute path: `mklink /J` / `symlink` reject relative
+    // targets containing `..` segments.
+    let shared_ggml = llama_cpp_dir
+        .canonicalize()
+        .unwrap_or_else(|_| llama_cpp_dir.clone())
+        .join("ggml");
+    let acestep_ggml = acestep_cpp_dir.join("ggml");
+    let shared_ggml_cmake = shared_ggml.join("CMakeLists.txt");
+    if !shared_ggml_cmake.exists() {
+        panic!(
+            "shared ggml source not found: {}. \
+             llama.cpp is a git submodule; run:\n  \
+             git submodule update --init --recursive\nthen rebuild.",
+            shared_ggml_cmake.display()
+        );
+    }
+    ensure_ggml_link(&acestep_ggml, &shared_ggml);
 
     // Backend selection — supports `+`-combined backends and `auto`.
     //   cpu | cuda | vulkan | metal | cuda+vulkan | auto
@@ -104,19 +144,98 @@ fn main() {
         panic!("CMake build failed with status {}", status);
     }
 
-    // The library is in build_dir (because CMAKE_LIBRARY_OUTPUT_DIRECTORY=.)
+    // Locate the actual library directory. On Windows, CMake defaults to the
+    // MSVC multi-config generator, which appends a per-config subdirectory
+    // (e.g. `Release/`) to the output directory even though
+    // `CMAKE_RUNTIME_OUTPUT_DIRECTORY=.` was requested. On single-config
+    // generators (Unix Makefiles / Ninja) the library is in build_dir itself.
+    let lib_filename = if cfg!(target_os = "windows") {
+        "acestep_c.dll"
+    } else if cfg!(target_os = "macos") {
+        "libacestep_c.dylib"
+    } else {
+        "libacestep_c.so"
+    };
+    let lib_dir = if build_dir.join("Release").join(lib_filename).exists() {
+        build_dir.join("Release")
+    } else if build_dir.join(lib_filename).exists() {
+        build_dir.clone()
+    } else {
+        // Fall back to the build root; the FFI layer will still search the
+        // runtime-downloaded directories if nothing is found here.
+        build_dir.clone()
+    };
+
     // Expose the path to Rust via env var
-    println!("cargo:rustc-env=ACESTEP_LIB_DIR={}", build_dir.display());
+    println!("cargo:rustc-env=ACESTEP_LIB_DIR={}", lib_dir.display());
 
     log(&format!(
         "acestep_c built successfully at {} (backend: {})",
-        build_dir.display(),
+        lib_dir.display(),
         backend_str
     ));
 }
 
 fn log(msg: &str) {
     println!("cargo:warning=[acestep] {}", msg);
+}
+
+/// Ensure `link` is a symlink/junction pointing to `target`.
+///
+/// acestep-cpp/ggml is not committed to git (a symlink/junction cannot be
+/// versioned reliably across platforms), so we recreate it on every build to
+/// share the llama.cpp ggml source. On Windows this uses a directory junction
+/// (works without admin privileges); on Unix it uses a symlink.
+fn ensure_ggml_link(link: &std::path::Path, target: &std::path::Path) {
+    // If it already exists as a symlink/junction, leave it alone.
+    if let Ok(meta) = std::fs::symlink_metadata(link) {
+        if meta.file_type().is_symlink() {
+            return;
+        }
+        // It exists as a plain directory (e.g. an old committed ggml copy copied
+        // back by a user). Replace it.
+        let _ = std::fs::remove_dir_all(link);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let parent = link.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let _ = std::fs::create_dir_all(parent);
+        // Directory junction: `cmd /c mklink /J <link> <target>`. Junctions
+        // work without admin privileges on Windows.
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .status();
+        match status {
+            Ok(s) if s.success() => log(&format!(
+                "ggml junction created: {} -> {}",
+                link.display(),
+                target.display()
+            )),
+            _ => panic!(
+                "failed to create ggml junction {} -> {} (mklink returned {:?}). \
+                 Ensure the target exists and you have permission to create links.",
+                link.display(),
+                target.display(),
+                status
+            ),
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = std::fs::create_dir_all(target);
+        let _ = std::fs::remove_file(link);
+        std::os::unix::fs::symlink(target, link)
+            .unwrap_or_else(|e| panic!("failed to create ggml symlink: {}", e));
+        log(&format!(
+            "ggml symlink created: {} -> {}",
+            link.display(),
+            target.display()
+        ));
+    }
 }
 
 /// Check if a command exists in PATH.

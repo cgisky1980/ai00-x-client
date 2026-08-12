@@ -30,8 +30,9 @@
     "vrmHide": "▼▶ VRM"
   },
   "acestep": {
-    "unknownTitle": "Unknown title",
-    "unknownArtist": "Unknown artist",
+    "unknownTitle": "Unknown Title",
+    "unknownArtist": "Unknown Artist",
+    "openCreator": "Open Music Studio",
     "prev": "Previous",
     "next": "Next",
     "play": "Play",

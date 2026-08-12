@@ -12,13 +12,11 @@ export type {
 } from '@ai00-x/shared';
 
 import { createResourceManager } from '@ai00-x/shared';
-import { getApiUrl } from '../config';
+import { getAssetsBaseUrl } from '../config';
 import { storage } from '../storage';
 
-const ASSETS_PATH = '/pet';
-
 export const resourceManager = createResourceManager({
-  // getApiUrl('/pet') 返回 `${base}/pet`（含资源根路径）
-  getAssetsBaseUrl: () => getApiUrl(ASSETS_PATH),
+  // 优先独立 assets_base_url（本地开发 → 嵌入服务器 /pet），否则回退 ai00_s_base_url
+  getAssetsBaseUrl: () => getAssetsBaseUrl(),
   storage,
 });

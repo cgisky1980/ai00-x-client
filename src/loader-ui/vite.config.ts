@@ -19,6 +19,9 @@ export default defineConfig({
   server: {
     port: localPorts.loaderDev,
     strictPort: true,
+    // 显式绑定 IPv4 127.0.0.1：Vite 默认绑 localhost(::1)，而 Tauri WebView2 解析
+    // localhost 到 127.0.0.1 会导致 loader 窗口"localhost 拒绝连接"。
+    host: "127.0.0.1",
     proxy: {
       // 会员 API → Salvo（重写 Origin 绕过 CSRF 白名单）
       '/ai00-s': {

@@ -328,6 +328,30 @@
     text-transform: none;
   }
 
+  &__create-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--color-accent-400, #06b6d4);
+    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 14%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-accent-400, #06b6d4) 32%, transparent);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background var(--motion-fast, 0.15s) var(--easing-standard, ease),
+      border-color var(--motion-fast, 0.15s) var(--easing-standard, ease);
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 24%, transparent);
+      border-color: color-mix(in oklch, var(--color-accent-400, #06b6d4) 50%, transparent);
+    }
+  }
+
   // ===== Radio cards — 3-column grid =====
   &__radio-grid {
     display: grid;
