@@ -271,6 +271,7 @@ dependencies = [
  "ndarray 0.17.2",
  "objc2 0.6.4",
  "objc2-app-kit",
+ "objc2-core-foundation",
  "objc2-foundation",
  "objc2-vision",
  "once_cell",

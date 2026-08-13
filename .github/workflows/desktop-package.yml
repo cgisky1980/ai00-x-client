@@ -121,6 +121,24 @@ jobs:
           ref: ${{ needs.prepare.outputs.checkout_ref }}
           submodules: true
 
+      # The release build of the full Rust workspace + llama.cpp/ace-step C++
+      # builds + rust-cache restore needs well over 10 GB. Standard runners
+      # only have ~14 GB SSD, and both Linux jobs previously died mid-build
+      # with "The runner has received a shutdown signal" (disk exhaustion
+      # kills the runner agent). Remove unused preinstalled toolchains first.
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "=== disk before cleanup ==="
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/powershell /usr/local/graalvm /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune -a -f 2>/dev/null || true
+          sudo apt-get clean || true
+          echo "=== disk after cleanup ==="
+          df -h /
+
       - name: Setup OpenSSL (Windows, prebuilt)
         if: runner.os == 'Windows'
         shell: pwsh

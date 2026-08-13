@@ -421,19 +421,23 @@ pub fn cleanup(app: &tauri::AppHandle) {
 fn embed_and_show_macos(window: &tauri::WebviewWindow) {
     use objc2::msg_send;
     use objc2::rc::Retained;
-    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior, NSWindowOrderingMode};
+    use objc2::runtime::AnyObject;
+    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
 
     if let Ok(ns_view) = window.ns_view() {
         unsafe {
+            // tauri returns the NSView as `*mut c_void`; objc2 0.6 msg_send!
+            // requires a receiver implementing `Message`, so cast to AnyObject.
+            let ns_view = ns_view as *mut AnyObject;
             let ns_window: Retained<NSWindow> = msg_send![&*ns_view, window];
 
             // Set window level to desktop (below desktop icons)
             // kCGDesktopWindowLevelKey = 4, CGWindowLevelForKey returns the actual level value
-            let level: i32 = {
+            let level: i64 = {
                 extern "C" {
                     fn CGWindowLevelForKey(key: i32) -> i32;
                 }
-                CGWindowLevelForKey(4) // kCGDesktopWindowLevelKey
+                CGWindowLevelForKey(4) as i64 // kCGDesktopWindowLevelKey
             };
             let _: () = msg_send![&*ns_window, setLevel: level];
 
@@ -442,13 +446,13 @@ fn embed_and_show_macos(window: &tauri::WebviewWindow) {
             let _: () = msg_send![&*ns_window, setHidesOnDeactivate: false];
 
             // Show on all Spaces
-            let behavior = NSWindowCollectionBehavior::NSWindowCollectionBehaviorCanJoinAllSpaces
-                | NSWindowCollectionBehavior::NSWindowCollectionBehaviorFullScreenAuxiliary;
+            let behavior = NSWindowCollectionBehavior::CanJoinAllSpaces
+                | NSWindowCollectionBehavior::FullScreenAuxiliary;
             let _: () = msg_send![&*ns_window, setCollectionBehavior: behavior];
 
             // Cover all screens (union of all NSScreen frames)
-            let screen_frame: core_graphics::display::CGRect = get_combined_screen_frame_macos();
-            let _: () = msg_send![&*ns_window, setFrame: screen_frame display: true];
+            let screen_frame = get_combined_screen_frame_macos();
+            let _: () = msg_send![&*ns_window, setFrame: screen_frame, display: true];
 
             // Order front (show)
             let _: () = msg_send![&*ns_window, orderFrontRegardless];
@@ -460,21 +464,23 @@ fn embed_and_show_macos(window: &tauri::WebviewWindow) {
 fn slide_offscreen_macos(window: &tauri::WebviewWindow) {
     use objc2::msg_send;
     use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
     use objc2_app_kit::NSWindow;
 
     if let Ok(ns_view) = window.ns_view() {
         unsafe {
+            let ns_view = ns_view as *mut AnyObject;
             let ns_window: Retained<NSWindow> = msg_send![&*ns_view, window];
             // Move off-screen to the left
             let screen_frame = get_combined_screen_frame_macos();
-            let offscreen_frame = core_graphics::display::CGRect {
-                origin: core_graphics::display::CGPoint {
+            let offscreen_frame = objc2_core_foundation::CGRect {
+                origin: objc2_core_foundation::CGPoint {
                     x: screen_frame.size.width * -1.0,
                     y: 0.0,
                 },
                 size: screen_frame.size,
             };
-            let _: () = msg_send![&*ns_window, setFrame: offscreen_frame display: true];
+            let _: () = msg_send![&*ns_window, setFrame: offscreen_frame, display: true];
         }
     }
 }
@@ -483,13 +489,15 @@ fn slide_offscreen_macos(window: &tauri::WebviewWindow) {
 fn slide_onscreen_macos(window: &tauri::WebviewWindow) {
     use objc2::msg_send;
     use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
     use objc2_app_kit::NSWindow;
 
     if let Ok(ns_view) = window.ns_view() {
         unsafe {
+            let ns_view = ns_view as *mut AnyObject;
             let ns_window: Retained<NSWindow> = msg_send![&*ns_view, window];
             let screen_frame = get_combined_screen_frame_macos();
-            let _: () = msg_send![&*ns_window, setFrame: screen_frame display: true];
+            let _: () = msg_send![&*ns_window, setFrame: screen_frame, display: true];
         }
     }
 }
@@ -500,21 +508,46 @@ fn cleanup_macos(window: &tauri::WebviewWindow) {
     show_desktop_icons_macos();
 }
 
+/// Union of all active display frames.
+///
+/// Returns `objc2_core_foundation::CGRect` (objc2 0.6 implements `Encode` for
+/// it, so it can cross the msg_send! FFI boundary); core-graphics is only used
+/// to enumerate the displays, and the two CGRect layouts are identical.
 #[cfg(target_os = "macos")]
-fn get_combined_screen_frame_macos() -> core_graphics::display::CGRect {
-    use core_graphics::display::{CGDirectDisplayID, CGDisplay};
+fn get_combined_screen_frame_macos() -> objc2_core_foundation::CGRect {
+    use core_graphics::display::CGDisplay;
 
     let displays = match CGDisplay::active_displays() {
         Ok(d) => d,
         Err(_) => {
             // Fallback: use main display
             let main = CGDisplay::main();
-            return main.bounds();
+            let b = main.bounds();
+            return objc2_core_foundation::CGRect {
+                origin: objc2_core_foundation::CGPoint {
+                    x: b.origin.x,
+                    y: b.origin.y,
+                },
+                size: objc2_core_foundation::CGSize {
+                    width: b.size.width,
+                    height: b.size.height,
+                },
+            };
         }
     };
 
     if displays.is_empty() {
-        return CGDisplay::main().bounds();
+        let b = CGDisplay::main().bounds();
+        return objc2_core_foundation::CGRect {
+            origin: objc2_core_foundation::CGPoint {
+                x: b.origin.x,
+                y: b.origin.y,
+            },
+            size: objc2_core_foundation::CGSize {
+                width: b.size.width,
+                height: b.size.height,
+            },
+        };
     }
 
     let mut min_x = f64::MAX;
@@ -531,9 +564,9 @@ fn get_combined_screen_frame_macos() -> core_graphics::display::CGRect {
         max_y = max_y.max(bounds.origin.y + bounds.size.height);
     }
 
-    core_graphics::display::CGRect {
-        origin: core_graphics::display::CGPoint { x: min_x, y: min_y },
-        size: core_graphics::display::CGSize {
+    objc2_core_foundation::CGRect {
+        origin: objc2_core_foundation::CGPoint { x: min_x, y: min_y },
+        size: objc2_core_foundation::CGSize {
             width: max_x - min_x,
             height: max_y - min_y,
         },
@@ -542,34 +575,19 @@ fn get_combined_screen_frame_macos() -> core_graphics::display::CGRect {
 
 #[cfg(target_os = "macos")]
 fn hide_desktop_icons_macos() {
-    use objc2::msg_send;
-    use objc2_foundation::NSString;
-
-    unsafe {
-        let workspace_class: Option<objc2::rc::Retained<objc2::runtime::AnyClass>> =
-            msg_send![objc2::runtime::AnyClass::class("NSWorkspace"), class];
-        if let Some(cls) = workspace_class {
-            let shared: Option<objc2::rc::Retained<objc2::runtime::AnyObject>> =
-                msg_send![cls, sharedWorkspace];
-            if let Some(ws) = shared {
-                // Use NSWorkspace to hide desktop icons via Finder
-                // Alternative: use defaults write com.apple.finder CreateDesktop -bool false && killall Finder
-                let _ = std::process::Command::new("defaults")
-                    .args([
-                        "write",
-                        "com.apple.finder",
-                        "CreateDesktop",
-                        "-bool",
-                        "false",
-                    ])
-                    .output();
-                let _ = std::process::Command::new("killall")
-                    .args(["Finder"])
-                    .output();
-                let _ = ws; // suppress unused warning
-            }
-        }
-    }
+    // Hide desktop icons via Finder defaults, then restart Finder to apply.
+    let _ = std::process::Command::new("defaults")
+        .args([
+            "write",
+            "com.apple.finder",
+            "CreateDesktop",
+            "-bool",
+            "false",
+        ])
+        .output();
+    let _ = std::process::Command::new("killall")
+        .args(["Finder"])
+        .output();
 }
 
 #[cfg(target_os = "macos")]
@@ -1067,94 +1085,100 @@ pub fn ensure(app: &tauri::AppHandle) {
                 });
 
                 // Keepalive loop — maintain SetParent + z-order + on-screen position
-                let app_keep = app2.clone();
-                tauri::async_runtime::spawn(async move {
-                    loop {
-                        if UNDERLAY_SHOULD_EXIT.load(Ordering::SeqCst) {
-                            break;
-                        }
-                        sleep(std::time::Duration::from_millis(500)).await;
-                        if let Some(wv) = app_keep.get_webview_window("underlays") {
-                            if let Ok(hh) = wv.hwnd() {
-                                let uh = HWND(hh.0);
-                                #[cfg(target_os = "windows")]
-                                unsafe {
-                                    let (progman, ww_sel, shell_def, _raised) = desktop_handles();
+                // (Windows-only; WebviewWindow::hwnd and HWND don't exist elsewhere)
+                #[cfg(target_os = "windows")]
+                {
+                    let app_keep = app2.clone();
+                    tauri::async_runtime::spawn(async move {
+                        loop {
+                            if UNDERLAY_SHOULD_EXIT.load(Ordering::SeqCst) {
+                                break;
+                            }
+                            sleep(std::time::Duration::from_millis(500)).await;
+                            if let Some(wv) = app_keep.get_webview_window("underlays") {
+                                if let Ok(hh) = wv.hwnd() {
+                                    let uh = HWND(hh.0);
+                                    unsafe {
+                                        let (progman, ww_sel, shell_def, _raised) =
+                                            desktop_handles();
 
-                                    // Embed into SHELLDLL_DefView (icon layer) first,
-                                    // fallback to WorkerW then Progman
-                                    let target_parent = if !shell_def.0.is_null() {
-                                        shell_def
-                                    } else if !ww_sel.0.is_null() {
-                                        ww_sel
-                                    } else {
-                                        progman
-                                    };
-
-                                    // Re-embed if parent changed
-                                    let current_parent = GetAncestor(uh, GA_PARENT);
-                                    if current_parent.0 != target_parent.0 {
-                                        enforce_borderless_style(uh);
-                                        let _ = SetParent(uh, Some(target_parent));
-                                    }
-
-                                    // Keep underlay above SysListView32 in Z-order
-                                    // SetWindowPos(list, uh) puts list AFTER uh → list below uh
-                                    if !shell_def.0.is_null() {
-                                        let list = FindWindowExW(
-                                            Some(shell_def),
-                                            None,
-                                            w!("SysListView32"),
-                                            None,
-                                        )
-                                        .unwrap_or(HWND(std::ptr::null_mut()));
-                                        if !list.0.is_null() {
-                                            let _ = SetWindowPos(
-                                                list,
-                                                Some(uh),
-                                                0,
-                                                0,
-                                                0,
-                                                0,
-                                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-                                            );
-                                        }
-                                    }
-
-                                    // If on-screen, maintain correct position (all monitors)
-                                    if !UNDERLAY_OFFSCREEN.load(Ordering::SeqCst) {
-                                        let (vx, vy, sw, sh) = virtual_screen_rect();
-                                        let mut wr = RECT {
-                                            left: 0,
-                                            top: 0,
-                                            right: 0,
-                                            bottom: 0,
+                                        // Embed into SHELLDLL_DefView (icon layer) first,
+                                        // fallback to WorkerW then Progman
+                                        let target_parent = if !shell_def.0.is_null() {
+                                            shell_def
+                                        } else if !ww_sel.0.is_null() {
+                                            ww_sel
+                                        } else {
+                                            progman
                                         };
-                                        let _ = GetWindowRect(uh, &mut wr);
-                                        // Check if window is roughly in the right position
-                                        if wr.left != vx
-                                            || wr.top != vy
-                                            || (wr.right - wr.left) != sw
-                                            || (wr.bottom - wr.top) != sh
-                                        {
-                                            let _ = SetWindowPos(
-                                                uh,
-                                                None,
-                                                vx,
-                                                vy,
-                                                sw,
-                                                sh,
-                                                SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOZORDER,
-                                            );
-                                        }
-                                    }
 
-                                    enforce_borderless_style(uh);
+                                        // Re-embed if parent changed
+                                        let current_parent = GetAncestor(uh, GA_PARENT);
+                                        if current_parent.0 != target_parent.0 {
+                                            enforce_borderless_style(uh);
+                                            let _ = SetParent(uh, Some(target_parent));
+                                        }
+
+                                        // Keep underlay above SysListView32 in Z-order
+                                        // SetWindowPos(list, uh) puts list AFTER uh → list below uh
+                                        if !shell_def.0.is_null() {
+                                            let list = FindWindowExW(
+                                                Some(shell_def),
+                                                None,
+                                                w!("SysListView32"),
+                                                None,
+                                            )
+                                            .unwrap_or(HWND(std::ptr::null_mut()));
+                                            if !list.0.is_null() {
+                                                let _ = SetWindowPos(
+                                                    list,
+                                                    Some(uh),
+                                                    0,
+                                                    0,
+                                                    0,
+                                                    0,
+                                                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                                                );
+                                            }
+                                        }
+
+                                        // If on-screen, maintain correct position (all monitors)
+                                        if !UNDERLAY_OFFSCREEN.load(Ordering::SeqCst) {
+                                            let (vx, vy, sw, sh) = virtual_screen_rect();
+                                            let mut wr = RECT {
+                                                left: 0,
+                                                top: 0,
+                                                right: 0,
+                                                bottom: 0,
+                                            };
+                                            let _ = GetWindowRect(uh, &mut wr);
+                                            // Check if window is roughly in the right position
+                                            if wr.left != vx
+                                                || wr.top != vy
+                                                || (wr.right - wr.left) != sw
+                                                || (wr.bottom - wr.top) != sh
+                                            {
+                                                let _ = SetWindowPos(
+                                                    uh,
+                                                    None,
+                                                    vx,
+                                                    vy,
+                                                    sw,
+                                                    sh,
+                                                    SWP_NOACTIVATE
+                                                        | SWP_FRAMECHANGED
+                                                        | SWP_NOZORDER,
+                                                );
+                                            }
+                                        }
+
+                                        enforce_borderless_style(uh);
+                                    }
                                 }
                             }
                         }
-                    }
-                });
+                    });
+                }
 
                 // macOS/Linux: embed and show
                 #[cfg(target_os = "macos")]

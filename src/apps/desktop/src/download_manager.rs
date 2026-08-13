@@ -132,8 +132,7 @@ impl DownloadManager {
                     match res {
                         Ok(response) => {
                             if !response.status().is_success() {
-                                attempt_error =
-                                    format!("HTTP {} from {}", response.status(), url);
+                                attempt_error = format!("HTTP {} from {}", response.status(), url);
                                 log::warn!(
                                     "[DownloadManager] download failed: id={}, error={}",
                                     id,
@@ -170,9 +169,7 @@ impl DownloadManager {
                                 match chunk_result {
                                     Ok(data) => {
                                         if let Err(e) = file.write_all(&data).await {
-                                            if let Some(t) =
-                                                tasks.write().await.get_mut(&id)
-                                            {
+                                            if let Some(t) = tasks.write().await.get_mut(&id) {
                                                 t.status = DownloadStatus::Failed;
                                                 t.error = Some(e.to_string());
                                             }

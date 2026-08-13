@@ -52,6 +52,7 @@
     }
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "loader",

@@ -121,6 +121,9 @@ dispatch = "0.2"
 objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
+# Geometry types (CGRect/CGPoint/CGSize) that implement objc2 0.6 `Encode`,
+# required for passing frames through msg_send! (e.g. NSWindow setFrame:display:).
+objc2-core-foundation = "0.3"
 objc2-vision = { version = "0.3.2", features = ["VNRecognizeTextRequest", "VNRequest", "VNObservation", "VNRequestHandler", "VNUtils", "VNTypes", "objc2-core-foundation"] }
 ort = { version = "=2.0.0-rc.11", features = ["ndarray", "coreml", "load-dynamic"] }
 
