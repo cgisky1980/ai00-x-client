@@ -8,6 +8,7 @@
 #include "forced_aligner.h"
 
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 
