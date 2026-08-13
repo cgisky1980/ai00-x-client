@@ -106,21 +106,34 @@ jobs:
 
       # Linux runners only have ~16 GB RAM; cargo check / clippy on the full
       # workspace (incl. acestep/llama.cpp build.rs) can OOM-kill the runner
-      # agent mid-build ("runner has received a shutdown signal"). Add swap as
-      # a backstop and cap parallelism to keep peak memory in check.
-      - name: Add swap space (Linux)
+      # agent mid-build ("runner has received a shutdown signal"). GitHub's
+      # ubuntu runners already ship ~3 GB swap, so only add more if usable and
+      # never fail the job if swap setup is unavailable (e.g. /swapfile busy).
+      - name: Add swap space (Linux, best-effort)
         if: runner.os == 'Linux'
         shell: bash
         run: |
+          set +e
           echo "=== memory before swap ==="
           free -m
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          sudo sysctl vm.swappiness=10
-          echo "=== memory after adding 8G swap ==="
+          if swapon --show | grep -q swapfile; then
+            echo "swapfile already active; skipping"
+          elif [ -e /swapfile ]; then
+            echo "/swapfile exists but inactive; removing and retrying"
+            sudo rm -f /swapfile || true
+            sudo fallocate -l 8G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=8192 2>/dev/null
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile && sudo swapon /swapfile
+            sudo sysctl vm.swappiness=10 || true
+          else
+            sudo fallocate -l 8G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=8192 2>/dev/null
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile && sudo swapon /swapfile
+            sudo sysctl vm.swappiness=10 || true
+          fi
+          echo "=== memory after swap ==="
           free -m
+          exit 0
 
       # tauri-build validates the resources in tauri.conf.json during cargo
       # check; CI only does syntax checks, so synthesize minimal placeholders.
