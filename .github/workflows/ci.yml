@@ -17,11 +17,36 @@ permissions:
   contents: read
 
 jobs:
-  # ── Rust: build check ─────────────────────────────────────────────
-  rust-build-check:
-    name: Rust Build Check (${{ matrix.os }})
+  # ── Frontend: syntax checks only (no packaging) ───────────────────
+  frontend-check:
+    name: Frontend Check
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check web UI
+        run: pnpm run type-check:web
+
+      - name: Lint web UI
+        run: pnpm run lint:web
+
+  # ── Rust: syntax checks only (cargo check / fmt / clippy) ─────────
+  rust-check:
+    name: Rust Check (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: frontend-build
     strategy:
       fail-fast: false
       matrix:
@@ -39,13 +64,7 @@ jobs:
         shell: pwsh
         run: ./scripts/ci/setup-openssl-windows.ps1
 
-      - name: Download frontend build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-dist
-          path: dist
-
-      - name: Install Linux system dependencies (Tauri)
+      - name: Install Linux system dependencies (Rust build)
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -78,46 +97,24 @@ jobs:
             tesseract-ocr-eng
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - uses: swatinem/rust-cache@v2
         with:
           shared-key: "ci-check-${{ runner.os }}"
 
+      # tauri-build validates the resources in tauri.conf.json during cargo
+      # check; CI only does syntax checks, so synthesize minimal placeholders.
+      - name: Ensure placeholder resources (main.zip / underlay.zip / runtime)
+        shell: bash
+        run: node scripts/ci/ensure-placeholder-resources.mjs
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets
+
       - name: Check compilation
         run: cargo check --workspace
-
-  # ── Frontend: build ────────────────────────────────────────────────
-  frontend-build:
-    name: Frontend Build
-    runs-on: ubuntu-latest
-    env:
-      NODE_OPTIONS: --max-old-space-size=6144
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Type-check web UI
-        run: pnpm run type-check:web
-
-      - name: Lint web UI
-        run: pnpm run lint:web
-
-      - name: Build web UI
-        run: pnpm run build:web
-
-      - name: Upload frontend build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: dist
-          retention-days: 1
