@@ -122,10 +122,8 @@ jobs:
           submodules: true
 
       # The release build of the full Rust workspace + llama.cpp/ace-step C++
-      # builds + rust-cache restore needs well over 10 GB. Standard runners
-      # only have ~14 GB SSD, and both Linux jobs previously died mid-build
-      # with "The runner has received a shutdown signal" (disk exhaustion
-      # kills the runner agent). Remove unused preinstalled toolchains first.
+      # builds + rust-cache restore needs well over 10 GB. Remove unused
+      # preinstalled toolchains to keep plenty of headroom.
       - name: Free disk space (Linux)
         if: runner.os == 'Linux'
         shell: bash
@@ -138,6 +136,26 @@ jobs:
           sudo apt-get clean || true
           echo "=== disk after cleanup ==="
           df -h /
+
+      # Both Linux jobs previously died mid-build with "The runner has
+      # received a shutdown signal" while ~117 GB disk was still free —
+      # consistent with the OOM killer terminating the runner agent when
+      # parallel rustc jobs + llama.cpp CMake builds spike memory (ARM
+      # runners have less RAM headroom). Add swap as a safety net.
+      - name: Add swap space (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "=== memory before swap ==="
+          free -m
+          sudo fallocate -l 10G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          # Prefer keeping build processes in RAM; swap is only an OOM backstop.
+          sudo sysctl vm.swappiness=10
+          echo "=== memory after adding 10G swap ==="
+          free -m
 
       - name: Setup OpenSSL (Windows, prebuilt)
         if: runner.os == 'Windows'
@@ -248,7 +266,33 @@ jobs:
             libvulkan-dev \
             vulkan-tools
 
-      - name: Build desktop app
+      # Linux: cap parallelism + disable incremental to bound peak memory
+      # (release profile sets incremental=true / codegen-units=16, which
+      # multiplies rustc memory; 4 parallel rustc + 4-way llama.cpp CMake
+      # previously OOM-killed the runner agent). A background monitor logs
+      # disk/memory every 60 s so a repeat failure is diagnosable.
+      - name: Build desktop app (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          LLAMA_BACKEND: ${{ matrix.platform.llama_backend }}
+          LLAMA_BUILD_PARALLEL: "3"
+          CMAKE_BUILD_PARALLEL_LEVEL: "3"
+          CARGO_BUILD_JOBS: "3"
+          CARGO_INCREMENTAL: "0"
+        run: |
+          (while true; do
+            echo "[monitor] $(date +%H:%M:%S) disk-avail=$(df -h / | awk 'NR==2{print $4}') mem-avail=$(free -m | awk 'NR==2{print $7}')MB swap-free=$(free -m | awk 'NR==3{print $4}')MB"
+            sleep 60
+          done) &
+          MONITOR_PID=$!
+          ${{ matrix.platform.build_command }}
+          BUILD_EXIT=$?
+          kill $MONITOR_PID 2>/dev/null || true
+          exit $BUILD_EXIT
+
+      - name: Build desktop app (macOS / Windows)
+        if: runner.os != 'Linux'
         env:
           LLAMA_BACKEND: ${{ matrix.platform.llama_backend }}
           # Windows CUDA: use the Ninja generator so nvcc is used directly.
