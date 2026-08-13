@@ -104,6 +104,24 @@ jobs:
         with:
           shared-key: "ci-check-${{ runner.os }}"
 
+      # Linux runners only have ~16 GB RAM; cargo check / clippy on the full
+      # workspace (incl. acestep/llama.cpp build.rs) can OOM-kill the runner
+      # agent mid-build ("runner has received a shutdown signal"). Add swap as
+      # a backstop and cap parallelism to keep peak memory in check.
+      - name: Add swap space (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "=== memory before swap ==="
+          free -m
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          sudo sysctl vm.swappiness=10
+          echo "=== memory after adding 8G swap ==="
+          free -m
+
       # tauri-build validates the resources in tauri.conf.json during cargo
       # check; CI only does syntax checks, so synthesize minimal placeholders.
       - name: Ensure placeholder resources (main.zip / underlay.zip / runtime)
@@ -114,7 +132,17 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
+        env:
+          CARGO_BUILD_JOBS: "3"
+          CMAKE_BUILD_PARALLEL_LEVEL: "3"
+          LLAMA_BUILD_PARALLEL: "3"
+          CARGO_INCREMENTAL: "0"
         run: cargo clippy --workspace --all-targets
 
       - name: Check compilation
+        env:
+          CARGO_BUILD_JOBS: "3"
+          CMAKE_BUILD_PARALLEL_LEVEL: "3"
+          LLAMA_BUILD_PARALLEL: "3"
+          CARGO_INCREMENTAL: "0"
         run: cargo check --workspace
