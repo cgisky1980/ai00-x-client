@@ -7,7 +7,6 @@
       "script": "npx pnpm run dev:loader",
       "cwd": "../../../"
     },
-    "devUrl": "http://127.0.0.1:1423",
     "beforeBuildCommand": {
       "script": "npx pnpm run build:all",
       "cwd": "../../../"

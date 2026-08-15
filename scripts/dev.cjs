@@ -218,6 +218,8 @@ async function main() {
       const desktopDir = path.join(ROOT_DIR, 'src/apps/desktop');
       const tauriConfig = path.join(desktopDir, 'tauri.conf.json');
       const tauriBin = path.join(ROOT_DIR, 'node_modules', '.bin', 'tauri');
+      // Was previously set via cross-env-shell (broken by cross-env v10).
+      process.env['CARGO_INCREMENTAL'] = process.env['CARGO_INCREMENTAL'] || '0';
       process.env['AI00_X_OPEN_DEVTOOLS'] = '1';
       process.env['AI00_X_DEV_MODE'] = '1';
       // Point models/runtime to a directory outside target so they survive cargo clean
