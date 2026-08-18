@@ -21,7 +21,9 @@ static ASR_REINITTING: AtomicBool = AtomicBool::new(false);
 
 static ASR_MODEL_DIR: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
-static DOWNLOAD_MANAGER: Lazy<DownloadManager> = Lazy::new(DownloadManager::new);
+/// Shared across modules (model downloads + split-installer resource
+/// downloads) so `get_download_progress` sees every task.
+pub(crate) static DOWNLOAD_MANAGER: Lazy<DownloadManager> = Lazy::new(DownloadManager::new);
 
 pub enum AsrTask {
     Pcm(Vec<f32>),

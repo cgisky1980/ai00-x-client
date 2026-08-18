@@ -20,9 +20,6 @@ const {
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-// 本地端口唯一来源：packages/shared/server-endpoints.json（与 Rust/TS 由同一脚本生成）
-const localPorts = require(path.join(ROOT_DIR, 'packages/shared/server-endpoints.json')).localPorts;
-
 /**
  * Run command synchronously (silent mode)
  */
@@ -181,12 +178,20 @@ async function main() {
   
   const prepTime = ((Date.now() - startTime) / 1000).toFixed(1);
   
-  // Step 3: Build underlay-ui
+  // Step 3: Build web-ui + underlay-ui (dev 统一走内嵌 2100，无 vite dev server)
   if (mode === 'desktop') {
-    printStep(3, 4, 'Build underlay-ui');
+    printStep(3, 4, 'Build web-ui & underlay-ui');
+    const webResult = runSilent('pnpm --dir src/web-ui build');
+    if (webResult.ok) {
+      printSuccess('Web UI built (dist/main)');
+    } else {
+      printError('Web UI build failed (non-fatal, continuing...)');
+      const output = tailOutput(webResult.stderr || webResult.stdout);
+      if (output) printError(output);
+    }
     const underlayResult = runSilent('pnpm --dir src/underlay-ui build');
     if (underlayResult.ok) {
-      printSuccess('Underlay UI built');
+      printSuccess('Underlay UI built (dist/underlay)');
     } else {
       printError('Underlay UI build failed (non-fatal, continuing...)');
       const output = tailOutput(underlayResult.stderr || underlayResult.stdout);
@@ -226,43 +231,7 @@ async function main() {
       process.env['AI00X_MODELS_DIR'] = path.join(ROOT_DIR, '.ai00-x-dev', 'models');
       process.env['AI00X_RUNTIME_DIR'] = path.join(ROOT_DIR, '.ai00-x-dev', 'runtime');
 
-      printInfo(`Starting web-ui Vite dev server (port ${localPorts.webUiDev})...`);
-      const webUiDir = path.join(ROOT_DIR, 'src/web-ui');
-      const webUiChild = spawn('npx', ['pnpm', 'exec', 'vite', '--port', String(localPorts.webUiDev)], {
-        cwd: webUiDir,
-        stdio: 'pipe',
-        shell: true,
-      });
-      webUiChild.stdout?.on('data', (data) => {
-        const msg = data.toString().trim();
-        if (msg) printInfo(`[web-ui] ${msg}`);
-      });
-      webUiChild.stderr?.on('data', (data) => {
-        const msg = data.toString().trim();
-        if (msg) printInfo(`[web-ui] ${msg}`);
-      });
-
-      // Start underlay-ui Vite dev server
-      printInfo(`Starting underlay-ui Vite dev server (port ${localPorts.underlayDev})...`);
-      const underlayUiDir = path.join(ROOT_DIR, 'src/underlay-ui');
-      const underlayChild = spawn('npx', ['pnpm', 'exec', 'vite', '--port', String(localPorts.underlayDev)], {
-        cwd: underlayUiDir,
-        stdio: 'pipe',
-        shell: true,
-      });
-      underlayChild.stdout?.on('data', (data) => {
-        const msg = data.toString().trim();
-        if (msg) printInfo(`[underlay-ui] ${msg}`);
-      });
-      underlayChild.stderr?.on('data', (data) => {
-        const msg = data.toString().trim();
-        if (msg) printInfo(`[underlay-ui] ${msg}`);
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      printSuccess('web-ui Vite dev server started');
-      printSuccess('underlay-ui Vite dev server started');
-
+      printInfo('All UIs are served by the embedded salvo server on port 2100 (no vite ports).');
       await spawnCommand(tauriBin, ['dev', '--config', tauriConfig, '--release'], desktopDir);
     } else {
       await runCommand('pnpm exec vite', path.join(ROOT_DIR, 'src/web-ui'));

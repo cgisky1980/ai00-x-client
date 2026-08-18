@@ -400,37 +400,6 @@ fn build_qwen3_fa(fa_src_dir: &std::path::Path, llama_build_dir: &std::path::Pat
         std::fs::copy(&src_dll, &dst_dll).ok();
     }
 
-    // Also deploy to <repo-root>/target/release/runtime/gguf/ for production
-    // (same dir as ggml-base.dll). This is where find_gguf_lib_dir() looks
-    // at runtime when QWEN3_FA_LIB_DIR doesn't exist (e.g. on user machines).
-    // fa_src_dir = <manifest_dir>/qwen3-fa-cpp, so manifest_dir = fa_src_dir.parent()
-    // repo_root = manifest_dir/../../../  (src/crates/inference -> repo root)
-    let repo_root = fa_src_dir
-        .parent() // manifest_dir (src/crates/inference)
-        .and_then(|p| p.parent()) // src/crates/
-        .and_then(|p| p.parent()) // src/
-        .and_then(|p| p.parent()); // repo root
-    if let Some(repo_root) = repo_root {
-        let runtime_gguf = repo_root.join("target/release/runtime/gguf");
-        if runtime_gguf.exists() {
-            let prod_dll = runtime_gguf.join(dll_name);
-            if src_dll.exists() {
-                match std::fs::copy(&src_dll, &prod_dll) {
-                    Ok(n) => log(&format!(
-                        "qwen3_fa.dll deployed to {} ({} bytes)",
-                        prod_dll.display(),
-                        n
-                    )),
-                    Err(e) => log(&format!(
-                        "Warning: failed to deploy qwen3_fa.dll to {}: {}",
-                        prod_dll.display(),
-                        e
-                    )),
-                }
-            }
-        }
-    }
-
     println!("cargo:rustc-env=QWEN3_FA_LIB_DIR={}", target_dir.display());
     log(&format!(
         "qwen3_fa.dll built at {} (copied to {})",

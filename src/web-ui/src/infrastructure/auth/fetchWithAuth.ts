@@ -12,6 +12,7 @@
  */
 
 import { tokenManager } from './TokenManager';
+import { getAi00sInternalToken } from '@ai00-x/shared';
 
 export interface FetchWithAuthInit extends RequestInit {
   /** 不注入 Authorization header(等价 apiFetchJsonNoAuth) */
@@ -94,6 +95,11 @@ async function normalizeHeaders(
   if (injectAuth) {
     const token = await tokenManager.getAccessToken();
     if (token) h['Authorization'] = `Bearer ${token}`;
+  }
+  // CSRF 豁免头：服务器对 POST/PUT/PATCH/DELETE 校验 Origin 白名单，
+  // WebView 的 127.0.0.1:2100 origin 不在旧版白名单中，需走内部客户端通道
+  if (!h['X-Ai00-Internal-Token'] && !h['x-ai00-internal-token']) {
+    h['X-Ai00-Internal-Token'] = await getAi00sInternalToken();
   }
   return h;
 }

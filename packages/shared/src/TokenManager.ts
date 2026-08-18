@@ -20,6 +20,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getApiUrl } from './config';
 import { isTokenExpired } from './auth';
+import { getAi00sInternalToken } from './internalToken';
 
 /** access token 即将过期阈值(秒):留 60s 缓冲,避免请求途中过期 */
 const ACCESS_EXPIRY_BUFFER_SECS = 60;
@@ -166,6 +167,8 @@ class TokenManager {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          // CSRF 豁免：POST 直达远程服务器，WebView origin 不在其白名单
+          "X-Ai00-Internal-Token": await getAi00sInternalToken(),
         },
         body: JSON.stringify({ refresh_token: info.refresh_token }),
       });

@@ -86,6 +86,17 @@ pub async fn get_ai00_s_base_url(state: State<'_, AppState>) -> Result<String, S
     }
 }
 
+/// 获取 Ai00-S 内部客户端共享密钥（CSRF 豁免头 `X-Ai00-Internal-Token` 的值）。
+///
+/// UI 层从浏览器 fetch 远程 Ai00-S API 时，POST/PUT/PATCH/DELETE 会被服务器
+/// CSRF Origin 校验拦截（WebView origin 为 http://127.0.0.1:2100）。桌面客户端
+/// 属于程序化客户端，按设计携带此头即可豁免（见 ai00-salvo csrf.rs）。值来自
+/// 环境变量 `AI00_S_INTERNAL_TOKEN`，未设置时为与服务器端一致的默认值。
+#[tauri::command]
+pub fn get_ai00_s_internal_token() -> String {
+    crate::share::config::internal_token()
+}
+
 /// 获取头像/宠物资源服务地址（独立于 ai00_s_base_url）。
 ///
 /// 返回 `app.assets_base_url` 的配置值；空字符串表示未配置，前端应回退到

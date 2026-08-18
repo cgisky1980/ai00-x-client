@@ -1,9 +1,7 @@
 use tauri::{Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 use tokio::time::sleep;
 
-use ai00_x_core::service::config::server_endpoints::{
-    LOCAL_EMBEDDED_SERVER_PORT, LOCAL_HOST, LOCAL_UNDERLAY_DEV_PORT,
-};
+use ai00_x_core::service::config::server_endpoints::{LOCAL_EMBEDDED_SERVER_PORT, LOCAL_HOST};
 
 #[cfg(desktop)]
 #[cfg(target_os = "windows")]
@@ -934,13 +932,8 @@ pub fn ensure(app: &tauri::AppHandle) {
     // Reset exit flag so the maintenance loop can run after a close/reopen cycle
     UNDERLAY_SHOULD_EXIT.store(false, Ordering::SeqCst);
 
-    let dev_mode = std::env::var("AI00_X_DEV_MODE").is_ok();
-    let underlay_port = if dev_mode {
-        LOCAL_UNDERLAY_DEV_PORT
-    } else {
-        LOCAL_EMBEDDED_SERVER_PORT
-    };
-    let base_url = format!("http://{}:{}", LOCAL_HOST, underlay_port);
+    // dev 与生产统一走内嵌 salvo（2100），不再依赖 vite dev server
+    let base_url = format!("http://{}:{}", LOCAL_HOST, LOCAL_EMBEDDED_SERVER_PORT);
     let underlay_url = format!("{}/underlay/", base_url);
 
     if let Some(_u) = app.get_webview_window("underlays") {

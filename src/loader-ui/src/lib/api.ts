@@ -1,6 +1,6 @@
 import { getApiUrl } from "./config";
 import { getMachineCode, getDeviceName } from "./auth";
-import { fetchWithAuth, AuthError } from "./fetchWithAuth";
+import { fetchWithAuth, AuthError, getInternalToken } from "./fetchWithAuth";
 import { solvePow, type ChallengeResponse } from "./pow";
 import { isApiError, unwrapApiResponse, type ApiError } from "@ai00-x/shared";
 export type { ApiError };
@@ -261,6 +261,7 @@ export const authApi = {
       headers: {
         "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
+        "X-Ai00-Internal-Token": await getInternalToken(),
       },
     });
     const text = await resp.text();
@@ -291,6 +292,7 @@ export const authApi = {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json",
         "Accept": "application/json",
+        "X-Ai00-Internal-Token": await getInternalToken(),
       },
       body: JSON.stringify(fields),
     });

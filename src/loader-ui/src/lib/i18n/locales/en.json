@@ -44,6 +44,8 @@
   "unbindSuccess": "Device unbound",
   "unbindNoBinding": "No device binding for this account",
   "initBooting": "System starting...",
+  "homeResCheck": "Checking resource components...",
+  "homeResDownload": "Downloading resource component",
   "homeVersionCheck": "Checking model updates...",
   "homeStartDownload": "Starting download...",
   "homeDownloadingModel": "Downloading",

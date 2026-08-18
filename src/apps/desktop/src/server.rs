@@ -6,11 +6,33 @@ use salvo::serve_static::StaticDir;
 use std::net::SocketAddr;
 use std::thread;
 
-use crate::zip_serve::{serve_main_app, serve_underlay};
+use crate::zip_serve::{
+    dir_candidates, serve_loader, serve_loader_assets, serve_main_app, serve_underlay,
+};
 use ai00_x_core::service::config::server_endpoints::{LOCAL_EMBEDDED_SERVER_PORT, LOCAL_HOST};
 
 const SERVER_HOST: &str = LOCAL_HOST;
 const SERVER_PORT: u16 = LOCAL_EMBEDDED_SERVER_PORT;
+
+/// 静态资源目录候选：dist 布局（exe 相对优先）兜底 public 布局。
+fn static_dir_candidates(rel_from_dist: &str, public_rel: Option<&str>) -> Vec<std::path::PathBuf> {
+    let mut list = dir_candidates(rel_from_dist);
+    if let Some(rel) = public_rel {
+        // public 根在 repo 根（dist 的上一级），基于 exe 目录与 CWD 各推一次。
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                list.push(dir.join("../../public").join(rel));
+                list.push(dir.join("../public").join(rel));
+            }
+        }
+        if let Ok(cwd) = std::env::current_dir() {
+            list.push(cwd.join("../../../public").join(rel));
+            list.push(cwd.join("../public").join(rel));
+            list.push(cwd.join("public").join(rel));
+        }
+    }
+    list
+}
 
 /// Get the wallpaper data directory (absolute path).
 fn wallpaper_dir() -> String {
@@ -43,13 +65,7 @@ fn router() -> Router {
             Router::with_path("underlay/assets/{*path}")
                 .hoop(cache_headers)
                 .get(
-                    StaticDir::new([
-                        "../../../dist/underlay/assets",
-                        "../../dist/underlay/assets",
-                        "../dist/underlay/assets",
-                        "dist/underlay/assets",
-                    ])
-                    .auto_list(false),
+                    StaticDir::new(static_dir_candidates("underlay/assets", None)).auto_list(false),
                 ),
         )
         .push(
@@ -60,15 +76,7 @@ fn router() -> Router {
         .push(
             Router::with_path("main/assets/{*path}")
                 .hoop(cache_headers)
-                .get(
-                    StaticDir::new([
-                        "../../../dist/main/assets",
-                        "../../dist/main/assets",
-                        "../dist/main/assets",
-                        "dist/main/assets",
-                    ])
-                    .auto_list(false),
-                ),
+                .get(StaticDir::new(static_dir_candidates("main/assets", None)).auto_list(false)),
         )
         .push(
             Router::with_path("main/{*path}")
@@ -77,27 +85,13 @@ fn router() -> Router {
         )
         .push(
             Router::with_path("shared/{*path}").hoop(cache_headers).get(
-                StaticDir::new([
-                    "../../../dist/shared",
-                    "../../dist/shared",
-                    "../dist/shared",
-                    "../public/shared",
-                    "dist/shared",
-                    "public/shared",
-                ])
-                .auto_list(false),
+                StaticDir::new(static_dir_candidates("shared", Some("shared"))).auto_list(false),
             ),
         )
         .push(
-            Router::with_path("assets/{*path}").hoop(cache_headers).get(
-                StaticDir::new([
-                    "../../../dist/loader/assets",
-                    "../../dist/loader/assets",
-                    "../dist/loader/assets",
-                    "dist/loader/assets",
-                ])
-                .auto_list(false),
-            ),
+            Router::with_path("assets/{*path}")
+                .hoop(cache_headers)
+                .get(serve_loader_assets),
         )
         .push(
             Router::with_path("wallpapers/{*path}")
@@ -111,16 +105,9 @@ fn router() -> Router {
                 .get(StaticDir::new([workspace_wallpaper_projects_dir()]).auto_list(false)),
         )
         .push(
-            Router::with_path("{*path}").hoop(no_cache).get(
-                StaticDir::new([
-                    "../../../dist/loader",
-                    "../../dist/loader",
-                    "../dist/loader",
-                    "dist/loader",
-                ])
-                .defaults("index.html")
-                .auto_list(false),
-            ),
+            Router::with_path("{*path}")
+                .hoop(no_cache)
+                .get(serve_loader),
         )
 }
 

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @source "./src";
+/* 显式扫描共享包源码：shared 组件（AvatarCustomizer 等）的 Tailwind 类名
+   不在本包源码中出现，不加 @source 时不会生成对应 CSS */
+@source "../../packages/shared/src";
 
 @theme {
   --color-border: hsl(var(--border));

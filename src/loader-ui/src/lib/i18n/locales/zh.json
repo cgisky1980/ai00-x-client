@@ -44,6 +44,8 @@
   "unbindSuccess": "设备已解绑",
   "unbindNoBinding": "当前账号未绑定设备",
   "initBooting": "系统启动中...",
+  "homeResCheck": "检查资源组件...",
+  "homeResDownload": "正在下载资源组件",
   "homeVersionCheck": "检查模型更新...",
   "homeStartDownload": "开始下载...",
   "homeDownloadingModel": "正在下载",

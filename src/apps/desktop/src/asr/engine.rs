@@ -131,11 +131,17 @@ impl AsrEngine {
 
         let mut prefix_text = String::new();
         let max_retries = 2;
-        let base_temp = 0.4;
+        // Greedy decoding first (ASR hallucination loops are amplified by
+        // sampling noise); only heat up after a loop is detected.
+        let base_temp = 0.0;
         let base_penalty = 1.15;
 
         for attempt in 0..=max_retries {
-            let temp = base_temp + attempt as f32 * 0.2;
+            let temp = if attempt == 0 {
+                0.0
+            } else {
+                0.2 + attempt as f32 * 0.2
+            };
             let penalty = base_penalty + attempt as f32 * 0.1;
             self.sampler.set_temperature(temp);
             self.sampler.set_repeat_penalty(penalty);
@@ -246,6 +252,10 @@ impl AsrEngine {
             if token == last_token {
                 repeat_count += 1;
                 if repeat_count > 5 {
+                    // Drop the consecutive repeated tokens so the polluted
+                    // prefix never feeds back into the retry prompt.
+                    let keep = tokens.len().saturating_sub(repeat_count);
+                    tokens.truncate(keep);
                     loop_detected = true;
                     break;
                 }

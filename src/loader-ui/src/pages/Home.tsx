@@ -11,7 +11,10 @@ import { OnboardingPanel } from "@/pages/OnboardingPanel";
 import { saveAvatarLocal, loadAvatarLocal } from "@/lib/avatar/avatarStorage";
 import type { AvatarSelection } from "@/lib/avatar/config/avatar-config";
 
-const SKIP_MODEL_CHECK = true;
+// Dev builds skip the (slow) model check; release builds always check so
+// first-run users get ASR/TTS/RWKV models downloaded from the manifest
+// (hf-mirror / modelscope first, huggingface as fallback).
+const SKIP_MODEL_CHECK = import.meta.env.DEV;
 
 // 将 MemberProfileResponse.member 转换为 OnboardingPanel 所需的 ProfileUpdateFields
 function memberToProfileFields(m: MemberProfileResponse["member"]): ProfileUpdateFields {
@@ -47,6 +50,19 @@ interface DownloadTask {
   progress: number;
   total: number;
   error?: string;
+}
+
+interface ResourceStatus {
+  key: string;
+  version: string;
+  size: number;
+  state: string;
+}
+
+interface ResourcesCheckResult {
+  manifest_version: string;
+  statuses: ResourceStatus[];
+  all_ok: boolean;
 }
 
 export function HomePage() {
@@ -236,6 +252,59 @@ export function HomePage() {
             console.warn(`[HomePage] ${stageLabel}: ${_error instanceof Error ? _error.message : String(_error)}`);
           }
         };
+
+        // Step 0: Split-installer resources (main.zip / underlay.zip /
+        // sounds.zip / runtime-*.zip). The installer ships only the exe +
+        // loader.zip; everything else is fetched here on first run / update.
+        // Non-fatal: offline machines with resources already in place keep
+        // working (resources_check fails → skip).
+        setStatus(t("homeResCheck"));
+        try {
+          const res = await invoke<ResourcesCheckResult>("resources_check");
+          const pending = res.statuses.filter((s) => s.state !== "ok");
+          for (const status of pending) {
+            if (cancelled()) return;
+
+            setStatus(`${t("homeResDownload")} ${status.key}...`);
+            setDownloadProgress(0);
+
+            // Poll progress while resources_download runs.
+            const taskId = `resource-${status.key}`;
+            let polling = true;
+            const poll = (async () => {
+              while (polling && !cancelled()) {
+                try {
+                  const p = await invoke<DownloadTask | null>(
+                    "get_download_progress",
+                    { taskId },
+                  );
+                  if (p && p.total > 0) {
+                    setDownloadProgress(
+                      Math.round((p.progress / p.total) * 100),
+                    );
+                  }
+                } catch {
+                  // task not visible yet — ignore
+                }
+                await new Promise((r) => setTimeout(r, 500));
+              }
+            })();
+
+            try {
+              await invoke("resources_download", { key: status.key });
+            } catch (e) {
+              warnInit(`${t("homeDownloadFailed")}: ${status.key}`, e);
+            } finally {
+              polling = false;
+              await poll;
+            }
+          }
+          if (!cancelled() && pending.length > 0) {
+            setDownloadProgress(0);
+          }
+        } catch (e) {
+          warnInit(t("homeResCheck"), e);
+        }
 
         // Step 1: Check model updates
         if (SKIP_MODEL_CHECK) {

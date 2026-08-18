@@ -1,11 +1,26 @@
 use once_cell::sync::Lazy;
-use salvo::http::header::{HeaderValue, CONTENT_TYPE};
+use salvo::http::header::{HeaderValue, CACHE_CONTROL, CONTENT_TYPE};
 use salvo::prelude::*;
 use std::collections::HashMap;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use zip::ZipArchive;
+
+/// Vite 构建产物（assets/<hash>.js|css）文件名含内容 hash，永不变化 → 长缓存。
+/// index.html / SPA fallback 必须每次重新拉取，否则 WebView 的 HTTP 缓存会
+/// 保留旧 index.html，引用的旧 hash 资源在新 zip 中不存在（404 白屏）。
+fn apply_cache_headers(res: &mut Response, path: &str) {
+    let immutable_asset = path.starts_with("assets/") && Path::new(path).extension().is_some();
+    let value = if immutable_asset {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    };
+    if let Ok(v) = HeaderValue::from_str(value) {
+        res.headers_mut().insert(CACHE_CONTROL, v);
+    }
+}
 
 pub struct ZipAssets {
     files: HashMap<String, (Vec<u8>, String)>,
@@ -139,80 +154,115 @@ fn guess_mime_type(path: &str) -> String {
     .to_string()
 }
 
-pub static MAIN_APP_ASSETS: Lazy<Option<Arc<ZipAssets>>> = Lazy::new(|| {
-    let candidates = [
-        "../../../dist/main.zip",
-        "../dist/main.zip",
-        "../../dist/main.zip",
-        "dist/main.zip",
-    ];
-    for path_str in candidates {
-        let zip_path = Path::new(path_str);
-        if zip_path.exists() {
-            match ZipAssets::load(zip_path, "index.html") {
-                Ok(assets) => {
-                    log::info!("[zip_serve] Main app assets loaded from ZIP: {}", path_str);
-                    return Some(Arc::new(assets));
-                }
-                Err(e) => {
-                    log::error!(
-                        "[zip_serve] Failed to load main.zip from {}: {}",
-                        path_str,
-                        e
-                    );
-                }
-            }
+/// 收集去重后的候选路径（按插入顺序）。
+fn dedup_paths(paths: impl IntoIterator<Item = PathBuf>) -> Vec<PathBuf> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for p in paths {
+        let key = p.to_string_lossy().to_string();
+        if seen.insert(key) {
+            out.push(p);
         }
     }
-    log::info!("[zip_serve] main.zip not found, will use directory serving");
-    None
-});
+    out
+}
 
-pub static UNDERLAY_ASSETS: Lazy<Option<Arc<ZipAssets>>> = Lazy::new(|| {
-    let candidates = [
-        "../../../dist/underlay.zip",
-        "../dist/underlay.zip",
-        "../../dist/underlay.zip",
-        "dist/underlay.zip",
-    ];
-    for path_str in candidates {
-        let zip_path = Path::new(path_str);
+/// dist 根目录候选：优先基于 exe 所在目录（exe 在 `<repo>/target/<profile>`，dist 在 `<repo>/dist`），
+/// 再兜底基于当前工作目录（兼容 tauri dev 把 CWD 设为 src/apps/desktop 等布局）。
+/// 注意：用 explorer 等直接启动时 CWD 可能是系统目录，因此 exe 相对路径必须优先。
+fn dist_root_candidates() -> Vec<PathBuf> {
+    let mut list: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            list.push(dir.join("../../dist")); // <repo>/dist（release 布局）
+            list.push(dir.join("../dist")); // <repo>/target/dist（少见布局）
+            list.push(dir.join("dist")); // <exe>/dist（资源同目录兜底）
+        }
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        list.push(cwd.join("../../../dist"));
+        list.push(cwd.join("../../dist"));
+        list.push(cwd.join("../dist"));
+        list.push(cwd.join("dist"));
+    }
+    dedup_paths(list)
+}
+
+/// ZIP 文件候选路径：先看 exe 旁的安装布局（bundle.resources 会把 zip 放资源目录），
+/// 再查 dist 根目录布局。
+fn zip_candidates(name: &str) -> Vec<PathBuf> {
+    let mut list: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            list.push(dir.join(name)); // 安装布局：<exe>/loader.zip
+            list.push(dir.join("../resources").join(name)); // macOS 布局
+        }
+    }
+    list.extend(dist_root_candidates().into_iter().map(|d| d.join(name)));
+    dedup_paths(list)
+}
+
+/// 目录服务候选路径（dist 根目录 + 相对子路径）。
+pub(crate) fn dir_candidates(rel: &str) -> Vec<PathBuf> {
+    dedup_paths(dist_root_candidates().into_iter().map(|d| d.join(rel)))
+}
+
+/// 尝试从候选 ZIP 加载资源，成功返回 Some，全部失败返回 None。
+fn load_zip_assets(name: &str, default_file: &str) -> Option<Arc<ZipAssets>> {
+    for zip_path in zip_candidates(name) {
         if zip_path.exists() {
-            match ZipAssets::load(zip_path, "index.html") {
+            match ZipAssets::load(&zip_path, default_file) {
                 Ok(assets) => {
-                    log::info!("[zip_serve] Underlay assets loaded from ZIP: {}", path_str);
+                    log::info!(
+                        "[zip_serve] {} loaded from ZIP: {}",
+                        name,
+                        zip_path.display()
+                    );
                     return Some(Arc::new(assets));
                 }
                 Err(e) => {
                     log::error!(
-                        "[zip_serve] Failed to load underlay.zip from {}: {}",
-                        path_str,
+                        "[zip_serve] Failed to load {} from {}: {}",
+                        name,
+                        zip_path.display(),
                         e
                     );
                 }
             }
         }
     }
-    log::info!("[zip_serve] underlay.zip not found, will use directory serving");
+    log::info!("[zip_serve] {} not found, will use directory serving", name);
     None
-});
+}
+
+pub static MAIN_APP_ASSETS: Lazy<Option<Arc<ZipAssets>>> =
+    Lazy::new(|| load_zip_assets("main.zip", "index.html"));
+
+pub static UNDERLAY_ASSETS: Lazy<Option<Arc<ZipAssets>>> =
+    Lazy::new(|| load_zip_assets("underlay.zip", "index.html"));
+
+/// Loader 前端资源（统一走 zip 打包，dev/正式环境一致；目录服务仅作兜底）
+pub static LOADER_ASSETS: Lazy<Option<Arc<ZipAssets>>> =
+    Lazy::new(|| load_zip_assets("loader.zip", "index.html"));
+
+/// 为指定资源生成目录候选向量（惰性求值，每次调用重新计算，因为 CWD/exe 可能在运行时变化）。
+/// 但实际使用中 Lazy 初始化后这些路径其实不会变，这里用函数只是方便调用。
+fn loader_dir_candidates() -> Vec<PathBuf> {
+    dir_candidates("loader")
+}
+
+fn main_dir_candidates() -> Vec<PathBuf> {
+    dir_candidates("main")
+}
+
+fn underlay_dir_candidates() -> Vec<PathBuf> {
+    dir_candidates("underlay")
+}
 
 #[handler]
 pub async fn serve_main_app(req: &mut Request, res: &mut Response) {
     let path = req.param::<String>("path").unwrap_or_default();
-    serve_from_zip_or_fallback(
-        &MAIN_APP_ASSETS,
-        &[
-            "../../../dist/main",
-            "../../dist/main",
-            "../dist/main",
-            "dist/main",
-        ],
-        &path,
-        req,
-        res,
-    )
-    .await
+    serve_from_zip_or_fallback(&MAIN_APP_ASSETS, &main_dir_candidates(), &path, req, res).await
 }
 
 #[handler]
@@ -220,13 +270,30 @@ pub async fn serve_underlay(req: &mut Request, res: &mut Response) {
     let path = req.param::<String>("path").unwrap_or_default();
     serve_from_zip_or_fallback(
         &UNDERLAY_ASSETS,
-        &[
-            "../../../dist/underlay",
-            "../../dist/underlay",
-            "../dist/underlay",
-            "dist/underlay",
-        ],
+        &underlay_dir_candidates(),
         &path,
+        req,
+        res,
+    )
+    .await
+}
+
+/// 服务 loader 前端（根路由 `{*path}`：index.html / data/* / assets/* 等）
+#[handler]
+pub async fn serve_loader(req: &mut Request, res: &mut Response) {
+    let path = req.param::<String>("path").unwrap_or_default();
+    serve_from_zip_or_fallback(&LOADER_ASSETS, &loader_dir_candidates(), &path, req, res).await
+}
+
+/// 服务 loader 的构建资源（对应 `assets/{*path}`，加 immutable 缓存头）
+#[handler]
+pub async fn serve_loader_assets(req: &mut Request, res: &mut Response) {
+    let path = req.param::<String>("path").unwrap_or_default();
+    let asset_path = format!("assets/{}", path);
+    serve_from_zip_or_fallback(
+        &LOADER_ASSETS,
+        &loader_dir_candidates(),
+        &asset_path,
         req,
         res,
     )
@@ -235,7 +302,7 @@ pub async fn serve_underlay(req: &mut Request, res: &mut Response) {
 
 async fn serve_from_zip_or_fallback(
     assets: &Option<Arc<ZipAssets>>,
-    fallback_dirs: &[&str],
+    fallback_dirs: &[PathBuf],
     path: &str,
     req: &Request,
     res: &mut Response,
@@ -245,8 +312,7 @@ async fn serve_from_zip_or_fallback(
         return;
     }
 
-    for dir in fallback_dirs {
-        let fallback_path = Path::new(dir);
+    for fallback_path in fallback_dirs {
         if fallback_path.exists() {
             let target = fallback_path.join(path);
 
@@ -254,6 +320,7 @@ async fn serve_from_zip_or_fallback(
                 let builder = salvo::fs::NamedFile::builder(&target);
                 if let Ok(named_file) = builder.build().await {
                     named_file.send(req.headers(), res).await;
+                    apply_cache_headers(res, path);
                     return;
                 }
             }
@@ -280,6 +347,7 @@ async fn serve_from_zip_or_fallback(
             );
             res.headers_mut()
                 .insert(CONTENT_TYPE, HeaderValue::from_str(mime).unwrap());
+            apply_cache_headers(res, path);
             res.write_body(content.to_vec()).ok();
             return;
         }
@@ -291,8 +359,7 @@ async fn serve_from_zip_or_fallback(
         .unwrap_or(false);
 
     if !has_extension {
-        for dir in fallback_dirs {
-            let fallback_path = Path::new(dir);
+        for fallback_path in fallback_dirs {
             if fallback_path.exists() {
                 let index_path = fallback_path.join("index.html");
                 if index_path.exists() && index_path.is_file() {
@@ -309,6 +376,7 @@ async fn serve_from_zip_or_fallback(
             if let Some((content, mime)) = zip_assets.get("") {
                 res.headers_mut()
                     .insert(CONTENT_TYPE, HeaderValue::from_str(mime).unwrap());
+                apply_cache_headers(res, "");
                 res.write_body(content.to_vec()).ok();
                 return;
             }
