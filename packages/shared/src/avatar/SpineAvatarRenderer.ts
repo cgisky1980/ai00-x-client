@@ -504,6 +504,15 @@ export class SpineAvatarRenderer {
     if (!this.skeleton) return;
     const slot = this.skeleton.findSlot(slotName) as any;
     if (!slot) return;
+    // 非 Head 部位不上色（pose.color 乘法与纹理 tint 均跳过，防止旧 avatar_data 残留颜色影响）
+    const attachment = slot.appliedPose?.attachment;
+    if (attachment) {
+      const attachmentPath = attachment.path || attachment.name;
+      if (attachmentPath) {
+        const suffix = attachmentPath.split('/').pop() || '';
+        if (!SpineAvatarRenderer.CORE_PART_SUFFIXES.has(suffix)) return;
+      }
+    }
     const hex = colorHex.replace('#', '');
     const r = parseInt(hex.substring(0, 2), 16) / 255;
     const g = parseInt(hex.substring(2, 4), 16) / 255;
@@ -522,14 +531,8 @@ export class SpineAvatarRenderer {
     }
   }
 
-  // 核心部件后缀（只对这些部件应用 tint，非核心保持原色）
-  private static readonly CORE_PART_SUFFIXES = new Set([
-    'Body', 'Head', 'Tails',
-    'Hand_F', 'Hand_B', 'Hand_B2',
-    'Leg_F', 'Leg_B', 'Leg_F2',
-    'Eye1', 'Eye2',
-    'Ear_F', 'Ear_B',
-  ]);
+  // 可染色部件后缀（产品需求：只对头部渲染颜色，其他部位保持原色）
+  private static readonly CORE_PART_SUFFIXES = new Set(['Head']);
 
   private storeOriginalImages(): void {
     this.tintedTextureCache.clear();

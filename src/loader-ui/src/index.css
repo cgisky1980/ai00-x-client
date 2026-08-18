@@ -1,4 +1,8 @@
 @import "tailwindcss";
+/* 显式扫描共享包源码：AvatarCustomizer/LocationPicker 等 shared 组件的
+   Tailwind 类名（如 fixed inset-0 z-[10000]）不在本包源码中出现，
+   不加 @source 时不会生成对应 CSS，Portal 弹窗会退化为 static 布局 */
+@source "../../../packages/shared/src";
 
 :root {
   --page-bg: #f3f3f5;

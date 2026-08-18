@@ -51,7 +51,8 @@ const PART_I18N_KEY: Record<string, string> = {
 };
 
 // panelOnly 模式下隐藏的部件（用户不可选择，但保留默认值）
-const HIDDEN_PARTS_IN_PANEL = new Set(['effects', 'weapons', 'clothes', 'eye']);
+// clothes 暂时隐藏且固定为"无"（产品决定，渲染层也强制 none）
+const HIDDEN_PARTS_IN_PANEL = new Set(['effects', 'weapons', 'eye', 'clothes']);
 
 export function AvatarCustomizer({ value, onChange, previewOnly, panelOnly, t, resourceManager }: AvatarCustomizerProps) {
   // panelOnly 模式下不渲染 preview（previewOnly 与 panelOnly 互斥，逻辑上 panelOnly 等同默认模式）

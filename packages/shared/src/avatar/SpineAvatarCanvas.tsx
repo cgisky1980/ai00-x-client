@@ -60,13 +60,19 @@ export default function SpineAvatarCanvas({
     setLoading(true);
     setError(null);
 
+    // 衣服暂时固定为"无"（产品决定）：无论 avatar_data 里存了什么，渲染时不显示衣服
+    const effectiveSelection: AvatarSelection = {
+      ...selection,
+      parts: { ...selection.parts, clothes: 'none' },
+    };
+
     resourceManager
       .init()
       .then(() => {
         const skeletonPath = resourceManager.getSkeletonPath();
         const partsPath = resourceManager.getPartsPath();
         return renderer.loadSkeletonWithParts(
-          selection,
+          effectiveSelection,
           partDefs,
           skeletonPath,
           partsPath,
