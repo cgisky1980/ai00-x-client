@@ -134,6 +134,7 @@ export default defineConfig(({ mode, command }) => {
         main: path.resolve(__dirname, 'index.html'),
         chat: path.resolve(__dirname, 'chat.html'),
         preview: path.resolve(__dirname, 'preview.html'),
+        'member-chat': path.resolve(__dirname, 'member-chat.html'),
       },
       // v9 重构：原 webtorrent external 配置已移除。
       // P2P 改用 Tauri 命令调用 Rust fx-torrent，前端不再依赖 webtorrent npm 包。

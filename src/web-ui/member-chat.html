@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <title>Ai00-X 聊天</title>
+    <script>
+      (function () {
+        var dark = '#121214';
+        var light = '#f3f3f5';
+        var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+        var bg = m && m.matches ? dark : light;
+        var root = document.documentElement;
+        root.style.backgroundColor = bg;
+        function paintBody() {
+          if (document.body) document.body.style.backgroundColor = bg;
+        }
+        paintBody();
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', paintBody);
+        } else {
+          paintBody();
+        }
+      })();
+    </script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      html {
+        background-color: #121214;
+      }
+      @media (prefers-color-scheme: light) {
+        html {
+          background-color: #f3f3f5;
+        }
+      }
+
+      body {
+        background-color: inherit;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/member-chat-main.tsx"></script>
+  </body>
+</html>

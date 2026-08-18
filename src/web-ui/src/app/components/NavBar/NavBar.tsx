@@ -11,7 +11,8 @@
  */
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import { Pin, PinOff, ArrowLeft } from 'lucide-react';
+import { Pin, PinOff, ArrowLeft, MessageSquare } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Tooltip, WindowControls } from '@/component-library';
 import { useI18n } from '../../../infrastructure/i18n';
@@ -65,6 +66,12 @@ const NavBar: React.FC<NavBarProps> = ({
     setIsPinned(next);
   }, [isPinned]);
 
+  const handleOpenMemberChat = useCallback(() => {
+    invoke('open_member_chat_window').catch((e) => {
+      console.error('open_member_chat_window failed', e);
+    });
+  }, []);
+
   const handleExitSettings = useCallback(() => {
     useSceneStore.getState().closeScene('settings');
   }, []);
@@ -100,6 +107,16 @@ const NavBar: React.FC<NavBarProps> = ({
       <div className="ai00-x-nav-bar__spacer" data-tauri-drag-region />
 
       <div className="ai00-x-nav-bar__quick-controls">
+        <Tooltip content={t('nav.chat', { defaultValue: 'Chat' })} placement="bottom" followCursor>
+          <button
+            className="ai00-x-nav-bar__pin-btn ai00-x-nav-bar__chat-btn"
+            onClick={handleOpenMemberChat}
+            type="button"
+            aria-label={t('nav.chat', { defaultValue: 'Chat' })}
+          >
+            <MessageSquare size={14} />
+          </button>
+        </Tooltip>
         <ThemeSelector mode="compact" />
         <LanguageSelector mode="icon-only" />
       </div>
