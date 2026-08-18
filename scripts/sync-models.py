@@ -1,0 +1,325 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["huggingface_hub>=0.34"]
+# ///
+"""Sync local model files to ModelScope + HuggingFace and regenerate manifest.json.
+
+Single source of truth is a local models directory (layout matches the remote
+repos: asr/..., tts/..., rwkv/..., embedding/...). The script:
+
+1. Regenerates manifest.json (size + sha256 per file; semantic model keys and
+   hashes are reused from the previous manifest when the path+size match).
+2. Pushes new/changed files to ModelScope via git+LFS (credentials are read
+   from ~/.modelscope/credentials).
+3. Pushes new/changed files to HuggingFace via huggingface_hub (skipped with
+   a warning when the local token lacks write permission).
+
+Usage:
+  uv run scripts/sync-models.py --local-dir <models-dir> [--skip-ms] [--skip-hf] [--dry-run]
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+HF_REPO = "cgisky/ai00-x"
+MS_REPO = "cgisky/Ai00-X"
+MS_API_FILES = (
+    f"https://modelscope.cn/api/v1/models/{MS_REPO}/repo/files"
+    "?Revision=master&Recursive=true"
+)
+MANIFEST_HOSTS = {
+    "ms": {
+        "name": "ModelScope",
+        "base": f"https://modelscope.cn/models/{MS_REPO}/resolve/master",
+    },
+    "hf": {"name": "HuggingFace", "base": f"https://huggingface.co/{HF_REPO}/resolve/main"},
+}
+# Files larger than this must go through git LFS on the ModelScope repo.
+LFS_THRESHOLD = 50 * 1024 * 1024
+
+# Components/files that are uploaded to the repos but NOT registered in
+# manifest.json. They are optional large downloads managed by their own
+# on-demand downloaders:
+# - acestep: ~14.2 GB of presets, downloaded only when the user picks one
+#   (acestep_download_preset; also pulls the ASR aligner as a companion).
+# - ASR forced-aligner: acestep companion, fetched together with a preset.
+# sa3 IS registered (first-launch download, ~1.6 GB) per product decision.
+MANIFEST_EXCLUDE_COMPONENTS = {"acestep"}
+MANIFEST_EXCLUDE_FILES = {"asr/qwen3-forced-aligner-0.6b-q8_0.gguf"}
+
+
+def log(msg: str) -> None:
+    print(f"[sync-models] {msg}", flush=True)
+
+
+def run(cmd: list[str], cwd: Path | None = None, env: dict | None = None) -> subprocess.CompletedProcess:
+    proc = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"command failed: {' '.join(cmd[:3])} ...\nstderr: {proc.stderr[-2000:]}"
+        )
+    return proc
+
+
+def sha256_of(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(4 * 1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def collect_local_files(local_dir: Path) -> dict[str, int]:
+    """Map repo-relative path -> size for model files (manifest.json excluded).
+
+    Hidden dirs (.cache, .git, ...) are skipped — e.g. huggingface_hub leaves
+    a `.cache/` inside snapshot-style model dirs.
+    """
+    files: dict[str, int] = {}
+    for p in sorted(local_dir.rglob("*")):
+        if not p.is_file() or p.name == "manifest.json":
+            continue
+        rel = p.relative_to(local_dir)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        files[rel.as_posix()] = p.stat().st_size
+    return files
+
+
+def load_existing_manifest(local_dir: Path) -> dict:
+    """Previous manifest: local copy first (fresh), then ModelScope (remote)."""
+    local = local_dir / "manifest.json"
+    if local.exists():
+        try:
+            return json.loads(local.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+    try:
+        with urllib.request.urlopen(MANIFEST_HOSTS["ms"]["base"] + "/manifest.json", timeout=30) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except Exception as e:  # noqa: BLE001
+        log(f"warn: no previous manifest ({e}); building fresh")
+        return {"version": "2.0.0", "components": {}}
+
+
+def build_manifest(local_dir: Path, files: dict[str, int], prev: dict) -> dict:
+    """Index previous entries by url so semantic keys/hashes survive re-syncs.
+
+    MANIFEST_EXCLUDE_* are skipped here (still uploaded, just not registered —
+    see the comment at their definition).
+    """
+    files = {
+        p: s
+        for p, s in files.items()
+        if p.split("/", 1)[0] not in MANIFEST_EXCLUDE_COMPONENTS
+        and p not in MANIFEST_EXCLUDE_FILES
+    }
+    prev_entries: dict[str, tuple[str, dict]] = {}  # url -> (key, entry)
+    for comp in prev.get("components", {}).values():
+        for key, entry in comp.get("models", {}).items():
+            prev_entries[entry["url"]] = (key, entry)
+
+    components: dict[str, dict] = {}
+    for path, size in files.items():
+        top = path.split("/", 1)[0]
+        comp = components.setdefault(top, {"models": {}})
+        old_key, old = prev_entries.get(path, (None, None))
+        if old and old.get("size") == size:
+            # path+size unchanged: reuse the semantic key and cached hash
+            entry = dict(old)
+            key = old_key
+        else:
+            key = old_key or Path(path).stem
+            base, i = key, 2
+            while key in comp["models"]:
+                key = f"{base}-{i}"
+                i += 1
+            entry = {
+                "name": Path(path).name,
+                "size": size,
+                "hash": f"sha256:{sha256_of(local_dir / path)}",
+                "url": path,
+                "required": bool(old.get("required", True)) if old else True,
+            }
+        comp["models"][key] = entry
+
+    return {
+        "version": prev.get("version", "2.0.0"),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "components": components,
+        "hosts": MANIFEST_HOSTS,
+    }
+
+
+def ms_remote_files() -> dict[str, int]:
+    with urllib.request.urlopen(MS_API_FILES, timeout=30) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    blobs = data.get("Data", {}).get("Files") or []
+    return {f["Path"]: f["Size"] for f in blobs if f.get("Type") == "blob"}
+
+
+def ms_credentials() -> tuple[str, str]:
+    cred = Path.home() / ".modelscope" / "credentials"
+    user = (cred / "user").read_text(encoding="utf-8").strip().split(":", 1)[0]
+    token = (cred / "git_token").read_text(encoding="utf-8").strip()
+    return user, token
+
+
+def remote_manifest_text(host_base: str) -> str:
+    """Fetch the manifest.json currently deployed on a host ("" on failure)."""
+    try:
+        with urllib.request.urlopen(host_base + "/manifest.json", timeout=30) as r:
+            return r.read().decode("utf-8").strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def push_to_modelscope(local_dir: Path, files: dict[str, int], manifest: dict, dry: bool) -> None:
+    remote = ms_remote_files()
+    changed = sorted(p for p, s in files.items() if remote.get(p) != s)
+
+    new_manifest_text = json.dumps(manifest, indent=2, ensure_ascii=False).strip()
+    manifest_changed = remote_manifest_text(MANIFEST_HOSTS["ms"]["base"]) != new_manifest_text
+
+    extra = sorted(set(remote) - set(files) - {"manifest.json", ".gitattributes"})
+    if extra:
+        log(f"warn: remote-only files on ModelScope (NOT deleted): {extra}")
+
+    if not changed and not manifest_changed:
+        log("ModelScope already up to date")
+        return
+
+    log(f"ModelScope: {len(changed)} file(s) + manifest.json (manifest changed: {manifest_changed})")
+    for p in changed:
+        log(f"  - {p} ({files[p]} bytes)")
+    if dry:
+        return
+
+    user, token = ms_credentials()
+    work = Path(tempfile.mkdtemp(prefix="ms-sync-"))
+    env = {**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"}
+    try:
+        url = f"https://{user}:{token}@www.modelscope.cn/{MS_REPO}.git"
+        run(["git", "clone", "--depth", "1", url, str(work)], env=env)
+
+        # Ensure big files of unknown extensions go through LFS. Use
+        # `git lfs track` — the canonical writer — instead of hand-editing
+        # .gitattributes (manual newline handling corrupted the file once and
+        # silently broke LFS tracking -> modelscope push rejection).
+        need = {
+            f"*{p[p.rfind('.'):]}"
+            for p in changed
+            if p.rfind(".") > 0 and files[p] > LFS_THRESHOLD
+        }
+        for pattern in sorted(need):
+            run(["git", "lfs", "track", pattern], cwd=work)
+
+        for p in changed:
+            dst = work / p
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(local_dir / p, dst)
+        (work / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        run(["git", "add", "-A"], cwd=work)
+        run(["git", "commit", "-m", "Sync models from local directory"], cwd=work)
+        run(["git", "push", "origin", "master"], cwd=work, env=env)
+        # keep the token out of the on-disk remote url before cleanup
+        run(["git", "remote", "set-url", "origin", f"https://www.modelscope.cn/{MS_REPO}.git"], cwd=work)
+        log("ModelScope push done")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def push_to_huggingface(local_dir: Path, files: dict[str, int], manifest: dict, dry: bool) -> None:
+    from huggingface_hub import HfApi
+
+    api = HfApi()
+    try:
+        remote = {
+            f.rfilename: (f.size or 0)
+            for f in api.list_repo_tree(HF_REPO, repo_type="model", recursive=True)
+            if hasattr(f, "size")
+        }
+    except Exception as e:  # noqa: BLE001
+        log(f"warn: cannot list HF repo ({e}); uploading everything")
+        remote = {}
+
+    changed = sorted(p for p, s in files.items() if remote.get(p) != s)
+    new_manifest_text = json.dumps(manifest, indent=2, ensure_ascii=False).strip()
+    manifest_changed = remote_manifest_text(MANIFEST_HOSTS["hf"]["base"]) != new_manifest_text
+    if not changed and not manifest_changed:
+        log("HuggingFace already up to date")
+        return
+    log(f"HuggingFace: {len(changed)} file(s) + manifest.json (manifest changed: {manifest_changed})")
+    for p in changed:
+        log(f"  - {p}")
+    if dry:
+        return
+    try:
+        for p in changed:
+            api.upload_file(
+                path_or_fileobj=str(local_dir / p),
+                path_in_repo=p,
+                repo_id=HF_REPO,
+                repo_type="model",
+                commit_message=f"sync {p}",
+            )
+        api.upload_file(
+            path_or_fileobj=str(local_dir / "manifest.json"),
+            path_in_repo="manifest.json",
+            repo_id=HF_REPO,
+            repo_type="model",
+            commit_message="sync manifest.json",
+        )
+        log("HuggingFace push done")
+    except Exception as e:  # noqa: BLE001
+        log(f"warn: HF upload failed ({e}). A *write* token is required: "
+            "https://huggingface.co/settings/tokens -> save to ~/.cache/huggingface/token")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Sync local models dir to ModelScope + HF")
+    ap.add_argument("--local-dir", default=".ai00-x-dev/models", help="local models directory")
+    ap.add_argument("--skip-ms", action="store_true", help="skip ModelScope upload")
+    ap.add_argument("--skip-hf", action="store_true", help="skip HuggingFace upload")
+    ap.add_argument("--dry-run", action="store_true", help="print changes, upload nothing")
+    args = ap.parse_args()
+
+    local_dir = Path(args.local_dir).resolve()
+    if not local_dir.is_dir():
+        log(f"local dir not found: {local_dir} (pass --local-dir)")
+        return 1
+
+    files = collect_local_files(local_dir)
+    if not files:
+        log(f"no model files under {local_dir}")
+        return 1
+    log(f"{len(files)} local file(s), {sum(files.values()) / 1e9:.2f} GB total")
+
+    manifest = build_manifest(local_dir, files, load_existing_manifest(local_dir))
+    (local_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    log(f"manifest.json written ({len(manifest['components'])} components)")
+
+    if not args.skip_ms:
+        push_to_modelscope(local_dir, files, manifest, args.dry_run)
+    if not args.skip_hf:
+        push_to_huggingface(local_dir, files, manifest, args.dry_run)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

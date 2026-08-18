@@ -26,10 +26,11 @@
     "verify:monaco-assets": "node scripts/verify-monaco-assets.cjs",
     "build:web": "pnpm run type-check:web && pnpm --dir src/web-ui build && pnpm run verify:monaco-assets",
     "build:loader": "pnpm --dir src/loader-ui build",
+    "build:loader-zip": "node scripts/zip-dir.mjs dist/loader dist/loader.zip",
     "build:main-zip": "node scripts/zip-dir.mjs dist/main dist/main.zip",
     "build:underlay": "pnpm --dir src/underlay-ui build",
     "build:underlay-zip": "node scripts/zip-dir.mjs dist/underlay dist/underlay.zip",
-    "build:all": "pnpm run build:web && pnpm run build:loader && pnpm run build:main-zip && pnpm run build:underlay && pnpm run build:underlay-zip",
+    "build:all": "pnpm run build:web && pnpm run build:loader && pnpm run build:loader-zip && pnpm run build:main-zip && pnpm run build:underlay && pnpm run build:underlay-zip",
     "dev:loader": "pnpm --dir src/loader-ui dev",
     "preview": "pnpm --dir src/web-ui preview",
     "desktop:dev": "node scripts/dev.cjs desktop",
@@ -46,7 +47,9 @@
     "desktop:build:linux:rpm": "node scripts/desktop-tauri-build.mjs --bundles rpm",
     "desktop:build:linux:appimage": "node scripts/desktop-tauri-build.mjs --bundles appimage",
     "preview-components": "pnpm --dir src/web-ui exec vite --config vite.config.preview.ts",
-    "build-components": "pnpm --dir src/web-ui exec vite build --config vite.config.preview.ts"
+    "build-components": "pnpm --dir src/web-ui exec vite build --config vite.config.preview.ts",
+    "models:sync": "uv run scripts/sync-models.py",
+    "models:sync:dry": "uv run scripts/sync-models.py --dry-run"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.0",

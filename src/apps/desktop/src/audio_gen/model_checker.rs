@@ -107,11 +107,6 @@ pub fn check_audio_gen_models(
     }
 }
 
-/// HuggingFace repository for MNN models
-pub const HF_REPO_ID: &str = "cgisky/stable-audio-3-mnn";
-
-/// Build download URL for a model file from HuggingFace
-pub fn build_hf_url(filename: &str, mirror: Option<&str>) -> String {
-    let base = mirror.unwrap_or("https://huggingface.co");
-    format!("{}/{}/resolve/main/{}", base, HF_REPO_ID, filename)
-}
+// SA3 model files are mirrored in our own unified model repo (cgisky/ai00-x)
+// under `sa3/`, kept in sync by scripts/sync-models.py. The actual download
+// logic is a TODO in crates/inference/src/runtime/downloader.rs.

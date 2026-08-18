@@ -1526,15 +1526,19 @@ pub async fn acestep_align_lyrics(
 
 // ---- Model download (independent, uses ai00-x's DownloadManager) ----
 
-/// HuggingFace repo that hosts the ACE-Step GGUF model files.
-const ACESTEP_HF_REPO: &str = "Serveurperso/ACE-Step-1.5-GGUF";
-
-/// Download mirrors — order is NOT fixed; `refresh_mirror_speeds()` sorts them
-/// by measured latency before each download session.
+/// Download sources — full URL prefixes into our own unified model repo
+/// (cgisky/ai00-x on HF, cgisky/Ai00-X on ModelScope). ACE-Step files live
+/// under `acestep/` in the repo, same layout as the local models directory.
+/// ModelScope serves from CN CDNs and goes first; hf-mirror / huggingface
+/// are fallbacks (no third-party repo dependency).
 ///
-/// All mirrors use the same `/resolve/main/` path format, so they can share
-/// a single URL template. New mirrors with the same format can be added here.
-const ACESTEP_MIRRORS: &[&str] = &["https://huggingface.co", "https://hf-mirror.com"];
+/// Order is NOT fixed; `refresh_mirror_speeds()` sorts them by measured
+/// latency before each download session.
+const ACESTEP_MIRRORS: &[&str] = &[
+    "https://modelscope.cn/models/cgisky/Ai00-X/resolve/master",
+    "https://hf-mirror.com/cgisky/ai00-x/resolve/main",
+    "https://huggingface.co/cgisky/ai00-x/resolve/main",
+];
 
 /// Cached mirror ranking (key = mirror base URL, value = latency in ms).
 /// `u64::MAX` means unreachable. Refreshed by `pick_mirrors_by_speed()`.
@@ -1551,12 +1555,12 @@ async fn refresh_mirror_speeds() {
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
-    let test_file = "vae-BF16.gguf";
+    let test_file = "acestep/vae-BF16.gguf";
     let mut handles = Vec::new();
 
     for mirror in ACESTEP_MIRRORS {
         let mirror = mirror.to_string();
-        let url = format!("{}/{}/resolve/main/{}", mirror, ACESTEP_HF_REPO, test_file);
+        let url = format!("{}/{}", mirror, test_file);
         let client = client.clone();
 
         handles.push(tokio::spawn(async move {
@@ -1616,7 +1620,7 @@ async fn hf_urls_sorted(filename: &str) -> Vec<String> {
         drop(speeds);
         return ACESTEP_MIRRORS
             .iter()
-            .map(|m| format!("{}/{}/resolve/main/{}", m, ACESTEP_HF_REPO, filename))
+            .map(|m| format!("{}/acestep/{}", m, filename))
             .collect();
     }
 
@@ -1624,7 +1628,7 @@ async fn hf_urls_sorted(filename: &str) -> Vec<String> {
     speeds
         .iter()
         .filter(|(_, lat)| *lat != u64::MAX)
-        .map(|(mirror, _)| format!("{}/{}/resolve/main/{}", mirror, ACESTEP_HF_REPO, filename))
+        .map(|(mirror, _)| format!("{}/acestep/{}", mirror, filename))
         .collect()
 }
 
@@ -1972,16 +1976,20 @@ pub struct AceStepGpuInfo {
 /// fields set to `None` so the frontend can fall back to manual selection.
 #[tauri::command]
 pub async fn acestep_get_gpu_info() -> Result<AceStepGpuInfo, String> {
-    let output = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        tokio::process::Command::new("nvidia-smi")
-            .args([
-                "--query-gpu=memory.total,name",
-                "--format=csv,noheader,nounits",
-            ])
-            .output(),
-    )
-    .await;
+    let mut cmd = tokio::process::Command::new("nvidia-smi");
+    cmd.args([
+        "--query-gpu=memory.total,name",
+        "--format=csv,noheader,nounits",
+    ]);
+    #[cfg(target_os = "windows")]
+    {
+        // nvidia-smi is a console binary; without this flag each query
+        // flashes a terminal window on the desktop. (tokio's Command provides
+        // creation_flags as an inherent method on Windows.)
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = tokio::time::timeout(std::time::Duration::from_secs(5), cmd.output()).await;
 
     let output = match output {
         Ok(Ok(o)) => o,
@@ -2283,6 +2291,13 @@ pub async fn acestep_download_preset(preset_id: String) -> Result<Vec<String>, S
             Ok(()) => started.push(id.to_string()),
             Err(e) => log::warn!("[AceStep] Failed to start download for {}: {}", id, e),
         }
+    }
+
+    // The ASR forced aligner is a companion of ACE-Step (audio-text alignment
+    // for lego/repaint tasks) — fetch it together with the preset. Best
+    // effort: a failure here must not fail the preset download.
+    if let Err(e) = crate::api::asr_api::ensure_aligner_downloaded().await {
+        log::warn!("[AceStep] Companion aligner download failed: {}", e);
     }
 
     Ok(started)

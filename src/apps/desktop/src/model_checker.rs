@@ -82,7 +82,11 @@ pub struct CheckResult {
 #[derive(Debug, Clone)]
 struct HostSpeed {
     host_key: String,
+    /// Time to first byte (ms). `u64::MAX` means the host is unreachable.
     latency_ms: u64,
+    /// Measured download throughput in bytes/second from a real ranged GET
+    /// (follows redirects down to the final CDN). 0 when unreachable.
+    throughput_bps: u64,
 }
 
 pub struct ModelChecker {
@@ -283,52 +287,10 @@ impl ModelChecker {
             let client = self.client.clone();
 
             handles.push(tokio::spawn(async move {
-                let start = std::time::Instant::now();
-                let result = client
-                    .head(&test_url)
-                    .timeout(std::time::Duration::from_secs(8))
-                    .send()
-                    .await;
-                let elapsed = start.elapsed().as_millis() as u64;
-
-                match result {
-                    Ok(resp) => {
-                        if resp.status().is_success() || resp.status().is_redirection() {
-                            log::info!(
-                                "[model_checker] Speed test: host={} latency={}ms status={}",
-                                host_key,
-                                elapsed,
-                                resp.status()
-                            );
-                            Some(HostSpeed {
-                                host_key,
-                                latency_ms: elapsed,
-                            })
-                        } else {
-                            log::warn!(
-                                "[model_checker] Speed test: host={} latency={}ms status={} (not ok)",
-                                host_key,
-                                elapsed,
-                                resp.status()
-                            );
-                            Some(HostSpeed {
-                                host_key,
-                                latency_ms: u64::MAX,
-                            })
-                        }
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "[model_checker] Speed test: host={} FAILED: {}",
-                            host_key,
-                            e
-                        );
-                        Some(HostSpeed {
-                            host_key,
-                            latency_ms: u64::MAX,
-                        })
-                    }
-                }
+                measure_host_speed(client, test_url).await.map(|mut s| {
+                    s.host_key = host_key.clone();
+                    s
+                })
             }));
         }
 
@@ -338,7 +300,13 @@ impl ModelChecker {
             }
         }
 
-        results.sort_by_key(|s| s.latency_ms);
+        // Rank by measured throughput (primary) then TTFB (tie-break).
+        // Unreachable hosts (latency == MAX) sink to the bottom naturally.
+        results.sort_by(|a, b| {
+            b.throughput_bps
+                .cmp(&a.throughput_bps)
+                .then(a.latency_ms.cmp(&b.latency_ms))
+        });
 
         for speed in &results {
             if speed.latency_ms == u64::MAX {
@@ -348,9 +316,10 @@ impl ModelChecker {
                 );
             } else {
                 log::info!(
-                    "[model_checker] Speed ranking: host={} latency={}ms",
+                    "[model_checker] Speed ranking: host={} ttfb={}ms throughput={}KB/s",
                     speed.host_key,
-                    speed.latency_ms
+                    speed.latency_ms,
+                    speed.throughput_bps / 1024
                 );
             }
         }
@@ -366,10 +335,12 @@ impl ModelChecker {
         let candidates = if let Some(url) = manifest_url {
             vec![url.to_string()]
         } else {
+            // ModelScope first: direct download without overseas CDN redirects,
+            // most reliable for CN users. hf-mirror/hf as fallbacks.
             vec![
-                "https://hf-mirror.com/cgisky/ai00-x/resolve/main/manifest.json".to_string(),
                 "https://modelscope.cn/models/cgisky/Ai00-X/resolve/master/manifest.json"
                     .to_string(),
+                "https://hf-mirror.com/cgisky/ai00-x/resolve/main/manifest.json".to_string(),
                 "https://huggingface.co/cgisky/ai00-x/resolve/main/manifest.json".to_string(),
             ]
         };
@@ -412,6 +383,21 @@ impl ModelChecker {
     }
 }
 
+/// Builtin mirror list. Order defines the static fallback preference.
+/// Extra mirrors can be added remotely via `hosts` in manifest.json —
+/// manifest entries always win over these defaults.
+const BUILTIN_HOSTS: &[(&str, &str)] = &[
+    (
+        "ms",
+        "https://modelscope.cn/models/cgisky/Ai00-X/resolve/master",
+    ),
+    (
+        "hf-mirror",
+        "https://hf-mirror.com/cgisky/ai00-x/resolve/main",
+    ),
+    ("hf", "https://huggingface.co/cgisky/ai00-x/resolve/main"),
+];
+
 fn collect_all_hosts(manifest: &UnifiedManifest) -> Vec<(String, String)> {
     let mut hosts: Vec<(String, String)> = manifest
         .hosts
@@ -419,15 +405,117 @@ fn collect_all_hosts(manifest: &UnifiedManifest) -> Vec<(String, String)> {
         .map(|(k, v)| (k.clone(), v.base.clone()))
         .collect();
 
-    let has_hf_mirror = hosts.iter().any(|(k, _)| k == "hf-mirror");
-    if !has_hf_mirror {
-        hosts.push((
-            "hf-mirror".to_string(),
-            "https://hf-mirror.com/cgisky/ai00-x/resolve/main".to_string(),
-        ));
+    for (key, base) in BUILTIN_HOSTS {
+        if !hosts.iter().any(|(k, _)| k == key) {
+            hosts.push((key.to_string(), base.to_string()));
+        }
     }
 
     hosts
+}
+
+/// Measure a host's real download speed with a ranged GET.
+///
+/// Why not HEAD latency: proxies like hf-mirror.com answer HEAD on small files
+/// quickly, yet redirect large xet-backed files to `us.aws.cdn.hf.co` which is
+/// often unreachable from CN. Only an actual download that follows the
+/// redirect chain to the final CDN exposes this. We fetch up to 256 KiB of a
+/// real repo file and derive throughput from it.
+async fn measure_host_speed(client: reqwest::Client, test_url: String) -> Option<HostSpeed> {
+    use futures::StreamExt;
+
+    const SPEED_TEST_BYTES: usize = 256 * 1024;
+    const SPEED_TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+    let start = std::time::Instant::now();
+    let resp = client
+        .get(&test_url)
+        .header(
+            reqwest::header::RANGE,
+            format!("bytes=0-{}", SPEED_TEST_BYTES - 1),
+        )
+        .timeout(SPEED_TEST_TIMEOUT)
+        .send()
+        .await;
+
+    let resp = match resp {
+        Ok(r) if r.status().is_success() => r,
+        Ok(r) => {
+            log::warn!(
+                "[model_checker] Speed test: {} -> HTTP {} (not ok)",
+                test_url,
+                r.status()
+            );
+            return Some(HostSpeed {
+                host_key: String::new(),
+                latency_ms: u64::MAX,
+                throughput_bps: 0,
+            });
+        }
+        Err(e) => {
+            log::warn!("[model_checker] Speed test: {} FAILED: {}", test_url, e);
+            return Some(HostSpeed {
+                host_key: String::new(),
+                latency_ms: u64::MAX,
+                throughput_bps: 0,
+            });
+        }
+    };
+    let ttfb_ms = start.elapsed().as_millis() as u64;
+
+    // Read up to SPEED_TEST_BYTES from the (possibly redirected) body.
+    let mut stream = resp.bytes_stream();
+    let mut read: usize = 0;
+    let dl_start = std::time::Instant::now();
+    while read < SPEED_TEST_BYTES {
+        let chunk = match tokio::time::timeout(SPEED_TEST_TIMEOUT, stream.next()).await {
+            Ok(Some(Ok(c))) => c,
+            Ok(None) => break, // body shorter than the probe size
+            Ok(Some(Err(e))) => {
+                log::warn!(
+                    "[model_checker] Speed test: {} stream error after {} bytes: {}",
+                    test_url,
+                    read,
+                    e
+                );
+                return Some(HostSpeed {
+                    host_key: String::new(),
+                    latency_ms: u64::MAX,
+                    throughput_bps: 0,
+                });
+            }
+            Err(_) => {
+                log::warn!(
+                    "[model_checker] Speed test: {} timed out after {} bytes",
+                    test_url,
+                    read
+                );
+                return Some(HostSpeed {
+                    host_key: String::new(),
+                    latency_ms: u64::MAX,
+                    throughput_bps: 0,
+                });
+            }
+        };
+        read += chunk.len();
+    }
+    let dl_ms = dl_start.elapsed().as_millis().max(1) as u64;
+
+    let throughput_bps = read as u64 * 1000 / dl_ms;
+    log::info!(
+        "[model_checker] Speed test: {} ttfb={}ms downloaded={}B in {}ms => {}KB/s",
+        test_url,
+        ttfb_ms,
+        read,
+        dl_ms,
+        throughput_bps / 1024
+    );
+
+    Some(HostSpeed {
+        host_key: String::new(),
+        latency_ms: ttfb_ms,
+        throughput_bps,
+    })
 }
 
 fn build_available_hosts(
@@ -436,14 +524,12 @@ fn build_available_hosts(
 ) -> HashMap<String, String> {
     if !remote_info.download_urls.is_empty() {
         let mut urls = remote_info.download_urls.clone();
-        if !urls.contains_key("hf-mirror") {
-            urls.insert(
-                "hf-mirror".to_string(),
-                format!(
-                    "https://hf-mirror.com/cgisky/ai00-x/resolve/main/{}",
-                    remote_info.url
-                ),
-            );
+        for (key, base) in BUILTIN_HOSTS {
+            urls.entry(key.to_string()).or_insert(format!(
+                "{}/{}",
+                base.trim_end_matches('/'),
+                remote_info.url
+            ));
         }
         return urls;
     }
@@ -459,14 +545,12 @@ fn build_available_hosts(
         })
         .collect::<HashMap<_, _>>();
 
-    if !hosts.contains_key("hf-mirror") {
-        hosts.insert(
-            "hf-mirror".to_string(),
-            format!(
-                "https://hf-mirror.com/cgisky/ai00-x/resolve/main/{}",
-                remote_info.url
-            ),
-        );
+    for (key, base) in BUILTIN_HOSTS {
+        hosts.entry(key.to_string()).or_insert(format!(
+            "{}/{}",
+            base.trim_end_matches('/'),
+            remote_info.url
+        ));
     }
 
     hosts
@@ -480,26 +564,32 @@ async fn choose_download_url(
 ) -> Result<String, String> {
     let speeds = host_speeds.lock().await;
 
-    if !speeds.is_empty() {
-        for speed in speeds.iter() {
-            if speed.latency_ms == u64::MAX {
-                continue;
-            }
-            if let Some(url) = available_hosts.get(&speed.host_key) {
-                log::info!(
-                    "[model_checker] Selected host {} (latency={}ms) for {}",
-                    speed.host_key,
-                    speed.latency_ms,
-                    remote_info.url
-                );
-                return Ok(url.clone());
-            }
+    // `speeds` is pre-sorted by measured download throughput (see
+    // run_speed_test). The throughput probe is an actual ranged download that
+    // follows redirects to the final CDN, so proxies whose large-file CDN is
+    // unreachable (e.g. hf-mirror -> us.aws.cdn.hf.co from CN) are already
+    // marked unreachable and skipped here. Pick the fastest usable host.
+    for speed in speeds.iter() {
+        if speed.latency_ms == u64::MAX {
+            continue;
+        }
+        if let Some(url) = available_hosts.get(&speed.host_key) {
+            log::info!(
+                "[model_checker] Selected host {} (ttfb={}ms, {}KB/s) for {}",
+                speed.host_key,
+                speed.latency_ms,
+                speed.throughput_bps / 1024,
+                remote_info.url
+            );
+            return Ok(url.clone());
         }
     }
 
     drop(speeds);
 
-    for preferred in ["hf-mirror", "ms", "hf"] {
+    // Speed test unavailable (e.g. all probes failed): fall back to a static
+    // preference order that works well for the CN-majority user base.
+    for preferred in ["ms", "hf-mirror", "hf"] {
         if let Some(url) = available_hosts.get(preferred) {
             return Ok(url.clone());
         }

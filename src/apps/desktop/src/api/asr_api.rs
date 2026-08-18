@@ -160,15 +160,21 @@ use TensorMeta as _TensorMeta;
 
 // ---- ForcedAligner GGUF download ----
 
-/// HuggingFace repo that hosts the Qwen3-ForcedAligner-0.6B Q8_0 GGUF.
-const ASR_ALIGNER_HF_REPO: &str = "OpenVoiceOS/qwen3-forced-aligner-0.6b-q8-0";
+// The ForcedAligner GGUF (qwen3-forced-aligner-0.6b-q8_0) is mirrored in our
+// own unified model repo (cgisky/ai00-x) under `asr/`, same layout as the
+// local models directory.
 
 /// Filename inside the repo (also the local filename).
 const ASR_ALIGNER_FILENAME: &str = "qwen3-forced-aligner-0.6b-q8_0.gguf";
 
-/// Download mirrors — same format as ACE-Step's. HF first, hf-mirror.com as
-/// fallback for users in regions where huggingface.co is slow/blocked.
-const ASR_ALIGNER_MIRRORS: &[&str] = &["https://huggingface.co", "https://hf-mirror.com"];
+/// Download mirrors — full URL prefixes into our unified model repo
+/// (cgisky/ai00-x on HF, cgisky/Ai00-X on ModelScope). ModelScope serves
+/// from CN CDNs and goes first; hf-mirror / huggingface are fallbacks.
+const ASR_ALIGNER_MIRRORS: &[&str] = &[
+    "https://modelscope.cn/models/cgisky/Ai00-X/resolve/master",
+    "https://hf-mirror.com/cgisky/ai00-x/resolve/main",
+    "https://huggingface.co/cgisky/ai00-x/resolve/main",
+];
 
 /// Expected file size in bytes (~994 MB). Used only for display; the actual
 /// downloaded size may differ slightly.
@@ -200,15 +206,12 @@ async fn refresh_asr_mirror_speeds() {
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
-    // HEAD on the README.md — small, always present.
-    let test_file = "README.md";
+    // HEAD on a small repo file — always present once synced.
+    let test_path = "asr/tokenizer.json";
     let mut handles = Vec::new();
     for mirror in ASR_ALIGNER_MIRRORS {
         let mirror = mirror.to_string();
-        let url = format!(
-            "{}/{}/resolve/main/{}",
-            mirror, ASR_ALIGNER_HF_REPO, test_file
-        );
+        let url = format!("{}/{}", mirror, test_path);
         let client = client.clone();
         handles.push(tokio::spawn(async move {
             let start = std::time::Instant::now();
@@ -255,23 +258,13 @@ async fn aligner_download_urls() -> Vec<String> {
         drop(speeds);
         return ASR_ALIGNER_MIRRORS
             .iter()
-            .map(|m| {
-                format!(
-                    "{}/{}/resolve/main/{}",
-                    m, ASR_ALIGNER_HF_REPO, ASR_ALIGNER_FILENAME
-                )
-            })
+            .map(|m| format!("{}/asr/{}", m, ASR_ALIGNER_FILENAME))
             .collect();
     }
     speeds
         .iter()
         .filter(|(_, lat)| *lat != u64::MAX)
-        .map(|(mirror, _)| {
-            format!(
-                "{}/{}/resolve/main/{}",
-                mirror, ASR_ALIGNER_HF_REPO, ASR_ALIGNER_FILENAME
-            )
-        })
+        .map(|(mirror, _)| format!("{}/asr/{}", mirror, ASR_ALIGNER_FILENAME))
         .collect()
 }
 
@@ -335,16 +328,11 @@ pub async fn asr_get_aligner_status() -> Result<AsrAlignerStatus, String> {
     })
 }
 
-/// Start downloading the Qwen3-ForcedAligner-0.6B Q8_0 GGUF model.
-///
-/// Downloads from HuggingFace (with hf-mirror.com fallback) to
-/// `<models_dir>/asr/qwen3-forced-aligner-0.6b-q8_0.gguf` (~994 MB).
-///
-/// If the file already exists with non-zero size, returns immediately without
-/// re-downloading. If a download is already running, returns the existing
-/// task id.
-#[tauri::command]
-pub async fn asr_download_aligner() -> Result<String, String> {
+/// Core (non-command) aligner download routine — also called from the
+/// ACE-Step preset download flow: the forced aligner is needed together with
+/// ACE-Step (audio-text alignment for lego/repaint tasks), so both are
+/// fetched when the user picks an ACE-Step preset.
+pub async fn ensure_aligner_downloaded() -> Result<String, String> {
     let save_path = resolve_aligner_local_path();
     if let Some(parent) = save_path.parent() {
         std::fs::create_dir_all(parent)
@@ -378,6 +366,20 @@ pub async fn asr_download_aligner() -> Result<String, String> {
         .map_err(|e| format!("Failed to start download: {}", e))?;
 
     Ok(ASR_ALIGNER_TASK_ID.to_string())
+}
+
+/// Start downloading the Qwen3-ForcedAligner-0.6B Q8_0 GGUF model.
+///
+/// Downloads from our unified model repo (ModelScope first, hf-mirror / HF
+/// fallback) to `<models_dir>/asr/qwen3-forced-aligner-0.6b-q8_0.gguf`
+/// (~994 MB).
+///
+/// If the file already exists with non-zero size, returns immediately without
+/// re-downloading. If a download is already running, returns the existing
+/// task id.
+#[tauri::command]
+pub async fn asr_download_aligner() -> Result<String, String> {
+    ensure_aligner_downloaded().await
 }
 
 /// Live download progress payload for the frontend.
