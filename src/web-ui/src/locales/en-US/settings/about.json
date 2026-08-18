@@ -8,6 +8,12 @@
   "checkUpdate": "Check for Updates",
   "checkUpdateDesc": "Check if a newer version is available",
   "checkNow": "Check Now",
+  "checking": "Checking...",
+  "upToDate": "Already up to date",
+  "newVersionAvailable": "New version available",
+  "downloadAndInstall": "Download & Install",
+  "installing": "Downloading & installing...",
+  "updateFailed": "Update failed",
   "legal": {
     "title": "Legal"
   },

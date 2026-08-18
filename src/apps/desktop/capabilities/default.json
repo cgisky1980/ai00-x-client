@@ -10,6 +10,7 @@
   "permissions": [
     "log:default",
     "autostart:default",
+    "updater:default",
     "core:default",
     "core:path:default",
     "core:event:default",

@@ -19,8 +19,13 @@
  * from source and collected below.
  *
  * onnxruntime-<os>-<arch>-<ver>.zip/tgz (downloaded)     → runtime/onnx/<ver>/onnxruntime.*
+ *
+ * CUDA runtime (cudart/cublas/cublasLt) is a CUDA Toolkit dependency that is
+ * NOT part of the local llama build output. It is downloaded from the official
+ * llama.cpp release asset `cudart-llama-bin-win-cuda-<ver>-x64.zip` (built
+ * with the same CUDA toolchain) into runtime/llama/<ver>-cuda-<x.y>/.
  */
-import { existsSync, readdirSync, mkdirSync, copyFileSync, rmSync, statSync, readFileSync, createWriteStream } from 'fs';
+import { existsSync, readdirSync, mkdirSync, copyFileSync, rmSync, statSync, readFileSync, createWriteStream, realpathSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, basename } from 'path';
 import { spawnSync } from 'child_process';
@@ -40,6 +45,38 @@ const VERSIONS = {
 };
 
 const DLL_EXTS = ['.dll', '.so', '.dylib'];
+
+// GitHub mirrors (kept in sync with inference::runtime::downloader).
+const GITHUB_MIRRORS = [
+  '',
+  'https://ghproxy.net',
+  'https://mirror.ghproxy.com',
+  'https://gh-proxy.com',
+];
+
+// Download a GitHub URL to a file, falling back through mirrors when either
+// the connection or the streamed transfer is terminated mid-flight.
+async function downloadWithMirrors(originalUrl, destPath) {
+  let lastErr = 'no mirrors available';
+  for (const mirror of GITHUB_MIRRORS) {
+    const url = mirror ? `${mirror}/${originalUrl}` : originalUrl;
+    try {
+      const res = await fetch(url, { redirect: 'follow' });
+      if (!res.ok || !res.body) {
+        lastErr = `HTTP ${res.status} for ${url}`;
+        continue;
+      }
+      await pipeline(res.body, createWriteStream(destPath));
+      log(`downloaded via ${mirror || 'direct github'}`);
+      return;
+    } catch (e) {
+      lastErr = `${url}: ${e.message}`;
+      log(`WARN: mirror failed (${lastErr}), trying next...`);
+      rmSync(destPath, { force: true });
+    }
+  }
+  throw new Error(lastErr);
+}
 
 function log(msg) {
   console.log(`[pack-runtime] ${msg}`);
@@ -113,24 +150,30 @@ function findAcestepLibDir() {
   return null;
 }
 
+// Resolve the llama backend from the runtime's own marker (`.active_backend`),
+// falling back to env, then to a sensible default. The runtime looks up
+// `runtime/llama/<LLAMA_CPP_VERSION>-<backend>/`.
+function resolveLlamaBackend() {
+  const activeMarker = join(RUNTIME, 'llama', '.active_backend');
+  if (existsSync(activeMarker)) {
+    return readFileSync(activeMarker).toString().trim();
+  }
+  if (process.env.LLAMA_BACKEND) {
+    return process.env.LLAMA_BACKEND;
+  }
+  return 'cuda-12.4';
+}
+
 async function main() {
   mkdirSync(RUNTIME, { recursive: true });
+
+  const backend = resolveLlamaBackend();
+  const segment = backend === 'metal' || backend === '' ? VERSIONS.llama : `${VERSIONS.llama}-${backend}`;
+  const llamaTarget = join(RUNTIME, 'llama', segment);
 
   // ── 1. llama (llama.dll + ggml + qwen3_fa) ────────────────────────
   const llamaDir = findLlamaLibDir();
   if (llamaDir) {
-    // Determine the backend directory segment from the runtime's own marker
-    // (`.active_backend`), fall back to env, then to a sensible default.
-    // Runtime looks up `runtime/llama/<LLAMA_CPP_VERSION>-<backend>/`.
-    const activeMarker = join(RUNTIME, 'llama', '.active_backend');
-    let backend = 'cuda-12.4';
-    if (existsSync(activeMarker)) {
-      backend = readFileSync(activeMarker).toString().trim();
-    } else if (process.env.LLAMA_BACKEND) {
-      backend = process.env.LLAMA_BACKEND;
-    }
-    const segment = backend === 'metal' || backend === '' ? VERSIONS.llama : `${VERSIONS.llama}-${backend}`;
-    const llamaTarget = join(RUNTIME, 'llama', segment);
     // The full llama DLL set (llama.dll + its ggml) must stay co-located so
     // the Windows loader resolves GGML deps when loading llama.dll.
     for (const f of readdirSync(llamaDir)) {
@@ -148,6 +191,13 @@ async function main() {
   } else {
     log('WARN: llama build output not found (.llama-build missing) — run cargo build first');
   }
+
+  // ── 1b. CUDA runtime (cudart/cublas) from official llama.cpp release ──
+  // ggml-cuda.dll depends on cudart64_*.dll + cublas64_*.dll which are CUDA
+  // Toolkit dependencies and never appear in the local build output. The
+  // official `cudart-llama-bin-win-cuda-<x.y>-x64.zip` release asset ships
+  // the exact runtime set for the same CUDA toolchain.
+  await downloadCudaRuntime(backend, llamaTarget);
 
   // ── 2. acestep (acestep_c.dll + its ggml) ─────────────────────────
   const acestepDir = findAcestepLibDir();
@@ -185,6 +235,33 @@ async function main() {
   pruneNonLibs(join(RUNTIME, 'gguf'));
 
   log('done. runtime assembled at ' + RUNTIME);
+
+  // ── 5. optional: pack the assembled runtime into a distributable zip ──
+  // `--pack-zip` produces dist/runtime-<ver>-<backend>.zip (contents at zip
+  // root) for the split-installer first-run download channel.
+  if (process.argv.includes('--pack-zip')) {
+    packRuntimeZip(segment);
+  }
+}
+
+// Zip the assembled runtime dir (resolving a possible junction) into
+// dist/runtime-<segment>.zip via scripts/zip-dir.mjs.
+function packRuntimeZip(segment) {
+  const dist = join(ROOT, 'dist');
+  mkdirSync(dist, { recursive: true });
+  const dest = join(dist, `runtime-${segment}.zip`);
+  // RUNTIME may be a junction (→ .ai00-x-dev/runtime); zip the real dir.
+  const realRuntime = realpathSync(RUNTIME);
+  log(`packing runtime zip: ${realRuntime} -> ${dest}`);
+  const r = spawnSync(
+    process.execPath,
+    [join(__dirname, 'zip-dir.mjs'), realRuntime, dest],
+    { stdio: 'inherit' }
+  );
+  if (r.error || r.status !== 0) {
+    log(`WARN: runtime zip packing failed (${r.error ? r.error.message : `exit ${r.status}`})`);
+    process.exit(1);
+  }
 }
 
 // ── onnxruntime predownload ─────────────────────────────────────────
@@ -206,7 +283,13 @@ function onnxPlatform() {
 }
 
 function runTar(args, cwd) {
-  const r = spawnSync('tar', args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' });
+  // Prefer the Windows built-in bsdtar (handles zip+tgz). A MSYS/Git-Bash
+  // GNU tar on PATH cannot read zip and misparses "C:\..." as host:path.
+  const tarExe =
+    process.platform === 'win32' && existsSync(join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe'))
+      ? join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe')
+      : 'tar';
+  const r = spawnSync(tarExe, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' });
   if (r.error) throw new Error(`tar error: ${r.error.message}`);
   if (r.status !== 0) throw new Error(`tar exited ${r.status}`);
 }
@@ -277,6 +360,66 @@ async function downloadOnnxRuntime() {
   for (const src of found) {
     copyFileSync(src, join(ortDir, basename(src)));
     log(`  onnx lib ${basename(src)} (${Math.round(statSync(src).size / 1024 / 1024 * 10) / 10} MB)`);
+  }
+  rmSync(tmpDir, { recursive: true, force: true });
+}
+
+// ── CUDA runtime predownload ───────────────────────────────────────
+// Windows CUDA backends need cudart64_*.dll + cublas64_*.dll (+cublasLt)
+// next to ggml-cuda.dll. Download the official llama.cpp cudart bundle
+// `cudart-llama-bin-win-cuda-<x.y>-x64.zip` for the SAME llama version and
+// backend, extract its DLLs into runtime/llama/<ver>-cuda-<x.y>/. Skip when
+// the cudart DLL is already present.
+async function downloadCudaRuntime(backend, llamaTarget) {
+  if (process.platform !== 'win32' || !backend.startsWith('cuda-')) {
+    return;
+  }
+
+  // Detect an existing cudart for this CUDA major (cudart64_12.dll / 13 ...).
+  const cudaMajor = backend.split('-')[1]?.split('.')[0];
+  const cudartName = `cudart64_${cudaMajor}.dll`;
+  if (existsSync(join(llamaTarget, cudartName))) {
+    log(`CUDA runtime (${cudartName}) already present, skipping download`);
+    return;
+  }
+
+  const filename = `cudart-llama-bin-win-${backend}-x64.zip`;
+  const targetUrl = `https://github.com/ggml-org/llama.cpp/releases/download/${VERSIONS.llama}/${filename}`;
+  const tmpDir = join(RUNTIME, 'llama', '.cuda-download');
+  rmSync(tmpDir, { recursive: true, force: true });
+  mkdirSync(tmpDir, { recursive: true });
+  const archive = join(tmpDir, filename);
+
+  log(`Downloading CUDA runtime for ${backend} from official llama.cpp release...`);
+  try {
+    await downloadWithMirrors(targetUrl, archive);
+  } catch (e) {
+    log(`WARN: CUDA runtime download failed (${e.message}). GPU backends will require a CUDA Toolkit on PATH.`);
+    rmSync(tmpDir, { recursive: true, force: true });
+    return;
+  }
+
+  const extractDir = join(tmpDir, 'extract');
+  mkdirSync(extractDir, { recursive: true });
+  try {
+    runTar(['-xf', archive, '-C', extractDir]);
+  } catch (e) {
+    log(`WARN: CUDA runtime extract failed (${e.message}).`);
+    rmSync(tmpDir, { recursive: true, force: true });
+    return;
+  }
+
+  // The archive holds only the CUDA runtime DLLs (cudart/cublas/cublasLt...).
+  const found = collectLibFiles(extractDir);
+  if (found.length === 0) {
+    log('WARN: no shared libs found in cudart archive.');
+    rmSync(tmpDir, { recursive: true, force: true });
+    return;
+  }
+  mkdirSync(llamaTarget, { recursive: true });
+  for (const src of found) {
+    copyFileSync(src, join(llamaTarget, basename(src)));
+    log(`  cuda lib ${basename(src)} (${Math.round(statSync(src).size / 1024 / 1024 * 10) / 10} MB)`);
   }
   rmSync(tmpDir, { recursive: true, force: true });
 }

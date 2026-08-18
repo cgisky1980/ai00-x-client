@@ -16,10 +16,12 @@ pub mod kv_store;
 pub mod logging;
 pub mod machine_id;
 pub mod macos_menubar;
+pub mod member_chat_window;
 pub mod memory_sidecar;
 pub mod model_checker;
 pub mod model_init;
 pub mod overlay;
+pub mod resource_manager;
 pub use ai00_x_inference::runtime;
 pub mod chat_history_backup;
 pub mod preview_window;
@@ -217,6 +219,7 @@ pub async fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(app_state)
         .manage(coordinator_state)
         .manage(scheduler_state)
@@ -285,6 +288,29 @@ pub async fn run() {
 
             let app_handle = app.handle().clone();
             server::start_salvo_server();
+            // Loader 窗口统一从内嵌 salvo 服务器加载（与正式环境一致，走目录/zip 服务），
+            // 不再依赖 dev 模式的 Vite dev server，避免 dev/正式运行环境偏差。
+            // 窗口在 tauri.conf.json 中设为 visible:false，此处等 salvo 就绪后
+            // 再导航并显示，避免窗口先于内嵌服务器启动导致加载失败。
+            {
+                let handle = app_handle.clone();
+                let loader_url = format!(
+                    "http://{}:{}/",
+                    ai00_x_core::service::config::server_endpoints::LOCAL_HOST,
+                    ai00_x_core::service::config::server_endpoints::LOCAL_EMBEDDED_SERVER_PORT
+                );
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1200));
+                    if let Some(loader) = handle.get_webview_window("loader") {
+                        if let Ok(url) = loader_url.parse::<tauri::Url>() {
+                            let _ = loader.navigate(url);
+                        }
+                        let _ = loader.show();
+                        let _ = loader.set_focus();
+                        log::info!("[loader-window] loaded from {}", loader_url);
+                    }
+                });
+            }
             ai00_x_webdriver::maybe_start(app_handle.clone());
             system_monitor::spawn_system_monitor(app.handle().clone());
 
@@ -470,6 +496,10 @@ pub async fn run() {
             task_window::close_task_window,
             task_window::focus_task_window,
             task_window::is_task_window_open,
+            member_chat_window::open_member_chat_window,
+            member_chat_window::close_member_chat_window,
+            member_chat_window::focus_member_chat_window,
+            member_chat_window::is_member_chat_window_open,
             preview_window::open_preview_window,
             preview_window::close_preview_window,
             preview_window::focus_preview_window,
@@ -540,6 +570,10 @@ pub async fn run() {
             model_init::check_model_updates,
             model_init::download_model,
             model_init::get_download_progress,
+            resource_manager::resources_check,
+            resource_manager::resources_download,
+            api::update_api::check_app_update,
+            api::update_api::install_app_update,
             model_init::init_all_runtimes_cmd,
             model_init::get_engine_init_status,
             model_init::init_asr_engine,
@@ -650,6 +684,7 @@ pub async fn run() {
             paste_files,
             get_config,
             api::config_api::get_ai00_s_base_url,
+            api::config_api::get_ai00_s_internal_token,
             api::config_api::get_assets_base_url,
             computer_use_get_status,
             computer_use_request_permissions,

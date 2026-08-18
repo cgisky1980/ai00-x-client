@@ -1,9 +1,7 @@
 // Hide console window in Windows release builds.
-// TEMPORARY: switch to "console" subsystem to capture stderr from acestep_c.dll
-// for debugging the "ace_synth_load failed" error. Revert after diagnosis.
 #![cfg_attr(
     all(not(debug_assertions), target_os = "windows"),
-    windows_subsystem = "console"
+    windows_subsystem = "windows"
 )]
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]

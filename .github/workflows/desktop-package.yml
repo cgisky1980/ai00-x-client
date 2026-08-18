@@ -280,6 +280,8 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: "3"
           CARGO_BUILD_JOBS: "3"
           CARGO_INCREMENTAL: "0"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           (while true; do
             echo "[monitor] $(date +%H:%M:%S) disk-avail=$(df -h / | awk 'NR==2{print $4}') mem-avail=$(free -m | awk 'NR==2{print $7}')MB swap-free=$(free -m | awk 'NR==3{print $4}')MB"
@@ -299,6 +301,8 @@ jobs:
           # The Visual Studio generator fails with "No CUDA toolset found"
           # when the CUDA VS integration extension isn't installed.
           LLAMA_USE_NINJA: ${{ runner.os == 'Windows' && '1' || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: ${{ matrix.platform.build_command }}
 
       - name: Upload bundles
@@ -310,6 +314,23 @@ jobs:
             target/*/release/bundle
             target/release/bundle
             src/apps/desktop/target/release/bundle
+
+      # Split-installer assets: resource zips + per-platform manifests +
+      # updater latest.json produced by scripts/desktop-tauri-build.mjs.
+      - name: Upload split-installer resources
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai00-x-${{ needs.prepare.outputs.release_tag }}-${{ matrix.platform.name }}-resources
+          if-no-files-found: error
+          path: |
+            dist/main.zip
+            dist/underlay.zip
+            dist/sounds.zip
+            dist/runtime-*.zip
+            dist/resources-manifest-*.json
+            dist/latest-*.json
+            target/release/bundle/nsis/*.sig
+            src/apps/desktop/target/release/bundle/nsis/*.sig
 
   # ── Upload assets to GitHub Release ────────────────────────────────
   upload-release-assets:
@@ -326,10 +347,17 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Download split-installer resource artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ai00-x-${{ needs.prepare.outputs.release_tag }}-*-resources
+          path: release-resources
+          merge-multiple: true
+
       - name: List release assets
         run: |
           echo "Release assets:"
-          find release-assets -type f | sort
+          find release-assets release-resources -type f | sort
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
@@ -341,4 +369,7 @@ jobs:
             release-assets/**/*.dmg
             release-assets/**/*.rpm
             release-assets/**/*.exe
-          fail_on_unmatched_files: true
+            release-resources/*.zip
+            release-resources/*.json
+            release-resources/**/*.sig
+          fail_on_unmatched_files: false

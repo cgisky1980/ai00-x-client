@@ -51,10 +51,21 @@
   cursor: pointer;
   transition: background-color 0.15s, color 0.15s;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: var(--color-primary);
     color: var(--color-bg-primary);
   }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.ai00-x-about-config__status {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
 }
 
 .ai00-x-about-config__value {

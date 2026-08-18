@@ -192,6 +192,9 @@ jobs:
           echo "Cargo.toml version:   $(grep 'x-release-please-version' Cargo.toml)"
 
       - name: Build desktop app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: ${{ matrix.platform.build_command }}
 
       - name: Upload bundles
@@ -204,6 +207,23 @@ jobs:
             target/*/release/bundle
             target/release/bundle
             src/apps/desktop/target/release/bundle
+
+      # Split-installer assets (resource zips + per-platform manifests).
+      - name: Upload split-installer resources
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai00-x-nightly-${{ matrix.platform.name }}-resources
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            dist/main.zip
+            dist/underlay.zip
+            dist/sounds.zip
+            dist/runtime-*.zip
+            dist/resources-manifest-*.json
+            dist/latest-*.json
+            target/release/bundle/nsis/*.sig
+            src/apps/desktop/target/release/bundle/nsis/*.sig
 
   # ── Publish nightly pre-release ────────────────────────────────────
   publish-nightly:
@@ -222,10 +242,17 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Download split-installer resource artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ai00-x-nightly-*-resources
+          path: release-resources
+          merge-multiple: true
+
       - name: List release assets
         run: |
           echo "Nightly assets:"
-          find release-assets -type f | sort
+          find release-assets release-resources -type f | sort
 
       - name: Delete previous nightly release
         env:
@@ -253,3 +280,6 @@ jobs:
             release-assets/**/*.dmg
             release-assets/**/*.rpm
             release-assets/**/*.exe
+            release-resources/*.zip
+            release-resources/*.json
+            release-resources/**/*.sig

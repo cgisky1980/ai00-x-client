@@ -47,6 +47,7 @@ pub mod system_api;
 pub mod terminal_api;
 pub mod tool_api;
 pub mod underlay_api;
+pub mod update_api;
 pub mod usage_stats_api;
 pub mod voice_api;
 pub mod wallpaper_api;

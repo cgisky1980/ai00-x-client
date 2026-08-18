@@ -58,7 +58,10 @@ function makePlaceholderZip(name) {
 makePlaceholderZip('main');
 makePlaceholderZip('underlay');
 
-// tauri.conf.json also lists ../../../target/release/runtime as a resource.
-ensureDir(join(ROOT, 'target', 'release', 'runtime'));
+// tauri.conf.json also lists ../../../target/release/runtime-staging as a
+// bundle resource (maps to the bundled `runtime` dir). It must exist for
+// tauri-build's resource validation; the actual runtime DLLs are staged there
+// at bundle time (scripts/runtime-staging.mjs --stage).
+ensureDir(join(ROOT, 'target', 'release', 'runtime-staging'));
 
 console.log('[ci] placeholder resources ensured.');

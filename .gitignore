@@ -97,3 +97,5 @@ config/jwt.toml
 .env
 .env.*
 !.env.example
+# Tauri updater signing key (NEVER commit)
+.tauri/

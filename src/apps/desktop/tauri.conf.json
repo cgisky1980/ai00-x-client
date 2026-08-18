@@ -4,7 +4,7 @@
   "identifier": "com.ai00-x.desktop",
   "build": {
     "beforeDevCommand": {
-      "script": "npx pnpm run dev:loader",
+      "script": "node scripts/runtime-staging.mjs --clear && npx pnpm run build:loader && npx pnpm run build:loader-zip",
       "cwd": "../../../"
     },
     "beforeBuildCommand": {
@@ -22,10 +22,7 @@
       "icons/icon.png"
     ],
     "resources": {
-      "../../../dist/main.zip": "main.zip",
-      "../../../dist/underlay.zip": "underlay.zip",
-      "sounds": "sounds",
-      "../../../target/release/runtime": "runtime"
+      "../../../dist/loader.zip": "loader.zip"
     },
     "linux": {
       "deb": {
@@ -64,7 +61,8 @@
         "transparent": true,
         "shadow": false,
         "alwaysOnTop": true,
-        "url": "index.html"
+        "visible": false,
+        "url": "http://127.0.0.1:2100/"
       },
       {
         "label": "overlay",
@@ -91,9 +89,22 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       }
     },
     "withGlobalTauri": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE2OUVGOEYwQjJCOUVGNUYKUldSZjc3bXk4UGllcHA3TUNISFNSY0QzL1IzRDcvRVkzM3o5Vkt0cmYwaHMrVDFFbTNVTTRuZ1YK",
+      "endpoints": [
+        "https://github.com/cgisky1980/ai00-x-client/releases/latest/download/latest-{{target}}-{{arch}}.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
