@@ -49,12 +49,18 @@ static GLOBAL_BASE_CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
 ///
 /// 应在 `AppState::new_async` 中调用一次。重复调用返回 `Err`（已初始化）。
 ///
+/// DHT（主 tracker 之外的 peer 发现兜底，官方 bootstrap 节点）在此启用：
+/// tracker 不可达时 swarm 仍能经 DHT 找到 peer。
+///
 /// # Errors
 ///
-/// - `P2pDownloader::new` 失败（fx-torrent session 初始化失败）
+/// - `P2pDownloader::new` 失败（fx-torrent session / DHT 初始化失败）
 /// - 已初始化（OnceLock 已占用）
-pub fn init_global_p2p_downloader(base_cache_dir: PathBuf, upload_slots: usize) -> Result<()> {
-    let downloader = Arc::new(P2pDownloader::new(base_cache_dir.clone(), upload_slots)?);
+pub async fn init_global_p2p_downloader(
+    base_cache_dir: PathBuf,
+    upload_slots: usize,
+) -> Result<()> {
+    let downloader = Arc::new(P2pDownloader::new(base_cache_dir.clone(), upload_slots).await?);
     GLOBAL_P2P_DOWNLOADER
         .set(downloader)
         .map_err(|_| anyhow::anyhow!("global P2pDownloader already initialized"))?;
@@ -229,7 +235,15 @@ impl P2pDownloader {
     /// # Errors
     ///
     /// - fx-torrent session 初始化失败（如 base_path 不可写）
-    pub fn new(base_cache_dir: PathBuf, upload_slots: usize) -> Result<Self> {
+    pub async fn new(base_cache_dir: PathBuf, upload_slots: usize) -> Result<Self> {
+        // DHT bootstrap (official router.bittorrent.com etc.) so peers can be
+        // found even when the HTTP tracker is unreachable.
+        let dht = fx_torrent::dht::DhtTracker::builder()
+            .default_routing_nodes()
+            .build()
+            .await
+            .context("init dht tracker")?;
+
         let session = FxTorrentSession::builder()
             .config(
                 SessionConfig::builder()
@@ -239,6 +253,7 @@ impl P2pDownloader {
                     .peers_upload_slots(upload_slots)
                     .build(),
             )
+            .dht(dht)
             .default_extensions()
             .build()
             .context("init fx-torrent session")?;

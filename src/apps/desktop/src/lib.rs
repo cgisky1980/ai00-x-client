@@ -18,10 +18,12 @@ pub mod machine_id;
 pub mod macos_menubar;
 pub mod member_chat_window;
 pub mod memory_sidecar;
+pub mod mirror_hosts;
 pub mod model_checker;
 pub mod model_init;
 pub mod overlay;
 pub mod resource_manager;
+pub mod resource_p2p;
 pub use ai00_x_inference::runtime;
 pub mod chat_history_backup;
 pub mod preview_window;
@@ -572,6 +574,8 @@ pub async fn run() {
             model_init::get_download_progress,
             resource_manager::resources_check,
             resource_manager::resources_download,
+            resource_manager::resources_download_all,
+            resource_manager::resources_overall_progress,
             api::update_api::check_app_update,
             api::update_api::install_app_update,
             model_init::init_all_runtimes_cmd,

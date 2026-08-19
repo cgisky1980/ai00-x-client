@@ -241,6 +241,33 @@ async function buildResourceArtifacts() {
       });
     }
 
+    // P2P: with AI00_X_TRACKER_URL set, build a .torrent + magnet per zip so
+    // clients can fetch/seed via BitTorrent alongside the HTTP mirrors. The
+    // magnet lands in the manifest (ResourceEntry.magnet, optional); without
+    // the env var everything stays HTTP-only (field omitted).
+    const trackerUrl = process.env.AI00_X_TRACKER_URL?.trim();
+    const magnets = {};
+    if (trackerUrl) {
+      for (const e of entries) {
+        const zipPath = join(dist, e.file);
+        if (!existsSync(zipPath)) continue;
+        const r = spawnSync(
+          process.execPath,
+          [join(__dirname, 'make-torrent.mjs'), zipPath, trackerUrl],
+          { encoding: 'utf8' },
+        );
+        if (r.error || r.status !== 0) {
+          console.warn(`[resources] make-torrent failed for ${e.file}: ${r.stderr || r.error?.message}`);
+          continue;
+        }
+        const { infoHash, magnet } = JSON.parse(r.stdout.trim().split('\n').pop());
+        magnets[e.file] = magnet;
+        console.log(`[resources] torrent ${e.file}: ${infoHash}`);
+      }
+    } else {
+      console.log('[resources] AI00_X_TRACKER_URL not set — skipping P2P torrents');
+    }
+
     const resources = {};
     for (const e of entries) {
       const p = join(dist, e.file);
@@ -254,6 +281,7 @@ async function buildResourceArtifacts() {
         kind: e.kind,
         size: statSync(p).size,
         sha256: await sha256File(p),
+        ...(magnets[e.file] ? { magnet: magnets[e.file] } : {}),
       };
     }
 

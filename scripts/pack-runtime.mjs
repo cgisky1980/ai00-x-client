@@ -237,19 +237,38 @@ async function main() {
   log('done. runtime assembled at ' + RUNTIME);
 
   // ── 5. optional: pack the assembled runtime into a distributable zip ──
-  // `--pack-zip` produces dist/runtime-<ver>-<backend>.zip (contents at zip
-  // root) for the split-installer first-run download channel.
+  // `--pack-zip` produces dist/runtime-<os>-<arch>-<segment>.zip (contents at
+  // zip root) for the split-installer first-run download channel. The
+  // platform tag keeps windows/linux/macos runtimes distinct — the manifest
+  // (resources-manifest-<os>-<arch>.json) points each platform at its zip.
   if (process.argv.includes('--pack-zip')) {
     packRuntimeZip(segment);
   }
 }
 
+// Tauri-style platform id (matches std::env::consts::{OS, ARCH} consumed by
+// resource_manager.rs): windows-x86_64 / linux-x86_64 / darwin-aarch64 …
+function platformId() {
+  const os = process.platform === 'win32' ? 'windows' : process.platform;
+  const arch = process.arch === 'x64' ? 'x86_64' : process.arch;
+  return `${os}-${arch}`;
+}
+
 // Zip the assembled runtime dir (resolving a possible junction) into
-// dist/runtime-<segment>.zip via scripts/zip-dir.mjs.
+// dist/runtime-<platform>-<segment>.zip via scripts/zip-dir.mjs.
 function packRuntimeZip(segment) {
   const dist = join(ROOT, 'dist');
   mkdirSync(dist, { recursive: true });
-  const dest = join(dist, `runtime-${segment}.zip`);
+  const zipName = `runtime-${platformId()}-${segment}.zip`;
+  const dest = join(dist, zipName);
+  // Drop stale runtime zips (old no-platform name or other platforms) so
+  // desktop-tauri-build.mjs's `find(/^runtime-.*\.zip$/)` can't pick wrong.
+  for (const f of readdirSync(dist)) {
+    if (/^runtime-.*\.zip$/.test(f) && f !== zipName) {
+      log(`removing stale runtime zip: ${f}`);
+      rmSync(join(dist, f), { force: true });
+    }
+  }
   // RUNTIME may be a junction (→ .ai00-x-dev/runtime); zip the real dir.
   const realRuntime = realpathSync(RUNTIME);
   log(`packing runtime zip: ${realRuntime} -> ${dest}`);

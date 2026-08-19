@@ -254,17 +254,19 @@ impl AppState {
         // 失败仅记录 warn，不阻断启动（P2P 是可选功能，无 webtorrent 后端时跳过）
         // 近似限速依据 AcestepConfig.p2p.upload_slots（默认 10），旧配置缺失时回落默认。
         let p2p_cache_dir = path_manager.songs_dir().join(".cache").join("p2p");
-        let p2p_upload_slots = config_service
+        let p2p_cfg = config_service
             .get_config::<ai00_x_core::service::config::types::GlobalConfig>(None)
             .await
             .ok()
             .and_then(|cfg| cfg.acestep)
-            .and_then(|ac| ac.p2p)
+            .and_then(|ac| ac.p2p);
+        let p2p_upload_slots = p2p_cfg
+            .as_ref()
             .map(|p| p.upload_slots)
             .unwrap_or(10)
             .max(1);
         if let Err(e) =
-            crate::share::p2p::init_global_p2p_downloader(p2p_cache_dir, p2p_upload_slots)
+            crate::share::p2p::init_global_p2p_downloader(p2p_cache_dir, p2p_upload_slots).await
         {
             log::warn!("Failed to initialize P2P downloader: {}", e);
         } else {
@@ -272,6 +274,21 @@ impl AppState {
                 "P2P downloader initialized (fx-torrent session, upload_slots={})",
                 p2p_upload_slots
             );
+        }
+
+        // Installer-resource P2P session (second fx-torrent instance, see
+        // resource_p2p.rs): hybrid download + seeding for
+        // main/underlay/sounds/runtime zips next to the exe.
+        if p2p_cfg.as_ref().is_some_and(|p| p.enabled) {
+            let exe_dir = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+            if let Some(exe_dir) = exe_dir {
+                let resource_dir = exe_dir.join(".p2p-resources");
+                if let Err(e) = crate::resource_p2p::init(resource_dir, p2p_upload_slots).await {
+                    log::warn!("Failed to initialize resource P2P: {}", e);
+                }
+            }
         }
 
         let app_state = Self {

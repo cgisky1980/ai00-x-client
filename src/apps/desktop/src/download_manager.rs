@@ -22,6 +22,9 @@ pub struct DownloadTask {
     pub total: Option<u64>,
     pub status: DownloadStatus,
     pub error: Option<String>,
+    /// Sliding-window download speed (bytes/sec), sampled every 500 ms.
+    #[serde(default)]
+    pub speed_bps: u64,
 }
 
 pub struct DownloadManager {
@@ -74,6 +77,7 @@ impl DownloadManager {
             total: None,
             status: DownloadStatus::Pending,
             error: None,
+            speed_bps: 0,
         };
 
         self.tasks.write().await.insert(id.clone(), task);
@@ -165,6 +169,9 @@ impl DownloadManager {
                             use tokio::io::AsyncWriteExt;
                             let mut stream = response.bytes_stream();
                             let mut stream_error: Option<String> = None;
+                            // Speed sampling state (sliding window).
+                            let mut speed_mark = std::time::Instant::now();
+                            let mut speed_base: u64 = 0;
                             while let Some(chunk_result) = stream.next().await {
                                 match chunk_result {
                                     Ok(data) => {
@@ -175,7 +182,21 @@ impl DownloadManager {
                                             }
                                             return;
                                         }
-                                        if let Some(t) = tasks.write().await.get_mut(&id) {
+                                        let now = std::time::Instant::now();
+                                        let elapsed_ms =
+                                            now.duration_since(speed_mark).as_millis().max(1);
+                                        if elapsed_ms >= 500 {
+                                            if let Some(t) = tasks.write().await.get_mut(&id) {
+                                                t.progress += data.len() as u64;
+                                                t.speed_bps =
+                                                    (t.progress.saturating_sub(speed_base)) * 1000
+                                                        / elapsed_ms as u64;
+                                            }
+                                            if let Some(t) = tasks.read().await.get(&id) {
+                                                speed_base = t.progress;
+                                            }
+                                            speed_mark = now;
+                                        } else if let Some(t) = tasks.write().await.get_mut(&id) {
                                             t.progress += data.len() as u64;
                                         }
                                     }

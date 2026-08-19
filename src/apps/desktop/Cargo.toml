@@ -111,7 +111,8 @@ fastrand = "2.4.0"
 base64 = { workspace = true }
 
 # P2P BitTorrent (v9: 替代 WebTorrent，纯 Rust 实现)
-fx-torrent = "0.9"
+# ed25519-dalek: fx-torrent DHT 模块的 crypto provider（缺它 DHT mutable item 校验报 MissingCryptoProvider）
+fx-torrent = { version = "0.9", features = ["ed25519-dalek"] }
 # fx-torrent 的 Callback trait 需要 fx-callback 在作用域内才能调用 torrent.subscribe()
 fx-callback = "2.0"
 

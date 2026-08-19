@@ -454,6 +454,9 @@ pub struct P2pConfig {
     /// 同时可向你上传的 peer 数（近似限速：fx-torrent 无字节级限速）。
     /// 默认 10，值越小上行占用越低。设 0 表示不限制。
     pub upload_slots: usize,
+    /// 安装资源（main/underlay/sounds/runtime zip）下载后是否继续做种，
+    /// 为其他新装客户端提供 P2P 分片（默认 true）。仅当 `enabled` 时生效。
+    pub seed_resources: bool,
 }
 
 impl Default for P2pConfig {
@@ -461,6 +464,7 @@ impl Default for P2pConfig {
         Self {
             enabled: true,
             upload_slots: 10,
+            seed_resources: true,
         }
     }
 }

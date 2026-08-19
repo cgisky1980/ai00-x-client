@@ -282,6 +282,9 @@ jobs:
           CARGO_INCREMENTAL: "0"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # P2P: when set, the build also emits {zip}.torrent + magnet fields
+          # in resources-manifest-*.json (unset → HTTP-only manifest).
+          AI00_X_TRACKER_URL: ${{ secrets.AI00_X_TRACKER_URL }}
         run: |
           (while true; do
             echo "[monitor] $(date +%H:%M:%S) disk-avail=$(df -h / | awk 'NR==2{print $4}') mem-avail=$(free -m | awk 'NR==2{print $7}')MB swap-free=$(free -m | awk 'NR==3{print $4}')MB"
@@ -303,6 +306,9 @@ jobs:
           LLAMA_USE_NINJA: ${{ runner.os == 'Windows' && '1' || '' }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # P2P: when set, the build also emits {zip}.torrent + magnet fields
+          # in resources-manifest-*.json (unset → HTTP-only manifest).
+          AI00_X_TRACKER_URL: ${{ secrets.AI00_X_TRACKER_URL }}
         run: ${{ matrix.platform.build_command }}
 
       - name: Upload bundles
@@ -317,6 +323,7 @@ jobs:
 
       # Split-installer assets: resource zips + per-platform manifests +
       # updater latest.json produced by scripts/desktop-tauri-build.mjs.
+      # *.torrent files (P2P) are only present when AI00_X_TRACKER_URL is set.
       - name: Upload split-installer resources
         uses: actions/upload-artifact@v4
         with:
@@ -329,6 +336,7 @@ jobs:
             dist/runtime-*.zip
             dist/resources-manifest-*.json
             dist/latest-*.json
+            dist/*.torrent
             target/release/bundle/nsis/*.sig
             src/apps/desktop/target/release/bundle/nsis/*.sig
 
@@ -371,5 +379,6 @@ jobs:
             release-assets/**/*.exe
             release-resources/*.zip
             release-resources/*.json
+            release-resources/*.torrent
             release-resources/**/*.sig
           fail_on_unmatched_files: false

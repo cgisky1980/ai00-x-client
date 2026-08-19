@@ -46,6 +46,7 @@
   "initBooting": "系统启动中...",
   "homeResCheck": "检查资源组件...",
   "homeResDownload": "正在下载资源组件",
+  "homeResOverall": "下载资源组件 {{done}}/{{total}} · {{doneMB}}/{{totalMB}} MB · {{speed}} MB/s",
   "homeVersionCheck": "检查模型更新...",
   "homeStartDownload": "开始下载...",
   "homeDownloadingModel": "正在下载",

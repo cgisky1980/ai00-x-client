@@ -195,6 +195,9 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # P2P: when set, the build also emits {zip}.torrent + magnet fields
+          # in resources-manifest-*.json (unset → HTTP-only manifest).
+          AI00_X_TRACKER_URL: ${{ secrets.AI00_X_TRACKER_URL }}
         run: ${{ matrix.platform.build_command }}
 
       - name: Upload bundles
@@ -209,6 +212,7 @@ jobs:
             src/apps/desktop/target/release/bundle
 
       # Split-installer assets (resource zips + per-platform manifests).
+      # *.torrent files (P2P) are only present when AI00_X_TRACKER_URL is set.
       - name: Upload split-installer resources
         uses: actions/upload-artifact@v4
         with:
@@ -222,6 +226,7 @@ jobs:
             dist/runtime-*.zip
             dist/resources-manifest-*.json
             dist/latest-*.json
+            dist/*.torrent
             target/release/bundle/nsis/*.sig
             src/apps/desktop/target/release/bundle/nsis/*.sig
 
@@ -282,4 +287,5 @@ jobs:
             release-assets/**/*.exe
             release-resources/*.zip
             release-resources/*.json
+            release-resources/*.torrent
             release-resources/**/*.sig

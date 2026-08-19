@@ -46,6 +46,7 @@
   "initBooting": "System starting...",
   "homeResCheck": "Checking resource components...",
   "homeResDownload": "Downloading resource component",
+  "homeResOverall": "Downloading resources {{done}}/{{total}} · {{doneMB}}/{{totalMB}} MB · {{speed}} MB/s",
   "homeVersionCheck": "Checking model updates...",
   "homeStartDownload": "Starting download...",
   "homeDownloadingModel": "Downloading",

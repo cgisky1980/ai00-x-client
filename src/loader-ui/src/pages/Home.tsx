@@ -65,6 +65,20 @@ interface ResourcesCheckResult {
   all_ok: boolean;
 }
 
+interface ResourceDownloadOutcome {
+  key: string;
+  ok: boolean;
+  error?: string | null;
+}
+
+interface ResourcesOverallProgress {
+  tasks_total: number;
+  tasks_done: number;
+  total_bytes: number;
+  done_bytes: number;
+  speed_bps: number;
+}
+
 export function HomePage() {
   const navigate = useNavigate();
   const { t, locale, setLocale } = useI18n();
@@ -256,44 +270,57 @@ export function HomePage() {
         // Step 0: Split-installer resources (main.zip / underlay.zip /
         // sounds.zip / runtime-*.zip). The installer ships only the exe +
         // loader.zip; everything else is fetched here on first run / update.
+        // All pending resources download in PARALLEL (ms/hf mirrors,
+        // throughput-probed host order) with one aggregate progress bar.
         // Non-fatal: offline machines with resources already in place keep
         // working (resources_check fails → skip).
         setStatus(t("homeResCheck"));
         try {
           const res = await invoke<ResourcesCheckResult>("resources_check");
           const pending = res.statuses.filter((s) => s.state !== "ok");
-          for (const status of pending) {
-            if (cancelled()) return;
-
-            setStatus(`${t("homeResDownload")} ${status.key}...`);
+          if (pending.length > 0 && !cancelled()) {
             setDownloadProgress(0);
 
-            // Poll progress while resources_download runs.
-            const taskId = `resource-${status.key}`;
+            // Aggregate progress poller while resources_download_all runs.
             let polling = true;
             const poll = (async () => {
               while (polling && !cancelled()) {
                 try {
-                  const p = await invoke<DownloadTask | null>(
-                    "get_download_progress",
-                    { taskId },
+                  const p = await invoke<ResourcesOverallProgress | null>(
+                    "resources_overall_progress",
                   );
-                  if (p && p.total > 0) {
+                  if (p && p.total_bytes > 0) {
                     setDownloadProgress(
-                      Math.round((p.progress / p.total) * 100),
+                      Math.round((p.done_bytes / p.total_bytes) * 100),
+                    );
+                    setStatus(
+                      t("homeResOverall", {
+                        done: p.tasks_done,
+                        total: p.tasks_total,
+                        doneMB: Math.floor(p.done_bytes / 1048576),
+                        totalMB: Math.ceil(p.total_bytes / 1048576),
+                        speed: (p.speed_bps / 1048576).toFixed(1),
+                      }),
                     );
                   }
                 } catch {
-                  // task not visible yet — ignore
+                  // progress command failed transiently — keep polling
                 }
                 await new Promise((r) => setTimeout(r, 500));
               }
             })();
 
             try {
-              await invoke("resources_download", { key: status.key });
+              const outcomes = await invoke<ResourceDownloadOutcome[]>(
+                "resources_download_all",
+              );
+              for (const o of outcomes) {
+                if (!o.ok) {
+                  warnInit(`${t("homeDownloadFailed")}: ${o.key}`, o.error ?? "download failed");
+                }
+              }
             } catch (e) {
-              warnInit(`${t("homeDownloadFailed")}: ${status.key}`, e);
+              warnInit(`${t("homeResDownload")}: ${pending.map((s) => s.key).join(", ")}`, e);
             } finally {
               polling = false;
               await poll;
