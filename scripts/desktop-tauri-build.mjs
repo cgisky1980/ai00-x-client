@@ -317,7 +317,10 @@ async function buildUpdaterManifest(dist, pkg) {
 
   const platform = platformId();
   const repo = 'cgisky1980/ai00-x-client';
-  const tag = `v${pkg.version}`;
+  // 正式发布走 v{version} tag；nightly 构建产物上传到 `nightly` tag 的
+  // prerelease，需通过 UPDATER_RELEASE_TAG 覆盖，否则 latest.json 的下载
+  // URL 指向不存在的 release，客户端自动更新会 404。
+  const tag = process.env.UPDATER_RELEASE_TAG || `v${pkg.version}`;
   const assetName = basename(asset.assetPath);
   const signature = readFileSync(asset.sigPath, 'utf-8').trim();
 

@@ -199,6 +199,9 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # nightly 产物上传到 `nightly` tag 的 prerelease，latest-*.json 的
+          # 下载 URL 必须指向该 release（默认 v{version} tag 不存在）。
+          UPDATER_RELEASE_TAG: ${{ env.NIGHTLY_TAG }}
           # P2P: when set, the build also emits {zip}.torrent + magnet fields
           # in resources-manifest-*.json (unset → HTTP-only manifest).
           AI00_X_TRACKER_URL: ${{ secrets.AI00_X_TRACKER_URL }}

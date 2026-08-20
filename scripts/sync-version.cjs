@@ -31,7 +31,8 @@ function main() {
   const rootPkg = readJson('package.json');
   const version = rootPkg.version;
 
-  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) {
+  // 接受 semver prerelease 后缀（如 0.1.1-nightly.20260820，nightly CI 使用）
+  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
     console.error(`[sync-version] Invalid version in package.json: "${version}"`);
     process.exit(1);
   }
