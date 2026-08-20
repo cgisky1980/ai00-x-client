@@ -385,8 +385,8 @@ jobs:
             release-assets/**/*.dmg
             release-assets/**/*.rpm
             release-assets/**/*.exe
-            release-resources/*.zip
-            release-resources/*.json
-            release-resources/*.torrent
+            release-resources/**/*.zip
+            release-resources/**/*.json
+            release-resources/**/*.torrent
             release-resources/**/*.sig
           fail_on_unmatched_files: false
