@@ -133,6 +133,7 @@ jobs:
             libglib2.0-dev \
             libgtk-3-dev \
             libxdo-dev \
+            libasound2-dev \
             "$WEBKIT_PKG" \
             "$APPINDICATOR_PKG" \
             librsvg2-dev \
