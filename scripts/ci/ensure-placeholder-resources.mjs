@@ -4,7 +4,7 @@
  *
  * CI-only helper. `cargo check --workspace` triggers tauri-build, which
  * validates the resources listed in `src/apps/desktop/tauri.conf.json`
- * (dist/main.zip, dist/underlay.zip, target/release/runtime) and aborts if
+ * (dist/loader.zip, target/release/runtime-staging) and aborts if
  * any of them are missing. A full packaging build is deliberately NOT part of
  * CI (GitHub Actions only does syntax checks here), so we synthesize minimal
  * placeholder resources that let tauri-build's existence check pass.
@@ -55,8 +55,7 @@ function makePlaceholderZip(name) {
   console.log(`[ci] placeholder created: ${destZip}`);
 }
 
-makePlaceholderZip('main');
-makePlaceholderZip('underlay');
+makePlaceholderZip('loader');
 
 // tauri.conf.json also lists ../../../target/release/runtime-staging as a
 // bundle resource (maps to the bundled `runtime` dir). It must exist for
