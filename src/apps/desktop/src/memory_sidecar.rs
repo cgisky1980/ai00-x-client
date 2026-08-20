@@ -1,6 +1,7 @@
 //! Memory sidecar implementation using RWKV for lightweight relevance verification
-//! and memory extraction. Uses rwkv_infer_sync — web-rwkv supports concurrent inference
-//! (GPU multi-stream), so sidecar calls can run in parallel with the main conversation.
+//! and memory extraction. Uses rwkv_infer_sync — the rwkv-rsv inference pool supports
+//! concurrent inference (16 interleaved slots), so sidecar calls can run in parallel
+//! with the main conversation.
 
 use ai00_x_core::service::memory_graph::sidecar::{
     ExtractedMemory, MemorySidecar, RelevanceResult,

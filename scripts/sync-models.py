@@ -128,7 +128,7 @@ def load_existing_manifest(local_dir: Path) -> dict:
         except json.JSONDecodeError:
             pass
     try:
-        with urllib.request.urlopen(MANIFEST_HOSTS["ms"]["base"] + "/manifest.json", timeout=30) as r:
+        with direct_urlopen(MANIFEST_HOSTS["ms"]["base"] + "/manifest.json", timeout=30) as r:
             return json.loads(r.read().decode("utf-8"))
     except Exception as e:  # noqa: BLE001
         log(f"warn: no previous manifest ({e}); building fresh")
@@ -184,8 +184,18 @@ def build_manifest(local_dir: Path, files: dict[str, int], prev: dict) -> dict:
     }
 
 
+# 无代理 opener：urllib 在 Windows 上会静默读取注册表系统代理（IE 设置），
+# 而本地代理（Clash 等）对 Python 的 TLS ClientHello 指纹可能分流失效导致
+# SSL EOF。ModelScope/HF 的 API 元数据请求走直连最稳。
+_DIRECT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def direct_urlopen(url: str, timeout: int = 30):
+    return _DIRECT_OPENER.open(url, timeout=timeout)
+
+
 def ms_remote_files() -> dict[str, int]:
-    with urllib.request.urlopen(MS_API_FILES, timeout=30) as resp:
+    with direct_urlopen(MS_API_FILES, timeout=30) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     blobs = data.get("Data", {}).get("Files") or []
     return {f["Path"]: f["Size"] for f in blobs if f.get("Type") == "blob"}
@@ -201,7 +211,7 @@ def ms_credentials() -> tuple[str, str]:
 def remote_manifest_text(host_base: str) -> str:
     """Fetch the manifest.json currently deployed on a host ("" on failure)."""
     try:
-        with urllib.request.urlopen(host_base + "/manifest.json", timeout=30) as r:
+        with direct_urlopen(host_base + "/manifest.json", timeout=30) as r:
             return r.read().decode("utf-8").strip()
     except Exception:  # noqa: BLE001
         return ""
@@ -236,9 +246,27 @@ def push_to_modelscope(
     user, token = ms_credentials()
     work = Path(tempfile.mkdtemp(prefix="ms-sync-"))
     env = {**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"}
+
+    # LFS 稳定性参数：
+    # - concurrenttransfers=1：默认并行上传在大文件（GB 级）+ 代理/TUN 环境下
+    #   易触发 Windows 端口耗尽（connectex 10048）或对端限流，单线程最稳
+    # - locksverify=false：ModelScope 不支持 LFS locking API，避免每次探测
+    # - SYNC_GIT_PROXY（可选）：显式 http.proxy 注入，绕过 TUN 的 fake-IP 直连
+    #   （例：SYNC_GIT_PROXY=http://127.0.0.1:7890）
+    git_extra: list[str] = [
+        "-c", "lfs.concurrenttransfers=1",
+        "-c", "lfs.locksverify=false",
+        "-c", "lfs.activitytimeout=120",
+        "-c", "lfs.dialtimeout=60",
+    ]
+    proxy = os.environ.get("SYNC_GIT_PROXY", "").strip()
+    if proxy:
+        git_extra += ["-c", f"http.proxy={proxy}"]
+        log(f"using explicit git http proxy: {proxy}")
+
     try:
         url = f"https://{user}:{token}@www.modelscope.cn/{MS_REPO}.git"
-        run(["git", "clone", "--depth", "1", url, str(work)], env=env)
+        run(["git", *git_extra, "clone", "--depth", "1", url, str(work)], env=env)
 
         # Ensure big files of unknown extensions go through LFS. Use
         # `git lfs track` — the canonical writer — instead of hand-editing
@@ -261,7 +289,7 @@ def push_to_modelscope(
         )
         run(["git", "add", "-A"], cwd=work)
         run(["git", "commit", "-m", "Sync models from local directory"], cwd=work)
-        run(["git", "push", "origin", "master"], cwd=work, env=env)
+        run(["git", *git_extra, "push", "origin", "master"], cwd=work, env=env)
         # keep the token out of the on-disk remote url before cleanup
         run(["git", "remote", "set-url", "origin", f"https://www.modelscope.cn/{MS_REPO}.git"], cwd=work)
         log("ModelScope push done")

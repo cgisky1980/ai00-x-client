@@ -1,4 +1,22 @@
-use cbor4ii::{core::utils::SliceReader, serde::Deserializer};
+//! RWKV 推理核心（rwkv-rsv 引擎：Vulkan/CUDA 后端）。
+//!
+//! 架构：模型与全部推理状态由专用 OS 线程持有（rwkv-rsv 为同步 API 且
+//! `GpuModel` 非 Send），上层（Tauri 命令 / ai-adapters / memory sidecar）
+//! 通过 channel 提交任务，事件经 `InferenceEvent` 回流，接口与旧 web-rwkv
+//! 实现完全兼容。
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
+
+use serde::Serialize;
+use tauri::{Emitter, Manager};
+use tokio::sync::{mpsc, oneshot};
+
+use rwkv_rsv::gpu_model::{Bundle, GpuModel, ModelBuilder, State};
+use rwkv_rsv::tokenizer::Tokenizer;
 
 const DEBUG_LOG_LLM: bool = false;
 macro_rules! debug_print {
@@ -9,41 +27,9 @@ macro_rules! debug_print {
     };
 }
 
-use memmap2::Mmap;
-use serde::de::DeserializeSeed;
-use serde::{Deserialize, Serialize};
-use serde_json;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
-use std::sync::OnceLock;
-use std::time::Duration;
-use tauri::{Emitter, Manager};
-use web_rwkv::{
-    context::{Context, ContextBuilder, InstanceExt},
-    runtime::{
-        infer::{Rnn, RnnInput, RnnInputBatch, RnnOption},
-        loader::{Loader, Reader},
-        model::{Bundle, ContextAutoLimits, ModelBuilder, ModelInfo, ModelVersion, Quant, State},
-        v7, Runtime, TokioRuntime,
-    },
-    tensor::{serialization::Seed, TensorCpu},
-    tokenizer::Tokenizer,
-    wgpu::{Instance, PowerPreference},
-};
-
-use std::collections::HashMap;
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::{mpsc, RwLock};
-
-type SessionStateEntry = (Vec<u32>, TensorCpu<f32>);
-type SessionStates = Arc<RwLock<HashMap<String, SessionStateEntry>>>;
-
 const MAX_SLOTS: usize = 16;
+/// prefill 分块长度：限制单次 seq 缓冲大小（块大小固定避免重建）。
+const PREFILL_CHUNK: usize = 128;
 
 enum TaskPhase {
     Prefill,
@@ -61,13 +47,10 @@ pub enum InferenceEvent {
     Error(String),
 }
 
-#[allow(dead_code)]
 struct InferenceTask {
-    slot: usize,
     phase: TaskPhase,
     prompt_tokens: Vec<u32>,
     input_tokens: Vec<u32>,
-    state_path: Option<String>,
     session_id: Option<String>,
     max_tokens: usize,
     top_p: f32,
@@ -89,12 +72,6 @@ struct InferenceTask {
     ended_by_stop: bool,
 }
 
-enum PoolRequest {
-    Submit(InferenceTaskParams),
-    #[allow(dead_code)]
-    Shutdown,
-}
-
 struct InferenceTaskParams {
     prompt: String,
     max_tokens: usize,
@@ -104,7 +81,6 @@ struct InferenceTaskParams {
     frequency_penalty: f32,
     penalty_decay: f32,
     stop: Option<Vec<String>>,
-    state_path: Option<String>,
     session_id: Option<String>,
     is_streaming: bool,
     is_vrm: bool,
@@ -114,323 +90,226 @@ struct InferenceTaskParams {
     tx: mpsc::UnboundedSender<InferenceEvent>,
 }
 
+enum PoolRequest {
+    Init {
+        model_path: String,
+        vocab_path: String,
+        app: tauri::AppHandle,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
+    Submit(InferenceTaskParams),
+    ClearSession(String),
+}
+
 struct InferencePoolHandle {
     tx: mpsc::UnboundedSender<PoolRequest>,
 }
 
 static INFERENCE_POOL: OnceLock<InferencePoolHandle> = OnceLock::new();
+static LLM_READY: AtomicBool = AtomicBool::new(false);
+static CANCEL_EPOCH: OnceLock<AtomicU64> = OnceLock::new();
+static LLM_INITING: OnceLock<Mutex<bool>> = OnceLock::new();
 
 fn get_inference_pool() -> Option<&'static InferencePoolHandle> {
     INFERENCE_POOL.get()
 }
 
-fn start_inference_pool() {
-    let (pool_tx, pool_rx) = mpsc::unbounded_channel::<PoolRequest>();
-
-    let g = LLM
-        .get()
-        .expect("LLM must be initialized before starting pool");
-    let binding = g.lock().expect("LLM lock not poisoned");
-    let s = binding.as_ref().expect("LlmState present");
-    let runtime = s.runtime.clone();
-    let state = s.state.clone();
-    let tokenizer = s.tokenizer.clone();
-    let states = s.states.clone();
-    let session_states = s.session_states.clone();
-    let context = s.context.clone();
-    let info = s.info.clone();
-
-    tokio::spawn(inference_pool_loop(
-        pool_rx,
-        runtime,
-        state,
-        tokenizer,
-        states,
-        session_states,
-        context,
-        info,
-    ));
-
-    let _ = INFERENCE_POOL.set(InferencePoolHandle { tx: pool_tx });
+pub fn is_llm_initialized() -> bool {
+    LLM_READY.load(Ordering::SeqCst)
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn inference_pool_loop(
-    mut pool_rx: mpsc::UnboundedReceiver<PoolRequest>,
-    runtime: Arc<dyn Runtime<Rnn> + Send + Sync>,
-    state: Arc<dyn State + Send + Sync>,
-    tokenizer: Arc<Tokenizer>,
-    states: Arc<RwLock<HashMap<String, TensorCpu<f32>>>>,
-    session_states: SessionStates,
-    context: Context,
-    info: ModelInfo,
-) {
+/// 推理引擎全部状态（仅 pool 线程访问，无锁）。
+struct PoolEngine {
+    model: GpuModel,
+    /// 每槽一个独立 RNN 状态，支持多任务并发交错推进。
+    slot_states: Vec<State>,
+    tokenizer: Tokenizer,
+    /// 零初始状态缓存（新任务/无缓存任务重置槽位用）。
+    initial_state: Vec<f32>,
+    /// session_id → (已缓存 token 序列, RNN 状态)
+    session_states: HashMap<String, (Vec<u32>, Vec<f32>)>,
+}
+
+/// pool 线程主循环：常驻，Init 消息触发（重）加载，Submit/ClearSession 业务消息。
+fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
+    let mut pool_rx = pool_rx;
+    let mut engine: Option<PoolEngine> = None;
     let mut slots: Vec<Option<InferenceTask>> = (0..MAX_SLOTS).map(|_| None).collect();
-    let mut pending_queue: Vec<InferenceTaskParams> = Vec::new();
+    let mut pending: Vec<InferenceTaskParams> = Vec::new();
 
     loop {
-        tokio::select! {
-            req = pool_rx.recv() => {
-                match req {
-                    Some(PoolRequest::Submit(params)) => {
-                        pending_queue.push(params);
-                    }
-                    Some(PoolRequest::Shutdown) | None => {
-                        return;
+        // 引擎未加载或完全空闲 → 阻塞等待消息；否则非阻塞抽干消息
+        let idle = engine.is_some() && slots.iter().all(|s| s.is_none()) && pending.is_empty();
+        if idle {
+            match pool_rx.blocking_recv() {
+                Some(req) => {
+                    if !handle_request(req, &mut engine, &mut pending) {
+                        break;
                     }
                 }
+                None => break,
             }
-            _ = tokio::time::sleep(Duration::from_millis(20)), if !pending_queue.is_empty() || slots.iter().any(|s| s.is_some()) => {}
+        } else {
+            while let Ok(req) = pool_rx.try_recv() {
+                if !handle_request(req, &mut engine, &mut pending) {
+                    return;
+                }
+            }
         }
 
-        while !pending_queue.is_empty() {
-            let free_slot = slots.iter().position(|s| s.is_none());
-            if free_slot.is_none() {
+        // 引擎未就绪时（Init 失败/尚未 Init），无任务可推进
+        let Some(engine) = engine.as_mut() else {
+            continue;
+        };
+
+        // 调度 pending → 空闲槽位
+        while !pending.is_empty() {
+            let Some(slot_idx) = slots.iter().position(|s| s.is_none()) else {
                 break;
-            }
-            let slot_idx = free_slot.unwrap();
-            let params = pending_queue.remove(0);
+            };
+            let params = pending.remove(0);
             let tx = params.tx.clone();
-            let task = prepare_task(
-                params,
-                slot_idx,
-                &state,
-                &tokenizer,
-                &states,
-                &session_states,
-                &context,
-                &info,
-            )
-            .await;
-            match task {
-                Ok(t) => {
-                    slots[slot_idx] = Some(t);
-                }
+            match prepare_task(params, slot_idx, engine) {
+                Ok(task) => slots[slot_idx] = Some(task),
                 Err(e) => {
                     let _ = tx.send(InferenceEvent::Error(e));
                 }
             }
         }
 
-        let active_count = slots.iter().filter(|s| s.is_some()).count();
-        if active_count == 0 && pending_queue.is_empty() {
-            continue;
-        }
-
-        let mut batches = vec![RnnInputBatch::default(); MAX_SLOTS];
-        let mut has_active = false;
-
-        for (i, slot) in slots.iter_mut().enumerate() {
-            if let Some(task) = slot {
-                let mut tokens = match task.phase {
-                    TaskPhase::Prefill => task.input_tokens.clone(),
-                    TaskPhase::Decode => {
-                        if task.last_logits.is_empty() {
-                            task.input_tokens.clone()
-                        } else {
-                            let id = sample_token(
-                                &task.last_logits,
-                                task.top_p,
-                                task.top_k,
-                                &task.token_counts,
-                                task.presence_penalty,
-                                task.frequency_penalty,
-                                task.penalty_decay,
-                            );
-                            task.acc_ids.push(id);
-                            *task.token_counts.entry(id).or_insert(0) += 1;
-                            vec![id]
-                        }
-                    }
-                };
-                if tokens.is_empty() {
-                    tokens = vec![0u32];
-                }
-                batches[i] = RnnInputBatch::new(tokens, RnnOption::Last);
-                has_active = true;
-            }
-        }
-
-        if !has_active {
-            continue;
-        }
-
-        let mut input = RnnInput::new(batches, 128);
-
-        loop {
-            if input.num_token() == 0 {
-                break;
-            }
-
-            let result = std::panic::AssertUnwindSafe(runtime.infer(input)).await;
-            let (remaining, output) = match result {
-                Ok(r) => r,
-                Err(e) => {
-                    log::error!("RWKV inference error: {:?}", e);
-                    for slot in slots.iter_mut() {
-                        if let Some(task) = slot.take() {
-                            let _ = task.tx.send(InferenceEvent::Error(e.to_string()));
-                        }
-                    }
-                    return;
-                }
-            };
-            input = remaining;
-
-            if input.num_token() > 0 {
+        // 每个活跃任务推进一步（prefill 一块 / decode 一个 token）
+        for (slot_idx, slot) in slots.iter_mut().enumerate() {
+            if slot.is_none() {
                 continue;
             }
-
-            for (batch_idx, slot) in slots.iter_mut().enumerate() {
-                if let Some(task) = slot {
-                    if batch_idx < output.len() && output[batch_idx].0.size() > 0 {
-                        let logits = output[batch_idx].0.clone().to_vec();
-                        match task.phase {
-                            TaskPhase::Prefill => {
-                                task.phase = TaskPhase::Decode;
-                                task.last_logits = logits;
-
-                                if let Some(sid) = &task.session_id {
-                                    if let Ok(current_state) = state.back(task.slot).await {
-                                        let mut new_cached_tokens = task.prompt_tokens.clone();
-                                        if task.loaded_from_cache {
-                                            if let Some((old_tokens, _)) =
-                                                session_states.read().await.get(sid)
-                                            {
-                                                let new_len = old_tokens
-                                                    .len()
-                                                    .saturating_sub(task.dedup_backtrack);
-                                                let mut full = old_tokens[..new_len].to_vec();
-                                                full.extend(task.input_tokens.clone());
-                                                new_cached_tokens = full;
-                                            }
-                                        }
-                                        session_states.write().await.insert(
-                                            sid.clone(),
-                                            (new_cached_tokens, current_state),
-                                        );
-                                    }
-                                }
-                            }
-                            TaskPhase::Decode => {
-                                task.last_logits = logits;
-
-                                let last_id = task.acc_ids.last().copied().unwrap_or(0);
-                                let decoded = tokenizer.decode(&[last_id]).unwrap_or_default();
-                                let token_str = String::from_utf8_lossy(&decoded).to_string();
-
-                                task.stop_buffer.push_str(&token_str);
-                                if task.stop_buffer.len() > 200 {
-                                    let split_idx = task.stop_buffer.len() - 100;
-                                    if let Some((idx, _)) = task
-                                        .stop_buffer
-                                        .char_indices()
-                                        .find(|(i, _)| *i >= split_idx)
-                                    {
-                                        task.stop_buffer = task.stop_buffer[idx..].to_string();
-                                    }
-                                }
-
-                                let mut stopped = false;
-                                let mut hit_stop_seq: Option<String> = None;
-                                if let Some(ref ss) = task.stop {
-                                    for stop_str in ss {
-                                        if !stop_str.is_empty()
-                                            && task.stop_buffer.ends_with(stop_str)
-                                        {
-                                            stopped = true;
-                                            hit_stop_seq = Some(stop_str.clone());
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if stopped {
-                                    task.ended_by_stop = true;
-                                }
-
-                                task.steps_done += 1;
-
-                                if task.is_streaming {
-                                    if let Ok(decoded) = tokenizer.decode(&task.acc_ids) {
-                                        let s = String::from_utf8_lossy(&decoded);
-                                        let new = &s[task.last_decoded_len..];
-                                        if !new.is_empty() {
-                                            let _ = task
-                                                .tx
-                                                .send(InferenceEvent::Token(new.to_string()));
-                                        }
-                                        task.last_decoded_len = s.len();
-                                    }
-                                }
-
-                                if task.ended_by_stop || task.steps_done >= task.max_tokens {
-                                    let mut text =
-                                        if let Ok(decoded) = tokenizer.decode(&task.acc_ids) {
-                                            String::from_utf8_lossy(&decoded).to_string()
-                                        } else {
-                                            String::new()
-                                        };
-
-                                    if let Some(ref seq) = hit_stop_seq {
-                                        if let Some(pos) = text.rfind(seq) {
-                                            text.truncate(pos);
-                                        }
-                                    }
-
-                                    let _ = task.tx.send(InferenceEvent::Done {
-                                        text,
-                                        input_tokens: task.prompt_tokens.len(),
-                                        output_tokens: task.acc_ids.len(),
-                                        stop_sequence: hit_stop_seq,
-                                    });
-
-                                    if let Some(sid) = &task.session_id {
-                                        if let Ok(current_state) = state.back(task.slot).await {
-                                            let mut base_tokens = task.prompt_tokens.clone();
-                                            if task.loaded_from_cache {
-                                                if let Some((prev_cached_tokens, _)) =
-                                                    session_states.read().await.get(sid)
-                                                {
-                                                    let new_len = prev_cached_tokens
-                                                        .len()
-                                                        .saturating_sub(task.dedup_backtrack);
-                                                    let mut full =
-                                                        prev_cached_tokens[..new_len].to_vec();
-                                                    full.extend_from_slice(&task.input_tokens);
-                                                    base_tokens = full;
-                                                }
-                                            }
-                                            let mut full_tokens = base_tokens;
-                                            full_tokens.extend_from_slice(&task.acc_ids);
-                                            session_states
-                                                .write()
-                                                .await
-                                                .insert(sid.clone(), (full_tokens, current_state));
-                                        }
-                                    }
-
-                                    *slot = None;
-                                }
-                            }
-                        }
-                    }
+            let task = slot.as_mut().expect("checked non-empty");
+            match advance_task(task, engine, slot_idx) {
+                Ok(true) => {}
+                Ok(false) => *slot = None,
+                Err(e) => {
+                    log::error!("[rwkv] task error: {}", e);
+                    let _ = task.tx.send(InferenceEvent::Error(e));
+                    *slot = None;
                 }
             }
         }
     }
+
+    LLM_READY.store(false, Ordering::SeqCst);
+    log::info!("[rwkv] inference pool thread exited");
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn prepare_task(
+/// 处理一条请求。返回 false 表示线程应退出（channel 关闭或 Shutdown）。
+fn handle_request(
+    req: PoolRequest,
+    engine: &mut Option<PoolEngine>,
+    pending: &mut Vec<InferenceTaskParams>,
+) -> bool {
+    match req {
+        PoolRequest::Init {
+            model_path,
+            vocab_path,
+            app,
+            reply,
+        } => {
+            if engine.is_some() {
+                LLM_READY.store(true, Ordering::SeqCst);
+                let _ = reply.send(Ok(()));
+                return true;
+            }
+            let _ = app.emit("rwkv://debug", "llm loading model".to_string());
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                load_engine(&model_path, &vocab_path)
+            }));
+            match result {
+                Ok(Ok(e)) => {
+                    *engine = Some(e);
+                    LLM_READY.store(true, Ordering::SeqCst);
+                    let _ = app.emit("rwkv://debug", "llm initialized".to_string());
+                    let _ = reply.send(Ok(()));
+                }
+                Ok(Err(e)) => {
+                    let _ = app.emit("rwkv://debug", format!("llm init failed: {}", e));
+                    let _ = reply.send(Err(e));
+                }
+                Err(panic) => {
+                    let msg = format!("llm init panicked: {:?}", panic);
+                    log::error!("[rwkv] {}", msg);
+                    let _ = app.emit("rwkv://debug", msg.clone());
+                    let _ = reply.send(Err(msg));
+                }
+            }
+            true
+        }
+        PoolRequest::Submit(params) => {
+            if engine.is_none() {
+                let _ = params.tx.send(InferenceEvent::Error(
+                    "LLM engine not initialized".to_string(),
+                ));
+            } else {
+                pending.push(params);
+            }
+            true
+        }
+        PoolRequest::ClearSession(session_id) => {
+            if let Some(engine) = engine.as_mut() {
+                engine.session_states.remove(&session_id);
+                log::info!("[rwkv] Cleared session cache for session_id={}", session_id);
+            }
+            true
+        }
+    }
+}
+
+/// 加载模型并创建 16 槽推理状态。
+fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String> {
+    log::info!("[rwkv] loading model: {}", model_path);
+    let bundle: Bundle = ModelBuilder::new(model_path)
+        .build()
+        .map_err(|e| format!("failed to load model '{}': {}", model_path, e))?;
+    let Bundle { mut model, state } = bundle;
+
+    let mut slot_states = Vec::with_capacity(MAX_SLOTS);
+    slot_states.push(state);
+    for _ in 1..MAX_SLOTS {
+        slot_states.push(
+            model
+                .create_state()
+                .map_err(|e| format!("failed to create slot state: {}", e))?,
+        );
+    }
+
+    let vocab = std::fs::read_to_string(vocab_path)
+        .map_err(|e| format!("failed to read vocab '{}': {}", vocab_path, e))?;
+    let tokenizer = Tokenizer::new(&vocab).map_err(|e| format!("failed to parse vocab: {}", e))?;
+
+    let initial_state = model
+        .state_back(&slot_states[0])
+        .map_err(|e| format!("failed to snapshot initial state: {}", e))?;
+
+    let info = model.info();
+    log::info!(
+        "[rwkv] model loaded: layers={} emb={} vocab={} ({} slots)",
+        info.num_layer,
+        info.num_emb,
+        info.num_vocab,
+        MAX_SLOTS
+    );
+
+    Ok(PoolEngine {
+        model,
+        slot_states,
+        tokenizer,
+        initial_state,
+        session_states: HashMap::new(),
+    })
+}
+
+/// 组装任务：prompt 清洗/编码、会话状态恢复（含前缀去重）、惩罚状态初始化。
+fn prepare_task(
     params: InferenceTaskParams,
     slot: usize,
-    state: &Arc<dyn State + Send + Sync>,
-    tokenizer: &Arc<Tokenizer>,
-    states: &Arc<RwLock<HashMap<String, TensorCpu<f32>>>>,
-    session_states: &SessionStates,
-    context: &Context,
-    info: &ModelInfo,
+    engine: &mut PoolEngine,
 ) -> Result<InferenceTask, String> {
     let prompt = if params.is_vrm {
         // VRM mode: only standardize line breaks, do NOT trim trailing newlines.
@@ -449,7 +328,8 @@ async fn prepare_task(
         format!("User: {}\n\nAssistant: ", content)
     };
 
-    let prompt_tokens = tokenizer
+    let prompt_tokens = engine
+        .tokenizer
         .encode(prompt.as_bytes())
         .map_err(|e| e.to_string())?;
     let mut input_tokens = prompt_tokens.clone();
@@ -457,13 +337,17 @@ async fn prepare_task(
     let mut dedup_backtrack = 0usize;
 
     if let Some(sid) = &params.session_id {
-        let read = session_states.read().await;
-        if let Some((cached_tokens, cached_state)) = read.get(sid) {
-            if state.load(cached_state.clone(), slot).is_ok() {
+        let cached = engine.session_states.get(sid).cloned();
+        if let Some((cached_tokens, cached_state)) = cached {
+            if engine
+                .model
+                .state_load(&engine.slot_states[slot], &cached_state)
+                .is_ok()
+            {
                 let mut skip = 0;
                 let boundary_texts = ["\n\n# User", "# User", "\n\n### Tool Risk", "### Tool Risk"];
                 for text in boundary_texts {
-                    if let Ok(boundary_ids) = tokenizer.encode(text.as_bytes()) {
+                    if let Ok(boundary_ids) = engine.tokenizer.encode(text.as_bytes()) {
                         if !boundary_ids.is_empty()
                             && prompt_tokens.starts_with(&boundary_ids)
                             && cached_tokens.ends_with(&boundary_ids)
@@ -474,15 +358,16 @@ async fn prepare_task(
                 }
 
                 if skip == 0 && !prompt_tokens.is_empty() && !cached_tokens.is_empty() {
-                    let last_id = cached_tokens.last().unwrap();
-                    let is_last_newline = tokenizer
+                    let last_id = cached_tokens.last().unwrap_or(&0);
+                    let is_last_newline = engine
+                        .tokenizer
                         .decode(&[*last_id])
                         .ok()
                         .map(|s| String::from_utf8_lossy(&s) == "\n")
                         .unwrap_or(false);
 
                     if is_last_newline {
-                        if let Ok(double_newline_ids) = tokenizer.encode(b"\n\n") {
+                        if let Ok(double_newline_ids) = engine.tokenizer.encode(b"\n\n") {
                             if prompt_tokens.starts_with(&double_newline_ids) {
                                 dedup_backtrack = 1;
                             }
@@ -500,66 +385,15 @@ async fn prepare_task(
     }
 
     if !loaded_from_cache {
-        if let Some(path) = &params.state_path {
-            let resolved_path = if Path::new(path).exists() {
-                path.clone()
-            } else {
-                let p = assets_models_dir().join(path);
-                if p.exists() {
-                    p.to_string_lossy().to_string()
-                } else {
-                    path.clone()
-                }
-            };
-            log::info!(
-                "[rwkv] state_path input={}, resolved={}, assets_dir={}",
-                path,
-                resolved_path,
-                assets_models_dir().display()
-            );
+        // 重置槽位为零初始状态
+        engine
+            .model
+            .state_load(&engine.slot_states[slot], &engine.initial_state)
+            .map_err(|e| format!("failed to reset state: {}", e))?;
+    }
 
-            let s = {
-                let read = states.read().await;
-                read.get(&resolved_path).cloned()
-            };
-            let s = match s {
-                Some(s) => s,
-                None => {
-                    let file = std::fs::File::open(&resolved_path).map_err(|e| {
-                        format!(
-                            "failed to open state file '{}': {} (assets_dir={})",
-                            resolved_path,
-                            e,
-                            assets_models_dir().display()
-                        )
-                    })?;
-                    let data = unsafe {
-                        Mmap::map(&file).map_err(|e| format!("failed to mmap state file: {}", e))?
-                    };
-                    let st = safetensors::tensor::SafeTensors::deserialize(&data)
-                        .map_err(|e| format!("failed to deserialize state file: {}", e))?;
-                    let s = load_model_state(context, info, st).await?;
-                    states
-                        .write()
-                        .await
-                        .insert(resolved_path.clone(), s.clone());
-                    s
-                }
-            };
-            state
-                .load(s, slot)
-                .map_err(|e| format!("failed to apply state: {}", e))?;
-        } else {
-            let s = {
-                let read = states.read().await;
-                read.get("__initial__").cloned()
-            };
-            if let Some(s) = s {
-                state
-                    .load(s, slot)
-                    .map_err(|e| format!("failed to reset state: {}", e))?;
-            }
-        }
+    if input_tokens.is_empty() {
+        input_tokens = vec![0u32];
     }
 
     // Initialize penalty state from model_text (prior Assistant message contents).
@@ -567,7 +401,7 @@ async fn prepare_task(
     // presence_penalty and frequency_penalty memory. Without this, penalties are
     // completely ineffective on the first generated token.
     let token_counts = if !params.model_text.is_empty() {
-        match tokenizer.encode(params.model_text.as_bytes()) {
+        match engine.tokenizer.encode(params.model_text.as_bytes()) {
             Ok(tokens) => {
                 let mut counts: HashMap<u32, i32> = HashMap::new();
                 for &id in &tokens {
@@ -582,11 +416,9 @@ async fn prepare_task(
     };
 
     Ok(InferenceTask {
-        slot,
         phase: TaskPhase::Prefill,
         prompt_tokens,
         input_tokens,
-        state_path: params.state_path,
         session_id: params.session_id,
         max_tokens: if params.max_tokens == 0 {
             1
@@ -615,6 +447,162 @@ async fn prepare_task(
         steps_done: 0,
         ended_by_stop: false,
     })
+}
+
+/// 推进一个任务一步。返回 Ok(false) 表示任务完成（槽位释放）。
+fn advance_task(
+    task: &mut InferenceTask,
+    engine: &mut PoolEngine,
+    slot: usize,
+) -> Result<bool, String> {
+    match task.phase {
+        TaskPhase::Prefill => {
+            // 分块 sequence-parallel prefill
+            let mut logits = Vec::new();
+            for chunk in task.input_tokens.chunks(PREFILL_CHUNK) {
+                logits = engine
+                    .model
+                    .forward_seq_with_state(&mut engine.slot_states[slot], chunk)
+                    .map_err(|e| format!("prefill failed: {}", e))?;
+            }
+            task.phase = TaskPhase::Decode;
+            task.last_logits = logits;
+
+            // prefill 完成后缓存会话状态（下次续聊免全量 prefill）
+            if let Some(sid) = &task.session_id {
+                let current_state = engine
+                    .model
+                    .state_back(&engine.slot_states[slot])
+                    .map_err(|e| format!("state_back failed: {}", e))?;
+                let mut new_cached_tokens = task.prompt_tokens.clone();
+                if task.loaded_from_cache {
+                    if let Some((old_tokens, _)) = engine.session_states.get(sid) {
+                        let new_len = old_tokens.len().saturating_sub(task.dedup_backtrack);
+                        let mut full = old_tokens[..new_len].to_vec();
+                        full.extend(task.input_tokens.clone());
+                        new_cached_tokens = full;
+                    }
+                }
+                engine
+                    .session_states
+                    .insert(sid.clone(), (new_cached_tokens, current_state));
+            }
+            Ok(true)
+        }
+        TaskPhase::Decode => {
+            let tokens = if task.last_logits.is_empty() {
+                // 边缘回退：prefill 未产出 logits 时重推输入（保持旧实现行为）
+                task.input_tokens.clone()
+            } else {
+                let id = sample_token(
+                    &task.last_logits,
+                    task.top_p,
+                    task.top_k,
+                    &task.token_counts,
+                    task.presence_penalty,
+                    task.frequency_penalty,
+                    task.penalty_decay,
+                );
+                task.acc_ids.push(id);
+                *task.token_counts.entry(id).or_insert(0) += 1;
+                vec![id]
+            };
+
+            let logits = engine
+                .model
+                .forward_with_state(&mut engine.slot_states[slot], &tokens)
+                .map_err(|e| format!("decode failed: {}", e))?;
+            task.last_logits = logits;
+
+            let last_id = task.acc_ids.last().copied().unwrap_or(0);
+            let decoded = engine.tokenizer.decode(&[last_id]).unwrap_or_default();
+            let token_str = String::from_utf8_lossy(&decoded).to_string();
+
+            task.stop_buffer.push_str(&token_str);
+            if task.stop_buffer.len() > 200 {
+                let split_idx = task.stop_buffer.len() - 100;
+                if let Some((idx, _)) = task
+                    .stop_buffer
+                    .char_indices()
+                    .find(|(i, _)| *i >= split_idx)
+                {
+                    task.stop_buffer = task.stop_buffer[idx..].to_string();
+                }
+            }
+
+            let mut hit_stop_seq: Option<String> = None;
+            if let Some(ref ss) = task.stop {
+                for stop_str in ss {
+                    if !stop_str.is_empty() && task.stop_buffer.ends_with(stop_str) {
+                        task.ended_by_stop = true;
+                        hit_stop_seq = Some(stop_str.clone());
+                        break;
+                    }
+                }
+            }
+
+            task.steps_done += 1;
+
+            if task.is_streaming {
+                if let Ok(decoded) = engine.tokenizer.decode(&task.acc_ids) {
+                    let s = String::from_utf8_lossy(&decoded);
+                    let new = &s[task.last_decoded_len..];
+                    if !new.is_empty() {
+                        let _ = task.tx.send(InferenceEvent::Token(new.to_string()));
+                    }
+                    task.last_decoded_len = s.len();
+                }
+            }
+
+            if task.ended_by_stop || task.steps_done >= task.max_tokens {
+                let mut text = if let Ok(decoded) = engine.tokenizer.decode(&task.acc_ids) {
+                    String::from_utf8_lossy(&decoded).to_string()
+                } else {
+                    String::new()
+                };
+
+                if let Some(ref seq) = hit_stop_seq {
+                    if let Some(pos) = text.rfind(seq) {
+                        text.truncate(pos);
+                    }
+                }
+
+                let _ = task.tx.send(InferenceEvent::Done {
+                    text,
+                    input_tokens: task.prompt_tokens.len(),
+                    output_tokens: task.acc_ids.len(),
+                    stop_sequence: hit_stop_seq,
+                });
+
+                // 任务完成时把最终状态写回会话缓存
+                if let Some(sid) = &task.session_id {
+                    let current_state = engine
+                        .model
+                        .state_back(&engine.slot_states[slot])
+                        .map_err(|e| format!("state_back failed: {}", e))?;
+                    let mut base_tokens = task.prompt_tokens.clone();
+                    if task.loaded_from_cache {
+                        if let Some((prev_cached_tokens, _)) = engine.session_states.get(sid) {
+                            let new_len = prev_cached_tokens
+                                .len()
+                                .saturating_sub(task.dedup_backtrack);
+                            let mut full = prev_cached_tokens[..new_len].to_vec();
+                            full.extend_from_slice(&task.input_tokens);
+                            base_tokens = full;
+                        }
+                    }
+                    let mut full_tokens = base_tokens;
+                    full_tokens.extend_from_slice(&task.acc_ids);
+                    engine
+                        .session_states
+                        .insert(sid.clone(), (full_tokens, current_state));
+                }
+
+                return Ok(false);
+            }
+            Ok(true)
+        }
+    }
 }
 
 fn sample_token(
@@ -669,12 +657,14 @@ pub async fn pool_infer(
     frequency_penalty: f32,
     penalty_decay: f32,
     stop: Option<Vec<String>>,
-    state_path: Option<String>,
     session_id: Option<String>,
     is_streaming: bool,
     is_vrm: bool,
     model_text: String,
 ) -> Result<mpsc::UnboundedReceiver<InferenceEvent>, String> {
+    if !LLM_READY.load(Ordering::SeqCst) {
+        return Err("LLM engine not initialized".to_string());
+    }
     let pool = get_inference_pool().ok_or("inference pool not started")?;
     let (tx, rx) = mpsc::unbounded_channel::<InferenceEvent>();
     let params = InferenceTaskParams {
@@ -686,7 +676,6 @@ pub async fn pool_infer(
         frequency_penalty,
         penalty_decay,
         stop,
-        state_path,
         session_id,
         is_streaming,
         is_vrm,
@@ -699,37 +688,9 @@ pub async fn pool_infer(
     Ok(rx)
 }
 
-struct LlmState {
-    context: Context,
-    info: ModelInfo,
-    runtime: Arc<dyn Runtime<Rnn> + Send + Sync>,
-    state: Arc<dyn State + Send + Sync>,
-    states: Arc<RwLock<HashMap<String, TensorCpu<f32>>>>,
-    session_states: SessionStates,
-    tokenizer: Arc<Tokenizer>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Prefab {
-    info: ModelInfo,
-}
-
-static LLM: OnceLock<Mutex<Option<LlmState>>> = OnceLock::new();
-static CANCEL_EPOCH: OnceLock<AtomicU64> = OnceLock::new();
-static LLM_INITING: OnceLock<Mutex<bool>> = OnceLock::new();
-
-pub fn is_llm_initialized() -> bool {
-    if let Some(lock) = LLM.get() {
-        if let Ok(g) = lock.lock() {
-            return g.is_some();
-        }
-    }
-    false
-}
-
 /// Lightweight inference for sidecar tasks (relevance check, extraction).
 /// Uses low temperature + top_k=10 for deterministic but slightly diverse output.
-/// Shares the same state as VRM chat (single state, 8 batch slots).
+/// Shares the same engine with VRM chat (16 interleaved slots).
 pub async fn rwkv_infer_sync(
     prompt: &str,
     max_tokens: usize,
@@ -743,7 +704,6 @@ pub async fn rwkv_infer_sync(
             0.0,
             0.0,
             0.99654026,
-            None,
             None,
             None,
             false,
@@ -850,6 +810,7 @@ fn rwkv_debug_log_path(app: &tauri::AppHandle) -> PathBuf {
 }
 
 fn rwkv_debug_ts_ms() -> u128 {
+    use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis())
@@ -862,6 +823,8 @@ fn emit_to_overlay<T: Serialize + Clone>(app: &tauri::AppHandle, event: &str, pa
 }
 
 fn rwkv_debug_append(app: &tauri::AppHandle, session_id: Option<&str>, tag: &str, msg: &str) {
+    use std::fs::OpenOptions;
+    use std::io::Write;
     let path = rwkv_debug_log_path(app);
     let sid = session_id.unwrap_or("-");
     let line = format!("{}\t{}\t{}\t{}", rwkv_debug_ts_ms(), sid, tag, msg);
@@ -904,115 +867,6 @@ pub struct RwkvPaths {
     pub llm_vocab_path: String,
 }
 
-fn load_tokenizer(path: &str) -> Result<Tokenizer, String> {
-    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    Tokenizer::new(&content).map_err(|e| e.to_string())
-}
-
-async fn load_model_state<R: Reader>(
-    context: &Context,
-    info: &ModelInfo,
-    model: R,
-) -> Result<TensorCpu<f32>, String> {
-    match info.version {
-        ModelVersion::V4 => Err("v4 does not support init state yet".to_string()),
-        ModelVersion::V5 => web_rwkv::runtime::v5::read_state(context, info, model)
-            .await
-            .map_err(|e| format!("{:?}", e)),
-        ModelVersion::V6 => web_rwkv::runtime::v6::read_state(context, info, model)
-            .await
-            .map_err(|e| format!("{:?}", e)),
-        ModelVersion::V7 => web_rwkv::runtime::v7::read_state(context, info, model)
-            .await
-            .map_err(|e| format!("{:?}", e)),
-    }
-}
-
-async fn load_model(
-    context: &Context,
-    bytes: &[u8],
-    state_path: Option<String>,
-    quant_choice: Option<String>,
-) -> Result<
-    (
-        ModelInfo,
-        TokioRuntime<Rnn>,
-        Arc<dyn State + Send + Sync>,
-        Arc<RwLock<HashMap<String, TensorCpu<f32>>>>,
-        SessionStates,
-    ),
-    String,
-> {
-    if let Ok(st) = safetensors::tensor::SafeTensors::deserialize(bytes) {
-        let info = Loader::info(&st).map_err(|e| e.to_string())?;
-        match info.version {
-            ModelVersion::V7 => {
-                let mut builder = ModelBuilder::new(context, st);
-                if let Some(qc) = quant_choice.clone() {
-                    let t = qc.to_uppercase();
-                    if t == "INT8" || t == "NF4" {
-                        let mut map: HashMap<usize, Quant> = HashMap::new();
-                        let q = if t == "INT8" { Quant::Int8 } else { Quant::NF4 };
-                        let n = info.num_layer.saturating_sub(2);
-                        for i in 0..n {
-                            map.insert(i, q);
-                        }
-                        builder = builder.quant(map);
-                    }
-                }
-                let model = builder.build_v7().await.map_err(|e| e.to_string())?;
-                let bundle = v7::Bundle::<f32>::new(model, 16);
-                let state = Arc::new(bundle.state());
-                let rt = TokioRuntime::<Rnn>::new::<v7::Bundle<f32>, v7::RnnJob>(bundle).await;
-                let states = Arc::new(RwLock::new(HashMap::new()));
-                let session_states = Arc::new(RwLock::new(HashMap::new()));
-                let initial_state = state.back(0).await.map_err(|e| e.to_string())?;
-                states
-                    .write()
-                    .await
-                    .insert("__initial__".to_string(), initial_state);
-
-                if let Some(path) = state_path {
-                    let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
-                    let data = unsafe { Mmap::map(&file).map_err(|e| e.to_string())? };
-                    let st = safetensors::tensor::SafeTensors::deserialize(&data)
-                        .map_err(|e| e.to_string())?;
-                    let s = load_model_state(context, &info, st).await?;
-                    states.write().await.insert(path, s);
-                }
-                Ok((info, rt, state, states, session_states))
-            }
-            _ => Err("unsupported version".to_string()),
-        }
-    } else {
-        let mut de = Deserializer::new(SliceReader::new(bytes));
-        let model = Seed::<_, v7::Model>::new(context)
-            .deserialize(&mut de)
-            .map_err(|e| e.to_string())?;
-        let bundle = v7::Bundle::<f32>::new(model, 16);
-        let info = bundle.info().clone();
-        let state = Arc::new(bundle.state());
-        let rt = TokioRuntime::<Rnn>::new::<v7::Bundle<f32>, v7::RnnJob>(bundle).await;
-        let states = Arc::new(RwLock::new(HashMap::new()));
-        let session_states = Arc::new(RwLock::new(HashMap::new()));
-        let initial_state = state.back(0).await.map_err(|e| e.to_string())?;
-        states
-            .write()
-            .await
-            .insert("__initial__".to_string(), initial_state);
-
-        if let Some(path) = state_path {
-            let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
-            let data = unsafe { Mmap::map(&file).map_err(|e| e.to_string())? };
-            let st =
-                safetensors::tensor::SafeTensors::deserialize(&data).map_err(|e| e.to_string())?;
-            let s = load_model_state(context, &info, st).await?;
-            states.write().await.insert(path, s);
-        }
-        Ok((info, rt, state, states, session_states))
-    }
-}
-
 fn assets_models_dir() -> PathBuf {
     crate::runtime::get_models_dir().join("rwkv")
 }
@@ -1028,23 +882,33 @@ pub fn rwkv_get_default_paths() -> RwkvPaths {
     RwkvPaths { llm_vocab_path }
 }
 
+/// 扫描模型目录，返回第一个 .st / .safetensors 模型文件。
+fn scan_model_file() -> Option<String> {
+    let models_dir = assets_models_dir();
+    let entries = std::fs::read_dir(&models_dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            // rwkv-rsv 仅支持 safetensors 格式（.st 为 RWKV 惯用扩展名）
+            if ext.eq_ignore_ascii_case("st") || ext.eq_ignore_ascii_case("safetensors") {
+                return Some(path.to_string_lossy().into_owned());
+            }
+        }
+    }
+    None
+}
+
 #[tauri::command]
 pub async fn rwkv_init_webrwkv(
     app: tauri::AppHandle,
     model_path: Option<String>,
     vocab_path: Option<String>,
-    state_path: Option<String>,
+    _state_path: Option<String>,
 ) -> Result<bool, String> {
-    if let Some(lock) = LLM.get() {
-        if let Ok(g) = lock.lock() {
-            if g.is_some() {
-                let _ = app.emit("rwkv://debug", "llm initialized".to_string());
-                {
-                    crate::model_init::LLM_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
-                }
-                return Ok(true);
-            }
-        }
+    if LLM_READY.load(Ordering::SeqCst) {
+        let _ = app.emit("rwkv://debug", "llm initialized".to_string());
+        crate::model_init::LLM_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
+        return Ok(true);
     }
     if LLM_INITING.get().is_none() {
         let _ = LLM_INITING.set(Mutex::new(false));
@@ -1060,11 +924,9 @@ pub async fn rwkv_init_webrwkv(
     };
     if in_progress {
         for _ in 0..50 {
-            if LLM.get().is_some() {
+            if LLM_READY.load(Ordering::SeqCst) {
                 let _ = app.emit("rwkv://debug", "llm initialized".to_string());
-                {
-                    crate::model_init::LLM_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
-                }
+                crate::model_init::LLM_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
                 return Ok(true);
             }
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -1085,6 +947,7 @@ pub async fn rwkv_init_webrwkv(
         }
     }
     let _reset = ResetFlagOnDrop(app.clone());
+
     let (default_vocab, _) = resolve_default_paths();
     let vp = vocab_path.unwrap_or(default_vocab);
     let mp = match model_path {
@@ -1094,83 +957,50 @@ pub async fn rwkv_init_webrwkv(
             }
             p
         }
-        None => {
-            let models_dir = assets_models_dir();
-            let mut found_model = None;
-            if let Ok(entries) = std::fs::read_dir(&models_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if let Some(ext) = path.extension() {
-                        // .st is RWKV safetensors with custom extension
-                        if ext == "safetensors" || ext == "cbor" || ext == "prefab" || ext == "st" {
-                            found_model = Some(path.to_string_lossy().into_owned());
-                            break;
-                        }
-                    }
-                }
-            }
-            match found_model {
-                Some(p) => p,
-                None => return Err("No model file found in models directory".to_string()),
-            }
-        }
+        None => match scan_model_file() {
+            Some(p) => p,
+            None => return Err("No model file found in models directory".to_string()),
+        },
     };
     let _ = app.emit("rwkv://debug", format!("init model={} vocab={}", mp, vp));
-    debug_print!("rwkv_init_webrwkv: model_path={} vocab_path={}", mp, vp);
+    debug_print!("rwkv_init: model_path={} vocab_path={}", mp, vp);
     if !Path::new(&mp).exists() {
         let _ = app.emit("rwkv://debug", "model missing, skip init".to_string());
         return Err("model file missing".to_string());
     }
-    if !in_progress {
-        let _ = app.emit("rwkv://debug", "llm initializing".to_string());
-    }
-    let file = std::fs::File::open(&mp).map_err(|e| e.to_string())?;
-    let data = unsafe { Mmap::map(&file).map_err(|e| e.to_string())? };
+    let _ = app.emit("rwkv://debug", "llm initializing".to_string());
 
-    let info = if let Ok(st) = safetensors::tensor::SafeTensors::deserialize(&data) {
-        Loader::info(&st).map_err(|e| e.to_string())?
-    } else {
-        let prefab: Prefab = cbor4ii::serde::from_slice(&data).map_err(|e| e.to_string())?;
-        prefab.info
-    };
+    // 确保 pool 线程已启动（常驻，加载由 Init 消息触发）
+    let pool = INFERENCE_POOL.get_or_init(|| {
+        let (pool_tx, pool_rx) = mpsc::unbounded_channel::<PoolRequest>();
+        std::thread::Builder::new()
+            .name("rwkv-inference-pool".to_string())
+            .spawn(move || inference_pool_main(pool_rx))
+            .expect("failed to spawn rwkv inference pool thread");
+        InferencePoolHandle { tx: pool_tx }
+    });
 
-    let instance = Instance::default();
-    let adapter = instance
-        .adapter(PowerPreference::HighPerformance)
-        .await
-        .map_err(|e| e.to_string())?;
-    let _ = app.emit("rwkv://debug", "llm building context".to_string());
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    let context = ContextBuilder::new(adapter)
-        .auto_limits(&info)
-        .build()
-        .await
-        .map_err(|e| e.to_string())?;
-    let _ = app.emit("rwkv://debug", "llm loading model".to_string());
-    // quant = None to align with ai00-server's quant=0 configuration.
-    // NF4 causes precision domain mismatch with FP16/FP32 state files.
-    let qtype: Option<String> = None;
-    let (info, rt, state, states, session_states) =
-        load_model(&context, &data[..], state_path, qtype).await?;
-    let _ = app.emit("rwkv://debug", "llm loading tokenizer".to_string());
-    let tokenizer = Arc::new(load_tokenizer(&vp)?);
-    let runtime_arc: Arc<dyn Runtime<Rnn> + Send + Sync> = Arc::new(rt);
-    LLM.set(Mutex::new(Some(LlmState {
-        context,
-        info,
-        runtime: runtime_arc.clone(),
-        state,
-        states,
-        session_states,
-        tokenizer: tokenizer.clone(),
-    })))
-    .map_err(|_| "already initialized".to_string())?;
-    let _ = app.emit("rwkv://debug", "llm initialized".to_string());
-    {
-        crate::model_init::LLM_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
+    let (reply_tx, reply_rx) = oneshot::channel::<Result<(), String>>();
+    pool.tx
+        .send(PoolRequest::Init {
+            model_path: mp,
+            vocab_path: vp,
+            app: app.clone(),
+            reply: reply_tx,
+        })
+        .map_err(|e| format!("failed to send init request: {}", e))?;
+
+    // 大模型加载（mmap + GPU 上传）可能耗时较长
+    let result = tokio::time::timeout(Duration::from_secs(300), reply_rx).await;
+    match result {
+        Ok(Ok(Ok(()))) => {
+            crate::model_init::LLM_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
+            Ok(true)
+        }
+        Ok(Ok(Err(e))) => Err(e),
+        Ok(Err(_closed)) => Err("init channel closed unexpectedly".to_string()),
+        Err(_elapsed) => Err("model load timed out after 300s".to_string()),
     }
-    start_inference_pool();
-    Ok(true)
 }
 
 #[tauri::command]
@@ -1184,7 +1014,7 @@ pub async fn rwkv_chat(
     presence_penalty: f32,
     frequency_penalty: f32,
     penalty_decay: f32,
-    state_path: Option<String>,
+    _state_path: Option<String>,
 ) -> Result<ChatResult, String> {
     let result = tokio::time::timeout(Duration::from_secs(30), async {
         let mut rx = pool_infer(
@@ -1196,7 +1026,6 @@ pub async fn rwkv_chat(
             frequency_penalty,
             penalty_decay,
             None,
-            state_path,
             None,
             false,
             false,
@@ -1251,7 +1080,7 @@ pub async fn rwkv_chat_stream(
     presence_penalty: f32,
     frequency_penalty: f32,
     penalty_decay: f32,
-    state_path: Option<String>,
+    _state_path: Option<String>,
     session_id: Option<String>,
     model_text: Option<String>,
 ) -> Result<String, String> {
@@ -1289,7 +1118,6 @@ pub async fn rwkv_chat_stream(
         frequency_penalty,
         penalty_decay,
         stop,
-        state_path,
         session_id.clone(),
         true,
         true,
@@ -1343,19 +1171,11 @@ pub fn rwkv_chat_stream_cancel() -> Result<bool, String> {
 /// starts from a fresh state instead of resuming from the cached one.
 #[tauri::command]
 pub async fn rwkv_clear_session_cache(session_id: String) -> Result<bool, String> {
-    // Clone the Arc out of the guard and drop the guard before awaiting
-    // to avoid holding a non-Send MutexGuard across an await point.
-    let session_states = LLM.get().and_then(|lock| {
-        lock.lock()
-            .ok()
-            .and_then(|guard| guard.as_ref().map(|state| state.session_states.clone()))
-    });
-    if let Some(session_states) = session_states {
-        let mut states = session_states.write().await;
-        states.remove(&session_id);
-        log::info!("[rwkv] Cleared session cache for session_id={}", session_id);
-        Ok(true)
-    } else {
-        Ok(false)
+    match get_inference_pool() {
+        Some(pool) => {
+            let _ = pool.tx.send(PoolRequest::ClearSession(session_id));
+            Ok(true)
+        }
+        None => Ok(false),
     }
 }

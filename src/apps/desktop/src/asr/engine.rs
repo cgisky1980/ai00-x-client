@@ -124,6 +124,17 @@ impl AsrEngine {
     }
 
     pub fn decode(&mut self, audio_16k: &[f32], language: Option<&str>) -> Result<String, String> {
+        // 识别入口诊断：样本数/时长/能量（ASR 排障用）
+        {
+            let sum_sq: f64 = audio_16k.iter().map(|s| (*s as f64) * (*s as f64)).sum();
+            let rms = (sum_sq / audio_16k.len().max(1) as f64).sqrt();
+            log::info!(
+                "[ASR] decode: samples={} (~{}ms), rms={:.4}",
+                audio_16k.len(),
+                audio_16k.len() * 1000 / 16000,
+                rms
+            );
+        }
         let audio_embd = self
             .encoder
             .encode(audio_16k)
@@ -362,7 +373,7 @@ impl AsrEngine {
 
     fn copy_embeddings_to_embd(&self, src: &[f32], dst: &mut [f32], offset: usize) {
         let count = src.len().min(dst.len().saturating_sub(offset));
-        println!(
+        log::debug!(
             "[ASR] Copying {} audio embeddings ({} tokens) at offset {}",
             count,
             count / self.encoder_n_embd,

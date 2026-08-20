@@ -32,13 +32,9 @@ flate2 = { workspace = true }
 urlencoding = { workspace = true }
 
 # Engine dependencies
-web-rwkv = { version = "0.10.20", default-features = false, features = ["native"] }
 model2vec-rs = "0.1.4"
 tokenizers = "0.22"
 kbnf = "0.5.7"
-cbor4ii = { version = "1.2.0", features = ["serde1"] }
-safetensors = "0.6.2"
-memmap2 = "0.9"
 ndarray = "0.17"
 half = "2"
 hound = "3.5"

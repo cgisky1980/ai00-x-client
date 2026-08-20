@@ -137,6 +137,17 @@ async fn cors_allow_all(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn cache_headers(res: &mut Response) {
+    // 错误响应（404 等）绝不长缓存：dev 环境资源短暂缺失时曾把 404 连同
+    // immutable 头一起写进 WebView 缓存，资源恢复后窗口仍显示 404 白屏。
+    if let Some(code) = res.status_code {
+        if !code.is_success() {
+            res.headers_mut().insert(
+                CACHE_CONTROL,
+                HeaderValue::from_static("no-cache, no-store, must-revalidate"),
+            );
+            return;
+        }
+    }
     res.headers_mut().insert(
         CACHE_CONTROL,
         HeaderValue::from_static("public, max-age=31536000, immutable"),

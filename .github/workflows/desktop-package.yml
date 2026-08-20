@@ -121,6 +121,10 @@ jobs:
           ref: ${{ needs.prepare.outputs.checkout_ref }}
           submodules: true
 
+      - name: Clone rwkv-rsv engine
+        shell: bash
+        run: git clone --depth 1 https://github.com/cgisky1980/rwkv-rsv ../rwkv-rsv
+
       # The release build of the full Rust workspace + llama.cpp/ace-step C++
       # builds + rust-cache restore needs well over 10 GB. Remove unused
       # preinstalled toolchains to keep plenty of headroom.

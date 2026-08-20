@@ -30,7 +30,6 @@ impl RwkvInferenceEngine for DesktopRwkvEngine {
             0.99654026_f32,
             Some(stop),
             None,
-            None,
             false,
             false,
             String::new(),
