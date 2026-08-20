@@ -556,7 +556,8 @@ impl LlamaModel {
 
     pub fn token_to_piece(&self, token_id: i32) -> Option<String> {
         let ffi = get_ffi().expect("FFI not initialized");
-        let mut buf = vec![0i8; 256];
+        // c_char 是平台相关的（x86/Darwin=i8，Linux aarch64=u8），不能硬编码 i8
+        let mut buf = vec![0 as c_char; 256];
 
         unsafe {
             let n = (ffi.llama_token_to_piece)(
@@ -579,7 +580,7 @@ impl LlamaModel {
 
     pub fn token_to_piece_bytes(&self, token_id: i32) -> Option<Vec<u8>> {
         let ffi = get_ffi().expect("FFI not initialized");
-        let mut buf = vec![0i8; 256];
+        let mut buf = vec![0 as c_char; 256];
 
         unsafe {
             let n = (ffi.llama_token_to_piece)(
