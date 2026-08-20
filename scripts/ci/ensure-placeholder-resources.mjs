@@ -57,6 +57,17 @@ function makePlaceholderZip(name) {
 
 makePlaceholderZip('loader');
 
+// tauri.conf.json sets frontendDist to ../../../dist/loader; the
+// tauri::generate_context! proc-macro (desktop lib.rs) validates the path at
+// compile time and panics when the directory is missing. CI never builds the
+// frontend, so stage a minimal placeholder page.
+const loaderDir = join(ROOT, 'dist', 'loader');
+if (!existsSync(loaderDir)) {
+  mkdirSync(loaderDir, { recursive: true });
+  writeFileSync(join(loaderDir, 'index.html'), '<!doctype html><title>ci-placeholder</title>\n');
+  console.log('[ci] placeholder frontendDist created: dist/loader');
+}
+
 // tauri.conf.json also lists ../../../target/release/runtime-staging as a
 // bundle resource (maps to the bundled `runtime` dir). It must exist for
 // tauri-build's resource validation; the actual runtime DLLs are staged there
