@@ -387,18 +387,22 @@ jobs:
           echo "Release assets:"
           find release-assets release-resources -type f | sort
 
+      # softprops/action-gh-release failed with "Resource not accessible by
+      # integration" when UPDATING an existing release created by another
+      # workflow's GITHUB_TOKEN; gh release upload handles that fine.
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.prepare.outputs.release_tag }}
-          files: |
-            release-assets/**/*.AppImage
-            release-assets/**/*.deb
-            release-assets/**/*.dmg
-            release-assets/**/*.rpm
-            release-assets/**/*.exe
-            release-resources/**/*.zip
-            release-resources/**/*.json
-            release-resources/**/*.torrent
-            release-resources/**/*.sig
-          fail_on_unmatched_files: false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find release-assets release-resources -type f \
+            \( -name '*.AppImage' -o -name '*.deb' -o -name '*.dmg' \
+               -o -name '*.rpm' -o -name '*.exe' -o -name '*.zip' \
+               -o -name '*.json' -o -name '*.torrent' -o -name '*.sig' \) | sort)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No files matched — aborting"
+            exit 1
+          fi
+          echo "Uploading ${#files[@]} files to $RELEASE_TAG"
+          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
