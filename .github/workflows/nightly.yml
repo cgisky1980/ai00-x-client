@@ -104,6 +104,50 @@ jobs:
         shell: bash
         run: git clone --depth 1 https://github.com/cgisky1980/rwkv-rsv ../rwkv-rsv
 
+      # Release build of the full workspace + llama.cpp/ace-step C++ builds
+      # needs well over 10 GB disk. Remove unused preinstalled toolchains to
+      # keep headroom (mirrors desktop-package.yml).
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "=== disk before cleanup ==="
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/powershell /usr/local/graalvm /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune -a -f 2>/dev/null || true
+          sudo apt-get clean || true
+          echo "=== disk after cleanup ==="
+          df -h /
+
+      # Linux runners can OOM mid-build (runner agent gets a shutdown signal)
+      # when parallel rustc jobs + llama.cpp CMake builds spike memory. Swap is
+      # an OOM backstop; parallelism is capped in the build step below.
+      - name: Add swap space (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set +e
+          echo "=== memory before swap ==="
+          free -m
+          if swapon --show | grep -q swapfile; then
+            echo "swapfile already active; skipping"
+          elif [ -e /swapfile ]; then
+            echo "/swapfile exists but inactive; removing and retrying"
+            sudo rm -f /swapfile || true
+            sudo fallocate -l 10G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=10240 2>/dev/null
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile && sudo swapon /swapfile
+          else
+            sudo fallocate -l 10G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=10240 2>/dev/null
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile && sudo swapon /swapfile
+          fi
+          sudo sysctl vm.swappiness=10 || true
+          echo "=== memory after adding 10G swap ==="
+          free -m
+          exit 0
+
       - name: Setup OpenSSL (Windows, prebuilt)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -196,8 +240,44 @@ jobs:
           echo "package.json version: $(jq -r '.version' package.json)"
           echo "Cargo.toml version:   $(grep 'x-release-please-version' Cargo.toml)"
 
-      - name: Build desktop app
+      # Linux: cap parallelism + disable incremental to bound peak memory
+      # (4 parallel rustc + llama.cpp CMake previously OOM-killed the runner
+      # agent mid-build). A background monitor logs disk/memory every 60 s so
+      # a repeat failure is diagnosable.
+      - name: Build desktop app (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
         env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # nightly 产物上传到 `nightly` tag 的 prerelease，latest-*.json 的
+          # 下载 URL 必须指向该 release（默认 v{version} tag 不存在）。
+          UPDATER_RELEASE_TAG: ${{ env.NIGHTLY_TAG }}
+          # P2P: when set, the build also emits {zip}.torrent + magnet fields
+          # in resources-manifest-*.json (unset → HTTP-only manifest).
+          AI00_X_TRACKER_URL: ${{ secrets.AI00_X_TRACKER_URL }}
+          LLAMA_BUILD_PARALLEL: "3"
+          CMAKE_BUILD_PARALLEL_LEVEL: "3"
+          CARGO_BUILD_JOBS: "3"
+          CARGO_INCREMENTAL: "0"
+        run: |
+          (while true; do
+            echo "[monitor] $(date +%H:%M:%S) disk-avail=$(df -h / | awk 'NR==2{print $4}') mem-avail=$(free -m | awk 'NR==2{print $7}')MB swap-free=$(free -m | awk 'NR==3{print $4}')MB"
+            sleep 60
+          done) &
+          MONITOR_PID=$!
+          ${{ matrix.platform.build_command }}
+          BUILD_EXIT=$?
+          kill $MONITOR_PID 2>/dev/null || true
+          exit $BUILD_EXIT
+
+      - name: Build desktop app (macOS / Windows)
+        if: runner.os != 'Linux'
+        env:
+          # ggml (acestep/llama) uses C++17 std::filesystem which requires a
+          # 10.15+ deployment target; clang's x86_64-apple-darwin default is
+          # 10.13. CMake picks this env var up as CMAKE_OSX_DEPLOYMENT_TARGET.
+          MACOSX_DEPLOYMENT_TARGET: "10.15"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # nightly 产物上传到 `nightly` tag 的 prerelease，latest-*.json 的

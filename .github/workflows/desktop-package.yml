@@ -303,6 +303,10 @@ jobs:
       - name: Build desktop app (macOS / Windows)
         if: runner.os != 'Linux'
         env:
+          # ggml (acestep/llama) uses C++17 std::filesystem which requires a
+          # 10.15+ deployment target; clang's x86_64-apple-darwin default is
+          # 10.13. CMake picks this env var up as CMAKE_OSX_DEPLOYMENT_TARGET.
+          MACOSX_DEPLOYMENT_TARGET: "10.15"
           LLAMA_BACKEND: ${{ matrix.platform.llama_backend }}
           # Windows CUDA: use the Ninja generator so nvcc is used directly.
           # The Visual Studio generator fails with "No CUDA toolset found"
