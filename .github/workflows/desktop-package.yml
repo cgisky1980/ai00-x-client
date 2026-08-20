@@ -146,20 +146,32 @@ jobs:
       # consistent with the OOM killer terminating the runner agent when
       # parallel rustc jobs + llama.cpp CMake builds spike memory (ARM
       # runners have less RAM headroom). Add swap as a safety net.
-      - name: Add swap space (Linux)
+      - name: Add swap space (Linux, best-effort)
         if: runner.os == 'Linux'
         shell: bash
         run: |
+          set +e
           echo "=== memory before swap ==="
           free -m
-          sudo fallocate -l 10G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          # Prefer keeping build processes in RAM; swap is only an OOM backstop.
-          sudo sysctl vm.swappiness=10
-          echo "=== memory after adding 10G swap ==="
+          # ubuntu runners ship ~3G swap on /swapfile already; fallocate on the
+          # ACTIVE swap file fails with "Text file busy" — detect and skip.
+          if swapon --show | grep -q swapfile; then
+            echo "swapfile already active; skipping"
+          elif [ -e /swapfile ]; then
+            echo "/swapfile exists but inactive; removing and retrying"
+            sudo rm -f /swapfile || true
+            sudo fallocate -l 10G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=10240 2>/dev/null
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile && sudo swapon /swapfile
+          else
+            sudo fallocate -l 10G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=10240 2>/dev/null
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile && sudo swapon /swapfile
+          fi
+          sudo sysctl vm.swappiness=10 || true
+          echo "=== memory after swap setup ==="
           free -m
+          exit 0
 
       - name: Setup OpenSSL (Windows, prebuilt)
         if: runner.os == 'Windows'
