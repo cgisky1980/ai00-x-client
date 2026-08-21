@@ -24,7 +24,10 @@ impl RwkvInferenceEngine for DesktopRwkvEngine {
             prompt,
             max_tokens,
             top_p,
-            128,
+            // top_k 必须 ≤50：CUDA 采样 kernel 快速路径上限（MAXK=50）。此前
+            // 硬编码 128 会落入 512 轮全词表归约的兜底慢路径（token 级秒级），
+            // smart-router 的摘要生成因此实际不可用。
+            50,
             0.0,
             0.0,
             0.99654026_f32,

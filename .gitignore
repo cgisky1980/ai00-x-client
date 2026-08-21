@@ -31,6 +31,7 @@ scripts/router_head/.venv/
 scripts/router_head/data/
 scripts/router_head/router_head.json
 scripts/router_head/router_head_context.json
+scripts/router_head/router_head_v3.json
 
 # External CMake build dirs (llama.cpp, etc.) — use short paths to avoid
 # Windows MAX_PATH issues. Cached across cargo clean for fast incremental builds.
