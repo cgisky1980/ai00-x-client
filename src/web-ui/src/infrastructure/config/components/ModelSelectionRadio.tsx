@@ -16,8 +16,8 @@ export interface ModelSelectionRadioProps {
   size?: 'small' | 'medium';
 }
 
-const isSpecialModel = (value: string): value is 'primary' | 'fast' => {
-  return value === 'primary' || value === 'fast';
+const isSpecialModel = (value: string): value is 'primary' | 'fast' | 'rwkv-local' => {
+  return value === 'primary' || value === 'fast' || value === 'rwkv-local';
 };
 
 export const ModelSelectionRadio: React.FC<ModelSelectionRadioProps> = ({
@@ -51,9 +51,10 @@ export const ModelSelectionRadio: React.FC<ModelSelectionRadioProps> = ({
     })();
   }, []);
 
-  const selectionType = useMemo<'primary' | 'fast' | 'custom'>(() => {
+  const selectionType = useMemo<'primary' | 'fast' | 'local' | 'custom'>(() => {
     if (value === 'primary') return 'primary';
     if (value === 'fast') return 'fast';
+    if (value === 'rwkv-local') return 'local';
     return 'custom';
   }, [value]);
 
@@ -61,10 +62,12 @@ export const ModelSelectionRadio: React.FC<ModelSelectionRadioProps> = ({
     return isSpecialModel(value) ? undefined : value;
   }, [value]);
 
-  const handleSelectionChange = (selection: 'primary' | 'fast' | 'custom') => {
+  const handleSelectionChange = (selection: 'primary' | 'fast' | 'local' | 'custom') => {
     if (selection === 'custom') {
       const newModelId = customModelId || models[0]?.id || 'primary';
       onChange(newModelId);
+    } else if (selection === 'local') {
+      onChange('rwkv-local');
     } else {
       onChange(selection);
     }
@@ -145,6 +148,23 @@ export const ModelSelectionRadio: React.FC<ModelSelectionRadioProps> = ({
         />
         <span className="model-selection-radio__label">
           {t('selection.fast')}
+        </span>
+      </label>
+
+      <label
+        className={`model-selection-radio__option ${selectionType === 'local' ? 'model-selection-radio__option--selected' : ''}`}
+      >
+        <input
+          type="radio"
+          name={radioName}
+          value="rwkv-local"
+          checked={selectionType === 'local'}
+          onChange={() => handleSelectionChange('local')}
+          disabled={disabled}
+          className="model-selection-radio__input"
+        />
+        <span className="model-selection-radio__label">
+          {t('selection.local')}
         </span>
       </label>
 

@@ -22,7 +22,6 @@ import { createLogger } from '@/shared/utils/logger';
 import type { ImageAnalysisEvent } from '@/infrastructure/api/service-api/AgentAPI';
 import type { WorkflowPhaseChangedEvent } from '@/infrastructure/api/service-api/AgentAPI';
 import type { PlanConfirmationNeededEvent, PlanConfirmationRespondedEvent, PlanAutoReviewStartedEvent, PlanAutoReviewCompletedEvent } from '@/infrastructure/api/service-api/AgentAPI';
-import type { MemoryInjectedEvent } from '@/infrastructure/api/service-api/AgentAPI';
 import { MCPAPI } from '@/infrastructure/api/service-api/MCPAPI';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { ideControl } from '@/shared/services/ide-control/api';
@@ -269,9 +268,6 @@ export async function initializeEventListeners(
     },
     onPlanAutoReviewCompleted: (event) => {
       handlePlanAutoReviewCompleted(context, event);
-    },
-    onMemoryInjected: (event) => {
-      handleMemoryInjected(context, event);
     }
   };
 
@@ -871,8 +867,6 @@ function handleDialogTurnStarted(context: FlowChatContext, event: any): void {
     return;
   }
 
-  context.flowChatStore.setMemoryHint({ visible: false, count: 0 });
-
   finalizePendingTurnCompletionNow(context, sessionId);
   clearPendingTurnCompletion(context, sessionId, turnId);
 
@@ -1285,19 +1279,20 @@ function handleModelRoundStart(context: FlowChatContext, event: any): void {
 }
 
 function handleModelRoundCompleted(_context: FlowChatContext, event: any): void {
-  const { sessionId, modelId, inputTokens, outputTokens, totalTokens, subagentParentInfo } = event;
+  const { sessionId, modelId, inputTokens, outputTokens, totalTokens, subagentParentInfo, modelRouting } = event;
 
   if (!modelId || !sessionId) return;
 
   const store = FlowChatStore.getInstance();
   store.recordModelUsage(sessionId, modelId);
 
-  if (inputTokens !== undefined || outputTokens !== undefined) {
+  if (inputTokens !== undefined || outputTokens !== undefined || modelRouting) {
     store.updateModelRoundTokenUsage(sessionId, {
       modelId,
       inputTokens,
       outputTokens,
       totalTokens,
+      routing: modelRouting ?? undefined,
     });
   }
 
@@ -1772,20 +1767,7 @@ function handleDialogTurnCancelled(
 //       timestamp: Date.now(),
 //       status: 'completed'
 //     };
-//     
+//
 //     context.flowChatStore.addModelRoundItem(sessionId, turnId, planToolItem, lastRound.id);
 //   }
 // }
-
-function handleMemoryInjected(
-  context: FlowChatContext,
-  event: MemoryInjectedEvent
-): void {
-  if (event.count > 0) {
-    context.flowChatStore.setMemoryHint({
-      visible: true,
-      count: event.count,
-      displayPrompt: event.displayPrompt,
-    });
-  }
-}

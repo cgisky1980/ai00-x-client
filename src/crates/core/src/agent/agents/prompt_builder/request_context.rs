@@ -5,7 +5,6 @@ pub enum RequestContextSection {
     AIRules,
     AIMemories,
     ProjectLayout,
-    AgentMemoryInject,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,7 +24,6 @@ impl RequestContextPolicy {
             RequestContextSection::AIRules,
             RequestContextSection::AIMemories,
             RequestContextSection::ProjectLayout,
-            RequestContextSection::AgentMemoryInject,
         ])
     }
 
@@ -35,7 +33,6 @@ impl RequestContextPolicy {
             RequestContextSection::WorkspaceMemoryFiles,
             RequestContextSection::AIRules,
             RequestContextSection::AIMemories,
-            RequestContextSection::AgentMemoryInject,
         ])
     }
 
@@ -58,7 +55,6 @@ impl RequestContextPolicy {
         self.includes(RequestContextSection::WorkspaceMemoryFiles)
             || self.includes(RequestContextSection::AIRules)
             || self.includes(RequestContextSection::AIMemories)
-            || self.includes(RequestContextSection::AgentMemoryInject)
     }
 }
 

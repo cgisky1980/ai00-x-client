@@ -209,6 +209,8 @@ const SessionConfig: React.FC = () => {
         modelDesc = t('model.primary');
       } else if (modelId === 'fast') {
         modelDesc = t('model.fast');
+      } else if (modelId === 'rwkv-local') {
+        modelDesc = t('model.local');
       } else {
         modelDesc = getModelName(modelId) || modelId || '';
       }
@@ -437,7 +439,7 @@ const SessionConfig: React.FC = () => {
   // ── Derived values ───────────────────────────────────────────────────────
 
   const enabledModels = models.filter((m: AIModelConfig) => m.enabled);
-  const sessionTitleModelId = funcAgentModels[AGENT_SESSION_TITLE] || 'fast';
+  const sessionTitleModelId = funcAgentModels[AGENT_SESSION_TITLE] || 'rwkv-local';
   const templateEntries = getTemplateEntries();
 
   if (isLoading || !settings) {

@@ -15,7 +15,6 @@ pub mod git; // Git service
 pub mod i18n; // I18n service
 pub mod lsp; // LSP (Language Server Protocol) system
 pub mod mcp; // MCP (Model Context Protocol) system
-pub mod memory_graph; // Memory graph service (structured cross-session memory)
 pub mod project_context; // Project context management
 #[cfg(feature = "remote-connect")]
 pub mod remote_connect; // Remote Connect (phone → desktop)

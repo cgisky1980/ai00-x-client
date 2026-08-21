@@ -3,9 +3,9 @@
  * Shows the active model and allows quick switching.
  *
  * Config linkage:
- * - Auto mode: system auto-routes between primary (complex) and fast (RWKV, locked)
+ * - Auto mode: smart router classifies request complexity into R0-R3 tiers
+ *   (local rwkv-local for R0/R1, fast mid-tier for R2, primary flagship for R3)
  * - Selecting a model updates the primary model config
- * - Fast model is locked to RWKV Local
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';

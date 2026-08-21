@@ -155,6 +155,7 @@ export interface DefaultModelsConfig {
 export interface AIConfig {
   models: AIModelConfig[];
   default_models: DefaultModelsConfig;
+  router?: SmartRouterConfig;
   agent_models: Record<string, string>;
   func_agent_models: Record<string, string>;
   mode_configs: Record<string, StoredModeConfigItem>;
@@ -525,6 +526,24 @@ export interface RuntimeLoggingInfo {
 export interface DefaultModels {
   primary: string | null;
   fast: string | null;
+}
+
+/** Smart router tier -> model reference mapping (R0-R3). */
+export interface RouterTierModels {
+  r0: string;
+  r1: string;
+  r2: string;
+  r3: string;
+}
+
+/** Smart routing configuration (auto model mode request classification). */
+export interface SmartRouterConfig {
+  enabled: boolean;
+  tier_models: RouterTierModels;
+  fallback: string;
+  safety_threshold: number;
+  sticky_enabled: boolean;
+  timeout_ms: number;
 }
 
 export type OptionalCapabilityModels = Record<string, never>;

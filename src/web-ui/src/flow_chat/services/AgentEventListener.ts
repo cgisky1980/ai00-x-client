@@ -8,7 +8,7 @@
  */
 
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
-import type { TextChunkEvent, ToolEvent, AgentEvent, SessionTitleGeneratedEvent, ImageAnalysisEvent, WorkflowPhaseChangedEvent, PlanConfirmationNeededEvent, PlanConfirmationRespondedEvent, PlanAutoReviewStartedEvent, PlanAutoReviewCompletedEvent, PlanReviseRequestedEvent, MemoryInjectedEvent } from '@/infrastructure/api/service-api/AgentAPI';
+import type { TextChunkEvent, ToolEvent, AgentEvent, SessionTitleGeneratedEvent, ImageAnalysisEvent, WorkflowPhaseChangedEvent, PlanConfirmationNeededEvent, PlanConfirmationRespondedEvent, PlanAutoReviewStartedEvent, PlanAutoReviewCompletedEvent, PlanReviseRequestedEvent } from '@/infrastructure/api/service-api/AgentAPI';
 import { createLogger } from '@/shared/utils/logger';
 
 type UnlistenFn = () => void;
@@ -40,7 +40,6 @@ export interface AgentEventCallbacks {
   onPlanAutoReviewStarted?: (event: PlanAutoReviewStartedEvent) => void;
   onPlanAutoReviewCompleted?: (event: PlanAutoReviewCompletedEvent) => void;
   onPlanReviseRequested?: (event: PlanReviseRequestedEvent) => void;
-  onMemoryInjected?: (event: MemoryInjectedEvent) => void;
 }
 
 export class AgentEventListener {
@@ -242,14 +241,6 @@ export class AgentEventListener {
         const unlisten = agentAPI.onPlanReviseRequested((event) => {
           logger.debug('PlanReviseRequested:', event);
           callbacks.onPlanReviseRequested?.(event);
-        });
-        this.unlistenFunctions.push(unlisten);
-      }
-
-      if (callbacks.onMemoryInjected) {
-        const unlisten = agentAPI.onMemoryInjected((event) => {
-          logger.debug('Memory Injected:', event);
-          callbacks.onMemoryInjected?.(event);
         });
         this.unlistenFunctions.push(unlisten);
       }

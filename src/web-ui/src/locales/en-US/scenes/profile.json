@@ -12,7 +12,7 @@
 
   "slotDefault": {
     "primary":     "Primary Model",
-    "fast":        "Fast Model",
+    "fast":        "Mid-tier Model",
     "unconfigured": "Not configured"
   },
 

@@ -333,16 +333,6 @@ impl PromptBuilder {
             }
         }
 
-        if policy.includes(RequestContextSection::AgentMemoryInject) {
-            if let Some(ref session_id) = self.context.session_id {
-                if let Some(pending) =
-                    crate::service::memory_graph::pending::take_pending_memory(session_id)
-                {
-                    override_sections.push(pending.prompt);
-                }
-            }
-        }
-
         if policy.includes(RequestContextSection::ProjectLayout) {
             trailing_sections.push(self.get_project_layout());
         }

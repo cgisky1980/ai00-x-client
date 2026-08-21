@@ -17,7 +17,6 @@ pub mod logging;
 pub mod machine_id;
 pub mod macos_menubar;
 pub mod member_chat_window;
-pub mod memory_sidecar;
 pub mod mirror_hosts;
 pub mod model_checker;
 pub mod model_init;
@@ -372,6 +371,12 @@ pub async fn run() {
 
             init_services(app_handle.clone(), startup_log_level);
 
+            // Smart router: preload the RWKV engine at startup when routing
+            // is enabled, so the first auto-mode request can classify locally.
+            tokio::spawn(async move {
+                rwkv_llm::preload_engine_for_router().await;
+            });
+
             // Initialize usage statistics collector (Phase 1: foreground
             // tracking + SQLite storage only). Failure is non-fatal — the
             // application continues to run without usage stats.
@@ -690,6 +695,9 @@ pub async fn run() {
             api::config_api::get_ai00_s_base_url,
             api::config_api::get_ai00_s_internal_token,
             api::config_api::get_assets_base_url,
+            api::config_api::get_router_status,
+            api::config_api::test_router_classification,
+            api::config_api::reload_router_head,
             computer_use_get_status,
             computer_use_request_permissions,
             computer_use_open_system_settings,

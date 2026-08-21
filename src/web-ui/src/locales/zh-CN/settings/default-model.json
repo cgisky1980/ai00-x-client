@@ -17,13 +17,11 @@
       "placeholder": "请选择主力模型"
     },
     "fast": {
-      "label": "快速模型",
-      "description": "用于简单问答、快速响应场景，节省成本",
-      "boundDescription": "绑定本地 RWKV 模型，用于简单问答、快速响应场景",
-      "hint": "未配置时，所有任务都使用主力模型",
-      "placeholder": "请选择快速模型",
-      "notSet": "不设置（使用主力模型）",
-      "bound": "已绑定"
+      "label": "中档模型",
+      "description": "智能路由 R2 档复杂任务使用；未配置时使用主力模型",
+      "hint": "未配置时，R2 档任务使用主力模型",
+      "placeholder": "请选择中档模型",
+      "notSet": "不设置（使用主力模型）"
     }
   },
   "optional": {
@@ -78,13 +76,83 @@
   },
   "selection": {
     "primary": "主力模型",
-    "fast": "快速模型",
+    "fast": "中档模型",
+    "local": "RWKV 本地模型",
     "custom": "其他",
     "selectModel": "选择模型",
     "notConfigured": "未配置，将使用主力模型"
   },
   "empty": {
     "noModels": "暂无可用模型，请先在「模型列表」中添加模型"
+  },
+  "smartRouter": {
+    "sectionTitle": "智能路由",
+    "sectionDescription": "根据请求复杂度自动分配模型",
+    "title": "启用智能路由",
+    "description": "会话模型选择「自动」时，由本地 RWKV 模型判定请求复杂度并路由到对应档位模型",
+    "options": {
+      "primary": "主力模型",
+      "fast": "快速模型",
+      "rwkvLocal": "RWKV 本地模型"
+    },
+    "tiers": {
+      "r0": {
+        "label": "R0 闲聊",
+        "description": "问候、致谢、简单确认 —— 路由到最轻量模型"
+      },
+      "r1": {
+        "label": "R1 简单任务",
+        "description": "单步操作、简单问答、翻译、查询"
+      },
+      "r2": {
+        "label": "R2 复杂任务",
+        "description": "代码生成、多步推理、多工具协作"
+      },
+      "r3": {
+        "label": "R3 高难度任务",
+        "description": "调试诊断、错误分析、长上下文、高风险变更"
+      }
+    },
+    "fallback": {
+      "label": "回落模型",
+      "description": "分类失败或本地引擎不可用时使用"
+    },
+    "status": {
+      "loaded": "分类头已加载（{{dim}} 维），智能路由生效中",
+      "notLoaded": "分类头未加载：{{reason}}（智能路由自动回落）",
+      "engineInit": "RWKV 引擎初始化中，分类暂不可用",
+      "reload": "重新加载",
+      "reloadFailed": "分类头重载失败"
+    },
+    "test": {
+      "title": "测试分类",
+      "placeholder": "输入任意请求文本，测试它会被路由到哪个档位…",
+      "button": "测试",
+      "verdict": "路由结果：{{tier}} → {{model}}（置信度 {{confidence}}%）",
+      "trivialAck": "规则短路",
+      "fallback": "分类不可用，走回落",
+      "failed": "分类测试失败"
+    },
+    "disabledSuffix": "（已禁用）",
+    "warnings": {
+      "invalidRef": "部分档位引用的模型不存在或已禁用，运行时将回落到主力模型"
+    },
+    "advanced": {
+      "title": "高级参数",
+      "safetyThreshold": {
+        "label": "安全升级阈值",
+        "description": "预测为 R0/R1 但 R2+R3 概率超过该值时，升级到 R2（宁可高配不可低配）"
+      },
+      "sticky": {
+        "label": "档位保持",
+        "description": "短消息在会话内不低于上一轮档位，避免中途降档"
+      },
+      "timeout": {
+        "label": "分类超时",
+        "description": "本地模型分类的最长等待时间，超时自动回落"
+      }
+    },
+    "hint": "三级体系：R0/R1 → RWKV 本地模型，R2 → 中档模型，R3 → 主力模型；分类由本地 RWKV 模型提取特征并经已训练的分类头（router_head.json）判定，模型或分类头未就绪时自动回落"
   },
   "messages": {
     "loadFailed": "加载配置失败",

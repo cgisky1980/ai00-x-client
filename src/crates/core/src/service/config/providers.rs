@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use log::{error, info};
 use std::collections::HashMap;
 
-const RWKV_FAST_MODEL_ID: &str = "rwkv-local";
+const RWKV_LOCAL_MODEL_ID: &str = "rwkv-local";
 
 pub fn get_default_rwkv_model_config() -> AIModelConfig {
     AIModelConfig {
@@ -27,7 +27,7 @@ pub fn get_default_rwkv_model_config() -> AIModelConfig {
         enabled: true,
         category: ModelCategory::GeneralChat,
         capabilities: vec![ModelCapability::TextChat],
-        recommended_for: vec!["fast".to_string()],
+        recommended_for: vec!["rwkv-local".to_string()],
         ..Default::default()
     }
 }
@@ -60,7 +60,6 @@ impl ConfigProvider for AIConfigProvider {
         let rwkv_model = get_default_rwkv_model_config();
 
         default.models.push(rwkv_model);
-        default.default_models.fast = Some("rwkv-local".to_string());
 
         serialize_default_config("ai", default)
     }
@@ -69,14 +68,6 @@ impl ConfigProvider for AIConfigProvider {
         let mut warnings = Vec::new();
 
         if let Ok(ai_config) = serde_json::from_value::<AIConfig>(config.clone()) {
-            if let Some(fast_model) = &ai_config.default_models.fast {
-                if fast_model != RWKV_FAST_MODEL_ID {
-                    return Err(Ai00XError::validation(format!(
-                        "Fast model is bound to '{}' and cannot be changed",
-                        RWKV_FAST_MODEL_ID
-                    )));
-                }
-            }
             for (index, model) in ai_config.models.iter().enumerate() {
                 if model.name.trim().is_empty() {
                     return Err(Ai00XError::validation(format!(
@@ -124,7 +115,7 @@ impl ConfigProvider for AIConfigProvider {
                     && model_id != "auto"
                     && model_id != "primary"
                     && model_id != "fast"
-                    && model_id != RWKV_FAST_MODEL_ID
+                    && model_id != RWKV_LOCAL_MODEL_ID
                 {
                     return Err(Ai00XError::validation(format!(
                         "Primary Agent '{}' configured model '{}' does not exist",
@@ -136,7 +127,7 @@ impl ConfigProvider for AIConfigProvider {
                 if !ai_config.models.iter().any(|m| m.id == *model_id)
                     && model_id != "primary"
                     && model_id != "fast"
-                    && model_id != RWKV_FAST_MODEL_ID
+                    && model_id != RWKV_LOCAL_MODEL_ID
                 {
                     return Err(Ai00XError::validation(format!(
                         "Function Agent '{}' configured model '{}' does not exist",

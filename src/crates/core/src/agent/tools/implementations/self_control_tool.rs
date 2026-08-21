@@ -110,7 +110,7 @@ Available actions (use EXACTLY one of these for the "action" field):
 - "set_config": Sets a config value by key. Requires "key" and "configValue".
 - "get_config": Gets a config value by key. Requires "key".
 - "list_models": Lists all configured models with their display names, providers, and IDs. Optional "includeDisabled" (boolean).
-- "set_default_model": Directly sets the default model by config search. Falls back to UI if not found. Requires "modelQuery". Optional "slot" ("primary" or "fast").
+- "set_default_model": Directly sets the default model by config search. Falls back to UI if not found. Requires "modelQuery". Optional "slot" ("primary" flagship or "fast" mid-tier).
 - "select_option": Opens a custom Select dropdown and clicks an option by text. Requires "selector" and "optionText".
 - "wait": Pauses for a given duration. Requires "durationMs" (e.g., 500).
 - "press_key": Simulates a key press. Requires "key" (e.g., "Enter", "Escape").

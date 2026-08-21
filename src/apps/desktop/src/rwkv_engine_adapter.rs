@@ -55,6 +55,10 @@ impl RwkvInferenceEngine for DesktopRwkvEngine {
         Ok(())
     }
 
+    async fn classify(&self, request: String) -> Result<Vec<f32>, String> {
+        rwkv_llm::rwkv_classify(request).await
+    }
+
     fn is_initialized(&self) -> bool {
         rwkv_llm::is_llm_initialized()
     }

@@ -355,7 +355,15 @@
     "feedbackThanks": "Thank you for your feedback!",
     "feedbackDevVersion": "Feedback is not available in dev version",
     "userLabel": "👤 User:",
-    "toolCallLabel": "🔧 Tool call: {{name}}"
+    "toolCallLabel": "🔧 Tool call: {{name}}",
+    "routing": {
+      "tooltip": "Smart routing: {{tier}} → {{model}} (confidence {{confidence}}%, source: {{source}}{{marks}})",
+      "sourceModel": "model classification",
+      "sourceRule": "rule short-circuit",
+      "sourceFallback": "fallback",
+      "safetyMark": "safety upgrade",
+      "stickyMark": "sticky tier"
+    }
   },
   "exploreRegion": {
     "readFiles_one": "Read {{count}} file",
@@ -1124,13 +1132,6 @@
   "compactCompleteBar": {
     "label": "Task paused — Finish review & rate",
     "finishAndRate": "Finish & Rate"
-  },
-  "memoryHint": {
-    "collapsed": "Recalled {{count}} relevant memories",
-    "collapsed_one": "Recalled 1 relevant memory",
-    "expand": "Expand",
-    "collapse": "Collapse",
-    "dismiss": "Dismiss"
   },
   "altPreview": "Preview",
   "turnHistory": {

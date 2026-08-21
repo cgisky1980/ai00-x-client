@@ -1352,11 +1352,11 @@ async fn organize_content_with_rwkv(
     }
 
     let factory = crate::infrastructure::ai::client_factory::get_global_ai_client_factory().await?;
-    let client = match factory.get_client_resolved("fast").await {
+    let client = match factory.get_client_resolved("rwkv-local").await {
         Ok(c) => c,
         Err(e) => {
             warn!(
-                "WebFetch: fast model not available for content organization: {}",
+                "WebFetch: local model not available for content organization: {}",
                 e
             );
             return Ok(None);
@@ -1564,11 +1564,11 @@ async fn generate_search_variants_with_rwkv(
                 return Vec::new();
             }
         };
-    let client = match factory.get_client_resolved("fast").await {
+    let client = match factory.get_client_resolved("rwkv-local").await {
         Ok(c) => c,
         Err(e) => {
             warn!(
-                "WebSearch: fast model not available for query expansion: {}",
+                "WebSearch: local model not available for query expansion: {}",
                 e
             );
             return Vec::new();
@@ -1698,11 +1698,11 @@ async fn filter_search_results_with_rwkv(
     }
 
     let factory = crate::infrastructure::ai::client_factory::get_global_ai_client_factory().await?;
-    let client = match factory.get_client_resolved("fast").await {
+    let client = match factory.get_client_resolved("rwkv-local").await {
         Ok(c) => c,
         Err(e) => {
             warn!(
-                "WebSearch: fast model not available for results filtering: {}",
+                "WebSearch: local model not available for results filtering: {}",
                 e
             );
             return Ok(None);

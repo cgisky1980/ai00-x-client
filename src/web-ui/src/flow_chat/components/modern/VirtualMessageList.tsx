@@ -17,7 +17,6 @@ import { useActiveSessionState } from '../../hooks/useActiveSessionState';
 import { VirtualItemRenderer } from './VirtualItemRenderer';
 import { ScrollToLatestBar } from '../ScrollToLatestBar';
 import { ProcessingIndicator } from './ProcessingIndicator';
-import { MemoryHint } from '../MemoryHint';
 import { ScrollAnchor } from './ScrollAnchor';
 import { useFlowChatFollowOutput } from './useFlowChatFollowOutput';
 import type { FlowChatPinTurnToTopMode } from '../../events/flowchatNavigation';
@@ -1932,7 +1931,6 @@ export const VirtualMessageList = forwardRef<VirtualMessageListRef>((_, ref) => 
           Header: () => (
             <>
               <div className="message-list-header" />
-              <MemoryHint />
             </>
           ),
           Footer: () => (

@@ -125,6 +125,8 @@ const AIFeaturesConfig: React.FC = () => {
         modelDesc = t('model.primary');
       } else if (modelId === 'fast') {
         modelDesc = t('model.fast');
+      } else if (modelId === 'rwkv-local') {
+        modelDesc = t('model.local');
       } else {
         modelDesc = getModelName(modelId) || modelId || '';
       }
@@ -169,7 +171,7 @@ const AIFeaturesConfig: React.FC = () => {
           const hasSwitch = !!feature.settingKey;
           const hasModel = !!feature.agentName;
           const isEnabled = hasSwitch ? settings[feature.settingKey!] : true;
-          const configuredModelId = hasModel ? (funcAgentModels[feature.agentName!] || 'fast') : 'fast';
+          const configuredModelId = hasModel ? (funcAgentModels[feature.agentName!] || 'rwkv-local') : 'rwkv-local';
           const warning = t(`features.${feature.id}.warning`, '');
 
           return (

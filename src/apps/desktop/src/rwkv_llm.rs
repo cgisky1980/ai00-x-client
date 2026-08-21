@@ -1,14 +1,13 @@
 //! RWKV 推理核心（rwkv-rsv 引擎：Vulkan/CUDA 后端）。
 //!
 //! 架构：模型与全部推理状态由专用 OS 线程持有（rwkv-rsv 为同步 API 且
-//! `GpuModel` 非 Send），上层（Tauri 命令 / ai-adapters / memory sidecar）
-//! 通过 channel 提交任务，事件经 `InferenceEvent` 回流，接口与旧 web-rwkv
-//! 实现完全兼容。
+//! `GpuModel` 非 Send），上层（Tauri 命令 / ai-adapters）通过 channel 提交
+//! 任务，事件经 `InferenceEvent` 回流，接口与旧 web-rwkv 实现完全兼容。
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
 use serde::Serialize;
@@ -94,11 +93,22 @@ enum PoolRequest {
     Init {
         model_path: String,
         vocab_path: String,
-        app: tauri::AppHandle,
+        app: Option<tauri::AppHandle>,
         reply: oneshot::Sender<Result<(), String>>,
     },
     Submit(InferenceTaskParams),
     ClearSession(String),
+    /// Single-shot classification (smart router): mean-hidden extraction from
+    /// a zero state + trained MLP head -> four tier probabilities (R0-R3).
+    Classify {
+        request: String,
+        reply: oneshot::Sender<Result<Vec<f32>, String>>,
+    },
+    /// Hot-reload the router classification head (router_head.json) into the
+    /// running engine without an app restart.
+    ReloadRouterHead {
+        reply: oneshot::Sender<Result<(), String>>,
+    },
 }
 
 struct InferencePoolHandle {
@@ -118,6 +128,108 @@ pub fn is_llm_initialized() -> bool {
     LLM_READY.load(Ordering::SeqCst)
 }
 
+/// 智能路由分类头的全局可查询加载状态（引擎 Init 时写入，UI 读取展示）。
+#[derive(Debug, Clone, Serialize)]
+pub struct RouterHeadStatus {
+    pub loaded: bool,
+    pub input_dim: Option<usize>,
+    /// 未加载原因（文件缺失 / 解析失败 / 维度不匹配 / 引擎未初始化）。
+    pub detail: Option<String>,
+}
+
+impl RouterHeadStatus {
+    fn engine_not_ready() -> Self {
+        Self {
+            loaded: false,
+            input_dim: None,
+            detail: Some("engine not initialized".to_string()),
+        }
+    }
+}
+
+static ROUTER_HEAD_STATUS: OnceLock<RwLock<RouterHeadStatus>> = OnceLock::new();
+
+fn set_router_head_status(status: RouterHeadStatus) {
+    let lock = ROUTER_HEAD_STATUS.get_or_init(|| RwLock::new(RouterHeadStatus::engine_not_ready()));
+    if let Ok(mut guard) = lock.write() {
+        *guard = status;
+    }
+}
+
+/// 读取分类头当前加载状态；引擎从未初始化过时返回"未初始化"。
+pub fn get_router_head_status() -> RouterHeadStatus {
+    match ROUTER_HEAD_STATUS.get() {
+        Some(lock) => lock
+            .read()
+            .map(|g| g.clone())
+            .unwrap_or_else(|_| RouterHeadStatus::engine_not_ready()),
+        None => RouterHeadStatus::engine_not_ready(),
+    }
+}
+
+/// 加载智能路由分类头（models 目录 router_head.json），并写入全局状态。
+/// 缺失/损坏/维度不匹配时返回 None（分类降级回落），状态记录原因。
+fn load_router_head(model_num_emb: usize) -> Option<ai00_x_core::agent::routing::head::RouterHead> {
+    let head_path = assets_models_dir().join("router_head.json");
+    if !head_path.exists() {
+        log::info!(
+            "[rwkv] router head not found at {}, smart-router classify disabled",
+            head_path.display()
+        );
+        set_router_head_status(RouterHeadStatus {
+            loaded: false,
+            input_dim: None,
+            detail: Some("router_head.json not found in models/rwkv".to_string()),
+        });
+        return None;
+    }
+    match ai00_x_core::agent::routing::head::RouterHead::from_json_file(&head_path) {
+        Ok(head) => {
+            if head.input_dim() != model_num_emb {
+                log::warn!(
+                    "[rwkv] router head input_dim {} != model n_embd {}, classify disabled",
+                    head.input_dim(),
+                    model_num_emb
+                );
+                set_router_head_status(RouterHeadStatus {
+                    loaded: false,
+                    input_dim: Some(head.input_dim()),
+                    detail: Some(format!(
+                        "dimension mismatch: head {} vs model {}",
+                        head.input_dim(),
+                        model_num_emb
+                    )),
+                });
+                return None;
+            }
+            log::info!(
+                "[rwkv] router head loaded: input_dim={} hidden_dim={}",
+                head.input_dim(),
+                head.hidden_dim()
+            );
+            set_router_head_status(RouterHeadStatus {
+                loaded: true,
+                input_dim: Some(head.input_dim()),
+                detail: None,
+            });
+            Some(head)
+        }
+        Err(e) => {
+            log::warn!(
+                "[rwkv] router head load failed ({}), classify disabled: {}",
+                head_path.display(),
+                e
+            );
+            set_router_head_status(RouterHeadStatus {
+                loaded: false,
+                input_dim: None,
+                detail: Some(format!("parse failed: {e}")),
+            });
+            None
+        }
+    }
+}
+
 /// 推理引擎全部状态（仅 pool 线程访问，无锁）。
 struct PoolEngine {
     model: GpuModel,
@@ -128,6 +240,10 @@ struct PoolEngine {
     initial_state: Vec<f32>,
     /// session_id → (已缓存 token 序列, RNN 状态)
     session_states: HashMap<String, (Vec<u32>, Vec<f32>)>,
+    /// 专用分类状态（智能路由 prefill 用，与生成槽位隔离）。
+    classify_state: State,
+    /// 智能路由分类头（models 目录 router_head.json；缺失则分类降级回落）。
+    router_head: Option<ai00_x_core::agent::routing::head::RouterHead>,
 }
 
 /// pool 线程主循环：常驻，Init 消息触发（重）加载，Submit/ClearSession 业务消息。
@@ -217,7 +333,9 @@ fn handle_request(
                 let _ = reply.send(Ok(()));
                 return true;
             }
-            let _ = app.emit("rwkv://debug", "llm loading model".to_string());
+            if let Some(app) = &app {
+                let _ = app.emit("rwkv://debug", "llm loading model".to_string());
+            }
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 load_engine(&model_path, &vocab_path)
             }));
@@ -225,17 +343,23 @@ fn handle_request(
                 Ok(Ok(e)) => {
                     *engine = Some(e);
                     LLM_READY.store(true, Ordering::SeqCst);
-                    let _ = app.emit("rwkv://debug", "llm initialized".to_string());
+                    if let Some(app) = &app {
+                        let _ = app.emit("rwkv://debug", "llm initialized".to_string());
+                    }
                     let _ = reply.send(Ok(()));
                 }
                 Ok(Err(e)) => {
-                    let _ = app.emit("rwkv://debug", format!("llm init failed: {}", e));
+                    if let Some(app) = &app {
+                        let _ = app.emit("rwkv://debug", format!("llm init failed: {}", e));
+                    }
                     let _ = reply.send(Err(e));
                 }
                 Err(panic) => {
                     let msg = format!("llm init panicked: {:?}", panic);
                     log::error!("[rwkv] {}", msg);
-                    let _ = app.emit("rwkv://debug", msg.clone());
+                    if let Some(app) = &app {
+                        let _ = app.emit("rwkv://debug", msg.clone());
+                    }
                     let _ = reply.send(Err(msg));
                 }
             }
@@ -258,7 +382,79 @@ fn handle_request(
             }
             true
         }
+        PoolRequest::Classify { request, reply } => {
+            let result = match engine.as_mut() {
+                Some(engine) => classify_with_engine(engine, &request),
+                None => Err("LLM engine not initialized".to_string()),
+            };
+            let _ = reply.send(result);
+            true
+        }
+        PoolRequest::ReloadRouterHead { reply } => {
+            let result = match engine.as_mut() {
+                Some(engine) => {
+                    let num_emb = engine.model.info().num_emb;
+                    engine.router_head = load_router_head(num_emb);
+                    if engine.router_head.is_some() {
+                        Ok(())
+                    } else {
+                        Err(get_router_head_status()
+                            .detail
+                            .unwrap_or_else(|| "router head reload failed".to_string()))
+                    }
+                }
+                None => Err("LLM engine not initialized".to_string()),
+            };
+            let _ = reply.send(result);
+            true
+        }
     }
+}
+
+/// 分类请求截断上限（token）：双段预算 = 会话摘要（~128）+ 当前请求（~128）。
+/// 256 与 seq 路径 GEMM 的 m_pad 对齐档一致，延迟与旧 128 档基本持平。
+const CLASSIFY_MAX_TOKENS: usize = 256;
+
+/// 单次分类（智能路由）：tokenize 输入（摘要+请求，截断 256）→ 零状态 prefill →
+/// mean-hidden（state embedding）→ 训练好的 MLP 头 → 4 类概率。
+/// 在 pool 线程内同步执行（prefill 短，耗时可忽略）。
+fn classify_with_engine(engine: &mut PoolEngine, request: &str) -> Result<Vec<f32>, String> {
+    let head = engine
+        .router_head
+        .as_ref()
+        .ok_or_else(|| "router head not loaded (router_head.json missing)".to_string())?;
+
+    let mut tokens = engine
+        .tokenizer
+        .encode(request.as_bytes())
+        .map_err(|e| format!("failed to encode classify request: {}", e))?;
+    if tokens.is_empty() {
+        // 空文本无法 prefill（闲聊类应由 core 的 trivial-ack 规则先行拦截）。
+        return Err("classify request encoded to zero tokens".to_string());
+    }
+    tokens.truncate(CLASSIFY_MAX_TOKENS);
+
+    // 校验分类头与模型维度匹配（用户更换模型后 head 失效 → 降级回落）。
+    if head.input_dim() != engine.model.info().num_emb {
+        return Err(format!(
+            "router head input_dim {} != model n_embd {} (head/model mismatch)",
+            head.input_dim(),
+            engine.model.info().num_emb
+        ));
+    }
+
+    // 从零状态恢复专用分类状态，一次 mean-hidden prefill。
+    engine
+        .model
+        .state_load(&engine.classify_state, &engine.initial_state)
+        .map_err(|e| format!("failed to reset classify state: {}", e))?;
+    let hidden = engine
+        .model
+        .forward_seq_mean_hidden(&mut engine.classify_state, &tokens)
+        .map_err(|e| format!("classify prefill failed: {}", e))?;
+
+    let probs = head.forward(&hidden)?;
+    Ok(probs.to_vec())
 }
 
 /// 加载模型并创建 16 槽推理状态。
@@ -287,6 +483,14 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
         .state_back(&slot_states[0])
         .map_err(|e| format!("failed to snapshot initial state: {}", e))?;
 
+    let classify_state = model
+        .create_state()
+        .map_err(|e| format!("failed to create classify state: {}", e))?;
+
+    // 加载智能路由分类头（models 目录 router_head.json；缺失/损坏/维度
+    // 不匹配时分类降级回落，状态经 ROUTER_HEAD_STATUS 全局可查询）。
+    let router_head = load_router_head(model.info().num_emb);
+
     let info = model.info();
     log::info!(
         "[rwkv] model loaded: layers={} emb={} vocab={} ({} slots)",
@@ -302,6 +506,8 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
         tokenizer,
         initial_state,
         session_states: HashMap::new(),
+        classify_state,
+        router_head,
     })
 }
 
@@ -688,56 +894,40 @@ pub async fn pool_infer(
     Ok(rx)
 }
 
-/// Lightweight inference for sidecar tasks (relevance check, extraction).
-/// Uses low temperature + top_k=10 for deterministic but slightly diverse output.
-/// Shares the same engine with VRM chat (16 interleaved slots).
-pub async fn rwkv_infer_sync(
-    prompt: &str,
-    max_tokens: usize,
-) -> Result<(String, usize, usize), String> {
-    let result = tokio::time::timeout(Duration::from_secs(30), async {
-        let mut rx = pool_infer(
-            prompt.to_string(),
-            max_tokens,
-            0.95,
-            10,
-            0.0,
-            0.0,
-            0.99654026,
-            None,
-            None,
-            false,
-            false,
-            String::new(),
-        )
-        .await?;
+/// 单次分类请求（智能路由用）：mean-hidden 提取 + MLP 头 → 4 类概率（R0-R3）。
+pub async fn rwkv_classify(request: String) -> Result<Vec<f32>, String> {
+    if !LLM_READY.load(Ordering::SeqCst) {
+        return Err("LLM engine not initialized".to_string());
+    }
+    let pool = get_inference_pool().ok_or("inference pool not started")?;
+    let (reply_tx, reply_rx) = oneshot::channel::<Result<Vec<f32>, String>>();
+    pool.tx
+        .send(PoolRequest::Classify {
+            request,
+            reply: reply_tx,
+        })
+        .map_err(|e| format!("failed to send classify request: {}", e))?;
+    match tokio::time::timeout(Duration::from_secs(30), reply_rx).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => Err("classify reply channel closed".to_string()),
+        Err(_) => Err("classify request timed out after 30s".to_string()),
+    }
+}
 
-        let mut text = String::new();
-        let mut input_tokens = 0usize;
-        let mut output_tokens = 0usize;
-        while let Some(event) = rx.recv().await {
-            match event {
-                InferenceEvent::Token(t) => text.push_str(&t),
-                InferenceEvent::Done {
-                    text: t,
-                    input_tokens: it,
-                    output_tokens: ot,
-                    ..
-                } => {
-                    text = t;
-                    input_tokens = it;
-                    output_tokens = ot;
-                    break;
-                }
-                InferenceEvent::Error(e) => return Err(e),
-            }
-        }
-        Ok((text, input_tokens, output_tokens))
-    })
-    .await;
-    match result {
-        Ok(inner) => inner,
-        Err(_elapsed) => Err("RWKV inference timed out after 30s".to_string()),
+/// 热重载智能路由分类头（router_head.json）：无需重启应用/引擎。
+pub async fn rwkv_reload_router_head() -> Result<(), String> {
+    if !LLM_READY.load(Ordering::SeqCst) {
+        return Err("LLM engine not initialized".to_string());
+    }
+    let pool = get_inference_pool().ok_or("inference pool not started")?;
+    let (reply_tx, reply_rx) = oneshot::channel::<Result<(), String>>();
+    pool.tx
+        .send(PoolRequest::ReloadRouterHead { reply: reply_tx })
+        .map_err(|e| format!("failed to send reload request: {}", e))?;
+    match tokio::time::timeout(Duration::from_secs(10), reply_rx).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => Err("reload reply channel closed".to_string()),
+        Err(_) => Err("reload request timed out after 10s".to_string()),
     }
 }
 
@@ -905,8 +1095,20 @@ pub async fn rwkv_init_webrwkv(
     vocab_path: Option<String>,
     _state_path: Option<String>,
 ) -> Result<bool, String> {
+    init_engine_internal(Some(app), model_path, vocab_path).await
+}
+
+/// 引擎初始化核心逻辑（tauri command 与启动序列共用）。
+/// `app` 为 None 时不 emit 调试事件（供启动预加载路径使用）。
+pub async fn init_engine_internal(
+    app: Option<tauri::AppHandle>,
+    model_path: Option<String>,
+    vocab_path: Option<String>,
+) -> Result<bool, String> {
     if LLM_READY.load(Ordering::SeqCst) {
-        let _ = app.emit("rwkv://debug", "llm initialized".to_string());
+        if let Some(app) = &app {
+            let _ = app.emit("rwkv://debug", "llm initialized".to_string());
+        }
         crate::model_init::LLM_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
         return Ok(true);
     }
@@ -925,7 +1127,9 @@ pub async fn rwkv_init_webrwkv(
     if in_progress {
         for _ in 0..50 {
             if LLM_READY.load(Ordering::SeqCst) {
-                let _ = app.emit("rwkv://debug", "llm initialized".to_string());
+                if let Some(app) = &app {
+                    let _ = app.emit("rwkv://debug", "llm initialized".to_string());
+                }
                 crate::model_init::LLM_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
                 return Ok(true);
             }
@@ -933,7 +1137,7 @@ pub async fn rwkv_init_webrwkv(
         }
         return Err("initialization in progress".to_string());
     }
-    struct ResetFlagOnDrop(tauri::AppHandle);
+    struct ResetFlagOnDrop(Option<tauri::AppHandle>);
     impl Drop for ResetFlagOnDrop {
         fn drop(&mut self) {
             if let Some(flag) = LLM_INITING.get() {
@@ -941,9 +1145,9 @@ pub async fn rwkv_init_webrwkv(
                     *f = false;
                 }
             }
-            let _ = self
-                .0
-                .emit("rwkv://debug", "llm init flag reset".to_string());
+            if let Some(app) = &self.0 {
+                let _ = app.emit("rwkv://debug", "llm init flag reset".to_string());
+            }
         }
     }
     let _reset = ResetFlagOnDrop(app.clone());
@@ -962,13 +1166,19 @@ pub async fn rwkv_init_webrwkv(
             None => return Err("No model file found in models directory".to_string()),
         },
     };
-    let _ = app.emit("rwkv://debug", format!("init model={} vocab={}", mp, vp));
+    if let Some(app) = &app {
+        let _ = app.emit("rwkv://debug", format!("init model={} vocab={}", mp, vp));
+    }
     debug_print!("rwkv_init: model_path={} vocab_path={}", mp, vp);
     if !Path::new(&mp).exists() {
-        let _ = app.emit("rwkv://debug", "model missing, skip init".to_string());
+        if let Some(app) = &app {
+            let _ = app.emit("rwkv://debug", "model missing, skip init".to_string());
+        }
         return Err("model file missing".to_string());
     }
-    let _ = app.emit("rwkv://debug", "llm initializing".to_string());
+    if let Some(app) = &app {
+        let _ = app.emit("rwkv://debug", "llm initializing".to_string());
+    }
 
     // 确保 pool 线程已启动（常驻，加载由 Init 消息触发）
     let pool = INFERENCE_POOL.get_or_init(|| {
@@ -985,7 +1195,7 @@ pub async fn rwkv_init_webrwkv(
         .send(PoolRequest::Init {
             model_path: mp,
             vocab_path: vp,
-            app: app.clone(),
+            app,
             reply: reply_tx,
         })
         .map_err(|e| format!("failed to send init request: {}", e))?;
@@ -1000,6 +1210,34 @@ pub async fn rwkv_init_webrwkv(
         Ok(Ok(Err(e))) => Err(e),
         Ok(Err(_closed)) => Err("init channel closed unexpectedly".to_string()),
         Err(_elapsed) => Err("model load timed out after 300s".to_string()),
+    }
+}
+
+/// 启动序列智能路由预加载：router.enabled 时自动初始化 RWKV 引擎，
+/// 使首个 auto 模式请求即可完成本地分类（无需前端手动触发加载）。
+pub async fn preload_engine_for_router() {
+    // 等待配置服务就绪（启动初期可能尚未初始化，最多等 30s）。
+    for _ in 0..300 {
+        if ai00_x_core::service::config::get_global_config_service().is_ok() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    let Ok(config_service) = ai00_x_core::service::config::get_global_config_service() else {
+        log::warn!("[rwkv] config service unavailable, skip router preload");
+        return;
+    };
+    let ai_config: ai00_x_core::service::config::types::AIConfig = config_service
+        .get_config(Some("ai"))
+        .await
+        .unwrap_or_default();
+    if !ai_config.router.enabled {
+        return;
+    }
+    log::info!("[rwkv] smart router enabled, preloading RWKV engine");
+    match init_engine_internal(None, None, None).await {
+        Ok(_) => log::info!("[rwkv] router preload complete"),
+        Err(e) => log::warn!("[rwkv] router preload failed: {}", e),
     }
 }
 

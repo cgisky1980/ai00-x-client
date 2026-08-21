@@ -19,7 +19,6 @@ use crate::agent::tools::pipeline::{SubagentParentInfo, ToolPipeline};
 use crate::agent::WorkspaceBinding;
 use crate::infrastructure::try_get_path_manager_arc;
 use crate::service::config::get_global_config_service;
-use crate::service::memory_graph;
 use crate::util::errors::{Ai00XError, Ai00XResult};
 use futures::FutureExt;
 use log::{debug, error, info, warn};
@@ -1010,9 +1009,6 @@ impl ConversationCoordinator {
             session_id, session.state
         );
 
-        // Ensure MemoryAgent is running (OnceCell, only spawns once per process)
-        let _ = memory_graph::ensure_agent().await;
-
         // Check session state
         // Allow Idle or any error state (user can retry after error)
         // If Processing, cancel request hasn't arrived yet, reject new dialog
@@ -1401,17 +1397,6 @@ impl ConversationCoordinator {
                     );
                 }
 
-                // Send context to MemoryAgent for background retrieval (non-blocking)
-                eprintln!("[TRACE] BEFORE_MEMORY_AGENT");
-                if let Some(agent) = memory_graph::try_get_agent() {
-                    if let Ok(ctx_msgs) = session_manager
-                        .get_context_messages(&session_id_clone)
-                        .await
-                    {
-                        agent.update_context_sync(&session_id_clone, ctx_msgs.into());
-                    }
-                }
-
                 let workspace_turn_status = {
                     eprintln!("[TRACE] BEFORE_EXEC");
                     match execution_engine
@@ -1474,16 +1459,6 @@ impl ConversationCoordinator {
                                     "Failed to update session state to Idle: session={}, error={}",
                                     session_id_clone, e
                                 );
-                            }
-
-                            // Send final context after turn completes (may trigger periodic extraction)
-                            if let Some(agent) = memory_graph::try_get_agent() {
-                                if let Ok(ctx_msgs) = session_manager
-                                    .get_context_messages(&session_id_clone)
-                                    .await
-                                {
-                                    agent.update_context_sync(&session_id_clone, ctx_msgs.into());
-                                }
                             }
 
                             if let Some(tx) = &scheduler_notify_tx {
@@ -1568,19 +1543,6 @@ impl ConversationCoordinator {
                             );
                                 }
 
-                                // Send context after cancelled turn (may trigger extraction)
-                                if let Some(agent) = memory_graph::try_get_agent() {
-                                    if let Ok(ctx_msgs) = session_manager
-                                        .get_context_messages(&session_id_clone)
-                                        .await
-                                    {
-                                        agent.update_context_sync(
-                                            &session_id_clone,
-                                            ctx_msgs.into(),
-                                        );
-                                    }
-                                }
-
                                 if let Some(tx) = &scheduler_notify_tx {
                                     let _ = tx.try_send((
                                         session_id_clone.clone(),
@@ -1638,19 +1600,6 @@ impl ConversationCoordinator {
                                     "Failed to update session state to Error: session={}, error={}",
                                     session_id_clone, e
                                 );
-                                }
-
-                                // Send context after failed turn (for consistency with success/cancelled paths)
-                                if let Some(agent) = memory_graph::try_get_agent() {
-                                    if let Ok(ctx_msgs) = session_manager
-                                        .get_context_messages(&session_id_clone)
-                                        .await
-                                    {
-                                        agent.update_context_sync(
-                                            &session_id_clone,
-                                            ctx_msgs.into(),
-                                        );
-                                    }
                                 }
 
                                 if let Some(tx) = &scheduler_notify_tx {
@@ -1831,7 +1780,6 @@ impl ConversationCoordinator {
             session_id: session_id.to_string(),
         })
         .await;
-        memory_graph::cleanup_session(session_id);
         Ok(())
     }
 

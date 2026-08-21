@@ -95,7 +95,7 @@ pub struct AiPermissions {
     /// Whether AI access is enabled for this MiniApp.
     #[serde(default)]
     pub enabled: bool,
-    /// Allowed model references (e.g. ["primary", "fast"] or specific model ids).
+    /// Allowed model references (e.g. ["primary", "fast", "rwkv-local"] or specific model ids).
     /// Empty or absent means only "primary" is allowed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_models: Option<Vec<String>>,

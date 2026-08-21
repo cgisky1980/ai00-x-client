@@ -33,6 +33,7 @@ function normalizeModelSelection(
 ): string {
   const value = modelId?.trim();
   if (!value || value === 'auto') return 'auto';
+  if (value === 'rwkv-local') return 'rwkv-local';
 
   if (value === 'primary' || value === 'fast') {
     const resolvedDefaultId = value === 'primary' ? defaultModels.primary : defaultModels.fast;

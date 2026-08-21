@@ -13,6 +13,16 @@ pub trait RwkvInferenceEngine: Send + Sync {
         stop: Vec<String>,
     ) -> Result<String, String>;
 
+    /// Single-shot classification: classifies a raw user request into four
+    /// tier probabilities (R0-R3, order preserved).
+    ///
+    /// Implemented on desktop as mean-hidden extraction (state embedding) +
+    /// trained MLP head. Returns an error when unsupported, the head is
+    /// missing, or the engine is unavailable.
+    async fn classify(&self, _request: String) -> Result<Vec<f32>, String> {
+        Err("classify not supported by this engine".to_string())
+    }
+
     fn cancel(&self) -> Result<(), String>;
 
     fn is_initialized(&self) -> bool;

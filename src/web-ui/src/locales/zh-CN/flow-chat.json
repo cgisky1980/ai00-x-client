@@ -361,7 +361,15 @@
     "feedbackThanks": "感谢您的反馈！",
     "feedbackDevVersion": "开发版本暂不提供反馈功能",
     "userLabel": "👤 用户:",
-    "toolCallLabel": "🔧 工具调用: {{name}}"
+    "toolCallLabel": "🔧 工具调用: {{name}}",
+    "routing": {
+      "tooltip": "智能路由：{{tier}} → {{model}}（置信度 {{confidence}}%，来源：{{source}}{{marks}}）",
+      "sourceModel": "模型分类",
+      "sourceRule": "规则短路",
+      "sourceFallback": "回落",
+      "safetyMark": "安全升级",
+      "stickyMark": "档位保持"
+    }
   },
   "exploreRegion": {
     "readFiles": "读取了 {{count}} 个文件",
@@ -1122,13 +1130,6 @@
   "compactCompleteBar": {
     "label": "任务已暂存 — 完成修改并评价",
     "finishAndRate": "完成修改并评价"
-  },
-  "memoryHint": {
-    "collapsed": "已自动召回 {{count}} 条相关记忆",
-    "collapsed_one": "已自动召回 1 条相关记忆",
-    "expand": "展开",
-    "collapse": "收起",
-    "dismiss": "关闭"
   },
   "altPreview": "预览",
   "turnHistory": {

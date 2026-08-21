@@ -19,6 +19,7 @@ import { useFlowChatContext } from './FlowChatContext';
 import { FlowChatStore } from '../../store/FlowChatStore';
 import { taskCollapseStateManager } from '../../store/TaskCollapseStateManager';
 import { ExportImageButton } from './ExportImageButton';
+import { RoutingBadge } from './RoutingBadge';
 import { Tooltip } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
 import './ModelRoundItem.scss';
@@ -296,9 +297,10 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
     );
     
     return (
-      <div 
+      <div
         className={`model-round-item model-round-item--${round.isStreaming ? 'streaming' : 'complete'}`}
       >
+        {round.index === 0 && round.routing && <RoutingBadge routing={round.routing} />}
         {groupedItems.map((group, groupIndex) => {
           const isLastGroup = groupIndex === groupedItems.length - 1;
           const isLast = isLastRound && isLastGroup;
@@ -393,11 +395,12 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
     if (next.round.isStreaming || prev.round.isStreaming) {
       return false;
     }
-    
+
     // In complete state, compare items array reference to detect tool state changes.
     return (
       prev.round.id === next.round.id &&
-      prev.round.items === next.round.items
+      prev.round.items === next.round.items &&
+      prev.round.routing === next.round.routing
     );
   }
 );
