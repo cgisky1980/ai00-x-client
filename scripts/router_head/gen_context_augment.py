@@ -1,10 +1,13 @@
 """Generate context-aware training samples for the router MLP head.
 
-Each sample pairs a session summary (simulating the runtime rolling summary
-produced by rwkv-local) with a follow-up request, in the EXACT runtime
-classify-input format:
+Each sample pairs a session summary with a follow-up request, in the EXACT
+runtime classify-input format:
 
     Summary: {summary}\nRequest: {request}
+
+v3: summaries come from the REAL summary pool (batch_summarize.rs output —
+actual rwkv7-g1i-2.9b generations with the frozen production prompt), not
+hand-written templates. Fallback to templates only when the pool is missing.
 
 Core design: boundary pairs — the SAME follow-up request is paired with
 DIFFERENT summaries to teach the head that context shifts the tier
@@ -16,7 +19,31 @@ merged into TRAIN ONLY (train_mlp.py --data treats extra files that way).
 import argparse
 import json
 import random
+from collections import defaultdict
 from pathlib import Path
+
+SUMMARY_POOL_PATH = Path(__file__).parent / "data" / "multiturn" / "summaries.jsonl"
+
+
+def load_real_pools() -> dict[str, list[str]]:
+    """Real summaries keyed as heavy(R3)/mid(R2)/light(R0+R1), mirroring the
+    template pools below. Falls back to templates when the pool is absent."""
+    pools: dict[int, list[str]] = defaultdict(list)
+    if SUMMARY_POOL_PATH.exists():
+        with SUMMARY_POOL_PATH.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line)
+                s = row["summary"].strip()
+                if len(s.split()) >= 4 or len(s) >= 12:
+                    pools[int(row["tier"])].append(s)
+    return {
+        "heavy": pools.get(3, []) or pools.get(2, []),
+        "mid": pools.get(2, []) or pools.get(1, []),
+        "light": pools.get(0, []) or pools.get(1, []),
+    }
 
 # ---------------------------------------------------------------------------
 # Summary pools. Written to resemble actual model-generated rolling summaries:
@@ -168,6 +195,15 @@ def main() -> None:
     samples: list[dict] = []
     seen: set[str] = set()
 
+    # 真实摘要池优先（训练分布=线上分布）；池缺失或为空时回退手写模板。
+    real = load_real_pools()
+    heavy_pool = real["heavy"] or HEAVY_SUMMARIES
+    mid_pool = real["mid"] or MID_SUMMARIES
+    light_pool = real["light"] or LIGHT_SUMMARIES
+    src = "real" if (real["heavy"] and real["mid"] and real["light"]) else "template-fallback"
+    print(f"[context-augment] summary source: {src} "
+          f"(heavy={len(heavy_pool)} mid={len(mid_pool)} light={len(light_pool)})")
+
     def add(s: dict) -> None:
         if s["text"] not in seen:
             seen.add(s["text"])
@@ -177,26 +213,26 @@ def main() -> None:
     #    ALL summary classes so the head learns context shifts the tier.
     for req, heavy_tier, mid_tier, light_tier in BOUNDARY_REQUESTS:
         for _ in range(args.per_category // 4):
-            add(make_sample(rng.choice(HEAVY_SUMMARIES), req, heavy_tier))
-            add(make_sample(rng.choice(MID_SUMMARIES), req, mid_tier))
-            add(make_sample(rng.choice(LIGHT_SUMMARIES), req, light_tier))
+            add(make_sample(rng.choice(heavy_pool), req, heavy_tier))
+            add(make_sample(rng.choice(mid_pool), req, mid_tier))
+            add(make_sample(rng.choice(light_pool), req, light_tier))
 
     # 2. Follow-ups consistent with a heavy/mid summary.
     for req in HEAVY_FOLLOWUPS:
         for _ in range(args.per_category // 8):
-            add(make_sample(rng.choice(HEAVY_SUMMARIES), req, 3))
-            add(make_sample(rng.choice(MID_SUMMARIES), req, 2))
+            add(make_sample(rng.choice(heavy_pool), req, 3))
+            add(make_sample(rng.choice(mid_pool), req, 2))
     for req in MID_FOLLOWUPS:
         for _ in range(args.per_category // 8):
-            add(make_sample(rng.choice(HEAVY_SUMMARIES), req, 2))
-            add(make_sample(rng.choice(MID_SUMMARIES), req, 2))
+            add(make_sample(rng.choice(heavy_pool), req, 2))
+            add(make_sample(rng.choice(mid_pool), req, 2))
 
     # 3. Light follow-ups stay light even under a heavy summary — the
-    # classifier must read the REQUEST, not just the summary tone.
+    #    classifier must read the REQUEST, not just the summary tone.
     for req in LIGHT_FOLLOWUPS:
         for _ in range(args.per_category // 8):
-            add(make_sample(rng.choice(HEAVY_SUMMARIES), req, 0))
-            add(make_sample(rng.choice(LIGHT_SUMMARIES), req, 0))
+            add(make_sample(rng.choice(heavy_pool), req, 0))
+            add(make_sample(rng.choice(light_pool), req, 0))
 
     # 4. Fresh-task requests inside an unrelated session: the request itself
     #    dominates, summary only adds mild context (cap at the request tier).
@@ -222,8 +258,8 @@ def main() -> None:
                             "ECONNRESET at fetch", "类型不匹配错误"])
                 if "{}" in req_tpl else ""
             )
-            for pool, cap in ((HEAVY_SUMMARIES, tier), (MID_SUMMARIES, tier),
-                              (LIGHT_SUMMARIES, max(0, tier - 1))):
+            for pool, cap in ((heavy_pool, tier), (mid_pool, tier),
+                              (light_pool, max(0, tier - 1))):
                 add(make_sample(rng.choice(pool), filled, cap))
 
     rng.shuffle(samples)
