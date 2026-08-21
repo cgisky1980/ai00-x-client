@@ -405,4 +405,7 @@ jobs:
             exit 1
           fi
           echo "Uploading ${#files[@]} files to $RELEASE_TAG"
-          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
+          # --repo is required: this job never checks out the repository, so
+          # gh cannot infer the repo from git metadata.
+          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber \
+            --repo "cgisky1980/ai00-x-client"
