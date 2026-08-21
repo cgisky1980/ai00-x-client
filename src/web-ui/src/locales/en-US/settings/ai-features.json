@@ -25,7 +25,8 @@
   "model": {
     "label": "Model",
     "primary": "Primary Model",
-    "fast": "Fast Model"
+    "fast": "Mid-tier Model",
+    "local": "RWKV Local Model"
   },
   "common": {
     "enable": "Enable",

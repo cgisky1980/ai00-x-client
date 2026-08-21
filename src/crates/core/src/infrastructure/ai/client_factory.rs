@@ -77,7 +77,7 @@ impl AIClientFactory {
             .get(func_agent_name)
             .or_else(|| global_config.ai.agent_models.get(func_agent_name))
             .map(String::as_str)
-            .unwrap_or("fast");
+            .unwrap_or("rwkv-local");
         self.get_client_resolved(model_id).await
     }
 

@@ -586,7 +586,7 @@ impl AgentRegistry {
             .insert(workspace_root.to_path_buf(), project_entries);
     }
 
-    /// get valid model ID list: ai.models id + "primary" + "fast"
+    /// get valid model ID list: ai.models id + "primary" + "fast" + "rwkv-local"
     async fn get_valid_model_ids() -> Vec<String> {
         let mut valid_models: Vec<String> = if let Ok(config_service) = get_global_config_service()
         {
@@ -602,6 +602,7 @@ impl AgentRegistry {
         };
         valid_models.push("primary".to_string());
         valid_models.push("fast".to_string());
+        valid_models.push("rwkv-local".to_string());
         valid_models
     }
 

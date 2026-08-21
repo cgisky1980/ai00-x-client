@@ -81,6 +81,16 @@ export interface ImageAnalysisResult {
   analysis_time_ms: number;     // Analysis duration.
 }
 
+// Smart-router decision attached to a model round (auto mode only).
+export interface ModelRoutingInfo {
+  tier: string; // "R0".."R3"
+  source: string; // "model" | "trivial_ack" | "fallback"
+  confidence: number;
+  modelRef: string; // "primary"/"fast"/"rwkv-local" or a model id
+  safetyApplied: boolean;
+  stickyApplied: boolean;
+}
+
 // Model round: output from a single model call.
 export interface ModelRound {
   id: string;
@@ -96,6 +106,7 @@ export interface ModelRound {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  routing?: ModelRoutingInfo;
 }
 
 // Token usage stats.
@@ -146,16 +157,9 @@ export interface DialogTurn {
   backendTurnIndex?: number;
 }
 
-export interface MemoryHintState {
-  visible: boolean;
-  count: number;
-  displayPrompt?: string;
-}
-
 export interface FlowChatState {
   sessions: Map<string, Session>;
   activeSessionId: string | null;
-  memoryHint: MemoryHintState | null;
 }
 
 export interface TodoItem {

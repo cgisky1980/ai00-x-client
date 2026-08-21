@@ -17,13 +17,11 @@
       "placeholder": "Select primary model"
     },
     "fast": {
-      "label": "Fast Model",
-      "description": "For simple Q&A, quick responses, cost-saving scenarios",
-      "boundDescription": "Bound to local RWKV model, for simple Q&A and quick responses",
-      "hint": "When not configured, all tasks use the primary model",
-      "placeholder": "Select fast model",
-      "notSet": "Not set (use primary model)",
-      "bound": "Bound"
+      "label": "Mid-tier Model",
+      "description": "Used for smart-router R2 complex tasks; falls back to primary when unset",
+      "hint": "When unset, R2 tasks use the primary model",
+      "placeholder": "Select mid-tier model",
+      "notSet": "Not set (use primary model)"
     }
   },
   "optional": {
@@ -78,13 +76,83 @@
   },
   "selection": {
     "primary": "Primary",
-    "fast": "Fast",
+    "fast": "Mid-tier",
+    "local": "RWKV Local",
     "custom": "Custom",
     "selectModel": "Select model",
     "notConfigured": "Not configured, will use primary model"
   },
   "empty": {
     "noModels": "No models available. Please add models in the \"Model List\" tab first."
+  },
+  "smartRouter": {
+    "sectionTitle": "Smart Routing",
+    "sectionDescription": "Assign models automatically by request complexity",
+    "title": "Enable smart routing",
+    "description": "When the session model is \"Auto\", a local RWKV model classifies request complexity and routes to the matching tier model",
+    "options": {
+      "primary": "Primary model",
+      "fast": "Fast model",
+      "rwkvLocal": "RWKV Local"
+    },
+    "tiers": {
+      "r0": {
+        "label": "R0 Trivial chat",
+        "description": "Greetings, thanks, short acknowledgments — lightest model"
+      },
+      "r1": {
+        "label": "R1 Simple task",
+        "description": "Single-step operations, simple Q&A, translation, lookup"
+      },
+      "r2": {
+        "label": "R2 Complex task",
+        "description": "Code generation, multi-step reasoning, multi-tool orchestration"
+      },
+      "r3": {
+        "label": "R3 High-stakes task",
+        "description": "Debugging, error diagnosis, long context, critical changes"
+      }
+    },
+    "fallback": {
+      "label": "Fallback model",
+      "description": "Used when classification fails or the local engine is unavailable"
+    },
+    "status": {
+      "loaded": "Classification head loaded ({{dim}}-d), smart routing active",
+      "notLoaded": "Classification head not loaded: {{reason}} (smart routing falls back)",
+      "engineInit": "RWKV engine initializing, classification unavailable",
+      "reload": "Reload",
+      "reloadFailed": "Failed to reload classification head"
+    },
+    "test": {
+      "title": "Test classification",
+      "placeholder": "Type any request to see which tier it routes to…",
+      "button": "Test",
+      "verdict": "Routing: {{tier}} → {{model}} (confidence {{confidence}}%)",
+      "trivialAck": "rule short-circuit",
+      "fallback": "classification unavailable, fallback",
+      "failed": "Classification test failed"
+    },
+    "disabledSuffix": " (disabled)",
+    "warnings": {
+      "invalidRef": "Some tiers reference a missing or disabled model; they will fall back to primary at runtime"
+    },
+    "advanced": {
+      "title": "Advanced",
+      "safetyThreshold": {
+        "label": "Safety upgrade threshold",
+        "description": "Upgrade to R2 when predicted R0/R1 but P(R2)+P(R3) exceeds this value (prefer over-routing)"
+      },
+      "sticky": {
+        "label": "Sticky tier",
+        "description": "Short messages never route below the previous turn's tier within a session"
+      },
+      "timeout": {
+        "label": "Classification timeout",
+        "description": "Max wait for local-model classification before falling back"
+      }
+    },
+    "hint": "Three tiers: R0/R1 → RWKV local, R2 → mid-tier, R3 → primary; classification extracts features with the local RWKV model and scores them with the trained head (router_head.json), falling back automatically when unavailable"
   },
   "messages": {
     "loadFailed": "Failed to load configuration",

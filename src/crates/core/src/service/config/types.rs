@@ -941,9 +941,9 @@ pub use ai00_x_ai_adapters::types::ReasoningMode;
 #[serde(default)]
 #[derive(Default)]
 pub struct DefaultModelsConfig {
-    /// Primary model ID (for complex tasks).
+    /// Primary model ID (flagship, R3 complex tasks; global fallback).
     pub primary: Option<String>,
-    /// Fast model ID (for simple tasks).
+    /// Mid-tier model ID (router R2). Unset falls back to primary.
     pub fast: Option<String>,
     /// Search model.
     pub search: Option<String>,
@@ -953,6 +953,78 @@ pub struct DefaultModelsConfig {
     pub image_generation: Option<String>,
     /// Speech recognition model.
     pub speech_recognition: Option<String>,
+}
+
+/// Smart routing configuration for the model-selection router.
+///
+/// The router classifies each user request (auto model mode) into a
+/// complexity tier (R0-R3) and dispatches it to the configured model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RouterConfig {
+    /// Master switch. Only takes effect when the session model is "auto".
+    pub enabled: bool,
+    /// Model reference per route tier (model id, "primary", "fast" or "rwkv-local").
+    pub tier_models: RouterTierModels,
+    /// Fallback model reference when classification fails or the engine is unavailable.
+    pub fallback: String,
+    /// Under-routing safety threshold: if argmax is R0/R1 and P(R2)+P(R3)
+    /// exceeds this value, upgrade to R2 (prefer over-routing to under-routing).
+    pub safety_threshold: f32,
+    /// Sticky tier: short messages never route below the previous turn's tier.
+    pub sticky_enabled: bool,
+    /// Classification inference timeout in milliseconds.
+    pub timeout_ms: u64,
+}
+
+impl Default for RouterConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            tier_models: RouterTierModels::default(),
+            fallback: "primary".to_string(),
+            safety_threshold: 0.45,
+            sticky_enabled: true,
+            timeout_ms: 3000,
+        }
+    }
+}
+
+/// Model references for each route tier of the smart router.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RouterTierModels {
+    /// R0 trivial chat — local RWKV model by default.
+    pub r0: String,
+    /// R1 simple task — local RWKV model by default.
+    pub r1: String,
+    /// R2 complex task — mid-tier ("fast") model by default.
+    pub r2: String,
+    /// R3 high-stakes task — flagship ("primary") model by default.
+    pub r3: String,
+}
+
+impl Default for RouterTierModels {
+    fn default() -> Self {
+        Self {
+            r0: "rwkv-local".to_string(),
+            r1: "rwkv-local".to_string(),
+            r2: "fast".to_string(),
+            r3: "primary".to_string(),
+        }
+    }
+}
+
+impl RouterTierModels {
+    /// Returns the model reference for the given route tier.
+    pub fn model_for(&self, tier: &crate::agent::routing::RouteClass) -> &str {
+        match tier {
+            crate::agent::routing::RouteClass::R0 => &self.r0,
+            crate::agent::routing::RouteClass::R1 => &self.r1,
+            crate::agent::routing::RouteClass::R2 => &self.r2,
+            crate::agent::routing::RouteClass::R3 => &self.r3,
+        }
+    }
 }
 
 /// AI configuration.
@@ -974,6 +1046,10 @@ pub struct AIConfig {
     /// Default model configuration.
     #[serde(default)]
     pub default_models: DefaultModelsConfig,
+
+    /// Smart routing configuration (auto model mode).
+    #[serde(default)]
+    pub router: RouterConfig,
 
     /// Mode configuration.
     /// mode_id -> ModeConfig
@@ -1934,6 +2010,7 @@ impl Default for AIConfig {
             agent_models: std::collections::HashMap::new(),
             func_agent_models: std::collections::HashMap::new(),
             default_models: DefaultModelsConfig::default(),
+            router: RouterConfig::default(),
             mode_configs: std::collections::HashMap::new(),
             subagent_configs: std::collections::HashMap::new(),
             proxy: ProxyConfig::default(),

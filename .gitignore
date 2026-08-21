@@ -26,6 +26,12 @@ target/
 .ai00-x-dev/
 .tools/
 
+# Router head training artifacts (large binaries, distributed via model repos)
+scripts/router_head/.venv/
+scripts/router_head/data/
+scripts/router_head/router_head.json
+scripts/router_head/router_head_context.json
+
 # External CMake build dirs (llama.cpp, etc.) — use short paths to avoid
 # Windows MAX_PATH issues. Cached across cargo clean for fast incremental builds.
 .llama-build/

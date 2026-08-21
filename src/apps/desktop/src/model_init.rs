@@ -945,15 +945,9 @@ pub async fn init_llm_engine(
     );
     if LLM_ENGINE_INITIALIZED.load(Ordering::SeqCst) {
         log::info!("[model_init] LLM engine already initialized");
-        // Re-init sidecar in case it wasn't set (e.g., previous partial init)
-        if !ai00_x_core::service::memory_graph::sidecar::is_sidecar_enabled() {
-            crate::memory_sidecar::init_memory_sidecar();
-        }
         return Ok(true);
     }
     let result = crate::rwkv_llm::rwkv_init_webrwkv(app, model_path, vocab_path, None).await?;
-    // Init memory sidecar after LLM is ready
-    crate::memory_sidecar::init_memory_sidecar();
     Ok(result)
 }
 
@@ -973,11 +967,6 @@ pub async fn init_embedding_engine() -> Result<(), String> {
     .map_err(|e| format!("Embedding init task failed: {}", e))??;
 
     crate::embedding::init_embedding_provider();
-
-    // Try to init memory sidecar if LLM is already up
-    if crate::rwkv_llm::is_llm_initialized() {
-        crate::memory_sidecar::init_memory_sidecar();
-    }
 
     EMBEDDING_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
     log::info!("[model_init] Embedding engine initialized successfully");

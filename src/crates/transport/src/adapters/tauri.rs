@@ -365,6 +365,7 @@ impl TransportAdapter for TauriTransportAdapter {
                 input_tokens,
                 output_tokens,
                 total_tokens,
+                model_routing,
             } => {
                 self.app_handle.emit(
                     "agent://model-round-completed",
@@ -378,6 +379,7 @@ impl TransportAdapter for TauriTransportAdapter {
                         "inputTokens": input_tokens,
                         "outputTokens": output_tokens,
                         "totalTokens": total_tokens,
+                        "modelRouting": model_routing,
                     }),
                 )?;
             }
@@ -452,20 +454,6 @@ impl TransportAdapter for TauriTransportAdapter {
                     json!({
                         "sessionId": session_id,
                         "feedback": feedback,
-                    }),
-                )?;
-            }
-            AgentEvent::MemoryInjected {
-                session_id,
-                count,
-                display_prompt,
-            } => {
-                self.app_handle.emit(
-                    "agent://memory-injected",
-                    json!({
-                        "sessionId": session_id,
-                        "count": count,
-                        "displayPrompt": display_prompt,
                     }),
                 )?;
             }

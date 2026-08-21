@@ -253,12 +253,21 @@ export const DefaultModelConfig: React.FC = () => {
 
       <ConfigPageRow
         label={t('core.fast.label')}
-        description={t('core.fast.boundDescription')}
+        description={t('core.fast.description')}
         align="center"
       >
-        <div data-self-control-target="fast-model-select" className="default-model-config__bound-model">
-          <span className="default-model-config__bound-model-name">RWKV Local</span>
-          <span className="default-model-config__bound-model-badge">{t('core.fast.bound')}</span>
+        <div data-self-control-target="fast-model-select">
+          <Select
+            value={defaultModels.fast || ''}
+            onChange={(value) => handleDefaultModelChange('fast', normalizeSelectValue(value))}
+            placeholder={t('core.fast.placeholder')}
+            options={enabledModels.map(buildModelOption)}
+            renderOption={renderModelOption}
+            renderValue={renderModelValue}
+            className="default-model-config__model-select"
+            disabled={enabledModels.length === 0}
+            size="small"
+          />
         </div>
       </ConfigPageRow>
     </div>

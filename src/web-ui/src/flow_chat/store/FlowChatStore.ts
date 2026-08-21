@@ -8,12 +8,12 @@ import {
   Session,
   DialogTurn,
   ModelRound,
+  ModelRoutingInfo,
   FlowItem,
   FlowImageAnalysisItem,
   ImageAnalysisResult,
   AnyFlowItem,
   SessionConfig,
-  MemoryHintState,
 } from '../types/flow-chat';
 import { createLogger } from '@/shared/utils/logger';
 import { i18nService } from '@/infrastructure/i18n/core/I18nService';
@@ -38,7 +38,6 @@ export class FlowChatStore {
     this.state = {
       sessions: new Map(),
       activeSessionId: null,
-      memoryHint: null,
     };
   }
 
@@ -1093,13 +1092,6 @@ export class FlowChatStore {
     });
   }
 
-  public setMemoryHint(hint: MemoryHintState): void {
-    this.setState(prev => ({
-      ...prev,
-      memoryHint: hint,
-    }));
-  }
-
   public async updateSessionTitle(
     sessionId: string, 
     title: string, 
@@ -1779,7 +1771,13 @@ export class FlowChatStore {
 
   public updateModelRoundTokenUsage(
     sessionId: string,
-    tokenUsage: { modelId: string; inputTokens?: number; outputTokens?: number; totalTokens?: number }
+    tokenUsage: {
+      modelId: string;
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+      routing?: ModelRoutingInfo;
+    }
   ): void {
     this.setState(prev => {
       const session = prev.sessions.get(sessionId);
@@ -1799,6 +1797,7 @@ export class FlowChatStore {
           inputTokens: tokenUsage.inputTokens,
           outputTokens: tokenUsage.outputTokens,
           totalTokens: tokenUsage.totalTokens,
+          routing: tokenUsage.routing ?? lastRound.routing,
         };
 
         return { ...turn, modelRounds: updatedRounds };

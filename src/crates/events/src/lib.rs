@@ -10,7 +10,8 @@ pub mod emitter;
 pub mod types;
 
 pub use agent::{
-    AgentEvent, AgentEventEnvelope, AgentEventPriority, SubagentParentInfo, ToolEventData,
+    AgentEvent, AgentEventEnvelope, AgentEventPriority, ModelRoutingInfo, SubagentParentInfo,
+    ToolEventData,
 };
 #[allow(deprecated)]
 pub use agent::{AgenticEvent, AgenticEventEnvelope, AgenticEventPriority};

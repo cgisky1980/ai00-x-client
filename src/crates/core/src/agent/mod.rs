@@ -37,6 +37,9 @@ mod util;
 // Insights module
 pub mod insights;
 
+// Smart routing module (R0-R3 request classification -> model selection)
+pub mod routing;
+
 pub use agents::*;
 pub use coordination::*;
 pub use core::*;

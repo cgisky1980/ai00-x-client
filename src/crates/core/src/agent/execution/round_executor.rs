@@ -315,6 +315,7 @@ impl RoundExecutor {
                     .usage
                     .as_ref()
                     .map(|u| u.total_token_count as usize),
+                model_routing: context.model_routing.clone(),
             },
             EventPriority::High,
         )

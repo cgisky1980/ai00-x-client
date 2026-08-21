@@ -368,9 +368,9 @@ impl ExecutionEngine {
         session: &Session,
         agent_type: &str,
         workspace: Option<&WorkspaceBinding>,
-        _original_user_input: &str,
+        original_user_input: &str,
         turn_index: usize,
-    ) -> Ai00XResult<String> {
+    ) -> Ai00XResult<(String, Option<ai00_x_events::ModelRoutingInfo>)> {
         let agent_registry = get_agent_registry();
         let fallback_model_id = agent_registry
             .get_model_id_for_agent(agent_type, workspace.map(|binding| binding.root_path()))
@@ -398,26 +398,82 @@ impl ExecutionEngine {
             Self::resolve_configured_model_id(&ai_config, &configured_model_id);
 
         let model_id = if configured_model_id == "auto" || resolved_configured_model_id == "auto" {
-            let resolved_model_id = ai_config.resolve_model_selection("primary");
-
-            if let Some(resolved_model_id) = resolved_model_id {
-                info!(
-                    "Auto model resolved to primary: session_id={}, turn_index={}, resolved_model_id={}",
-                    session.session_id,
-                    turn_index,
-                    resolved_model_id
+            // Smart routing: classify the request complexity and pick the
+            // tier model when the router is enabled; otherwise primary.
+            if ai_config.router.enabled {
+                let summary = crate::agent::routing::summary::get_global_summary_service()
+                    .get(&session.session_id);
+                let decision = crate::agent::routing::get_smart_router()
+                    .route(
+                        &session.session_id,
+                        original_user_input,
+                        summary.as_deref(),
+                        turn_index,
+                        &ai_config.router,
+                    )
+                    .await;
+                let model_ref = crate::agent::routing::SmartRouter::resolve_model_ref(
+                    &decision,
+                    &ai_config.router,
                 );
-
-                resolved_model_id
+                let source = match decision.source {
+                    crate::agent::routing::DecisionSource::Model => "model",
+                    crate::agent::routing::DecisionSource::TrivialAck => "trivial_ack",
+                    crate::agent::routing::DecisionSource::Fallback => "fallback",
+                };
+                let routing_info = ai00_x_events::ModelRoutingInfo {
+                    tier: decision.route.as_str().to_string(),
+                    source: source.to_string(),
+                    confidence: decision.confidence,
+                    model_ref: model_ref.clone(),
+                    safety_applied: decision.safety_applied,
+                    sticky_applied: decision.sticky_applied,
+                };
+                if let Some(resolved_model_id) = ai_config.resolve_model_selection(&model_ref) {
+                    info!(
+                        "Smart router decision: session_id={}, turn_index={}, tier={}, model_ref={}, resolved_model_id={}, source={:?}",
+                        session.session_id,
+                        turn_index,
+                        decision.route,
+                        model_ref,
+                        resolved_model_id,
+                        decision.source
+                    );
+                    (resolved_model_id, Some(routing_info))
+                } else {
+                    warn!(
+                        "Smart router tier model unresolved ({}), falling back to primary: session_id={}",
+                        model_ref, session.session_id
+                    );
+                    (
+                        ai_config
+                            .resolve_model_selection("primary")
+                            .unwrap_or_else(|| "primary".to_string()),
+                        Some(routing_info),
+                    )
+                }
             } else {
-                warn!(
-                    "Auto model strategy unresolved, falling back to primary: session_id={}",
-                    session.session_id
-                );
-                "primary".to_string()
+                let resolved_model_id = ai_config.resolve_model_selection("primary");
+
+                if let Some(resolved_model_id) = resolved_model_id {
+                    info!(
+                        "Auto model resolved to primary: session_id={}, turn_index={}, resolved_model_id={}",
+                        session.session_id,
+                        turn_index,
+                        resolved_model_id
+                    );
+
+                    (resolved_model_id, None)
+                } else {
+                    warn!(
+                        "Auto model strategy unresolved, falling back to primary: session_id={}",
+                        session.session_id
+                    );
+                    ("primary".to_string(), None)
+                }
             }
         } else {
-            resolved_configured_model_id
+            (resolved_configured_model_id, None)
         };
 
         Ok(model_id)
@@ -1327,7 +1383,7 @@ impl ExecutionEngine {
             .get("original_user_input")
             .cloned()
             .unwrap_or_default();
-        let model_id = match self
+        let (model_id, model_routing) = match self
             .resolve_model_id_for_turn(
                 &session,
                 &agent_type,
@@ -1337,7 +1393,7 @@ impl ExecutionEngine {
             )
             .await
         {
-            Ok(id) => id,
+            Ok(result) => result,
             Err(e) => {
                 error!(
                     "execute_dialog_turn_impl: resolve_model_id_for_turn failed. session={}, turn={}, error={}",
@@ -1484,23 +1540,6 @@ impl ExecutionEngine {
                 .map(|text| text.len())
                 .unwrap_or(0)
         );
-
-        // Emit MemoryInjected event if memory was injected into prompt
-        if let Some((mem_session_id, count, display_prompt)) =
-            crate::service::memory_graph::pending::last_taken_metadata()
-        {
-            let _ = self
-                .event_queue
-                .enqueue(
-                    AgentEvent::MemoryInjected {
-                        session_id: mem_session_id,
-                        count,
-                        display_prompt,
-                    },
-                    Some(EventPriority::Low),
-                )
-                .await;
-        }
 
         let system_prompt_message = Message::system(system_prompt.clone());
 
@@ -1982,6 +2021,7 @@ impl ExecutionEngine {
                 messages: messages.clone(),
                 available_tools: current_available_tools.clone(),
                 model_name: ai_client.config.model.clone(),
+                model_routing: model_routing.clone(),
                 agent_type: agent_type.clone(),
                 context_vars: round_context_vars,
                 workspace_services: context.workspace_services.clone(),
@@ -2675,6 +2715,29 @@ impl ExecutionEngine {
             .await;
 
         debug!("DialogTurnCompleted event sent");
+
+        // Context-aware routing: asynchronously refresh the session's rolling
+        // summary (rwkv-local, ~3s) for the next turn's classification.
+        // Never blocks the reply; failure keeps the previous summary.
+        {
+            let assistant_text = match &last_assistant_message.content {
+                crate::agent::core::MessageContent::Text(t) => Some(t.clone()),
+                crate::agent::core::MessageContent::Mixed { text, .. } if !text.is_empty() => {
+                    Some(text.clone())
+                }
+                crate::agent::core::MessageContent::Multimodal { text, .. } if !text.is_empty() => {
+                    Some(text.clone())
+                }
+                _ => None,
+            };
+            if let Some(assistant_text) = assistant_text {
+                crate::agent::routing::summary::get_global_summary_service().spawn_update(
+                    &context.session_id,
+                    original_user_input.clone(),
+                    assistant_text,
+                );
+            }
+        }
 
         // Print dialog turn token statistics (from model's last returned usage)
         if let Some(usage) = last_usage {

@@ -138,12 +138,6 @@ export interface ImageAnalysisEvent extends AgenticEvent {
   durationMs?: number;
 }
 
-export interface MemoryInjectedEvent {
-  sessionId: string;
-  count: number;
-  displayPrompt?: string;
-}
-
 export interface WorkflowPhaseChangedEvent {
   sessionId: string;
   fromPhase: string;
@@ -432,10 +426,6 @@ export class AgentAPI {
 
   onImageAnalysisCompleted(callback: (event: ImageAnalysisEvent) => void): () => void {
     return api.listen<ImageAnalysisEvent>('agent://image-analysis-completed', callback);
-  }
-
-  onMemoryInjected(callback: (event: MemoryInjectedEvent) => void): () => void {
-    return api.listen<MemoryInjectedEvent>('agent://memory-injected', callback);
   }
 
   onWorkflowPhaseChanged(callback: (event: WorkflowPhaseChangedEvent) => void): () => void {

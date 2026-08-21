@@ -23,6 +23,25 @@ pub struct SubagentParentInfo {
     pub dialog_turn_id: String,
 }
 
+/// Smart-router decision attached to a model round (only present when the
+/// session runs in "auto" mode with the router enabled). Plain strings keep
+/// the events crate free of core dependencies.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelRoutingInfo {
+    /// Final tier after post-processing ("R0".."R3").
+    pub tier: String,
+    /// Where the decision came from: "model" | "trivial_ack" | "fallback".
+    pub source: String,
+    pub confidence: f32,
+    /// Logical model reference for the tier ("primary"/"fast"/"rwkv-local"
+    /// or a configured model id).
+    pub model_ref: String,
+    #[serde(rename = "safetyApplied")]
+    pub safety_applied: bool,
+    #[serde(rename = "stickyApplied")]
+    pub sticky_applied: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum AgentEvent {
@@ -93,12 +112,6 @@ pub enum AgentEvent {
         subagent_parent_info: Option<SubagentParentInfo>,
     },
 
-    MemoryInjected {
-        session_id: String,
-        count: usize,
-        display_prompt: Option<String>,
-    },
-
     TokenUsageUpdated {
         session_id: String,
         turn_id: String,
@@ -161,6 +174,9 @@ pub enum AgentEvent {
         input_tokens: Option<usize>,
         output_tokens: Option<usize>,
         total_tokens: Option<usize>,
+        /// Smart-router decision for this round (auto mode + router enabled).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        model_routing: Option<ModelRoutingInfo>,
     },
 
     TextChunk {
@@ -379,8 +395,7 @@ impl AgentEvent {
             | Self::PlanConfirmationResponded { session_id, .. }
             | Self::PlanAutoReviewStarted { session_id, .. }
             | Self::PlanAutoReviewCompleted { session_id, .. }
-            | Self::PlanReviseRequested { session_id, .. }
-            | Self::MemoryInjected { session_id, .. } => Some(session_id),
+            | Self::PlanReviseRequested { session_id, .. } => Some(session_id),
             Self::SystemError { session_id, .. } => session_id.as_deref(),
         }
     }

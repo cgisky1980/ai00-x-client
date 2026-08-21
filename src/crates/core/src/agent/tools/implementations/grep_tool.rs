@@ -356,10 +356,10 @@ async fn organize_grep_results_with_rwkv(
                 return None;
             }
         };
-    let client = match factory.get_client_resolved("fast").await {
+    let client = match factory.get_client_resolved("rwkv-local").await {
         Ok(c) => c,
         Err(e) => {
-            warn!("Grep organize: fast model not available: {}", e);
+            warn!("Grep organize: local model not available: {}", e);
             return None;
         }
     };

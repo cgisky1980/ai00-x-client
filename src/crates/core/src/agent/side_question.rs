@@ -206,7 +206,7 @@ Rules:\n\
         let model_id = model_id
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .unwrap_or("fast");
+            .unwrap_or("rwkv-local");
 
         let context_messages = self
             .load_context_messages(session_id, max_context_messages)
@@ -257,7 +257,7 @@ Rules:\n\
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .unwrap_or("fast")
+            .unwrap_or("rwkv-local")
             .to_string();
 
         let context_messages = self

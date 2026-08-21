@@ -140,9 +140,9 @@ impl ConfigManager {
                 Self::ensure_models_config(&mut config.ai.models);
                 Self::add_default_agent_models_config(&mut config.ai.agent_models);
                 Self::add_default_func_agent_models_config(&mut config.ai.func_agent_models);
-                Self::enforce_fast_model_binding(&mut config.ai.default_models);
                 Self::ensure_ai00s_models(&mut config.ai.models, &config.app.ai00_s_base_url);
                 Self::migrate_ai00s_model_refs(&mut config.ai);
+                Self::migrate_fast_model_refs(&mut config.ai);
 
                 if config.migrate_vrm_to_standalone() {
                     needs_migration = true;
@@ -187,9 +187,9 @@ impl ConfigManager {
         Self::ensure_models_config(&mut config.ai.models);
         Self::add_default_agent_models_config(&mut config.ai.agent_models);
         Self::add_default_func_agent_models_config(&mut config.ai.func_agent_models);
-        Self::enforce_fast_model_binding(&mut config.ai.default_models);
         Self::ensure_ai00s_models(&mut config.ai.models, &config.app.ai00_s_base_url);
         Self::migrate_ai00s_model_refs(&mut config.ai);
+        Self::migrate_fast_model_refs(&mut config.ai);
 
         let _ = config.migrate_vrm_to_standalone();
 
@@ -263,11 +263,47 @@ impl ConfigManager {
         }
     }
 
+    /// Unifies the model tier system: `rwkv-local` (R0/R1 lightweight) /
+    /// `fast` (R2 mid-tier) / `primary` (R3 flagship). Migrates legacy "fast"
+    /// references whose semantics was the forced RWKV local binding:
+    /// - agent/func-agent "fast" refs -> "rwkv-local" (lightweight tasks)
+    /// - router R0/R1 tier "fast" -> "rwkv-local"
+    /// - `default_models.fast` force-bound to "rwkv-local" -> cleared
+    ///   (unset fast falls back to primary)
+    fn migrate_fast_model_refs(config: &mut AIConfig) {
+        const RWKV_LOCAL: &str = "rwkv-local";
+        for v in config.agent_models.values_mut() {
+            if v == "fast" {
+                *v = RWKV_LOCAL.to_string();
+            }
+        }
+        for v in config.func_agent_models.values_mut() {
+            if v == "fast" {
+                *v = RWKV_LOCAL.to_string();
+            }
+        }
+        {
+            let tm = &mut config.router.tier_models;
+            for slot in [&mut tm.r0, &mut tm.r1] {
+                if slot == "fast" {
+                    *slot = RWKV_LOCAL.to_string();
+                }
+            }
+        }
+        if config.default_models.fast.as_deref() == Some(RWKV_LOCAL) {
+            info!(
+                "Clearing legacy fast binding to '{}' (fast is now a free mid-tier slot)",
+                RWKV_LOCAL
+            );
+            config.default_models.fast = None;
+        }
+    }
+
     /// Adds default configuration for the primary agents (`agent_models`).
     fn add_default_agent_models_config(
         agent_models: &mut std::collections::HashMap<String, String>,
     ) {
-        let agents_using_fast = vec![
+        let agents_using_local = vec![
             "Explore",
             "FileFinder",
             "GenerateDoc",
@@ -275,9 +311,9 @@ impl ConfigManager {
             "Router",
             "Init",
         ];
-        for key in agents_using_fast {
+        for key in agents_using_local {
             if !agent_models.contains_key(key) {
-                agent_models.insert(key.to_string(), "fast".to_string());
+                agent_models.insert(key.to_string(), "rwkv-local".to_string());
             }
         }
     }
@@ -286,27 +322,16 @@ impl ConfigManager {
     fn add_default_func_agent_models_config(
         func_agent_models: &mut std::collections::HashMap<String, String>,
     ) {
-        let func_agents_using_fast = vec![
+        let func_agents_using_local = vec![
             "compression",
             "startchat-func-agent",
             "session-title-func-agent",
             "git-func-agent",
         ];
-        for key in func_agents_using_fast {
+        for key in func_agents_using_local {
             if !func_agent_models.contains_key(key) {
-                func_agent_models.insert(key.to_string(), "fast".to_string());
+                func_agent_models.insert(key.to_string(), "rwkv-local".to_string());
             }
-        }
-    }
-
-    fn enforce_fast_model_binding(default_models: &mut DefaultModelsConfig) {
-        const RWKV_FAST_MODEL_ID: &str = "rwkv-local";
-        if default_models.fast.as_deref() != Some(RWKV_FAST_MODEL_ID) {
-            info!(
-                "Enforcing fast model binding to '{}', was: {:?}",
-                RWKV_FAST_MODEL_ID, default_models.fast
-            );
-            default_models.fast = Some(RWKV_FAST_MODEL_ID.to_string());
         }
     }
 

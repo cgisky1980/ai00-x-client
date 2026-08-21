@@ -63,7 +63,8 @@
   "model": {
     "label": "模型",
     "primary": "主力模型",
-    "fast": "快速模型"
+    "fast": "中档模型",
+    "local": "RWKV 本地模型"
   },
   "common": {
     "enable": "启用"

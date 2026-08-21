@@ -814,7 +814,15 @@ const TemplateConfigPage: React.FC = () => {
                   <div className="tc-model-slot">
                     <span className="tc-model-slot__label">{t('modelSlots.fast.label')}</span>
                     <div className="tc-model-slot__select">
-                      <span className="tc-model-slot__bound">RWKV Local ({t('slotDefault.fast')})</span>
+                      <Select
+                        size="small"
+                        options={buildModelOptions('fast')}
+                        value={getSelectedValue('fast')}
+                        onChange={(v) => handleModelChange('fast', v)}
+                        placeholder={t('slotDefault.fast')}
+                        renderOption={renderModelOption}
+                        renderValue={renderModelValue}
+                      />
                     </div>
                   </div>
                 </div>

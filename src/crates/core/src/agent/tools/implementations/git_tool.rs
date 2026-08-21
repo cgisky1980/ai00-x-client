@@ -593,10 +593,10 @@ impl GitTool {
                     return None;
                 }
             };
-        let client = match factory.get_client_resolved("fast").await {
+        let client = match factory.get_client_resolved("rwkv-local").await {
             Ok(c) => c,
             Err(e) => {
-                warn!("Git summary: fast model not available: {}", e);
+                warn!("Git summary: local model not available: {}", e);
                 return None;
             }
         };

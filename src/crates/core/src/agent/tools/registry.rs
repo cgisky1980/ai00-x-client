@@ -114,9 +114,6 @@ impl ToolRegistry {
         // Skill tool
         self.register_tool(Arc::new(SkillTool::new()));
 
-        // Memory tool — structured cross-session memory system
-        self.register_tool(Arc::new(MemoryTool::new()));
-
         // SkillManager tool — agent-managed skill creation & editing
         self.register_tool(Arc::new(SkillManagerTool::new()));
 

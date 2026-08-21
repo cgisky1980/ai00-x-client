@@ -38,6 +38,9 @@ pub struct RoundContext {
     pub messages: Vec<Message>,
     pub available_tools: Vec<String>,
     pub model_name: String,
+    /// Smart-router decision for this turn's model selection (auto mode +
+    /// router enabled); surfaced to the UI via ModelRoundCompleted.
+    pub model_routing: Option<ai00_x_events::ModelRoutingInfo>,
     pub agent_type: String,
     pub context_vars: HashMap<String, String>,
     pub workspace_services: Option<WorkspaceServices>,

@@ -25,6 +25,80 @@ pub struct ResetConfigRequest {
 #[derive(Debug, Deserialize, Default)]
 pub struct GetRuntimeLoggingInfoRequest {}
 
+#[derive(Debug, Deserialize)]
+pub struct TestRouterClassificationRequest {
+    pub request: String,
+}
+
+/// 智能路由整体状态（设置页展示）：路由开关 + RWKV 引擎就绪 + 分类头加载详情。
+#[derive(Debug, Serialize)]
+pub struct RouterStatus {
+    pub router_enabled: bool,
+    pub engine_initialized: bool,
+    pub head_loaded: bool,
+    pub head_input_dim: Option<usize>,
+    pub head_detail: Option<String>,
+}
+
+#[tauri::command]
+pub async fn get_router_status(state: State<'_, AppState>) -> Result<RouterStatus, String> {
+    let config_service = &state.config_service;
+    let router_enabled: bool = config_service
+        .get_config::<serde_json::Value>(Some("ai.router.enabled"))
+        .await
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let head = crate::rwkv_llm::get_router_head_status();
+    Ok(RouterStatus {
+        router_enabled,
+        engine_initialized: crate::rwkv_llm::is_llm_initialized(),
+        head_loaded: head.loaded,
+        head_input_dim: head.input_dim,
+        head_detail: head.detail,
+    })
+}
+
+/// 设置页"测试分类"入口：对单条输入跑无状态路由预览（不读/不写会话 sticky）。
+#[tauri::command]
+pub async fn test_router_classification(
+    state: State<'_, AppState>,
+    request: TestRouterClassificationRequest,
+) -> Result<Value, String> {
+    use ai00_x_core::agent::routing;
+
+    let config_service = &state.config_service;
+    let ai_config: ai00_x_core::service::config::types::AIConfig = config_service
+        .get_config(Some("ai"))
+        .await
+        .map_err(|e| format!("Failed to load ai config: {}", e))?;
+
+    let decision = routing::get_smart_router()
+        .route_preview(&request.request, None, &ai_config.router)
+        .await;
+    let model_ref = routing::SmartRouter::resolve_model_ref(&decision, &ai_config.router);
+
+    Ok(serde_json::json!({
+        "route": decision.route.as_str(),
+        "source": match decision.source {
+            routing::DecisionSource::Model => "model",
+            routing::DecisionSource::TrivialAck => "trivial_ack",
+            routing::DecisionSource::Fallback => "fallback",
+        },
+        "confidence": decision.confidence,
+        "probabilities": decision.probabilities,
+        "modelRef": model_ref,
+        "safetyApplied": decision.safety_applied,
+        "stickyApplied": decision.sticky_applied,
+    }))
+}
+
+/// 热重载智能路由分类头（router_head.json 更新后无需重启应用）。
+#[tauri::command]
+pub async fn reload_router_head() -> Result<(), String> {
+    crate::rwkv_llm::rwkv_reload_router_head().await
+}
+
 fn to_json_value<T: Serialize>(value: T, context: &str) -> Result<Value, String> {
     serde_json::to_value(value).map_err(|e| format!("Failed to serialize {}: {}", context, e))
 }
@@ -142,6 +216,7 @@ pub async fn set_config(
             if request.path.starts_with("ai.models")
                 || request.path.starts_with("ai.default_models")
                 || request.path.starts_with("ai.agent_models")
+                || request.path.starts_with("ai.router")
                 || request.path.starts_with("ai.proxy")
                 || request.path == "app.ai00_s_base_url"
             {

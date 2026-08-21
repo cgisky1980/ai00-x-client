@@ -26,7 +26,6 @@ pub mod log_tool;
 pub mod ls_tool;
 pub mod mcp_activate_tool;
 pub mod mcp_tools;
-pub mod memory_tool;
 pub mod mermaid_interactive_tool;
 pub mod miniapp_init_tool;
 pub mod playbook_tool;
@@ -73,7 +72,6 @@ pub use mcp_activate_tool::MCPDeactivateTool;
 pub use mcp_tools::{
     GetMCPPromptTool, ListMCPPromptsTool, ListMCPResourcesTool, ReadMCPResourceTool,
 };
-pub use memory_tool::MemoryTool;
 pub use mermaid_interactive_tool::MermaidInteractiveTool;
 pub use miniapp_init_tool::InitMiniAppTool;
 pub use playbook_tool::PlaybookTool;

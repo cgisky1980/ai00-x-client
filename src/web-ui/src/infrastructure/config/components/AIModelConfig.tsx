@@ -17,6 +17,7 @@ import { aiApi, systemAPI } from '@/infrastructure/api';
 import { useNotification } from '@/shared/notification-system';
 import { ConfigPageHeader, ConfigPageLayout, ConfigPageContent, ConfigPageSection, ConfigPageRow, ConfigCollectionItem } from './common';
 import DefaultModelConfig from './DefaultModelConfig';
+import SmartRouterConfig from './SmartRouterConfig';
 import { createLogger } from '@/shared/utils/logger';
 import { translateConnectionTestMessage } from '@/shared/utils/aiConnectionTestMessages';
 import './AIModelConfig.scss';
@@ -2178,6 +2179,13 @@ const AIModelConfig: React.FC = () => {
           description={tDefault('subtitle')}
         >
           <DefaultModelConfig />
+        </ConfigPageSection>
+
+        <ConfigPageSection
+          title={tDefault('smartRouter.sectionTitle')}
+          description={tDefault('smartRouter.sectionDescription')}
+        >
+          <SmartRouterConfig />
         </ConfigPageSection>
 
         <ConfigPageSection
