@@ -18,6 +18,12 @@
 //! Linear weights use the PyTorch `nn.Linear.weight` layout ([out_features,
 //! in_features] row-major), so `y = x @ W^T + b` — the exporter can flatten
 //! the tensor directly without transposing.
+//!
+//! v4 optional field `base_dim`: when present, `input_dim == base_dim + 5` and
+//! the head expects `hidden[base_dim] ‖ prev_tier_onehot[5]` (one-hot R0-R3,
+//! index 4 = None/first-turn). `forward(hidden, prev_tier)` builds the one-hot
+//! from the runtime sticky-tier value. Heads WITHOUT `base_dim` keep the v1
+//! format (prev_tier ignored) — old head files run unchanged on new code.
 
 use serde::Deserialize;
 use std::path::Path;
@@ -25,12 +31,19 @@ use std::path::Path;
 const LN_EPS: f32 = 1e-5;
 const STD_MIN: f32 = 1e-6;
 const MAX_HEAD_FILE_BYTES: u64 = 64 * 1024 * 1024;
+/// v4 prev_tier one-hot 维度：R0-R3 + None（首轮/未知）。
+pub const PREV_TIER_DIM: usize = 5;
+/// one-hot 中 None（首轮/未知）的下标。
+pub const PREV_TIER_NONE_IDX: usize = 4;
 
 /// Trained router classification head (pure logic, no GPU dependency).
 #[derive(Debug, Clone)]
 pub struct RouterHead {
     input_dim: usize,
     hidden_dim: usize,
+    /// v4: hidden 维度（input_dim = base_dim + 5 prev_tier one-hot）。
+    /// None = v1 老 head（纯 hidden 输入，prev_tier 忽略）。
+    base_dim: Option<usize>,
     mean: Vec<f32>,
     std: Vec<f32>,
     /// Linear1 weight, row-major [hidden_dim][input_dim].
@@ -48,6 +61,8 @@ struct HeadJson {
     version: u32,
     input_dim: usize,
     hidden_dim: usize,
+    #[serde(default)]
+    base_dim: Option<usize>,
     mean: Vec<f32>,
     std: Vec<f32>,
     w1: Vec<f32>,
@@ -78,9 +93,18 @@ impl RouterHead {
         if raw.version != 1 {
             return Err(format!("unsupported router head version: {}", raw.version));
         }
+        if let Some(b) = raw.base_dim {
+            if raw.input_dim != b + PREV_TIER_DIM {
+                return Err(format!(
+                    "router head input_dim {} != base_dim {b} + {} (prev-tier one-hot)",
+                    raw.input_dim, PREV_TIER_DIM
+                ));
+            }
+        }
         let head = RouterHead {
             input_dim: raw.input_dim,
             hidden_dim: raw.hidden_dim,
+            base_dim: raw.base_dim,
             mean: raw.mean,
             std: raw.std,
             w1: raw.w1,
@@ -120,8 +144,15 @@ impl RouterHead {
     }
 
     /// Expected hidden-state dimension (must equal the backbone n_embd).
+    /// v4 head（有 base_dim）期望 hidden 长度 = base_dim；老 head = input_dim。
     pub fn input_dim(&self) -> usize {
         self.input_dim
+    }
+
+    /// 期望的 hidden 维度：v4 = base_dim，v1 = input_dim。
+    /// 引擎侧据此校验 head/模型匹配（v4 head 的 input_dim 含 5 维 one-hot）。
+    pub fn expected_hidden_dim(&self) -> usize {
+        self.base_dim.unwrap_or(self.input_dim)
     }
 
     /// MLP hidden layer width.
@@ -130,17 +161,36 @@ impl RouterHead {
     }
 
     /// Classifies a mean-pooled hidden state into R0-R3 probabilities.
-    pub fn forward(&self, hidden: &[f32]) -> Result<[f32; 4], String> {
-        if hidden.len() != self.input_dim {
+    /// `prev_tier`：上一轮路由等级（sticky 表，0-3）；None = 首轮/未知。
+    /// v4 head（有 base_dim）拼接 one-hot[5]（R0-R3 + None 位）；老 head 忽略。
+    pub fn forward(&self, hidden: &[f32], prev_tier: Option<u8>) -> Result<[f32; 4], String> {
+        let expected = self.expected_hidden_dim();
+        if hidden.len() != expected {
             return Err(format!(
-                "hidden dim {} != head input_dim {} (model/head mismatch)",
-                hidden.len(),
-                self.input_dim
+                "hidden dim {} != head expected {expected} (model/head mismatch)",
+                hidden.len()
             ));
         }
 
+        // v4：拼接 prev_tier one-hot（index 0-3 = R0-R3，4 = None/首轮）。
+        let x: Vec<f32> = match self.base_dim {
+            Some(_) => {
+                let mut v = Vec::with_capacity(self.input_dim);
+                v.extend_from_slice(hidden);
+                let idx = match prev_tier {
+                    Some(t) if t < 4 => t as usize,
+                    _ => PREV_TIER_NONE_IDX,
+                };
+                for i in 0..PREV_TIER_DIM {
+                    v.push(if i == idx { 1.0 } else { 0.0 });
+                }
+                v
+            }
+            None => hidden.to_vec(),
+        };
+
         // 1. Standardize with train-set statistics.
-        let x: Vec<f32> = hidden
+        let x: Vec<f32> = x
             .iter()
             .zip(&self.mean)
             .zip(&self.std)
@@ -232,7 +282,7 @@ mod tests {
         let head = toy_head();
         // x = [1, 1] -> z = [gelu(1), gelu(1)] (equal) -> LN -> y = [0, 0]
         // logits = [0, 0, 0, 0] -> uniform softmax.
-        let probs = head.forward(&[1.0, 1.0]).unwrap();
+        let probs = head.forward(&[1.0, 1.0], None).unwrap();
         for p in probs {
             assert!((p - 0.25).abs() < 1e-6, "{probs:?}");
         }
@@ -243,9 +293,9 @@ mod tests {
         let head = toy_head();
         // x = [3, 0]: z = [gelu(3), 0] -> LN -> y = [+1, -1]
         //   logits = [1, -1, 0, 0] -> argmax 0.
-        let probs0 = head.forward(&[3.0, 0.0]).unwrap();
+        let probs0 = head.forward(&[3.0, 0.0], None).unwrap();
         // x = [0, 3]: mirrored -> logits = [-1, 1, 0, 0] -> argmax 1.
-        let probs1 = head.forward(&[0.0, 3.0]).unwrap();
+        let probs1 = head.forward(&[0.0, 3.0], None).unwrap();
         let argmax = |p: &[f32; 4]| {
             p.iter()
                 .enumerate()
@@ -271,15 +321,15 @@ mod tests {
         }"#;
         let head = RouterHead::from_json_str(json).unwrap();
         // x = (3-2)/0.5 = 2 -> z = gelu(2) -> LN(单元素) = 0 -> logits 全 0 -> uniform。
-        let probs = head.forward(&[3.0]).unwrap();
+        let probs = head.forward(&[3.0], None).unwrap();
         assert!((probs[0] - 0.25).abs() < 1e-6, "{probs:?}");
     }
 
     #[test]
     fn rejects_dim_mismatch_and_bad_fields() {
         let head = toy_head();
-        assert!(head.forward(&[1.0]).is_err());
-        assert!(head.forward(&[1.0, 2.0, 3.0]).is_err());
+        assert!(head.forward(&[1.0], None).is_err());
+        assert!(head.forward(&[1.0, 2.0, 3.0], None).is_err());
 
         let bad = r#"{
             "version": 1, "input_dim": 2, "hidden_dim": 2,
@@ -296,5 +346,81 @@ mod tests {
     #[test]
     fn input_dim_reported() {
         assert_eq!(toy_head().input_dim(), 2);
+        assert_eq!(toy_head().expected_hidden_dim(), 2);
+    }
+
+    /// v4 契约：base_dim 存在 → input_dim = base_dim + 5；hidden 长度 = base_dim；
+    /// prev_tier one-hot 参与 forward（不同 prev_tier → 不同概率）。
+    fn toy_head_v4() -> RouterHead {
+        // input_dim = 1 + 5 = 6：hidden[0] + onehot[5]。
+        // w1 行 [0]（hidden）权重 1，onehot 维度 0-4 权重 [2,2,2,2,2] —— z = x0 + 2*onehot 激活位。
+        let json = r#"{
+            "version": 1, "input_dim": 6, "hidden_dim": 1, "base_dim": 1,
+            "mean": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "std": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            "w1": [1.0, 2.0, 2.0, 2.0, 2.0, 2.0], "b1": [0.0],
+            "ln_g": [1.0], "ln_b": [0.0],
+            "w2": [1.0, 0.0, 0.0, 0.0],
+            "b2": [0.0, 0.0, 0.0, 0.0]
+        }"#;
+        RouterHead::from_json_str(json).expect("v4 toy head should parse")
+    }
+
+    #[test]
+    fn v4_contract_parses_and_validates_dims() {
+        let head = toy_head_v4();
+        assert_eq!(head.input_dim(), 6);
+        assert_eq!(head.expected_hidden_dim(), 1);
+        // hidden 长度须为 base_dim（1），不是 input_dim（6）。
+        assert!(head.forward(&[1.0], None).is_ok());
+        assert!(head.forward(&[1.0, 2.0], None).is_err());
+        assert!(head.forward(&[1.0; 6], None).is_err());
+
+        // base_dim 与 input_dim 不一致 → 拒绝。
+        let bad = r#"{
+            "version": 1, "input_dim": 5, "hidden_dim": 1, "base_dim": 1,
+            "mean": [0.0, 0.0, 0.0, 0.0, 0.0],
+            "std": [1.0, 1.0, 1.0, 1.0, 1.0],
+            "w1": [1.0, 2.0, 2.0, 2.0, 2.0], "b1": [0.0],
+            "ln_g": [1.0], "ln_b": [0.0],
+            "w2": [1.0, 0.0, 0.0, 0.0],
+            "b2": [0.0, 0.0, 0.0, 0.0]
+        }"#;
+        assert!(RouterHead::from_json_str(bad).is_err());
+    }
+
+    #[test]
+    fn v4_prev_tier_changes_output() {
+        // hidden[2] + onehot[5]：w1 第 2 行接 onehot 维度 0（R0 位，权重 3）——
+        // prev_tier=R0 时 z1 非零，LN 归一化后 logits 改变 → 概率改变。
+        let json = r#"{
+            "version": 1, "input_dim": 7, "hidden_dim": 2, "base_dim": 2,
+            "mean": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "std": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            "w1": [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                   0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0], "b1": [0.0, 0.0],
+            "ln_g": [1.0, 1.0], "ln_b": [0.0, 0.0],
+            "w2": [1.0, 0.0, 0.0, 0.0,
+                   0.0, 1.0, 0.0, 0.0],
+            "b2": [0.0, 0.0, 0.0, 0.0]
+        }"#;
+        let head = RouterHead::from_json_str(json).unwrap();
+        let a = head.forward(&[1.0, 0.0], Some(0)).unwrap(); // z=[gelu(1), gelu(3)]
+        let b = head.forward(&[1.0, 0.0], Some(1)).unwrap(); // z=[gelu(1), 0]
+        assert_ne!(a[0], b[0], "prev_tier must change probabilities");
+        assert_ne!(a[1], b[1], "{a:?} vs {b:?}");
+        // 非法 prev_tier（>3）按 None 处理（index 4）。
+        let c = head.forward(&[1.0, 0.0], Some(9)).unwrap();
+        let d = head.forward(&[1.0, 0.0], None).unwrap();
+        assert_eq!(c, d);
+    }
+
+    #[test]
+    fn v1_head_ignores_prev_tier() {
+        let head = toy_head();
+        // 老 head（无 base_dim）：prev_tier 参数完全不影响输出。
+        let a = head.forward(&[3.0, 0.0], None).unwrap();
+        let b = head.forward(&[3.0, 0.0], Some(3)).unwrap();
+        assert_eq!(a, b);
     }
 }
