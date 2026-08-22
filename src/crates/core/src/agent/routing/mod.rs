@@ -81,7 +81,12 @@ impl SmartRouter {
         }
 
         // 2. Model classification (state embedding + trained MLP head).
-        let raw = match self.classify(user_input, summary, config).await {
+        // prev_tier（sticky 表）作为 v4 head 的 one-hot 特征与后处理共用。
+        let prev_tier = self.previous_tier(session_id);
+        let raw = match self
+            .classify(user_input, summary, prev_tier.map(|t| t.index() as u8), config)
+            .await
+        {
             Ok(decision) => decision,
             Err(e) => {
                 warn!(
@@ -95,7 +100,6 @@ impl SmartRouter {
         };
 
         // 3. Post-processing rule stack (safety upgrade + sticky tier).
-        let prev_tier = self.previous_tier(session_id);
         let is_short = is_short_message(user_input);
         let decision = postprocess(&raw.probabilities, prev_tier, is_short, config);
         if decision.source == DecisionSource::Model {
@@ -138,7 +142,7 @@ impl SmartRouter {
         if is_trivial_ack(user_input) {
             return trivial_ack_decision();
         }
-        let raw = match self.classify(user_input, summary, config).await {
+        let raw = match self.classify(user_input, summary, None, config).await {
             Ok(decision) => decision,
             Err(e) => {
                 warn!("[SmartRouter] preview classification failed: {}", e);
@@ -167,11 +171,13 @@ impl SmartRouter {
     /// Runs RWKV classification on the request: the desktop engine extracts the
     /// mean-pooled last-layer hidden state (state embedding) and scores it with
     /// the trained MLP head (`router_head.json`), returning four tier
-    /// probabilities (R0-R3).
+    /// probabilities (R0-R3). `prev_tier`（上一轮 sticky tier）作为 v4 head 的
+    /// one-hot 数值特征传入（v1 head 忽略）。
     async fn classify(
         &self,
         user_input: &str,
         summary: Option<&str>,
+        prev_tier: Option<u8>,
         config: &RouterConfig,
     ) -> Result<RoutingDecision, String> {
         let engine = get_rwkv_engine().ok_or("rwkv engine not registered")?;
@@ -182,7 +188,7 @@ impl SmartRouter {
         let classify_input = Self::build_classify_input(user_input, summary);
         let probs = tokio::time::timeout(
             Duration::from_millis(config.timeout_ms.max(100)),
-            engine.classify(classify_input),
+            engine.classify(classify_input, prev_tier),
         )
         .await
         .map_err(|_| "classify timed out".to_string())??;

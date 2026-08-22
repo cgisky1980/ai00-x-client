@@ -16,8 +16,13 @@ byte-compatible with batch_summarize.rs input. Tier assignment is heuristic:
 
 Usage:
   uv run --with pyarrow python sample_scenarios_v2.py
+  # second batch (bigger quotas, different seed, dedup vs batch 1):
+  uv run --with pyarrow python sample_scenarios_v2.py \
+    --out data/multiturn/scenarios_v2b.jsonl --seed 20260823 --scale 2 \
+    --exclude data/multiturn/scenarios_v2.jsonl
 """
 
+import argparse
 import json
 import random
 import re
@@ -27,7 +32,7 @@ DATA = Path(__file__).parent / "data" / "multiturn"
 RAW = DATA / "raw"
 OUT = DATA / "scenarios_v2.jsonl"
 
-MAX_TURNS = 4          # cap per conversation (rolling-summary typical shape)
+MAX_TURNS = 4          # legacy default for batch 1/2; v2c uses --max-turns 6
 MAX_MSG_CHARS = 2000   # cap per message (prefill cost control)
 MIN_FIRST_USER = 8     # skip empty/greeting-only conversations
 
@@ -61,8 +66,8 @@ def clean_msg(s: str) -> str:
     return s.strip()[:MAX_MSG_CHARS]
 
 
-def valid_turns(turns: list[dict]) -> bool:
-    if not (2 <= len(turns) <= MAX_TURNS):
+def valid_turns(turns: list[dict], max_turns: int) -> bool:
+    if not (2 <= len(turns) <= max_turns):
         return False
     if len(turns[0]["user"]) < MIN_FIRST_USER:
         return False
@@ -86,7 +91,23 @@ def sharegpt_tier(turns: list[dict], kind: str) -> int:
     return 1
 
 
-def load_sharegpt(path: Path, kind: str, lang: str, quota: dict[tuple, int], rng: random.Random):
+def load_exclude(path: Path | None) -> set[str]:
+    """First-user texts of already-sampled scenarios (cross-batch dedup)."""
+    excl: set[str] = set()
+    if path and path.exists():
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                row = json.loads(line)
+                turns = row.get("turns") or []
+                if turns:
+                    excl.add(turns[0]["user"])
+    return excl
+
+
+def load_sharegpt(path: Path, kind: str, lang: str, quota: dict[tuple, int], rng: random.Random, excl: set[str], max_turns: int):
     """One pass, reservoir-ish: collect candidates per tier until quota filled."""
     buckets: dict[int, list[dict]] = {0: [], 1: [], 2: [], 3: []}
     seen = 0
@@ -106,15 +127,20 @@ def load_sharegpt(path: Path, kind: str, lang: str, quota: dict[tuple, int], rng
                 a = clean_msg(str(pair.get("assistant") or ""))
                 if u or a:
                     turns.append({"user": u, "assistant": a})
-            turns = turns[:MAX_TURNS]
-            if not valid_turns(turns):
+            turns = turns[:max_turns]
+            if not valid_turns(turns, max_turns):
+                continue
+            if turns[0]["user"] in excl:
                 continue
             seen += 1
             tier = sharegpt_tier(turns, kind)
             buckets[tier].append({"turns": turns, "tier": tier, "source": f"sharegpt/{kind}_{lang}"})
-            # early exit when all quotas for this file are filled (with margin)
-            key = (kind, lang, tier)
-            if all(len(buckets[t]) >= quota.get((kind, lang, t), 0) + 5 for t in (0, 1, 2, 3)):
+            # early exit when all nonzero quotas for this file are filled (with margin)
+            if all(
+                len(buckets[t]) >= quota.get((kind, lang, t), 0) + 5
+                for t in (0, 1, 2, 3)
+                if quota.get((kind, lang, t), 0) > 0
+            ):
                 break
     out = []
     for t in (0, 1, 2, 3):
@@ -126,7 +152,7 @@ def load_sharegpt(path: Path, kind: str, lang: str, quota: dict[tuple, int], rng
     return out
 
 
-def load_mtbench(rng: random.Random):
+def load_mtbench(rng: random.Random, per_category: int, excl: set[str], max_turns: int):
     import pyarrow.parquet as pq
 
     qs = {}
@@ -156,25 +182,48 @@ def load_mtbench(rng: random.Random):
                     turns[-1]["assistant"] = content
                 elif role == "user" and (not turns or turns[-1]["assistant"]):
                     turns.append({"user": content, "assistant": ""})
-            turns = [x for x in turns if x["assistant"]][:MAX_TURNS]
-            if valid_turns(turns):
+            turns = [x for x in turns if x["assistant"]][:max_turns]
+            if valid_turns(turns, max_turns):
                 best[qid] = (model, turns)
     by_cat: dict[str, list[dict]] = {}
     for qid, (model, turns) in best.items():
+        if turns[0]["user"] in excl:
+            continue
         cat = qs.get(qid, {}).get("category", "unknown")
         by_cat.setdefault(cat, []).append(
             {"turns": turns, "tier": MTBENCH_TIER.get(cat, 1), "source": f"mtbench/{cat}"})
     out = []
     for cat, pool in sorted(by_cat.items()):
         rng.shuffle(pool)
-        take = pool[:MTBENCH_PER_CATEGORY]
+        take = pool[:per_category]
         out.extend(take)
         print(f"[mtbench {cat}] {len(pool)} -> {len(take)} (tier {MTBENCH_TIER.get(cat, 1)})")
     return out
 
 
 def main():
-    rng = random.Random(20260821)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", default=str(OUT))
+    ap.add_argument("--seed", type=int, default=20260821)
+    ap.add_argument("--scale", type=float, default=1.0,
+                    help="quota multiplier (more scenarios per bucket)")
+    ap.add_argument("--exclude", nargs="+", default=None,
+                    help="previous scenarios jsonl(s); skip conversations with the same first user msg")
+    ap.add_argument("--max-turns", type=int, default=MAX_TURNS,
+                    help="cap on turns per conversation (v2c uses 6 for deeper rolling summaries)")
+    args = ap.parse_args()
+
+    out_path = Path(args.out)
+    quota = {k: int(v * args.scale) for k, v in SHAREGPT_QUOTA.items()}
+    mtbench_per = max(1, int(MTBENCH_PER_CATEGORY * args.scale))
+    excl: set[str] = set()
+    if args.exclude:
+        for p in args.exclude:
+            excl |= load_exclude(Path(p))
+    print(f"[sample] seed={args.seed} scale={args.scale} max_turns={args.max_turns} "
+          f"exclude={len(excl)} first-user keys")
+
+    rng = random.Random(args.seed)
     scenarios = []
     for (kind, lang), _paths in {
         ("common", "zh"): [RAW / "common_zh_70k.jsonl"],
@@ -186,11 +235,11 @@ def main():
             if not p.exists():
                 print(f"[warn] missing {p.name}, skipped")
                 continue
-            scenarios.extend(load_sharegpt(p, kind, lang, SHAREGPT_QUOTA, rng))
-    scenarios.extend(load_mtbench(rng))
+            scenarios.extend(load_sharegpt(p, kind, lang, quota, rng, excl, args.max_turns))
+    scenarios.extend(load_mtbench(rng, mtbench_per, excl, args.max_turns))
 
     rng.shuffle(scenarios)
-    with OUT.open("w", encoding="utf-8") as f:
+    with out_path.open("w", encoding="utf-8") as f:
         for s in scenarios:
             f.write(json.dumps({"turns": s["turns"], "tier": s["tier"]}, ensure_ascii=False) + "\n")
 
@@ -200,7 +249,7 @@ def main():
         dist[s["tier"]] = dist.get(s["tier"], 0) + 1
         turns_dist[len(s["turns"])] = turns_dist.get(len(s["turns"]), 0) + 1
     est = sum(len(s["turns"]) for s in scenarios)
-    print(f"\nwrote {len(scenarios)} scenarios -> {OUT}")
+    print(f"\nwrote {len(scenarios)} scenarios -> {out_path}")
     print(f"tier dist: {dict(sorted(dist.items()))}")
     print(f"turns dist: {dict(sorted(turns_dist.items()))}")
     print(f"estimated summaries (one per turn): {est}")

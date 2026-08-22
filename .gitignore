@@ -32,7 +32,8 @@ scripts/router_head/data/
 scripts/router_head/router_head.json
 scripts/router_head/router_head_context.json
 scripts/router_head/router_head_v3.json
-
+scripts/router_head/router_head_v3_536pool.json
+scripts/router_head/router_head_v4*.json
 # External CMake build dirs (llama.cpp, etc.) — use short paths to avoid
 # Windows MAX_PATH issues. Cached across cargo clean for fast incremental builds.
 .llama-build/

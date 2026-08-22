@@ -1,15 +1,19 @@
-"""智能路由 MLP 分类头训练脚本。
+"""智能路由 MLP 分类头训练脚本（v4：hidden + prev_tier one-hot 输入）。
 
 复刻 rwkv-router 论文路径 `paper/scripts/03_classification.py`（test_acc=0.9325）：
 mean-pooled hidden -> 标准化 -> Linear -> GELU -> LayerNorm -> Dropout -> Linear。
 
 输入：extract_router_features（rwkv-rsv example）产出的 features.jsonl，
-     每行 {"idx": int, "tier": int, "hidden": [f32, ...]}。
-输出：router_head.json（部署到 models/rwkv/，由 ai00-x-core RouterHead 加载）。
-     权重布局契约见 client/src/crates/core/src/agent/routing/head.rs。
+     每行 {"idx", "tier", "prev_tier"?, "hidden": [f32, ...]}（prev_tier 缺省
+     = None → one-hot index 4）。加载后统一拼接 5 维 one-hot → input_dim = D+5。
+输出：router_head.json（v4 契约：含 base_dim=D；Rust RouterHead.forward 由
+     prev_tier 参数拼 one-hot，见 head.rs）。权重布局契约见
+     client/src/crates/core/src/agent/routing/head.rs。
 
 用法：
-    uv run train_mlp.py [--data data/features.jsonl] [--out router_head.json]
+    uv run train_mlp.py [--data data/features.jsonl data/zh_features.jsonl
+                         data/slices_train_features.jsonl]
+                        [--context-ratio 0.5] [--out router_head_v4.json]
 """
 
 from __future__ import annotations
@@ -52,9 +56,15 @@ class MlpClassifier(nn.Module):
         return self.net(x)
 
 
-def load_features(path: Path) -> tuple[np.ndarray, np.ndarray]:
+PREV_TIER_DIM = 5  # one-hot: R0-R3 + None（首轮/未知，与 Rust head.rs 契约一致）
+PREV_TIER_NONE_IDX = 4
+
+
+def load_features(path: Path) -> tuple[np.ndarray, np.ndarray, list]:
+    """返回 (X_hidden, y, prev_tiers)。prev_tiers[i] = 0-3 或 None。"""
     hiddens: list[np.ndarray] = []
     tiers: list[int] = []
+    prevs: list = []
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -63,11 +73,22 @@ def load_features(path: Path) -> tuple[np.ndarray, np.ndarray]:
             row = json.loads(line)
             hiddens.append(np.asarray(row["hidden"], dtype=np.float32))
             tiers.append(int(row["tier"]))
+            pt = row.get("prev_tier")
+            prevs.append(int(pt) if pt is not None else None)
     X = np.stack(hiddens)
     y = np.asarray(tiers, dtype=np.int64)
     assert X.ndim == 2 and y.shape[0] == X.shape[0]
     assert set(np.unique(y)).issubset({0, 1, 2, 3}), f"unexpected tiers: {np.unique(y)}"
-    return X, y
+    return X, y, prevs
+
+
+def append_prev_onehot(X: np.ndarray, prevs: list) -> np.ndarray:
+    """hidden [N, D] ‖ prev_tier one-hot [N, 5] -> [N, D+5]（v4 head 输入）。"""
+    n = X.shape[0]
+    onehot = np.zeros((n, PREV_TIER_DIM), dtype=np.float32)
+    for i, p in enumerate(prevs):
+        onehot[i, p if p is not None and p < 4 else PREV_TIER_NONE_IDX] = 1.0
+    return np.concatenate([X, onehot], axis=1)
 
 
 def stratified_split(y: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -103,10 +124,11 @@ def export_head(
     model: nn.Module,
     mean: np.ndarray,
     std: np.ndarray,
-    input_dim: int,
+    base_dim: int,
     out_path: Path,
 ) -> None:
-    """导出 Rust RouterHead 契约格式的权重 JSON。
+    """导出 Rust RouterHead 契约格式的权重 JSON（v4：含 base_dim，输入 =
+    base_dim hidden + 5 维 prev_tier one-hot；Rust 端 forward 拼接 one-hot）。
 
     Linear 权重取 nn.Linear.weight（[out, in] 行主序），Rust 端 y = x @ W^T + b。
     """
@@ -115,7 +137,8 @@ def export_head(
     lin2 = model.net[4]
     payload = {
         "version": 1,
-        "input_dim": input_dim,
+        "input_dim": base_dim + PREV_TIER_DIM,
+        "base_dim": base_dim,
         "hidden_dim": HIDDEN_DIM,
         "mean": mean.astype(float).tolist(),
         "std": std.astype(float).tolist(),
@@ -139,6 +162,13 @@ def main() -> None:
         help="首个文件做 70/15/15 切分；其余文件（数据增强）仅并入 train。",
     )
     parser.add_argument("--out", default="router_head.json")
+    parser.add_argument(
+        "--context-ratio",
+        type=float,
+        default=None,
+        help="train 中带上下文样本（增强文件里 prev_tier 非 None）的目标占比（0-1）。"
+        "镜像线上分布：会话第二轮起必有上下文。None = 不过采样。",
+    )
     args = parser.parse_args()
 
     torch.manual_seed(SEED)
@@ -148,9 +178,12 @@ def main() -> None:
     out_path = Path(args.out)
 
     print(f"loading features: {data_path}")
-    X, y = load_features(data_path)
+    X, y, prevs = load_features(data_path)
+    base_dim = X.shape[1]
+    X = append_prev_onehot(X, prevs)
     input_dim = X.shape[1]
-    print(f"samples={len(X)} dim={input_dim} class_counts={np.bincount(y, minlength=4).tolist()}")
+    print(f"samples={len(X)} hidden_dim={base_dim} input_dim={input_dim} "
+          f"class_counts={np.bincount(y, minlength=4).tolist()}")
 
     idx_train, idx_dev, idx_test = stratified_split(y)
     print(f"split: train={len(idx_train)} dev={len(idx_dev)} test={len(idx_test)}")
@@ -167,15 +200,18 @@ def main() -> None:
     print(f"split indices -> {split_path}")
 
     # 增强特征文件：全部并入 train（不参与 dev/test，保证 held-out 纯净）。
-    aug_X, aug_y = [], []
+    aug_X, aug_y, aug_prevs = [], [], []
     for extra in args.data[1:]:
         p = Path(extra)
         print(f"loading augmentation: {p}")
-        x2, y2 = load_features(p)
-        assert x2.shape[1] == input_dim, f"{p}: dim {x2.shape[1]} != {input_dim}"
-        aug_X.append(x2)
+        x2, y2, p2 = load_features(p)
+        assert x2.shape[1] == base_dim, f"{p}: dim {x2.shape[1]} != {base_dim}"
+        aug_X.append(append_prev_onehot(x2, p2))
         aug_y.append(y2)
-        print(f"  +{len(x2)} samples, class_counts={np.bincount(y2, minlength=4).tolist()}")
+        aug_prevs.extend(p2)
+        n_ctx = sum(1 for v in p2 if v is not None)
+        print(f"  +{len(x2)} samples (context={n_ctx}), "
+              f"class_counts={np.bincount(y2, minlength=4).tolist()}")
     if aug_X:
         X_full = np.concatenate([X] + aug_X)
         y_full = np.concatenate([y] + aug_y)
@@ -183,11 +219,34 @@ def main() -> None:
         idx_train = np.concatenate([idx_train, aug_idx])
         print(f"merged train set: {len(idx_train)}")
 
+        # 上下文样本过采样：镜像线上（第二轮起 100% 带上下文）。
+        # 重复因子把 train 中 prev_tier 非 None 的占比推到 --context-ratio。
+        if args.context_ratio is not None:
+            rng = np.random.default_rng(SEED)
+            is_ctx = np.array([p is not None for p in prevs + aug_prevs])
+            n_train = len(idx_train)
+            train_ctx = int(is_ctx[idx_train].sum())
+            train_bare = n_train - train_ctx
+            # target: train_ctx * k / (train_ctx * k + train_bare) = ratio
+            denom = max(1.0 - args.context_ratio, 1e-6)
+            k = (args.context_ratio * train_bare) / (denom * max(train_ctx, 1))
+            k = max(1.0, min(k, 3.0))
+            if k > 1.05:
+                ctx_train_idx = idx_train[is_ctx[idx_train]]
+                reps = int((k - 1.0) * len(ctx_train_idx))
+                if reps > 0:
+                    dup = rng.choice(ctx_train_idx, size=reps, replace=True)
+                    idx_train = np.concatenate([idx_train, dup])
+                    print(f"context oversample: x{k:.2f} (+{reps}) -> "
+                          f"context ratio {is_ctx[idx_train].mean():.2f}")
+            else:
+                print(f"context ratio already ~{train_ctx / max(n_train, 1):.2f}; no oversample")
+
     # 合并数据集（无增强时 X_full == X）。
     if not aug_X:
         X_full, y_full = X, y
 
-    # train 集标准化统计量（与 Rust 端导出的 mean/std 一致；含增强样本）。
+    # train 集标准化统计量（与 Rust 端导出的 mean/std 一致；含增强/过采样样本）。
     mean = X_full[idx_train].mean(axis=0)
     std = X_full[idx_train].std(axis=0)
     std = np.maximum(std, 1e-6)
@@ -235,7 +294,7 @@ def main() -> None:
     test_acc = evaluate(model, Xte, yte)
     print(f"\nbest dev_acc={best_dev:.4f}  test_acc={test_acc:.4f}")
 
-    export_head(model, mean, std, input_dim, out_path)
+    export_head(model, mean, std, base_dim, out_path)
     print("done")
 
 

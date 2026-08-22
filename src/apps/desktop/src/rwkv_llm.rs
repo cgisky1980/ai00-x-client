@@ -100,8 +100,11 @@ enum PoolRequest {
     ClearSession(String),
     /// Single-shot classification (smart router): mean-hidden extraction from
     /// a zero state + trained MLP head -> four tier probabilities (R0-R3).
+    /// `prev_tier`: sticky-tier value of the previous turn (v4 head one-hot;
+    /// v1 head ignores).
     Classify {
         request: String,
+        prev_tier: Option<u8>,
         reply: oneshot::Sender<Result<Vec<f32>, String>>,
     },
     /// Hot-reload the router classification head (router_head.json) into the
@@ -382,9 +385,13 @@ fn handle_request(
             }
             true
         }
-        PoolRequest::Classify { request, reply } => {
+        PoolRequest::Classify {
+            request,
+            prev_tier,
+            reply,
+        } => {
             let result = match engine.as_mut() {
-                Some(engine) => classify_with_engine(engine, &request),
+                Some(engine) => classify_with_engine(engine, &request, prev_tier),
                 None => Err("LLM engine not initialized".to_string()),
             };
             let _ = reply.send(result);
@@ -417,8 +424,13 @@ const CLASSIFY_MAX_TOKENS: usize = 256;
 
 /// 单次分类（智能路由）：tokenize 输入（摘要+请求，截断 256）→ 零状态 prefill →
 /// mean-hidden（state embedding）→ 训练好的 MLP 头 → 4 类概率。
+/// `prev_tier` 为上一轮 sticky tier（v4 head 拼 one-hot 特征；v1 head 忽略）。
 /// 在 pool 线程内同步执行（prefill 短，耗时可忽略）。
-fn classify_with_engine(engine: &mut PoolEngine, request: &str) -> Result<Vec<f32>, String> {
+fn classify_with_engine(
+    engine: &mut PoolEngine,
+    request: &str,
+    prev_tier: Option<u8>,
+) -> Result<Vec<f32>, String> {
     let head = engine
         .router_head
         .as_ref()
@@ -435,10 +447,11 @@ fn classify_with_engine(engine: &mut PoolEngine, request: &str) -> Result<Vec<f3
     tokens.truncate(CLASSIFY_MAX_TOKENS);
 
     // 校验分类头与模型维度匹配（用户更换模型后 head 失效 → 降级回落）。
-    if head.input_dim() != engine.model.info().num_emb {
+    // v4 head 的 expected_hidden_dim = base_dim（input_dim 含 5 维 one-hot）。
+    if head.expected_hidden_dim() != engine.model.info().num_emb {
         return Err(format!(
-            "router head input_dim {} != model n_embd {} (head/model mismatch)",
-            head.input_dim(),
+            "router head expects hidden {} != model n_embd {} (head/model mismatch)",
+            head.expected_hidden_dim(),
             engine.model.info().num_emb
         ));
     }
@@ -453,7 +466,7 @@ fn classify_with_engine(engine: &mut PoolEngine, request: &str) -> Result<Vec<f3
         .forward_seq_mean_hidden(&mut engine.classify_state, &tokens)
         .map_err(|e| format!("classify prefill failed: {}", e))?;
 
-    let probs = head.forward(&hidden)?;
+    let probs = head.forward(&hidden, prev_tier)?;
     Ok(probs.to_vec())
 }
 
@@ -895,7 +908,7 @@ pub async fn pool_infer(
 }
 
 /// 单次分类请求（智能路由用）：mean-hidden 提取 + MLP 头 → 4 类概率（R0-R3）。
-pub async fn rwkv_classify(request: String) -> Result<Vec<f32>, String> {
+pub async fn rwkv_classify(request: String, prev_tier: Option<u8>) -> Result<Vec<f32>, String> {
     if !LLM_READY.load(Ordering::SeqCst) {
         return Err("LLM engine not initialized".to_string());
     }
@@ -904,6 +917,7 @@ pub async fn rwkv_classify(request: String) -> Result<Vec<f32>, String> {
     pool.tx
         .send(PoolRequest::Classify {
             request,
+            prev_tier,
             reply: reply_tx,
         })
         .map_err(|e| format!("failed to send classify request: {}", e))?;
