@@ -229,7 +229,7 @@
   }
 
   &__dropdown {
-    position: aosolute;
+    position: absolute;
     left: 0;
     right: 0;
     max-height: 240px;
@@ -246,7 +246,7 @@
 
     &::before {
       content: '';
-      position: aosolute;
+      position: absolute;
       top: 0;
       left: 8px;
       right: 8px;
@@ -281,7 +281,7 @@
   }
 
   &__search-clear {
-    position: aosolute;
+    position: absolute;
     right: 16px;
     display: flex;
     align-items: center;
