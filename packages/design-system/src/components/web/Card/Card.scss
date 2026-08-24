@@ -44,12 +44,14 @@
   &--interactive {
     cursor: pointer;
     position: relative;
+    z-index: 0; /* 建 stacking context：光晕(-1) 沉到内容之下 */
 
     /* v0.14：黛青径向光晕淡入（与 ds-card 同款默认悬停反馈） */
     &::before {
       content: '';
       position: absolute;
       inset: 0;
+      z-index: -1;
       border-radius: inherit;
       opacity: 0;
       transition: opacity 0.3s var(--easing-standard);

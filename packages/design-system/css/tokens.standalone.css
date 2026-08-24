@@ -781,6 +781,7 @@ body {
 /* v0.14：默认悬停反馈 = 黛青径向光晕淡入 + 上浮 -2px（沿旧版官网效果，守唯一交互色） */
 .ds-card {
   position: relative;
+  z-index: 0; /* 建 stacking context：让 ::before(-1) 沉到内容之下、背景之上 */
   background-color: var(--color-bg-card);
   background-image: var(--ds-paper-grain);
   border-radius: var(--size-radius-lg);
@@ -792,6 +793,7 @@ body {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: -1; /* 光晕沉底：纸纹之上、文本之下 */
   border-radius: inherit; /* 圆角自适应，不裁浮层（不用 overflow:hidden） */
   opacity: 0;
   transition: opacity 0.3s var(--easing-standard);
@@ -810,6 +812,7 @@ body {
 /* 通用悬停光晕工具类（任意卡面/区块可挂）：与 ds-card 同款 */
 .ds-hover-glow {
   position: relative;
+  z-index: 0; /* 建 stacking context：光晕(-1) 沉到内容之下、宿主背景之上 */
   transition: transform var(--motion-fast) var(--easing-standard),
     box-shadow var(--motion-fast) var(--easing-standard);
 }
@@ -817,13 +820,13 @@ body {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: -1;
   border-radius: inherit;
   opacity: 0;
   transition: opacity 0.3s var(--easing-standard);
   background: radial-gradient(ellipse 80% 60% at 10% 0%,
     color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent);
   pointer-events: none;
-  z-index: 0;
 }
 .ds-hover-glow:hover {
   transform: translateY(-2px);
