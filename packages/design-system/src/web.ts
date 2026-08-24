@@ -119,6 +119,35 @@ export {
 export { Pagination, type PaginationProps } from './components/pagination';
 export { Tree, type TreeNodeData, type TreeProps } from './components/tree';
 
+/* ==== AI 系组件（v0.15）：antd X 对位，纯 UI / props 数据注入 / 零 store 依赖 ==== */
+export { ChatMessage, type ChatMessageProps } from './components/web/ai/ChatMessage';
+export { PromptInput, type PromptInputProps } from './components/web/ai/PromptInput';
+export {
+  Conversations,
+  type ConversationsProps,
+  type ConversationItem,
+} from './components/web/ai/Conversations';
+export { ThinkingPanel, type ThinkingPanelProps } from './components/web/ai/ThinkingPanel';
+export {
+  AIToolCard,
+  type AIToolCardProps,
+  type AIToolCardStatus,
+  type AIToolCardConfirm,
+} from './components/web/ai/AIToolCard';
+export { StreamingText, type StreamingTextProps } from './components/web/ai/StreamingText';
+export {
+  AIProcessingIndicator,
+  type AIProcessingIndicatorProps,
+} from './components/web/ai/AIProcessingIndicator';
+export { CodeBlock, type CodeBlockProps } from './components/web/ai/CodeBlock';
+export { DiffView, type DiffViewProps, type DiffLine } from './components/web/ai/DiffView';
+export {
+  Attachments,
+  type AttachmentsProps,
+  type AttachmentItem,
+} from './components/web/ai/Attachments';
+export { Prompts, type PromptsProps, type PromptItem } from './components/web/ai/Prompts';
+
 export {
   Timeline,
   TimelineItem,

@@ -1,0 +1,101 @@
+/**
+ * DiffView —— diff 视图样式（v0.15 AI 系）
+ * 语义色低透明底 + 实色符号/数字（明暗两档均达标，参照语义 bg/border token 强度）。
+ */
+.ai-diff {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--size-radius-base);
+  background: var(--color-bg-sunken);
+  overflow: hidden;
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+
+  &__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-1) var(--size-gap-3);
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--element-bg-soft);
+    font-size: var(--font-size-2xs);
+  }
+
+  &__path {
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__stats {
+    display: inline-flex;
+    gap: var(--size-gap-2);
+    flex-shrink: 0;
+  }
+
+  &__additions { color: var(--color-success); }
+  &__deletions { color: var(--color-error); }
+
+  &__body {
+    overflow: auto;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+  }
+
+  &__row {
+    td { background: transparent; }
+
+    &--add {
+      .ai-diff__content {
+        background: color-mix(in srgb, var(--color-success) 10%, transparent);
+        color: var(--color-text-primary);
+      }
+      .ai-diff__sign { color: var(--color-success); }
+    }
+
+    &--del {
+      .ai-diff__content {
+        background: color-mix(in srgb, var(--color-error) 10%, transparent);
+        color: var(--color-text-primary);
+      }
+      .ai-diff__sign { color: var(--color-error); }
+    }
+  }
+
+  &__hunk td {
+    background: var(--element-bg-soft);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
+  }
+
+  &__no {
+    width: 3em;
+    min-width: 3em;
+    padding: 0 var(--size-gap-1);
+    text-align: right;
+    color: var(--color-text-disabled);
+    user-select: none;
+    font-size: var(--font-size-xs);
+    vertical-align: top;
+  }
+
+  &__content {
+    padding-right: var(--size-gap-3);
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--color-text-secondary);
+  }
+
+  &__sign {
+    display: inline-block;
+    width: 1em;
+    user-select: none;
+  }
+}

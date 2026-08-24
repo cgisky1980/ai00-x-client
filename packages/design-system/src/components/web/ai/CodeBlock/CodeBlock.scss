@@ -1,0 +1,116 @@
+/**
+ * CodeBlock —— 代码块样式（v0.15 AI 系）
+ * 沉底墨面 + mono；行号淡墨右对齐 tabular。
+ */
+.ai-code {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--size-radius-base);
+  background: var(--color-bg-sunken);
+  overflow: hidden;
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+
+  &__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-1) var(--size-gap-2) var(--size-gap-1) var(--size-gap-3);
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--element-bg-soft);
+  }
+
+  &__lang {
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__copy {
+    flex-shrink: 0;
+    appearance: none;
+    border: 1px solid var(--border-base);
+    border-radius: var(--size-radius-sm);
+    background: var(--element-bg-base);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--motion-fast) var(--easing-standard),
+      border-color var(--motion-fast) var(--easing-standard),
+      background-color var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      color: var(--color-accent-600);
+      border-color: var(--color-accent-400);
+    }
+  }
+
+  &__body {
+    position: relative;
+    overflow: auto;
+    padding: var(--size-gap-2-5) 0;
+  }
+
+  pre {
+    margin: 0;
+    padding: 0 var(--size-gap-3);
+    font-family: inherit;
+  }
+
+  code {
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    line-height: 1.65;
+    color: var(--color-text-primary);
+  }
+
+  &__line {
+    display: flex;
+    gap: var(--size-gap-2);
+
+    &:hover {
+      background: var(--element-bg-subtle);
+    }
+  }
+
+  &__ln {
+    flex-shrink: 0;
+    width: 2.5em;
+    text-align: right;
+    color: var(--color-text-disabled);
+    user-select: none;
+  }
+
+  &__lc {
+    white-space: pre;
+    min-width: 0;
+  }
+
+  &__cursor {
+    position: absolute;
+    right: var(--size-gap-2);
+    bottom: var(--size-gap-2);
+    width: 6px;
+    height: 6px;
+    border-radius: var(--size-radius-full);
+    background: var(--color-accent-500);
+    animation: ai-code-pulse 1s var(--easing-standard) infinite;
+  }
+}
+
+@keyframes ai-code-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-code__cursor {
+    animation: none;
+    opacity: 0.8;
+  }
+}

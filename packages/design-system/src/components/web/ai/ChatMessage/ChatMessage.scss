@@ -1,0 +1,115 @@
+/**
+ * ChatMessage —— 聊天消息样式（v0.15 AI 系）
+ * user 气泡：亮色 accent-100 底 + 深字；暗色 accent-500 12% 透底 + accent-300 字
+ * （Tag/Badge 已验证的暗色反转配方，禁 accent-100 亮底配亮字）。
+ */
+.ai-msg {
+  display: flex;
+  gap: var(--size-gap-3);
+
+  &__avatar {
+    flex-shrink: 0;
+    display: flex;
+    padding-top: var(--size-gap-0-5);
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1);
+  }
+
+  &--user {
+    justify-content: flex-end;
+
+    .ai-msg__main {
+      flex: 0 1 auto;
+      max-width: min(78%, 640px);
+      align-items: flex-end;
+    }
+
+    .ai-msg__bubble {
+      background: var(--color-accent-100);
+      color: var(--color-text-primary);
+      border-radius: var(--size-radius-lg);
+      border-top-right-radius: var(--size-radius-sm);
+      padding: var(--size-gap-2) var(--size-gap-3);
+    }
+
+    .ai-msg__foot {
+      flex-direction: row-reverse;
+    }
+  }
+
+  &--assistant {
+    .ai-msg__bubble {
+      color: var(--color-text-primary);
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  }
+
+  &__bubble {
+    font-size: var(--font-size-base);
+    min-width: 0;
+  }
+
+  &__cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    background: var(--color-accent-500);
+    animation: ai-msg-blink 1s steps(1) infinite;
+  }
+
+  &__foot {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--easing-standard);
+  }
+
+  &:hover &__foot,
+  &:focus-within &__foot {
+    opacity: 1;
+  }
+
+  &__actions {
+    display: inline-flex;
+    gap: var(--size-gap-1);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+  }
+
+  &__time {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* 暗色反转：user 气泡亮青底 → 黛青透底 + 亮青字（Tag 配方） */
+[data-theme-type='dark'] .ai-msg--user .ai-msg__bubble,
+html:not([data-theme-type='light']) .ai-msg--user .ai-msg__bubble {
+  background: color-mix(in srgb, var(--color-accent-500) 14%, transparent);
+  color: var(--color-accent-100);
+}
+
+@keyframes ai-msg-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-msg__cursor {
+    animation: none;
+    opacity: 1;
+  }
+}

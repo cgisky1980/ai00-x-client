@@ -1,0 +1,101 @@
+/**
+ * Conversations —— 会话列表样式（v0.15 AI 系）
+ * 激活态：黛青染色 + 左缘 3px 指示条（与 ui-kit 侧边栏同签名语法）。
+ */
+.ai-conversations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-1);
+
+  &__group-title {
+    padding: var(--size-gap-2) var(--size-gap-2-5) var(--size-gap-1);
+    font-size: var(--font-size-2xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+  }
+
+  &__item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+    height: 36px;
+    padding: 0 var(--size-gap-2-5);
+    border-radius: var(--size-radius-base);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background-color var(--motion-fast) var(--easing-standard),
+      color var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--element-bg-subtle);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent-400);
+      outline-offset: -2px;
+    }
+
+    &.is-active {
+      color: var(--color-accent-700);
+      background: color-mix(in srgb, var(--color-accent-500) 10%, transparent);
+      font-weight: var(--font-weight-semibold);
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 60%;
+        border-radius: var(--size-radius-full);
+        background: var(--color-accent-500);
+      }
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-base);
+  }
+
+  &__label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__time {
+    flex-shrink: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__actions {
+    flex-shrink: 0;
+    display: inline-flex;
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--easing-standard);
+  }
+
+  &__item:hover &__actions,
+  &__item:focus-within &__actions {
+    opacity: 1;
+  }
+}
+
+/* 暗色：激活文字用亮青（accent-700 在暗色下偏暗） */
+[data-theme-type='dark'] .ai-conversations__item.is-active,
+html:not([data-theme-type='light']) .ai-conversations__item.is-active {
+  color: var(--color-accent-300);
+}
