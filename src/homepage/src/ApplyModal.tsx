@@ -8,7 +8,7 @@
  * 仅「真实剩余 = 0」才禁用抢按钮（展示稀缺仍可抢）。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@ai00-x/design-system/react";
+import { Button, Statistic } from "@ai00-x/design-system/react";
 import { Modal, Input, Select } from "@ai00-x/design-system/web";
 import {
   apiErrorMessage,
@@ -169,7 +169,7 @@ export default function ApplyModal({ open, onClose }: Props) {
     () => (
       <span className={`hp-quota ${realQuota === 0 ? "is-empty" : ""}`}>
         <span className="hp-quota__label">本小时剩余名额</span>
-        <span className="hp-quota__num">{realQuota === 0 ? "0" : displayQuota}</span>
+        <Statistic value={realQuota === 0 ? 0 : displayQuota} className="hp-quota__num" />
         <span className="hp-quota__cd">
           {realQuota === 0
             ? `名额已满 · ${cd} 后发放新名额`

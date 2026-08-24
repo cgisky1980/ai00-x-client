@@ -730,6 +730,277 @@
   color: var(--color-text-primary);
 }
 
+/* ==================== Timeline（v0.14 扩展） ==================== */
+.ds-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ds-timeline__item {
+  display: flex;
+  gap: var(--size-gap-4);
+  position: relative;
+}
+.ds-timeline__time {
+  flex-shrink: 0;
+  min-width: 56px;
+  padding-top: var(--size-gap-0-5);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+.ds-timeline__item--active .ds-timeline__time {
+  color: var(--color-accent-600);
+  font-weight: var(--font-weight-semibold);
+}
+.ds-timeline__node {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  width: 12px;
+}
+.ds-timeline__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--size-radius-full);
+  margin-top: 6px;
+  background: var(--element-bg-medium);
+  border: 1px solid var(--border-medium);
+  transition: background-color var(--motion-fast) var(--easing-standard),
+    box-shadow var(--motion-fast) var(--easing-standard);
+}
+.ds-timeline__item--finish .ds-timeline__dot {
+  background: var(--color-accent-500);
+  border-color: var(--color-accent-500);
+}
+.ds-timeline__item--active .ds-timeline__dot {
+  background: var(--color-accent-500);
+  border-color: var(--color-accent-500);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent-500) 20%, transparent);
+}
+.ds-timeline__line {
+  position: absolute;
+  top: 20px;
+  bottom: -6px;
+  width: 1px;
+  background: var(--border-subtle);
+}
+.ds-timeline__item--finish .ds-timeline__line {
+  background: var(--color-accent-300);
+}
+.ds-timeline__item:last-child .ds-timeline__line {
+  display: none;
+}
+.ds-timeline__body {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: var(--size-gap-5);
+}
+.ds-timeline__title {
+  margin: 0 0 var(--size-gap-1);
+  font-family: var(--font-family-serif);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+.ds-timeline__item--pending .ds-timeline__title {
+  color: var(--color-text-secondary);
+}
+.ds-timeline__desc {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ==================== Statistic（v0.14 扩展） ==================== */
+.ds-statistic {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-1);
+}
+.ds-statistic__title {
+  font-size: var(--font-size-2xs);
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+.ds-statistic__value {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.15;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==================== Collapse（v0.14 扩展） ==================== */
+.ds-collapse {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--size-radius-lg);
+  background-color: var(--color-bg-card);
+  background-image: var(--ds-paper-grain);
+  overflow: hidden;
+}
+.ds-collapse__item + .ds-collapse__item {
+  border-top: 1px solid var(--border-subtle);
+}
+.ds-collapse__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-gap-3);
+  width: 100%;
+  padding: var(--size-gap-3) var(--size-gap-4);
+  border: none;
+  background: transparent;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--easing-standard);
+}
+.ds-collapse__header:hover:not(:disabled) {
+  background: var(--element-bg-subtle);
+}
+.ds-collapse__header:focus-visible {
+  outline: 2px solid var(--color-accent-400);
+  outline-offset: -2px;
+}
+.ds-collapse__item.is-disabled .ds-collapse__header {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+.ds-collapse__arrow {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform var(--motion-fast) var(--easing-standard);
+}
+.ds-collapse__item.is-open .ds-collapse__arrow {
+  transform: rotate(180deg);
+  color: var(--color-accent-600);
+}
+.ds-collapse__panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--motion-base) var(--easing-smooth);
+}
+.ds-collapse__item.is-open .ds-collapse__panel {
+  grid-template-rows: 1fr;
+}
+.ds-collapse__panel-inner {
+  overflow: hidden;
+  min-height: 0;
+  padding: 0 var(--size-gap-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+.ds-collapse__item.is-open .ds-collapse__panel-inner {
+  padding-bottom: var(--size-gap-4);
+}
+
+/* ==================== Steps（v0.14 扩展） ==================== */
+.ds-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: var(--size-gap-2);
+}
+.ds-steps__item {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-gap-2-5);
+  min-width: 0;
+  position: relative;
+}
+.ds-steps__node {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--size-radius-full);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  background: var(--element-bg-medium);
+  border: 1px solid var(--border-medium);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--motion-fast) var(--easing-standard),
+    border-color var(--motion-fast) var(--easing-standard),
+    color var(--motion-fast) var(--easing-standard),
+    box-shadow var(--motion-fast) var(--easing-standard);
+}
+.ds-steps__check {
+  width: 12px;
+  height: 12px;
+}
+.ds-steps__item--finish .ds-steps__node {
+  background: var(--color-accent-500);
+  border-color: var(--color-accent-500);
+  color: var(--color-accent-foreground);
+}
+.ds-steps__item--process .ds-steps__node {
+  background: var(--color-accent-500);
+  border-color: var(--color-accent-500);
+  color: var(--color-accent-foreground);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent-500) 20%, transparent);
+}
+.ds-steps__line {
+  flex: 1;
+  height: 1px;
+  margin-top: 13px;
+  min-width: var(--size-gap-4);
+  background: var(--border-subtle);
+}
+.ds-steps__item--finish .ds-steps__line {
+  background: var(--color-accent-300);
+}
+.ds-steps__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-0-25);
+  min-width: 0;
+}
+.ds-steps__title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ds-steps__item--process .ds-steps__title {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+.ds-steps__desc {
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  .ds-steps {
+    flex-direction: column;
+  }
+  .ds-steps__line {
+    display: none;
+  }
+}
+
 
 /* ==================== 全局滚动条（墨阶细滚动条 · token 化，明暗自适应） ====================
  * 仅用标准属性 scrollbar-width/color（Chrome 121+ / Firefox 64+ / Safari 18.2+ 全支持）。

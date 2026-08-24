@@ -3,8 +3,9 @@
  * 文案沿自 Vibe OS 版首页；内测申请走两阶段流程（ApplyModal）。
  */
 import { useState } from "react";
-import { BrandMark, Button as DsButton } from "@ai00-x/design-system/react";
+import { BrandMark, Button as DsButton, Timeline, TimelineItem, Statistic } from "@ai00-x/design-system/react";
 import ApplyModal from "./ApplyModal";
+import { useReveal } from "./reveal";
 
 const NAV = [
   { href: "#core", label: "氛围" },
@@ -76,6 +77,7 @@ const PROOF = [
 export default function App() {
   const [applyOpen, setApplyOpen] = useState(false);
   const openApply = () => setApplyOpen(true);
+  useReveal();
 
   return (
     <div className="hp">
@@ -95,32 +97,32 @@ export default function App() {
         </div>
       </header>
 
-      {/* ================= Hero ================= */}
+      {/* ================= Hero（标题签名动效 brush-reveal：白名单场景1；其余 stagger 渐入） ================= */}
       <section className="hp-hero">
-        <p className="hp-hero__kicker">Vibe Work · Agentic OS · RWKV 本地大模型</p>
-        <h1 className="hp-hero__title">
+        <p className="hp-hero__kicker hp-reveal" style={{ ["--hp-rd" as string]: "0" }}>Vibe Work · Agentic OS · RWKV 本地大模型</p>
+        <h1 className="hp-hero__title ds-brush-reveal">
           真正的<span className="hp-hero__accent">Vibe OS</span>
         </h1>
-        <p className="hp-hero__sub">
+        <p className="hp-hero__sub hp-reveal" style={{ ["--hp-rd" as string]: "1" }}>
           Ai00-X 是住在你桌面里的 AI 伙伴，一台可自由定义的 Vibe OS。
           真正的好氛围——音乐、桌面、灵动工位，让人沉浸其中；
           高效的工具集——Agent、AI 应用、创作分享，让每件事都水到渠成。
         </p>
-        <div className="hp-hero__actions">
+        <div className="hp-hero__actions hp-reveal" style={{ ["--hp-rd" as string]: "2" }}>
           <DsButton variant="seal" size="lg" onClick={openApply}>申请内测 →</DsButton>
           <DsButton variant="default" size="lg">下载桌面端</DsButton>
         </div>
-        <p className="hp-hero__meta">本地优先 · 隐私可控 · 跨平台 Windows / macOS / Linux</p>
+        <p className="hp-hero__meta hp-reveal" style={{ ["--hp-rd" as string]: "3" }}>本地优先 · 隐私可控 · 跨平台 Windows / macOS / Linux</p>
       </section>
 
       {/* ================= 氛围 ================= */}
       <section className="hp-section" id="core">
-        <p className="hp-section__index">/# core</p>
-        <h2 className="hp-section__title">氛围，与生产力同行</h2>
-        <p className="hp-section__desc">
+        <p className="hp-section__index hp-reveal">/# core</p>
+        <h2 className="hp-section__title hp-reveal">氛围，与生产力同行</h2>
+        <p className="hp-section__desc hp-reveal">
           能干的 Agent、会创作的音乐、可扩展的 AI 应用平台——在 AI 定制的桌面里，把每件事都做得有温度。
         </p>
-        <div className="hp-grid hp-grid--4">
+        <div className="hp-grid hp-grid--4 hp-reveal">
           {FEATURES.map((f) => (
             <article key={f.title} className="hp-card">
               <h3 className="hp-card__title">{f.title}</h3>
@@ -135,17 +137,17 @@ export default function App() {
 
       {/* ================= 本地优先 ================= */}
       <section className="hp-section" id="local-first">
-        <p className="hp-section__index">/# local-first</p>
-        <h2 className="hp-section__title">本地优先，云端兜底</h2>
-        <p className="hp-section__desc">
+        <p className="hp-section__index hp-reveal">/# local-first</p>
+        <h2 className="hp-section__title hp-reveal">本地优先，云端兜底</h2>
+        <p className="hp-section__desc hp-reveal">
           小任务交给本地 RWKV，大任务才请求云端。省费用，也保隐私——谁也不愿为简单的事平白花钱。
         </p>
-        <ul className="hp-points">
+        <ul className="hp-points hp-reveal">
           {LOCAL_POINTS.map((p) => (
             <li key={p}>{p}</li>
           ))}
         </ul>
-        <div className="hp-flow" aria-hidden="true">
+        <div className="hp-flow hp-reveal" aria-hidden="true">
           <span className="hp-flow__node">任务进来</span>
           <span className="hp-flow__arrow">智能判断 · 成本与复杂度</span>
           <div className="hp-flow__split">
@@ -155,30 +157,30 @@ export default function App() {
         </div>
       </section>
 
-      {/* ================= 一天 ================= */}
+      {/* ================= 一天（Timeline 组件） ================= */}
       <section className="hp-section" id="a-day">
-        <p className="hp-section__index">/# a day with ai00-x</p>
-        <h2 className="hp-section__title">在 Ai00-X 的一天</h2>
-        <p className="hp-section__desc">从清晨到深夜，AI 伙伴陪你度过每一个工作时刻。</p>
-        <ol className="hp-timeline">
-          {DAY.map((d) => (
-            <li key={d.time} className="hp-timeline__item">
-              <span className="hp-timeline__time">{d.time}</span>
-              <div className="hp-timeline__body">
-                <h3>{d.title}</h3>
-                <p>{d.desc}</p>
-              </div>
-            </li>
+        <p className="hp-section__index hp-reveal">/# a day with ai00-x</p>
+        <h2 className="hp-section__title hp-reveal">在 Ai00-X 的一天</h2>
+        <p className="hp-section__desc hp-reveal">从清晨到深夜，AI 伙伴陪你度过每一个工作时刻。</p>
+        <Timeline className="hp-reveal">
+          {DAY.map((d, i) => (
+            <TimelineItem
+              key={d.time}
+              time={d.time}
+              title={d.title}
+              description={d.desc}
+              status={i < 2 ? "finish" : i === 2 ? "active" : "pending"}
+            />
           ))}
-        </ol>
+        </Timeline>
       </section>
 
       {/* ================= 智能体 ================= */}
       <section className="hp-section" id="agents">
-        <p className="hp-section__index">/# agents</p>
-        <h2 className="hp-section__title">氛围之外，也能干活</h2>
-        <p className="hp-section__desc">不只是会陪伴——真要做事时，它同样专业。</p>
-        <div className="hp-grid hp-grid--4">
+        <p className="hp-section__index hp-reveal">/# agents</p>
+        <h2 className="hp-section__title hp-reveal">氛围之外，也能干活</h2>
+        <p className="hp-section__desc hp-reveal">不只是会陪伴——真要做事时，它同样专业。</p>
+        <div className="hp-grid hp-grid--4 hp-reveal">
           {AGENTS.map((a) => (
             <article key={a.title} className="hp-card">
               <h3 className="hp-card__title">{a.title}</h3>
@@ -190,10 +192,10 @@ export default function App() {
 
       {/* ================= 口碑 ================= */}
       <section className="hp-section" id="social-proof">
-        <p className="hp-section__index">/# social proof</p>
-        <h2 className="hp-section__title">正在被更多热爱生活的人使用</h2>
-        <p className="hp-section__desc">从摸鱼到加班，Ai00-X 正在成为许多人的「数字搭子」与桌面氛围担当。</p>
-        <div className="hp-grid hp-grid--2">
+        <p className="hp-section__index hp-reveal">/# social proof</p>
+        <h2 className="hp-section__title hp-reveal">正在被更多热爱生活的人使用</h2>
+        <p className="hp-section__desc hp-reveal">从摸鱼到加班，Ai00-X 正在成为许多人的「数字搭子」与桌面氛围担当。</p>
+        <div className="hp-grid hp-grid--2 hp-reveal">
           {PROOF.map((t) => (
             <figure key={t.name} className="hp-quote">
               <div className="hp-quote__stars" aria-label="五星好评">★★★★★</div>
@@ -212,9 +214,9 @@ export default function App() {
 
       {/* ================= CTA ================= */}
       <section className="hp-cta">
-        <h2 className="hp-cta__title">让工作，从今天开始有氛围</h2>
-        <p className="hp-cta__sub">下载桌面端，点亮你的 AI 桌面。音乐、Agent、小应用，都在等你。</p>
-        <div className="hp-cta__actions">
+        <h2 className="hp-cta__title hp-reveal">让工作，从今天开始有氛围</h2>
+        <p className="hp-cta__sub hp-reveal">下载桌面端，点亮你的 AI 桌面。音乐、Agent、小应用，都在等你。</p>
+        <div className="hp-cta__actions hp-reveal">
           <DsButton variant="seal" size="lg" onClick={openApply}>申请内测 →</DsButton>
           <DsButton variant="default" size="lg">下载桌面端</DsButton>
         </div>
