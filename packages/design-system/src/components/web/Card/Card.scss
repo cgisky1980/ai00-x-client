@@ -61,6 +61,7 @@
 
     &:hover {
       background: var(--card-bg-hover);
+      border-color: var(--ds-card-hover-ring);
 
       &::before {
         opacity: 1;
