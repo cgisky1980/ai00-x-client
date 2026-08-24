@@ -7,14 +7,14 @@
   .diff-tool-info {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     overflow: hidden;
   }
 
   .diff-file-name {
     color: var(--color-text-primary);
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -23,8 +23,8 @@
   .diff-type-tag {
     display: inline-flex;
     align-items: center;
-    padding: 1px 6px;
-    font-size: 10px;
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
+    font-size: var(--font-size-xxs);
     font-weight: 500;
     border-radius: 4px;
     background: var(--color-bg-secondary);
@@ -37,9 +37,9 @@
   .diff-stats {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    margin-right: 8px;
-    font-size: 11px;
+    gap: var(--size-gap-1-5);
+    margin-right: var(--size-gap-2);
+    font-size: var(--font-size-2xs);
     font-family: var(--font-mono);
     flex-shrink: 0;
 
@@ -55,21 +55,21 @@
 
 .diff-expanded-content {
   .diff-message {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
-    margin-bottom: 8px;
-    padding-bottom: 8px;
+    margin-bottom: var(--size-gap-2);
+    padding-bottom: var(--size-gap-2);
     border-bottom: 1px solid var(--border-subtle);
   }
 
   .diff-content-preview {
     margin: 0;
-    padding: 12px;
+    padding: var(--size-gap-3);
     background: var(--color-bg-secondary);
     border: 1px solid var(--border-subtle);
     border-radius: 4px;
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     line-height: 1.5;
     color: var(--color-text-primary);
     overflow-x: auto;
@@ -79,12 +79,12 @@
     word-break: break-all;
 
     .diff-add {
-      background: rgba(34, 197, 94, 0.15);
+      background: var(--color-success-bg);
       color: var(--color-success);
     }
 
     .diff-del {
-      background: rgba(239, 68, 68, 0.15);
+      background: var(--color-error-bg);
       color: var(--color-error);
     }
   }

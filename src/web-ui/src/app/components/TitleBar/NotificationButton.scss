@@ -12,7 +12,7 @@
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-  padding: 4px 6px;
+  padding: var(--size-gap-1) var(--size-gap-1-5);
   border-radius: $size-radius-sm;
   font-size: var(--font-size-xs);
   flex-shrink: 0;
@@ -37,7 +37,7 @@
   &__progress {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__progress-text {
@@ -71,10 +71,10 @@
     background: var(--color-bg-elevated);
     border: 1px solid var(--border-medium);
     border-radius: $size-radius-sm;
-    padding: 4px 8px;
+    padding: var(--size-gap-1) var(--size-gap-2);
     font-size: var(--font-size-xs);
     color: var(--color-text-primary);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-base);
     max-width: 300px;
     overflow: hidden;
     text-overflow: ellipsis;

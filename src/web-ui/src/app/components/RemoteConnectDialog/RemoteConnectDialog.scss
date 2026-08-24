@@ -8,14 +8,14 @@
 .ai00-x-remote-connect__title-extra {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
 }
 
 .ai00-x-remote-connect__disclaimer-trigger {
   border: none;
   background: transparent;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   text-decoration: underline;
   cursor: pointer;
@@ -38,15 +38,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px 16px 0;
+  padding: var(--size-gap-4) var(--size-gap-4) 0;
   gap: 0;
 }
 
 .ai00-x-remote-connect__group-btn {
   background: none;
   border: none;
-  padding: 6px 20px;
-  font-size: 13px;
+  padding: var(--size-gap-1-5) var(--size-gap-5);
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -54,7 +54,7 @@
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
 
   &:hover:not(.is-active):not(:disabled) {
     color: var(--color-text-secondary);
@@ -93,15 +93,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 16px 0;
+  padding: var(--size-gap-2) var(--size-gap-4) 0;
   gap: 0;
 }
 
 .ai00-x-remote-connect__subtab {
   background: none;
   border: none;
-  padding: 4px 10px;
-  font-size: 12px;
+  padding: var(--size-gap-1) var(--size-gap-2-5);
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -109,7 +109,7 @@
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--size-gap-1);
 
   &:hover:not(.is-active):not(:disabled) {
     color: var(--color-text-secondary);
@@ -153,8 +153,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px 24px 24px;
-  gap: 14px;
+  padding: var(--size-gap-5) var(--size-gap-6) var(--size-gap-6);
+  gap: var(--size-gap-3-5);
 }
 
 // ==================== QR box ====================
@@ -164,20 +164,20 @@
   height: 200px;
   border-radius: 10px;
   border: 1px solid var(--border-subtle);
-  background: #ffffff;
+  background: var(--color-accent-foreground);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: var(--size-gap-2);
   transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s ease;
 
   &:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow:var(--shadow-base);
   }
 
   &:active {
     transform: scale(0.95);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    box-shadow:var(--shadow-xs);
   }
 
   svg {
@@ -192,7 +192,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: var(--size-gap-3);
 }
 
 .ai00-x-remote-connect__pairing-code {
@@ -201,7 +201,7 @@
   letter-spacing: 8px;
   font-family: 'Fira Code', 'Courier New', monospace;
   color: var(--color-text-primary);
-  padding: 16px 24px;
+  padding: var(--size-gap-4) var(--size-gap-6);
   border-radius: 10px;
   border: 2px dashed var(--border-subtle);
   background: var(--element-bg-subtle);
@@ -213,11 +213,11 @@
 .ai00-x-remote-connect__status {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
 }
 
 .ai00-x-remote-connect__peer-user-id {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
 }
 
@@ -225,9 +225,9 @@
 
 .ai00-x-remote-connect__ngrok-usage-link {
   text-align: center;
-  padding: 10px 0 2px;
+  padding: var(--size-gap-2-5) 0 var(--size-gap-0-5);
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--font-size-xs);
 }
 
 // ==================== Connected ====================
@@ -236,15 +236,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 24px;
-  gap: 14px;
+  padding: var(--size-gap-6);
+  gap: var(--size-gap-3-5);
 }
 
 // ==================== Hint text ====================
 
 .ai00-x-remote-connect__hint,
 .ai00-x-remote-connect__description {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   line-height: 1.6;
   margin: 0;
@@ -264,7 +264,7 @@
   width: 100%;
   max-width: 360px;
   margin: 0 auto;
-  padding: 14px 16px;
+  padding: var(--size-gap-3-5) var(--size-gap-4);
   border: 1px dashed var(--border-subtle);
   border-radius: 4px;
   background: color-mix(in srgb, var(--element-bg-subtle) 84%, transparent);
@@ -273,7 +273,7 @@
 
 .ai00-x-remote-connect__info-text,
 .ai00-x-remote-connect__info-meta {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   line-height: 1.7;
   margin: 0;
@@ -283,9 +283,9 @@
 .ai00-x-remote-connect__info-meta-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
+  gap: var(--size-gap-1);
+  margin-bottom: var(--size-gap-2-5);
+  padding-bottom: var(--size-gap-2-5);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -309,7 +309,7 @@
 }
 
 .ai00-x-remote-connect__error {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-danger);
   text-align: center;
   margin: 0;
@@ -319,14 +319,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
 }
 
 .ai00-x-remote-connect__error-action {
   background: transparent;
   border: none;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-accent);
   text-decoration: underline;
   cursor: pointer;
@@ -343,7 +343,7 @@
   max-width: 280px;
 
   .ai00-x-input-label {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     color: var(--color-text-muted);
     margin-bottom: 0;
   }
@@ -356,7 +356,7 @@
     max-width: 360px;
 
     .ai00-x-input-container {
-      gap: 12px;
+      gap: var(--size-gap-3);
     }
   }
 }
@@ -371,8 +371,8 @@
 // ==================== Buttons ====================
 
 .ai00-x-remote-connect__btn {
-  padding: 8px 24px;
-  font-size: 13px;
+  padding: var(--size-gap-2) var(--size-gap-6);
+  font-size: var(--font-size-sm);
   font-weight: 500;
   border: none;
   border-radius: 6px;
@@ -381,7 +381,7 @@
 
   &--connect {
     background: var(--color-accent-600);
-    color: #fff;
+    color: var(--color-accent-foreground);
     border: 1px solid color-mix(in srgb, var(--color-accent-700) 35%, transparent);
 
     &:hover:not(:disabled) {
@@ -420,7 +420,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: var(--size-gap-3);
 
   .ai00-x-remote-connect__field {
     display: flex;
@@ -442,12 +442,12 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--size-gap-2);
   width: 100%;
 }
 
 .ai00-x-remote-connect__step {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   line-height: 1.6;
   margin: 0;
@@ -460,14 +460,14 @@
 .ai00-x-remote-connect__mode-selector {
   display: inline-flex;
   align-items: center;
-  padding: 3px;
+  padding: var(--size-gap-0-5);
   background: $element-bg-base;
   border: 1px solid $border-subtle;
   border-radius: 20px;
 }
 
 .ai00-x-remote-connect__mode-btn {
-  padding: 5px 14px;
+  padding: var(--size-gap-1) var(--size-gap-3-5);
   font-size: var(--font-size-xs);
   font-weight: $font-weight-medium;
   color: $color-text-muted;
@@ -483,21 +483,21 @@
   }
 
   &.is-active {
-    color: #fff;
+    color: var(--color-accent-foreground);
     background: $color-success;
     font-weight: $font-weight-semibold;
-    box-shadow: 0 1px 4px rgba(110, 184, 140, 0.35);
+    box-shadow:0 1px 4px color-mix(in srgb, var(--color-success) 35%, transparent);
     cursor: default;
   }
 
   &:focus-visible {
-    outline: 2px solid rgba($color-success, 0.5);
+    outline:2px solid color-mix(in srgb, var(--color-success) 50%, transparent);
     outline-offset: 1px;
   }
 }
 
 .ai00-x-remote-connect__weixin-qr {
-  margin-top: 12px;
+  margin-top: var(--size-gap-3);
   text-align: center;
 }
 
@@ -505,15 +505,15 @@
   display: block;
   max-width: 220px;
   height: auto;
-  margin: 0 auto 8px;
+  margin: 0 auto var(--size-gap-2);
   border-radius: 8px;
 }
 
 .ai00-x-remote-connect__weixin-qr-svg-wrap {
   display: inline-block;
-  margin: 0 auto 8px;
-  padding: 10px;
-  background: #fff;
+  margin: 0 auto var(--size-gap-2);
+  padding: var(--size-gap-2-5);
+  background: var(--color-accent-foreground);
   border-radius: 8px;
   box-sizing: border-box;
 

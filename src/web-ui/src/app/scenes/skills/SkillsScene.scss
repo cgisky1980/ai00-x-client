@@ -136,7 +136,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
     border-radius: $size-radius-full;
     min-height: 48px;
     padding-inline: $size-gap-4;
-    padding-block: 10px;
+    padding-block: var(--size-gap-2-5);
     background: color-mix(in srgb, var(--element-bg-soft) 92%, transparent);
     border-color: var(--border-medium);
     transition:
@@ -146,7 +146,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   }
 
   &.search--hovered:not(.search--disabled) .search__wrapper {
-    border-color: var(--border-strong, var(--border-medium));
+    border-color: var(--border-strong);
     background: var(--element-bg-soft);
   }
 
@@ -160,7 +160,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: var(--size-gap-1);
   height: 34px;
   padding: 0 $size-gap-3;
   border: none;
@@ -186,7 +186,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   &:focus-visible {
     outline: 2px solid color-mix(
       in srgb,
-      var(--btn-primary-color, var(--color-accent-500)) 55%,
+      var(--btn-primary-color) 55%,
       transparent
     );
     outline-offset: 2px;
@@ -261,7 +261,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   position: relative;
   overflow: hidden;
   animation: skills-skeleton-card-in 0.28s $easing-decelerate both;
-  animation-delay: calc(var(--card-index, 0) * 60ms);
+  animation-delay: calc(var(--card-index) * 60ms);
 
   &::after {
     content: '';
@@ -274,7 +274,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
       var(--skills-sk-shimmer-peak) 50%,
       var(--skills-sk-shimmer-0) 100%
     );
-    animation: skills-skeleton-shimmer 1.6s ease-in-out calc(var(--card-index, 0) * 0.12s) infinite;
+    animation: skills-skeleton-shimmer 1.6s ease-in-out calc(var(--card-index) * 0.12s) infinite;
   }
 }
 
@@ -291,7 +291,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   padding: $size-gap-3 $size-gap-2;
   border-radius: $size-radius-lg;
   animation: skills-skeleton-row-in 0.22s $easing-decelerate both;
-  animation-delay: calc(var(--row-index, 0) * 40ms);
+  animation-delay: calc(var(--row-index) * 40ms);
 }
 
 .skills-split__skeleton-row-avatar {
@@ -315,7 +315,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
       var(--skills-sk-shimmer-peak) 50%,
       var(--skills-sk-shimmer-0) 100%
     );
-    animation: skills-skeleton-shimmer 1.6s ease-in-out calc(var(--row-index, 0) * 0.1s) infinite;
+    animation: skills-skeleton-shimmer 1.6s ease-in-out calc(var(--row-index) * 0.1s) infinite;
   }
 }
 
@@ -324,7 +324,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
 }
 
 .skills-split__skeleton-line {
@@ -345,7 +345,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
       var(--skills-sk-shimmer-peak) 50%,
       var(--skills-sk-shimmer-0) 100%
     );
-    animation: skills-skeleton-shimmer 1.6s ease-in-out calc(var(--row-index, 0) * 0.1s + 0.15s) infinite;
+    animation: skills-skeleton-shimmer 1.6s ease-in-out calc(var(--row-index) * 0.1s + 0.15s) infinite;
   }
 
   &--title {
@@ -359,7 +359,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
     opacity: 0.85;
 
     &::after {
-      animation-delay: calc(var(--row-index, 0) * 0.1s + 0.28s);
+      animation-delay: calc(var(--row-index) * 0.1s + 0.28s);
     }
   }
 }
@@ -391,7 +391,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
       var(--skills-sk-shimmer-peak) 50%,
       var(--skills-sk-shimmer-0) 100%
     );
-    animation: skills-skeleton-shimmer 1.6s ease-in-out calc(var(--row-index, 0) * 0.1s + 0.2s) infinite;
+    animation: skills-skeleton-shimmer 1.6s ease-in-out calc(var(--row-index) * 0.1s + 0.2s) infinite;
   }
 }
 
@@ -415,7 +415,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
       var(--skills-sk-shimmer-peak) 50%,
       var(--skills-sk-shimmer-0) 100%
     );
-    animation: skills-skeleton-shimmer 1.6s ease-in-out calc(var(--row-index, 0) * 0.1s + 0.32s) infinite;
+    animation: skills-skeleton-shimmer 1.6s ease-in-out calc(var(--row-index) * 0.1s + 0.32s) infinite;
   }
 }
 
@@ -424,8 +424,8 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
 :root[data-theme-type='light'] .skills-split__skeleton-line,
 :root[data-theme-type='light'] .skills-split__skeleton-pill,
 :root[data-theme-type='light'] .skills-split__skeleton-icon {
-  --skills-sk-shimmer-0: rgba(0, 0, 0, 0);
-  --skills-sk-shimmer-peak: rgba(0, 0, 0, 0.07);
+  --skills-sk-shimmer-0: rgba(0, 0, 0, 0.10);
+  --skills-sk-shimmer-peak: rgba(0, 0, 0, 0.10);
 }
 
 // Pagination row
@@ -585,11 +585,11 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   justify-content: center;
   height: 16px;
   min-width: 16px;
-  padding: 0 4px;
+  padding: 0 var(--size-gap-1);
   border-radius: $size-radius-full;
   background: var(--element-bg-medium);
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: var(--font-size-xxs);
   transition: inherit;
 
   .skills-split__filter-chip.is-active & {
@@ -628,7 +628,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   border-radius: $size-radius-lg;
   cursor: pointer;
   animation: skills-row-in 0.2s $easing-decelerate both;
-  animation-delay: calc(var(--row-index, 0) * 25ms);
+  animation-delay: calc(var(--row-index) * 25ms);
   transition:
     background $motion-fast $easing-standard;
 
@@ -660,7 +660,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--size-gap-0-5);
 }
 
 .skills-split__row-name {
@@ -733,7 +733,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   &__market-meta {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__detail-path-btn {
@@ -745,7 +745,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
     background: none;
     font: inherit;
     font-family: $font-family-mono;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     line-height: $line-height-base;
     text-align: left;
     word-break: break-all;
@@ -779,7 +779,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   &__detail-link {
     color: var(--color-text-muted);
     font-family: $font-family-mono;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     word-break: break-all;
   }
 
@@ -812,20 +812,20 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
     font-size: var(--font-size-sm);
 
     &.is-valid {
-      background: rgba($color-success, 0.08);
-      border: 1px solid rgba($color-success, 0.3);
+      background:color-mix(in srgb, var(--color-success) 8%, transparent);
+      border:1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
       color: var(--color-success);
     }
 
     &.is-invalid {
-      background: rgba($color-error, 0.08);
-      border: 1px solid rgba($color-error, 0.3);
+      background:color-mix(in srgb, var(--color-error) 8%, transparent);
+      border:1px solid color-mix(in srgb, var(--color-error) 30%, transparent);
       color: var(--color-error);
     }
   }
 
   &__validation-name  { font-weight: $font-weight-medium; }
-  &__validation-desc  { margin-top: 2px; font-size: var(--font-size-xs); opacity: 0.85; }
+  &__validation-desc  { margin-top: var(--size-gap-0-5); font-size: var(--font-size-xs); opacity: 0.85; }
   &__validation-error { font-weight: $font-weight-medium; }
 
   &__modal-form {

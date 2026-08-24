@@ -11,22 +11,22 @@
   // === Compact ===
   &--compact {
     justify-content: center;
-    padding: 0 12px;
+    padding: 0 var(--size-gap-3);
   }
 
   &__hue-dot {
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    border: 2px solid color-mix(in oklch, white 20%, transparent);
+    border:2px solid color-mix(in oklch, var(--border-strong) 20%, transparent);
     box-shadow: 0 0 8px currentColor;
     flex-shrink: 0;
   }
 
   // === Expanded ===
   &--expanded {
-    gap: 10px;
-    padding: 0 16px;
+    gap: var(--size-gap-2-5);
+    padding: 0 var(--size-gap-4);
     position: relative;
   }
 
@@ -37,7 +37,7 @@
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 3px;
+    gap: var(--size-gap-0-5);
     z-index: 2;
     pointer-events: none;
   }
@@ -50,17 +50,17 @@
     transition: all 0.2s ease;
 
     &--active {
-      background: var(--color-accent-400, #06b6d4);
-      box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400, #06b6d4) 50%, transparent);
+      background: var(--color-accent-400);
+      box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
     }
   }
 
   // === Quick action buttons (expanded, below hue slider) ===
   &__actions {
     display: flex;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     justify-content: center;
-    margin-top: 4px;
+    margin-top: var(--size-gap-1);
     z-index: 1;
   }
 
@@ -78,16 +78,16 @@
     transition: all 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-accent-500, #06b6d4) 20%, transparent);
-      color: var(--color-accent-400, #06b6d4);
-      border-color: color-mix(in oklch, var(--color-accent-500, #06b6d4) 40%, transparent);
+      background: color-mix(in oklch, var(--color-accent-500) 20%, transparent);
+      color: var(--color-accent-400);
+      border-color: color-mix(in oklch, var(--color-accent-500) 40%, transparent);
     }
 
     &--active {
-      background: color-mix(in oklch, var(--color-accent-500, #06b6d4) 30%, transparent);
-      color: var(--color-accent-400, #06b6d4);
-      border-color: var(--color-accent-500, #06b6d4);
-      box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-500, #06b6d4) 40%, transparent);
+      background: color-mix(in oklch, var(--color-accent-500) 30%, transparent);
+      color: var(--color-accent-400);
+      border-color: var(--color-accent-500);
+      box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-500) 40%, transparent);
     }
 
     &:active {
@@ -100,11 +100,11 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__name {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--color-text-primary);
     white-space: nowrap;
@@ -115,7 +115,7 @@
   &__hue-bar {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__hue-slider {
@@ -142,20 +142,20 @@
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      background: white;
+      background:var(--color-text-primary);
       border: 2px solid var(--color-bg-primary);
       cursor: pointer;
-      box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 0 6px var(--modal-overlay);
     }
 
     &::-moz-range-thumb {
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      background: white;
+      background:var(--color-text-primary);
       border: 2px solid var(--color-bg-primary);
       cursor: pointer;
-      box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 0 6px var(--modal-overlay);
     }
   }
 

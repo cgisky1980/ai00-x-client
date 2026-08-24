@@ -27,14 +27,14 @@
   --qp-accent-muted: var(--color-accent-100);
 
   // ── Status colors ────────────────────────────────────────────────────
-  --qp-success: var(--color-success, #34d399);
-  --qp-warning: var(--color-warning, #f59e0b);
-  --qp-danger: var(--color-error, #ef4444);
+  --qp-success: var(--color-success);
+  --qp-warning: var(--color-warning);
+  --qp-danger: var(--color-error);
   --qp-participation: var(--color-accent-400);
 
   // ── Controls ─────────────────────────────────────────────────────────
   --qp-control-off: var(--color-text-disabled);
-  --qp-track-muted: var(--element-bg-subtle, rgba(128, 128, 128, 0.12));
+  --qp-track-muted: var(--element-bg-subtle);
   --qp-badge-subtle: var(--color-bg-tertiary);
   --qp-control-thumb: var(--color-text-primary);
 
@@ -69,6 +69,6 @@
 
 // Dark-mode-specific shadow adjustments.
 :root[data-theme-type='dark'] .usage-stats-scene {
-  --qp-shadow-overlay: 0 10px 24px rgba(0, 0, 0, 0.28);
-  --qp-shadow-toast: 0 8px 20px rgba(0, 0, 0, 0.3);
+  --qp-shadow-overlay: 0 10px 24px var(--color-overlay);
+  --qp-shadow-toast: 0 8px 20px var(--color-overlay);
 }

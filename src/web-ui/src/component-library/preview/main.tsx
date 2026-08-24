@@ -8,8 +8,8 @@ import { PreviewApp } from './PreviewApp';
 import { I18nProvider } from '@/infrastructure/i18n';
 import { WorkspaceProvider } from '@/infrastructure/contexts/WorkspaceProvider';
 import { themeService } from '@/infrastructure/theme';
+import { ToastProvider } from '@/component-library';
 import './preview.css';
-import './flowchat-cards-preview.css';
 
 import '../../app/styles/index.scss';
 
@@ -19,6 +19,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <I18nProvider>
       <WorkspaceProvider>
+        <ToastProvider />
         <PreviewApp />
       </WorkspaceProvider>
     </I18nProvider>

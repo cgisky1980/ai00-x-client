@@ -14,7 +14,7 @@ import type { EditorGroupId, PanelContent, CreateTabEventDetail } from '../types
 import { TAB_EVENTS } from '../types';
 import { useI18n } from '@/infrastructure/i18n';
 import { drainPendingTabs } from '@/shared/services/pendingTabQueue';
-import { confirmDialog } from '@/component-library/components/ConfirmDialog/confirmService';
+import { confirmDialog } from '@ai00-x/design-system/web';
 interface UseTabLifecycleOptions {
   /** App mode / target canvas */
   mode?: 'agent' | 'project' | 'git';

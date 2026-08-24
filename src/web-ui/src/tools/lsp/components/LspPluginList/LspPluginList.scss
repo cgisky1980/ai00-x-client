@@ -203,7 +203,7 @@
   }
 
   &__badge {
-    padding: 4px $size-gap-2;
+    padding: var(--size-gap-1) $size-gap-2;
     background: var(--color-accent-100);
     color: var(--color-accent-500);
     border-radius: $size-radius-sm;
@@ -215,7 +215,7 @@
   }
 
   &__badge-more {
-    padding: 4px $size-gap-2;
+    padding: var(--size-gap-1) $size-gap-2;
     font-size: var(--font-size-xs);
     font-weight: $font-weight-medium;
     color: var(--color-text-muted);
@@ -263,7 +263,7 @@
   }
 
   &__tag {
-    padding: 4px $size-gap-2;
+    padding: var(--size-gap-1) $size-gap-2;
     background: $element-bg-soft;
     border: none;
     border-radius: $size-radius-sm;
@@ -286,8 +286,8 @@
   &__capability {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px $size-gap-2;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) $size-gap-2;
     background: var(--color-accent-100);
     border: none;
     border-radius: $size-radius-sm;
@@ -419,7 +419,7 @@
     }
 
     &__tag {
-      padding: 3px 6px;
+      padding: var(--size-gap-0-5) var(--size-gap-1-5);
       font-size: var(--font-size-xs);
     }
 
@@ -428,7 +428,7 @@
     }
 
     &__capability {
-      padding: 3px 6px;
+      padding: var(--size-gap-0-5) var(--size-gap-1-5);
       font-size: var(--font-size-xs);
     }
 

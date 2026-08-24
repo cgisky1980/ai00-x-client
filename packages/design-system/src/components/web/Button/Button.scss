@@ -1,0 +1,62 @@
+/**
+ * Button 补充样式 — 薄壳适配层
+ * 主体样式由 @ai00-x/design-system 的 .ds-btn 体系承担（components.css，
+ * 经 global.scss 引入）。本文件仅保留 ds 体系没有的 API 补充：
+ * dashed 虚线变体 / iconOnly 方形尺寸 / loading spinner。
+ */
+
+.btn-dashed {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--border-base);
+
+  &:hover:not(:disabled) {
+    background: var(--element-bg-subtle);
+    border-style: solid;
+    border-color: var(--border-medium);
+  }
+
+  &:active:not(:disabled) {
+    background: var(--element-bg-base);
+    border-color: var(--border-strong);
+  }
+}
+
+.btn-icon-only {
+  padding: 0;
+  width: var(--button-height-base);
+  aspect-ratio: 1;
+
+  &.ds-btn--sm {
+    width: var(--button-height-sm);
+  }
+
+  &.ds-btn--lg {
+    width: var(--button-height-lg);
+  }
+}
+
+.btn-loading {
+  cursor: wait;
+  pointer-events: none;
+}
+
+.btn-loading-icon {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: btn-spin 1s linear infinite;
+}
+
+.btn-loading-text {
+  position: relative;
+  z-index: 2;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -7,15 +7,15 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
-    gap: 8px;
+    padding: var(--size-gap-2) var(--size-gap-3);
+    gap: var(--size-gap-2);
     min-height: 36px;
   }
 
   &__info {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     flex: 1;
     min-width: 0;
   }
@@ -23,8 +23,8 @@
   &__status {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    font-size: 12px;
+    gap: var(--size-gap-1);
+    font-size: var(--font-size-xs);
     font-weight: 500;
     white-space: nowrap;
     color: var(--color-text-secondary);
@@ -42,27 +42,27 @@
 
   &__progress-text {
     color: var(--color-text-secondary);
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
   }
 
   &__actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     flex-shrink: 0;
   }
 
   &__btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2-5);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     background: transparent;
     color: var(--color-text-primary);
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
@@ -72,7 +72,7 @@
 
     &--confirm {
       background: var(--color-success);
-      color: #fff;
+      color: var(--color-accent-foreground);
       border-color: var(--color-success);
       &:hover { filter: brightness(0.85); }
     }
@@ -84,7 +84,7 @@
   }
 
   &__progress {
-    padding: 0 12px 4px;
+    padding: 0 var(--size-gap-3) var(--size-gap-1);
 
     &-track {
       height: 3px;
@@ -102,16 +102,16 @@
   }
 
   &__revise {
-    padding: 0 12px 8px;
+    padding: 0 var(--size-gap-3) var(--size-gap-2);
 
     &-input {
       width: 100%;
-      padding: 6px 8px;
+      padding: var(--size-gap-1-5) var(--size-gap-2);
       border: 1px solid var(--border-subtle);
       border-radius: 6px;
       background: var(--color-bg-primary);
       color: var(--color-text-primary);
-      font-size: 12px;
+      font-size: var(--font-size-xs);
       resize: vertical;
       min-height: 40px;
 
@@ -121,9 +121,9 @@
     }
 
     &-actions {
-      margin-top: 4px;
+      margin-top: var(--size-gap-1);
       display: flex;
-      gap: 6px;
+      gap: var(--size-gap-1-5);
     }
   }
 }

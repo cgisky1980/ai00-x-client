@@ -12,13 +12,13 @@
 .ai00-x-mode-tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px;
+  gap: var(--size-gap-1-5);
+  padding: 0 var(--size-gap-3);
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--color-text-tertiary);
-  font-size: 12px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
   font-weight: 500;
   cursor: pointer;
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;

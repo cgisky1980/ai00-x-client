@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <style>
+    .ling { color: #16191a; }
+    @media (prefers-color-scheme: dark) { .ling { color: #f6f2e8; } }
+  </style>
+  <defs>
+    <mask id="core" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">
+      <rect width="24" height="24" fill="white"/>
+      <circle cx="12" cy="12" r="8.5" fill="black"/>
+    </mask>
+  </defs>
+  <g class="ling" stroke="currentColor" stroke-width="4" stroke-linecap="round" mask="url(#core)">
+    <line x1="3" y1="3" x2="21" y2="21"/>
+    <line x1="21" y1="3" x2="3" y2="21"/>
+  </g>
+  <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+  <circle cx="8.5" cy="12" r="1.5" fill="currentColor"/>
+  <circle cx="15.5" cy="12" r="1.5" fill="currentColor"/>
+</svg>

@@ -1,57 +1,11 @@
-.session-mode-picker__overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-}
-
-.session-mode-picker__dialog {
-  position: relative;
-  width: 560px;
-  max-width: 90vw;
-  padding: 32px;
-  border-radius: 16px;
-  background: var(--color-bg-primary, #1a1a2e);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-}
-
-.session-mode-picker__close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--color-text-secondary, #888);
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &:hover {
-    background: var(--color-bg-tertiary, #2a2a4a);
-    color: var(--color-text-primary, #fff);
-  }
-}
-
-.session-mode-picker__title {
-  margin: 0 0 24px;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--color-text-primary, #fff);
-  text-align: center;
-}
+/**
+ * v0.13：遮罩/对话框/关闭按钮收敛至 DS Modal（ai00-x-modal），
+ * 本文件只剩模式卡片内容样式。
+ */
 
 .session-mode-picker__cards {
   display: flex;
-  gap: 16px;
+  gap: var(--size-gap-4);
 }
 
 .session-mode-picker__card {
@@ -59,19 +13,19 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 24px 16px;
-  border: 2px solid var(--color-border, #333);
+  gap: var(--size-gap-3);
+  padding: var(--size-gap-6) var(--size-gap-4);
+  border: 2px solid var(--color-border);
   border-radius: 12px;
-  background: var(--color-bg-secondary, #16213e);
-  color: var(--color-text-primary, #fff);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
   cursor: pointer;
   transition: all 0.2s;
   text-align: center;
 
   &:hover {
-    border-color: var(--color-accent, #6c5ce7);
-    background: var(--color-bg-tertiary, #1a1a3e);
+    border-color: var(--color-accent);
+    background: var(--color-bg-tertiary);
     transform: translateY(-2px);
   }
 }
@@ -83,30 +37,30 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: var(--color-accent-bg, rgba(108, 92, 231, 0.15));
-  color: var(--color-accent, #6c5ce7);
+  background: var(--color-accent-100);
+  color: var(--color-accent);
 }
 
 .session-mode-picker__card-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--size-gap-1);
 }
 
 .session-mode-picker__card-title {
-  font-size: 16px;
+  font-size: var(--font-size-xl);
   font-weight: 600;
 }
 
 .session-mode-picker__card-desc {
-  font-size: 13px;
-  color: var(--color-accent, #6c5ce7);
+  font-size: var(--font-size-sm);
+  color: var(--color-accent);
   font-weight: 500;
 }
 
 .session-mode-picker__card-detail {
-  font-size: 12px;
-  color: var(--color-text-secondary, #888);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
   line-height: 1.4;
-  margin-top: 4px;
+  margin-top: var(--size-gap-1);
 }

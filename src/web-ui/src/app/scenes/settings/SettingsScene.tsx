@@ -16,6 +16,7 @@ import GestureTemplateSettings from './gesture/GestureTemplateSettings';
 import GestureActionSettings from './gesture/GestureActionSettings';
 import ClickEffectSettings from './gesture/ClickEffectSettings';
 import SmartDesktopConfig from '../../../infrastructure/config/components/SmartDesktopConfig';
+import PluginsConfig from '../../../infrastructure/config/components/PluginsConfig';
 
 interface SettingsSceneProps {
   showNav?: boolean;
@@ -39,6 +40,7 @@ const SettingsScene: React.FC<SettingsSceneProps> = ({ showNav = true }) => {
     case 'gesture-actions':  Content = GestureActionSettings;   break;
     case 'click-effect':    Content = ClickEffectSettings;      break;
     case 'smart-desktop':   Content = SmartDesktopConfig;       break;
+    case 'plugins':         Content = PluginsConfig;            break;
     case 'account':          Content = AccountConfig;          break;
     case 'about':            Content = AboutConfig;            break;
   }

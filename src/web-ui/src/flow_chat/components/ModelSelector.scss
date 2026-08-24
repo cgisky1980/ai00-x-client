@@ -3,13 +3,8 @@
  * Shows current model info at the bottom when ChatInput is expanded,
  * with quick switching support.
  *
- * Design guidelines:
- * - Radius: 4px (button/badge), 6px (dropdown)
- * - Border: light gray; blue-purple gradient on hover/active
- * - Shadow: layered soft shadows, avoid harsh glow
+ * v0.13：浮层由 DS Popover 接管（.ds-popover），本文件只剩触发器与列表项样式。
  */
-
-@use '../../component-library/styles/tokens' as *;
 
 .ai00-x-model-selector {
   position: relative;
@@ -21,14 +16,14 @@
   &__trigger {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     height: 20px;
-    padding: 0 8px;
+    padding: 0 var(--size-gap-2);
     border-radius: 10px;
     border: none;
     background: transparent;
     color: var(--color-text-secondary);
-    font-size: 9px;
+    font-size: var(--font-size-xxs);
     font-weight: 400;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -49,7 +44,7 @@
     }
     
     &--open {
-      background: rgba(100, 140, 255, 0.15);
+      background: var(--color-accent-200);
       color: var(--color-text-primary);
       opacity: 1;
     }
@@ -61,7 +56,7 @@
   }
   
   &__icon {
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     flex-shrink: 0;
   }
   
@@ -73,7 +68,7 @@
   }
   
   &__thinking-icon {
-    color: var(--color-purple-400);
+    color: var(--color-accent-400);
     flex-shrink: 0;
   }
   
@@ -81,11 +76,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 1px 4px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 3px;
-    background: rgba(100, 140, 255, 0.15);
-    color: rgba(140, 180, 255, 0.9);
-    font-size: 7px;
+    background: var(--color-accent-200);
+    color: var(--color-accent-500);
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     letter-spacing: 0.5px;
     line-height: 1;
@@ -95,11 +90,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 1px 4px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 3px;
-    background: rgba(100, 200, 160, 0.15);
-    color: rgba(100, 200, 160, 0.9);
-    font-size: 7px;
+    background:color-mix(in srgb, var(--color-success) 15%, transparent);
+    color:color-mix(in srgb, var(--color-success) 90%, transparent);
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     letter-spacing: 0.3px;
     line-height: 1;
@@ -110,29 +105,29 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 1px 5px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 3px;
-    font-size: 8px;
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     letter-spacing: 0.3px;
     line-height: 1;
     text-transform: uppercase;
     flex-shrink: 0;
-    margin-left: 4px;
+    margin-left: var(--size-gap-1);
 
     &--free {
-      background: rgba(34, 197, 94, 0.15);
-      color: rgba(34, 197, 94, 0.9);
+      background: var(--color-success-bg);
+      color: var(--color-success);
     }
 
     &--vip {
-      background: rgba(251, 146, 60, 0.15);
-      color: rgba(251, 146, 60, 0.9);
+      background: var(--color-warning-bg);
+      color: var(--color-warning);
     }
 
     &--svip {
-      background: rgba(168, 85, 247, 0.15);
-      color: rgba(168, 85, 247, 0.9);
+      background: var(--color-accent-500);
+      color: var(--color-accent-500);
     }
   }
 
@@ -141,46 +136,46 @@
   &__price-badge {
     display: inline-flex;
     align-items: center;
-    padding: 1px 5px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 3px;
-    font-size: 7px;
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     letter-spacing: 0.3px;
     line-height: 1;
     flex-shrink: 0;
-    margin-left: 4px;
+    margin-left: var(--size-gap-1);
     text-transform: uppercase;
 
     &--economy {
-      background: rgba(34, 197, 94, 0.18);
-      color: rgba(74, 222, 128, 0.95);
+      background: var(--color-success-bg);
+      color:var(--color-success);
     }
   }
 
   &__modality-badge {
     display: inline-flex;
     align-items: center;
-    padding: 1px 4px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 3px;
-    background: rgba(100, 140, 255, 0.12);
-    color: rgba(140, 180, 255, 0.85);
-    font-size: 7px;
+    background: var(--color-accent-200);
+    color: var(--color-accent-500);
+    font-size: var(--font-size-xxs);
     font-weight: 500;
     letter-spacing: 0.3px;
     line-height: 1;
     flex-shrink: 0;
-    margin-left: 4px;
+    margin-left: var(--size-gap-1);
   }
 
   &__group-icon {
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     flex-shrink: 0;
-    margin-right: 3px;
+    margin-right: var(--size-gap-0-5);
   }
 
   &__section-hint {
     margin-left: auto;
-    font-size: 8px;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     font-weight: 400;
     text-transform: none;
@@ -191,19 +186,19 @@
   &__upgrade-hint {
     display: flex;
     align-items: center;
-    gap: 5px;
-    padding: 6px 12px;
-    margin-top: 4px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    color: var(--color-text-tertiary);
-    font-size: 9px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1-5) var(--size-gap-3);
+    margin-top: var(--size-gap-1);
+    border-top:1px solid color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xxs);
     font-weight: 400;
     letter-spacing: 0.2px;
-    background: rgba(251, 146, 60, 0.04);
+    background: var(--color-warning-bg);
   }
 
   &__upgrade-icon {
-    color: rgba(251, 146, 60, 0.8);
+    color: var(--color-warning);
     flex-shrink: 0;
   }
 
@@ -217,7 +212,7 @@
   }
   
   &__ctx-usage {
-    font-size: 9px;
+    font-size: var(--font-size-xxs);
     font-weight: 400;
     color: var(--color-text-muted);
     opacity: 0.55;
@@ -226,19 +221,19 @@
     flex-shrink: 0;
 
     &--warning {
-      color: rgba(251, 146, 60, 0.9);
+      color: var(--color-warning);
       opacity: 0.9;
     }
 
     &--critical {
-      color: rgba(248, 113, 113, 0.95);
+      color: var(--color-error);
       opacity: 1;
       animation: ai00-x-ctx-critical-pulse 2s ease-in-out infinite;
     }
   }
 
   &__chevron {
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     flex-shrink: 0;
     transition: transform 0.2s ease;
     
@@ -248,34 +243,22 @@
   }
   
   // ==================== Dropdown menu ====================
-  
+  // v0.13：定位与浮层视觉由 DS Popover（.ds-popover，Radix 浮层引擎）接管；
+  // 此处仅保留尺寸与内边距约束（header 全出血设计需要 padding: 0）
   &__dropdown {
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 0;
     min-width: 220px;
     max-width: 280px;
-    background: var(--color-bg-elevated);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
+    padding: 0;
     overflow: hidden;
-    backdrop-filter: blur(20px) saturate(1.2);
-    -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    box-shadow: 
-      0 8px 32px rgba(0, 0, 0, 0.5),
-      0 0 1px rgba(255, 255, 255, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    z-index: $z-dropdown;
-    animation: ai00-x-model-dropdown-fade-in 0.15s ease-out;
   }
   
   &__dropdown-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    font-size: 10px;
+    padding: var(--size-gap-2) var(--size-gap-3);
+    border-bottom:1px solid color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+    font-size: var(--font-size-xxs);
     font-weight: 500;
     color: var(--color-text-muted);
     text-transform: uppercase;
@@ -283,8 +266,8 @@
   }
   
   &__dropdown-hint {
-    font-size: 9px;
-    color: var(--color-text-tertiary);
+    font-size: var(--font-size-xxs);
+    color: var(--color-text-muted);
     font-weight: 400;
     text-transform: none;
     letter-spacing: 0;
@@ -293,13 +276,13 @@
   &__divider {
     height: 1px;
     background: var(--border-subtle);
-    margin: 4px 12px;
+    margin: var(--size-gap-1) var(--size-gap-3);
   }
   
   &__list {
     max-height: 240px;
     overflow-y: auto;
-    padding: 4px 0;
+    padding: var(--size-gap-1) 0;
     
     // Scrollbar styling
     &::-webkit-scrollbar {
@@ -311,11 +294,11 @@
     }
     
     &::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
+      background:color-mix(in srgb, var(--color-text-primary) 16%, transparent);
       border-radius: 2px;
       
       &:hover {
-        background: rgba(255, 255, 255, 0.25);
+        background: var(--element-bg-medium);
       }
     }
   }
@@ -326,8 +309,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 7px 12px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-1-5) var(--size-gap-3);
     cursor: pointer;
     transition: all 0.15s ease;
     
@@ -339,7 +322,7 @@
       background: var(--element-bg-subtle);
 
       .ai00-x-model-selector__option-name {
-        color: rgba(140, 180, 255, 0.95);
+        color: var(--color-accent-500);
       }
 
       &:hover {
@@ -349,7 +332,7 @@
     
     &--primary {
       .ai00-x-model-selector__option-name {
-        color: rgba(160, 140, 255, 0.9);
+        color:color-mix(in srgb, var(--color-accent-600) 90%, transparent);
       }
       
       &:hover {
@@ -361,7 +344,7 @@
   &__option-main {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     min-width: 0;
     flex: 1;
   }
@@ -369,8 +352,8 @@
   &__option-name {
     display: flex;
     align-items: center;
-    gap: 4px;
-    font-size: 11px;
+    gap: var(--size-gap-1);
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     color: var(--color-text-secondary);
     white-space: nowrap;
@@ -379,8 +362,8 @@
   }
   
   &__option-desc {
-    font-size: 9px;
-    color: var(--color-text-tertiary);
+    font-size: var(--font-size-xxs);
+    color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -393,12 +376,12 @@
   &__option-meta {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: var(--size-gap-0-25);
     min-width: 0;
   }
 
   &__option-subdesc {
-    font-size: 9px;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -406,38 +389,38 @@
   }
   
   &__option-thinking {
-    color: rgba(180, 160, 255, 0.8);
+    color:color-mix(in srgb, var(--color-accent-600) 80%, transparent);
     flex-shrink: 0;
   }
   
   &__option-check {
-    color: rgba(100, 180, 255, 0.8);
+    color:color-mix(in srgb, var(--color-accent-500) 80%, transparent);
     flex-shrink: 0;
   }
 
   &__option-badge {
     display: inline-flex;
     align-items: center;
-    padding: 0 4px;
+    padding: 0 var(--size-gap-1);
     border-radius: 3px;
-    background: rgba(100, 140, 255, 0.15);
-    color: rgba(140, 180, 255, 0.9);
-    font-size: 8px;
+    background: var(--color-accent-200);
+    color: var(--color-accent-500);
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     letter-spacing: 0.3px;
     line-height: 1.4;
     flex-shrink: 0;
-    margin-left: 4px;
+    margin-left: var(--size-gap-1);
   }
 
   &__section-title {
     display: flex;
     align-items: center;
-    gap: 3px;
-    padding: 6px 12px 2px;
-    font-size: 9px;
+    gap: var(--size-gap-0-5);
+    padding: var(--size-gap-1-5) var(--size-gap-3) var(--size-gap-0-5);
+    font-size: var(--font-size-xxs);
     font-weight: 600;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -446,53 +429,30 @@
     opacity: 0.55;
 
     &:hover {
-      background: rgba(251, 146, 60, 0.08);
+      background: var(--color-warning-bg);
     }
   }
 
   &__option-lock {
-    color: rgba(251, 146, 60, 0.9);
+    color: var(--color-warning);
     flex-shrink: 0;
-    margin-left: 2px;
+    margin-left: var(--size-gap-0-5);
   }
 
   :root[data-theme="light"] &,
   :root[data-theme-type="light"] &,
   .light & {
-    &__dropdown {
-      background: var(--color-bg-elevated);
-      border: 1px solid var(--border-subtle);
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-      box-shadow:
-        0 4px 18px rgba(15, 23, 42, 0.04),
-        0 1px 3px rgba(15, 23, 42, 0.03),
-        inset 0 1px 0 rgba(255, 255, 255, 0.95);
-    }
-
     &__dropdown-header {
       border-bottom-color: var(--border-subtle);
     }
 
     &__list::-webkit-scrollbar-thumb {
-      background: rgba(15, 23, 42, 0.08);
+      background: var(--color-bg-primary);
 
       &:hover {
-        background: rgba(15, 23, 42, 0.14);
+        background: var(--color-bg-primary);
       }
     }
-  }
-}
-
-// Dropdown fade-in animation
-@keyframes ai00-x-model-dropdown-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 

@@ -6,7 +6,7 @@
 .canvas-mission-control {
   position: absolute;
   inset: 0;
-  z-index: 200;
+  z-index: var(--z-fullscreen);
   display: flex;
   flex-direction: column;
   // Use same background variable as left panel
@@ -33,14 +33,14 @@
     align-items: center;
     justify-content: space-between;
     height: 36px;
-    padding: 0 16px;
+    padding: 0 var(--size-gap-4);
     flex-shrink: 0;
     border-bottom: 1px dashed var(--border-base);
   }
 
   &__title {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-secondary);
   }
@@ -48,26 +48,26 @@
   &__header-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   &__merge-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     height: 22px;
-    padding: 0 8px;
-    background: var(--element-bg-soft, var(--color-bg-secondary));
+    padding: 0 var(--size-gap-2);
+    background: var(--element-bg-soft);
     border: 1px solid var(--border-base);
     color: var(--color-text-secondary);
     cursor: pointer;
     border-radius: 3px;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     transition: all 0.15s ease;
 
     &:hover {
-      background: var(--element-bg-base, var(--element-bg-medium));
+      background: var(--element-bg-base);
       border-color: var(--border-base);
       color: var(--color-text-primary);
     }
@@ -90,20 +90,20 @@
     padding: 0;
     background: none;
     border: none;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     cursor: pointer;
     border-radius: 3px;
     transition: all 0.15s ease;
 
     &:hover {
-      background: var(--element-bg-soft, var(--element-bg-base));
+      background: var(--element-bg-soft);
       color: var(--color-text-primary);
     }
   }
 
   // Search and filter area
   &__filters {
-    padding: 8px 16px;
+    padding: var(--size-gap-2) var(--size-gap-4);
     flex-shrink: 0;
     border-bottom: 1px dashed var(--border-base);
   }
@@ -111,7 +111,7 @@
   &__filters-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   &__search-wrapper {
@@ -123,10 +123,10 @@
   &__group-filters {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex-shrink: 0;
-    padding: 2px;
-    background: var(--element-bg-subtle, var(--color-bg-secondary));
+    padding: var(--size-gap-0-5);
+    background: var(--element-bg-subtle);
     border: 1px solid var(--border-base);
     border-radius: 4px;
   }
@@ -141,22 +141,22 @@
     padding: 0;
     background: transparent;
     border: none;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     cursor: pointer;
     border-radius: 3px;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     transition: all 0.15s ease;
 
     &:hover {
-      background: var(--element-bg-soft, var(--element-bg-base));
+      background: var(--element-bg-soft);
       color: var(--color-text-secondary);
     }
 
     &.is-active {
-      background: var(--group-color, var(--color-accent-500, var(--color-primary)));
+      background: var(--group-color);
       color: var(--color-text-primary);
-      box-shadow: 0 1px 3px var(--color-shadow);
+      box-shadow: 0 1px 3px var(--shadow-base);
 
       .canvas-mission-control__group-filter-indicator {
         opacity: 0;
@@ -170,7 +170,7 @@
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: var(--group-color, var(--color-accent-500, var(--color-primary)));
+      background: var(--group-color);
       opacity: 0.6;
       transition: opacity 0.15s ease;
     }
@@ -187,8 +187,8 @@
     flex: 1;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 10px;
-    padding: 8px 16px 16px;
+    gap: var(--size-gap-2-5);
+    padding: var(--size-gap-2) var(--size-gap-4) var(--size-gap-4);
     overflow-y: auto;
     align-content: start;
     
@@ -201,11 +201,11 @@
     }
 
     &::-webkit-scrollbar-thumb {
-      background: var(--color-scrollbar, var(--element-bg-medium));
+      background: var(--color-bg-tertiary);
       border-radius: 3px;
       
       &:hover {
-        background: var(--element-bg-strong, var(--element-bg-medium));
+        background: var(--element-bg-strong);
       }
     }
   }
@@ -217,9 +217,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 40px 30px;
-    color: var(--color-text-tertiary);
-    font-size: 12px;
+    padding: var(--size-gap-10) var(--size-gap-7);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
     border: 1px dashed var(--border-base);
     border-radius: 6px;
   }
@@ -229,10 +229,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    padding: 6px 16px;
-    font-size: 10px;
-    color: var(--color-text-tertiary);
+    gap: var(--size-gap-3);
+    padding: var(--size-gap-1-5) var(--size-gap-4);
+    font-size: var(--font-size-xxs);
+    color: var(--color-text-muted);
     border-top: 1px dashed var(--border-base);
     flex-shrink: 0;
 
@@ -242,10 +242,10 @@
       justify-content: center;
       min-width: 16px;
       height: 14px;
-      padding: 0 4px;
-      font-size: 9px;
+      padding: 0 var(--size-gap-1);
+      font-size: var(--font-size-xxs);
       font-family: inherit;
-      background: var(--element-bg-soft, var(--color-bg-secondary));
+      background: var(--element-bg-soft);
       border: 1px solid var(--border-base);
       border-radius: 2px;
       color: var(--color-text-secondary);

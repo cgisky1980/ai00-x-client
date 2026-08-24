@@ -11,8 +11,8 @@
   // === Compact — spectrum as background, icon left + time right on top ===
   &--compact {
     justify-content: space-between;
-    gap: 6px;
-    padding: 0 12px;
+    gap: var(--size-gap-1-5);
+    padding: 0 var(--size-gap-3);
     width: 100%;
     position: relative; // for spectrum-bg absolute positioning
   }
@@ -25,7 +25,7 @@
     z-index: 1;
 
     &--playing {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
       animation: iconSpin 3s linear infinite;
     }
   }
@@ -49,7 +49,7 @@
   &__spectrum-bg-col {
     display: flex;
     align-items: flex-end; // bottom aligned
-    gap: 1px;
+    gap: var(--size-gap-0-25);
     flex: 1;
     height: 100%;
 
@@ -67,13 +67,13 @@
   &__spectrum-bg-bar {
     flex: 1; // auto-fill column width
     border-radius: 1px;
-    background: color-mix(in oklch, var(--color-accent-500, #60a5fa) 85%, transparent);
+    background: color-mix(in oklch, var(--color-accent-500) 85%, transparent);
     transition: height 0.06s linear;
     min-height: 2px;
   }
 
   &__mini-time {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
@@ -84,8 +84,8 @@
   // === Expanded — column layout: top row (info+controls) + bottom progress bar ===
   &--expanded {
     flex-direction: column;
-    gap: 4px;
-    padding: 10px 14px 8px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-2-5) var(--size-gap-3-5) var(--size-gap-2);
     position: relative; // for spectrum-bg absolute positioning
     width: 100%;
     height: 100%;
@@ -96,7 +96,7 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 10px;
+    gap: var(--size-gap-2-5);
     flex: 1;
     min-height: 0;
     position: relative;
@@ -110,7 +110,7 @@
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 3px;
+    gap: var(--size-gap-0-5);
     z-index: 2;
     pointer-events: none;
   }
@@ -123,8 +123,8 @@
     transition: all 0.2s ease;
 
     &--active {
-      background: var(--color-accent-400, #06b6d4);
-      box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400, #06b6d4) 50%, transparent);
+      background: var(--color-accent-400);
+      box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
     }
   }
 
@@ -132,7 +132,7 @@
   &__volume-group {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex-shrink: 0;
   }
 
@@ -146,13 +146,13 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     position: relative;
     z-index: 1;
   }
 
   &__name {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--color-text-primary);
     white-space: nowrap;
@@ -161,7 +161,7 @@
   }
 
   &__artist {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -171,12 +171,12 @@
   &__p2p-status {
     display: inline-flex;
     align-items: center;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     white-space: nowrap;
   }
 
   &__time {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -209,7 +209,7 @@
       position: static;
       width: 100%;
       height: 3px;
-      margin: 2px 0;
+      margin: var(--size-gap-0-5) 0;
       background: color-mix(in oklch, var(--color-primary) 15%, transparent);
       flex-shrink: 0;
     }
@@ -217,16 +217,16 @@
 
   &__progress-fill {
     height: 100%;
-    background: var(--color-accent-400, #06b6d4);
+    background: var(--color-accent-400);
     border-radius: 1px;
     transition: width 0.5s linear;
-    box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400, #06b6d4) 50%, transparent);
+    box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
   }
 
   &__controls {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     flex-shrink: 0;
     position: relative;
     z-index: 1;
@@ -264,17 +264,17 @@
     }
 
     &--glow {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
       &:hover {
-        background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 22%, transparent);
-        box-shadow: 0 0 10px color-mix(in oklch, var(--color-accent-400, #06b6d4) 18%, transparent);
+        background: color-mix(in oklch, var(--color-accent-400) 22%, transparent);
+        box-shadow: 0 0 10px color-mix(in oklch, var(--color-accent-400) 18%, transparent);
       }
     }
 
     &--skip {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
       &:hover {
-        background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 22%, transparent);
+        background: color-mix(in oklch, var(--color-accent-400) 22%, transparent);
       }
     }
 
@@ -297,8 +297,8 @@
     }
 
     &--active {
-      color: var(--color-accent-400, #06b6d4);
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 15%, transparent);
+      color: var(--color-accent-400);
+      background: color-mix(in oklch, var(--color-accent-400) 15%, transparent);
     }
 
     &:disabled {

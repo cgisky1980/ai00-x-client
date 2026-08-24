@@ -75,15 +75,15 @@
   &__settings-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     align-self: center;
   }
 
   &__settings-back {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2);
     border: none;
     border-radius: 4px;
     background: transparent;

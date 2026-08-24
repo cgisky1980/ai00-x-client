@@ -1,0 +1,272 @@
+{
+  "$description": "Ai00-X 设计令牌 · semantic（第二层）· 暗色默认主题「松烟墨」（新东方极简，规范 4.1/4.5/2.1，v0.12）。运行时换肤：色值内嵌 web-ui 三变量公式（var(--hue)/var(--chroma)/var(--chroma-surface)/var(--gray-level) 带默认回退）。墨阶/文字/高亮走 var(--hue-ink, 240)（松烟墨冷青，不随换肤滑杆联动——墨永远是冷的）；黛青走 var(--hue, 235)（滑杆只旋转黛青，规范语义：hue 微调=黛青个人偏好）。朱砂不随 hue 联动。v0.12 调亮墨阶（base L 0.21→0.27）对标 Notion/Discord 高级深灰档。亮色主题见 semantic.light.json。",
+  "color": {
+    "bg": {
+      "$description": "墨阶 5 级（规范 4.1，v0.12 松烟墨）：base 最深 → sunken 工作区 → card 卡片 → overlay 浮层 → modal 弹窗；hue 240 冷青（松烟墨，与黛青 235 同族一体）；L 定位 ≈ #262a2c 冷墨灰（高级深灰档，兼顾墨色质感与暗色可读性，对标 Notion/Discord 暗度量级）",
+      "base": { "$value": "oklch(0.27 calc(var(--chroma-surface, 0.012) * 0.5) var(--hue-ink, 240))", "$type": "color", "$description": "L1 app 全局背景（≈ #262a2c）" },
+      "sunken": { "$value": "oklch(0.31 calc(var(--chroma-surface, 0.012) * 0.55) var(--hue-ink, 240))", "$type": "color", "$description": "L2 工作区/侧栏" },
+      "card": { "$value": "oklch(0.35 calc(var(--chroma-surface, 0.012) * 0.67) var(--hue-ink, 240))", "$type": "color", "$description": "L3 卡片/面板" },
+      "overlay": { "$value": "oklch(0.40 calc(var(--chroma-surface, 0.012) * 0.75) var(--hue-ink, 240))", "$type": "color", "$description": "L4 浮层（dropdown/popover）" },
+      "modal": { "$value": "oklch(0.45 calc(var(--chroma-surface, 0.012) * 0.85) var(--hue-ink, 240))", "$type": "color", "$description": "L5 弹窗/最高层" },
+      "primary": { "$value": "{color.bg.base}", "$type": "color", "$description": "兼容名 → L1" },
+      "secondary": { "$value": "{color.bg.sunken}", "$type": "color", "$description": "兼容名 → L2" },
+      "tertiary": { "$value": "{color.bg.card}", "$type": "color", "$description": "兼容名 → L3" },
+      "quaternary": { "$value": "{color.bg.overlay}", "$type": "color", "$description": "兼容名 → L4" },
+      "elevated": { "$value": "{color.bg.modal}", "$type": "color", "$description": "兼容名 → L5（浮层/弹窗/tooltip）" },
+      "workbench": { "$value": "oklch(0.21 calc(var(--chroma-surface, 0.012) * 0.4) var(--hue-ink, 240))", "$type": "color", "$description": "工作台编辑区（比 L1 更深半档，沉浸区）" },
+      "scene": { "$value": "oklch(0.32 calc(var(--chroma-surface, 0.012) * 0.6) var(--hue-ink, 240))", "$type": "color" },
+      "flowchat": { "$value": "{color.bg.scene}", "$type": "color" },
+      "tooltip": { "$value": "{color.bg.modal}", "$type": "color" }
+    },
+    "text": {
+      "$description": "四级亮度陡峭阶梯（规范 4.5）。primary 0.92 减晕光（halation）+冷白（松烟同域）。muted 0.64 保证 L3 卡片上 ≥3:1（辅助文字档）",
+      "primary": { "$value": "oklch(0.92 calc(var(--chroma-surface, 0.012) * 0.33) var(--hue-ink, 240))", "$type": "color" },
+      "secondary": { "$value": "oklch(0.78 calc(var(--chroma-surface, 0.012) * 0.25) var(--hue-ink, 240))", "$type": "color" },
+      "muted": { "$value": "oklch(0.64 calc(var(--chroma-surface, 0.012) * 0.06) var(--hue-ink, 240))", "$type": "color" },
+      "disabled": { "$value": "oklch(0.48 calc(var(--chroma-surface, 0.012) * 0.04) var(--hue-ink, 240))", "$type": "color" }
+    },
+    "accent": {
+      "$description": "签名色·黛青（规范 2.1）：唯一交互色。默认 hue 235；随 --hue/--chroma 运行时调节（web-ui 换肤机制）。基名 --color-accent 在 aliases.json",
+      "foreground": { "$value": "oklch(0.97 0.01 90)", "$type": "color", "$description": "黛青实体底上的文字（纸白，对比 5.69）" },
+      "50": { "$value": "oklch(0.96 calc(var(--chroma, 0.12) * 0.05 * (1 - var(--gray-level, 0))) var(--hue, 235))", "$type": "color" },
+      "100": { "$value": "oklch(0.92 calc(var(--chroma, 0.12) * 0.12 * (1 - var(--gray-level, 0))) var(--hue, 235))", "$type": "color" },
+      "200": { "$value": "oklch(0.85 calc(var(--chroma, 0.12) * 0.28 * (1 - var(--gray-level, 0))) var(--hue, 235))", "$type": "color" },
+      "300": { "$value": "oklch(0.78 calc(var(--chroma, 0.12) * 0.50 * (1 - var(--gray-level, 0))) var(--hue, 235))", "$type": "color" },
+      "400": { "$value": "oklch(0.72 calc(var(--chroma, 0.12) * 0.72 * (1 - var(--gray-level, 0))) var(--hue, 235))", "$type": "color" },
+      "500": { "$value": "oklch(0.70 var(--chroma, 0.12) var(--hue, 235))", "$type": "color", "$description": "黛青基准 oklch(0.70 0.12 235)" },
+      "600": { "$value": "oklch(0.62 var(--chroma, 0.12) var(--hue, 235))", "$type": "color" },
+      "700": { "$value": "oklch(0.55 calc(var(--chroma, 0.12) * 0.85) var(--hue, 235))", "$type": "color" },
+      "800": { "$value": "oklch(0.48 calc(var(--chroma, 0.12) * 0.70) var(--hue, 235))", "$type": "color" }
+    },
+    "brand": {
+      "$description": "品牌签名·朱砂印（规范 2.1/2.5）：不随 hue 联动（印章永远是朱的），一屏一处。对比度验证（WCAG）：朱砂对 L1/L3 墨阶 6.67/6.35（正文✓）；CTA 文字用深墨 seal-foreground 6.67 ✓（纸白字仅 2.63 不达标，v0.3 修订）",
+      "seal": { "$value": "oklch(0.63 0.19 28)", "$type": "color", "$description": "朱砂：灵印印面 / 唯一 CTA / 落款" },
+      "seal-foreground": { "$value": "oklch(0.16 0.01 28)", "$type": "color", "$description": "朱砂上的文字（暖深墨，对比 6.67）" },
+      "seal-hover": { "$value": "oklch(0.58 0.19 28)", "$type": "color" }
+    },
+    "purple": {
+      "$description": "历史遗留（web-ui 兼容保留，新代码禁止作为交互色，规范 2.1 纪律 2）",
+      "50": { "$value": "rgba(139, 92, 246, 0.04)", "$type": "color" },
+      "100": { "$value": "rgba(139, 92, 246, 0.08)", "$type": "color" },
+      "200": { "$value": "rgba(139, 92, 246, 0.15)", "$type": "color" },
+      "300": { "$value": "rgba(139, 92, 246, 0.25)", "$type": "color" },
+      "400": { "$value": "rgba(139, 92, 246, 0.4)", "$type": "color" },
+      "500": { "$value": "#8b5cf6", "$type": "color" },
+      "600": { "$value": "#7c3aed", "$type": "color" },
+      "700": { "$value": "rgba(124, 58, 237, 0.8)", "$type": "color" },
+      "800": { "$value": "rgba(124, 58, 237, 0.9)", "$type": "color" }
+    },
+    "gray": {
+      "$description": "白色透明度刻度（历史遗留，新代码避免直接使用）",
+      "50": { "$value": "rgba(255, 255, 255, 0.02)", "$type": "color" },
+      "100": { "$value": "rgba(255, 255, 255, 0.04)", "$type": "color" },
+      "200": { "$value": "rgba(255, 255, 255, 0.06)", "$type": "color" },
+      "300": { "$value": "rgba(255, 255, 255, 0.08)", "$type": "color" },
+      "400": { "$value": "rgba(255, 255, 255, 0.12)", "$type": "color" },
+      "500": { "$value": "rgba(255, 255, 255, 0.16)", "$type": "color" },
+      "600": { "$value": "rgba(255, 255, 255, 0.24)", "$type": "color" },
+      "700": { "$value": "rgba(255, 255, 255, 0.32)", "$type": "color" },
+      "800": { "$value": "rgba(255, 255, 255, 0.48)", "$type": "color" }
+    },
+    "success": {
+      "solid": { "$value": "oklch(0.77 0.14 163)", "$type": "color", "$description": "基名 --color-success 经 aliases 引用此值（随主题切换）" },
+      "bg": { "$value": "oklch(0.77 0.14 163 / 0.12)", "$type": "color" },
+      "border": { "$value": "oklch(0.77 0.14 163 / 0.32)", "$type": "color" }
+    },
+    "warning": {
+      "solid": { "$value": "oklch(0.79 0.15 75)", "$type": "color" },
+      "bg": { "$value": "oklch(0.79 0.15 75 / 0.12)", "$type": "color" },
+      "border": { "$value": "oklch(0.79 0.15 75 / 0.32)", "$type": "color" }
+    },
+    "error": {
+      "solid": { "$value": "oklch(0.65 0.21 27)", "$type": "color" },
+      "bg": { "$value": "oklch(0.65 0.21 27 / 0.12)", "$type": "color" },
+      "border": { "$value": "oklch(0.65 0.21 27 / 0.32)", "$type": "color" }
+    },
+    "info": {
+      "solid": { "$value": "oklch(0.85 0.015 270)", "$type": "color" },
+      "bg": { "$value": "oklch(0.85 0.015 270 / 0.12)", "$type": "color" },
+      "border": { "$value": "oklch(0.85 0.015 270 / 0.30)", "$type": "color" }
+    },
+    "overlay": { "$value": "oklch(0.12 0.003 240 / 0.65)", "$type": "color" },
+    "feedback": {
+      "star": { "$value": "#FFD700", "$type": "color", "$description": "评分装饰金（StarRating 专用，主题中性装饰色）" }
+    },
+    "highlight": {
+      "solid": { "$value": "oklch(0.80 0.012 240)", "$type": "color" },
+      "bg": { "$value": "rgba(255, 255, 255, 0.14)", "$type": "color" }
+    }
+  },
+  "element": {
+    "bg": {
+      "subtle": { "$value": "rgba(255, 255, 255, 0.10)", "$type": "color" },
+      "soft": { "$value": "rgba(255, 255, 255, 0.14)", "$type": "color" },
+      "base": { "$value": "rgba(255, 255, 255, 0.19)", "$type": "color" },
+      "medium": { "$value": "rgba(255, 255, 255, 0.28)", "$type": "color" },
+      "strong": { "$value": "rgba(255, 255, 255, 0.36)", "$type": "color" },
+      "elevated": { "$value": "rgba(255, 255, 255, 0.23)", "$type": "color" }
+    }
+  },
+  "border": {
+    "subtle": { "$value": "rgba(255, 255, 255, 0.26)", "$type": "color" },
+    "base": { "$value": "rgba(255, 255, 255, 0.35)", "$type": "color" },
+    "medium": { "$value": "rgba(255, 255, 255, 0.46)", "$type": "color" },
+    "strong": { "$value": "rgba(255, 255, 255, 0.60)", "$type": "color" },
+    "prominent": { "$value": "rgba(255, 255, 255, 0.74)", "$type": "color" },
+    "accent": {
+      "solid": { "$value": "rgba(59, 130, 246, 0.4)", "$type": "color", "$description": "黛青 400 @40% 透明：--border-accent 经 aliases 引用（暗色档）" },
+      "soft": { "$value": "rgba(59, 130, 246, 0.3)", "$type": "color" },
+      "subtle": { "$value": "rgba(59, 130, 246, 0.15)", "$type": "color" },
+      "strong": { "$value": "rgba(59, 130, 246, 0.6)", "$type": "color" }
+    },
+    "purple": {
+      "solid": { "$value": "rgba(139, 92, 246, 0.4)", "$type": "color" },
+      "subtle": { "$value": "rgba(139, 92, 246, 0.15)", "$type": "color" }
+    }
+  },
+  "git": {
+    "color": {
+      "$description": "Git 状态色。各基名（--git-color-branch 等）与派生别名（added/pull/push）在 aliases.json 引用 *.solid",
+      "branch": {
+        "solid": { "$value": "#a1a1aa", "$type": "color" },
+        "bg": { "$value": "rgba(255, 255, 255, 0.06)", "$type": "color" },
+        "bg-hover": { "$value": "rgba(255, 255, 255, 0.10)", "$type": "color" },
+        "border": { "$value": "rgba(161, 161, 170, 0.3)", "$type": "color" }
+      },
+      "changes": {
+        "solid": { "$value": "rgb(245, 158, 11)", "$type": "color" },
+        "bg": { "$value": "rgba(245, 158, 11, 0.1)", "$type": "color" },
+        "bg-hover": { "$value": "rgba(245, 158, 11, 0.15)", "$type": "color" },
+        "border": { "$value": "rgba(245, 158, 11, 0.3)", "$type": "color" }
+      },
+      "staged": {
+        "solid": { "$value": "rgb(34, 197, 94)", "$type": "color" },
+        "bg": { "$value": "rgba(34, 197, 94, 0.1)", "$type": "color" },
+        "bg-hover": { "$value": "rgba(34, 197, 94, 0.15)", "$type": "color" },
+        "border": { "$value": "rgba(34, 197, 94, 0.3)", "$type": "color" }
+      },
+      "deleted": {
+        "solid": { "$value": "rgb(239, 68, 68)", "$type": "color" },
+        "bg": { "$value": "rgba(239, 68, 68, 0.1)", "$type": "color" },
+        "bg-hover": { "$value": "rgba(239, 68, 68, 0.15)", "$type": "color" },
+        "border": { "$value": "rgba(239, 68, 68, 0.3)", "$type": "color" }
+      }
+    }
+  },
+  "badge": {
+    "border": {
+      "radius": { "$value": "{size.radius.sm}", "$type": "dimension" }
+    },
+    "padding": {
+      "x": { "$value": "{size.gap.2}", "$type": "dimension" },
+      "y": { "$value": "2px", "$type": "dimension" }
+    },
+    "font": {
+      "size": { "$value": "{font.size.xs}", "$type": "dimension" },
+      "weight": { "$value": "{font.weight.medium}", "$type": "fontWeight" }
+    },
+    "neutral": {
+      "bg": { "$value": "{element.bg.base}", "$type": "color" },
+      "text": { "$value": "{color.text.secondary}", "$type": "color" }
+    },
+    "accent": {
+      "bg": { "$value": "{color.accent.200}", "$type": "color" },
+      "text": { "$value": "{color.accent.500}", "$type": "color" }
+    },
+    "purple": {
+      "bg": { "$value": "{color.purple.200}", "$type": "color" },
+      "text": { "$value": "{color.purple.500}", "$type": "color" }
+    },
+    "success": {
+      "bg": { "$value": "{color.success.bg}", "$type": "color" },
+      "text": { "$value": "{color.success}", "$type": "color" }
+    },
+    "warning": {
+      "bg": { "$value": "{color.warning.bg}", "$type": "color" },
+      "text": { "$value": "{color.warning}", "$type": "color" }
+    },
+    "error": {
+      "bg": { "$value": "{color.error.bg}", "$type": "color" },
+      "text": { "$value": "{color.error}", "$type": "color" }
+    },
+    "info": {
+      "bg": { "$value": "{color.info.bg}", "$type": "color" },
+      "text": { "$value": "{color.info}", "$type": "color" }
+    }
+  },
+  "card": {
+    "bg": {
+      "default": { "$value": "rgba(255, 255, 255, 0.16)", "$type": "color" },
+      "elevated": { "$value": "rgba(255, 255, 255, 0.20)", "$type": "color" },
+      "subtle": { "$value": "rgba(255, 255, 255, 0.09)", "$type": "color" },
+      "hover": { "$value": "rgba(255, 255, 255, 0.24)", "$type": "color" },
+      "active": { "$value": "rgba(255, 255, 255, 0.32)", "$type": "color" },
+      "accent": { "$value": "rgba(152, 164, 255, 0.22)", "$type": "color" },
+      "accent-hover": { "$value": "rgba(152, 164, 255, 0.32)", "$type": "color" },
+      "purple": { "$value": "rgba(139, 92, 246, 0.18)", "$type": "color" },
+      "purple-hover": { "$value": "rgba(139, 92, 246, 0.26)", "$type": "color" }
+    }
+  },
+  "modal": {
+    "bg": { "$value": "{color.bg.elevated}", "$type": "color" },
+    "border": { "$value": "{border.medium}", "$type": "color" },
+    "overlay": { "$value": "rgba(0, 0, 0, 0.78)", "$type": "color" }
+  },
+  "nav": {
+    "bg": { "$value": "{color.bg.secondary}", "$type": "color" },
+    "item": {
+      "bg-hover": { "$value": "{element.bg.base}", "$type": "color" },
+      "bg-active": { "$value": "{element.bg.medium}", "$type": "color" },
+      "text": { "$value": "{color.text.secondary}", "$type": "color" },
+      "text-active": { "$value": "{color.text.primary}", "$type": "color" }
+    }
+  },
+  "panel": {
+    "bg": { "$value": "{color.bg.primary}", "$type": "color" },
+    "header": {
+      "bg": { "$value": "{color.bg.secondary}", "$type": "color" }
+    },
+    "border": { "$value": "{border.base}", "$type": "color" }
+  },
+  "tooltip": {
+    "bg": { "$value": "{color.bg.elevated}", "$type": "color" },
+    "border": { "$value": "{border.medium}", "$type": "color" },
+    "text": { "$value": "{color.text.primary}", "$type": "color" }
+  },
+  "tool": {
+    "card": {
+      "bg-primary": { "$value": "{element.bg.base}", "$type": "color" },
+      "bg-secondary": { "$value": "{element.bg.soft}", "$type": "color" },
+      "bg-hover": { "$value": "{element.bg.medium}", "$type": "color" },
+      "bg-elevated": { "$value": "{element.bg.elevated}", "$type": "color" },
+      "border": { "$value": "{border.base}", "$type": "color" },
+      "border-subtle": { "$value": "{border.subtle}", "$type": "color" },
+      "text-primary": { "$value": "{color.text.primary}", "$type": "color" },
+      "text-secondary": { "$value": "{color.text.secondary}", "$type": "color" },
+      "text-muted": { "$value": "{color.text.muted}", "$type": "color" }
+    }
+  },
+  "input": {
+    "bg": { "$value": "{element.bg.base}", "$type": "color" },
+    "bg-hover": { "$value": "{element.bg.medium}", "$type": "color" },
+    "bg-focus": { "$value": "{element.bg.soft}", "$type": "color" },
+    "bg-disabled": { "$value": "{element.bg.subtle}", "$type": "color" },
+    "border": { "$value": "{border.base}", "$type": "color" },
+    "border-hover": { "$value": "{border.medium}", "$type": "color" },
+    "border-focus": { "$value": "{color.accent.400}", "$type": "color" },
+    "border-error": { "$value": "{color.error}", "$type": "color" },
+    "text": { "$value": "{color.text.primary}", "$type": "color" },
+    "placeholder": { "$value": "color-mix(in srgb, var(--color-text-muted) 40%, var(--color-bg-primary))" }
+  },
+  "scrollbar": {
+    "thumb": { "$value": "rgba(255, 255, 255, 0.22)", "$type": "color" },
+    "thumb-hover": { "$value": "rgba(255, 255, 255, 0.38)", "$type": "color" }
+  },
+  "scene": {
+    "viewport": {
+      "border": {
+        "width": { "$value": "1px", "$type": "dimension" }
+      }
+    }
+  }
+}

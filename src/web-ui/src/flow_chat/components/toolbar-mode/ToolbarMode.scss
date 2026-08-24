@@ -17,14 +17,14 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   height: 100vh;
   background: var(--color-bg-primary);
   border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.4));
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   cursor: grab;
   
-  font-family: var(--font-sans, var(--font-family-sans, 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif));
+  font-family: var(--font-sans);
   font-size: var(--flowchat-font-size-sm);
   color: var(--color-text-primary);
   
@@ -44,7 +44,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
       left: 0;
       right: 0;
       height: 2px;
-      background: linear-gradient(90deg, var(--color-accent-600), var(--color-purple-500), var(--color-accent-600));
+      background: linear-gradient(90deg, var(--color-accent-600), var(--color-accent-500), var(--color-accent-600));
       background-size: 200% 100%;
       animation: toolbar-progress-flow 2s linear infinite;
       z-index: 10;
@@ -67,8 +67,8 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   display: flex;
   align-items: stretch;
-  padding: 0 12px;
-  gap: 8px;
+  padding: 0 var(--size-gap-3);
+  gap: var(--size-gap-2);
   border-bottom: 1px solid var(--border-subtle);
   transition: border-color 0.2s ease;
   
@@ -98,7 +98,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: var(--size-gap-2);
   min-width: 0;
   z-index: 2;
   pointer-events: none;
@@ -115,7 +115,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 .bitfun-toolbar-mode__header-collapsed-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
   flex-shrink: 0;
 }
 
@@ -129,7 +129,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
   background: transparent;
   color: var(--color-text-muted);
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s $transition-timing;
   
@@ -145,7 +145,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 
   &:disabled {
     cursor: not-allowed;
-    opacity: var(--opacity-disabled, 0.45);
+    opacity: var(--opacity-disabled);
     transform: none;
   }
 }
@@ -178,12 +178,12 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 8px;
+  padding: var(--size-gap-1) var(--size-gap-2);
   box-sizing: border-box;
   color: var(--color-text-primary);
   font-size: var(--flowchat-font-size-xs);
-  font-weight: var(--font-weight-medium, 500);
-  border-radius: var(--radius-sm, 6px);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-sm);
 }
 
 .bitfun-toolbar-mode__title-text {
@@ -238,7 +238,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   position: absolute;
   top: 100%;
   left: 0;
-  margin-top: 4px;
+  margin-top: var(--size-gap-1);
   width: max(100%, 220px);
   max-width: min(360px, calc(100vw - 24px));
   max-height: min(360px, calc(100vh - 80px));
@@ -247,9 +247,9 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   background: var(--color-bg-primary);
   border: 1px solid var(--border-medium);
-  border-radius: var(--radius-base, 8px);
-  box-shadow: var(--shadow-xl, 0 8px 24px rgba(0, 0, 0, 0.4));
-  z-index: 100;
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-xl);
+  z-index: var(--z-dropdown);
   animation: dropdown-appear 0.2s $transition-timing;
   transform-origin: top left;
 
@@ -295,7 +295,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
   box-sizing: border-box;
   margin: 0;
-  padding: 6px 12px;
+  padding: var(--size-gap-1-5) var(--size-gap-3);
   border: none;
   background: transparent;
   color: var(--color-text-secondary);
@@ -320,8 +320,8 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   &--new {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-weight: var(--font-weight-medium, 500);
+    gap: var(--size-gap-2);
+    font-weight: var(--font-weight-medium);
     color: var(--color-text-primary);
 
     &:hover .bitfun-toolbar-mode__session-item-icon {
@@ -355,7 +355,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 
 .bitfun-toolbar-mode__session-list-divider {
   height: 1px;
-  margin: 4px 8px;
+  margin: var(--size-gap-1) var(--size-gap-2);
   background: var(--border-subtle);
   flex-shrink: 0;
 }
@@ -365,23 +365,23 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   top: calc(100% + 4px);
   right: 0;
   min-width: 180px;
-  padding: 4px;
+  padding: var(--size-gap-1);
   background: var(--color-bg-primary);
   border: 1px solid var(--border-medium);
-  border-radius: var(--radius-base, 8px);
-  box-shadow: var(--shadow-xl, 0 8px 24px rgba(0, 0, 0, 0.4));
-  z-index: 120;
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-xl);
+  z-index: var(--z-popover);
   animation: dropdown-appear 0.2s $transition-timing;
 }
 
 .bitfun-toolbar-mode__overflow-menu-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--size-gap-2-5);
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--size-gap-2) var(--size-gap-2-5);
   border: none;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-primary);
   font-size: var(--flowchat-font-size-sm);
@@ -410,8 +410,8 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   min-height: 0;
   display: flex;
   align-items: stretch;
-  padding: 6px 8px;
-  gap: 8px;
+  padding: var(--size-gap-1-5) var(--size-gap-2);
+  gap: var(--size-gap-2);
   
   animation: content-row-enter 0.2s $transition-timing;
 }
@@ -423,7 +423,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   transition: background 0.15s ease;
-  padding: 8px 12px;
+  padding: var(--size-gap-2) var(--size-gap-3);
   cursor: pointer;
   
   &:hover {
@@ -449,7 +449,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
     &::after {
       content: '▌';
       animation: toolbar-cursor-blink 0.8s ease-in-out infinite;
-      margin-left: 2px;
+      margin-left: var(--size-gap-0-5);
       color: var(--color-accent-500);
     }
   }
@@ -458,17 +458,17 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 .bitfun-toolbar-mode__tool {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
   width: 100%;
   
   &-name {
     flex-shrink: 0;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm, 6px);
-    background: var(--color-purple-200);
-    color: var(--color-purple-500);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent-200);
+    color: var(--color-accent-500);
     font-size: var(--flowchat-font-size-2xs);
-    font-weight: var(--font-weight-medium, 500);
+    font-weight: var(--font-weight-medium);
   }
   
   &-summary {
@@ -484,17 +484,17 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 .bitfun-toolbar-mode__todo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
   width: 100%;
   
   &-progress {
     flex-shrink: 0;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm, 6px);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
+    border-radius: var(--radius-sm);
     background: var(--color-accent-200);
     color: var(--color-accent-500);
     font-size: var(--flowchat-font-size-2xs);
-    font-weight: var(--font-weight-medium, 500);
+    font-weight: var(--font-weight-medium);
   }
   
   &-current {
@@ -512,14 +512,14 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   align-self: center;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
 }
 
 .bitfun-toolbar-mode__input-field {
   flex: 1;
   align-self: center;
   height: 32px;
-  padding: 0 8px;
+  padding: 0 var(--size-gap-2);
   border: none;
   border-radius: 0;
   background: transparent;
@@ -548,7 +548,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   border: none !important;
   outline: none !important;
   box-shadow: none;
-  border-radius: var(--radius-base, 8px);
+  border-radius: var(--radius-base);
   background: var(--element-bg-base);
   color: var(--color-text-secondary);
   cursor: pointer !important;
@@ -593,7 +593,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
     border-radius: 50% !important;
     background: var(--color-warning) !important;
     border: 1px solid var(--color-warning) !important;
-    color: white !important;
+    color: var(--color-accent-foreground) !important;
     box-shadow: 0 0 3px var(--color-warning) !important;
     animation: toolbar-cancel-pulse 2s ease-in-out infinite;
     position: relative;
@@ -609,7 +609,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
       width: 5px;
       height: 5px;
       border-radius: 50%;
-      background: white;
+      background:var(--color-text-primary);
     }
     
     &:hover {
@@ -621,7 +621,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
     // Compact-mode stop button.
     width: 22px;
     height: 22px;
-    border-radius: var(--radius-sm, 6px) !important;
+    border-radius: var(--radius-sm) !important;
     background: var(--color-error-bg) !important;
     border: none !important;
     color: var(--color-error) !important;
@@ -679,7 +679,7 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     &:disabled {
-      opacity: var(--opacity-disabled, 0.5);
+      opacity: var(--opacity-disabled);
       cursor: default;
     }
   }
@@ -696,8 +696,8 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes toolbar-attention-pulse {
-  0%, 100% { box-shadow: var(--shadow-xl, 0 8px 32px rgba(0, 0, 0, 0.5)), 0 0 0 1px var(--color-warning-border); }
-  50% { box-shadow: var(--shadow-xl, 0 8px 32px rgba(0, 0, 0, 0.5)), 0 0 0 2px var(--color-warning); }
+  0%, 100% { box-shadow: var(--shadow-xl), 0 0 0 1px var(--color-warning-border); }
+  50% { box-shadow: var(--shadow-xl), 0 0 0 2px var(--color-warning); }
 }
 
 @keyframes toolbar-slide-up {
@@ -780,19 +780,19 @@ $transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
   
   animation: input-slide-up $transition-duration $transition-timing;
-  padding: 8px 12px;
+  padding: var(--size-gap-2) var(--size-gap-3);
   border-top: 1px solid var(--border-subtle);
   background: var(--element-bg-subtle);
   
   .bitfun-toolbar-mode__input-field--expanded {
     flex: 1;
     height: 36px;
-    padding: 0 12px;
+    padding: 0 var(--size-gap-3);
     border: 1px solid var(--border-base);
-    border-radius: var(--radius-base, 8px);
+    border-radius: var(--radius-base);
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
     font-size: var(--flowchat-font-size-sm);

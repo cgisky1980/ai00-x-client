@@ -12,15 +12,15 @@
   &__inline-list {
     display: flex;
     flex-direction: column;
-    padding: 2px 0;
-    gap: 1px;
+    padding: var(--size-gap-0-5) 0;
+    gap: var(--size-gap-0-25);
   }
 
   &__inline-action {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     height: 24px;
     padding: 0 $size-gap-1;
     border: 1px dashed var(--border-subtle);
@@ -48,14 +48,14 @@
   &__inline-empty {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
-    padding: 4px $size-gap-1;
+    padding: var(--size-gap-1) $size-gap-1;
     font-style: italic;
   }
 
   &__inline-item {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: var(--size-gap-1);
     height: 26px;
     padding: 0 $size-gap-1;
     border: none;
@@ -177,7 +177,7 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
   }
 
   &__inline-item-label {
@@ -192,9 +192,9 @@
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: var(--size-gap-0-5);
     height: 16px;
-    padding: 0 5px;
+    padding: 0 var(--size-gap-1);
     border-radius: 3px;
     background: color-mix(in srgb, var(--color-accent) 8%, transparent);
     color: var(--color-accent);
@@ -206,7 +206,7 @@
   &__inline-item-tooltip {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     max-width: 260px;
   }
 
@@ -228,7 +228,7 @@
   &__inline-item-actions {
     display: none;
     align-items: center;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     flex-shrink: 0;
     margin-left: auto;
 
@@ -270,8 +270,8 @@
     border-radius: $size-radius-base;
     background: var(--color-bg-elevated);
     border: 1px solid var(--border-subtle);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    z-index: 10000;
+    box-shadow: 0 4px 12px var(--color-overlay);
+    z-index: var(--z-modal);
     transform-origin: top left;
     animation: ai00-x-footer-menu-in $motion-fast $easing-decelerate forwards;
   }
@@ -316,7 +316,7 @@
   &__inline-item-edit {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     flex: 1;
     min-width: 0;
   }
@@ -328,7 +328,7 @@
     .ai00-x-input-container {
       height: 18px;
       min-height: 18px;
-      padding: 0 6px;
+      padding: 0 var(--size-gap-1-5);
       border-radius: 4px;
       border-color: var(--border-subtle);
       background: color-mix(in srgb, var(--element-bg-soft) 55%, transparent);
@@ -348,10 +348,10 @@
   &__inline-toggle {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     height: 22px;
     padding: 0 $size-gap-1;
-    margin-top: 2px;
+    margin-top: var(--size-gap-0-5);
     border: none;
     border-radius: 4px;
     background: transparent;
@@ -426,7 +426,7 @@
     line-height: 1;
     color: var(--color-text-muted);
     margin-left: auto;
-    padding: 1px 4px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 3px;
     background: color-mix(in srgb, var(--color-text-muted) 12%, transparent);
 

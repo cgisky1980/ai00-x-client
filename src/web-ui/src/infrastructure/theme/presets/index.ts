@@ -2,19 +2,9 @@
 
 export { Ai00XDarkTheme } from './dark-theme';
 export { ai00xLightTheme } from './light-theme';
-export { ai00xMidnightTheme } from './midnight-theme';
-export { ai00xChinaStyleTheme } from './china-style-theme';
-export { ai00xChinaNightTheme } from './china-night-theme';
-export { ai00xCyberTheme } from './cyber-theme';
-export { ai00xSlateTheme } from './slate-theme';
 
 import { Ai00XDarkTheme } from './dark-theme';
 import { ai00xLightTheme } from './light-theme';
-import { ai00xMidnightTheme } from './midnight-theme';
-import { ai00xChinaStyleTheme } from './china-style-theme';
-import { ai00xChinaNightTheme } from './china-night-theme';
-import { ai00xCyberTheme } from './cyber-theme';
-import { ai00xSlateTheme } from './slate-theme';
 import { ThemeConfig, ThemeId } from '../types';
 
 /** Default light / dark builtin themes used when following system appearance. */
@@ -37,18 +27,21 @@ export function getSystemPreferredDefaultThemeId(): ThemeId {
 /** Static fallback when system preference is unavailable (e.g. SSR). */
 export const DEFAULT_THEME_ID: ThemeId = DEFAULT_LIGHT_THEME_ID;
 
+/**
+ * 规范 v0.7：预设主题仅明暗两档（墨/纸）。
+ * 历史上曾存在 slate/midnight/china-style/china-night/cyber 五套多风格预设，
+ * 2026-08-23 裁撤；此处映射保证老用户的已保存选择平滑落到同明暗档。
+ */
+export const LEGACY_BUILTIN_THEME_FALLBACK: Record<string, ThemeId> = {
+  'ai00-x-slate': DEFAULT_DARK_THEME_ID,
+  'ai00-x-midnight': DEFAULT_DARK_THEME_ID,
+  'ai00-x-china-night': DEFAULT_DARK_THEME_ID,
+  'ai00-x-cyber': DEFAULT_DARK_THEME_ID,
+  'ai00-x-china-style': DEFAULT_LIGHT_THEME_ID,
+};
+
  
 export const builtinThemes: ThemeConfig[] = [
   ai00xLightTheme,
-  ai00xSlateTheme,
   Ai00XDarkTheme,
-  ai00xMidnightTheme,
-  ai00xChinaStyleTheme,
-  ai00xChinaNightTheme,
-  ai00xCyberTheme,
 ];
-
- 
-
-
-

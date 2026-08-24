@@ -6,34 +6,34 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-bg-secondary, #18181a);
-  border: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.06));
+  background: var(--color-bg-secondary);
+  border: 1px dashed var(--border-subtle);
   border-radius: 0;
   overflow: hidden;
   transition: border-color 0.2s ease, border-style 0.2s ease;
 }
 
 .mermaid-component-library:hover {
-  border-color: var(--border-medium, rgba(255, 255, 255, 0.12));
+  border-color: var(--border-medium);
 }
 
 .library-header {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
-  background: var(--color-bg-secondary, #18181a);
-  border-bottom: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.06));
+  padding: var(--size-gap-2) var(--size-gap-3);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px dashed var(--border-subtle);
   flex-shrink: 0;
 }
 
 .library-header h4 {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--color-text-primary, #e8e8e8);
+  color: var(--color-text-primary);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
 }
 
 .library-header h4::before {
@@ -41,13 +41,13 @@
   display: inline-block;
   width: 3px;
   height: 12px;
-  background: var(--color-purple-500, #8b5cf6);
+  background: var(--color-accent-500);
   border-radius: 2px;
 }
 
 .library-content {
   flex: 1;
-  padding: 12px;
+  padding: var(--size-gap-3);
   overflow-y: auto;
   position: relative;
 }
@@ -60,9 +60,9 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: radial-gradient(
+  background-image:radial-gradient(
     circle at center,
-    rgba(255, 255, 255, 0.025) 1px,
+    color-mix(in srgb, var(--color-text-primary) 3%, transparent) 1px,
     transparent 1px
   );
   background-size: 16px 16px;
@@ -79,18 +79,18 @@
 }
 
 .library-content::-webkit-scrollbar-thumb {
-  background: var(--border-subtle, rgba(255, 255, 255, 0.1));
+  background: var(--border-subtle);
   border-radius: 3px;
 }
 
 .library-content::-webkit-scrollbar-thumb:hover {
-  background: var(--border-medium, rgba(255, 255, 255, 0.2));
+  background: var(--border-medium);
 }
 
 .component-category {
   position: relative;
   z-index: 1;
-  margin-bottom: 16px;
+  margin-bottom: var(--size-gap-4);
 }
 
 .component-category:last-child {
@@ -100,11 +100,11 @@
 .category-title {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 8px 0;
-  font-size: 11px;
+  gap: var(--size-gap-1-5);
+  margin: 0 0 var(--size-gap-2) 0;
+  font-size: var(--font-size-2xs);
   font-weight: 600;
-  color: var(--color-text-secondary, #a0a0a0);
+  color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -115,7 +115,7 @@
   height: 1px;
   background: linear-gradient(
     to right,
-    var(--border-subtle, rgba(255, 255, 255, 0.08)),
+    var(--border-subtle),
     transparent
   );
 }
@@ -123,15 +123,15 @@
 .component-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 6px;
+  gap: var(--size-gap-1-5);
 }
 
 .component-item {
   display: flex;
   flex-direction: column;
-  padding: 10px;
-  background: var(--color-bg-primary, #121214);
-  border: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.06));
+  padding: var(--size-gap-2-5);
+  background: var(--color-bg-primary);
+  border: 1px dashed var(--border-subtle);
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -140,17 +140,17 @@
 
 .component-item:hover {
   border-style: solid;
-  border-color: var(--color-purple-400, rgba(139, 92, 246, 0.4));
-  background: var(--glass-purple-subtle, rgba(139, 92, 246, 0.06));
+  border-color: var(--color-accent-400);
+  background: var(--glass-blue-subtle);
   transform: translateY(-1px);
 }
 
 .component-item:hover .component-preview {
-  border-color: var(--color-purple-400, rgba(139, 92, 246, 0.3));
+  border-color: var(--color-accent-400);
 }
 
 .component-item:hover .component-name {
-  color: var(--color-purple-400, #a78bfa);
+  color: var(--color-accent-400);
 }
 
 .component-item:active {
@@ -159,10 +159,10 @@
 
 .component-preview {
   flex: 1;
-  margin-bottom: 6px;
-  padding: 8px 6px;
-  background: var(--color-bg-secondary, #18181a);
-  border: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.04));
+  margin-bottom: var(--size-gap-1-5);
+  padding: var(--size-gap-2) var(--size-gap-1-5);
+  background: var(--color-bg-secondary);
+  border: 1px dashed var(--border-subtle);
   border-radius: 3px;
   min-height: 32px;
   display: flex;
@@ -173,8 +173,8 @@
 
 .component-preview code {
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  font-size: 10px;
-  color: var(--color-text-muted, #808080);
+  font-size: var(--font-size-xxs);
+  color: var(--color-text-muted);
   text-align: center;
   line-height: 1.4;
   word-break: break-word;
@@ -185,9 +185,9 @@
 }
 
 .component-name {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
-  color: var(--color-text-primary, #e8e8e8);
+  color: var(--color-text-primary);
   display: block;
   text-align: center;
   transition: color 0.2s ease;
@@ -205,41 +205,41 @@
 .component-item.dragging {
   opacity: 0.6;
   border-style: solid;
-  border-color: var(--color-accent-500, #60a5fa);
+  border-color: var(--color-accent-500);
 }
 
 @media (max-width: 768px) {
   .component-grid {
     grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
   
   .component-item {
-    padding: 8px;
+    padding: var(--size-gap-2);
   }
   
   .component-preview {
     min-height: 28px;
-    padding: 6px 4px;
+    padding: var(--size-gap-1-5) var(--size-gap-1);
   }
   
   .component-preview code {
-    font-size: 9px;
+    font-size: var(--font-size-xxs);
   }
   
   .component-name {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
   }
 
   .library-header {
-    padding: 8px 10px;
+    padding: var(--size-gap-2) var(--size-gap-2-5);
   }
 
   .library-header h4 {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
   }
 
   .library-content {
-    padding: 10px;
+    padding: var(--size-gap-2-5);
   }
 }

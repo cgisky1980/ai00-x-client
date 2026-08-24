@@ -310,6 +310,12 @@ When developing frontend features, reuse existing infrastructure:
 
 ### Frontend Visual Specification
 
+> **★ 权威来源已迁移（2026-08-23）**：Ai00-X 统一视觉设计规范 = **[参考/前端视觉设计规范-新东方极简.md](../参考/前端视觉设计规范-新东方极简.md)（新东方极简）**，token 单一事实来源 = **`packages/design-system/tokens/*.json`**（DTCG，1:1 直出 CSS 变量，`pnpm build` 生成 `css/tokens.css` 等产物）。
+>
+> **Agent 硬规则**：黛青 `--color-accent` 是唯一交互色；朱砂 `--color-brand-seal` 一屏一处（灵印或唯一 CTA）；LOGO=`<BrandMark>` 灵印（包组件）；品牌名一律 "Ai00-X"；表面走墨阶 token；门面大标题衬线（`--font-family-serif`）；机器输出 mono+tabular；backdrop-blur 仅浮层；签名动效（brush-reveal/ink-ripple）仅白名单五场景；禁止硬编码色值/px/z-index。
+>
+> 下表为 web-ui 存量 SCSS 编译期体系（`tokens.scss` 仍服务于 web-ui 编译期变量与 mixin；CSS 变量层与 design-system 同名兼容，新代码优先用包 token/组件）。新页面/新前端接入按规范第八节 checklist 逐项检查。
+
 All UI MUST follow the design tokens defined in `src/web-ui/src/component-library/styles/tokens.scss`. Never hardcode spacing, radius, color, or z-index values — always use the corresponding CSS variable or SCSS token.
 
 #### Design Tokens Source of Truth

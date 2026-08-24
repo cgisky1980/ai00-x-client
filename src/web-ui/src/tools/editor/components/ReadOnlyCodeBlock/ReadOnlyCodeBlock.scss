@@ -30,7 +30,7 @@
     
     // Adjust selection style
     .selected-text {
-      background: var(--color-selection) !important;
+      background: var(--color-accent-100) !important;
     }
   }
   
@@ -57,11 +57,11 @@
 .readonly-code-block--compact {
   .monaco-editor {
     .view-lines {
-      padding: 4px 0;
+      padding: var(--size-gap-1) 0;
     }
     
     .margin {
-      padding-left: 4px;
+      padding-left: var(--size-gap-1);
     }
   }
 }
@@ -76,7 +76,7 @@
   display: inline-block;
   vertical-align: middle;
   border-radius: 4px;
-  padding: 2px 4px;
+  padding: var(--size-gap-0-5) var(--size-gap-1);
   
   .monaco-editor {
     .view-lines {

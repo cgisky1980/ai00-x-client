@@ -34,7 +34,7 @@
             hsl(330, 72%, 65%),
             hsl(360, 72%, 65%)
         );
-        border: 1px solid var(--border-base, rgba(255, 255, 255, 0.1));
+        border: 1px solid var(--border-base);
     }
 
     &__thumb {
@@ -44,17 +44,17 @@
         width: 14px;
         height: 14px;
         border-radius: 50%;
-        border: 2px solid var(--color-bg-primary, #fff);
-        box-shadow: 0 0 0 1px var(--border-base, rgba(255, 255, 255, 0.2)),
-                    0 1px 3px rgba(0, 0, 0, 0.3);
+        border: 2px solid var(--color-bg-primary);
+        box-shadow: 0 0 0 1px var(--border-base),
+                    0 1px 3px var(--color-overlay);
         transition: box-shadow 0.15s ease;
         z-index: 1;
         pointer-events: none;
 
         &:hover {
-            box-shadow: 0 0 0 2px var(--color-bg-primary, #fff),
-                        0 0 0 3px var(--border-medium, rgba(255, 255, 255, 0.3)),
-                        0 2px 6px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 0 0 2px var(--color-bg-primary),
+                        0 0 0 3px var(--border-medium),
+                        0 2px 6px var(--modal-overlay);
         }
     }
 

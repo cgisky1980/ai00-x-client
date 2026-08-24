@@ -13,7 +13,7 @@
   overflow: hidden;
   background: var(--color-bg-flowchat);
   position: relative;
-  font-family: var(--font-sans, var(--font-family-sans, inherit));
+  font-family: var(--font-sans);
   font-size: var(--flowchat-font-size-base);
 }
 
@@ -35,7 +35,7 @@
   max-width: 700px;
   display: flex;
   flex-direction: column;
-  z-index: var(--z-overlay, 100);
+  z-index: var(--z-overlay);
   pointer-events: none;
 
   > * {
@@ -49,11 +49,11 @@
     min-height: 56px;
     background: var(--card-bg-elevated);
     border-radius: 12px 12px 0 0;
-    margin-bottom: -8px;
+    margin-bottom: calc(var(--size-gap-2) * -1);
     z-index: 0;
     box-shadow:
-      0 -4px 16px rgba(0, 0, 0, 0.35),
-      0 -2px 4px rgba(0, 0, 0, 0.2);
+      0 -4px 16px var(--modal-overlay),
+      0 -2px 4px var(--color-overlay);
     border: 1px solid var(--border-subtle);
     border-bottom: none;
   }

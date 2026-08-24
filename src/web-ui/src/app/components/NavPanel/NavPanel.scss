@@ -39,7 +39,7 @@ $_section-header-height: 24px;
 
   &__search-section {
     flex-shrink: 0;
-    padding: 16px $size-gap-2 $size-gap-2;
+    padding: var(--size-gap-4) $size-gap-2 $size-gap-2;
   }
 
   // ── Container ──────────────────────────────
@@ -135,13 +135,13 @@ $_section-header-height: 24px;
   &__mode-pill-wrap {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     min-width: 0;
   }
 
   &__mode-pill-caption {
     margin: 0;
-    padding: 0 4px;
+    padding: 0 var(--size-gap-1);
     font-size: var(--font-size-xxs);
     line-height: 1.35;
     color: var(--color-text-muted);
@@ -161,7 +161,7 @@ $_section-header-height: 24px;
     position: relative;
     width: 100%;
     min-width: 0;
-    padding: 5px;
+    padding: var(--size-gap-1);
     border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
     border-radius: 999px;
     display: flex;
@@ -170,7 +170,7 @@ $_section-header-height: 24px;
     color: var(--color-text-primary);
     cursor: pointer;
     text-align: center;
-    box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-accent-foreground) 4%, transparent);
     transition: transform $motion-fast $easing-standard,
                 box-shadow $motion-fast $easing-standard,
                 border-color $motion-fast $easing-standard,
@@ -179,8 +179,8 @@ $_section-header-height: 24px;
     &:hover {
       transform: translateY(-1px);
       border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
-      box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 5%, transparent),
-                  0 10px 22px rgba(0, 0, 0, 0.12);
+      box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-accent-foreground) 5%, transparent),
+                  0 10px 22px var(--color-overlay);
     }
 
     &:focus-visible {
@@ -219,7 +219,7 @@ $_section-header-height: 24px;
     border-radius: 999px;
     background: var(--ai00-x-mode-pill-liquid-pro-bg);
     box-shadow:
-      inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
+      inset 0 1px 0 color-mix(in srgb, var(--color-accent-foreground) 12%, transparent),
       0 2px 10px color-mix(in srgb, var(--color-primary) 12%, transparent);
     transform: translate3d(0, 0, 0) scale(1, 1);
     transform-origin: 50% 50%;
@@ -234,7 +234,7 @@ $_section-header-height: 24px;
       transform: translate3d(100%, 0, 0) scale(1, 1);
       background: var(--ai00-x-mode-pill-liquid-assistant-bg);
       box-shadow:
-        inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
+        inset 0 1px 0 color-mix(in srgb, var(--color-accent-foreground) 12%, transparent),
         0 2px 12px color-mix(in srgb, var(--color-accent-500) 18%, transparent);
     }
 
@@ -259,9 +259,9 @@ $_section-header-height: 24px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     min-width: 0;
-    padding: 6px 4px;
+    padding: var(--size-gap-1-5) var(--size-gap-1);
     font-size: var(--font-size-xxs);
     font-weight: 600;
     line-height: 1.15;
@@ -273,7 +273,7 @@ $_section-header-height: 24px;
       align-items: center;
       justify-content: center;
       flex-wrap: wrap;
-      gap: 4px;
+      gap: var(--size-gap-1);
       max-width: 100%;
     }
 
@@ -315,7 +315,7 @@ $_section-header-height: 24px;
   &__mode-pill-segment-icon-img {
     position: absolute;
     inset: 0;
-    padding: 2px;
+    padding: var(--size-gap-0-5);
     transition: opacity $motion-fast $easing-standard,
                 transform $motion-fast $easing-standard;
 
@@ -344,7 +344,7 @@ $_section-header-height: 24px;
     width: 100%;
     display: flex;
     align-items: stretch;
-    gap: 1px;
+    gap: var(--size-gap-0-25);
     height: 36px;
     min-width: 0;
     border-radius: $size-radius-base;
@@ -356,7 +356,7 @@ $_section-header-height: 24px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     min-width: 0;
     padding: 0 $size-gap-2;
     border: none;
@@ -461,8 +461,8 @@ $_section-header-height: 24px;
     background: var(--color-bg-elevated);
     border: 1px solid var(--border-subtle);
     border-radius: $size-radius-base;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    z-index: 9999;
+    box-shadow: 0 4px 12px var(--color-overlay);
+    z-index: var(--z-modal);
     transform-origin: top left;
     animation: ai00-x-footer-menu-in $motion-fast $easing-decelerate forwards;
 
@@ -521,9 +521,7 @@ $_section-header-height: 24px;
     flex: 1 1 auto;
     overflow-y: auto;
     overflow-x: hidden;
-    // No padding-top: separation from top-actions is only .ai00-x-nav-panel__top-actions padding-bottom.
-    // Top padding here stacked with that and read as “extra” gap above the first section header.
-    padding: 0 0 $size-gap-3 0;
+    // No padding-top: separation from top-actions is only .ai00-x-nav-panel__top-actions padding-bottom. // Top padding here stacked with that and read as “extra” gap above the first section header. padding: 0 0 $size-gap-3 0;
 
     &::-webkit-scrollbar { width: 3px; }
     &::-webkit-scrollbar-track { background: transparent; }
@@ -546,8 +544,8 @@ $_section-header-height: 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
-    padding: 8px 8px 4px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2) var(--size-gap-2) var(--size-gap-1);
     color: var(--color-text-muted);
     border-radius: 4px;
     transition: background $motion-fast $easing-standard;
@@ -626,7 +624,7 @@ $_section-header-height: 24px;
     display: inline-flex;
     align-items: center;
     gap: $size-gap-2;
-    padding: 0 12px;
+    padding: 0 var(--size-gap-3);
     border: none;
     border-radius: 10px;
     background: transparent;
@@ -640,7 +638,7 @@ $_section-header-height: 24px;
     &:hover {
       color: var(--color-text-primary);
       background: color-mix(in srgb, var(--element-bg-soft) 94%, transparent);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      box-shadow:var(--shadow-base);
     }
 
     &:active {
@@ -655,7 +653,7 @@ $_section-header-height: 24px;
     &.is-active {
       color: var(--color-text-primary);
       background: color-mix(in srgb, var(--element-bg-soft) 94%, transparent);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      box-shadow:var(--shadow-base);
     }
   }
 
@@ -679,7 +677,7 @@ $_section-header-height: 24px;
     display: flex;
     align-items: center;
     gap: $size-gap-2;
-    padding: 8px 10px 8px 12px;
+    padding: var(--size-gap-2) var(--size-gap-2-5) var(--size-gap-2) var(--size-gap-3);
     border: none;
     border-radius: 10px;
     background: transparent;
@@ -694,7 +692,7 @@ $_section-header-height: 24px;
     &:hover {
       color: var(--color-text-primary);
       background: color-mix(in srgb, var(--element-bg-soft) 94%, transparent);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      box-shadow:var(--shadow-base);
     }
 
     &:active {
@@ -711,7 +709,7 @@ $_section-header-height: 24px;
       color: var(--color-text-primary);
       background: color-mix(in srgb, var(--element-bg-soft) 94%, transparent);
       border: 1px solid var(--border-subtle);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      box-shadow:var(--shadow-base);
     }
   }
 
@@ -719,7 +717,7 @@ $_section-header-height: 24px;
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--size-gap-2-5);
     flex: 1;
   }
 
@@ -734,7 +732,7 @@ $_section-header-height: 24px;
     top: 0;
     right: -36px;
     font-size: var(--font-size-xxs);
-    padding: 1px 5px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 4px;
   }
 
@@ -774,7 +772,7 @@ $_section-header-height: 24px;
                 opacity $motion-fast $easing-standard;
 
     & + & {
-      margin-left: -8px;
+      margin-left: calc(var(--size-gap-2) * -1);
     }
 
     &:not(.is-active):not(.ai00-x-nav-panel__miniapp-bubble--more) {
@@ -784,7 +782,7 @@ $_section-header-height: 24px;
 
     &:hover {
       transform: translateY(-2px) scale(1.06);
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.24);
+      box-shadow: 0 10px 20px var(--color-overlay);
       filter: saturate(1);
       opacity: 1;
     }
@@ -792,7 +790,7 @@ $_section-header-height: 24px;
     &.is-active {
       filter: saturate(1);
       opacity: 1;
-      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22),
+      box-shadow: 0 8px 18px var(--color-overlay),
                   0 0 0 3px color-mix(in srgb, var(--color-primary) 28%, transparent);
     }
 
@@ -814,7 +812,7 @@ $_section-header-height: 24px;
   &__section-actions {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     margin-left: auto;
     opacity: 1;
   }
@@ -889,8 +887,8 @@ $_section-header-height: 24px;
     background: var(--color-bg-elevated);
     border: 1px solid var(--border-subtle);
     border-radius: $size-radius-base;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    z-index: 9999;
+    box-shadow: 0 4px 12px var(--color-overlay);
+    z-index: var(--z-modal);
     transform-origin: top left;
     animation: ai00-x-footer-menu-in $motion-fast $easing-decelerate forwards;
 
@@ -1040,8 +1038,8 @@ $_section-header-height: 24px;
   &__items {
     display: flex;
     flex-direction: column;
-    padding: 2px $size-gap-2;
-    gap: 2px;
+    padding: var(--size-gap-0-5) $size-gap-2;
+    gap: var(--size-gap-0-5);
 
     // Multiple SessionsSection siblings: match vertical rhythm of __workspace-list (gap 0 + 2px row padding).
     &--session-blocks {
@@ -1073,7 +1071,7 @@ $_section-header-height: 24px;
   // Item slots depart with the split-open animation used by scene navs.
 
   &__section {
-    margin-bottom: $size-gap-5 * 0.75;
+    margin-bottom: calc($size-gap-5 * 0.75);
     transition: transform $_depart-duration $_depart-easing,
                 opacity $_depart-duration $_depart-easing;
 
@@ -1170,7 +1168,7 @@ $_section-header-height: 24px;
         transform: translateY(-50%);
         width: 2px;
         height: 16px;
-        background: var(--btn-primary-bg, var(--color-text-primary));
+        background: var(--btn-primary-bg);
         border-radius: 0 2px 2px 0;
       }
 
@@ -1233,7 +1231,7 @@ $_section-header-height: 24px;
 
     &--clickable {
       cursor: pointer;
-      padding: 2px 5px;
+      padding: var(--size-gap-0-5) var(--size-gap-1);
       border-radius: $size-radius-sm;
       border: 1px solid transparent;
       transition: color $motion-fast $easing-standard,
@@ -1424,7 +1422,7 @@ $_section-header-height: 24px;
 
 // Footer notification: yellow only when there are unread messages (BellDot)
 .ai00-x-nav-panel__footer .ai00-x-notification-btn .ai00-x-notification-btn__icon--has-message {
-  color: #ca8a04;
+  color: var(--color-warning);
 }
 
 .ai00-x-nav-panel__footer .ai00-x-notification-btn.ai00-x-notification-btn--nav-hover-icon:not(.ai00-x-notification-btn--has-progress) {
@@ -1549,8 +1547,8 @@ $_section-header-height: 24px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: $size-radius-base;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.16);
-  z-index: 9999;
+  box-shadow: 0 8px 24px var(--color-overlay), 0 2px 8px var(--color-overlay);
+  z-index: var(--z-modal);
   transform-origin: bottom center;
   animation: ai00-x-multimodal-menu-in 0.14s $easing-decelerate forwards;
 
@@ -1627,7 +1625,7 @@ $_section-header-height: 24px;
 .ai00-x-nav-panel__footer-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9998;
+  z-index: calc(var(--z-modal) - 1);
 }
 
 .ai00-x-nav-panel__footer-menu {
@@ -1639,8 +1637,8 @@ $_section-header-height: 24px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: $size-radius-base;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  z-index: 9999;
+  box-shadow: 0 4px 12px var(--color-overlay);
+  z-index: var(--z-modal);
   transform-origin: bottom left;
   animation: ai00-x-footer-menu-in $motion-fast $easing-decelerate forwards;
 
@@ -1718,9 +1716,9 @@ $_section-header-height: 24px;
 .ai00-x-nav-panel__remote-disclaimer {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--size-gap-2-5);
   color: var(--color-text-secondary);
-  padding: 12px 0 14px;
+  padding: var(--size-gap-3) 0 var(--size-gap-3-5);
 }
 
 .ai00-x-nav-panel__remote-disclaimer-text {
@@ -1732,7 +1730,7 @@ $_section-header-height: 24px;
 
 .ai00-x-nav-panel__remote-disclaimer-list {
   margin: 0;
-  padding-left: 20px;
+  padding-left: var(--size-gap-5);
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -1748,9 +1746,9 @@ $_section-header-height: 24px;
 .ai00-x-nav-panel__remote-disclaimer-actions {
   display: flex;
   justify-content: center;
-  gap: 12px;
-  margin-top: 6px;
-  padding-top: 10px;
+  gap: var(--size-gap-3);
+  margin-top: var(--size-gap-1-5);
+  padding-top: var(--size-gap-2-5);
   border-top: 1px solid var(--border-subtle);
 }
 
@@ -1758,7 +1756,7 @@ $_section-header-height: 24px;
   border-radius: 6px;
   border: 1px solid transparent;
   min-width: 112px;
-  padding: 7px 16px;
+  padding: var(--size-gap-1-5) var(--size-gap-4);
   font-size: var(--font-size-xs);
   cursor: pointer;
   transition: all $motion-fast $easing-standard;
@@ -1777,7 +1775,7 @@ $_section-header-height: 24px;
 
 .ai00-x-nav-panel__remote-disclaimer-btn--primary {
   background: var(--color-accent-600);
-  color: #fff;
+  color: var(--color-accent-foreground);
   border-color: color-mix(in srgb, var(--color-accent-700) 35%, transparent);
 
   &:hover:not(:disabled) {
@@ -1847,15 +1845,15 @@ $_section-header-height: 24px;
 .ai00-x-nav-panel__top-actions {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: $size-gap-2 $size-gap-2 $size-gap-4 * 0.75;
+  gap: var(--size-gap-0-25);
+  padding: $size-gap-2 $size-gap-2 calc($size-gap-4 * 0.75);
   flex-shrink: 0;
 }
 
 .ai00-x-nav-panel__top-action-expand {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--size-gap-0-25);
   // Divider below 扩展 (main row + optional Agents / Skills sublist) → scrollable sections
   padding-bottom: $size-gap-2;
   margin-bottom: $size-gap-1;
@@ -1865,7 +1863,7 @@ $_section-header-height: 24px;
 .ai00-x-nav-panel__top-action-sublist {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--size-gap-0-25);
   overflow: hidden;
   max-height: 0;
   opacity: 0;
@@ -1882,7 +1880,7 @@ $_section-header-height: 24px;
 .ai00-x-nav-panel__top-action-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
   width: 100%;
   padding: 0 $size-gap-2 0 $size-gap-2;
   height: 32px;
@@ -1945,7 +1943,7 @@ $_section-header-height: 24px;
   }
 
   &--sub {
-    padding-left: 18px;
+    padding-left: var(--size-gap-4-5);
   }
 }
 

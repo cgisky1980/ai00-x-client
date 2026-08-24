@@ -27,7 +27,7 @@
     background: radial-gradient(
       ellipse at center,
       var(--color-accent-50) 0%,
-      var(--color-purple-50) 40%,
+      var(--color-accent-50) 40%,
       transparent 70%
     );
     filter: blur(60px);
@@ -76,7 +76,7 @@
   &__workspace-name {
     display: inline-flex;
     align-items: center;
-    padding: 2px $size-gap-2;
+    padding: var(--size-gap-0-5) $size-gap-2;
     font-family: $font-family-mono;
     font-weight: $font-weight-medium;
     font-size: inherit;
@@ -88,7 +88,7 @@
     transition: all $motion-base $easing-standard;
     
     &:hover {
-      background: var(--element-bg-hover);
+      background: var(--color-bg-secondary);
       border-color: var(--border-strong);
     }
   }
@@ -96,7 +96,7 @@
   &__branch-name {
     display: inline-flex;
     align-items: center;
-    padding: 2px $size-gap-2;
+    padding: var(--size-gap-0-5) $size-gap-2;
     font-family: $font-family-mono;
     font-weight: $font-weight-medium;
     font-size: inherit;
@@ -108,7 +108,7 @@
     transition: all $motion-base $easing-standard;
     
     &:hover {
-      background: var(--element-bg-hover);
+      background: var(--color-bg-secondary);
       border-color: var(--border-strong);
     }
   }

@@ -1,0 +1,60 @@
+{
+  "name": "@ai00-x/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ai00-X 统一设计系统（新东方极简）：DTCG 设计令牌单一事实来源（tokens/*.json）+ React 组件套件（Radix+CVA+token CSS）。规范见 参考/前端视觉设计规范-新东方极简.md。改 token 只改 tokens/*.json 然后 pnpm build；组件样式在 css/components.css。",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/index.ts",
+    "./web": "./src/web.ts",
+    "./css": "./css/tokens.css",
+    "./styles": "./css/index.css",
+    "./styles.css": "./css/index.css",
+    "./tw": "./css/tw-theme.css",
+    "./tw.css": "./css/tw-theme.css",
+    "./standalone": "./css/tokens.standalone.css",
+    "./tokens": "./src/tokens.ts"
+  },
+  "scripts": {
+    "build": "node scripts/build-tokens.mjs",
+    "brand:icons": "node scripts/generate-brand-icons.mjs",
+    "build:fonts": "uv run --with \"fonttools[woff]\" python scripts/subset-display-font.py",
+    "type-check": "tsc --noEmit"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.23",
+    "@radix-ui/react-avatar": "^1.2.6",
+    "@radix-ui/react-context-menu": "^2.2.16",
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-progress": "^1.1.16",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-toast": "^1.2.23",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.554.0",
+    "tailwind-merge": "^3.6.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^5.9.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

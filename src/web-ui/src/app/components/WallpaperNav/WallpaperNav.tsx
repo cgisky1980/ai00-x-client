@@ -4,15 +4,21 @@
  * Simplified: each wallpaper project has exactly one session.
  * Click a project to enter its session directly — no session list.
  * Project actions (apply, publish, delete) via menu button.
+ * v0.13：菜单浮层收敛至 DS DropdownMenu（.ds-menu）。
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import {
   FolderOpen, MoreHorizontal, Plus, Paintbrush,
   Monitor, Upload, Trash2,
 } from 'lucide-react';
-import { usePortalContainer } from '@/infrastructure/contexts/PortalContainerContext';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/component-library';
 import { useSceneStore } from '../../stores/sceneStore';
 import { wallpaperAPI, WallpaperProject } from '@/infrastructure/api/service-api/WallpaperAPI';
 import { configAPI } from '@/infrastructure/api';
@@ -28,12 +34,9 @@ const WallpaperNav: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { t } = useI18n('scenes/wallpaper');
   const activeSession = useActiveSession();
   const openScene = useSceneStore((s) => s.openScene);
-  const portalContainer = usePortalContainer();
-  const portalTarget = portalContainer ?? document.body;
   const [projects, setProjects] = useState<WallpaperProject[]>([]);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [openMenuProjectId, setOpenMenuProjectId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
 
   const loadProjects = useCallback(async () => {
     try {
@@ -63,20 +66,6 @@ const WallpaperNav: React.FC<{ className?: string }> = ({ className = '' }) => {
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [loadProjects]);
-
-  // Close menu on outside click
-  useEffect(() => {
-    if (!openMenuProjectId) return;
-    const handleOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (target instanceof Element && target.closest('.ai00-x-wallpaper-nav__project-menu-popover')) return;
-      if (target instanceof Element && target.closest('.ai00-x-wallpaper-nav__project-menu-trigger')) return;
-      setOpenMenuProjectId(null);
-      setMenuPosition(null);
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [openMenuProjectId]);
 
   /** Click project → enter its session directly */
   const handleProjectClick = useCallback(async (project: WallpaperProject) => {
@@ -109,23 +98,6 @@ const WallpaperNav: React.FC<{ className?: string }> = ({ className = '' }) => {
       notificationService.error(err instanceof Error ? err.message : String(err));
     }
   }, []);
-
-  /** Open project menu */
-  const handleMenuOpen = useCallback((e: React.MouseEvent, projectId: string) => {
-    e.stopPropagation();
-    if (openMenuProjectId === projectId) {
-      setOpenMenuProjectId(null);
-      setMenuPosition(null);
-      return;
-    }
-    const btn = e.currentTarget as HTMLElement;
-    const rect = btn.getBoundingClientRect();
-    setMenuPosition({
-      top: rect.bottom + 4,
-      left: rect.left,
-    });
-    setOpenMenuProjectId(projectId);
-  }, [openMenuProjectId]);
 
   const handlePublish = useCallback(async (dirName: string) => {
     setPublishingId(dirName);
@@ -230,55 +202,42 @@ const WallpaperNav: React.FC<{ className?: string }> = ({ className = '' }) => {
                     <span className="ai00-x-wallpaper-nav__project-name">{project.name}</span>
                   </button>
                   <div className="ai00-x-wallpaper-nav__project-menu">
-                    <button
-                      type="button"
-                      className={`ai00-x-wallpaper-nav__project-menu-trigger${isMenuOpen ? ' is-open' : ''}`}
-                      onClick={(e) => handleMenuOpen(e, project.id)}
+                    <DropdownMenu
+                      open={openMenuProjectId === project.id}
+                      onOpenChange={(open) => setOpenMenuProjectId(open ? project.id : null)}
                     >
-                      <MoreHorizontal size={14} />
-                    </button>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className={`ai00-x-wallpaper-nav__project-menu-trigger${isMenuOpen ? ' is-open' : ''}`}
+                        >
+                          <MoreHorizontal size={14} />
+                        </button>
+                      </DropdownMenuTrigger>
+
+                      <DropdownMenuContent align="start" sideOffset={4} data-no-penetrate>
+                        <DropdownMenuItem onClick={() => { void handleApplyToDesktop(project); }}>
+                          <Monitor size={13} />
+                          <span>{t('applyToDesktop', { defaultValue: 'Apply to Desktop' })}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={publishingId === project.id}
+                          onClick={() => { void handlePublish(project.id); }}
+                        >
+                          {publishingId === project.id
+                            ? <span className="ai00-x-wallpaper-nav__spinner" />
+                            : <Upload size={13} />}
+                          <span>{t('projectList.publish')}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem destructive onClick={() => { void handleDelete(project.id); }}>
+                          <Trash2 size={13} />
+                          <span>{t('projectList.delete')}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
-
-                {/* Project action menu popover */}
-                {isMenuOpen && menuPosition && createPortal(
-                  <div
-                    className="ai00-x-wallpaper-nav__project-menu-popover"
-                    data-no-penetrate
-                    role="menu"
-                    style={{ top: menuPosition.top, left: menuPosition.left }}
-                  >
-                    <button
-                      type="button"
-                      className="ai00-x-wallpaper-nav__project-menu-item"
-                      onClick={() => { void handleApplyToDesktop(project); }}
-                    >
-                      <Monitor size={13} />
-                      <span>{t('applyToDesktop', { defaultValue: 'Apply to Desktop' })}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="ai00-x-wallpaper-nav__project-menu-item"
-                      disabled={publishingId === project.id}
-                      onClick={() => { void handlePublish(project.id); }}
-                    >
-                      {publishingId === project.id
-                        ? <span className="ai00-x-wallpaper-nav__spinner" />
-                        : <Upload size={13} />}
-                      <span>{t('projectList.publish')}</span>
-                    </button>
-                    <div className="ai00-x-wallpaper-nav__project-menu-divider" />
-                    <button
-                      type="button"
-                      className="ai00-x-wallpaper-nav__project-menu-item is-danger"
-                      onClick={() => { void handleDelete(project.id); }}
-                    >
-                      <Trash2 size={13} />
-                      <span>{t('projectList.delete')}</span>
-                    </button>
-                  </div>,
-                  portalTarget
-                )}
               </div>
             );
           })

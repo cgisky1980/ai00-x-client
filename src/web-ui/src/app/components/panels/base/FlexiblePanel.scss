@@ -121,7 +121,7 @@
 .ai00-x-flexible-panel__loading {
   @include mixins.flex-layout(column, center, center);
   height: 100%;
-  padding: 40px 20px;
+  padding: var(--size-gap-10) var(--size-gap-5);
   text-align: center;
   color: var(--color-text-secondary);
   gap: $size-gap-3;
@@ -157,7 +157,7 @@
 .ai00-x-flexible-panel__empty-content {
   @include mixins.flex-layout(column, center, center);
   height: 100%;
-  padding: 40px 20px;
+  padding: var(--size-gap-10) var(--size-gap-5);
   text-align: center;
   color: var(--color-text-secondary);
 
@@ -207,12 +207,12 @@
 
   &.needs-fix {
     box-shadow: 
-      0 0 4px rgba(251, 191, 36, 0.25),
-      0 0 8px rgba(251, 191, 36, 0.2),
-      inset 0 0 12px rgba(251, 191, 36, 0.2),
-      inset 0 0 20px rgba(251, 191, 36, 0.15),
-      inset 0 0 30px rgba(251, 191, 36, 0.08),
-      inset 0 0 40px rgba(251, 191, 36, 0.03);
+      0 0 4px var(--color-warning-bg),
+      0 0 8px var(--color-warning-bg),
+      inset 0 0 12px var(--color-warning-bg),
+      inset 0 0 20px var(--color-warning-bg),
+      inset 0 0 30px var(--color-warning-bg),
+      inset 0 0 40px var(--color-warning-bg);
     border: none;
     animation: ai00-x-flexible-panel-yellow-glow-pulse 3s ease-in-out infinite alternate;
   }
@@ -221,22 +221,22 @@
 @keyframes ai00-x-flexible-panel-yellow-glow-pulse {
   from {
     box-shadow: 
-      0 0 4px rgba(251, 191, 36, 0.25),
-      0 0 8px rgba(251, 191, 36, 0.2),
-      inset 0 0 12px rgba(251, 191, 36, 0.2),
-      inset 0 0 20px rgba(251, 191, 36, 0.15),
-      inset 0 0 30px rgba(251, 191, 36, 0.08),
-      inset 0 0 40px rgba(251, 191, 36, 0.03);
+      0 0 4px var(--color-warning-bg),
+      0 0 8px var(--color-warning-bg),
+      inset 0 0 12px var(--color-warning-bg),
+      inset 0 0 20px var(--color-warning-bg),
+      inset 0 0 30px var(--color-warning-bg),
+      inset 0 0 40px var(--color-warning-bg);
     border: none;
   }
   to {
     box-shadow: 
-      0 0 6px rgba(251, 191, 36, 0.35),
-      0 0 12px rgba(251, 191, 36, 0.25),
-      inset 0 0 16px rgba(251, 191, 36, 0.3),
-      inset 0 0 25px rgba(251, 191, 36, 0.2),
-      inset 0 0 35px rgba(251, 191, 36, 0.12),
-      inset 0 0 45px rgba(251, 191, 36, 0.06);
+      0 0 6px var(--color-warning-bg),
+      0 0 12px var(--color-warning-bg),
+      inset 0 0 16px var(--color-warning-border),
+      inset 0 0 25px var(--color-warning-bg),
+      inset 0 0 35px var(--color-warning-bg),
+      inset 0 0 45px var(--color-warning-bg);
     border: none;
   }
 }
@@ -359,8 +359,8 @@
   gap: $size-gap-2;
   padding: $size-gap-4;
   margin: $size-gap-4;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
   border-radius: $size-radius-base;
   color: var(--color-error);
 
@@ -433,7 +433,7 @@
   background: var(--color-bg-secondary);
 
   h4 {
-    margin: 0 0 4px 0;
+    margin: 0 0 var(--size-gap-1) 0;
     font-size: var(--font-size-base);
     font-weight: $font-weight-semibold;
     color: var(--color-text-primary);
@@ -484,13 +484,13 @@
 
     &.needs-fix {
       box-shadow: 
-        0 0 4px rgba(251, 191, 36, 0.25),
-        0 0 8px rgba(251, 191, 36, 0.2),
-        inset 0 0 12px rgba(251, 191, 36, 0.2),
-        inset 0 0 20px rgba(251, 191, 36, 0.15),
-        inset 0 0 30px rgba(251, 191, 36, 0.08),
-        inset 0 0 40px rgba(251, 191, 36, 0.03);
-      border: 1px solid rgba(251, 191, 36, 0.4);
+        0 0 4px var(--color-warning-bg),
+        0 0 8px var(--color-warning-bg),
+        inset 0 0 12px var(--color-warning-bg),
+        inset 0 0 20px var(--color-warning-bg),
+        inset 0 0 30px var(--color-warning-bg),
+        inset 0 0 40px var(--color-warning-bg);
+      border: 1px solid var(--color-warning-bg);
       animation: ai00-x-flexible-panel-yellow-glow-pulse 3s ease-in-out infinite alternate;
     }
   }
@@ -548,13 +548,13 @@
 
   &.needs-fix {
     box-shadow: 
-      0 0 4px rgba(251, 191, 36, 0.25),
-      0 0 8px rgba(251, 191, 36, 0.2),
-      inset 0 0 12px rgba(251, 191, 36, 0.2),
-      inset 0 0 20px rgba(251, 191, 36, 0.15),
-      inset 0 0 30px rgba(251, 191, 36, 0.08),
-      inset 0 0 40px rgba(251, 191, 36, 0.03);
-    border: 1px solid rgba(251, 191, 36, 0.4);
+      0 0 4px var(--color-warning-bg),
+      0 0 8px var(--color-warning-bg),
+      inset 0 0 12px var(--color-warning-bg),
+      inset 0 0 20px var(--color-warning-bg),
+      inset 0 0 30px var(--color-warning-bg),
+      inset 0 0 40px var(--color-warning-bg);
+    border: 1px solid var(--color-warning-bg);
     animation: ai00-x-flexible-panel-yellow-glow-pulse 3s ease-in-out infinite alternate;
     transition: box-shadow $motion-base $easing-standard;
   }

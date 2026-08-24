@@ -40,11 +40,11 @@
 .mode-indicator {
   display: flex;
   align-items: center;
-  gap: var(--size-gap-2, 8px);
-  padding: var(--size-gap-2, 8px) var(--size-gap-3, 12px);
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-2) var(--size-gap-3);
   background: var(--element-bg-subtle);
   border-bottom: 1px solid var(--border-subtle);
-  font-size: var(--font-size-xs, 12px);
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 
   .mode-icon {
@@ -63,25 +63,25 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: var(--size-gap-8, 32px);
+  padding: var(--size-gap-8);
   text-align: center;
   color: var(--color-text-muted);
 
   .empty-icon {
     font-size: 48px;
     opacity: 0.5;
-    margin-bottom: var(--size-gap-4, 16px);
+    margin-bottom: var(--size-gap-4);
   }
 
   .empty-title {
-    font-size: var(--font-size-base, 15px);
+    font-size: var(--font-size-base);
     font-weight: 500;
     color: var(--color-text-secondary);
-    margin-bottom: var(--size-gap-2, 8px);
+    margin-bottom: var(--size-gap-2);
   }
 
   .empty-description {
-    font-size: var(--font-size-sm, 13px);
+    font-size: var(--font-size-sm);
     line-height: 1.5;
     max-width: 300px;
   }
@@ -94,11 +94,11 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  gap: var(--size-gap-4, 16px);
+  gap: var(--size-gap-4);
   color: var(--color-text-secondary);
 
   .loading-text {
-    font-size: var(--font-size-sm, 13px);
+    font-size: var(--font-size-sm);
     font-weight: 500;
   }
 }

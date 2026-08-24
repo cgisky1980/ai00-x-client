@@ -4,8 +4,8 @@
   overflow-x: auto;
   overflow-y: hidden;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:color-mix(in srgb, var(--color-text-primary) 4%, transparent);
+  border:1px solid color-mix(in srgb, var(--color-text-primary) 8%, transparent);
 }
 
 .ai00-x-generative-widget-frame__iframe {

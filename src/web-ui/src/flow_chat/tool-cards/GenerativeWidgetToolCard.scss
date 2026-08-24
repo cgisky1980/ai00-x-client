@@ -7,28 +7,28 @@
 }
 
 .generative-widget-card__icon {
-  color: #7dd3fc;
+  color: var(--color-accent-500);
 }
 
 .generative-widget-card__title {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
   min-width: 0;
 }
 
 .generative-widget-card__status {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
 
 .generative-widget-card__status--error {
-  color: #fda4af;
+  color: var(--color-error);
 }
 
 .generative-widget-card__preview {
-  padding: 10px 12px 12px;
+  padding: var(--size-gap-2-5) var(--size-gap-3) var(--size-gap-3);
 }
 
 .generative-widget-card__placeholder {
@@ -36,11 +36,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: var(--size-gap-4);
   color: var(--color-text-secondary);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 .generative-widget-card__placeholder--error {
-  color: #fca5a5;
+  color: var(--color-error);
 }

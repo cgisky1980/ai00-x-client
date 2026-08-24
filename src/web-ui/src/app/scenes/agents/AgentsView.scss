@@ -36,8 +36,8 @@
   &__back-btn {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 4px $size-gap-3;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) $size-gap-3;
     font-size: var(--font-size-xs);
     font-family: $font-family-sans;
     font-weight: $font-weight-medium;
@@ -70,14 +70,14 @@
     flex-direction: column;
     overflow: hidden;
     border-right: 1px solid var(--border-subtle);
-    background: rgba(255, 255, 255, 0.02);
+    background:color-mix(in srgb, var(--color-text-primary) 4%, transparent);
 
     @media (max-width: 960px) { width: 260px; min-width: 220px; }
   }
 
   &__panel-label {
     flex-shrink: 0;
-    padding: 10px $size-gap-4;
+    padding: var(--size-gap-2-5) $size-gap-4;
     font-size: var(--font-size-xs);
     font-weight: $font-weight-semibold;
     color: var(--color-text-muted);
@@ -98,7 +98,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 56px $size-gap-10 $size-gap-12;
+  padding: var(--size-gap-14) $size-gap-10 $size-gap-12;
   gap: $size-gap-6;
   height: 100%;
   overflow-y: auto;
@@ -155,7 +155,7 @@
   &__list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     width: 100%;
     max-width: 520px;
   }
@@ -164,7 +164,7 @@
     display: flex;
     align-items: center;
     gap: $size-gap-4;
-    padding: 13px $size-gap-4;
+    padding: var(--size-gap-3) $size-gap-4;
     background: transparent;
     border: 1px solid var(--border-subtle);
     border-radius: $size-radius-base;
@@ -194,7 +194,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: var(--size-gap-0-5);
     min-width: 0;
   }
 
@@ -217,7 +217,7 @@
     font-size: var(--font-size-xs);
     color: var(--color-text-disabled);
     background: var(--element-bg-medium);
-    padding: 2px 7px;
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     border-radius: 2px;
   }
 
@@ -237,7 +237,7 @@
     background: transparent;
     border: 1px dashed var(--border-subtle);
     border-radius: $size-radius-sm;
-    padding: 7px $size-gap-6;
+    padding: var(--size-gap-1-5) $size-gap-6;
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
     cursor: pointer;

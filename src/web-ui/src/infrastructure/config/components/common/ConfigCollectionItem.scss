@@ -81,9 +81,9 @@
 .ai00-x-collection-item__badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--size-gap-1);
   flex-shrink: 0;
-  padding: 1px 7px;
+  padding: var(--size-gap-0-25) var(--size-gap-1-5);
   border-radius: $size-radius-sm;
   font-size: var(--font-size-xs);
   font-weight: $font-weight-medium;
@@ -143,7 +143,7 @@
   }
 
   &--danger:hover {
-    background: rgba($color-error, 0.08);
+    background:color-mix(in srgb, var(--color-error) 8%, transparent);
     color: var(--color-error);
   }
 }
@@ -238,7 +238,7 @@
 }
 
 .ai00-x-collection-details__code {
-  padding: 1px 6px;
+  padding: var(--size-gap-0-25) var(--size-gap-1-5);
   background: var(--element-bg-medium);
   border-radius: $size-radius-sm;
   font-family: $font-family-mono;

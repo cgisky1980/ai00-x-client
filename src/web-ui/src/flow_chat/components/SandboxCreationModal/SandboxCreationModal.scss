@@ -2,8 +2,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 8px 0;
+  gap: var(--size-gap-4);
+  padding: var(--size-gap-2) 0;
 
   &__loading {
     display: flex;
@@ -14,24 +14,24 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     text-align: center;
   }
 
   &__session-name {
-    font-size: 14px;
+    font-size: var(--font-size-base);
     font-weight: 500;
     color: var(--text-primary);
   }
 
   &__phase {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
   }
 
   &__actions {
     display: flex;
     justify-content: center;
-    margin-top: 4px;
+    margin-top: var(--size-gap-1);
   }
 }

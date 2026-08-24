@@ -1,0 +1,8 @@
+/* @ai00-x/design-system 样式聚合入口 — AUTO-GENERATED（勿手改）
+ * 消费方用法：@import "@ai00-x/design-system/styles";
+ * Tailwind v4 消费方另加：@import "@ai00-x/design-system/tw"; */
+@import './tokens.css';
+@import './fonts.css';
+@import './texture.css';
+@import './motion.css';
+@import './components.css';

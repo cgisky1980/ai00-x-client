@@ -4,11 +4,14 @@
  * Shown when the user clicks "New Session". Offers two choices:
  * - text2music: generate a complete song in one step (existing behavior)
  * - lego: multi-step layered creation (backing → vocals → drums → ...)
+ *
+ * v0.13：遮罩/居中/关闭收敛至 DS Modal，卡片内容保留。
  */
 
 import React from 'react';
-import { Music, Layers, X } from 'lucide-react';
+import { Music, Layers } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
+import { Modal } from '@/component-library';
 import type { SessionMode } from '../types';
 import './SessionModePicker.scss';
 
@@ -24,8 +27,6 @@ export const SessionModePicker: React.FC<SessionModePickerProps> = ({
   onCancel,
 }) => {
   const { t } = useI18n('acestep');
-
-  if (!open) return null;
 
   const modes: {
     id: SessionMode;
@@ -55,40 +56,29 @@ export const SessionModePicker: React.FC<SessionModePickerProps> = ({
   ];
 
   return (
-    <div className="session-mode-picker__overlay" onClick={onCancel}>
-      <div
-        className="session-mode-picker__dialog"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          className="session-mode-picker__close"
-          onClick={onCancel}
-          title={t('common.cancel', { defaultValue: '取消' })}
-        >
-          <X size={18} />
-        </button>
-
-        <h2 className="session-mode-picker__title">
-          {t('modePicker.title', { defaultValue: '选择创作模式' })}
-        </h2>
-
-        <div className="session-mode-picker__cards">
-          {modes.map((m) => (
-            <button
-              key={m.id}
-              className="session-mode-picker__card"
-              onClick={() => onSelect(m.id)}
-            >
-              <div className="session-mode-picker__card-icon">{m.icon}</div>
-              <div className="session-mode-picker__card-body">
-                <div className="session-mode-picker__card-title">{m.title}</div>
-                <div className="session-mode-picker__card-desc">{m.desc}</div>
-                <div className="session-mode-picker__card-detail">{m.detail}</div>
-              </div>
-            </button>
-          ))}
-        </div>
+    <Modal
+      isOpen={open}
+      onClose={onCancel}
+      size="small"
+      title={t('modePicker.title', { defaultValue: '选择创作模式' })}
+      contentClassName="session-mode-picker__content"
+    >
+      <div className="session-mode-picker__cards">
+        {modes.map((m) => (
+          <button
+            key={m.id}
+            className="session-mode-picker__card"
+            onClick={() => onSelect(m.id)}
+          >
+            <div className="session-mode-picker__card-icon">{m.icon}</div>
+            <div className="session-mode-picker__card-body">
+              <div className="session-mode-picker__card-title">{m.title}</div>
+              <div className="session-mode-picker__card-desc">{m.desc}</div>
+              <div className="session-mode-picker__card-detail">{m.detail}</div>
+            </div>
+          </button>
+        ))}
       </div>
-    </div>
+    </Modal>
   );
 };

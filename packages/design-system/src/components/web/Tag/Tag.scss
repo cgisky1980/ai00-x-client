@@ -1,0 +1,114 @@
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-1) var(--size-gap-3);
+  border-radius: var(--size-radius-sm);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--motion-base) var(--easing-standard);
+  position: relative;
+
+  &--small {
+    font-size: var(--font-size-xs);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
+    gap: var(--size-gap-1);
+  }
+
+  &--medium {
+    font-size: var(--font-size-xs);
+    padding: var(--size-gap-1) var(--size-gap-3);
+  }
+
+  &--large {
+    font-size: var(--font-size-sm);
+    padding: var(--size-gap-2) var(--size-gap-4);
+  }
+
+  &--blue {
+    background: var(--color-accent-200);
+    color: var(--color-text-secondary);
+
+    &:hover {
+      background: var(--color-accent-300);
+    }
+  }
+
+  &--green {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+
+    &:hover {
+      background: var(--color-success-border);
+    }
+  }
+
+  &--red {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+
+    &:hover {
+      background: var(--color-error-border);
+    }
+  }
+
+  &--yellow {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+
+    &:hover {
+      background: var(--color-warning-border);
+    }
+  }
+
+  /* purple 退役（规范 2.1 禁第二交互色）：指向黛青 */
+  &--purple {
+    background: var(--color-accent-200);
+    color: var(--color-accent-500);
+
+    &:hover {
+      background: var(--color-accent-300);
+    }
+  }
+
+  &--gray {
+    background: var(--element-bg-medium);
+    color: var(--color-text-secondary);
+
+    &:hover {
+      background: var(--element-bg-strong);
+      color: var(--color-text-primary);
+    }
+  }
+
+  &--rounded {
+    border-radius: var(--size-radius-full);
+  }
+
+  &__content {
+    line-height: 1;
+  }
+
+  &__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all var(--motion-base) var(--easing-standard);
+
+    &:hover {
+      background: var(--element-bg-strong);
+    }
+
+    svg {
+      width: 10px;
+      height: 10px;
+    }
+  }
+}

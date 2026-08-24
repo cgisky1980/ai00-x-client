@@ -23,7 +23,7 @@
 
     &:hover,
     &.is-dragging {
-      background: var(--color-primary-alpha);
+      background: var(--color-accent-100);
     }
 
     .canvas-split-handle__line {
@@ -46,7 +46,7 @@
 
     &:hover,
     &.is-dragging {
-      background: var(--color-primary-alpha);
+      background: var(--color-accent-100);
     }
 
     .canvas-split-handle__line {
@@ -78,11 +78,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 4px;
+    padding: var(--size-gap-1);
     background: var(--color-bg-secondary);
     border: 1px solid var(--border-base);
     border-radius: 4px;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     opacity: 0;
     transition: opacity 0.15s ease, color 0.15s ease;
   }

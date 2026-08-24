@@ -2,7 +2,7 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  padding: 12px;
+  padding: var(--size-gap-3);
 }
 
 .ai00-x-generative-widget-panel--empty {
@@ -13,5 +13,5 @@
 
 .ai00-x-generative-widget-panel__empty-copy {
   color: var(--color-text-secondary);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }

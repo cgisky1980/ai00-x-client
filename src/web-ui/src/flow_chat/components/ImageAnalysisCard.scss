@@ -6,16 +6,16 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  padding: 12px;
-  margin: 8px 0;
+  padding: var(--size-gap-3);
+  margin: var(--size-gap-2) 0;
   transition: all 0.2s ease;
   
   &[data-status="analyzing"] {
     border-color: var(--color-primary);
-    background: linear-gradient(
+    background:linear-gradient(
       90deg, 
       var(--color-surface) 0%, 
-      rgba(var(--color-primary-rgb), 0.05) 50%, 
+      color-mix(in srgb, var(--color-accent-500) 5%, transparent) 50%, 
       var(--color-surface) 100%
     );
     background-size: 200% 100%;
@@ -43,7 +43,7 @@
 .image-analysis-card__header {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--size-gap-3);
 }
 
 .image-analysis-card__thumbnail {
@@ -75,10 +75,10 @@
 }
 
 .image-analysis-card__filename {
-  font-size: 14px;
+  font-size: var(--font-size-base);
   font-weight: 500;
   color: var(--color-text);
-  margin-bottom: 6px;
+  margin-bottom: var(--size-gap-1-5);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -88,8 +88,8 @@
 .image-analysis-card__status {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: var(--size-gap-1-5);
+  font-size: var(--font-size-xs);
   
   &.analyzing {
     color: var(--color-primary);
@@ -103,7 +103,7 @@
     color: var(--color-success);
     
     .time {
-      margin-left: 4px;
+      margin-left: var(--size-gap-1);
       color: var(--color-text-secondary);
     }
   }
@@ -112,11 +112,11 @@
     color: var(--color-error);
     
     .retry-btn {
-      margin-left: 8px;
-      padding: 2px 8px;
-      font-size: 11px;
+      margin-left: var(--size-gap-2);
+      padding: var(--size-gap-0-5) var(--size-gap-2);
+      font-size: var(--font-size-2xs);
       background: var(--color-error);
-      color: white;
+      color: var(--color-accent-foreground);
       border: none;
       border-radius: 4px;
       cursor: pointer;
@@ -139,22 +139,22 @@
 }
 
 .image-analysis-card__content {
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: var(--size-gap-3);
+  padding-top: var(--size-gap-3);
   border-top: 1px solid var(--color-border);
 }
 
 .image-analysis-card__summary {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--size-gap-2);
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   color: var(--color-text);
   
   .summary-icon {
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: var(--size-gap-0-5);
     color: var(--color-primary);
   }
 }
@@ -162,10 +162,10 @@
 .image-analysis-card__expand-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 8px;
-  padding: 4px 8px;
-  font-size: 12px;
+  gap: var(--size-gap-1);
+  margin-top: var(--size-gap-2);
+  padding: var(--size-gap-1) var(--size-gap-2);
+  font-size: var(--font-size-xs);
   color: var(--color-primary);
   background: transparent;
   border: none;
@@ -174,35 +174,35 @@
   transition: background 0.2s;
   
   &:hover {
-    background: rgba(var(--color-primary-rgb), 0.1);
+    background:color-mix(in srgb, var(--color-accent-500) 10%, transparent);
   }
 }
 
 // Detailed content
 .image-analysis-card__detailed {
-  margin-top: 12px;
-  padding: 12px;
+  margin-top: var(--size-gap-3);
+  padding: var(--size-gap-3);
   background: var(--color-background);
   border-radius: 6px;
   
   .detail-section {
-    margin-bottom: 12px;
+    margin-bottom: var(--size-gap-3);
     
     &:last-child {
       margin-bottom: 0;
     }
     
     h4 {
-      font-size: 12px;
+      font-size: var(--font-size-xs);
       font-weight: 600;
       color: var(--color-text-secondary);
-      margin: 0 0 6px 0;
+      margin: 0 0 var(--size-gap-1-5) 0;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     
     p {
-      font-size: 13px;
+      font-size: var(--font-size-sm);
       line-height: 1.6;
       color: var(--color-text);
       margin: 0;
@@ -212,12 +212,12 @@
   .tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     
     .tag {
       display: inline-block;
-      padding: 4px 10px;
-      font-size: 12px;
+      padding: var(--size-gap-1) var(--size-gap-2-5);
+      font-size: var(--font-size-xs);
       background: var(--color-surface);
       color: var(--color-text);
       border: 1px solid var(--color-border);
@@ -228,8 +228,8 @@
   .metadata {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12px;
+    gap: var(--size-gap-2);
+    font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
     
     .meta-separator {
@@ -242,28 +242,26 @@
 .image-analysis-card__error {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 8px 12px;
-  background: rgba(var(--color-error-rgb), 0.1);
+  gap: var(--size-gap-2);
+  margin-top: var(--size-gap-3);
+  padding: var(--size-gap-2) var(--size-gap-3);
+  background:color-mix(in srgb, var(--color-error) 10%, transparent);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-error);
 }
 
 // Dark mode support
 @media (prefers-color-scheme: dark) {
   .image-analysis-card {
-    --color-surface: #1e1e1e;
-    --color-background: #121212;
-    --color-border: #333;
-    --color-text: #e0e0e0;
-    --color-text-secondary: #a0a0a0;
-    --color-primary: #60a5fa;
-    --color-primary-rgb: 96, 165, 250;
-    --color-success: #22c55e;
-    --color-error: #ef4444;
-    --color-error-rgb: 239, 68, 68;
+    --color-surface: var(--color-bg-secondary);
+    --color-background: var(--color-bg-primary);
+    --color-border: var(--border-base);
+    --color-text: var(--color-text-primary);
+    --color-text-secondary: var(--color-text-secondary);
+    --color-primary: var(--color-accent-500);
+    --color-success: var(--color-success);
+    --color-error: var(--color-error);
   }
 }
 

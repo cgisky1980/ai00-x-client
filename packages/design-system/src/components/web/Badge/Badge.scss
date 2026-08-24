@@ -1,0 +1,55 @@
+/**
+ * Badge — borderless status label styles.
+ * Variants: neutral | accent | purple | success | warning | error | info
+ */
+
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-gap-0-5);
+  padding: var(--badge-padding-y) var(--badge-padding-x);
+  border-radius: var(--badge-border-radius);
+  font-size: var(--badge-font-size);
+  font-weight: var(--badge-font-weight);
+  line-height: 1;
+  border: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+
+  &--neutral {
+    background: var(--element-bg-base);
+    color: var(--color-text-secondary);
+  }
+
+  &--accent {
+    background: var(--color-accent-200);
+    color: var(--color-text-secondary);
+  }
+
+  /* purple 退役（规范 2.1 禁第二交互色）：指向黛青 */
+  &--purple {
+    background: var(--color-accent-200);
+    color: var(--color-accent-500);
+  }
+
+  &--success {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+  }
+
+  &--warning {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+  }
+
+  &--error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+  }
+
+  &--info {
+    background: var(--color-info-bg);
+    color: var(--color-info);
+  }
+}

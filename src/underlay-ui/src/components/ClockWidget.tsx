@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent } from "@underlay/components/ui/card";
+import { Card, CardContent } from "@ai00-x/design-system/react";
 import {
   usageStatsApi,
   formatDuration,

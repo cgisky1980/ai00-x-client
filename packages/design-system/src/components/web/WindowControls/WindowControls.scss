@@ -1,0 +1,135 @@
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--size-gap-0-5);
+  flex-shrink: 0;
+
+  &__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--size-radius-sm);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    position: relative;
+    overflow: visible;
+    outline: none;
+    user-select: none;
+
+    /* icon-hover-bold（内联自 legacy mixin）：描边随 hover 加粗 */
+    svg {
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.5;
+      transition: stroke-width var(--motion-base) var(--easing-standard);
+    }
+
+    &:hover:not(:disabled) {
+      svg {
+        stroke-width: 2.5;
+      }
+    }
+
+    svg {
+      display: block;
+      flex-shrink: 0;
+      position: relative;
+      opacity: 1;
+      z-index: 2;
+    }
+
+    &::before,
+    &::after {
+      display: none;
+    }
+
+    &:hover {
+      background: var(--color-bg-secondary);
+      color: var(--color-text-primary);
+      border-color: var(--border-medium);
+    }
+
+    &:active {
+      opacity: 0.8;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent-400);
+      outline-offset: 2px;
+    }
+
+    &--minimize,
+    &--maximize {
+      &:hover {
+        background: var(--color-bg-secondary);
+        color: var(--color-text-primary);
+        border-color: var(--border-medium);
+      }
+
+      &:focus-visible {
+        outline-color: var(--color-accent-400);
+      }
+    }
+
+    &--close {
+      &:hover {
+        background: var(--color-bg-secondary);
+        color: var(--window-control-close-hover-color);
+        border-color: var(--border-medium);
+      }
+
+      &:focus-visible {
+        outline-color: var(--window-control-close-hover-color);
+      }
+    }
+
+    &:disabled {
+      opacity: var(--opacity-disabled);
+      cursor: default;
+      pointer-events: none;
+
+      &:hover {
+        background: transparent;
+        color: var(--color-text-secondary);
+        border-color: transparent;
+      }
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .window-controls {
+    gap: var(--size-gap-1);
+
+    &__btn {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--size-radius-sm);
+
+      svg {
+        width: 12px;
+        height: 12px;
+      }
+    }
+  }
+}
+
+@media (prefers-contrast: high) {
+  .window-controls__btn {
+    &:hover {
+      border-width: 2px;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .window-controls__btn {
+    transition: none;
+  }
+}

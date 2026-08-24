@@ -36,7 +36,7 @@
 
   &__search {
     flex-shrink: 0;
-    padding: 16px $size-gap-2 $size-gap-2;
+    padding: var(--size-gap-4) $size-gap-2 $size-gap-2;
   }
 
   /** Component-library `Search` — same capsule as MainNav (.ai00-x-nav-search-dialog__search) */
@@ -83,15 +83,15 @@
   &__search-results {
     display: flex;
     flex-direction: column;
-    padding: 2px $size-gap-2;
-    gap: 2px;
+    padding: var(--size-gap-0-5) $size-gap-2;
+    gap: var(--size-gap-0-5);
   }
 
   &__search-result-item {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     min-height: auto;
     padding: $size-gap-2 $size-gap-2 $size-gap-2 $size-gap-3;
     border: none;
@@ -203,8 +203,8 @@
   &__items {
     display: flex;
     flex-direction: column;
-    padding: 2px $size-gap-2;
-    gap: 2px;
+    padding: var(--size-gap-0-5) $size-gap-2;
+    gap: var(--size-gap-0-5);
   }
 
   &__item-icon {

@@ -27,7 +27,7 @@
     margin: 0 auto;
     border-bottom: none;
     border-top: 1px dashed var(--border-base);
-    padding: 8px 12px;
+    padding: var(--size-gap-2) var(--size-gap-3);
 
     .session-file-modifications-bar__list {
       max-height: 200px;
@@ -52,7 +52,7 @@
   }
 
   .file-count {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: $font-weight-medium;
     color: var(--color-text-primary);
     white-space: nowrap;
@@ -62,7 +62,7 @@
     display: flex;
     align-items: center;
     gap: $size-gap-2;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: $font-weight-medium;
     font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
 
@@ -92,7 +92,7 @@
     flex-shrink: 0;
 
     &:hover:not(:disabled) {
-      background: var(--element-bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-primary);
     }
 
@@ -116,10 +116,10 @@
   &__list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--size-gap-1);
     max-height: 300px;
     overflow-y: auto;
-    padding-right: 4px;
+    padding-right: var(--size-gap-1);
 
     scrollbar-width: thin;
     scrollbar-color: var(--border-medium) transparent;
@@ -137,7 +137,7 @@
       border-radius: 3px;
 
       &:hover {
-        background-color: var(--border-heavy);
+        background-color: var(--border-strong);
       }
     }
   }
@@ -146,19 +146,19 @@
   .file-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
     background: transparent;
     border: none;
     border-radius: 4px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     color: var(--color-text-primary);
     cursor: pointer;
     transition: all $motion-fast $easing-standard;
     user-select: none;
 
     &:hover {
-      background: var(--element-bg-hover);
+      background: var(--color-bg-secondary);
     }
 
     &:active {
@@ -198,9 +198,9 @@
     &__stats {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--size-gap-1-5);
       flex-shrink: 0;
-      font-size: 12px;
+      font-size: var(--font-size-xs);
       font-weight: $font-weight-medium;
       font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
 
@@ -214,7 +214,7 @@
     }
 
     &__error {
-      font-size: 11px;
+      font-size: var(--font-size-2xs);
       color: var(--color-error);
       font-style: italic;
     }
@@ -242,8 +242,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 8px;
-    font-size: 12px;
+    padding: var(--size-gap-2);
+    font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
     font-style: italic;
     background: color-mix(in srgb, var(--color-bg-secondary) 50%, transparent);

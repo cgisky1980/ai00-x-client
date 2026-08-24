@@ -1,6 +1,6 @@
 import React from 'react';
 import { Bookmark, SquareTerminal } from 'lucide-react';
-import { Tooltip } from '@/component-library/components/Tooltip';
+import { Tooltip } from '@ai00-x/design-system/web';
 import type { MenuItem } from '@/shared/context-menu-system/types/menu.types';
 import type { ShellEntry } from '../hooks/shellEntryTypes';
 

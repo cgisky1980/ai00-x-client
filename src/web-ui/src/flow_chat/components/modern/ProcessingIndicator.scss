@@ -5,8 +5,8 @@
 .processing-indicator {
   width: 100%;
   max-width: 900px; /* A4-style max width */
-  margin: 0 auto 1rem auto; /* Center horizontally */
-  padding: 0 3rem;
+  margin: 0 auto var(--size-gap-4) auto; /* Center horizontally */
+  padding: 0 var(--size-gap-12);
   box-sizing: border-box;
   
   // Responsive: medium screens
@@ -17,7 +17,7 @@
   // Responsive: small screens
   @media (max-width: 768px) {
     max-width: 100%;
-    padding: 0 1.5rem;
+    padding: 0 var(--size-gap-6);
   }
 }
 
@@ -25,13 +25,13 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
+  gap: var(--size-gap-3);
+  padding: var(--size-gap-2) 0;
 }
 
 // Hint text — same breathe rhythm as tool cards (tool-card-text-fade: 1.6s 0%→25%→0%)
 .processing-indicator__hint {
-  font-size: 0.8125rem;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;

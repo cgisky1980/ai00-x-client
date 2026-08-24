@@ -22,7 +22,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 32px 32px 24px;
+  padding: var(--size-gap-8) var(--size-gap-8) var(--size-gap-6);
   text-align: center;
   position: relative;
   overflow: hidden;
@@ -30,9 +30,9 @@
 
 .ai00-x-about-dialog__title {
   font-family: var(--font-family-sans);
-  font-size: 28px;
+  font-size: var(--font-size-4xl);
   font-weight: 800;
-  margin: 0 0 10px 0;
+  margin: 0 0 var(--size-gap-2-5) 0;
   letter-spacing: -0.03em;
   color: var(--color-text-primary);
   position: relative;
@@ -56,7 +56,7 @@
   display: inline-flex;
   align-items: center;
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   font-weight: 400;
   font-family: 'Consolas', 'Monaco', monospace;
   letter-spacing: 0.02em;
@@ -81,7 +81,7 @@
   width: 60px;
   height: 1px;
   background: var(--border-subtle);
-  margin-top: 18px;
+  margin-top: var(--size-gap-4-5);
   position: relative;
   z-index: 1;
   animation: about-divider-enter 0.6s ease-out 0.2s both;
@@ -101,8 +101,8 @@
 // Decorative dots
 .ai00-x-about-dialog__dots {
   display: flex;
-  gap: 6px;
-  margin-top: 12px;
+  gap: var(--size-gap-1-5);
+  margin-top: var(--size-gap-3);
   position: relative;
   z-index: 1;
   animation: about-dots-enter 0.6s ease-out 0.25s both;
@@ -128,14 +128,14 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 24px;
+  padding: 0 var(--size-gap-6);
   
 }
 
 // ==================== Info section ====================
 
 .ai00-x-about-dialog__info-section {
-  margin-bottom: 16px;
+  margin-bottom: var(--size-gap-4);
   animation: about-section-enter 0.4s ease-out 0.2s both;
 }
 
@@ -151,7 +151,7 @@
 }
 
 .ai00-x-about-dialog__info-card {
-  padding: 10px 14px;
+  padding: var(--size-gap-2-5) var(--size-gap-3-5);
   background: transparent;
   border: 1px dashed var(--border-subtle);
   border-radius: 8px;
@@ -161,8 +161,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 5px 0;
+  gap: var(--size-gap-3);
+  padding: var(--size-gap-1) 0;
   min-height: 28px;
   
   &:first-child {
@@ -176,13 +176,13 @@
 
 .ai00-x-about-dialog__info-label {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   font-weight: 500;
 }
 
 .ai00-x-about-dialog__info-value {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-primary);
   font-weight: 400;
   text-align: right;
@@ -192,7 +192,7 @@
   
   &--mono {
     font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
   }
 }
@@ -200,7 +200,7 @@
 .ai00-x-about-dialog__info-value-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
   min-width: 0;
 }
 
@@ -210,7 +210,7 @@
   border: 1px solid transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-  padding: 4px;
+  padding: var(--size-gap-1);
   border-radius: 4px;
   transition: all 0.2s ease;
   display: flex;
@@ -230,7 +230,7 @@
 // ==================== Dependencies section ====================
 
 .ai00-x-about-dialog__dependencies-section {
-  margin-bottom: 16px;
+  margin-bottom: var(--size-gap-4);
   animation: about-section-enter 0.4s ease-out 0.25s both;
 }
 
@@ -239,12 +239,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: var(--size-gap-2-5) var(--size-gap-3-5);
   background: transparent;
   border: 1px dashed var(--border-subtle);
   border-radius: 8px;
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.25s ease;
@@ -263,7 +263,7 @@
   span {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   svg {
@@ -278,17 +278,17 @@
   justify-content: center;
   min-width: 20px;
   height: 18px;
-  padding: 0 6px;
-  background: rgba(99, 102, 241, 0.1);
+  padding: 0 var(--size-gap-1-5);
+  background: var(--color-accent-100);
   color: var(--color-accent-400);
-  font-size: 10px;
+  font-size: var(--font-size-xxs);
   font-weight: 600;
   border-radius: 9px;
 }
 
 .ai00-x-about-dialog__dependencies-list {
-  margin-top: 8px;
-  padding: 4px;
+  margin-top: var(--size-gap-2);
+  padding: var(--size-gap-1);
   background: transparent;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -309,14 +309,14 @@
 .ai00-x-about-dialog__dependencies-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 4px;
+  gap: var(--size-gap-1);
 }
 
 .ai00-x-about-dialog__dependency-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: var(--size-gap-2-5);
+  padding: var(--size-gap-2) var(--size-gap-2-5);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -328,7 +328,7 @@
     border-color: var(--border-subtle);
     
     .ai00-x-about-dialog__dependency-icon {
-      background: rgba(99, 102, 241, 0.1);
+      background: var(--color-accent-100);
       
       svg {
         color: var(--color-accent-500);
@@ -361,11 +361,11 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--size-gap-0-25);
 }
 
 .ai00-x-about-dialog__dependency-name {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   font-weight: 500;
   color: var(--color-text-primary);
   font-family: 'Consolas', 'Monaco', monospace;
@@ -375,15 +375,15 @@
 }
 
 .ai00-x-about-dialog__dependency-license {
-  font-size: 9px;
+  font-size: var(--font-size-xxs);
   color: var(--color-text-muted);
 }
 
 .ai00-x-about-dialog__dependency-tag {
   display: inline-flex;
   align-items: center;
-  padding: 1px 5px;
-  font-size: 8px;
+  padding: var(--size-gap-0-25) var(--size-gap-1);
+  font-size: var(--font-size-xxs);
   font-weight: 600;
   border-radius: 3px;
   text-transform: uppercase;
@@ -393,23 +393,23 @@
   
   // Frontend tag - blue
   &--frontend {
-    background: rgba(59, 130, 246, 0.12);
-    color: #60A5FA;
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    background: var(--color-accent-100);
+    color: var(--color-accent-500);
+    border: 1px solid var(--color-accent-200);
   }
   
   // Backend tag - green
   &--backend {
-    background: rgba(34, 197, 94, 0.12);
-    color: #4ADE80;
-    border: 1px solid rgba(34, 197, 94, 0.2);
+    background: var(--color-success-bg);
+    color: var(--color-success);
+    border: 1px solid var(--color-success-bg);
   }
   
   // General tag - purple
   &--general {
-    background: rgba(168, 85, 247, 0.12);
-    color: #C084FC;
-    border: 1px solid rgba(168, 85, 247, 0.2);
+    background: var(--color-accent-500);
+    color: var(--color-accent-600);
+    border: 1px solid var(--color-accent-200);
   }
 }
 
@@ -417,7 +417,7 @@
 
 .ai00-x-about-dialog__footer {
   flex-shrink: 0;
-  padding: 16px 24px 20px;
+  padding: var(--size-gap-4) var(--size-gap-6) var(--size-gap-5);
   text-align: center;
   position: relative;
   animation: about-section-enter 0.4s ease-out 0.3s both;
@@ -434,14 +434,14 @@
 }
 
 .ai00-x-about-dialog__license {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   color: var(--color-text-secondary);
   line-height: 1.5;
-  margin: 0 0 6px 0;
+  margin: 0 0 var(--size-gap-1-5) 0;
 }
 
 .ai00-x-about-dialog__copyright {
-  font-size: 10px;
+  font-size: var(--font-size-xxs);
   color: var(--color-text-muted);
   opacity: 0.6;
   margin: 0;
@@ -457,15 +457,15 @@
   }
 
   .ai00-x-about-dialog__hero {
-    padding: 24px 20px 20px;
+    padding: var(--size-gap-6) var(--size-gap-5) var(--size-gap-5);
   }
 
   .ai00-x-about-dialog__title {
-    font-size: 20px;
+    font-size: var(--font-size-2xl);
   }
 
   .ai00-x-about-dialog__scrollable {
-    padding: 0 16px;
+    padding: 0 var(--size-gap-4);
   }
 
   .ai00-x-about-dialog__dependencies-grid {
@@ -473,7 +473,7 @@
   }
 
   .ai00-x-about-dialog__footer {
-    padding: 14px 16px 16px;
+    padding: var(--size-gap-3-5) var(--size-gap-4) var(--size-gap-4);
 
     &::before {
       left: 16px;
@@ -488,23 +488,23 @@
   }
 
   .ai00-x-about-dialog__hero {
-    padding: 20px 24px 16px;
+    padding: var(--size-gap-5) var(--size-gap-6) var(--size-gap-4);
   }
 
   .ai00-x-about-dialog__title {
-    font-size: 20px;
-    margin-bottom: 8px;
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--size-gap-2);
   }
 
   .ai00-x-about-dialog__divider {
-    margin-top: 12px;
+    margin-top: var(--size-gap-3);
   }
 
   .ai00-x-about-dialog__dots {
-    margin-top: 8px;
+    margin-top: var(--size-gap-2);
   }
 
   .ai00-x-about-dialog__footer {
-    padding: 12px 24px 14px;
+    padding: var(--size-gap-3) var(--size-gap-6) var(--size-gap-3-5);
   }
 }

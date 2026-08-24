@@ -2,20 +2,20 @@
   &__content {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   &__ai-btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    font-size: 13px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1-5) var(--size-gap-3-5);
+    font-size: var(--font-size-sm);
     font-weight: 600;
     border: none;
     border-radius: 6px;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: #fff;
+    background: linear-gradient(135deg, var(--color-accent-500), var(--color-accent-700));
+    color: var(--color-accent-foreground);
     cursor: pointer;
     transition: opacity 0.15s;
 

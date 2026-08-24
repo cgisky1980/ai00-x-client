@@ -4,14 +4,14 @@
 
 .canvas-quick-look {
   position: absolute;
-  z-index: 1100;
+  z-index: var(--z-popover);
   width: 500px;
   max-width: calc(100vw - 32px);
   max-height: 400px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--border-base);
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 32px var(--modal-overlay);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -33,7 +33,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
+    padding: var(--size-gap-2) var(--size-gap-3);
     background: var(--color-bg-secondary);
     border-bottom: 1px solid var(--border-base);
   }
@@ -41,7 +41,7 @@
   &__title {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     flex: 1;
     min-width: 0;
 
@@ -49,7 +49,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 13px;
+      font-size: var(--font-size-sm);
       font-weight: 500;
       color: var(--color-text-primary);
     }
@@ -70,7 +70,7 @@
     flex-shrink: 0;
 
     &:hover {
-      background: var(--color-bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-primary);
     }
   }
@@ -78,7 +78,7 @@
   &__actions {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex-shrink: 0;
   }
 
@@ -97,7 +97,7 @@
     transition: background-color 0.15s ease, color 0.15s ease;
 
     &:hover {
-      background: var(--color-bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-primary);
     }
   }
@@ -135,10 +135,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 6px 12px;
-    font-size: 11px;
-    color: var(--color-text-tertiary);
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1-5) var(--size-gap-3);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
     background: var(--color-bg-secondary);
     border-top: 1px solid var(--border-subtle);
   }

@@ -12,6 +12,7 @@ import {
   Volume2,
   User,
   Info,
+  Puzzle,
 } from 'lucide-react';
 
 export type ConfigTab =
@@ -26,6 +27,7 @@ export type ConfigTab =
   | 'gesture-actions'
   | 'click-effect'
   | 'smart-desktop'
+  | 'plugins'
   | 'account'
   | 'about'
   | 'basics';
@@ -136,6 +138,13 @@ export const SETTINGS_CATEGORIES: ConfigCategoryDef[] = [
         descriptionKey: 'configCenter.tabDescriptions.smartDesktop',
         icon: MonitorSmartphone,
         keywords: ['desktop', 'underlay', 'wallpaper', 'replace', 'smart', 'grid', 'icon', 'pet'],
+      },
+      {
+        id: 'plugins',
+        labelKey: 'configCenter.tabs.plugins',
+        descriptionKey: 'configCenter.tabDescriptions.plugins',
+        icon: Puzzle,
+        keywords: ['plugin', 'extension', 'hook', 'overlay', 'underlay', 'island', 'widget', 'a00pkg', 'github', 'install'],
       },
     ],
   },

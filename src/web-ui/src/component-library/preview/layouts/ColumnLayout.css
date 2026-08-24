@@ -4,7 +4,7 @@
 
 .column-layout {
   display: flex;
-  gap: 24px;
+  gap: var(--size-gap-6);
   min-height: 100%;
   width: 100%;
 }
@@ -15,7 +15,7 @@
   background: var(--color-bg-secondary);
   border-radius: 12px;
   border: 1px solid var(--border-subtle);
-  padding: 20px;
+  padding: var(--size-gap-5);
   position: sticky;
   top: 0;
   height: fit-content;
@@ -24,27 +24,27 @@
 }
 
 .column-nav-title {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 16px;
+  margin-bottom: var(--size-gap-4);
 }
 
 .column-nav-items {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--size-gap-1);
 }
 
 .column-nav-item {
-  padding: 8px 12px;
+  padding: var(--size-gap-2) var(--size-gap-3);
   background: transparent;
   border: none;
   border-radius: 6px;
   color: var(--color-text-secondary);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -69,10 +69,10 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--size-gap-4);
   min-width: 0;
   width: 100%;
-  padding-bottom: 40px;
+  padding-bottom: var(--size-gap-10);
 }
 
 .column-item {
@@ -81,7 +81,7 @@
   border: 1px solid var(--border-subtle);
   overflow: hidden;
   transition: all 0.2s;
-  scroll-margin-top: 20px;
+  scroll-margin-top: var(--size-gap-5);
 }
 
 .column-item:hover {
@@ -90,27 +90,27 @@
 }
 
 .column-item-header {
-  padding: 16px 20px;
+  padding: var(--size-gap-4) var(--size-gap-5);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--element-bg-subtle);
 }
 
 .column-item-title {
-  margin: 0 0 6px 0;
-  font-size: 16px;
+  margin: 0 0 var(--size-gap-1-5) 0;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   color: var(--color-text-primary);
 }
 
 .column-item-description {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   line-height: 1.5;
 }
 
 .column-item-preview {
-  padding: 20px;
+  padding: var(--size-gap-5);
   background: var(--color-bg-primary);
   min-height: 80px;
 }

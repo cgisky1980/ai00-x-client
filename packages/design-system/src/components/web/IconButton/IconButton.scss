@@ -1,0 +1,178 @@
+/**
+ * IconButton — token 清理版
+ * 全部色值走 design-system token（规范：黛青唯一交互色；语义色仅表状态）。
+ * variant 色彩映射（新东方极简）：
+ *   default/ghost 中性；primary/ai → 黛青（AI 紫退役）；
+ *   danger → 语义红 hover 态；success/warning → 语义三件套（状态操作）。
+ */
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--size-radius-sm);
+  cursor: pointer;
+  position: relative;
+  outline: none;
+  user-select: none;
+  flex-shrink: 0;
+  transform: scale(1);
+  transform-origin: center;
+  transition:
+    transform var(--motion-fast) var(--easing-standard),
+    background var(--motion-fast) var(--easing-standard),
+    color var(--motion-fast) var(--easing-standard);
+
+  background: transparent;
+  color: var(--color-text-secondary);
+
+  &:hover:not(:disabled) {
+    transform: scale(1.06);
+    background: var(--element-bg-soft);
+    color: var(--color-accent-400);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(1.02);
+    background: var(--element-bg-base);
+  }
+
+  svg {
+    display: block;
+    flex-shrink: 0;
+    transition: color var(--motion-fast) var(--easing-standard);
+  }
+
+  &--xs {
+    width: 24px;
+    height: 24px;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  &--small {
+    width: 28px;
+    height: 28px;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  &--medium {
+    width: 32px;
+    height: 32px;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  &--large {
+    width: 40px;
+    height: 40px;
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  &--circle {
+    border-radius: 50%;
+  }
+
+  /* primary/ai：黛青浅底深字（明暗主题下对比均达标） */
+  &--primary,
+  &--ai {
+    background: var(--color-accent-200);
+    color: var(--color-accent-600);
+
+    &:hover:not(:disabled) {
+      background: var(--color-accent-300);
+      color: var(--color-accent-700);
+    }
+
+    &:active:not(:disabled) {
+      background: var(--color-accent-200);
+    }
+  }
+
+  /* danger：中性默认，hover 语义红（de-escalated） */
+  &--danger {
+    background: transparent;
+    color: var(--color-text-secondary);
+
+    &:hover:not(:disabled) {
+      background: var(--color-error-bg);
+      color: var(--color-error);
+    }
+
+    &:active:not(:disabled) {
+      background: var(--color-error-bg);
+      color: var(--color-error);
+    }
+  }
+
+  /* success/warning：语义三件套（状态操作按钮） */
+  &--success {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+
+    &:hover:not(:disabled) {
+      background: var(--color-success-border);
+      color: var(--color-success);
+    }
+
+    &:active:not(:disabled) {
+      background: var(--color-success-bg);
+    }
+  }
+
+  &--warning {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+
+    &:hover:not(:disabled) {
+      background: var(--color-warning-border);
+      color: var(--color-warning);
+    }
+
+    &:active:not(:disabled) {
+      background: var(--color-warning-bg);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-400);
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  &--loading {
+    cursor: wait;
+    pointer-events: none;
+
+    svg {
+      animation: icon-btn-spin 1s linear infinite;
+    }
+  }
+}
+
+@keyframes icon-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

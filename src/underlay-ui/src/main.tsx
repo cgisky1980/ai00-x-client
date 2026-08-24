@@ -1,5 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
+// design-system 全量样式走 JS 导入（Vite css 管线，自托管字体 url 可解析）——见 app.css 头注
+import "@ai00-x/design-system/styles";
 import "../app.css";
 import { UnderlayDesktopProvider } from "@underlay/desktop/UnderlayDesktopContext";
 import { GridDesktop } from "@underlay/components/GridDesktop";
@@ -151,6 +153,16 @@ function useRawMouseInjection() {
 
 function UnderlayApp() {
   useRawMouseInjection();
+  const pluginLayerRef = useRef<HTMLDivElement | null>(null);
+
+  // Injected plugin runtime (underlay:mount hook), hot-pluggable
+  useEffect(() => {
+    let dispose: (() => void) | undefined;
+    import("@underlay/plugins/runtime").then(({ initPluginRuntime }) => {
+      dispose = initPluginRuntime();
+    }).catch(() => {});
+    return () => dispose?.();
+  }, []);
 
   return (
     <BackgroundProvider>
@@ -160,6 +172,12 @@ function UnderlayApp() {
           <div className="h-full w-full relative bg-transparent" style={{ pointerEvents: 'none' }}>
             <GridDesktop />
           </div>
+          {/* Injected plugin mount layer (underlay:mount) */}
+          <div
+            id="ai00-underlay-plugin-layer"
+            ref={pluginLayerRef}
+            style={{ position: 'fixed', inset: 0, zIndex: 50000, pointerEvents: 'none' }}
+          />
           <GardenToolbar />
         </MicroGardenLayer>
       </UnderlayDesktopProvider>

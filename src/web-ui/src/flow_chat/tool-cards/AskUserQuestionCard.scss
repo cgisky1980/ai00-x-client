@@ -10,8 +10,8 @@
 .ask-user-question-card {
   display: flex;
   flex-direction: column;
-  margin: 6px 0;
-  border-radius: var(--radius-md, 8px);
+  margin: var(--size-gap-1-5) 0;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-base);
   background: var(--color-bg-flowchat);
   backdrop-filter: blur(10px);
@@ -38,7 +38,7 @@
 
   &:hover {
     border-color: var(--border-medium);
-    box-shadow: var(--shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.3));
+    box-shadow: var(--shadow-lg);
   }
 }
 
@@ -47,8 +47,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: var(--size-gap-3);
+  padding: var(--size-gap-2-5) var(--size-gap-3-5);
   border-bottom: 1px solid var(--border-base);
   background: transparent;
 }
@@ -56,11 +56,11 @@
 .card-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
 }
 
 .questions-count {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-text-secondary);
   letter-spacing: -0.01em;
@@ -69,7 +69,7 @@
 .footer-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--size-gap-2-5);
   flex-shrink: 0;
 }
 
@@ -77,8 +77,8 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: var(--size-gap-3);
+  padding: var(--size-gap-2-5) var(--size-gap-3-5);
   border-top: 1px solid var(--border-base);
   background: transparent;
 }
@@ -87,11 +87,11 @@
 .tool-status {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: var(--size-gap-1-5);
+  font-size: var(--font-size-2xs);
   color: var(--color-text-muted);
   white-space: nowrap;
-  padding-left: 10px;
+  padding-left: var(--size-gap-2-5);
   border-left: 1px solid var(--border-base);
 }
 
@@ -114,9 +114,9 @@
 .params-loading-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  font-size: 12px;
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-3) var(--size-gap-3-5);
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
 }
 
@@ -128,15 +128,15 @@
 .questions-container {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 12px 14px;
+  gap: var(--size-gap-3-5);
+  padding: var(--size-gap-3) var(--size-gap-3-5);
 }
 
 .ask-question-item {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-bottom: 14px;
+  gap: var(--size-gap-2-5);
+  padding-bottom: var(--size-gap-3-5);
   border-bottom: 1px dashed var(--border-subtle);
 
   &:last-child {
@@ -149,18 +149,18 @@
 .question-item-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--size-gap-2-5);
 }
 
 .question-header-chip {
   display: inline-flex;
   align-items: center;
-  padding: 3px 8px;
+  padding: var(--size-gap-0-5) var(--size-gap-2);
   background: var(--element-bg-soft);
   color: var(--color-text-secondary);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm, 4px);
-  font-size: 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xxs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -169,7 +169,7 @@
 }
 
 .question-text {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--color-text-primary);
   flex: 1;
@@ -181,18 +181,18 @@
 .question-options {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-left: 2px;
+  gap: var(--size-gap-1-5);
+  padding-left: var(--size-gap-0-5);
 }
 
 .option-label {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: var(--size-gap-2-5);
+  padding: var(--size-gap-2) var(--size-gap-3);
   background: transparent;
   border: 1px solid var(--border-base);
-  border-radius: var(--radius-md, 6px);
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.15s ease;
 
@@ -212,7 +212,7 @@
   }
 
   &:has(input:disabled) {
-    opacity: var(--opacity-disabled, 0.5);
+    opacity: var(--opacity-disabled);
     cursor: default;
   }
 
@@ -232,7 +232,7 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: var(--size-gap-0-5);
 
   &::before {
     content: '';
@@ -284,7 +284,7 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: var(--size-gap-0-5);
 
   &::before {
     content: '';
@@ -340,12 +340,12 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: var(--size-gap-3);
   min-width: 0;
 }
 
 .option-label-text {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--color-text-primary);
   line-height: 1.4;
@@ -353,7 +353,7 @@
 }
 
 .option-description {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   color: var(--color-text-muted);
   line-height: 1.4;
   flex: 1;
@@ -373,11 +373,11 @@
 .option-other-input {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: var(--size-gap-2-5);
+  padding: var(--size-gap-2) var(--size-gap-3);
   background: var(--element-bg-subtle);
   border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md, 6px);
+  border-radius: var(--radius-md);
 
   input[type="radio"],
   input[type="checkbox"] {
@@ -412,10 +412,10 @@
 
 .other-input-inline {
   flex: 1;
-  padding: 6px 10px;
+  padding: var(--size-gap-1-5) var(--size-gap-2-5);
   border: 1px solid var(--border-base);
-  border-radius: var(--radius-sm, 4px);
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
   color: var(--color-text-primary);
   background: var(--color-bg-tertiary);
   transition: all 0.15s ease;
@@ -428,7 +428,7 @@
   }
 
   &:disabled {
-    opacity: var(--opacity-disabled, 0.5);
+    opacity: var(--opacity-disabled);
     cursor: default;
     background: var(--color-bg-tertiary);
   }
@@ -442,13 +442,13 @@
 .submit-button {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-1) var(--size-gap-3);
   background: var(--element-bg-base);
   color: var(--color-text-primary);
   border: 1px solid var(--border-base);
-  border-radius: var(--radius-sm, 5px);
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -464,7 +464,7 @@
   }
 
   &:disabled {
-    opacity: var(--opacity-disabled, 0.4);
+    opacity: var(--opacity-disabled);
     cursor: default;
   }
 
@@ -480,9 +480,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: var(--size-gap-3);
   cursor: pointer;
-  padding: 10px 14px;
+  padding: var(--size-gap-2-5) var(--size-gap-3-5);
   transition: all 0.15s ease;
 
   &:hover {
@@ -493,7 +493,7 @@
 .summary-content {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
   flex: 1;
   min-width: 0;
 
@@ -506,20 +506,20 @@
 }
 
 .summary-questions-count {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-text-secondary);
   flex-shrink: 0;
 }
 
 .summary-arrow {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
 .summary-answer {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--color-text-primary);
   flex: 1;
@@ -532,7 +532,7 @@
 /* ========== Expanded state ========== */
 .questions-container.expanded {
   margin-top: 0;
-  padding-top: 12px;
+  padding-top: var(--size-gap-3);
   border-top: 1px solid var(--border-base);
   animation: expandDown 0.2s ease-out;
 
@@ -546,12 +546,12 @@
 .result-timeout {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: var(--radius-md, 6px);
-  font-size: 11px;
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-2) var(--size-gap-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-2xs);
   font-weight: 500;
-  margin: 0 14px 12px;
+  margin: 0 var(--size-gap-3-5) var(--size-gap-3);
   background: var(--color-warning-bg);
   color: var(--color-warning);
   border: 1px solid var(--color-warning-border);
@@ -565,10 +565,10 @@
 
 /* ========== Error message ========== */
 .error-message {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-error);
   text-align: center;
-  padding: 12px;
+  padding: var(--size-gap-3);
 }
 
 /* ========== Animation ========== */

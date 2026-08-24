@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ai00-x/design-system": "workspace:*",
     "@esotericsoftware/spine-canvas": "^4.3.7",
     "@esotericsoftware/spine-core": "^4.3.7",
     "@tauri-apps/api": "^2",

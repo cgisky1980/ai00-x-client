@@ -1,7 +1,7 @@
 .smart-router-config {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
 }
 
 .smart-router-config__tier-select {
@@ -11,44 +11,44 @@
 .smart-router-config__hint {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
-  margin-top: var(--spacing-1, 4px);
-  color: var(--color-text-muted, #b0b0b8);
-  font-size: var(--font-size-xs, 12px);
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
 }
 
 .smart-router-config__status {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
-  font-size: var(--font-size-xs, 12px);
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
 
   &--ok {
-    color: var(--color-success, #52c41a);
+    color: var(--color-success);
   }
 
   &--warn {
-    color: var(--color-warning, #faad14);
+    color: var(--color-warning);
   }
 
   &--init {
-    color: var(--color-text-muted, #b0b0b8);
+    color: var(--color-text-muted);
   }
 }
 
 .smart-router-config__reload-btn {
-  margin-left: var(--spacing-1, 4px);
-  padding: 0 8px;
+  margin-left: var(--spacing-1);
+  padding: 0 var(--size-gap-2);
   border: none;
   border-radius: 4px;
-  background: var(--color-bg-tertiary, rgba(255, 255, 255, 0.06));
-  color: var(--color-text-muted, #b0b0b8);
-  font-size: 11px;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
   line-height: 18px;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    color: var(--color-text-secondary, #d0d0d8);
+    color: var(--color-text-secondary);
   }
 
   &:disabled {
@@ -60,48 +60,48 @@
 .smart-router-config__test {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1, 4px);
-  padding: var(--spacing-2, 8px);
-  border-radius: var(--border-radius-sm, 6px);
-  background: var(--color-bg-secondary, rgba(255, 255, 255, 0.03));
+  gap: var(--spacing-1);
+  padding: var(--spacing-2);
+  border-radius: var(--size-radius-sm);
+  background: var(--color-bg-secondary);
 }
 
 .smart-router-config__test-title {
-  font-size: var(--font-size-xs, 12px);
+  font-size: var(--font-size-xs);
   font-weight: 600;
-  color: var(--color-text-secondary, #d0d0d8);
+  color: var(--color-text-secondary);
 }
 
 .smart-router-config__warning {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
-  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
-  border-radius: var(--border-radius-sm, 6px);
-  background: var(--color-warning-bg, rgba(250, 173, 20, 0.1));
-  color: var(--color-warning, #faad14);
-  font-size: var(--font-size-xs, 12px);
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--size-radius-sm);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-size: var(--font-size-xs);
 }
 
 .smart-router-config__advanced {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
 }
 
 .smart-router-config__advanced-toggle {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
   padding: 0;
   border: none;
   background: none;
-  color: var(--color-text-muted, #b0b0b8);
-  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
   cursor: pointer;
   width: fit-content;
 
   &:hover {
-    color: var(--color-text-secondary, #d0d0d8);
+    color: var(--color-text-secondary);
   }
 }

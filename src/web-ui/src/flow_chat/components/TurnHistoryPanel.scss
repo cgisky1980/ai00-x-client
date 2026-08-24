@@ -1,31 +1,31 @@
 @use '../../component-library/styles/_extended-mixins' as mixins;
 
 .turn-history-panel {
-  padding: 16px;
+  padding: var(--size-gap-4);
   background: var(--color-bg-primary);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow:var(--shadow-base);
 
   .turn-history-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: var(--size-gap-4);
+    padding-bottom: var(--size-gap-3);
+    border-bottom: 1px solid var(--border-subtle);
 
     h3 {
       margin: 0;
-      font-size: 16px;
+      font-size: var(--font-size-xl);
       font-weight: 600;
-      color: #111827;
+      color: var(--color-bg-primary);
     }
 
     .turn-count {
-      font-size: 12px;
-      color: #6b7280;
-      background: #f3f4f6;
-      padding: 4px 8px;
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      background: var(--color-accent-50);
+      padding: var(--size-gap-1) var(--size-gap-2);
       border-radius: 4px;
     }
   }
@@ -33,103 +33,103 @@
   .turn-history-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--size-gap-3);
     max-height: 500px;
     overflow-y: auto;
 
   }
 
   .turn-history-item {
-    padding: 12px;
-    border: 1px solid #e5e7eb;
+    padding: var(--size-gap-3);
+    border: 1px solid var(--border-subtle);
     border-radius: 6px;
     transition: all 0.2s ease;
 
     &:hover {
-      border-color: #3b82f6;
-      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+      border-color: var(--color-accent-600);
+      box-shadow: 0 2px 4px var(--color-accent-200);
     }
 
     &.current {
-      background: #f0f9ff;
-      border-color: #3b82f6;
+      background:var(--color-accent-50);
+      border-color: var(--color-accent-600);
     }
 
     .turn-item-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: var(--size-gap-2);
 
       .turn-index {
-        font-size: 14px;
+        font-size: var(--font-size-base);
         font-weight: 600;
-        color: #111827;
+        color: var(--color-bg-primary);
       }
     }
 
     .turn-item-files {
-      margin: 8px 0;
-      padding: 8px;
-      background: #f9fafb;
+      margin: var(--size-gap-2) 0;
+      padding: var(--size-gap-2);
+      background: var(--color-accent-50);
       border-radius: 4px;
 
       .files-label {
-        font-size: 12px;
-        color: #6b7280;
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
         font-weight: 500;
         display: block;
-        margin-bottom: 4px;
+        margin-bottom: var(--size-gap-1);
       }
 
       .files-list {
         margin: 0;
-        padding-left: 16px;
+        padding-left: var(--size-gap-4);
 
         .file-item {
-          font-size: 12px;
-          color: #374151;
-          margin: 2px 0;
+          font-size: var(--font-size-xs);
+          color: var(--color-bg-tertiary);
+          margin: var(--size-gap-0-5) 0;
           font-family: 'Monaco', 'Consolas', monospace;
         }
 
         .file-item-more {
-          font-size: 12px;
-          color: #6b7280;
+          font-size: var(--font-size-xs);
+          color: var(--color-text-muted);
           font-style: italic;
           list-style: none;
-          margin-left: -16px;
+          margin-left: calc(var(--size-gap-4) * -1);
         }
       }
     }
 
     .turn-item-time {
-      font-size: 11px;
-      color: #9ca3af;
-      margin-top: 8px;
+      font-size: var(--font-size-2xs);
+      color: var(--color-text-disabled);
+      margin-top: var(--size-gap-2);
     }
   }
 }
 
 .turn-history-panel-loading {
-  padding: 40px;
+  padding: var(--size-gap-10);
   text-align: center;
-  color: #6b7280;
-  font-size: 14px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
 }
 
 .turn-history-panel-empty {
-  padding: 40px;
+  padding: var(--size-gap-10);
   text-align: center;
   
   p {
-    margin: 8px 0;
-    color: #6b7280;
-    font-size: 14px;
+    margin: var(--size-gap-2) 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-base);
 
     &.hint {
-      font-size: 12px;
-      color: #9ca3af;
+      font-size: var(--font-size-xs);
+      color: var(--color-text-disabled);
     }
   }
 }
@@ -137,19 +137,19 @@
 // Dark theme
 @media (prefers-color-scheme: dark) {
   .turn-history-panel {
-    background: #1f2937;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    background: var(--color-bg-secondary);
+    box-shadow: 0 2px 8px var(--color-overlay);
 
     .turn-history-header {
-      border-bottom-color: #374151;
+      border-bottom-color: var(--color-bg-tertiary);
 
       h3 {
-        color: #f9fafb;
+        color: var(--color-accent-50);
       }
 
       .turn-count {
-        background: #374151;
-        color: #d1d5db;
+        background: var(--color-bg-tertiary);
+        color: var(--color-text-secondary);
       }
     }
 
@@ -157,54 +157,54 @@
     }
 
     .turn-history-item {
-      border-color: #374151;
+      border-color: var(--color-bg-tertiary);
 
       &:hover {
-        border-color: #3b82f6;
+        border-color: var(--color-accent-600);
       }
 
       &.current {
-        background: #1e3a8a;
-        border-color: #3b82f6;
+        background:var(--color-accent-800);
+        border-color: var(--color-accent-600);
       }
 
       .turn-item-header .turn-index {
-        color: #f9fafb;
+        color: var(--color-accent-50);
       }
 
       .turn-item-files {
-        background: #111827;
+        background: var(--color-bg-primary);
 
         .files-label {
-          color: #d1d5db;
+          color: var(--color-text-secondary);
         }
 
         .files-list {
           .file-item {
-            color: #e5e7eb;
+            color: var(--border-subtle);
           }
 
           .file-item-more {
-            color: #9ca3af;
+            color: var(--color-text-disabled);
           }
         }
       }
 
       .turn-item-time {
-        color: #6b7280;
+        color: var(--color-text-muted);
       }
     }
   }
 
   .turn-history-panel-loading,
   .turn-history-panel-empty {
-    color: #9ca3af;
+    color: var(--color-text-disabled);
 
     p {
-      color: #9ca3af;
+      color: var(--color-text-disabled);
 
       &.hint {
-        color: #6b7280;
+        color: var(--color-text-muted);
       }
     }
   }

@@ -20,13 +20,13 @@
   &__header {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: var(--size-gap-1-5);
     width: 100%;
-    padding: 0.45rem 0.7rem;
+    padding: var(--size-gap-2) var(--size-gap-3);
     border: none;
     background: transparent;
     color: var(--color-text-secondary);
-    font-size: 0.76rem;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     font-family: inherit;
     text-align: left;
@@ -52,7 +52,7 @@
   &__icon {
     display: inline-flex;
     align-items: center;
-    color: var(--color-accent-500, var(--color-text-secondary));
+    color: var(--color-accent-500);
     flex-shrink: 0;
   }
 
@@ -64,9 +64,9 @@
 
   &__summary {
     flex: 1;
-    margin-left: 0.4rem;
+    margin-left: var(--size-gap-1-5);
     color: var(--color-text-muted);
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     font-weight: 400;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -74,10 +74,10 @@
   }
 
   &__body {
-    padding: 0.55rem 0.75rem 0.65rem;
+    padding: var(--size-gap-2) var(--size-gap-3) var(--size-gap-2-5);
     border-top: 1px solid var(--border-subtle);
     color: var(--color-text-primary);
-    font-size: 0.8rem;
+    font-size: var(--font-size-sm);
     line-height: 1.6;
     max-height: 360px;
     overflow-y: auto;

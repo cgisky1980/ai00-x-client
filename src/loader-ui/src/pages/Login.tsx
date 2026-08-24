@@ -8,6 +8,7 @@ import { storage } from "@/lib/storage";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { loadAvatarLocal } from "@/lib/avatar/avatarStorage";
 import { AvatarCustomizer, type AvatarValue } from "@/lib/avatar/AvatarCustomizer";
+import { BrandMark } from "@ai00-x/design-system/react";
 
 type Mode = "login" | "register" | "success";
 
@@ -300,7 +301,7 @@ export function LoginPage() {
     <div className="h-screen w-screen flex items-center justify-center bg-transparent">
       <div
         className="w-full h-full relative overflow-hidden rounded-xl border shadow-2xl"
-        style={{ borderColor: "var(--border)", backgroundColor: "var(--card-bg)" }}
+        style={{ borderColor: "var(--border-base)", backgroundColor: "var(--color-bg-base)", backgroundImage: "var(--ds-paper-grain)" }}
       >
         <div className="absolute top-0 left-0 right-0 h-10 z-0" data-tauri-drag-region />
         <div className="absolute top-2 right-4 z-50 flex items-center gap-2">
@@ -308,7 +309,7 @@ export function LoginPage() {
             type="button"
             onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
             className="btn-plain rounded-md px-2 py-1 text-xs font-medium"
-            style={{ color: "var(--text-50)" }}
+            style={{ color: "var(--color-text-muted)" }}
           >
             {locale === "zh" ? "EN" : "中"}
           </button>
@@ -327,16 +328,20 @@ export function LoginPage() {
 
         <div className="h-full flex flex-col items-center justify-center px-8">
           <div className="w-full max-w-md">
-            <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-90)" }}>
+            {/* 门面：灵印落款 + 衬线 Display 标语（规范 2.2/2.5/6.3） */}
+            <div className="flex flex-col items-center text-center mb-8 gap-4 ds-brush-reveal">
+              <BrandMark variant="lockup" size={44} subtitle={t("appDescription")} />
+              <h1
+                className="ds-display"
+                style={{ fontSize: "clamp(1.5rem, 3vw, 2.25rem)" }}
+              >
                 {t("appName")}
               </h1>
-              <p style={{ color: "var(--text-50)" }}>{t("appDescription")}</p>
             </div>
 
             {mode === "success" ? (
               <div className="text-center">
-                <div className="text-2xl font-light mb-4" style={{ color: "var(--text-90)" }}>
+                <div className="text-2xl font-light mb-4" style={{ color: "var(--color-text-primary)" }}>
                   {t("welcomeBack")}, {loggedInUser}
                 </div>
                 <button className="btn-primary w-full" onClick={handleContinue}>
@@ -349,14 +354,14 @@ export function LoginPage() {
                 <div
                   className="mx-auto rounded-2xl p-6 flex flex-col items-center gap-3 border"
                   style={{
-                    borderColor: "var(--border)",
-                    backgroundColor: "var(--bg-secondary, rgba(255,255,255,0.04))",
+                    borderColor: "var(--border-base)",
+                    backgroundColor: "var(--element-bg-subtle)",
                   }}
                 >
                   {/* Spine 头像预览（复用 AvatarCustomizer previewOnly 模式） */}
                   <div
                     className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center"
-                    style={{ backgroundColor: "rgb(var(--primary) / 0.15)" }}
+                    style={{ backgroundColor: "var(--color-accent-500)" }}
                   >
                     {savedAuth.avatarSelection ? (
                       <AvatarCustomizer value={savedAuth.avatarSelection} previewOnly onChange={() => {}} />
@@ -365,17 +370,17 @@ export function LoginPage() {
                     )}
                   </div>
                   <div>
-                    <div className="text-lg font-medium" style={{ color: "var(--text-90)" }}>
+                    <div className="text-lg font-medium" style={{ color: "var(--color-text-primary)" }}>
                       {savedAuth.nickname || savedAuth.username}
                     </div>
-                    <div className="text-xs" style={{ color: "var(--text-50)" }}>
+                    <div className="text-xs" style={{ color: "var(--color-text-muted)" }}>
                       @{savedAuth.username}
                     </div>
                   </div>
                 </div>
 
                 {error && (
-                  <p className="text-sm" style={{ color: "var(--destructive)" }}>
+                  <p className="text-sm" style={{ color: "var(--color-error)" }}>
                     {error}
                   </p>
                 )}
@@ -392,7 +397,7 @@ export function LoginPage() {
                   <button
                     type="button"
                     className="btn-plain text-sm"
-                    style={{ color: "rgb(var(--primary))" }}
+                    style={{ color: "var(--color-accent-500)" }}
                     onClick={handleSwitchToLogin}
                   >
                     {t("switchAccount") || "切换账号登录"}
@@ -420,7 +425,7 @@ export function LoginPage() {
                   />
                 </div>
                 {error && (
-                  <p className="text-sm" style={{ color: "var(--destructive)" }}>
+                  <p className="text-sm" style={{ color: "var(--color-error)" }}>
                     {error}
                   </p>
                 )}
@@ -431,18 +436,18 @@ export function LoginPage() {
                   <button
                     type="button"
                     className="btn-plain text-sm"
-                    style={{ color: "rgb(var(--primary))" }}
+                    style={{ color: "var(--color-accent-500)" }}
                     onClick={() => navigate("/forgot-password")}
                   >
                     {t("forgotPassword") || "忘记密码？"}
                   </button>
                 </div>
                 <div className="text-center">
-                  <span style={{ color: "var(--text-50)" }}>{t("noAccount")} </span>
+                  <span style={{ color: "var(--color-text-muted)" }}>{t("noAccount")} </span>
                   <button
                     type="button"
                     className="btn-plain text-sm"
-                    style={{ color: "rgb(var(--primary))" }}
+                    style={{ color: "var(--color-accent-500)" }}
                     onClick={() => {
                       setMode("register");
                       setError("");
@@ -466,7 +471,7 @@ export function LoginPage() {
                       />
                     </div>
                     {error && (
-                      <p className="text-sm" style={{ color: "var(--destructive)" }}>
+                      <p className="text-sm" style={{ color: "var(--color-error)" }}>
                         {error}
                       </p>
                     )}
@@ -540,7 +545,7 @@ export function LoginPage() {
                       </button>
                     </div>
                     {error && (
-                      <p className="text-sm" style={{ color: "var(--destructive)" }}>
+                      <p className="text-sm" style={{ color: "var(--color-error)" }}>
                         {error}
                       </p>
                     )}
@@ -550,11 +555,11 @@ export function LoginPage() {
                   </>
                 )}
                 <div className="text-center">
-                  <span style={{ color: "var(--text-50)" }}>{t("hasAccount")} </span>
+                  <span style={{ color: "var(--color-text-muted)" }}>{t("hasAccount")} </span>
                   <button
                     type="button"
                     className="btn-plain text-sm"
-                    style={{ color: "rgb(var(--primary))" }}
+                    style={{ color: "var(--color-accent-500)" }}
                     onClick={() => {
                       setMode("login");
                       setError("");

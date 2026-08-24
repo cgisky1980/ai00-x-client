@@ -3,7 +3,7 @@
  */
 
 .modern-flowchat-container.flow-chat-typography {
-  font-family: var(--font-sans, var(--font-family-sans, inherit));
+  font-family: var(--font-sans);
   font-size: var(--flowchat-font-size-base);
 }
 
@@ -32,13 +32,13 @@
     bottom: 0;
     overflow: hidden;
     background: transparent;
-    padding-top: 52px;
+    padding-top: var(--size-gap-12);
   }
 
   
   &__input {
     flex-shrink: 0;
-    padding: 1rem;
+    padding: var(--size-gap-4);
     background: var(--color-surface);
     border-top: 1px solid var(--color-border);
   }

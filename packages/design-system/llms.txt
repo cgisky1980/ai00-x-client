@@ -1,0 +1,109 @@
+# @ai00-x/design-system
+
+> Ai00-X 统一设计系统（新东方极简）：352 DTCG token + 38 React 组件 + 灵印品牌资产。
+> 本文件是组件 API 与 token 惯例的机器可读清单——AI 生成 UI 代码前必读。
+> 设计规则（哲学/纪律全文）见 `参考/前端视觉设计规范-新东方极简.md` 与工作区 `AGENTS.md`（分工：本文件=API 数据，AGENTS=规则入口）。
+
+## imports（package exports）
+
+```ts
+import { Button } from '@ai00-x/design-system/react'  // 或 '.' —— ds 精简系（20 组件）
+import { Button, Modal, confirmDialog } from '@ai00-x/design-system/web'  // web-ui API 兼容系（38 组件）
+import '@ai00-x/design-system/styles'   // 全量 CSS（tokens+纸纹+动效+组件）
+import '@ai00-x/design-system/css'      // 仅 CSS 变量
+import '@ai00-x/design-system/tw'       // Tailwind v4 @theme 映射
+import '@ai00-x/design-system/standalone'  // 单文件全量（静态 HTML 内联）
+import { tokens, token } from '@ai00-x/design-system/tokens'  // TS 常量（antd 等用）
+```
+
+web-ui 消费方统一走 `'@/component-library'` barrel（re-export 全部 web 系 + ds 新组件；Tooltip 为 web 系 BEM 版）。
+
+## 硬纪律（生成代码前自查）
+
+1. **黛青 `--color-accent-*` 是唯一交互色**（hover/选中/焦点/链接/主按钮）；主按钮底色 = `--color-accent-500`（hover 加深 `--color-accent-600`，文字 `--color-accent-foreground`）；朱砂 `--color-brand-seal` 一屏最多一处（灵印或唯一 CTA）；语义色只表状态。
+2. **禁止手写下拉/弹出菜单** —— 一律用 DropdownMenu（菜单）/Popover（锚定面板）。禁止 getBoundingClientRect 定位 + outside-click 轮子。
+3. **body/html/全屏容器禁用 `background:` shorthand**（会重置宣纸纹理）—— 一律 `background-color:`。
+4. **禁止硬编码色值/px/z-index** —— 全用 CSS 变量 token；数字/时间戳/版本号用 mono + `tabular-nums`（`.ds-data`）。
+5. `backdrop-blur` 仅限浮层（dialog/dropdown/tooltip/popover/toast/drawer）；卡片一律实体表面。
+6. 动效走 token 刻度：浮层微动效 `--motion-fast`（0.15s）、Drawer `--motion-base`（0.3s）、骨架脉冲 ≈1.6s。签名动效（brush-reveal/ink-ripple）不进组件常规态。
+7. 组件文案经 `label()` 注入（消费方 `setComponentLabels()` 接 i18n）；弹层 portal 经 `PortalContainerContext` 注入。
+
+## token 命名规则（DTCG 1:1 直出）
+
+- JSON 路径 `.` → CSS 变量 `-`：`color.bg.primary` → `--color-bg-primary`。无映射表。
+- 常用：`--color-bg-{base,sunken,card,overlay,modal}`（墨阶 5 级）、`--color-text-{primary,secondary,muted,disabled}`、`--color-accent-{50..800}` + `--color-accent-foreground`、`--color-brand-seal`、`--color-{success,warning,error,info}`、`--border-{subtle,medium,base}`、`--size-gap-{1..16}`（4/8/12/16/20/24/32/40/48/64px）、`--size-radius-{sm,base,lg,xl,2xl,full}`、`--shadow-{xs..2xl}`、`--z-{dropdown:60,toast:300,tooltip:350,drawer:150,modal:10000}`、`--font-family-{sans,serif,mono}`。
+- 主题机制：`:root` 暗色默认（松烟墨 hue 240），`[data-theme-type="light"]` 亮色（宣纸 hue 90）；色值内嵌 `var(--hue/--chroma/--chroma-surface)` 回退公式，改 token 只改 `tokens/*.json` 后 `pnpm build`。
+
+## ds 系组件（./react 与 ./web 双出口；样式类 `.ds-*`，源 src/components/*.tsx）
+
+```
+BrandMark          props: variant?: 'ink'|'seal'|'inverse'|'line'|'lockup'; size?: number; subtitle?: string(lockup)
+Button             props: variant?: 'primary'|'seal'|'default'|'ghost'|'destructive'; size?: 'sm'|'base'|'lg'
+Card               复合: Card/CardHeader/CardTitle/CardContent/CardFooter（className 定制）
+Input/Textarea     薄封装（.ds-input）
+ContextMenu        复合: ContextMenu(Trigger/Content/Item/Separator/Label)（Radix；.ds-menu）
+DropdownMenu       复合: Root/Trigger/Content/Item(checkbox?/radio?/destructive?)/ItemIndicator/Label/Separator/Sub(Trigger/Content)
+Popover            复合: Popover/Trigger/Anchor(virtualRef?: RefObject<Measurable>)/Content(side?/align?/sideOffset?/className?)/Close
+Tooltip            仅 ./react（web 系同名 BEM 版冲突）：快捷 <Tooltip content side?: 'top'|'right'|'bottom'|'left' delayDuration?=300>（自包含 Provider）；或 TooltipProvider/TooltipRoot/Trigger/Content
+Toast              命令式: toast(msg, {variant?: 'info'|'success'|'warning'|'error', description?, duration?=4000, action?: {label, onClick}}) + toastSuccess/toastWarning/toastError；根挂 <ToastProvider /> 一次
+Progress           props: value?: 0..100; variant?: 'default'|'success'|'warning'|'error'
+Skeleton           props: HTMLAttributes（尺寸由 style/className 给）
+Separator          props: orientation?: 'horizontal'|'vertical'; decorative?=true
+Avatar             props: src?/alt?/name?(fallback 首字)/size?: 'sm'|'base'|'lg'|'xl'
+Empty              props: title?/description?/icon?/action?（默认灵印 line + label() 文案）
+ScrollArea         复合: ScrollArea → children（.ds-scroll-area）
+AlertDialog        复合: AlertDialog(Trigger/Content/Title/Description/Cancel/Action(variant?: 'primary'|'destructive'))；快捷 <AlertDialogSimple title description cancelText? actionText? variant? onAction? />
+Table              复合: Table(dense?)/TableHeader/TableBody/TableRow/TableHead/TableCell（组合式，无内建排序/分页；数字列套 .ds-data）
+Drawer             复合: Drawer(Trigger/Close)/DrawerContent(side?: 'right'|'left'|'top'|'bottom')/DrawerTitle/DrawerDescription；快捷 <DrawerPanel title description side>{children}</DrawerPanel>
+Pagination         props: page/total/onChange(page)/siblingCount?=1（页码 mono+tabular）
+Tree               props: nodes: {id, label, children?, icon?, actions?}[]/defaultExpandedIds?/selectedId?/onSelect?/renderLabel?（非虚拟化）
+```
+
+## web 系组件（props API 与原 web-ui 一致；源 src/components/web/）
+
+```
+Alert        type?: 'success'|'error'|'warning'|'info'; title?; message; description?; closable?; onClose?; showIcon?=true
+Badge        variant?: 'neutral'|'accent'|'purple'|'success'|'warning'|'error'|'info'
+Button       variant?: 'primary'|'secondary'|'ghost'|'dashed'|'danger'|'success'|'accent'|'ai'（accent/ai/success→黛青）; size?: 'small'|'medium'|'large'; isLoading?; iconOnly?; +原生 button 属性
+Card         Card: variant?: 'default'|'elevated'|'subtle'|'accent'|'purple'; interactive?; padding?: 'none'|'small'|'medium'|'large'; radius?; fullWidth? —— 复合 Card/Header(title?/subtitle?/extra?)/Body/Footer(align?)
+Checkbox     label?/description?/size?: 'small'|'medium'|'large'/indeterminate?/error? +原生 input 属性
+ConfigPage   ConfigPageLoading(text)/ConfigPageMessage(message: {type, text}|null)/ConfigPageRefreshButton(tooltip, onClick, loading?, disabled?)
+ConfirmDialog 命令式: confirmDialog({title, message, type?='warning', confirmText?, cancelText?, confirmDanger?, showCancel?=true, preview?, previewMaxHeight?=200}): Promise<boolean>；快捷 confirmWarning/confirmDanger/confirmInfo(title, message, options?)；根挂 <ConfirmDialogRenderer /> 一次
+CubeLoading  size?: 'small'|'medium'|'large'; text?（灵印圆脸动画）
+DotMatrixLoader size?: 'small'|'medium'
+StarRating   value/onChange?/maxStars?=5/size?: 'sm'|'md'|'lg'（⚠️ 枚举非 small/medium/large）/disabled?/label?
+IconButton   variant?: 'default'|'primary'|'ghost'|'danger'|'success'|'warning'|'ai'; size?: 'xs'|'small'|'medium'|'large'; shape?: 'square'|'circle'; isLoading?; tooltip?; tooltipPlacement?; tooltipFollowCursor?=true
+Input        variant?: 'default'|'filled'|'outlined'; inputSize?: 'small'|'medium'|'large'（size 为别名且优先）; error?/errorMessage?/prefix?/suffix?/label?/hint?
+InputDialog  isOpen/onClose/onConfirm(value)/title/description?/placeholder?/defaultValue?/confirmText?/cancelText?/validator?(v=>string|null)/required?=true/inputType?: 'text'|'password'|'email'|'number'
+Modal        isOpen/onClose/title?/titleExtra?/size?: 'small'|'medium'|'large'|'xlarge'/contentInset?/contentClassName?/showCloseButton?=true/closeOnOverlayClick?=true/draggable?/resizable?/placement?: 'center'|'bottom-left'|'bottom-right'/container?
+NumberInput  value/onChange/min?/max?/step?/unit?/disabled?/size?/variant?: 'default'|'compact'|'stepper'/showButtons?=true/precision?=0/label?/draggable?（拖拽调值）/disableWheel?
+Search       value?/defaultValue?/placeholder?/onChange?/onSearch?/onClear?/onKeyDown?/size?/clearable?=true/loading?/error?/errorMessage?/autoFocus?/maxLength?/expandOnFocus?/enterToSearch?=true/prefixIcon?/searchButtonText?/showSearchButton?/suffixContent?
+Select       options: {label, value, disabled?, description?, icon?, group?}[]; value?; onChange?; multiple?（值为数组）/searchable?/clearable?/showSelectAll?/loading?/error?/errorMessage?/maxTagCount?=3/renderOption?/renderValue?/placement?: 'bottom'|'top'/autoClose?/allowCustomValue?（仅单选+searchable）/customValueHint?/onOpenChange?
+Switch       label?/description?/size?/loading?/checkedText?/uncheckedText? +原生 input 属性
+Tabs         Tabs: activeKey?/defaultActiveKey?/onChange?/onTabClose?/type?: 'line'|'card'|'pill'（⚠️ variant 属性名为 type）/size?/stretch? —— 子元素 TabPane(tabKey, label, icon?, disabled?, closable?)
+Tag          color?: 'blue'|'green'|'red'|'yellow'|'purple'|'gray'（⚠️ variant 属性名为 color）; size?; title?; closable?/onClose?/rounded?
+Textarea     label?/error?/errorMessage?/hint?/autoResize?/showCount?/maxLength?/variant?: 'default'|'filled'|'outlined' +原生 textarea 属性
+Tooltip      content; children（⚠️ 单个 React 元素，cloneElement 注入）; placement?: 'top'|'bottom'|'left'|'right'（自动翻转）; followCursor?=false; trigger?: 'hover'|'click'|'focus'; delay?=450; disabled?; interactive?
+WindowControls onMinimize?/onMaximize?/onClose?/showMinimize?/showMaximize?/showClose?/disabled?/isMaximized?/minimizeIcon?/maximizeIcon?/restoreIcon?/closeIcon?
+```
+
+## 选型速查
+
+| 场景 | 用 |
+|---|---|
+| 菜单（项列表） | DropdownMenu（web-ui 优先 web 系 Menu 无此件→用 ds DropdownMenu） |
+| 锚定面板（富内容/搜索列表） | Popover（virtualRef 支持 rect 锚定） |
+| 悬浮提示一句话 | web 系 Tooltip（web-ui）/ ds Tooltip（./react，自包含） |
+| 通知 | toast()（DS）｜web-ui 现存 notification-system 待收敛 |
+| 确认框 | confirmDialog() 命令式 ｜ AlertDialogSimple 组合式 |
+| 模态 | Modal（web 系，拖拽/resize）｜ AlertDialog 原语 |
+| 侧拉详情 | Drawer（DrawerPanel） |
+| 数据表 | Table（dense）+ Pagination 组合 |
+| 树 | Tree（大列表组合 react-virtuoso） |
+| 模型选择器类 | Popover（受控 open/onOpenChange） |
+
+## 环境事实
+
+- React 19 + 源码直出（无 dist，消费方 Vite 编译）；`sideEffects: ["*.css"]`。
+- 换肤：ThemeService 覆盖 `--hue/--chroma/--chroma-surface`（只旋转黛青，墨阶恒定）。
+- 构建产物：`pnpm build`（=node scripts/build-tokens.mjs）生成 tokens.css/tw-theme.css/index.css/tokens.standalone.css/tokens.ts；css/components.css 为手写（勿脚本覆盖）。

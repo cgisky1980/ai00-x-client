@@ -64,151 +64,6 @@
     "userCompletedShort": "用户已完成复现",
     "operationFailed": "操作失败，请重试"
   },
-  "flowChatCards": {
-    "todoCard": {
-      "title": "任务管理",
-      "description": "管理任务列表",
-      "total": "总计",
-      "inProgress": "进行中",
-      "completed": "已完成",
-      "noTasks": "暂无任务",
-      "taskCount": "{{total}} 项任务 / {{completed}} 已完成"
-    },
-    "webSearchCard": {
-      "searchTitle": "网页搜索",
-      "fetchTitle": "获取链接",
-      "searchQuery": "搜索查询",
-      "url": "URL",
-      "results": "搜索结果",
-      "resultsCount": "{{count}} 个结果",
-      "resultCount": "结果数",
-      "noResults": "未找到相关结果",
-      "searching": "正在搜索...",
-      "searchDesc": "搜索网页内容",
-      "fetchDesc": "获取网页链接内容",
-      "unspecifiedQuery": "未指定查询"
-    },
-    "snapshotCard": {
-      "writeFile": "写入文件",
-      "editFile": "编辑文件",
-      "deleteFile": "删除文件",
-      "multiEdit": "批量编辑",
-      "accept": "接受修改",
-      "reject": "拒绝修改",
-      "viewDetails": "查看详情",
-      "viewFullDiff": "查看完整差异",
-      "processing": "正在处理文件...",
-      "linesAdded": "行新增",
-      "linesDeleted": "行删除",
-      "filesCount": "{{count}} 文件",
-      "filePath": "文件路径",
-      "unspecifiedFile": "未指定文件",
-      "file": "文件"
-    },
-    "taskCard": {
-      "title": "执行任务",
-      "description": "执行专门的AI任务",
-      "taskType": "任务类型",
-      "taskDesc": "任务描述",
-      "result": "任务结果",
-      "processing": "AI正在处理任务...",
-      "defaultType": "AI任务",
-      "unspecifiedTask": "未指定任务"
-    },
-    "searchCard": {
-      "grepTitle": "文本搜索",
-      "globTitle": "文件搜索",
-      "grepDesc": "在文件中搜索文本",
-      "globDesc": "按模式搜索文件",
-      "pattern": "搜索模式",
-      "path": "搜索路径",
-      "matches": "个匹配",
-      "files": "个文件",
-      "matchingFiles": "匹配文件",
-      "noTextMatch": "未找到匹配的文本",
-      "noFileMatch": "未找到匹配的文件",
-      "unspecifiedPattern": "未指定模式",
-      "currentDir": "当前目录",
-      "matchCount": "{{count}} 处"
-    },
-    "contextCompressionCard": {
-      "title": "上下文压缩",
-      "description": "优化对话上下文，节省tokens",
-      "compressing": "智能压缩上下文中...",
-      "analyzing": "正在分析并压缩上下文...",
-      "triggerBeforeUserMessage": "用户消息前",
-      "triggerAfterToolBatch": "工具批次完成",
-      "triggerAfterAiResponse": "AI响应后",
-      "triggerManual": "手动触发",
-      "triggerAuto": "自动触发",
-      "triggerTime": "触发时机：{{trigger}} · 第{{count}}次",
-      "duration": "耗时",
-      "savedTokens": "压缩 {{count}} tokens · 当前比例 {{ratio}}%"
-    },
-    "toolConfig": {
-      "read": {
-        "displayName": "读取文件",
-        "description": "读取指定文件的内容"
-      },
-      "write": {
-        "displayName": "写入文件",
-        "description": "写入或创建文件"
-      },
-      "edit": {
-        "displayName": "编辑文件",
-        "description": "编辑文件内容"
-      },
-      "delete": {
-        "displayName": "删除文件",
-        "description": "删除指定文件"
-      },
-      "grep": {
-        "displayName": "文本搜索",
-        "description": "在文件中搜索文本"
-      },
-      "glob": {
-        "displayName": "文件搜索",
-        "description": "按模式搜索文件"
-      },
-      "webSearch": {
-        "displayName": "网页搜索",
-        "description": "搜索网页内容"
-      },
-      "webFetch": {
-        "displayName": "获取链接",
-        "description": "获取链接内容"
-      },
-      "task": {
-        "displayName": "执行任务",
-        "description": "执行专门的 AI 任务"
-      },
-      "todoWrite": {
-        "displayName": "任务管理",
-        "description": "管理任务列表"
-      },
-      "contextCompression": {
-        "displayName": "上下文压缩",
-        "description": "智能压缩对话上下文"
-      },
-      "default": {
-        "description": "执行 {{toolName}} 工具"
-      }
-    },
-    "baseToolCard": {
-      "awaitingConfirmation": "等待确认",
-      "analyzing": "分析参数中...",
-      "running": "执行中...",
-      "completed": "已完成",
-      "cancelled": "已取消",
-      "failed": "执行失败",
-      "preparing": "准备中",
-      "inputParams": "输入参数：",
-      "confirm": "确认",
-      "cancel": "取消",
-      "result": "结果：",
-      "viewDetails": "查看详情"
-    }
-  },
   "componentLibrary": {
     "alertDemo": {
       "title": "Alert 警告提示",
@@ -357,12 +212,16 @@
     "of": "共 {{total}} 页"
   },
   "pagination": {
+    "label": "分页",
     "first": "第一页",
     "last": "最后一页",
     "previous": "上一页",
     "next": "下一页",
     "page": "第 {{page}} 页",
     "of": "共 {{total}} 页"
+  },
+  "drawer": {
+    "close": "关闭"
   },
   "dropdown": {
     "noItems": "无项目"
@@ -461,6 +320,9 @@
   "notification": {
     "close": "关闭",
     "closeAll": "关闭所有"
+  },
+  "toast": {
+    "close": "关闭"
   },
   "notificationCenter": {
     "title": "通知中心",

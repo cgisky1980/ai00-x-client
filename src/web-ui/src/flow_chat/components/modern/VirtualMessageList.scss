@@ -50,7 +50,7 @@
   .empty-state {
     text-align: center;
     color: var(--color-text-muted);
-    padding: 2rem;
+    padding: var(--size-gap-8);
   }
   
   // Reserve space for the floating FlowChatHeader.

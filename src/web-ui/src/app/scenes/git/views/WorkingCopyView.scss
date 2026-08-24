@@ -7,18 +7,18 @@
 
   &__commit-bar {
     flex-shrink: 0;
-    padding: 8px 12px;
+    padding: var(--size-gap-2) var(--size-gap-3);
     border-bottom: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
   }
 
   &__status-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12px;
+    gap: var(--size-gap-2);
+    font-size: var(--font-size-xs);
   }
 
   &__branch {
@@ -27,32 +27,32 @@
   }
 
   &__badge {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
   }
 
   &__sync-actions {
     margin-left: auto;
     display: flex;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
   }
 
   &__commit-input-row {
     display: flex;
     align-items: flex-start;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__message {
     flex: 1;
     min-height: 56px;
     resize: none;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
   }
 
   &__commit-actions {
     display: flex;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   &__main {
@@ -80,15 +80,15 @@
 
   &__search {
     flex-shrink: 0;
-    padding: 6px 8px;
+    padding: var(--size-gap-1-5) var(--size-gap-2);
   }
 
   &__group-header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    font-size: 11px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1) var(--size-gap-2);
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     color: var(--color-text-muted);
     cursor: pointer;
@@ -99,9 +99,9 @@
   &__file-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    font-size: 12px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1) var(--size-gap-2);
+    font-size: var(--font-size-xs);
     cursor: pointer;
     color: var(--color-text-secondary);
 
@@ -128,14 +128,14 @@
   }
 
   &__file-dir {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     flex-shrink: 0;
   }
 
   &__file-status {
     flex-shrink: 0;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     font-weight: 600;
 
     &.wcv-status--modified { color: var(--color-warning); }
@@ -145,15 +145,15 @@
   }
 
   &__empty {
-    padding: 12px;
-    font-size: 12px;
+    padding: var(--size-gap-3);
+    font-size: var(--font-size-xs);
     color: var(--color-text-muted);
   }
 
   &__file-list-placeholder {
-    padding: 12px;
+    padding: var(--size-gap-3);
     color: var(--color-text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 
     span { font-weight: 500; color: var(--color-text-secondary); }
   }
@@ -172,13 +172,13 @@
     align-items: center;
     justify-content: center;
     flex: 1;
-    gap: 8px;
+    gap: var(--size-gap-2);
     color: var(--color-text-muted);
-    font-size: 14px;
+    font-size: var(--font-size-base);
   }
 
   &__hint {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     opacity: 0.8;
   }
 }

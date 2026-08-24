@@ -15,10 +15,10 @@
   font-family: var(--font-family-sans);
   /* Shared layout contract for settings pages in wide scenes. */
   --config-page-content-inline-padding: clamp(16px, 2.2vw, 28px);
-  --config-page-content-bottom-padding: var(--size-gap-12, 48px);
+  --config-page-content-bottom-padding: var(--size-gap-12);
   --config-page-content-max-width: 600px;
   /* Vertical gap between top-level sections (ConfigPageSection blocks) inside ConfigPageContent. */
-  --config-page-section-gap: var(--size-gap-10, 40px);
+  --config-page-section-gap: var(--size-gap-10);
   container-type: inline-size;
   container-name: config-panel;
 }
@@ -50,14 +50,14 @@
 .ai00-x-config-page-section {
   display: flex;
   flex-direction: column;
-  gap: var(--size-gap-4, 16px);
+  gap: var(--size-gap-4);
 }
 
 .ai00-x-config-page-section__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--size-gap-3, 12px);
+  gap: var(--size-gap-3);
 }
 
 .ai00-x-config-page-section__heading {
@@ -69,7 +69,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--size-gap-2, 8px);
+  gap: var(--size-gap-2);
   min-width: 0;
 }
 
@@ -82,7 +82,7 @@
 }
 
 .ai00-x-config-page-section__description {
-  margin: var(--size-gap-1, 4px) 0 0;
+  margin: var(--size-gap-1) 0 0;
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   line-height: var(--line-height-relaxed);
@@ -92,13 +92,13 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: var(--size-gap-2, 8px);
+  gap: var(--size-gap-2);
 }
 
 .ai00-x-config-page-section__body {
   background: var(--element-bg-subtle);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--size-radius-md, 10px);
+  border-radius: var(--size-radius-base);
   overflow: visible;
 }
 
@@ -106,8 +106,8 @@
   --row-grid-cols: minmax(0, 7fr) minmax(0, 3fr);
   display: grid;
   grid-template-columns: var(--row-grid-cols);
-  gap: var(--size-gap-4, 16px);
-  padding: var(--size-gap-4, 16px);
+  gap: var(--size-gap-4);
+  padding: var(--size-gap-4);
 }
 
 .ai00-x-config-page-row + .ai00-x-config-page-row {
@@ -124,7 +124,7 @@
 
 .ai00-x-config-page-row--multiline {
   --row-grid-cols: 1fr;
-  gap: var(--size-gap-2, 8px);
+  gap: var(--size-gap-2);
 
   .ai00-x-config-page-row__control {
     justify-content: flex-start;
@@ -147,7 +147,7 @@
 }
 
 .ai00-x-config-page-row__description {
-  margin: var(--size-gap-1, 4px) 0 0;
+  margin: var(--size-gap-1) 0 0;
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   line-height: var(--line-height-relaxed);
@@ -170,16 +170,16 @@
 
 @container config-panel (max-width: 900px) {
   .ai00-x-config-page-layout {
-    --config-page-content-inline-padding: var(--size-gap-4, 16px);
-    --config-page-content-bottom-padding: var(--size-gap-10, 40px);
+    --config-page-content-inline-padding: var(--size-gap-4);
+    --config-page-content-bottom-padding: var(--size-gap-10);
     --config-page-content-max-width: 100%;
-    --config-page-section-gap: var(--size-gap-8, 32px);
+    --config-page-section-gap: var(--size-gap-8);
   }
 }
 
 @container config-panel (max-width: 520px) {
   .ai00-x-config-page-section {
-    gap: var(--size-gap-3, 12px);
+    gap: var(--size-gap-3);
   }
 
   .ai00-x-config-page-section__header {
@@ -194,8 +194,8 @@
 
   .ai00-x-config-page-row {
     grid-template-columns: minmax(0, 1fr);
-    gap: var(--size-gap-2, 8px);
-    padding: var(--size-gap-3, 12px);
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-3);
   }
 
   .ai00-x-config-page-row__control {

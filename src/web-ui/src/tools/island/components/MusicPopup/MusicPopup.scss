@@ -1,11 +1,10 @@
 // === MusicPopup — 独立浮层弹窗（参考网易云音乐） ===
 // 非模态：无 backdrop，可拖动，点击外部不关闭
-// z-index 高于 DynamicIsland (50010) 与 LyricsOverlay (50011)
-// popup: 50020
+// 层级走 chrome token 刻度（--z-chrome-*，高于一切弹层）
 
-// 分享对话框层级：高于 MusicPopup (50020)，确保 Modal 不被遮挡
+// 分享对话框层级：高于 MusicPopup（--z-chrome-overlay），确保 Modal 不被遮挡
 .modal-overlay.music-popup-share-overlay {
-  z-index: 50030;
+  z-index: var(--z-chrome-popup);
 }
 
 @keyframes musicPopupIn {
@@ -38,22 +37,21 @@
 .music-popup {
   position: fixed;
   // left/top/width/height 由 useDraggable + useResizable 通过 inline style 控制
-  z-index: 50020;
+  z-index: var(--z-chrome-overlay);
   pointer-events: auto;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border-radius: 20px;
-  background: color-mix(in oklch, var(--color-bg-elevated, #1a1a22) 94%, transparent);
+  background: color-mix(in oklch, var(--color-bg-elevated) 94%, transparent);
   backdrop-filter: blur(32px) saturate(1.6);
   -webkit-backdrop-filter: blur(32px) saturate(1.6);
-  border: 1px solid color-mix(in oklch, var(--color-primary, #60a5fa) 22%, transparent);
-  box-shadow:
-    0 16px 48px rgba(0, 0, 0, 0.5),
-    0 0 24px color-mix(in oklch, var(--color-primary, #60a5fa) 12%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in oklch, var(--color-primary) 22%, transparent);
+  box-shadow:0 16px 48px var(--modal-overlay),
+    0 0 24px color-mix(in oklch, var(--color-primary) 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   animation: musicPopupIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
-  color: var(--color-text-primary, #f8f8fa);
+  color: var(--color-text-primary);
   // Dragging / resizing: disable transition + selection + raise z-index slightly
   &.is-dragging,
   &.is-resizing {
@@ -62,10 +60,9 @@
     user-select: none;
   }
   &.is-dragging {
-    box-shadow:
-      0 24px 64px rgba(0, 0, 0, 0.6),
-      0 0 32px color-mix(in oklch, var(--color-primary, #60a5fa) 22%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    box-shadow:0 24px 64px var(--modal-overlay),
+      0 0 32px color-mix(in oklch, var(--color-primary) 22%, transparent),
+      inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   }
 
   // Popup uses theme color variables (follows global light/dark theme)
@@ -78,7 +75,7 @@
     transition: background 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 35%, transparent);
+      background: color-mix(in oklch, var(--color-accent-400) 35%, transparent);
     }
 
     &--n  { top: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
@@ -94,12 +91,12 @@
   // ===== Header (drag handle) =====
   &__header {
     flex-shrink: 0;
-    padding: 10px 14px;
-    border-bottom: 1px solid color-mix(in oklch, var(--color-primary, #60a5fa) 14%, transparent);
+    padding: var(--size-gap-2-5) var(--size-gap-3-5);
+    border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 14%, transparent);
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     cursor: grab;
     user-select: none;
 
@@ -122,12 +119,12 @@
 
   &__header-icon {
     flex-shrink: 0;
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
   }
 
   &__header-title {
     flex: 1;
-    font-size: 14px;
+    font-size: var(--font-size-base);
     font-weight: 600;
     color: var(--color-text-primary);
     white-space: nowrap;
@@ -150,7 +147,7 @@
     transition: all 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 25%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
       color: var(--color-text-primary);
     }
   }
@@ -168,11 +165,11 @@
   &__nav {
     flex-shrink: 0;
     width: 132px;
-    padding: 8px 6px;
+    padding: var(--size-gap-2) var(--size-gap-1-5);
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    border-right: 1px solid color-mix(in oklch, var(--color-primary, #60a5fa) 12%, transparent);
+    gap: var(--size-gap-0-5);
+    border-right: 1px solid color-mix(in oklch, var(--color-primary) 12%, transparent);
     overflow-y: auto;
 
     &::-webkit-scrollbar {
@@ -187,13 +184,13 @@
   &__nav-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 9px 10px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2) var(--size-gap-2-5);
     border: none;
     border-radius: 8px;
     background: transparent;
     color: var(--color-text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -201,13 +198,13 @@
     width: 100%;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 14%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 14%, transparent);
       color: var(--color-text-secondary);
     }
 
     &.is-active {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 16%, transparent);
-      color: var(--color-accent-400, #06b6d4);
+      background: color-mix(in oklch, var(--color-accent-400) 16%, transparent);
+      color: var(--color-accent-400);
     }
   }
 
@@ -225,10 +222,10 @@
 
   &__nav-count {
     flex-shrink: 0;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     background: color-mix(in oklch, var(--color-text-muted) 18%, transparent);
     color: var(--color-text-secondary);
-    padding: 0 6px;
+    padding: 0 var(--size-gap-1-5);
     border-radius: 8px;
     line-height: 16px;
     font-variant-numeric: tabular-nums;
@@ -239,8 +236,8 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--color-accent-400, #06b6d4);
-    box-shadow: 0 0 6px var(--color-accent-400, #06b6d4);
+    background: var(--color-accent-400);
+    box-shadow: 0 0 6px var(--color-accent-400);
     animation: musicPopupBarWave 1s ease-in-out infinite;
   }
 
@@ -250,7 +247,7 @@
     min-width: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 8px 12px 12px;
+    padding: var(--size-gap-2) var(--size-gap-3) var(--size-gap-3);
     scroll-behavior: smooth;
 
     &::-webkit-scrollbar {
@@ -269,10 +266,10 @@
     width: 100%;
     height: 4px;
     border-radius: 2px;
-    background: color-mix(in oklch, var(--color-primary, #60a5fa) 16%, transparent);
+    background: color-mix(in oklch, var(--color-primary) 16%, transparent);
     overflow: hidden;
     cursor: default;
-    margin-top: 6px;
+    margin-top: var(--size-gap-1-5);
 
     &--clickable {
       cursor: pointer;
@@ -285,14 +282,14 @@
 
   &__progress-fill {
     height: 100%;
-    background: var(--color-accent-400, #06b6d4);
+    background: var(--color-accent-400);
     border-radius: 1px;
     transition: width 0.5s linear;
-    box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-400, #06b6d4) 60%, transparent);
+    box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-400) 60%, transparent);
   }
 
   &__section {
-    margin-bottom: 14px;
+    margin-bottom: var(--size-gap-3-5);
 
     &:last-child {
       margin-bottom: 0;
@@ -302,24 +299,24 @@
   &__section-title {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 11px;
+    gap: var(--size-gap-1-5);
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     color: var(--color-text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    margin: 0 0 8px 4px;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    margin: 0 0 var(--size-gap-2) var(--size-gap-1);
+    text-shadow: 0 1px 2px var(--modal-overlay);
 
     svg {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
     }
   }
 
   &__section-count {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     background: color-mix(in oklch, var(--color-text-muted) 22%, transparent);
-    padding: 1px 6px;
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
     border-radius: 8px;
     line-height: 14px;
     color: var(--color-text-muted);
@@ -331,24 +328,24 @@
   &__create-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     margin-left: auto;
-    padding: 2px 8px;
-    font-size: 10px;
+    padding: var(--size-gap-0-5) var(--size-gap-2);
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     letter-spacing: 0;
     text-transform: none;
-    color: var(--color-accent-400, #06b6d4);
-    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 14%, transparent);
-    border: 1px solid color-mix(in oklch, var(--color-accent-400, #06b6d4) 32%, transparent);
+    color: var(--color-accent-400);
+    background: color-mix(in oklch, var(--color-accent-400) 14%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-accent-400) 32%, transparent);
     border-radius: 6px;
     cursor: pointer;
-    transition: background var(--motion-fast, 0.15s) var(--easing-standard, ease),
-      border-color var(--motion-fast, 0.15s) var(--easing-standard, ease);
+    transition: background var(--motion-fast) var(--easing-standard),
+      border-color var(--motion-fast) var(--easing-standard);
 
     &:hover {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 24%, transparent);
-      border-color: color-mix(in oklch, var(--color-accent-400, #06b6d4) 50%, transparent);
+      background: color-mix(in oklch, var(--color-accent-400) 24%, transparent);
+      border-color: color-mix(in oklch, var(--color-accent-400) 50%, transparent);
     }
   }
 
@@ -356,13 +353,13 @@
   &__radio-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    gap: var(--size-gap-2-5);
   }
 
   &__radio-card {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     padding: 0;
     border: none;
     background: transparent;
@@ -381,12 +378,12 @@
     &.is-active {
       .music-popup__radio-cover {
         box-shadow:
-          0 0 0 2px var(--color-accent-400, #06b6d4),
-          0 0 16px color-mix(in oklch, var(--color-accent-400, #06b6d4) 40%, transparent);
+          0 0 0 2px var(--color-accent-400),
+          0 0 16px color-mix(in oklch, var(--color-accent-400) 40%, transparent);
       }
 
       .music-popup__radio-name {
-        color: var(--color-accent-400, #06b6d4);
+        color: var(--color-accent-400);
       }
     }
   }
@@ -398,19 +395,19 @@
     border-radius: 12px;
     overflow: hidden;
     background:
-      radial-gradient(circle at 30% 30%, color-mix(in oklch, var(--radio-color, #8b5cf6) 60%, transparent), transparent 70%),
-      linear-gradient(135deg, var(--radio-color, #8b5cf6), color-mix(in oklch, var(--radio-color, #8b5cf6) 40%, #000));
+      radial-gradient(circle at 30% 30%, color-mix(in oklch, var(--radio-color) 60%, transparent), transparent 70%),
+      linear-gradient(135deg, var(--radio-color), color-mix(in oklch, var(--radio-color) 40%, var(--color-bg-primary)));
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px color-mix(in oklch, var(--radio-color, #8b5cf6) 30%, transparent);
+    box-shadow: 0 4px 12px color-mix(in oklch, var(--radio-color) 30%, transparent);
     transition: box-shadow 0.2s ease;
   }
 
   &__radio-icon {
-    font-size: 32px;
+    font-size: var(--font-size-5xl);
     line-height: 1;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+    filter: drop-shadow(0 2px 4px var(--modal-overlay));
   }
 
   &__radio-wave {
@@ -419,7 +416,7 @@
     right: 6px;
     display: flex;
     align-items: flex-end;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     height: 14px;
   }
 
@@ -427,7 +424,7 @@
     display: block;
     width: 2px;
     height: 100%;
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--color-text-primary);
     border-radius: 1px;
     transform-origin: bottom;
     animation: musicPopupBarWave 0.9s ease-in-out infinite;
@@ -439,14 +436,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.4);
-    color: white;
+    background: var(--modal-overlay);
+    color: var(--color-accent-foreground);
     opacity: 0;
     transition: opacity 0.15s ease;
   }
 
   &__radio-name {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-primary);
     text-align: center;
@@ -460,22 +457,22 @@
   &__community-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__song-card {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     width: 100%;
-    padding: 6px 8px;
+    padding: var(--size-gap-1-5) var(--size-gap-2);
     border-radius: 10px;
     background: transparent;
     color: var(--color-text-secondary);
     transition: background 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 18%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 18%, transparent);
 
       .music-popup__song-cover {
         .music-popup__cover-overlay {
@@ -489,10 +486,10 @@
     }
 
     &.is-current {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 14%, transparent);
+      background: color-mix(in oklch, var(--color-accent-400) 14%, transparent);
 
       .music-popup__song-title {
-        color: var(--color-accent-400, #06b6d4);
+        color: var(--color-accent-400);
       }
     }
   }
@@ -500,7 +497,7 @@
   &__song-play {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--size-gap-2-5);
     flex: 1;
     min-width: 0;
     padding: 0;
@@ -514,7 +511,7 @@
   &__song-actions {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     flex-shrink: 0;
     opacity: 0;
     transition: opacity 0.15s ease;
@@ -526,9 +523,9 @@
     justify-content: center;
     width: 16px;
     height: 16px;
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
     opacity: 0.7;
-    margin-right: 2px;
+    margin-right: var(--size-gap-0-5);
   }
 
   &__song-action {
@@ -545,13 +542,13 @@
     transition: background 0.15s ease, color 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 25%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
       color: var(--color-text-primary);
     }
 
     &--danger:hover {
-      background: color-mix(in oklch, #ef4444 25%, transparent);
-      color: #ef4444;
+      background: color-mix(in oklch, var(--color-error) 25%, transparent);
+      color: var(--color-error);
     }
 
     &:disabled {
@@ -575,7 +572,7 @@
     text-align: left;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 18%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 18%, transparent);
 
       .music-popup__community-cover {
         .music-popup__cover-overlay {
@@ -589,10 +586,10 @@
     }
 
     &.is-current {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 14%, transparent);
+      background: color-mix(in oklch, var(--color-accent-400) 14%, transparent);
 
       .music-popup__community-title {
-        color: var(--color-accent-400, #06b6d4);
+        color: var(--color-accent-400);
       }
     }
   }
@@ -600,9 +597,9 @@
   &__community-main {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--size-gap-2-5);
     width: 100%;
-    padding: 6px 8px;
+    padding: var(--size-gap-1-5) var(--size-gap-2);
     border: none;
     background: transparent;
     color: inherit;
@@ -615,15 +612,15 @@
   &__community-extra {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 2px 8px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     opacity: 0;
     transition: opacity 0.15s ease;
     min-width: 0;
   }
 
   &__community-rate {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -631,7 +628,7 @@
     text-overflow: ellipsis;
 
     &--seeding {
-      color: var(--color-success, #22c55e);
+      color: var(--color-success);
     }
   }
 
@@ -645,20 +642,20 @@
     flex-shrink: 0;
     border: none;
     border-radius: 5px;
-    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 16%, transparent);
-    color: var(--color-accent-400, #06b6d4);
+    background: color-mix(in oklch, var(--color-accent-400) 16%, transparent);
+    color: var(--color-accent-400);
     cursor: pointer;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 30%, transparent);
+      background: color-mix(in oklch, var(--color-accent-400) 30%, transparent);
     }
 
     .is-done {
-      color: var(--color-success, #22c55e);
+      color: var(--color-success);
     }
 
     .is-error {
-      color: var(--color-error, #ef4444);
+      color: var(--color-error);
     }
   }
 
@@ -669,7 +666,7 @@
     height: 48px;
     border-radius: 8px;
     overflow: hidden;
-    background: color-mix(in oklch, var(--color-primary, #60a5fa) 14%, transparent);
+    background: color-mix(in oklch, var(--color-primary) 14%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -690,8 +687,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.5);
-    color: var(--color-accent-400, #06b6d4);
+    background: var(--modal-overlay);
+    color: var(--color-accent-400);
     opacity: 0;
     transition: opacity 0.15s ease;
 
@@ -706,12 +703,12 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
   }
 
   &__song-title,
   &__community-title {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--color-text-primary);
     white-space: nowrap;
@@ -721,7 +718,7 @@
 
   &__song-artist,
   &__community-artist {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -731,8 +728,8 @@
   &__community-plays {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    font-size: 10px;
+    gap: var(--size-gap-0-5);
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
@@ -749,14 +746,14 @@
 
     .music-popup__community-card:hover &,
     .music-popup__community-card.is-current & {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
     }
   }
 
   &__community-download-pct {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 600;
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
@@ -768,7 +765,7 @@
     right: 0;
     bottom: 0;
     height: 3px;
-    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 18%, transparent);
+    background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
     border-radius: 0 0 10px 10px;
     overflow: hidden;
     pointer-events: none;
@@ -776,7 +773,7 @@
     &-fill {
       display: block;
       height: 100%;
-      background: var(--color-accent-400, #06b6d4);
+      background: var(--color-accent-400);
       transition: width 0.3s ease;
     }
   }
@@ -785,20 +782,20 @@
   &__section-actions {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     margin-left: auto;
   }
 
   &__section-action {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 7px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     border: none;
     border-radius: 6px;
-    background: color-mix(in oklch, var(--color-primary, #60a5fa) 16%, transparent);
-    color: var(--color-accent-400, #06b6d4);
-    font-size: 10px;
+    background: color-mix(in oklch, var(--color-primary) 16%, transparent);
+    color: var(--color-accent-400);
+    font-size: var(--font-size-xxs);
     font-weight: 500;
     cursor: pointer;
     letter-spacing: 0;
@@ -806,7 +803,7 @@
     transition: background 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 30%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 30%, transparent);
     }
 
     &:disabled {
@@ -815,11 +812,11 @@
     }
 
     &--danger {
-      background: color-mix(in oklch, var(--color-error, #ef4444) 16%, transparent);
-      color: var(--color-error, #ef4444);
+      background: color-mix(in oklch, var(--color-error) 16%, transparent);
+      color: var(--color-error);
 
       &:hover {
-        background: color-mix(in oklch, var(--color-error, #ef4444) 30%, transparent);
+        background: color-mix(in oklch, var(--color-error) 30%, transparent);
       }
     }
   }
@@ -828,39 +825,39 @@
   &__seeding-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
   }
 
   &__seeding-queue-banner {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 10px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2) var(--size-gap-2-5);
     border-radius: 8px;
-    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 12%, transparent);
-    color: var(--color-accent-400, #06b6d4);
-    font-size: 11px;
+    background: color-mix(in oklch, var(--color-accent-400) 12%, transparent);
+    color: var(--color-accent-400);
+    font-size: var(--font-size-2xs);
   }
 
   &__seeding-card {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
+    gap: var(--size-gap-2-5);
+    padding: var(--size-gap-2) var(--size-gap-2-5);
     border-radius: 10px;
-    background: color-mix(in oklch, var(--color-primary, #60a5fa) 8%, transparent);
+    background: color-mix(in oklch, var(--color-primary) 8%, transparent);
   }
 
   &__seeding-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     flex: 1;
     min-width: 0;
   }
 
   &__seeding-name {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--color-text-primary);
     white-space: nowrap;
@@ -869,7 +866,7 @@
   }
 
   &__seeding-metric {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -880,32 +877,32 @@
   &__seeding-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex-shrink: 0;
   }
 
   &__seeding-action {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     border: none;
     border-radius: 6px;
-    background: color-mix(in oklch, var(--color-primary, #60a5fa) 16%, transparent);
-    color: var(--color-accent-400, #06b6d4);
-    font-size: 10px;
+    background: color-mix(in oklch, var(--color-primary) 16%, transparent);
+    color: var(--color-accent-400);
+    font-size: var(--font-size-xxs);
     cursor: pointer;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 30%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 30%, transparent);
     }
 
     &--danger {
-      background: color-mix(in oklch, var(--color-error, #ef4444) 16%, transparent);
-      color: var(--color-error, #ef4444);
+      background: color-mix(in oklch, var(--color-error) 16%, transparent);
+      color: var(--color-error);
 
       &:hover {
-        background: color-mix(in oklch, var(--color-error, #ef4444) 30%, transparent);
+        background: color-mix(in oklch, var(--color-error) 30%, transparent);
       }
     }
   }
@@ -918,20 +915,20 @@
     transform: translateX(-50%);
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1-5) var(--size-gap-3);
     border-radius: 8px;
-    background: color-mix(in oklch, var(--color-bg-elevated, #1c2230) 96%, transparent);
-    box-shadow: var(--shadow-lg, 0 8px 16px rgba(0, 0, 0, 0.6));
-    border: 1px solid var(--border-base, rgba(255, 255, 255, 0.35));
+    background: color-mix(in oklch, var(--color-bg-elevated) 96%, transparent);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-base);
     color: var(--color-text-primary);
-    font-size: 11px;
-    z-index: 600;
+    font-size: var(--font-size-2xs);
+    z-index: var(--z-extreme);
     pointer-events: none;
     animation: musicPopupToastIn 0.18s ease;
 
     &-icon {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
     }
   }
 
@@ -939,16 +936,16 @@
   &__song-playing-indicator {
     display: inline-flex;
     align-items: flex-end;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     height: 14px;
-    margin-right: 4px;
+    margin-right: var(--size-gap-1);
     flex-shrink: 0;
 
     .music-popup__bar {
       display: block;
       width: 2px;
       height: 100%;
-      background: var(--color-accent-400, #06b6d4);
+      background: var(--color-accent-400);
       border-radius: 1px;
       transform-origin: bottom;
       animation: musicPopupBarWave 0.9s ease-in-out infinite;
@@ -965,31 +962,31 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: var(--size-gap-6);
     color: var(--color-text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     min-height: 60px;
   }
 
   // ===== Footer — player controls (hidden when nothing is playing) =====
   &__footer {
     flex-shrink: 0;
-    padding: 8px 16px 10px;
-    border-top: 1px solid color-mix(in oklch, var(--color-primary, #60a5fa) 14%, transparent);
+    padding: var(--size-gap-2) var(--size-gap-4) var(--size-gap-2-5);
+    border-top: 1px solid color-mix(in oklch, var(--color-primary) 14%, transparent);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
   }
 
   &__footer-info {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     min-width: 0;
   }
 
   &__footer-title {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--color-text-primary);
     white-space: nowrap;
@@ -1000,7 +997,7 @@
   }
 
   &__footer-artist {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -1010,7 +1007,7 @@
   }
 
   &__footer-time {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
@@ -1019,7 +1016,7 @@
   &__footer-controls {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__footer-btn {
@@ -1037,7 +1034,7 @@
     flex-shrink: 0;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 25%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
       color: var(--color-text-primary);
     }
 
@@ -1051,11 +1048,11 @@
     }
 
     &--glow {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
 
       &:hover {
-        background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 22%, transparent);
-        box-shadow: 0 0 10px color-mix(in oklch, var(--color-accent-400, #06b6d4) 22%, transparent);
+        background: color-mix(in oklch, var(--color-accent-400) 22%, transparent);
+        box-shadow: 0 0 10px color-mix(in oklch, var(--color-accent-400) 22%, transparent);
       }
     }
 
@@ -1064,17 +1061,17 @@
     }
 
     &.is-active {
-      color: var(--color-accent-400, #06b6d4);
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 15%, transparent);
+      color: var(--color-accent-400);
+      background: color-mix(in oklch, var(--color-accent-400) 15%, transparent);
     }
   }
 
   &__volume-group {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex-shrink: 0;
-    margin-left: 4px;
+    margin-left: var(--size-gap-1);
   }
 
   &__volume-slider {
@@ -1093,16 +1090,16 @@
       width: 12px;
       height: 12px;
       border-radius: 50%;
-      background: var(--color-accent-400, #06b6d4);
+      background: var(--color-accent-400);
       cursor: pointer;
-      box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400, #06b6d4) 60%, transparent);
+      box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400) 60%, transparent);
     }
 
     &::-moz-range-thumb {
       width: 12px;
       height: 12px;
       border-radius: 50%;
-      background: var(--color-accent-400, #06b6d4);
+      background: var(--color-accent-400);
       border: none;
       cursor: pointer;
     }
@@ -1111,7 +1108,7 @@
   &__p2p-status {
     display: inline-flex;
     align-items: center;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     white-space: nowrap;
     margin-left: auto;
     color: var(--color-text-muted);
@@ -1121,14 +1118,14 @@
   &__recommend-card {
     flex-direction: row;
     align-items: center;
-    padding: 6px 8px;
+    padding: var(--size-gap-1-5) var(--size-gap-2);
   }
 
   &__recommend-play {
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--size-gap-2-5);
     border: none;
     background: transparent;
     color: inherit;
@@ -1141,9 +1138,9 @@
   &__recommend-actions {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     flex-shrink: 0;
-    margin-left: 4px;
+    margin-left: var(--size-gap-1);
   }
 
   &__recommend-action {
@@ -1153,19 +1150,19 @@
     width: 22px;
     height: 22px;
     border: none;
-    border-radius: var(--radius-sm, 6px);
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
 
     &:hover {
-      background: var(--element-bg-subtle, rgba(255, 255, 255, 0.1));
+      background: var(--element-bg-subtle);
       color: var(--color-text-primary);
     }
 
     &.is-active {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
     }
   }
 
@@ -1175,16 +1172,16 @@
     justify-content: center;
     width: 20px;
     height: 20px;
-    margin-left: 6px;
+    margin-left: var(--size-gap-1-5);
     border: none;
-    border-radius: var(--radius-sm, 6px);
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
     transition: color 0.15s ease;
 
     &:hover:not(:disabled) {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
     }
 
     &:disabled {
@@ -1198,8 +1195,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 24px 8px;
-      font-size: var(--font-size-sm, 13px);
+      padding: var(--size-gap-6) var(--size-gap-2);
+      font-size: var(--font-size-sm);
       color: var(--color-text-muted);
     }
   }

@@ -163,8 +163,8 @@
   &__template-notes {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 10px 12px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2-5) var(--size-gap-3);
     border: 1px solid var(--border-base);
     border-radius: $size-radius-sm;
     background: transparent;

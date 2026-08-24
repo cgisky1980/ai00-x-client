@@ -6,7 +6,7 @@
   display: flex;
   align-items: center;
   height: 36px;
-  padding: 0 4px;
+  padding: 0 var(--size-gap-1);
   background: var(--color-bg-scene);
   border-bottom: 1px solid var(--border-base);
 
@@ -35,8 +35,8 @@
   &__actions {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding-left: 8px;
+    gap: var(--size-gap-1);
+    padding-left: var(--size-gap-2);
     flex-shrink: 0;
   }
 
@@ -56,20 +56,20 @@
     transition: background-color 0.15s ease, color 0.15s ease;
 
     &:hover {
-      background: var(--color-bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-primary);
     }
 
     &--close-all:hover {
-      background: rgba(239, 68, 68, 0.15);
-      color: #ef4444;
+      background: var(--color-error-bg);
+      color: var(--color-error);
     }
 
     &--save {
       color: var(--color-warning);
 
       &:hover {
-        background: rgba(234, 179, 8, 0.15);
+        background: var(--color-warning);
         color: var(--color-warning);
       }
     }
@@ -78,7 +78,7 @@
       color: var(--color-text-secondary);
 
       &:hover {
-        background: rgba(156, 163, 175, 0.15);
+        background:color-mix(in srgb, var(--color-text-muted) 15%, transparent);
         color: var(--color-text-primary);
       }
     }

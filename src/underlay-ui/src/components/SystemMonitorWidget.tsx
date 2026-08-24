@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Card, CardContent, CardHeader, CardTitle } from "@underlay/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@ai00-x/design-system/react";
 import { Cpu, MemoryStick, Activity, Network, Database } from "lucide-react";
 import { cn } from "@underlay/lib/utils";
 
@@ -69,8 +69,8 @@ export function SystemMonitorWidget() {
         className="w-full h-full backdrop-blur-md border-black/10 overflow-hidden flex flex-col shadow-sm select-none text-zinc-800"
         style={{ backgroundColor: "rgba(255, 255, 255, 0.5)" }}
     >
-      <CardHeader className="pb-2 p-3 flex-shrink-0 border-b border-black/10">
-        <CardTitle className="text-xs font-bold uppercase tracking-wider text-zinc-600 flex items-center gap-2">
+      <CardHeader className="pb-2 p-3 flex-shrink-0 border-b border-line-subtle">
+        <CardTitle className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-2">
             <Activity className="h-3 w-3" />
             System Monitor
         </CardTitle>

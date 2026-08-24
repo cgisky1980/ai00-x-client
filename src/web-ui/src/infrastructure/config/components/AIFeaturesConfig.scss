@@ -46,9 +46,9 @@
 
   &__warning {
     max-width: 100%;
-    padding: 6px 10px;
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
     border-radius: $size-radius-sm;
-    border: 1px dashed rgba(234, 179, 8, 0.4);
+    border: 1px dashed var(--color-warning);
     color: var(--color-warning);
     font-size: var(--font-size-xs);
     line-height: $line-height-relaxed;

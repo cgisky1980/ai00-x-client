@@ -73,6 +73,15 @@ export const SETTINGS_TAB_SEARCH_CONTENT: Record<ConfigTab, readonly SettingsTab
     { ns: 'settings', key: 'configCenter.tabDescriptions.gesture' },
   ],
 
+  plugins: [
+    { ns: 'settings/plugins', key: 'title' },
+    { ns: 'settings/plugins', key: 'subtitle' },
+    { ns: 'settings/plugins', key: 'install.title' },
+    { ns: 'settings/plugins', key: 'install.description' },
+    { ns: 'settings/plugins', key: 'list.title' },
+    { ns: 'settings/plugins', key: 'list.description' },
+  ],
+
   'gesture-config': [
     { ns: 'settings', key: 'configCenter.tabs.gestureConfig' },
     { ns: 'settings', key: 'configCenter.tabDescriptions.gestureConfig' },

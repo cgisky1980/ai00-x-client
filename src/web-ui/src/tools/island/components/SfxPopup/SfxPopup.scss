@@ -21,22 +21,21 @@
 .sfx-popup {
   position: fixed;
   // left/top/width/height 由 useDraggable + usePopupResize 通过 inline style 控制
-  z-index: 50020;
+  z-index: var(--z-chrome-overlay);
   pointer-events: auto;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border-radius: 20px;
-  background: color-mix(in oklch, var(--color-bg-elevated, #1a1a22) 94%, transparent);
+  background: color-mix(in oklch, var(--color-bg-elevated) 94%, transparent);
   backdrop-filter: blur(32px) saturate(1.6);
   -webkit-backdrop-filter: blur(32px) saturate(1.6);
-  border: 1px solid color-mix(in oklch, var(--color-primary, #60a5fa) 22%, transparent);
-  box-shadow:
-    0 16px 48px rgba(0, 0, 0, 0.5),
-    0 0 24px color-mix(in oklch, var(--color-primary, #60a5fa) 12%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in oklch, var(--color-primary) 22%, transparent);
+  box-shadow:0 16px 48px var(--modal-overlay),
+    0 0 24px color-mix(in oklch, var(--color-primary) 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   animation: sfxPopupIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
-  color: var(--color-text-primary, #f8f8fa);
+  color: var(--color-text-primary);
 
   &.is-dragging,
   &.is-resizing {
@@ -45,10 +44,9 @@
     user-select: none;
   }
   &.is-dragging {
-    box-shadow:
-      0 24px 64px rgba(0, 0, 0, 0.6),
-      0 0 32px color-mix(in oklch, var(--color-primary, #60a5fa) 22%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    box-shadow:0 24px 64px var(--modal-overlay),
+      0 0 32px color-mix(in oklch, var(--color-primary) 22%, transparent),
+      inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   }
 
   // Popup uses theme color variables (follows global light/dark theme)
@@ -61,7 +59,7 @@
     transition: background 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 35%, transparent);
+      background: color-mix(in oklch, var(--color-accent-400) 35%, transparent);
     }
 
     &--n  { top: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
@@ -77,12 +75,12 @@
   // ===== Header (drag handle) =====
   &__header {
     flex-shrink: 0;
-    padding: 12px 16px;
+    padding: var(--size-gap-3) var(--size-gap-4);
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 8px;
-    border-bottom: 1px solid color-mix(in oklch, var(--color-primary, #60a5fa) 14%, transparent);
+    gap: var(--size-gap-2);
+    border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 14%, transparent);
     cursor: grab;
     user-select: none;
 
@@ -105,7 +103,7 @@
 
   &__title {
     flex: 1;
-    font-size: 14px;
+    font-size: var(--font-size-base);
     font-weight: 600;
     color: var(--color-text-primary);
   }
@@ -124,7 +122,7 @@
     transition: all 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 25%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
       color: var(--color-text-primary);
     }
   }
@@ -133,8 +131,8 @@
   &__categories {
     flex-shrink: 0;
     display: flex;
-    gap: 4px;
-    padding: 10px 12px 6px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-2-5) var(--size-gap-3) var(--size-gap-1-5);
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
@@ -147,31 +145,31 @@
   &__category-tab {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1-5) var(--size-gap-3);
     border: none;
     border-radius: 14px;
     background: color-mix(in oklch, var(--color-text-muted) 12%, transparent);
     color: var(--color-text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 18%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 18%, transparent);
       color: var(--color-text-secondary);
     }
 
     &.is-active {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 18%, transparent);
-      color: var(--color-accent-400, #06b6d4);
+      background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
+      color: var(--color-accent-400);
     }
   }
 
   &__category-icon {
-    font-size: 14px;
+    font-size: var(--font-size-base);
     line-height: 1;
   }
 
@@ -180,10 +178,10 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 8px 12px 12px;
+    padding: var(--size-gap-2) var(--size-gap-3) var(--size-gap-3);
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
+    gap: var(--size-gap-2);
     align-content: start;
     min-height: 0;
 
@@ -204,9 +202,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 32px;
+    padding: var(--size-gap-8);
     color: var(--color-text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
   }
 
   &__card {
@@ -215,11 +213,11 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 10px 4px 8px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-2-5) var(--size-gap-1) var(--size-gap-2);
     border: 1px solid color-mix(in oklch, var(--color-text-muted) 14%, transparent);
     border-radius: 10px;
-    background: color-mix(in oklch, var(--color-bg-tertiary, #42425a) 50%, transparent);
+    background: color-mix(in oklch, var(--color-bg-tertiary) 50%, transparent);
     color: var(--color-text-secondary);
     cursor: pointer;
     transition: all 0.15s ease;
@@ -227,10 +225,10 @@
     min-height: 80px;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 18%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 18%, transparent);
       color: var(--color-text-primary);
       transform: translateY(-1px);
-      border-color: color-mix(in oklch, var(--color-primary, #60a5fa) 30%, transparent);
+      border-color: color-mix(in oklch, var(--color-primary) 30%, transparent);
 
       .sfx-popup__card-overlay--hover {
         opacity: 1;
@@ -238,21 +236,21 @@
     }
 
     &.is-active {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 18%, transparent);
-      color: var(--color-accent-400, #06b6d4);
-      border-color: color-mix(in oklch, var(--color-accent-400, #06b6d4) 35%, transparent);
-      box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400, #06b6d4) 18%, transparent);
+      background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
+      color: var(--color-accent-400);
+      border-color: color-mix(in oklch, var(--color-accent-400) 35%, transparent);
+      box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 18%, transparent);
     }
   }
 
   &__card-icon {
-    font-size: 22px;
+    font-size: var(--font-size-3xl);
     line-height: 1;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+    filter: drop-shadow(0 1px 2px var(--modal-overlay));
   }
 
   &__card-name {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     text-align: center;
     line-height: 1.2;
@@ -273,8 +271,8 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--color-accent-400, #06b6d4);
-    box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-400, #06b6d4) 70%, transparent);
+    background: var(--color-accent-400);
+    box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-400) 70%, transparent);
     animation: sfxPulse 1.5s ease-in-out infinite;
   }
 
@@ -284,8 +282,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.45);
-    color: white;
+    background: var(--modal-overlay);
+    color: var(--color-accent-foreground);
     opacity: 0;
     transition: opacity 0.15s ease;
 
@@ -312,7 +310,7 @@
     justify-content: center;
     border: none;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--modal-overlay);
     color: var(--color-text-muted);
     cursor: pointer;
     opacity: 0;
@@ -323,25 +321,25 @@
     }
 
     &:hover {
-      color: #ef4444;
+      color: var(--color-error);
     }
   }
 
   // ===== Footer =====
   &__footer {
     flex-shrink: 0;
-    padding: 10px 16px 12px;
-    border-top: 1px solid color-mix(in oklch, var(--color-primary, #60a5fa) 14%, transparent);
+    padding: var(--size-gap-2-5) var(--size-gap-4) var(--size-gap-3);
+    border-top: 1px solid color-mix(in oklch, var(--color-primary) 14%, transparent);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   &__active-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -350,22 +348,22 @@
   &__stop-all {
     background: none;
     border: none;
-    color: var(--color-accent-400, #06b6d4);
-    font-size: 11px;
+    color: var(--color-accent-400);
+    font-size: var(--font-size-2xs);
     cursor: pointer;
-    padding: 2px 6px;
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     border-radius: 4px;
     transition: background 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 18%, transparent);
+      background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
     }
   }
 
   &__active-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     max-height: 80px;
     overflow-y: auto;
 
@@ -381,13 +379,13 @@
   &__chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px 4px 10px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2) var(--size-gap-1) var(--size-gap-2-5);
     border-radius: 14px;
-    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 16%, transparent);
-    border: 1px solid color-mix(in oklch, var(--color-accent-400, #06b6d4) 30%, transparent);
-    color: var(--color-accent-400, #06b6d4);
-    font-size: 11px;
+    background: color-mix(in oklch, var(--color-accent-400) 16%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-accent-400) 30%, transparent);
+    color: var(--color-accent-400);
+    font-size: var(--font-size-2xs);
   }
 
   &__chip-name {
@@ -403,7 +401,7 @@
     appearance: none;
     width: 40px;
     height: 2px;
-    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 30%, transparent);
+    background: color-mix(in oklch, var(--color-accent-400) 30%, transparent);
     border-radius: 1px;
     outline: none;
     cursor: pointer;
@@ -414,7 +412,7 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--color-accent-400, #06b6d4);
+      background: var(--color-accent-400);
       cursor: pointer;
     }
 
@@ -422,7 +420,7 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--color-accent-400, #06b6d4);
+      background: var(--color-accent-400);
       border: none;
       cursor: pointer;
     }
@@ -437,27 +435,27 @@
     border: none;
     border-radius: 50%;
     background: transparent;
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
     cursor: pointer;
     padding: 0;
     transition: background 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 25%, transparent);
+      background: color-mix(in oklch, var(--color-accent-400) 25%, transparent);
     }
   }
 
   &__active-empty {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
     text-align: center;
-    padding: 4px 0;
+    padding: var(--size-gap-1) 0;
   }
 
   &__volume-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   &__volume-toggle {
@@ -475,7 +473,7 @@
     transition: all 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary, #60a5fa) 25%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
       color: var(--color-text-primary);
     }
   }
@@ -496,16 +494,16 @@
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      background: var(--color-accent-400, #06b6d4);
+      background: var(--color-accent-400);
       cursor: pointer;
-      box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400, #06b6d4) 60%, transparent);
+      box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400) 60%, transparent);
     }
 
     &::-moz-range-thumb {
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      background: var(--color-accent-400, #06b6d4);
+      background: var(--color-accent-400);
       border: none;
       cursor: pointer;
     }

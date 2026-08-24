@@ -4,17 +4,17 @@
  */
 .floating-toolbar {
   position: absolute;
-  z-index: 2000;
+  z-index: var(--z-popover);
   background: var(--color-bg-elevated);
   border: 1px dashed var(--mermaid-highlight-stroke);
-  border-radius: var(--mermaid-cluster-radius, 8px);
+  border-radius: var(--mermaid-cluster-radius);
   box-shadow: 
-    0 4px 24px rgba(0, 0, 0, 0.25),
+    0 4px 24px var(--color-overlay),
     0 0 0 1px var(--border-subtle);
-  padding: 14px 16px;
+  padding: var(--size-gap-3-5) var(--size-gap-4);
   min-width: 280px;
   max-width: 90vw;
-  animation: toolbarSlideIn 0.2s var(--mermaid-transition-easing, ease);
+  animation: toolbarSlideIn 0.2s var(--mermaid-transition-easing);
   backdrop-filter: blur(12px);
   pointer-events: auto;
   margin: 0;
@@ -25,16 +25,16 @@
   isolation: isolate;
   user-select: text;
   transition: 
-    border-color var(--mermaid-transition-duration, 0.2s) ease,
-    box-shadow var(--mermaid-transition-duration, 0.2s) ease;
+    border-color var(--mermaid-transition-duration) ease,
+    box-shadow var(--mermaid-transition-duration) ease;
 
   &:hover {
     border-style: solid;
     border-color: var(--mermaid-highlight-stroke);
     box-shadow: 
-      0 8px 32px rgba(0, 0, 0, 0.35),
+      0 8px 32px var(--modal-overlay),
       0 0 0 1px var(--border-medium),
-      var(--mermaid-highlight-glow, 0 0 12px rgba(96, 165, 250, 0.15));
+      var(--mermaid-highlight-glow);
   }
 
   &[data-type="edge"] {
@@ -55,25 +55,25 @@
 
 .floating-toolbar ::selection {
   background: var(--mermaid-highlight-stroke);
-  color: white;
+  color: var(--color-accent-foreground);
 }
 
 .toolbar-content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--size-gap-2-5);
 }
 
 .toolbar-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--size-gap-2-5);
 }
 
 .toolbar-label {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
-  color: var(--mermaid-cluster-text, var(--color-text-secondary));
+  color: var(--mermaid-cluster-text);
   white-space: nowrap;
   min-width: 50px;
   letter-spacing: 0.3px;
@@ -81,21 +81,21 @@
 }
 
 .toolbar-input {
-  padding: 8px 12px;
+  padding: var(--size-gap-2) var(--size-gap-3);
   background: var(--element-bg-base);
   border: 1px dashed var(--border-medium);
-  border-radius: var(--mermaid-node-radius, 6px);
+  border-radius: var(--mermaid-node-radius);
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-family: inherit;
-  transition: all var(--mermaid-transition-duration, 0.2s) ease;
+  transition: all var(--mermaid-transition-duration) ease;
   flex: 1;
   min-width: 0;
   user-select: text;
 
   &::selection {
     background: var(--mermaid-highlight-stroke);
-    color: white;
+    color: var(--color-accent-foreground);
   }
 
   &::placeholder {
@@ -107,7 +107,7 @@
     border-style: solid;
     border-color: var(--mermaid-highlight-stroke);
     background: var(--element-bg-medium);
-    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.1);
+    box-shadow: 0 0 0 2px var(--color-accent-200);
   }
 
   &.node-input {
@@ -115,13 +115,13 @@
     min-width: 90px;
     text-align: center;
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
   }
 }
 
 .toolbar-arrow {
-  color: var(--mermaid-edge-stroke, var(--color-text-muted));
-  font-size: 16px;
+  color: var(--mermaid-edge-stroke);
+  font-size: var(--font-size-xl);
   font-weight: 600;
   flex: 0 0 auto;
   opacity: 0.8;
@@ -129,10 +129,10 @@
 
 .toolbar-buttons {
   display: flex;
-  gap: 8px;
+  gap: var(--size-gap-2);
   justify-content: flex-end;
-  margin-top: 6px;
-  padding-top: 10px;
+  margin-top: var(--size-gap-1-5);
+  padding-top: var(--size-gap-2-5);
   border-top: 1px dashed var(--border-subtle);
 }
 
@@ -140,11 +140,11 @@
   width: 32px;
   height: 32px;
   min-width: 32px;
-  border-radius: var(--mermaid-node-radius, 6px);
+  border-radius: var(--mermaid-node-radius);
   border: 1px dashed;
   background: transparent;
   cursor: pointer;
-  transition: all var(--mermaid-transition-duration, 0.15s) ease;
+  transition: all var(--mermaid-transition-duration) ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -180,11 +180,11 @@
 
 .toolbar-btn.save {
   color: var(--mermaid-success);
-  border-color: rgba(52, 211, 153, 0.35);
+  border-color: var(--color-success-bg);
   background: transparent;
 
   &:hover {
-    background: rgba(52, 211, 153, 0.12);
+    background: var(--color-success-bg);
     border-color: var(--mermaid-success);
   }
 
@@ -195,11 +195,11 @@
 
 .toolbar-btn.delete {
   color: var(--mermaid-error);
-  border-color: rgba(239, 68, 68, 0.35);
+  border-color: var(--color-error-bg);
   background: transparent;
 
   &:hover {
-    background: rgba(239, 68, 68, 0.12);
+    background: var(--color-error-bg);
     border-color: var(--mermaid-error);
   }
 
@@ -214,7 +214,7 @@
   background: transparent;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background:color-mix(in srgb, var(--color-text-primary) 6%, transparent);
     color: var(--color-text-primary);
     border-color: var(--border-strong);
   }
@@ -230,17 +230,15 @@
 [data-theme*="light"],
 .light {
   .floating-toolbar {
-    background: rgba(255, 255, 255, 0.98);
+    background: var(--color-text-primary);
     border-color: var(--mermaid-highlight-stroke);
-    box-shadow: 
-      0 4px 24px rgba(71, 85, 105, 0.10),
-      0 0 0 1px rgba(100, 116, 139, 0.08);
+    box-shadow:0 4px 24px color-mix(in srgb, var(--color-accent-600) 10%, transparent),
+      0 0 0 1px var(--color-text-muted);
 
     &:hover {
-      box-shadow: 
-        0 8px 32px rgba(71, 85, 105, 0.14),
-        0 0 0 1px rgba(100, 116, 139, 0.12),
-        0 0 16px rgba(90, 123, 178, 0.08);
+      box-shadow:0 8px 32px color-mix(in srgb, var(--color-accent-600) 14%, transparent),
+        0 0 0 1px var(--color-text-muted),
+        0 0 16px color-mix(in srgb, var(--color-accent-600) 8%, transparent);
     }
   }
 
@@ -249,57 +247,57 @@
   }
 
   .toolbar-input {
-    background: rgba(71, 102, 143, 0.04);
-    border-color: rgba(100, 116, 139, 0.18);
-    color: #1e293b;
+    background:color-mix(in srgb, var(--color-accent-500) 4%, transparent);
+    border-color: var(--color-text-muted);
+    color: var(--color-bg-secondary);
 
     &::placeholder {
-      color: #94a3b8;
+      color: var(--color-text-muted);
     }
 
     &:focus {
-      background: rgba(71, 102, 143, 0.06);
+      background:color-mix(in srgb, var(--color-accent-500) 6%, transparent);
       border-color: var(--mermaid-highlight-stroke);
-      box-shadow: 0 0 0 2px rgba(90, 123, 178, 0.10);
+      box-shadow:0 0 0 2px color-mix(in srgb, var(--color-accent-600) 10%, transparent);
     }
   }
 
   .toolbar-arrow {
-    color: #64748b;
+    color: var(--color-text-muted);
   }
 
   .toolbar-buttons {
-    border-top-color: rgba(100, 116, 139, 0.10);
+    border-top-color: var(--color-text-muted);
   }
 
   .toolbar-btn {
     &.save {
-      color: #5b9a6f;
-      border-color: rgba(91, 154, 111, 0.35);
+      color: var(--color-success);
+      border-color: var(--color-success);
 
       &:hover {
-        background: rgba(91, 154, 111, 0.10);
-        border-color: #5b9a6f;
+        background: var(--color-success-bg);
+        border-color: var(--color-success);
       }
     }
 
     &.delete {
-      color: #c26565;
-      border-color: rgba(194, 101, 101, 0.35);
+      color: var(--color-error);
+      border-color:color-mix(in srgb, var(--color-warning) 35%, transparent);
 
       &:hover {
-        background: rgba(194, 101, 101, 0.10);
-        border-color: #c26565;
+        background:color-mix(in srgb, var(--color-warning) 10%, transparent);
+        border-color: var(--color-error);
       }
     }
 
     &.cancel {
-      color: #64748b;
-      border-color: rgba(100, 116, 139, 0.20);
+      color: var(--color-text-muted);
+      border-color: var(--color-text-muted);
 
       &:hover {
-        background: rgba(71, 102, 143, 0.06);
-        color: #475569;
+        background:color-mix(in srgb, var(--color-accent-500) 6%, transparent);
+        color: var(--color-bg-elevated);
       }
     }
   }
@@ -309,7 +307,7 @@
   .floating-toolbar {
     min-width: 260px;
     max-width: calc(100vw - 32px);
-    padding: 12px 14px;
+    padding: var(--size-gap-3) var(--size-gap-3-5);
 
     &[data-type="edge"] {
       min-width: 300px;
@@ -317,7 +315,7 @@
   }
 
   .toolbar-row {
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   .toolbar-input.node-input {

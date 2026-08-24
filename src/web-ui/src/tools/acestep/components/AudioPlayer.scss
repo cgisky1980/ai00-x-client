@@ -6,15 +6,15 @@
  */
 .acestep-audio {
   width: 100%;
-  margin-top: 8px;
+  margin-top: var(--size-gap-2);
   border-radius: 8px;
   outline: none;
 }
 
 .acestep-audio__notice {
-  margin-top: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
+  margin-top: var(--size-gap-2);
+  padding: var(--size-gap-2) var(--size-gap-3);
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   background: var(--element-bg-soft);
   border: 1px solid var(--border-subtle);

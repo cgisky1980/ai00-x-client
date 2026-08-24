@@ -7,10 +7,10 @@
 
 // Variables
 $_statusbar-height: 22px;
-$_statusbar-font-size: 11px;
-$_statusbar-padding: 0 12px;
-$_item-gap: 4px;
-$_section-gap: 12px;
+$_statusbar-font-size: var(--font-size-2xs);
+$_statusbar-padding: 0 var(--size-gap-3);
+$_item-gap: var(--size-gap-1);
+$_section-gap: var(--size-gap-3);
 
 // Main Component
 .editor-status-bar {
@@ -20,7 +20,7 @@ $_section-gap: 12px;
   height: $_statusbar-height;
   padding: $_statusbar-padding;
   background: var(--color-bg-scene);
-  border-top: 1px solid var(--color-border-subtle);
+  border-top: 1px solid var(--border-subtle);
   font-size: $_statusbar-font-size;
   font-family: $font-family-mono;
   color: var(--color-text-muted);
@@ -40,7 +40,7 @@ $_section-gap: 12px;
     display: flex;
     align-items: center;
     gap: $_item-gap;
-    padding: 2px 6px;
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     border-radius: 3px;
     transition: all 0.15s ease;
     white-space: nowrap;
@@ -63,7 +63,7 @@ $_section-gap: 12px;
   &__separator {
     width: 1px;
     height: 12px;
-    background: var(--color-border-subtle);
+    background: var(--border-subtle);
     flex-shrink: 0;
   }
 
@@ -71,16 +71,16 @@ $_section-gap: 12px;
   &__selection {
     color: var(--color-text-muted);
     opacity: 0.7;
-    margin-left: 4px;
+    margin-left: var(--size-gap-1);
   }
 
   // Read-only Badge
   &__readonly {
-    background: rgba(251, 191, 36, 0.15);
-    color: #fbbf24;
-    padding: 1px 6px;
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
     border-radius: 3px;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -88,18 +88,18 @@ $_section-gap: 12px;
 
   // LSP Status
   &__lsp {
-    padding: 2px 4px;
+    padding: var(--size-gap-0-5) var(--size-gap-1);
     
     &--connected {
-      color: #10b981;
+      color: var(--color-success);
     }
     
     &--connecting {
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     
     &--disconnected {
-      color: #6b7280;
+      color: var(--color-text-muted);
       opacity: 0.6;
     }
   }
@@ -127,11 +127,11 @@ $_section-gap: 12px;
     }
     
     &__item {
-      padding: 2px 4px;
+      padding: var(--size-gap-0-5) var(--size-gap-1);
     }
     
     &__separator {
-      margin: 0 4px;
+      margin: 0 var(--size-gap-1);
     }
   }
 }
@@ -142,12 +142,12 @@ $_section-gap: 12px;
     border-top-width: 2px;
     
     &__indicator--modified {
-      fill: #fbbf24;
-      color: #fbbf24;
+      fill: var(--color-warning);
+      color: var(--color-warning);
     }
     
     &__indicator--saved {
-      color: #34d399;
+      color: var(--color-success);
     }
   }
 }

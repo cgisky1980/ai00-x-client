@@ -109,7 +109,7 @@ export function ForgotPasswordPage() {
     <div className="h-screen w-screen flex items-center justify-center bg-transparent">
       <div
         className="w-full h-full relative overflow-hidden rounded-xl border shadow-2xl"
-        style={{ borderColor: "var(--border)", backgroundColor: "var(--card-bg)" }}
+        style={{ borderColor: "var(--border-base)", backgroundColor: "var(--color-bg-card)" }}
       >
         <div className="absolute top-0 left-0 right-0 h-10 z-0" data-tauri-drag-region />
         <div className="absolute top-2 right-4 z-50 flex items-center gap-2">
@@ -117,7 +117,7 @@ export function ForgotPasswordPage() {
             type="button"
             onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
             className="btn-plain rounded-md px-2 py-1 text-xs font-medium"
-            style={{ color: "var(--text-50)" }}
+            style={{ color: "var(--color-text-muted)" }}
           >
             {locale === "zh" ? "EN" : "中"}
           </button>
@@ -137,14 +137,14 @@ export function ForgotPasswordPage() {
         <div className="h-full flex flex-col items-center justify-center px-8">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-90)" }}>
+              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--color-text-primary)" }}>
                 {t("forgotPasswordTitle") || "重置密码"}
               </h1>
             </div>
 
             {step === "identifier" ? (
               <form onSubmit={handleSendCode} className="space-y-4">
-                <p className="text-sm text-center" style={{ color: "var(--text-50)" }}>
+                <p className="text-sm text-center" style={{ color: "var(--color-text-muted)" }}>
                   {t("forgotPasswordStep1Desc") ||
                     "输入用户名或邮箱，我们将发送验证码到绑定邮箱"}
                 </p>
@@ -158,7 +158,7 @@ export function ForgotPasswordPage() {
                   />
                 </div>
                 {error && (
-                  <p className="text-sm" style={{ color: "var(--destructive)" }}>
+                  <p className="text-sm" style={{ color: "var(--color-error)" }}>
                     {error}
                   </p>
                 )}
@@ -169,7 +169,7 @@ export function ForgotPasswordPage() {
                   <button
                     type="button"
                     className="btn-plain text-sm"
-                    style={{ color: "rgb(var(--primary))" }}
+                    style={{ color: "var(--color-accent-500)" }}
                     onClick={handleBackToLogin}
                   >
                     {t("backToLogin") || "返回登录"}
@@ -178,7 +178,7 @@ export function ForgotPasswordPage() {
               </form>
             ) : step === "reset" ? (
               <form onSubmit={handleReset} className="space-y-4">
-                <p className="text-sm text-center" style={{ color: "var(--text-50)" }}>
+                <p className="text-sm text-center" style={{ color: "var(--color-text-muted)" }}>
                   {step2Desc}
                 </p>
                 <div>
@@ -220,7 +220,7 @@ export function ForgotPasswordPage() {
                   />
                 </div>
                 {error && (
-                  <p className="text-sm" style={{ color: "var(--destructive)" }}>
+                  <p className="text-sm" style={{ color: "var(--color-error)" }}>
                     {error}
                   </p>
                 )}
@@ -231,7 +231,7 @@ export function ForgotPasswordPage() {
                   <button
                     type="button"
                     className="btn-plain text-sm"
-                    style={{ color: "rgb(var(--primary))" }}
+                    style={{ color: "var(--color-accent-500)" }}
                     onClick={handleBackToLogin}
                   >
                     {t("backToLogin") || "返回登录"}
@@ -240,10 +240,10 @@ export function ForgotPasswordPage() {
               </form>
             ) : (
               <div className="text-center space-y-5">
-                <div className="text-2xl font-light mb-4" style={{ color: "var(--text-90)" }}>
+                <div className="text-2xl font-light mb-4" style={{ color: "var(--color-text-primary)" }}>
                   {t("passwordReset") || "密码已重置"}
                 </div>
-                <p className="text-sm" style={{ color: "var(--text-50)" }}>
+                <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
                   {t("passwordResetSuccess") ||
                     "密码已成功重置，请使用新密码登录"}
                 </p>

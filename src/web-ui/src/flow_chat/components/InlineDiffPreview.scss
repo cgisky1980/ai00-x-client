@@ -9,8 +9,8 @@
   position: relative;
   width: 100%;
   background: transparent;
-  font-family: var(--markdown-font-mono, "Fira Code", "JetBrains Mono", Consolas, "Courier New", monospace);
-  font-size: 12px;
+  font-family: var(--markdown-font-mono);
+  font-size: var(--font-size-xs);
   font-weight: 400;
   
   &__content {
@@ -28,11 +28,11 @@
     }
     
     &::-webkit-scrollbar-thumb {
-      background: var(--color-scrollbar-thumb);
+      background: var(--border-strong);
       border-radius: 3px;
       
       &:hover {
-        background: var(--color-scrollbar-thumb-hover);
+        background: var(--color-text-muted);
       }
     }
   }
@@ -43,7 +43,7 @@
     justify-content: center;
     min-height: 60px;
     color: var(--color-text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-style: italic;
   }
   
@@ -74,27 +74,27 @@
   }
   
   &--added {
-    background: rgba(63, 185, 80, 0.12);
+    background: var(--color-success-bg);
     
     .diff-line__gutter {
-      background: rgba(63, 185, 80, 0.18);
+      background: var(--color-success-bg);
     }
     
     .diff-line__prefix {
-      color: #3fb950;
+      color: var(--color-success);
       font-weight: 500;
     }
   }
   
   &--removed {
-    background: rgba(248, 81, 73, 0.12);
+    background: var(--color-error-bg);
     
     .diff-line__gutter {
-      background: rgba(248, 81, 73, 0.18);
+      background: var(--color-error-bg);
     }
     
     .diff-line__prefix {
-      color: #f85149;
+      color: var(--color-error);
       font-weight: 500;
     }
     
@@ -105,17 +105,17 @@
   
   // Highlighted row (selected).
   &--highlighted {
-    background: rgba(136, 182, 255, 0.15) !important;
+    background:color-mix(in srgb, var(--color-accent-500) 15%, transparent) !important;
     
     .diff-line__gutter {
-      background: rgba(136, 182, 255, 0.22) !important;
+      background:color-mix(in srgb, var(--color-accent-500) 22%, transparent) !important;
     }
   }
   
   &--separator {
     background: var(--color-bg-tertiary);
     justify-content: center;
-    padding: 4px 0;
+    padding: var(--size-gap-1) 0;
     cursor: default;
     
     &:hover {
@@ -128,7 +128,7 @@
     
     .diff-line__content--separator {
       color: var(--color-text-muted);
-      font-size: 11px;
+      font-size: var(--font-size-2xs);
       font-style: italic;
       text-align: center;
     }
@@ -138,38 +138,38 @@
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    padding: 0 8px;
-    gap: 2px;
+    padding: 0 var(--size-gap-2);
+    gap: var(--size-gap-0-5);
     background: var(--color-bg-secondary);
     user-select: none;
-    border-right: 1px solid var(--color-border-subtle);
+    border-right: 1px solid var(--border-subtle);
 
     &--single {
-      padding: 0 4px;
+      padding: 0 var(--size-gap-1);
       gap: 0;
 
       .diff-line__num {
         min-width: 24px;
-        padding: 0 4px;
+        padding: 0 var(--size-gap-1);
       }
     }
   }
 
   &__num {
     min-width: 32px;
-    padding: 0 6px;
+    padding: 0 var(--size-gap-1-5);
     text-align: right;
     color: var(--color-text-muted);
     opacity: 0.6;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
 
     &--original {
-      border-right: 1px solid var(--color-border-subtle);
-      padding-right: 8px;
+      border-right: 1px solid var(--border-subtle);
+      padding-right: var(--size-gap-2);
     }
 
     &--modified {
-      padding-left: 8px;
+      padding-left: var(--size-gap-2);
     }
   }
 
@@ -185,7 +185,7 @@
   
   &__content {
     flex: 1;
-    padding: 0 8px;
+    padding: 0 var(--size-gap-2);
     white-space: pre-wrap;
     word-break: break-word;
     overflow: hidden;
@@ -216,48 +216,48 @@
 .light .inline-diff-preview {
   .diff-line {
     &--added {
-      background: rgba(91, 154, 111, 0.12);
+      background: var(--color-success);
       
       .diff-line__gutter {
-        background: rgba(91, 154, 111, 0.18);
+        background: var(--color-success);
       }
       
       .diff-line__prefix {
-        color: #4a8560;
+        color: var(--color-success);
       }
     }
     
     &--removed {
-      background: rgba(194, 101, 101, 0.12);
+      background:color-mix(in srgb, var(--color-warning) 12%, transparent);
       
       .diff-line__gutter {
-        background: rgba(194, 101, 101, 0.18);
+        background:color-mix(in srgb, var(--color-warning) 18%, transparent);
       }
       
       .diff-line__prefix {
-        color: #a85454;
+        color: var(--color-error);
       }
     }
     
     &--highlighted {
-      background: rgba(90, 123, 178, 0.10) !important;
+      background:color-mix(in srgb, var(--color-accent-600) 10%, transparent) !important;
       
       .diff-line__gutter {
-        background: rgba(90, 123, 178, 0.15) !important;
+        background:color-mix(in srgb, var(--color-accent-600) 15%, transparent) !important;
       }
     }
   }
   
   .diff-line__gutter {
-    background: rgba(0, 0, 0, 0.03);
-    border-right-color: rgba(0, 0, 0, 0.08);
+    background:color-mix(in srgb, var(--color-bg-sunken) 10%, transparent);
+    border-right-color:color-mix(in srgb, var(--color-bg-sunken) 10%, transparent);
   }
 
   .diff-line__num {
-    color: #6e7781;
+    color: var(--color-text-muted);
 
     &--original {
-      border-right-color: rgba(0, 0, 0, 0.1);
+      border-right-color:color-mix(in srgb, var(--color-bg-sunken) 10%, transparent);
     }
   }
 }

@@ -6,19 +6,19 @@
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: 12px;
+  padding: var(--size-gap-3) var(--size-gap-4);
+  margin-bottom: var(--size-gap-3);
   animation: slideDown 0.2s ease-out;
 
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: var(--size-gap-2-5);
   }
 
   &__title {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--color-text-primary);
   }
@@ -26,9 +26,9 @@
   &__close {
     background: none;
     border: none;
-    padding: 4px;
+    padding: var(--size-gap-1);
     cursor: pointer;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -36,7 +36,7 @@
     transition: all 0.2s;
 
     &:hover {
-      background: var(--color-bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-primary);
     }
   }
@@ -44,19 +44,19 @@
   &__actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   &__action {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2) var(--size-gap-3-5);
     border: 1px solid var(--color-border);
     border-radius: 6px;
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -67,10 +67,10 @@
     }
 
     &:hover:not(:disabled) {
-      background: var(--color-bg-hover);
+      background: var(--color-bg-secondary);
       border-color: var(--color-primary);
       transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      box-shadow:var(--shadow-sm);
     }
 
     &:active:not(:disabled) {
@@ -85,7 +85,7 @@
     // Primary button styles
     &--primary {
       background: var(--color-primary);
-      color: white;
+      color: var(--color-accent-foreground);
       border-color: var(--color-primary);
 
       &:hover:not(:disabled) {
@@ -97,12 +97,12 @@
     // Danger button styles
     &--danger {
       background: var(--color-danger);
-      color: white;
+      color: var(--color-accent-foreground);
       border-color: var(--color-danger);
 
       &:hover:not(:disabled) {
-        background: var(--color-danger-hover);
-        border-color: var(--color-danger-hover);
+        background: var(--color-error);
+        border-color: var(--color-error);
       }
     }
   }

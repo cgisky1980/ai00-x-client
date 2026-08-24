@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FolderOpen, Clock, FileText, Code, Folder } from 'lucide-react';
 import { useWorkspaceContext } from '../../../infrastructure/contexts/WorkspaceContext';
 import { WorkspaceInfo, WorkspaceType } from '../../../shared/types';
-import { Modal } from '@/component-library';
+import { Modal, Button } from '@/component-library';
 import { i18nService, useI18n } from '@/infrastructure/i18n';
 import { createLogger } from '@/shared/utils/logger';
 import { getRecentWorkspaceLineParts } from '@/shared/utils/recentWorkspaceDisplay';
@@ -132,20 +132,22 @@ const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({
               </div>
 
               <div className="workspace-actions">
-                <button
-                  className="btn btn-secondary btn-small"
+                <Button
+                  variant="secondary"
+                  size="small"
                   onClick={handleScanWorkspace}
                   disabled={scanning}
                 >
                   {scanning ? t('workspace.scanning') : t('workspace.rescan')}
-                </button>
-                <button
-                  className="btn btn-danger btn-small"
+                </Button>
+                <Button
+                  variant="danger"
+                  size="small"
                   onClick={handleCloseWorkspace}
                   disabled={loading}
                 >
                   {t('workspace.closeWorkspace')}
-                </button>
+                </Button>
               </div>
 
               {currentWorkspace.statistics && (

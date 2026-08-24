@@ -2,56 +2,49 @@
 .workspace-manager {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--size-gap-6);
   max-height: 70vh;
   overflow-y: auto;
 }
 
 /* Error banner with glassmorphism */
 .error-message {
-  padding: 12px 16px;
-  background: linear-gradient(135deg,
-    rgba(239, 68, 68, 0.1) 0%,
-    rgba(239, 68, 68, 0.05) 100%);
+  padding: var(--size-gap-3) var(--size-gap-4);
+  background:linear-gradient(135deg,
+    color-mix(in srgb, var(--color-error) 10%, transparent) 0%,
+    color-mix(in srgb, var(--color-error) 5%, transparent) 100%);
   color: var(--color-error);
   border-radius: 12px;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  border:1px solid color-mix(in srgb, var(--color-error) 20%, transparent);
   backdrop-filter: blur(12px) saturate(1.05);
   -webkit-backdrop-filter: blur(12px) saturate(1.05);
-  box-shadow: 
-    0 8px 32px rgba(239, 68, 68, 0.12),
-    0 4px 16px rgba(0, 0, 0, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow:var(--shadow-xl);
 }
 
 /* Section headings */
 .workspace-manager h3 {
-  margin: 0 0 16px 0;
-  font-size: 18px;
+  margin: 0 0 var(--size-gap-4) 0;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
   color: var(--color-accent-500);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
 }
 
 /* Glassmorphism workspace card */
 .workspace-card {
   position: relative;
-  border: 1px solid rgba(96, 165, 250, 0.15);
+  border:1px solid color-mix(in srgb, var(--color-accent-500) 15%, transparent);
   border-radius: 16px;
-  padding: 20px 24px;
-  background: linear-gradient(135deg,
-    rgba(96, 165, 250, 0.08) 0%,
-    rgba(59, 130, 246, 0.04) 50%,
-    rgba(96, 165, 250, 0.06) 100%);
+  padding: var(--size-gap-5) var(--size-gap-6);
+  background:linear-gradient(135deg,
+    color-mix(in srgb, var(--color-accent-500) 8%, transparent) 0%,
+    color-mix(in srgb, var(--color-accent-600) 4%, transparent) 50%,
+    color-mix(in srgb, var(--color-accent-500) 6%, transparent) 100%);
   backdrop-filter: blur(12px) saturate(1.05);
   -webkit-backdrop-filter: blur(12px) saturate(1.05);
-  box-shadow: 
-    0 8px 32px rgba(96, 165, 250, 0.12),
-    0 4px 16px rgba(0, 0, 0, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow:var(--shadow-xl);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   animation: slideInUp 0.4s ease-out;
 }
@@ -63,27 +56,22 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg,
-    rgba(255, 255, 255, 0.02) 0%,
+  background:linear-gradient(135deg,
+    color-mix(in srgb, var(--color-text-primary) 2%, transparent) 0%,
     transparent 50%,
-    rgba(255, 255, 255, 0.01) 100%);
+    color-mix(in srgb, var(--color-text-primary) 1%, transparent) 100%);
   pointer-events: none;
   border-radius: 16px;
   z-index: 1;
 }
 
 .workspace-card.current {
-  border-color: rgba(96, 165, 250, 0.25);
-  background: linear-gradient(135deg,
-    rgba(96, 165, 250, 0.15) 0%,
-    rgba(59, 130, 246, 0.08) 50%,
-    rgba(96, 165, 250, 0.12) 100%);
-  box-shadow: 
-    0 8px 32px rgba(96, 165, 250, 0.15),
-    0 4px 16px rgba(0, 0, 0, 0.08),
-    0 2px 8px rgba(0, 0, 0, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+  border-color:color-mix(in srgb, var(--color-accent-500) 25%, transparent);
+  background:linear-gradient(135deg,
+    color-mix(in srgb, var(--color-accent-500) 15%, transparent) 0%,
+    color-mix(in srgb, var(--color-accent-600) 8%, transparent) 50%,
+    color-mix(in srgb, var(--color-accent-500) 12%, transparent) 100%);
+  box-shadow:var(--shadow-xl);
 }
 
 .workspace-card.recent {
@@ -91,25 +79,21 @@
 }
 
 .workspace-card.recent:hover {
-  border-color: rgba(96, 165, 250, 0.25);
-  background: linear-gradient(135deg,
-    rgba(96, 165, 250, 0.12) 0%,
-    rgba(59, 130, 246, 0.06) 50%,
-    rgba(96, 165, 250, 0.08) 100%);
+  border-color:color-mix(in srgb, var(--color-accent-500) 25%, transparent);
+  background:linear-gradient(135deg,
+    color-mix(in srgb, var(--color-accent-500) 12%, transparent) 0%,
+    color-mix(in srgb, var(--color-accent-600) 6%, transparent) 50%,
+    color-mix(in srgb, var(--color-accent-500) 8%, transparent) 100%);
   transform: translateY(-2px);
-  box-shadow: 
-    0 12px 40px rgba(96, 165, 250, 0.15),
-    0 6px 20px rgba(0, 0, 0, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow:var(--shadow-2xl);
 }
 
 .workspace-header {
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: var(--size-gap-4);
+  margin-bottom: var(--size-gap-4);
   z-index: 2;
 }
 
@@ -119,21 +103,19 @@
   justify-content: center;
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-  color: white;
+  background:linear-gradient(135deg, var(--color-accent-500) 0%, var(--color-accent-500) 100%);
+  color:var(--color-text-primary);
   border-radius: 12px;
   flex-shrink: 0;
-  box-shadow: 
-    0 4px 16px rgba(96, 165, 250, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow:0 4px 16px color-mix(in srgb, var(--color-accent-500) 25%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 20%, transparent);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .workspace-icon:hover {
   transform: scale(1.05);
-  box-shadow: 
-    0 6px 20px rgba(96, 165, 250, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow:0 6px 20px color-mix(in srgb, var(--color-accent-500) 30%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 25%, transparent);
 }
 
 .workspace-info {
@@ -143,72 +125,72 @@
 }
 
 .workspace-name {
-  font-size: 18px;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
   color: var(--color-accent-500);
-  margin-bottom: 6px;
+  margin-bottom: var(--size-gap-1-5);
   word-break: break-all;
   line-height: 1.3;
 }
 
 .workspace-name__ssh-host {
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.55);
-  margin-right: 2px;
+  color:color-mix(in srgb, var(--color-text-primary) 55%, transparent);
+  margin-right: var(--size-gap-0-5);
 }
 
 .workspace-path {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 12px;
+  font-size: var(--font-size-base);
+  color:color-mix(in srgb, var(--color-text-primary) 70%, transparent);
+  margin-bottom: var(--size-gap-3);
   word-break: break-all;
   font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 4px 8px;
+  background:color-mix(in srgb, var(--color-bg-sunken) 20%, transparent);
+  padding: var(--size-gap-1) var(--size-gap-2);
   border-radius: 6px;
-  border: 1px solid rgba(96, 165, 250, 0.1);
+  border:1px solid color-mix(in srgb, var(--color-accent-500) 10%, transparent);
 }
 
 .workspace-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--size-gap-3);
   flex-wrap: wrap;
 }
 
 .workspace-identity {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
+  gap: var(--size-gap-2);
+  margin-top: var(--size-gap-2-5);
 }
 
 .workspace-identity__item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: var(--size-gap-1-5);
+  padding: var(--size-gap-1) var(--size-gap-2-5);
   border-radius: 999px;
-  background: rgba(96, 165, 250, 0.08);
-  border: 1px solid rgba(96, 165, 250, 0.14);
+  background:color-mix(in srgb, var(--color-accent-500) 8%, transparent);
+  border:1px solid color-mix(in srgb, var(--color-accent-500) 14%, transparent);
 }
 
 .workspace-identity__label {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: rgba(255, 255, 255, 0.55);
+  color:color-mix(in srgb, var(--color-text-primary) 55%, transparent);
 }
 
 .workspace-identity__value {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-accent-500);
 }
 
 .workspace-type {
-  font-size: 12px;
-  padding: 2px 8px;
-  background-color: var(--secondary-bg);
+  font-size: var(--font-size-xs);
+  padding: var(--size-gap-0-5) var(--size-gap-2);
+  background-color: var(--color-bg-secondary);
   color: var(--text-secondary);
   border-radius: 4px;
   text-transform: capitalize;
@@ -217,16 +199,16 @@
 .workspace-time {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: var(--size-gap-1);
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
 }
 
 .workspace-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--size-gap-3);
   flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: var(--size-gap-2);
   z-index: 2;
   position: relative;
 }
@@ -235,44 +217,44 @@
 .workspace-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 16px;
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid rgba(96, 165, 250, 0.15);
+  gap: var(--size-gap-4);
+  margin-top: var(--size-gap-5);
+  padding-top: var(--size-gap-5);
+  border-top:1px solid color-mix(in srgb, var(--color-accent-500) 15%, transparent);
   position: relative;
 }
 
 .stat-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 16px;
-  background: linear-gradient(135deg,
-    rgba(96, 165, 250, 0.04) 0%,
-    rgba(59, 130, 246, 0.02) 100%);
+  gap: var(--size-gap-1-5);
+  padding: var(--size-gap-3) var(--size-gap-4);
+  background:linear-gradient(135deg,
+    color-mix(in srgb, var(--color-accent-500) 4%, transparent) 0%,
+    color-mix(in srgb, var(--color-accent-600) 2%, transparent) 100%);
   border-radius: 8px;
-  border: 1px solid rgba(96, 165, 250, 0.1);
+  border:1px solid color-mix(in srgb, var(--color-accent-500) 10%, transparent);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .stat-item:hover {
-  background: linear-gradient(135deg,
-    rgba(96, 165, 250, 0.08) 0%,
-    rgba(59, 130, 246, 0.04) 100%);
-  border-color: rgba(96, 165, 250, 0.15);
+  background:linear-gradient(135deg,
+    color-mix(in srgb, var(--color-accent-500) 8%, transparent) 0%,
+    color-mix(in srgb, var(--color-accent-600) 4%, transparent) 100%);
+  border-color:color-mix(in srgb, var(--color-accent-500) 15%, transparent);
   transform: translateY(-1px);
 }
 
 .stat-label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  font-size: var(--font-size-xs);
+  color:color-mix(in srgb, var(--color-text-primary) 60%, transparent);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .stat-value {
-  font-size: 16px;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   color: var(--color-accent-500);
 }
@@ -284,33 +266,33 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 20px;
+  padding: var(--size-gap-12) var(--size-gap-5);
   text-align: center;
-  color: rgba(255, 255, 255, 0.6);
-  background: linear-gradient(135deg,
-    rgba(96, 165, 250, 0.03) 0%,
-    rgba(59, 130, 246, 0.01) 100%);
+  color:color-mix(in srgb, var(--color-text-primary) 60%, transparent);
+  background:linear-gradient(135deg,
+    color-mix(in srgb, var(--color-accent-500) 3%, transparent) 0%,
+    color-mix(in srgb, var(--color-accent-600) 1%, transparent) 100%);
   border-radius: 12px;
-  border: 1px dashed rgba(96, 165, 250, 0.2);
+  border:1px dashed color-mix(in srgb, var(--color-accent-500) 20%, transparent);
 }
 
 .no-workspace svg {
-  margin-bottom: 20px;
-  color: rgba(96, 165, 250, 0.4);
+  margin-bottom: var(--size-gap-5);
+  color:color-mix(in srgb, var(--color-accent-500) 40%, transparent);
   opacity: 0.8;
 }
 
 .no-workspace p,
 .no-recent p {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-xl);
   font-weight: 500;
 }
 
 .workspace-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--size-gap-3);
 }
 
 /* Entry animation */
@@ -328,11 +310,11 @@
 /* Responsive */
 @media (max-width: 768px) {
   .workspace-manager {
-    gap: 16px;
+    gap: var(--size-gap-4);
   }
   
   .workspace-header {
-    gap: 12px;
+    gap: var(--size-gap-3);
   }
   
   .workspace-icon {
@@ -342,14 +324,14 @@
   
   .workspace-stats {
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: var(--size-gap-3);
   }
   
   .workspace-actions {
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
   
   .workspace-card {
-    padding: 16px 20px;
+    padding: var(--size-gap-4) var(--size-gap-5);
   }
 }

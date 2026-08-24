@@ -17,7 +17,8 @@ html, body {
   padding: 0;
   height: 100vh;
   width: 100vw;
-  background: var(--color-bg-primary);
+  /* 只设 background-color：shorthand 会重置 texture.css 的宣纸颗粒 background-image（v0.10 教训） */
+  background-color: var(--color-bg-primary);
   overflow: hidden;
 }
 
@@ -135,7 +136,7 @@ body:has(.ai00-x-app-layout--overlay) {
   min-height: 600px;
   border-radius: 12px;
   overflow: visible;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px var(--modal-overlay), 0 2px 8px var(--color-overlay);
   border: 1px solid var(--border-subtle);
   pointer-events: auto;
   background-color: var(--color-bg-primary);

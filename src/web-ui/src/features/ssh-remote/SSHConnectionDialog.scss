@@ -11,13 +11,13 @@
 
   &__error-banner {
     flex-shrink: 0;
-    padding: 8px 16px 10px;
+    padding: var(--size-gap-2) var(--size-gap-4) var(--size-gap-2-5);
     border-bottom: 1px solid var(--border-subtle);
     background: var(--color-bg-primary);
   }
 
   &__error-alert.alert {
-    padding: 8px 10px;
+    padding: var(--size-gap-2) var(--size-gap-2-5);
     align-items: center;
   }
 
@@ -25,20 +25,20 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 10px 0 6px;
+    padding: var(--size-gap-2-5) 0 var(--size-gap-1-5);
   }
 
   &__section {
-    margin-bottom: 12px;
-    padding: 0 16px;
+    margin-bottom: var(--size-gap-3);
+    padding: 0 var(--size-gap-4);
   }
 
   &__section-title {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     font-family: inherit;
     color: var(--color-text-muted);
-    margin: 0 0 6px 0;
+    margin: 0 0 var(--size-gap-1-5) 0;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -46,14 +46,14 @@
   &__saved-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__saved-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 5px 10px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-1) var(--size-gap-2-5);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     background: var(--card-bg-default);
@@ -72,8 +72,8 @@
 
     &--config {
       .ssh-connection-dialog__saved-icon {
-        background: var(--color-success-100);
-        color: var(--color-success-500);
+        background: var(--color-success-bg);
+        color: var(--color-success);
       }
     }
   }
@@ -93,13 +93,13 @@
   &__saved-info {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: var(--size-gap-0-25);
     min-width: 0;
     flex: 1;
   }
 
   &__saved-name {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     font-family: inherit;
     color: var(--color-text-primary);
@@ -110,7 +110,7 @@
   }
 
   &__saved-detail {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 400;
     font-family: inherit;
     color: var(--color-text-muted);
@@ -130,12 +130,12 @@
   &__saved-auth {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2);
     background: var(--element-bg-subtle);
     border: 1px solid var(--border-subtle);
     border-radius: 4px;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
     white-space: nowrap;
   }
@@ -143,7 +143,7 @@
   &__saved-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex-shrink: 0;
     opacity: 0;
     transition: opacity var(--motion-fast) var(--easing-standard);
@@ -166,9 +166,9 @@
   &__divider {
     display: flex;
     align-items: center;
-    gap: 16px;
-    margin: 12px 16px;
-    padding-top: 4px;
+    gap: var(--size-gap-4);
+    margin: var(--size-gap-3) var(--size-gap-4);
+    padding-top: var(--size-gap-1);
 
     &::before,
     &::after {
@@ -179,7 +179,7 @@
     }
 
     span {
-      font-size: 11px;
+      font-size: var(--font-size-2xs);
       font-weight: 500;
       font-family: inherit;
       color: var(--color-text-muted);
@@ -192,13 +192,13 @@
   &__form {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 0 16px;
+    gap: var(--size-gap-3);
+    padding: 0 var(--size-gap-4);
   }
 
   &__row {
     display: flex;
-    gap: 12px;
+    gap: var(--size-gap-3);
   }
 
   &__field {
@@ -214,33 +214,33 @@
 
   &__browse-key {
     flex-shrink: 0;
-    margin-right: -6px;
+    margin-right: calc(var(--size-gap-1-5) * -1);
   }
 
   &__label {
     display: block;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     font-family: inherit;
     color: var(--color-text-muted);
-    margin-bottom: 6px;
+    margin-bottom: var(--size-gap-1-5);
   }
 
   &__actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--size-gap-2);
     flex-shrink: 0;
     margin-top: 0;
-    padding: 8px 16px;
+    padding: var(--size-gap-2) var(--size-gap-4);
     border-top: 1px solid var(--border-subtle);
     background: var(--color-bg-primary);
 
     .btn.btn-sm {
       height: 28px;
       min-height: 28px;
-      padding: 0 10px;
-      font-size: 11px;
+      padding: 0 var(--size-gap-2-5);
+      font-size: var(--font-size-2xs);
     }
 
     .btn-loading-icon {
@@ -251,7 +251,7 @@
 
   &__spinner {
     animation: spin 1s linear infinite;
-    margin-right: 6px;
+    margin-right: var(--size-gap-1-5);
   }
 }
 
@@ -264,7 +264,7 @@
   }
 }
 
-/** SSH remote workspace dialog only: above nav fixed popovers (~10k) so the dimmed backdrop captures clicks. */
+/** SSH remote workspace dialog only: above nav fixed popovers (--z-modal) so the dimmed backdrop captures clicks. */
 .ssh-connection-dialog__modal-overlay {
-  z-index: 20000;
+  z-index: var(--z-modal-active);
 }

@@ -16,8 +16,8 @@
   &__detail-tag {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2-5);
     border-radius: $size-radius-full;
     background: var(--element-bg-medium);
     border: 1px solid var(--border-subtle);

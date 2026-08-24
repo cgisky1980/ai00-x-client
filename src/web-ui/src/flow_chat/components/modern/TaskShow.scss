@@ -6,7 +6,7 @@
   border: 1px solid var(--border-base);
   background: var(--color-bg-flowchat);
   backdrop-filter: blur(10px);
-  padding: 0 12px;
+  padding: 0 var(--size-gap-3);
   height: 34px;
   display: flex;
   align-items: center;
@@ -16,45 +16,45 @@
     cursor: pointer;
 
     &:hover {
-      background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+      background: var(--color-bg-secondary);
     }
   }
 
   &--blue {
     .task-show__icon,
     .task-show__label {
-      color: #3b82f6;
+      color: var(--color-accent-600);
     }
     .task-show__progress-fill {
-      background: #3b82f6;
+      background: var(--color-accent-600);
     }
   }
 
   &--purple {
     .task-show__icon,
     .task-show__label {
-      color: #8b5cf6;
+      color: var(--color-accent-500);
     }
   }
 
   &--yellow {
     .task-show__icon,
     .task-show__label {
-      color: #f59e0b;
+      color: var(--color-warning);
     }
   }
 
   &--green {
     .task-show__icon,
     .task-show__label {
-      color: #22c55e;
+      color: var(--color-success);
     }
   }
 
   &__content {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     width: 100%;
     min-width: 0;
   }
@@ -66,7 +66,7 @@
   }
 
   &__name {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     color: var(--text-primary);
     white-space: nowrap;
@@ -76,13 +76,13 @@
   }
 
   &__label {
-    font-size: 0.8125rem;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     white-space: nowrap;
   }
 
   &__count {
-    font-size: 0.75rem;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
     white-space: nowrap;
     flex-shrink: 0;
@@ -93,7 +93,7 @@
     min-width: 40px;
     max-width: 120px;
     height: 3px;
-    background: var(--bg-tertiary, #313244);
+    background: var(--color-bg-tertiary);
     border-radius: 2px;
     overflow: hidden;
   }
@@ -107,8 +107,8 @@
   &__action {
     display: flex;
     align-items: center;
-    gap: 2px;
-    font-size: 0.75rem;
+    gap: var(--size-gap-0-5);
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
     white-space: nowrap;
     margin-left: auto;

@@ -6,8 +6,8 @@
 .canvas-tab {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 8px;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-1-5) var(--size-gap-2);
   min-width: 80px;
   max-width: 180px;
   height: 32px;
@@ -21,7 +21,7 @@
   border-bottom: 1px solid transparent;
 
   &:hover {
-    background: var(--color-bg-hover);
+    background: var(--color-bg-secondary);
   }
 
   // ==================== State styles ====================
@@ -99,7 +99,7 @@
     flex-shrink: 0;
 
     &:hover {
-      background: var(--color-bg-hover);
+      background: var(--color-bg-secondary);
     }
   }
 
@@ -110,7 +110,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     // Inactive state: lighter text color
     color: var(--color-text-secondary);
     line-height: 1.4;
@@ -131,9 +131,9 @@
   &__dirty-indicator {
     display: none;
     flex-shrink: 0;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     color: var(--color-warning);
-    margin-left: 2px;
+    margin-left: var(--size-gap-0-5);
   }
 
   // Pop out button
@@ -154,7 +154,7 @@
     transition: opacity 0.15s ease, background-color 0.15s ease;
 
     &:hover {
-      background: var(--color-bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-primary);
     }
   }
@@ -182,7 +182,7 @@
     transition: opacity 0.15s ease, background-color 0.15s ease;
 
     &:hover {
-      background: var(--color-bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-primary);
     }
   }

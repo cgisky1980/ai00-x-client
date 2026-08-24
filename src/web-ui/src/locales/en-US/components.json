@@ -64,151 +64,6 @@
     "userCompletedShort": "User completed reproduction",
     "operationFailed": "Operation failed, please retry"
   },
-  "flowChatCards": {
-    "todoCard": {
-      "title": "Task Management",
-      "description": "Manage task list",
-      "total": "Total",
-      "inProgress": "In Progress",
-      "completed": "Completed",
-      "noTasks": "No tasks",
-      "taskCount": "{{total}} tasks / {{completed}} completed"
-    },
-    "webSearchCard": {
-      "searchTitle": "Web Search",
-      "fetchTitle": "Fetch URL",
-      "searchQuery": "Search Query",
-      "url": "URL",
-      "results": "Search Results",
-      "resultsCount": "{{count}} results",
-      "resultCount": "Results",
-      "noResults": "No results found",
-      "searching": "Searching...",
-      "searchDesc": "Search web content",
-      "fetchDesc": "Fetch web URL content",
-      "unspecifiedQuery": "Unspecified query"
-    },
-    "snapshotCard": {
-      "writeFile": "Write File",
-      "editFile": "Edit File",
-      "deleteFile": "Delete File",
-      "multiEdit": "Multi Edit",
-      "accept": "Accept changes",
-      "reject": "Reject changes",
-      "viewDetails": "View details",
-      "viewFullDiff": "View full diff",
-      "processing": "Processing file...",
-      "linesAdded": "lines added",
-      "linesDeleted": "lines deleted",
-      "filesCount": "{{count}} files",
-      "filePath": "File path",
-      "unspecifiedFile": "Unspecified file",
-      "file": "File"
-    },
-    "taskCard": {
-      "title": "Execute Task",
-      "description": "Execute specialized AI task",
-      "taskType": "Task Type",
-      "taskDesc": "Task Description",
-      "result": "Task Result",
-      "processing": "AI is processing task...",
-      "defaultType": "AI Task",
-      "unspecifiedTask": "Unspecified task"
-    },
-    "searchCard": {
-      "grepTitle": "Text Search",
-      "globTitle": "File Search",
-      "grepDesc": "Search text in files",
-      "globDesc": "Search files by pattern",
-      "pattern": "Search Pattern",
-      "path": "Search Path",
-      "matches": "matches",
-      "files": "files",
-      "matchingFiles": "Matching Files",
-      "noTextMatch": "No matching text found",
-      "noFileMatch": "No matching files found",
-      "unspecifiedPattern": "Unspecified pattern",
-      "currentDir": "Current directory",
-      "matchCount": "{{count}} occurrences"
-    },
-    "contextCompressionCard": {
-      "title": "Context Compression",
-      "description": "Optimize conversation context to save tokens",
-      "compressing": "Compressing context...",
-      "analyzing": "Analyzing and compressing context...",
-      "triggerBeforeUserMessage": "Before user message",
-      "triggerAfterToolBatch": "After tool batch",
-      "triggerAfterAiResponse": "After AI response",
-      "triggerManual": "Manual trigger",
-      "triggerAuto": "Auto trigger",
-      "triggerTime": "Trigger: {{trigger}} · #{{count}}",
-      "duration": "Duration",
-      "savedTokens": "Saved {{count}} tokens · Ratio {{ratio}}%"
-    },
-    "toolConfig": {
-      "read": {
-        "displayName": "Read File",
-        "description": "Read the content of a specified file"
-      },
-      "write": {
-        "displayName": "Write File",
-        "description": "Write or create a file"
-      },
-      "edit": {
-        "displayName": "Edit File",
-        "description": "Edit file content"
-      },
-      "delete": {
-        "displayName": "Delete File",
-        "description": "Delete a specified file"
-      },
-      "grep": {
-        "displayName": "Text Search",
-        "description": "Search text in files"
-      },
-      "glob": {
-        "displayName": "File Search",
-        "description": "Search files by pattern"
-      },
-      "webSearch": {
-        "displayName": "Web Search",
-        "description": "Search web content"
-      },
-      "webFetch": {
-        "displayName": "Fetch URL",
-        "description": "Fetch content from URL"
-      },
-      "task": {
-        "displayName": "Execute Task",
-        "description": "Execute specialized AI tasks"
-      },
-      "todoWrite": {
-        "displayName": "Task Management",
-        "description": "Manage task list"
-      },
-      "contextCompression": {
-        "displayName": "Context Compression",
-        "description": "Intelligently compress conversation context"
-      },
-      "default": {
-        "description": "Execute {{toolName}} tool"
-      }
-    },
-    "baseToolCard": {
-      "awaitingConfirmation": "Awaiting confirmation",
-      "analyzing": "Analyzing parameters...",
-      "running": "Running...",
-      "completed": "Completed",
-      "cancelled": "Cancelled",
-      "failed": "Execution failed",
-      "preparing": "Preparing",
-      "inputParams": "Input parameters:",
-      "confirm": "Confirm",
-      "cancel": "Cancel",
-      "result": "Result:",
-      "viewDetails": "View details"
-    }
-  },
   "componentLibrary": {
     "alertDemo": {
       "title": "Alert Messages",
@@ -357,12 +212,16 @@
     "of": "of {{total}}"
   },
   "pagination": {
+    "label": "Pagination",
     "first": "First Page",
     "last": "Last Page",
     "previous": "Previous Page",
     "next": "Next Page",
     "page": "Page {{page}}",
     "of": "of {{total}}"
+  },
+  "drawer": {
+    "close": "Close"
   },
   "dropdown": {
     "noItems": "No items"
@@ -461,6 +320,9 @@
   "notification": {
     "close": "Close",
     "closeAll": "Close All"
+  },
+  "toast": {
+    "close": "Close"
   },
   "notificationCenter": {
     "title": "Notification Center",

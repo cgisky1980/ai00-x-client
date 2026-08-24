@@ -1,0 +1,267 @@
+{
+  "$description": "Ai00-X 设计令牌 · semantic（第二层）· 亮色主题「宣纸」（新东方极简，规范 4.1/4.5/2.1）。构建产物输出到 [data-theme=\"light\"] 块覆盖暗色默认。表面走暖纸 hue 90（宣纸永远是暖的）；交互色仍为黛青 hue 235（公式同暗色，L 下调保证对比度）；朱砂 L 下调。与暗色同构：变量名完全一致。",
+  "color": {
+    "bg": {
+      "base": { "$value": "oklch(0.96 0.008 90)", "$type": "color", "$description": "L1 宣纸·app 全局背景（微暖白）" },
+      "sunken": { "$value": "oklch(0.93 0.010 90)", "$type": "color", "$description": "L2 工作区/侧栏" },
+      "card": { "$value": "oklch(0.99 0.004 90)", "$type": "color", "$description": "L3 卡片（亮色下卡片比背景更亮）" },
+      "overlay": { "$value": "oklch(1.00 0 0)", "$type": "color", "$description": "L4 浮层" },
+      "modal": { "$value": "oklch(1.00 0 0)", "$type": "color", "$description": "L5 弹窗（靠阴影分层）" },
+      "primary": { "$value": "{color.bg.base}", "$type": "color" },
+      "secondary": { "$value": "{color.bg.sunken}", "$type": "color" },
+      "tertiary": { "$value": "{color.bg.card}", "$type": "color" },
+      "quaternary": { "$value": "{color.bg.overlay}", "$type": "color" },
+      "elevated": { "$value": "{color.bg.modal}", "$type": "color" },
+      "workbench": { "$value": "oklch(0.945 0.009 90)", "$type": "color" },
+      "scene": { "$value": "oklch(0.94 0.010 90)", "$type": "color" },
+      "flowchat": { "$value": "{color.bg.scene}", "$type": "color" },
+      "tooltip": { "$value": "oklch(0.995 0.003 90)", "$type": "color" }
+    },
+    "text": {
+      "primary": { "$value": "oklch(0.20 0.010 90)", "$type": "color" },
+      "secondary": { "$value": "oklch(0.37 0.012 90)", "$type": "color" },
+      "muted": { "$value": "oklch(0.52 0.012 90)", "$type": "color" },
+      "disabled": { "$value": "oklch(0.64 0.010 90)", "$type": "color" }
+    },
+    "accent": {
+      "$description": "黛青·亮色档（规范 2.1 亮色值 oklch(0.55 0.11 235) 为 500 基准）",
+      "foreground": { "$value": "oklch(0.97 0.01 90)", "$type": "color", "$description": "黛青实体底上的文字（亮色档黛青更深，纸白文字对比 4.8+）" },
+      "50": { "$value": "oklch(0.95 calc(var(--chroma, 0.11) * 0.05) var(--hue, 235))", "$type": "color" },
+      "100": { "$value": "oklch(0.90 calc(var(--chroma, 0.11) * 0.12) var(--hue, 235))", "$type": "color" },
+      "200": { "$value": "oklch(0.82 calc(var(--chroma, 0.11) * 0.28) var(--hue, 235))", "$type": "color" },
+      "300": { "$value": "oklch(0.72 calc(var(--chroma, 0.11) * 0.55) var(--hue, 235))", "$type": "color" },
+      "400": { "$value": "oklch(0.63 calc(var(--chroma, 0.11) * 0.78) var(--hue, 235))", "$type": "color" },
+      "500": { "$value": "oklch(0.55 var(--chroma, 0.11) var(--hue, 235))", "$type": "color", "$description": "黛青亮色基准" },
+      "600": { "$value": "oklch(0.48 var(--chroma, 0.11) var(--hue, 235))", "$type": "color" },
+      "700": { "$value": "oklch(0.42 calc(var(--chroma, 0.11) * 0.85) var(--hue, 235))", "$type": "color" },
+      "800": { "$value": "oklch(0.38 calc(var(--chroma, 0.11) * 0.70) var(--hue, 235))", "$type": "color" }
+    },
+    "brand": {
+      "seal": { "$value": "oklch(0.45 0.17 28)", "$type": "color", "$description": "朱砂·亮色档（0.55 对宣纸仅 1.58 不可读，v0.3 修至 0.45：正文 5.7）" },
+      "seal-foreground": { "$value": "oklch(0.96 0.02 90)", "$type": "color", "$description": "亮色下朱砂上的文字（纸白，对比 5.7）" },
+      "seal-hover": { "$value": "oklch(0.40 0.17 28)", "$type": "color" }
+    },
+    "purple": {
+      "50": { "$value": "rgba(109, 76, 192, 0.04)", "$type": "color" },
+      "100": { "$value": "rgba(109, 76, 192, 0.08)", "$type": "color" },
+      "200": { "$value": "rgba(109, 76, 192, 0.14)", "$type": "color" },
+      "300": { "$value": "rgba(109, 76, 192, 0.22)", "$type": "color" },
+      "400": { "$value": "rgba(109, 76, 192, 0.35)", "$type": "color" },
+      "500": { "$value": "#6d4cc0", "$type": "color" },
+      "600": { "$value": "#5b3fa8", "$type": "color" },
+      "700": { "$value": "rgba(91, 63, 168, 0.8)", "$type": "color" },
+      "800": { "$value": "rgba(91, 63, 168, 0.9)", "$type": "color" }
+    },
+    "gray": {
+      "$description": "墨色透明度刻度（亮色下用墨压暗）",
+      "50": { "$value": "rgba(28, 25, 20, 0.02)", "$type": "color" },
+      "100": { "$value": "rgba(28, 25, 20, 0.04)", "$type": "color" },
+      "200": { "$value": "rgba(28, 25, 20, 0.06)", "$type": "color" },
+      "300": { "$value": "rgba(28, 25, 20, 0.08)", "$type": "color" },
+      "400": { "$value": "rgba(28, 25, 20, 0.12)", "$type": "color" },
+      "500": { "$value": "rgba(28, 25, 20, 0.16)", "$type": "color" },
+      "600": { "$value": "rgba(28, 25, 20, 0.24)", "$type": "color" },
+      "700": { "$value": "rgba(28, 25, 20, 0.32)", "$type": "color" },
+      "800": { "$value": "rgba(28, 25, 20, 0.48)", "$type": "color" }
+    },
+    "success": {
+      "solid": { "$value": "oklch(0.55 0.12 163)", "$type": "color" },
+      "bg": { "$value": "oklch(0.55 0.12 163 / 0.10)", "$type": "color" },
+      "border": { "$value": "oklch(0.55 0.12 163 / 0.30)", "$type": "color" }
+    },
+    "warning": {
+      "solid": { "$value": "oklch(0.60 0.13 75)", "$type": "color" },
+      "bg": { "$value": "oklch(0.60 0.13 75 / 0.10)", "$type": "color" },
+      "border": { "$value": "oklch(0.60 0.13 75 / 0.30)", "$type": "color" }
+    },
+    "error": {
+      "solid": { "$value": "oklch(0.50 0.19 27)", "$type": "color" },
+      "bg": { "$value": "oklch(0.50 0.19 27 / 0.10)", "$type": "color" },
+      "border": { "$value": "oklch(0.50 0.19 27 / 0.30)", "$type": "color" }
+    },
+    "info": {
+      "solid": { "$value": "oklch(0.42 0.02 270)", "$type": "color" },
+      "bg": { "$value": "oklch(0.42 0.02 270 / 0.08)", "$type": "color" },
+      "border": { "$value": "oklch(0.42 0.02 270 / 0.24)", "$type": "color" }
+    },
+    "overlay": { "$value": "oklch(0.30 0.01 90 / 0.35)", "$type": "color" },
+    "feedback": {
+      "star": { "$value": "#E5B800", "$type": "color", "$description": "评分装饰金（亮色档加深保证宣纸上可见）" }
+    },
+    "highlight": {
+      "solid": { "$value": "oklch(0.40 0.012 90)", "$type": "color" },
+      "bg": { "$value": "rgba(28, 25, 20, 0.08)", "$type": "color" }
+    }
+  },
+  "element": {
+    "bg": {
+      "subtle": { "$value": "rgba(28, 25, 20, 0.04)", "$type": "color" },
+      "soft": { "$value": "rgba(28, 25, 20, 0.06)", "$type": "color" },
+      "base": { "$value": "rgba(28, 25, 20, 0.08)", "$type": "color" },
+      "medium": { "$value": "rgba(28, 25, 20, 0.12)", "$type": "color" },
+      "strong": { "$value": "rgba(28, 25, 20, 0.16)", "$type": "color" },
+      "elevated": { "$value": "rgba(28, 25, 20, 0.06)", "$type": "color" }
+    }
+  },
+  "border": {
+    "subtle": { "$value": "rgba(28, 25, 20, 0.10)", "$type": "color" },
+    "base": { "$value": "rgba(28, 25, 20, 0.16)", "$type": "color" },
+    "medium": { "$value": "rgba(28, 25, 20, 0.24)", "$type": "color" },
+    "strong": { "$value": "rgba(28, 25, 20, 0.36)", "$type": "color" },
+    "prominent": { "$value": "rgba(28, 25, 20, 0.50)", "$type": "color" },
+    "accent": {
+      "solid": { "$value": "oklch(0.55 0.11 235 / 0.40)", "$type": "color" },
+      "soft": { "$value": "oklch(0.55 0.11 235 / 0.30)", "$type": "color" },
+      "subtle": { "$value": "oklch(0.55 0.11 235 / 0.15)", "$type": "color" },
+      "strong": { "$value": "oklch(0.55 0.11 235 / 0.55)", "$type": "color" }
+    },
+    "purple": {
+      "solid": { "$value": "rgba(109, 76, 192, 0.4)", "$type": "color" },
+      "subtle": { "$value": "rgba(109, 76, 192, 0.18)", "$type": "color" }
+    }
+  },
+  "git": {
+    "color": {
+      "branch": {
+        "solid": { "$value": "#6b7280", "$type": "color" },
+        "bg": { "$value": "rgba(28, 25, 20, 0.05)", "$type": "color" },
+        "bg-hover": { "$value": "rgba(28, 25, 20, 0.08)", "$type": "color" },
+        "border": { "$value": "rgba(107, 114, 128, 0.3)", "$type": "color" }
+      },
+      "changes": {
+        "solid": { "$value": "#b45309", "$type": "color" },
+        "bg": { "$value": "rgba(180, 83, 9, 0.08)", "$type": "color" },
+        "bg-hover": { "$value": "rgba(180, 83, 9, 0.13)", "$type": "color" },
+        "border": { "$value": "rgba(180, 83, 9, 0.3)", "$type": "color" }
+      },
+      "staged": {
+        "solid": { "$value": "#15803d", "$type": "color" },
+        "bg": { "$value": "rgba(21, 128, 61, 0.08)", "$type": "color" },
+        "bg-hover": { "$value": "rgba(21, 128, 61, 0.13)", "$type": "color" },
+        "border": { "$value": "rgba(21, 128, 61, 0.3)", "$type": "color" }
+      },
+      "deleted": {
+        "solid": { "$value": "#b91c1c", "$type": "color" },
+        "bg": { "$value": "rgba(185, 28, 28, 0.08)", "$type": "color" },
+        "bg-hover": { "$value": "rgba(185, 28, 28, 0.13)", "$type": "color" },
+        "border": { "$value": "rgba(185, 28, 28, 0.3)", "$type": "color" }
+      }
+    }
+  },
+  "badge": {
+    "border": {
+      "radius": { "$value": "{size.radius.sm}", "$type": "dimension" }
+    },
+    "padding": {
+      "x": { "$value": "{size.gap.2}", "$type": "dimension" },
+      "y": { "$value": "2px", "$type": "dimension" }
+    },
+    "font": {
+      "size": { "$value": "{font.size.xs}", "$type": "dimension" },
+      "weight": { "$value": "{font.weight.medium}", "$type": "fontWeight" }
+    },
+    "neutral": {
+      "bg": { "$value": "{element.bg.base}", "$type": "color" },
+      "text": { "$value": "{color.text.secondary}", "$type": "color" }
+    },
+    "accent": {
+      "bg": { "$value": "oklch(0.55 0.11 235 / 0.10)", "$type": "color" },
+      "text": { "$value": "{color.accent.600}", "$type": "color" }
+    },
+    "purple": {
+      "bg": { "$value": "rgba(109, 76, 192, 0.10)", "$type": "color" },
+      "text": { "$value": "{color.purple.600}", "$type": "color" }
+    },
+    "success": {
+      "bg": { "$value": "{color.success.bg}", "$type": "color" },
+      "text": { "$value": "{color.success}", "$type": "color" }
+    },
+    "warning": {
+      "bg": { "$value": "{color.warning.bg}", "$type": "color" },
+      "text": { "$value": "{color.warning}", "$type": "color" }
+    },
+    "error": {
+      "bg": { "$value": "{color.error.bg}", "$type": "color" },
+      "text": { "$value": "{color.error}", "$type": "color" }
+    },
+    "info": {
+      "bg": { "$value": "{color.info.bg}", "$type": "color" },
+      "text": { "$value": "{color.info}", "$type": "color" }
+    }
+  },
+  "card": {
+    "bg": {
+      "default": { "$value": "rgba(255, 255, 255, 0.72)", "$type": "color" },
+      "elevated": { "$value": "rgba(255, 255, 255, 0.88)", "$type": "color" },
+      "subtle": { "$value": "rgba(255, 255, 255, 0.45)", "$type": "color" },
+      "hover": { "$value": "rgba(255, 255, 255, 0.85)", "$type": "color" },
+      "active": { "$value": "rgba(255, 255, 255, 0.95)", "$type": "color" },
+      "accent": { "$value": "oklch(0.55 0.11 235 / 0.10)", "$type": "color" },
+      "accent-hover": { "$value": "oklch(0.55 0.11 235 / 0.16)", "$type": "color" },
+      "purple": { "$value": "rgba(109, 76, 192, 0.08)", "$type": "color" },
+      "purple-hover": { "$value": "rgba(109, 76, 192, 0.14)", "$type": "color" }
+    }
+  },
+  "modal": {
+    "bg": { "$value": "{color.bg.modal}", "$type": "color" },
+    "border": { "$value": "{border.medium}", "$type": "color" },
+    "overlay": { "$value": "oklch(0.30 0.01 90 / 0.40)", "$type": "color" }
+  },
+  "nav": {
+    "bg": { "$value": "{color.bg.sunken}", "$type": "color" },
+    "item": {
+      "bg-hover": { "$value": "{element.bg.base}", "$type": "color" },
+      "bg-active": { "$value": "{element.bg.medium}", "$type": "color" },
+      "text": { "$value": "{color.text.secondary}", "$type": "color" },
+      "text-active": { "$value": "{color.text.primary}", "$type": "color" }
+    }
+  },
+  "panel": {
+    "bg": { "$value": "{color.bg.base}", "$type": "color" },
+    "header": {
+      "bg": { "$value": "{color.bg.sunken}", "$type": "color" }
+    },
+    "border": { "$value": "{border.base}", "$type": "color" }
+  },
+  "tooltip": {
+    "bg": { "$value": "{color.bg.tooltip}", "$type": "color" },
+    "border": { "$value": "{border.medium}", "$type": "color" },
+    "text": { "$value": "{color.text.primary}", "$type": "color" }
+  },
+  "tool": {
+    "card": {
+      "bg-primary": { "$value": "{element.bg.base}", "$type": "color" },
+      "bg-secondary": { "$value": "{element.bg.soft}", "$type": "color" },
+      "bg-hover": { "$value": "{element.bg.medium}", "$type": "color" },
+      "bg-elevated": { "$value": "{element.bg.elevated}", "$type": "color" },
+      "border": { "$value": "{border.base}", "$type": "color" },
+      "border-subtle": { "$value": "{border.subtle}", "$type": "color" },
+      "text-primary": { "$value": "{color.text.primary}", "$type": "color" },
+      "text-secondary": { "$value": "{color.text.secondary}", "$type": "color" },
+      "text-muted": { "$value": "{color.text.muted}", "$type": "color" }
+    }
+  },
+  "input": {
+    "bg": { "$value": "rgba(255, 255, 255, 0.60)", "$type": "color" },
+    "bg-hover": { "$value": "rgba(255, 255, 255, 0.80)", "$type": "color" },
+    "bg-focus": { "$value": "rgba(255, 255, 255, 0.70)", "$type": "color" },
+    "bg-disabled": { "$value": "rgba(28, 25, 20, 0.04)", "$type": "color" },
+    "border": { "$value": "{border.base}", "$type": "color" },
+    "border-hover": { "$value": "{border.medium}", "$type": "color" },
+    "border-focus": { "$value": "{color.accent.400}", "$type": "color" },
+    "border-error": { "$value": "{color.error}", "$type": "color" },
+    "text": { "$value": "{color.text.primary}", "$type": "color" },
+    "placeholder": { "$value": "color-mix(in srgb, var(--color-text-muted) 45%, var(--color-bg-primary))" }
+  },
+  "scrollbar": {
+    "thumb": { "$value": "rgba(28, 25, 20, 0.18)", "$type": "color" },
+    "thumb-hover": { "$value": "rgba(28, 25, 20, 0.32)", "$type": "color" }
+  },
+  "scene": {
+    "viewport": {
+      "border": {
+        "width": { "$value": "1px", "$type": "dimension" }
+      }
+    }
+  }
+}

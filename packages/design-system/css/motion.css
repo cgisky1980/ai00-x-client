@@ -1,0 +1,93 @@
+/* ============================================================
+ * @ai00-x/design-system · 签名动效「笔触与墨滴」（规范 2.4）
+ * 手写文件（非构建产物）。
+ * 应用白名单（仅五类时刻）：标题首次进入 / Tab 指示条 / 主题切换 /
+ * 关键按钮点击反馈 / AI 开始生成。高频操作禁用（贬值警告）。
+ * ============================================================ */
+
+/* ---- 笔触揭示 brush-reveal：clip-path 从左至右扫入，毛笔提按缓动 ---- */
+@keyframes ds-brush-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* ---- 墨滴扩散 ink-ripple：径向渐变 scale + 渐隐，黛青 ---- */
+@keyframes ds-ink-ripple {
+  from {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* 工具类：标题/内容首次进入（白名单场景 1、3） */
+.ds-brush-reveal {
+  animation: ds-brush-reveal 0.5s var(--easing-brush) both;
+}
+
+/* 工具类：Tab 指示条移动（白名单场景 2）——用时挂在指示条上 */
+.ds-brush-reveal-fast {
+  animation: ds-brush-reveal 0.35s var(--easing-brush) both;
+}
+
+/* 工具类：独立墨滴元素（白名单场景 5：loading/AI 生成起始） */
+.ds-ink-ripple {
+  position: relative;
+  overflow: hidden;
+}
+.ds-ink-ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle, var(--color-accent-400) 0%, transparent 65%);
+  animation: ds-ink-ripple 0.45s var(--easing-decelerate) both;
+  pointer-events: none;
+}
+
+/* 关键按钮点击反馈（白名单场景 4）：JS 挂 .ds-ink-ripple 类一次或用
+ * CSS :active 即时反馈（性能更优，推荐按钮直接用这个） */
+.ds-seal:active,
+.ds-btn-primary:active {
+  position: relative;
+}
+.ds-seal:active::after,
+.ds-btn-primary:active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle, oklch(1 0 0 / 0.18) 0%, transparent 62%);
+  animation: ds-ink-ripple 0.4s var(--easing-decelerate) both;
+  pointer-events: none;
+}
+
+/* 减动效：签名动效退化为淡入（规范 7.3） */
+@media (prefers-reduced-motion: reduce) {
+  .ds-brush-reveal,
+  .ds-brush-reveal-fast {
+    animation: ds-fade-in 0.3s ease both;
+  }
+  .ds-ink-ripple::after,
+  .ds-seal:active::after,
+  .ds-btn-primary:active::after {
+    animation: none;
+    opacity: 0.12;
+  }
+}
+
+@keyframes ds-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

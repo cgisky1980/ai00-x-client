@@ -24,7 +24,7 @@
 .ai00-x-markdown-editor__notice-icon {
   width: 16px;
   height: 16px;
-  margin-top: 2px;
+  margin-top: var(--size-gap-0-5);
   color: var(--color-warning);
   flex-shrink: 0;
 }
@@ -32,7 +32,7 @@
 .ai00-x-markdown-editor__notice-copy {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--size-gap-0-5);
 
   p {
     margin: 0;
@@ -45,7 +45,7 @@
   display: flex;
   justify-content: flex-end;
   padding: $size-gap-3 $size-gap-4;
-  border-bottom: 1px solid var(--border-subtle, #{$border-subtle});
+  border-bottom: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--color-bg-flowchat) 92%, var(--color-bg-elevated));
   flex-shrink: 0;
 }
@@ -135,7 +135,7 @@
 .m-editor .markdown-body {
   --m-editor-list-indent: 1.75rem;
   --m-editor-list-marker-width: 1.25rem;
-  --m-editor-list-gap: 0.25rem;
+  --m-editor-list-gap: var(--size-gap-1);
   --m-editor-task-checkbox-size: 1rem;
 
   color: var(--color-text-secondary);
@@ -153,13 +153,13 @@
 
   strong, b {
     font-weight: $font-weight-bold;
-    color: #f59e0b;
+    color: var(--color-warning);
   }
 
   h1 {
     font-size: var(--font-size-3xl);
     color: var(--color-text-primary);
-    border-bottom: 1px solid var(--border-subtle, #{$border-subtle});
+    border-bottom: 1px solid var(--border-subtle);
     padding-bottom: $size-gap-3;
     text-align: center;
     letter-spacing: 0.5px;
@@ -167,7 +167,7 @@
 
   h2 {
     font-size: var(--font-size-2xl);
-    border-bottom: 1px solid var(--border-subtle, #{$border-subtle});
+    border-bottom: 1px solid var(--border-subtle);
     padding-bottom: $size-gap-2;
   }
 
@@ -217,7 +217,7 @@
   }
 
   pre {
-    margin: 0.25rem 0.3rem $size-gap-4;
+    margin: var(--size-gap-1) var(--size-gap-1) $size-gap-4;
     padding: var(--flowchat-md-pre-padding);
     overflow: auto;
     font-size: var(--flowchat-md-pre-font-size);
@@ -281,7 +281,7 @@
     }
 
     p {
-      margin: 0.5rem 0;
+      margin: var(--size-gap-2) 0;
     }
   }
 
@@ -355,7 +355,7 @@
     width: max-content;
     max-width: 100%;
     margin-bottom: $size-gap-4;
-    font-size: 0.85rem;
+    font-size: var(--font-size-base);
     border: 1px solid var(--flowchat-md-table-border);
     border-radius: var(--flowchat-md-table-radius);
     background: var(--flowchat-md-table-surface);
@@ -472,8 +472,8 @@
   details {
     margin: 0 0 $size-gap-4;
     padding: $size-gap-3 $size-gap-4;
-    background: color-mix(in srgb, var(--color-bg-secondary, #{$element-bg-subtle}) 86%, transparent);
-    border: 1px solid var(--border-subtle, #{$border-subtle});
+    background: color-mix(in srgb, var(--color-bg-secondary) 86%, transparent);
+    border: 1px solid var(--border-subtle);
     border-radius: $size-radius-lg;
 
     > :last-child {
@@ -501,7 +501,7 @@
     padding: 0;
     margin: $size-gap-5 0;
     border: 0;
-    border-top: 1px solid var(--border-subtle, #{$border-subtle});
+    border-top: 1px solid var(--border-subtle);
     background: none;
     overflow: visible;
   }

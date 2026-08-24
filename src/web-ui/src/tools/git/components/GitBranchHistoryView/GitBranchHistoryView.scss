@@ -20,25 +20,25 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 16px;
-    padding: 48px 32px;
+    gap: var(--size-gap-4);
+    padding: var(--size-gap-12) var(--size-gap-8);
     flex: 1;
 
     p {
       margin: 0;
       color: var(--color-text-secondary);
-      font-size: 14px;
+      font-size: var(--font-size-base);
       text-align: center;
     }
 
     button {
-      padding: 8px 20px;
+      padding: var(--size-gap-2) var(--size-gap-5);
       background: var(--color-primary);
-      color: #fff;
+      color: var(--color-accent-foreground);
       border: none;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 13px;
+      font-size: var(--font-size-sm);
       font-weight: 500;
       transition: all 0.2s ease;
 
@@ -66,17 +66,17 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 12px;
+    padding: var(--size-gap-2-5) var(--size-gap-3);
     border-bottom: 1px solid var(--color-border);
-    background: var(--color-background-secondary);
+    background: var(--color-bg-secondary);
     flex-shrink: 0;
-    gap: 12px;
+    gap: var(--size-gap-3);
   }
 
   &__header-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     flex: 1;
     min-width: 0;
   }
@@ -84,7 +84,7 @@
   &__header-right {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     flex-shrink: 0;
   }
 
@@ -93,13 +93,13 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    padding: 2px;
+    padding: var(--size-gap-0-5);
     border-radius: 4px;
     transition: background 0.15s ease;
     flex-shrink: 0;
 
     &:hover {
-      background: var(--color-hover);
+      background: var(--color-bg-secondary);
     }
   }
 
@@ -123,7 +123,7 @@
   }
 
   &__commits {
-    padding: 8px 4px;
+    padding: var(--size-gap-2) var(--size-gap-1);
   }
 
   &__commit {
@@ -131,17 +131,17 @@
 
     &--expanded {
       .git-branch-history-view__commit-main {
-        background: var(--color-background-secondary);
+        background: var(--color-bg-secondary);
       }
     }
 
     &--selected {
       .git-branch-history-view__commit-main {
-        background: rgba(96, 165, 250, 0.08);
+        background: var(--color-accent-100);
       }
       
       &:hover .git-branch-history-view__commit-main {
-        background: rgba(96, 165, 250, 0.12);
+        background: var(--color-accent-200);
       }
     }
 
@@ -155,8 +155,8 @@
   &__commit-main {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: var(--size-gap-3);
+    padding: var(--size-gap-2-5) var(--size-gap-3);
     cursor: pointer;
     transition: background 0.15s ease;
 
@@ -178,19 +178,19 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    padding: 2px;
-    margin-top: 2px;
+    padding: var(--size-gap-0-5);
+    margin-top: var(--size-gap-0-5);
     cursor: pointer;
     border-radius: 4px;
     transition: background 0.15s ease;
 
     &:hover {
-      background: var(--color-hover);
+      background: var(--color-bg-secondary);
     }
   }
 
   &__checkbox {
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     transition: color 0.15s ease;
   }
 
@@ -203,7 +203,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
   }
 
   &__checkbox-partial-mark {
@@ -220,7 +220,7 @@
     align-items: center;
     width: 24px;
     flex-shrink: 0;
-    padding-top: 2px;
+    padding-top: var(--size-gap-0-5);
   }
 
   &__timeline-node {
@@ -230,10 +230,10 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: rgba(96, 165, 250, 0.15);
-    color: #60a5fa;
+    background: var(--color-accent-200);
+    color: var(--color-accent-500);
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     text-transform: uppercase;
     user-select: none;
@@ -244,7 +244,7 @@
     flex: 1;
     min-height: 16px;
     background: var(--color-border);
-    margin-top: 4px;
+    margin-top: var(--size-gap-1);
   }
 
   &__commit-info {
@@ -252,12 +252,12 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--size-gap-1);
     justify-content: center;
   }
 
   &__commit-message {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 400;
     color: var(--color-text);
     line-height: 1.4;
@@ -269,9 +269,9 @@
   &__commit-meta {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    color: var(--color-text-tertiary);
+    gap: var(--size-gap-2);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
   }
 
   &__commit-author {
@@ -288,23 +288,23 @@
   &__commit-hash {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: var(--size-gap-0-5);
     font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-    padding: 1px 4px;
-    background: var(--color-background-tertiary);
+    padding: var(--size-gap-0-25) var(--size-gap-1);
+    background: var(--color-bg-tertiary);
     border-radius: 3px;
     cursor: pointer;
     transition: all 0.15s ease;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
 
     &:hover {
-      background: var(--color-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-secondary);
     }
 
     &--copied {
-      background: rgba(16, 185, 129, 0.15);
-      color: #10b981;
+      background:color-mix(in srgb, var(--color-success) 15%, transparent);
+      color: var(--color-success);
 
       .git-branch-history-view__copy-icon {
         opacity: 1;
@@ -330,7 +330,7 @@
     padding: 0;
     background: transparent;
     border: none;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     cursor: pointer;
     border-radius: 4px;
     transition: all 0.15s ease;
@@ -339,24 +339,24 @@
 
     &:hover {
       color: var(--color-text);
-      background: var(--color-background-tertiary);
+      background: var(--color-bg-tertiary);
     }
   }
 
   &__commit-details {
-    margin-left: 36px;
-    padding: 10px 12px;
-    background: var(--color-background-secondary);
+    margin-left: var(--size-gap-8);
+    padding: var(--size-gap-2-5) var(--size-gap-3);
+    background: var(--color-bg-secondary);
     border-radius: 6px;
-    margin-bottom: 4px;
+    margin-bottom: var(--size-gap-1);
   }
 
   &__detail-row {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
-    margin-bottom: 6px;
-    font-size: 11px;
+    gap: var(--size-gap-2);
+    margin-bottom: var(--size-gap-1-5);
+    font-size: var(--font-size-2xs);
 
     &:last-child {
       margin-bottom: 0;
@@ -364,7 +364,7 @@
   }
 
   &__detail-label {
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     min-width: 60px;
     flex-shrink: 0;
   }
@@ -376,9 +376,9 @@
 
     &--mono {
       font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-      font-size: 10px;
-      background: var(--color-background-tertiary);
-      padding: 2px 6px;
+      font-size: var(--font-size-xxs);
+      background: var(--color-bg-tertiary);
+      padding: var(--size-gap-0-5) var(--size-gap-1-5);
       border-radius: 3px;
     }
   }
@@ -386,8 +386,8 @@
   &__cherry-pick-btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
+    gap: var(--size-gap-1-5);
+    font-size: var(--font-size-xs);
     white-space: nowrap;
     
     svg {
@@ -424,12 +424,12 @@
 .ai00-x-right-panel[data-mode="compact"] {
   .git-branch-history-view {
     &__header {
-      padding: 8px 10px;
-      gap: 8px;
+      padding: var(--size-gap-2) var(--size-gap-2-5);
+      gap: var(--size-gap-2);
     }
 
     &__header-left {
-      gap: 6px;
+      gap: var(--size-gap-1-5);
     }
 
     &__author-select {
@@ -441,22 +441,22 @@
     }
 
     &__cherry-pick-btn {
-      padding: 6px !important;
+      padding: var(--size-gap-1-5) !important;
       min-width: auto !important;
       font-size: 0;
       gap: 0;
       
       svg,
       .git-branch-history-view__spinner--small {
-        font-size: 14px;
+        font-size: var(--font-size-base);
         width: 14px;
         height: 14px;
       }
     }
 
     &__commit-main {
-      gap: 8px;
-      padding: 8px 10px;
+      gap: var(--size-gap-2);
+      padding: var(--size-gap-2) var(--size-gap-2-5);
     }
 
     &__timeline {
@@ -466,7 +466,7 @@
     &__timeline-node {
       width: 20px;
       height: 20px;
-      font-size: 10px;
+      font-size: var(--font-size-xxs);
     }
 
     &__timeline-line {
@@ -474,17 +474,17 @@
     }
 
     &__commit-info {
-      gap: 2px;
+      gap: var(--size-gap-0-5);
     }
 
     &__commit-message {
-      font-size: 12px;
+      font-size: var(--font-size-xs);
       line-height: 1.3;
     }
 
     &__commit-meta {
-      gap: 4px;
-      font-size: 10px;
+      gap: var(--size-gap-1);
+      font-size: var(--font-size-xxs);
     }
 
     &__commit-author {
@@ -496,12 +496,12 @@
     }
 
     &__commit-details {
-      margin-left: 20px;
-      padding: 8px 10px;
+      margin-left: var(--size-gap-5);
+      padding: var(--size-gap-2) var(--size-gap-2-5);
     }
 
     &__detail-row {
-      font-size: 10px;
+      font-size: var(--font-size-xxs);
     }
 
     &__detail-label {
@@ -528,7 +528,7 @@
     &__commit-details {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
+      gap: var(--size-gap-2);
     }
 
     &__detail-row {

@@ -3,6 +3,7 @@ import { useDraggable } from '@/infrastructure/overlay/useDraggable';
 import { refreshRegions, setDragging } from '@/infrastructure/overlay/mouseThrough';
 import { getOverlayZBase, getOverlayZFocused } from '@/infrastructure/overlay/overlayFocus';
 import { PortalContainerProvider } from '@/infrastructure/contexts/PortalContainerContext';
+import { DsPortalContainerContext } from '@ai00-x/design-system/web';
 import { useOverlayControlStore } from '@/app/stores/overlayControlStore';
 import { WindowControls } from '@/component-library';
 import './SettingsDialog.scss';
@@ -138,8 +139,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 </div>
             </div>
             <div className="settings-dialog__content">
+                {/* 双挂：web-ui 业务组件 portal 与 design-system 组件（Modal/Tooltip 等已迁包）portal 同容器 */}
                 <PortalContainerProvider container={settingsPortalContainer}>
-                    {children}
+                    <DsPortalContainerContext.Provider value={settingsPortalContainer}>
+                        {children}
+                    </DsPortalContainerContext.Provider>
                 </PortalContainerProvider>
                 <div ref={setSettingsPortalContainer} className="settings-dialog__portal-container" />
             </div>

@@ -18,6 +18,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@ai00-x/design-system": "workspace:*",
     "@ai00-x/shared": "workspace:*",
     "@esotericsoftware/spine-canvas": "4.3.7",
     "@esotericsoftware/spine-core": "4.3.7",

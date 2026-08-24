@@ -88,6 +88,16 @@ function App() {
       } catch {}
     };
 
+    const initPluginRuntime = () => {
+      let dispose: (() => void) | undefined;
+      try {
+        import('../infrastructure/plugins/runtime').then(({ initPluginRuntime }) => {
+          dispose = initPluginRuntime();
+        }).catch(() => {});
+      } catch {}
+      return () => dispose?.();
+    };
+
     const initInteractionConfig = async () => {
       try {
         const { useInteractionStore } = await import('../tools/vrm/store/interactionStore');
@@ -100,6 +110,8 @@ function App() {
     initSelfControl();
     initOverlaySystem();
     initInteractionConfig();
+    const disposePluginRuntime = initPluginRuntime();
+    return () => disposePluginRuntime();
   }, []);
 
   // The .a00m playback engine + player bridge live at the overlay window root,
@@ -127,6 +139,9 @@ function App() {
         <SSHRemoteProvider>
           <AppLayout />
           <InteractionOverlay />
+          {/* Injected plugin mount layer: below DynamicIsland (z 50010).
+              Plugin DOM marks itself `.no-penetrate` to gain mouse capture. */}
+          <div id="ai00-plugin-layer" style={{ position: 'fixed', inset: 0, zIndex: 50000, pointerEvents: 'none' }} />
           <DynamicIsland />
           <LyricsOverlay />
           <PlayerEngine />

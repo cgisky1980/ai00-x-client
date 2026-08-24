@@ -1,0 +1,180 @@
+/**
+ * Input component styles
+ */
+
+.ai00-x-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-1-5);
+  min-width: 0;
+
+  &--small {
+    .ai00-x-input-container {
+      height: 28px;
+      font-size: var(--font-size-sm);
+    }
+
+    .ai00-x-input-prefix,
+    .ai00-x-input-suffix {
+      font-size: var(--font-size-sm);
+    }
+  }
+
+  &--medium {
+    .ai00-x-input-container {
+      height: 36px;
+      font-size: var(--font-size-base);
+    }
+  }
+
+  &--large {
+    .ai00-x-input-container {
+      height: 44px;
+      font-size: var(--font-size-lg);
+    }
+  }
+
+  &--default {
+    .ai00-x-input-container {
+      background: transparent;
+      border: 1px solid var(--border-base);
+    }
+  }
+
+  &--filled {
+    .ai00-x-input-container {
+      background: var(--element-bg-subtle);
+      border: 1px solid transparent;
+
+      &:hover:not(.ai00-x-input-wrapper--disabled &) {
+        background: var(--element-bg-soft);
+        border-color: var(--border-base);
+      }
+
+      &:focus-within {
+        background: var(--element-bg-soft);
+        border-color: transparent;
+      }
+
+      &:hover:focus-within {
+        border-color: var(--color-accent-500);
+      }
+    }
+  }
+
+  &--outlined {
+    .ai00-x-input-container {
+      background: transparent;
+      border: 1px solid var(--border-medium);
+    }
+  }
+
+  &--error {
+    .ai00-x-input-container {
+      border-color: var(--color-error-border) !important;
+
+      &:hover:not(.ai00-x-input-wrapper--disabled &) {
+        border-color: var(--color-error) !important;
+      }
+
+      &:focus-within {
+        border-color: var(--color-error) !important;
+      }
+    }
+  }
+
+  &--disabled {
+    opacity: var(--opacity-disabled);
+    cursor: default;
+
+    .ai00-x-input-container {
+      background: transparent;
+    }
+  }
+}
+
+.ai00-x-input-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  letter-spacing: 0.2px;
+}
+
+.ai00-x-input-container {
+  display: flex;
+  align-items: center;
+  gap: var(--size-gap-2);
+  padding: 0 var(--size-gap-3);
+  border-radius: 4px;
+  transition: all var(--motion-base) var(--easing-standard);
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+
+  &:hover:not(.ai00-x-input-wrapper--disabled &) {
+    background: var(--element-bg-subtle);
+    border-color: var(--border-strong);
+  }
+
+  &:focus-within {
+    background: transparent;
+    border-color: var(--color-accent-500);
+    outline: none;
+  }
+}
+
+.ai00-x-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  position: relative;
+  z-index: 1;
+
+  // Blend muted text toward page background so placeholders read as hints, not as user input
+  // (same token pair is set for light/dark in ThemeService).
+  &::placeholder {
+    color: color-mix(
+      in srgb,
+      var(--color-text-muted) 40%,
+      var(--color-bg-primary)
+    );
+  }
+
+  &::selection {
+    border-radius: 2px;
+    background: var(--color-accent-300);
+  }
+
+  &:focus,
+  &:focus-visible {
+    border: none !important;
+    outline: none !important;
+    outline-offset: 0 !important;
+    box-shadow: none !important;
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.ai00-x-input-prefix,
+.ai00-x-input-suffix {
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.ai00-x-input-error-message {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+  margin-top: calc(var(--size-gap-0-5) * -1);
+}

@@ -4,7 +4,7 @@
 .mermaid-interactive-card {
   /* Use a soft blue for the tool icon. */
   .tool-identifier-icon.mermaid-icon {
-    color: rgba(59, 130, 246, 0.55);
+    color: var(--color-accent-600);
   }
   
   &.clickable {
@@ -30,10 +30,10 @@
 }
 
 .mermaid-status-text {
-  font-size: 10px;
-  color: rgba(139, 92, 246, 0.75);
-  background: rgba(139, 92, 246, 0.08);
-  padding: 2px 6px;
+  font-size: var(--font-size-xxs);
+  color: var(--color-accent-500);
+  background: var(--color-accent-100);
+  padding: var(--size-gap-0-5) var(--size-gap-1-5);
   border-radius: 3px;
   animation: pulse-subtle 2s ease-in-out infinite;
   flex-shrink: 0;

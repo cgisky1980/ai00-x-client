@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { Markdown } from '@components/Markdown';
-import { Button } from '@components/Button';
+import { Button } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
 import './markdown-preview.css';
 

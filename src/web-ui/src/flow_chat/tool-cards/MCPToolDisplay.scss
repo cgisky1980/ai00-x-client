@@ -1,11 +1,11 @@
 /* MCP tool display styles. */
 .mcp-tool-display {
   .mcp-icon {
-    color: rgba(99, 102, 241, 0.55);
+    color: var(--color-accent-500);
   }
 
   .tool-card-icon.mcp-icon {
-    color: rgba(99, 102, 241, 0.55);
+    color: var(--color-accent-500);
   }
 
   .mcp-tool-info {
@@ -23,7 +23,7 @@
   }
 
   .content-summary {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     color: var(--tool-card-text-secondary);
     white-space: nowrap;
   }
@@ -32,7 +32,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 4px;
+    padding: var(--size-gap-1);
     border: none;
     background: transparent;
     cursor: pointer;
@@ -53,8 +53,8 @@
     align-items: center;
     
     .error-text {
-      font-size: 12px;
-      color: rgba(239, 68, 68, 0.9);
+      font-size: var(--font-size-xs);
+      color: var(--color-error);
       font-weight: 600;
     }
   }
@@ -62,19 +62,19 @@
   .mcp-expanded-content {
     .content-item {
       &:not(:last-child) {
-        margin-bottom: 12px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        margin-bottom: var(--size-gap-3);
+        padding-bottom: var(--size-gap-3);
+        border-bottom:1px solid color-mix(in srgb, var(--color-text-primary) 6%, transparent);
       }
     }
 
     .text-content {
       pre {
         margin: 0;
-        padding: 8px 12px;
-        background: rgba(0, 0, 0, 0.2);
+        padding: var(--size-gap-2) var(--size-gap-3);
+        background: var(--color-overlay);
         border-radius: 4px;
-        font-size: 12px;
+        font-size: var(--font-size-xs);
         line-height: 1.5;
         color: var(--tool-card-text-primary);
         white-space: pre-wrap;
@@ -91,75 +91,75 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      padding: 24px;
+      gap: var(--size-gap-2);
+      padding: var(--size-gap-6);
       color: var(--tool-card-text-secondary);
-      font-size: 13px;
+      font-size: var(--font-size-sm);
     }
 
     .mcp-app-error {
-      color: rgba(239, 68, 68, 0.9);
+      color: var(--color-error);
     }
 
     .mcp-app-iframe {
       width: 100%;
       min-height: 320px;
-      border: 1px solid rgba(139, 92, 246, 0.2);
+      border: 1px solid var(--color-accent-200);
       border-radius: 6px;
       background: var(--tool-card-bg);
     }
 
     .resource-content {
-      padding: 8px 12px;
-      background: rgba(139, 92, 246, 0.05);
-      border-left: 3px solid rgba(139, 92, 246, 0.5);
+      padding: var(--size-gap-2) var(--size-gap-3);
+      background: var(--color-accent-200);
+      border-left: 3px solid var(--color-accent-500);
       border-radius: 4px;
 
       .resource-name {
         font-weight: 600;
         color: var(--tool-card-text-primary);
-        margin-bottom: 4px;
+        margin-bottom: var(--size-gap-1);
       }
 
       .resource-uri {
-        font-size: 11px;
-        color: rgba(139, 92, 246, 0.7);
+        font-size: var(--font-size-2xs);
+        color: var(--color-accent-500);
         font-family: monospace;
-        margin-bottom: 4px;
+        margin-bottom: var(--size-gap-1);
       }
 
       .resource-description {
-        font-size: 12px;
+        font-size: var(--font-size-xs);
         color: var(--tool-card-text-secondary);
       }
     }
   }
 
   .error-content {
-    background: rgba(239, 68, 68, 0.05);
+    background: var(--color-error-bg);
     border-radius: 4px;
 
     .error-message {
-      color: rgba(239, 68, 68, 0.9);
-      font-size: 13px;
+      color: var(--color-error);
+      font-size: var(--font-size-sm);
     }
   }
 
   .icon-completed {
-    color: rgba(34, 197, 94, 0.9);
+    color: var(--color-success);
   }
 
   .mcp-action-buttons {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   .mcp-icon-button {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 4px;
+    padding: var(--size-gap-1);
     border: none;
     background: transparent;
     cursor: pointer;
@@ -177,28 +177,28 @@
   }
 
   .mcp-confirm-btn {
-    color: rgba(34, 197, 94, 0.8);
+    color: var(--color-success);
     
     &:hover:not(:disabled) {
-      background: rgba(34, 197, 94, 0.15);
-      color: rgba(34, 197, 94, 1);
+      background: var(--color-success-bg);
+      color: var(--color-success);
     }
 
     &:active:not(:disabled) {
-      background: rgba(34, 197, 94, 0.25);
+      background: var(--color-success-bg);
     }
   }
 
   .mcp-reject-btn {
-    color: rgba(239, 68, 68, 0.8);
+    color: var(--color-error);
     
     &:hover:not(:disabled) {
-      background: rgba(239, 68, 68, 0.15);
-      color: rgba(239, 68, 68, 1);
+      background: var(--color-error-bg);
+      color: var(--color-error);
     }
 
     &:active:not(:disabled) {
-      background: rgba(239, 68, 68, 0.25);
+      background: var(--color-error-bg);
     }
   }
 }

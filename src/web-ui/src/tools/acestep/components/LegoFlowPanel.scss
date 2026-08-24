@@ -16,7 +16,7 @@
   &--empty {
     align-items: center;
     justify-content: center;
-    padding: 1.5rem 1rem;
+    padding: var(--size-gap-6) var(--size-gap-4);
     text-align: center;
     color: var(--color-text-secondary);
   }
@@ -29,13 +29,13 @@
     height: 48px;
     border-radius: 50%;
     background: var(--card-bg-accent);
-    margin-bottom: 0.5rem;
+    margin-bottom: var(--size-gap-2);
     color: var(--color-text-muted);
   }
 
   &--empty p {
     margin: 0;
-    font-size: 0.78rem;
+    font-size: var(--font-size-xs);
     line-height: 1.5;
     max-width: 240px;
   }
@@ -46,7 +46,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.6rem 0.8rem;
+    padding: var(--size-gap-2-5) var(--size-gap-3);
     background: var(--card-bg-accent);
     border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
@@ -55,17 +55,17 @@
   &__title {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8rem;
+    gap: var(--size-gap-1-5);
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--color-text-primary);
   }
 
   &__progress {
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-secondary);
-    padding: 0.15rem 0.45rem;
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     background: var(--element-bg-base);
     border-radius: 6px;
     border: 1px solid var(--border-subtle);
@@ -76,8 +76,8 @@
   &__body {
     display: flex;
     flex-direction: column;
-    gap: 0.55rem;
-    padding: 0.65rem;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2-5);
     overflow-y: auto;
     flex: 1;
 
@@ -95,8 +95,8 @@
   &__steps-overview {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
-    padding: 0.4rem 0.55rem;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1-5) var(--size-gap-2);
     border-radius: 8px;
     background: var(--element-bg-subtle);
     border: 1px solid var(--border-subtle);
@@ -106,10 +106,10 @@
     display: grid;
     grid-template-columns: 18px 70px 1fr;
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.2rem 0.25rem;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-1) var(--size-gap-1);
     border-radius: 5px;
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
     transition: background 0.15s, color 0.15s;
 
@@ -130,7 +130,7 @@
     justify-content: center;
     width: 18px;
     height: 18px;
-    font-size: 0.68rem;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-secondary);
 
     .is-current & {
@@ -142,14 +142,14 @@
   }
 
   &__step-track {
-    font-size: 0.7rem;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     color: var(--color-text-primary);
     text-transform: lowercase;
   }
 
   &__step-caption {
-    font-size: 0.7rem;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -161,32 +161,32 @@
   &__current {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.55rem 0.7rem;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2) var(--size-gap-3);
     border-radius: 8px;
     background: var(--element-bg-base);
     border: 1px solid var(--border-base);
   }
 
   &__current-header {
-    font-size: 0.78rem;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--color-accent-500);
   }
 
   &__current-caption {
-    font-size: 0.75rem;
+    font-size: var(--font-size-xs);
     line-height: 1.45;
     color: var(--color-text-primary);
   }
 
   &__current-lyrics {
     margin: 0;
-    padding: 0.45rem 0.6rem;
+    padding: var(--size-gap-2) var(--size-gap-2-5);
     border-radius: 6px;
     background: var(--input-bg);
     border: 1px solid var(--border-subtle);
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     line-height: 1.5;
     color: var(--color-text-primary);
     white-space: pre-wrap;
@@ -197,7 +197,7 @@
   }
 
   &__current-reasoning {
-    font-size: 0.7rem;
+    font-size: var(--font-size-2xs);
     line-height: 1.45;
     color: var(--color-text-secondary);
     font-style: italic;
@@ -208,10 +208,10 @@
   &__field {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--size-gap-1);
 
     label {
-      font-size: 0.65rem;
+      font-size: var(--font-size-xxs);
       color: var(--color-text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.03em;
@@ -223,19 +223,19 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.4rem;
+    gap: var(--size-gap-1-5);
   }
 
   &__ai-rewrite-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.2rem;
-    padding: 0.15rem 0.5rem;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     border: 1px solid var(--border-accent);
     border-radius: 8px;
     background: transparent;
     color: var(--color-accent-500);
-    font-size: 0.6rem;
+    font-size: var(--font-size-xxs);
     font-weight: 500;
     text-transform: none;
     letter-spacing: 0;
@@ -244,7 +244,7 @@
 
     &:hover:not(:disabled) {
       background: var(--color-accent-500);
-      color: #fff;
+      color: var(--color-accent-foreground);
     }
 
     &:disabled {
@@ -254,12 +254,12 @@
   }
 
   &__field-input {
-    padding: 0.4rem 0.55rem;
+    padding: var(--size-gap-1-5) var(--size-gap-2);
     border: 1px solid var(--border-base);
     border-radius: 6px;
     background: var(--input-bg);
     color: var(--color-text-primary);
-    font-size: 0.74rem;
+    font-size: var(--font-size-xs);
     font-family: inherit;
     line-height: 1.45;
     resize: vertical;
@@ -290,12 +290,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
+    gap: var(--size-gap-1-5);
     width: 100%;
-    padding: 0.55rem 0.8rem;
+    padding: var(--size-gap-2) var(--size-gap-3);
     background: var(--color-accent-500);
     color: var(--btn-primary-color);
-    font-size: 0.78rem;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     border: none;
     border-radius: 7px;
@@ -322,8 +322,8 @@
   &__progress-bar {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
-    padding: 0.4rem 0.55rem;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1-5) var(--size-gap-2);
     border-radius: 7px;
     background: var(--element-bg-subtle);
     border: 1px solid var(--border-subtle);
@@ -343,7 +343,7 @@
   }
 
   &__progress-text {
-    font-size: 0.68rem;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-secondary);
     text-align: right;
   }
@@ -354,8 +354,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.8rem 0.7rem;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-3) var(--size-gap-3);
     border-radius: 8px;
     background: var(--element-bg-subtle);
     border: 1px dashed var(--border-base);
@@ -363,7 +363,7 @@
 
     p {
       margin: 0;
-      font-size: 0.72rem;
+      font-size: var(--font-size-xs);
       line-height: 1.5;
       color: var(--color-text-secondary);
       max-width: 240px;
@@ -384,12 +384,12 @@
   // ---- Error ----
 
   &__error {
-    padding: 0.45rem 0.6rem;
+    padding: var(--size-gap-2) var(--size-gap-2-5);
     border-radius: 7px;
     background: var(--element-bg-subtle);
     border: 1px solid var(--color-danger);
     color: var(--color-danger);
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     line-height: 1.45;
   }
 
@@ -398,14 +398,14 @@
   &__candidates {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: var(--size-gap-1-5);
   }
 
   &__candidates-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--color-text-secondary);
     text-transform: uppercase;
@@ -415,13 +415,13 @@
   &__regen-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.2rem 0.45rem;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2);
     border: 1px solid var(--border-subtle);
     border-radius: 5px;
     background: var(--element-bg-soft);
     color: var(--color-text-secondary);
-    font-size: 0.68rem;
+    font-size: var(--font-size-2xs);
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
     text-transform: none;
@@ -441,7 +441,7 @@
   &__candidates-list {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: var(--size-gap-2);
   }
 
   // ---- Candidate card ----
@@ -449,8 +449,8 @@
   &__candidate {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.5rem 0.6rem;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2) var(--size-gap-2-5);
     border-radius: 8px;
     background: var(--element-bg-base);
     border: 1px solid var(--border-base);
@@ -469,7 +469,7 @@
   }
 
   &__candidate-label {
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--color-text-primary);
   }
@@ -477,20 +477,20 @@
   &__candidate-badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.2rem;
-    padding: 0.1rem 0.4rem;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     border-radius: 4px;
     background: var(--color-accent-500);
     color: var(--btn-primary-color);
-    font-size: 0.65rem;
+    font-size: var(--font-size-xxs);
     font-weight: 500;
   }
 
   &__candidate-meta {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.65rem;
+    gap: var(--size-gap-2);
+    font-size: var(--font-size-xxs);
     color: var(--color-text-secondary);
   }
 
@@ -507,12 +507,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.3rem;
+    gap: var(--size-gap-1);
     width: 100%;
-    padding: 0.4rem 0.6rem;
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
     background: var(--element-bg-soft);
     color: var(--color-text-primary);
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     border: 1px solid var(--border-base);
     border-radius: 6px;
@@ -548,8 +548,8 @@
   &__final {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
-    padding: 0.55rem 0.7rem;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2) var(--size-gap-3);
     border-radius: 8px;
     background: var(--card-bg-accent);
     border: 1px solid var(--color-accent-500);
@@ -558,8 +558,8 @@
   &__final-header {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    font-size: 0.78rem;
+    gap: var(--size-gap-1-5);
+    font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--color-accent-500);
   }

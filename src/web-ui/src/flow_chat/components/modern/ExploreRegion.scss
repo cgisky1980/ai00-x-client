@@ -2,17 +2,17 @@
 
 .explore-region {
   position: relative;
-  padding: 0 3rem; // Match model-round-item horizontal padding.
+  padding: 0 var(--size-gap-12); // Match model-round-item horizontal padding.
 
   @media (max-width: 768px) {
-    padding: 0 1.5rem;
+    padding: 0 var(--size-gap-6);
   }
 }
 
 // ==================== Non-collapsible (streaming / no auto-collapse yet) ====================
 
 .explore-region--expanded:not(.explore-region--collapsible) {
-  margin: 4px 0;
+  margin: var(--size-gap-1) 0;
 
   .explore-region__content {
     position: relative;
@@ -54,22 +54,22 @@
 // ==================== Collapsible (header + animated content) ====================
 
 .explore-region--collapsible {
-  margin: 4px 0;
+  margin: var(--size-gap-1) 0;
 
   .explore-region__header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 5px 0;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1) 0;
     color: var(--text-tertiary);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     cursor: pointer;
     user-select: none;
     border-radius: 6px;
     transition: color 0.15s ease;
 
     &:hover {
-      background: var(--bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--text-secondary);
     }
   }
@@ -103,7 +103,7 @@
 
   .explore-region__content {
     position: relative;
-    padding: 4px 0;
+    padding: var(--size-gap-1) 0;
 
     &::-webkit-scrollbar {
       width: 4px;
@@ -204,7 +204,7 @@
 
 // Reduce spacing between adjacent collapsed regions.
 .explore-region--collapsed + .explore-region--collapsed {
-  margin-top: -2px;
+  margin-top: calc(var(--size-gap-0-5) * -1);
 }
 
 // ==================== Cross-ModelRound collapse ====================

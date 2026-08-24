@@ -31,7 +31,7 @@ import {
   editorSyncContentSha256Hex,
   type DiskFileVersion,
 } from '../utils/diskFileVersion';
-import { confirmDialog } from '@/component-library/components/ConfirmDialog/confirmService';
+import { confirmDialog } from '@ai00-x/design-system/web';
 import {
   isFileMissingFromMetadata,
   isLikelyFileNotFoundError,

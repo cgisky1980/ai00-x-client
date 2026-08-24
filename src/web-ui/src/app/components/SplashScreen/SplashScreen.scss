@@ -12,7 +12,7 @@
 .splash-screen {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -53,7 +53,7 @@
 
 .splash-screen__logo-text {
   display: block;
-  font-size: 32px;
+  font-size: var(--font-size-5xl);
   font-weight: 700;
   color: var(--color-text-primary);
   user-select: none;

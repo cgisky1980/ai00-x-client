@@ -15,59 +15,25 @@
   /* override index.html hardcoded background */
   background-color: var(--color-bg-secondary);
 
-  /* ========== OKLCH three-variable system ========== */
-  --hue: 250;
+  /* ========== OKLCH three-variable system（v0.10：--hue 仅驱动黛青；墨阶走包 tokens 公式的 --hue-ink 回退——亮 90 宣纸 / 暗 75 油烟墨，不随滑杆旋转）========== */
+  --hue: 235;
   --chroma: 0.12;
-  --chroma-surface: 0.12;
+  --chroma-surface: 0.012;
   --gray-level: 0;
 
-  /* ── Background colors ── */
-  --color-bg-primary:    oklch(0.965 calc(var(--chroma-surface) * 0.05) var(--hue));
-  --color-bg-secondary:  oklch(0.965 calc(var(--chroma-surface) * 0.05) var(--hue));
-  --color-bg-tertiary:   oklch(0.945 calc(var(--chroma-surface) * 0.07) var(--hue));
-  --color-bg-quaternary: oklch(0.925 calc(var(--chroma-surface) * 0.09) var(--hue));
-  --color-bg-elevated:   oklch(0.995 calc(var(--chroma-surface) * 0.02) var(--hue));
-  --color-bg-workbench:  oklch(0.955 calc(var(--chroma-surface) * 0.06) var(--hue));
-  --color-bg-scene:      oklch(0.940 calc(var(--chroma-surface) * 0.07) var(--hue));
-  --color-bg-flowchat:   var(--color-bg-scene);
-  --color-bg-tooltip:    oklch(0.995 calc(var(--chroma-surface) * 0.02) var(--hue));
+  /* ── 墨族旧名（bg/text/element/border/overlay）由包 tokens.css 双主题别名统一供给（v0.10 单一事实来源：
+       亮 = 宣纸 hue 90 / 暗 = 油烟墨 hue 75 宽阶梯，见 semantic.light/dark.json）── */
 
-  /* ── Text colors ── */
-  --color-text-primary:   oklch(0.18 calc(var(--chroma-surface) * 0.10) var(--hue));
-  --color-text-secondary: oklch(0.35 calc(var(--chroma-surface) * 0.08) var(--hue));
-  --color-text-muted:     oklch(0.52 calc(var(--chroma-surface) * 0.06) var(--hue));
-  --color-text-disabled:  oklch(0.65 calc(var(--chroma-surface) * 0.04) var(--hue));
-
-  /* ── Element backgrounds ── */
-  --element-bg-subtle:   oklch(0.965 calc(var(--chroma-surface) * 0.05) var(--hue));
-  --element-bg-soft:     oklch(0.945 calc(var(--chroma-surface) * 0.08) var(--hue));
-  --element-bg-base:     oklch(0.925 calc(var(--chroma-surface) * 0.10) var(--hue));
-  --element-bg-medium:   oklch(0.905 calc(var(--chroma-surface) * 0.13) var(--hue));
-  --element-bg-strong:   oklch(0.885 calc(var(--chroma-surface) * 0.16) var(--hue));
-  --element-bg-elevated: oklch(0.955 calc(var(--chroma-surface) * 0.06) var(--hue));
-
-  /* ── Border colors ── */
-  --border-subtle:    oklch(0.88 calc(var(--chroma-surface) * 0.06) var(--hue));
-  --border-base:      oklch(0.84 calc(var(--chroma-surface) * 0.08) var(--hue));
-  --border-medium:    oklch(0.80 calc(var(--chroma-surface) * 0.10) var(--hue));
-  --border-strong:    oklch(0.74 calc(var(--chroma-surface) * 0.14) var(--hue));
-  --border-prominent: oklch(0.68 calc(var(--chroma-surface) * 0.18) var(--hue));
-  --border-hover:     var(--border-medium);
-  --border-focus:     var(--border-strong);
-
-  /* ── Overlay ── */
-  --color-overlay: oklch(0.20 calc(var(--chroma-surface) * 0.02) var(--hue) / 0.30);
-
-  /* ── Accent scale ── */
-  --color-accent-50:  oklch(0.96 calc(var(--chroma) * 0.05 * (1 - var(--gray-level))) var(--hue));
-  --color-accent-100: oklch(0.92 calc(var(--chroma) * 0.12 * (1 - var(--gray-level))) var(--hue));
-  --color-accent-200: oklch(0.85 calc(var(--chroma) * 0.28 * (1 - var(--gray-level))) var(--hue));
-  --color-accent-300: oklch(0.78 calc(var(--chroma) * 0.50 * (1 - var(--gray-level))) var(--hue));
-  --color-accent-400: oklch(0.72 calc(var(--chroma) * 0.72 * (1 - var(--gray-level))) var(--hue));
-  --color-accent-500: oklch(0.70 var(--chroma) var(--hue));
-  --color-accent-600: oklch(0.62 var(--chroma) var(--hue));
-  --color-accent-700: oklch(0.55 calc(var(--chroma) * 0.85) var(--hue));
-  --color-accent-800: oklch(0.48 calc(var(--chroma) * 0.70) var(--hue));
+  /* ── Accent scale（亮色基底，与包 tokens.css 宣纸档一致：规范 4.2 黛青亮色梯度）── */
+  --color-accent-50:  oklch(0.95 calc(var(--chroma) * 0.05) var(--hue));
+  --color-accent-100: oklch(0.90 calc(var(--chroma) * 0.12) var(--hue));
+  --color-accent-200: oklch(0.82 calc(var(--chroma) * 0.28) var(--hue));
+  --color-accent-300: oklch(0.72 calc(var(--chroma) * 0.55) var(--hue));
+  --color-accent-400: oklch(0.63 calc(var(--chroma) * 0.78) var(--hue));
+  --color-accent-500: oklch(0.55 var(--chroma) var(--hue));
+  --color-accent-600: oklch(0.48 var(--chroma) var(--hue));
+  --color-accent-700: oklch(0.42 calc(var(--chroma) * 0.85) var(--hue));
+  --color-accent-800: oklch(0.38 calc(var(--chroma) * 0.70) var(--hue));
 
   /* ── Primary aliases ── */
   --color-primary:        var(--color-accent-500);
@@ -117,12 +83,10 @@
   --btn-default-active-shadow:   none;
   --btn-default-active-transform:none;
 
-  /* ── Card backgrounds ── */
-  --card-bg-default:  oklch(0.925 calc(var(--chroma-surface) * 0.06) var(--hue) / 0.60);
-  --card-bg-elevated: oklch(0.955 calc(var(--chroma-surface) * 0.04) var(--hue) / 0.80);
-  --card-bg-subtle:   oklch(0.965 calc(var(--chroma-surface) * 0.04) var(--hue) / 0.40);
-  --card-bg-hover:    oklch(0.905 calc(var(--chroma-surface) * 0.08) var(--hue) / 0.65);
-  --card-bg-active:   oklch(0.885 calc(var(--chroma-surface) * 0.10) var(--hue) / 0.90);
+  /* ── Card backgrounds ──（墨族挂 --hue-ink 宣纸 90；v0.10 起 --chroma-surface 0.012 标定，系数 ×10 对齐旧渲染） */
+  --card-bg-default:  oklch(0.925 calc(var(--chroma-surface) * 0.6) var(--hue-ink, 90) / 0.60);
+  --card-bg-elevated: oklch(0.955 calc(var(--chroma-surface) * 0.4) var(--hue-ink, 90) / 0.80);
+  --card-bg-subtle:   oklch(0.965 calc(var(--chroma-surface) * 0.4) var(--hue-ink, 90) / 0.40);
   --card-bg-accent:       oklch(0.70 var(--chroma) var(--hue) / 0.08);
   --card-bg-accent-hover: oklch(0.70 var(--chroma) var(--hue) / 0.13);
   --card-bg:         var(--element-bg-base);
@@ -183,7 +147,7 @@
   --glow-blue:        oklch(0.70 var(--chroma) var(--hue) / 0.15);
   --glow-shadow-blue: 0 12px 32px oklch(0.70 var(--chroma) var(--hue) / 0.20),
                        0 6px 16px oklch(0.70 var(--chroma) var(--hue) / 0.12),
-                       0 3px 8px rgba(0, 0, 0, 0.12);
+                       0 3px 8px var(--color-overlay);
 
   /* ── Window controls ── */
   --window-control-minimize-dot:            oklch(0.72 calc(var(--chroma) * 0.72 * (1 - var(--gray-level))) var(--hue));
@@ -215,42 +179,7 @@
 
 /* ========== OKLCH dark-mode overrides ========== */
 :root[data-theme-type="dark"] {
-  /* ── Background colors ── */
-  --color-bg-primary:    oklch(0.10 calc(var(--chroma-surface) * 0.04) var(--hue));
-  --color-bg-secondary:  oklch(0.18 calc(var(--chroma-surface) * 0.08) var(--hue));
-  --color-bg-tertiary:   oklch(0.26 calc(var(--chroma-surface) * 0.10) var(--hue));
-  --color-bg-quaternary: oklch(0.30 calc(var(--chroma-surface) * 0.10) var(--hue));
-  --color-bg-elevated:   oklch(0.36 calc(var(--chroma-surface) * 0.10) var(--hue));
-  --color-bg-workbench:  oklch(0.08 calc(var(--chroma-surface) * 0.04) var(--hue));
-  --color-bg-scene:      oklch(0.22 calc(var(--chroma-surface) * 0.12) var(--hue));
-  --color-bg-flowchat:   var(--color-bg-scene);
-  --color-bg-tooltip:    oklch(0.36 calc(var(--chroma-surface) * 0.10) var(--hue));
-
-  /* ── Text colors ── */
-  --color-text-primary:   oklch(0.97 calc(var(--chroma-surface) * 0.03) var(--hue));
-  --color-text-secondary: oklch(0.87 calc(var(--chroma-surface) * 0.04) var(--hue));
-  --color-text-muted:     oklch(0.74 calc(var(--chroma-surface) * 0.03) var(--hue));
-  --color-text-disabled:  oklch(0.60 calc(var(--chroma-surface) * 0.02) var(--hue));
-
-  /* ── Element backgrounds ── */
-  --element-bg-subtle:   oklch(0.26 calc(var(--chroma-surface) * 0.08) var(--hue));
-  --element-bg-soft:     oklch(0.30 calc(var(--chroma-surface) * 0.10) var(--hue));
-  --element-bg-base:     oklch(0.36 calc(var(--chroma-surface) * 0.12) var(--hue));
-  --element-bg-medium:   oklch(0.46 calc(var(--chroma-surface) * 0.14) var(--hue));
-  --element-bg-strong:   oklch(0.54 calc(var(--chroma-surface) * 0.14) var(--hue));
-  --element-bg-elevated: oklch(0.40 calc(var(--chroma-surface) * 0.10) var(--hue));
-
-  /* ── Border colors ── */
-  --border-subtle:    oklch(0.46 calc(var(--chroma-surface) * 0.06) var(--hue));
-  --border-base:      oklch(0.54 calc(var(--chroma-surface) * 0.08) var(--hue));
-  --border-medium:    oklch(0.62 calc(var(--chroma-surface) * 0.10) var(--hue));
-  --border-strong:    oklch(0.72 calc(var(--chroma-surface) * 0.12) var(--hue));
-  --border-prominent: oklch(0.80 calc(var(--chroma-surface) * 0.14) var(--hue));
-  --border-hover:     var(--border-medium);
-  --border-focus:     var(--border-strong);
-
-  /* ── Overlay ── */
-  --color-overlay: oklch(0.06 calc(var(--chroma-surface) * 0.02) var(--hue) / 0.65);
+  /* ── 墨族旧名（bg/text/element/border/overlay）由包 tokens.css :root 暗色默认统一供给（v0.12 松烟墨 hue 240 高级深灰档）── */
 
   /* ── Accent scale ── */
   --color-accent-50:  oklch(0.24 calc(var(--chroma) * 0.12) var(--hue));
@@ -269,12 +198,12 @@
   --btn-primary-hover-bg:        oklch(0.52 calc(var(--chroma) * 0.40 * (1 - var(--gray-level))) var(--hue));
   --btn-primary-active-bg:       oklch(0.48 calc(var(--chroma) * 0.35 * (1 - var(--gray-level))) var(--hue));
 
-  /* ── Card backgrounds ── */
-  --card-bg-default:  oklch(0.36 calc(var(--chroma-surface) * 0.10) var(--hue) / 0.85);
-  --card-bg-elevated: oklch(0.40 calc(var(--chroma-surface) * 0.08) var(--hue) / 0.90);
-  --card-bg-subtle:   oklch(0.28 calc(var(--chroma-surface) * 0.08) var(--hue) / 0.60);
-  --card-bg-hover:    oklch(0.42 calc(var(--chroma-surface) * 0.12) var(--hue) / 0.80);
-  --card-bg-active:   oklch(0.48 calc(var(--chroma-surface) * 0.14) var(--hue) / 0.90);
+  /* ── Card backgrounds ──（墨族挂 --hue-ink 油烟墨 75；系数 ×10 对齐 0.012 标定） */
+  --card-bg-default:  oklch(0.36 calc(var(--chroma-surface) * 1.0) var(--hue-ink, 240) / 0.85);
+  --card-bg-elevated: oklch(0.40 calc(var(--chroma-surface) * 0.8) var(--hue-ink, 240) / 0.90);
+  --card-bg-subtle:   oklch(0.28 calc(var(--chroma-surface) * 0.8) var(--hue-ink, 240) / 0.60);
+  --card-bg-hover:    oklch(0.42 calc(var(--chroma-surface) * 1.2) var(--hue-ink, 240) / 0.80);
+  --card-bg-active:   oklch(0.48 calc(var(--chroma-surface) * 1.4) var(--hue-ink, 240) / 0.90);
   --card-bg-accent:       oklch(0.74 var(--chroma) var(--hue) / 0.14);
   --card-bg-accent-hover: oklch(0.74 var(--chroma) var(--hue) / 0.22);
 
@@ -302,11 +231,11 @@
   --nav-bg:              var(--color-bg-tertiary);
 
   /* ── Scrollbar ── */
-  --scrollbar-thumb:       oklch(0.62 calc(var(--chroma-surface) * 0.04) var(--hue) / 0.18);
-  --scrollbar-thumb-hover: oklch(0.62 calc(var(--chroma-surface) * 0.06) var(--hue) / 0.32);
+  --scrollbar-thumb:       oklch(0.62 calc(var(--chroma-surface) * 0.4) var(--hue-ink, 240) / 0.18);
+  --scrollbar-thumb-hover: oklch(0.62 calc(var(--chroma-surface) * 0.6) var(--hue-ink, 240) / 0.32);
 
   /* ── Modal overlay ── */
-  --modal-overlay: oklch(0.04 calc(var(--chroma-surface) * 0.02) var(--hue) / 0.78);
+  --modal-overlay: oklch(0.04 calc(var(--chroma-surface) * 0.2) var(--hue-ink, 240) / 0.78);
 }
 
 /* ========== Global reset and base styles ========== */
@@ -329,11 +258,12 @@ html {
 }
 
 body {
-  font-family: var(--font-family-sans, #{$font-family-sans});
-  font-size: var(--font-size-base, #{$font-size-base});
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
   line-height: $line-height-base;
   color: var(--color-text-primary);
-  background: var(--color-bg-primary);
+  /* 只设 background-color：shorthand 会重置 texture.css 的宣纸颗粒 background-image（v0.10 教训） */
+  background-color: var(--color-bg-primary);
   overflow: hidden;
 }
 
@@ -516,9 +446,9 @@ li {
 /* High-contrast mode */
 @media (prefers-contrast: high) {
   :root {
-    --glass-border-base: rgba(255, 255, 255, 0.3);
-    --glass-border-hover: rgba(255, 255, 255, 0.5);
-    --glass-border-focus: rgba(255, 255, 255, 0.7);
+    --glass-border-base: var(--color-gray-600);
+    --glass-border-hover: var(--border-strong);
+    --glass-border-focus: var(--border-prominent);
   }
 }
 

@@ -6,18 +6,18 @@
  */
 
 .comment-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  margin-top: var(--size-gap-4);
+  padding-top: var(--size-gap-4);
+  border-top: 1px solid var(--border-base);
 
   &__title {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin: 0 0 12px;
-    font-size: 14px;
+    gap: var(--size-gap-1-5);
+    margin: 0 0 var(--size-gap-3);
+    font-size: var(--font-size-base);
     font-weight: 600;
-    color: var(--text-primary, #e5e5e5);
+    color: var(--text-primary);
 
     svg {
       opacity: 0.7;
@@ -36,11 +36,11 @@
     justify-content: center;
     min-width: 18px;
     height: 18px;
-    padding: 0 6px;
+    padding: 0 var(--size-gap-1-5);
     border-radius: 9px;
-    background: var(--bg-info, rgba(74, 158, 255, 0.12));
-    color: var(--text-secondary, #999);
-    font-size: 11px;
+    background: var(--color-info-bg);
+    color: var(--text-secondary);
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     line-height: 1;
   }
@@ -49,30 +49,30 @@
   &__sort {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
-    margin-left: 4px;
-    padding: 2px;
+    gap: var(--size-gap-0-5);
+    margin-left: var(--size-gap-1);
+    padding: var(--size-gap-0-5);
     border-radius: 6px;
-    background: var(--bg-input, rgba(0, 0, 0, 0.2));
+    background: var(--color-bg-secondary);
   }
 
   &__sort-btn {
     background: none;
     border: none;
-    padding: 3px 8px;
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     border-radius: 4px;
-    font-size: 11px;
-    color: var(--text-secondary, #999);
+    font-size: var(--font-size-2xs);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
 
     &:hover:not(:disabled) {
-      color: var(--text-primary, #e5e5e5);
+      color: var(--text-primary);
     }
 
     &.is-active {
-      background: var(--accent-primary, #4a9eff);
-      color: #fff;
+      background: var(--color-accent-500);
+      color: var(--color-accent-foreground);
     }
 
     &:disabled {
@@ -85,8 +85,8 @@
   &__form {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-bottom: 16px;
+    gap: var(--size-gap-2);
+    margin-bottom: var(--size-gap-4);
   }
 
   &__textarea {
@@ -94,18 +94,18 @@
     min-height: 72px;
     max-height: 200px;
     resize: vertical;
-    padding: 8px 10px;
-    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    padding: var(--size-gap-2) var(--size-gap-2-5);
+    border: 1px solid var(--border-base);
     border-radius: 6px;
-    background: var(--bg-input, rgba(0, 0, 0, 0.2));
-    color: var(--text-primary, #e5e5e5);
-    font-size: 13px;
+    background: var(--color-bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
     font-family: inherit;
     line-height: 1.5;
 
     &:focus {
       outline: none;
-      border-color: var(--accent-primary, #4a9eff);
+      border-color: var(--color-accent-500);
     }
 
     &:disabled {
@@ -117,17 +117,17 @@
   &__form-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   // ---- 登录提示 ----
   &__login-required {
-    margin: 0 0 16px;
-    padding: 10px 12px;
+    margin: 0 0 var(--size-gap-4);
+    padding: var(--size-gap-2-5) var(--size-gap-3);
     border-radius: 6px;
-    background: var(--bg-info, rgba(74, 158, 255, 0.08));
-    color: var(--text-secondary, #999);
-    font-size: 12px;
+    background: var(--color-info-bg);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
     text-align: center;
   }
 
@@ -135,13 +135,13 @@
   &__error {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 12px;
-    padding: 8px 10px;
+    gap: var(--size-gap-1-5);
+    margin-bottom: var(--size-gap-3);
+    padding: var(--size-gap-2) var(--size-gap-2-5);
     border-radius: 6px;
-    background: var(--bg-error, rgba(255, 80, 80, 0.08));
-    color: var(--text-error, #ff6b6b);
-    font-size: 12px;
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    font-size: var(--font-size-xs);
 
     button {
       margin-left: auto;
@@ -149,27 +149,27 @@
       border: none;
       color: inherit;
       cursor: pointer;
-      font-size: 16px;
+      font-size: var(--font-size-xl);
       line-height: 1;
-      padding: 0 4px;
+      padding: 0 var(--size-gap-1);
     }
   }
 
   // ---- 加载中 / 空状态 ----
   &__loading,
   &__empty {
-    margin: 12px 0;
-    padding: 16px;
+    margin: var(--size-gap-3) 0;
+    padding: var(--size-gap-4);
     text-align: center;
-    color: var(--text-secondary, #999);
-    font-size: 12px;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
   }
 
   &__loading {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   // ---- 评论列表 ----
@@ -183,8 +183,8 @@
   }
 
   &__item {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.04));
+    padding: var(--size-gap-2-5) 0;
+    border-bottom: 1px solid var(--border-base);
 
     &:last-child {
       border-bottom: none;
@@ -192,63 +192,63 @@
 
     // 回复评论缩进显示（parent_id !== null）
     &.is-reply {
-      padding-left: 16px;
-      border-left: 2px solid var(--border-color, rgba(255, 255, 255, 0.06));
-      margin-left: 8px;
+      padding-left: var(--size-gap-4);
+      border-left: 2px solid var(--border-base);
+      margin-left: var(--size-gap-2);
     }
   }
 
   &__item-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
+    gap: var(--size-gap-2);
+    margin-bottom: var(--size-gap-1);
   }
 
   &__item-author {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 600;
-    color: var(--text-primary, #e5e5e5);
+    color: var(--text-primary);
   }
 
   &__item-date {
-    font-size: 11px;
-    color: var(--text-tertiary, #666);
+    font-size: var(--font-size-2xs);
+    color: var(--text-tertiary);
   }
 
   &__item-edited {
-    font-size: 10px;
-    color: var(--text-tertiary, #666);
+    font-size: var(--font-size-xxs);
+    color: var(--text-tertiary);
     font-style: italic;
   }
 
   &__item-content {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     line-height: 1.5;
-    color: var(--text-primary, #e5e5e5);
+    color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-word;
   }
 
   &__item-actions {
     display: flex;
-    gap: 12px;
-    margin-top: 6px;
+    gap: var(--size-gap-3);
+    margin-top: var(--size-gap-1-5);
 
     button {
       background: none;
       border: none;
       padding: 0;
-      font-size: 11px;
-      color: var(--text-secondary, #999);
+      font-size: var(--font-size-2xs);
+      color: var(--text-secondary);
       cursor: pointer;
 
       &:hover {
-        color: var(--text-primary, #e5e5e5);
+        color: var(--text-primary);
       }
 
       &.is-danger:hover {
-        color: var(--text-error, #ff6b6b);
+        color: var(--color-error);
       }
     }
   }
@@ -256,18 +256,18 @@
   // ---- 编辑/回复表单（缩进显示）----
   &__edit-form,
   &__reply-form {
-    margin-top: 8px;
-    padding-left: 12px;
-    border-left: 2px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    margin-top: var(--size-gap-2);
+    padding-left: var(--size-gap-3);
+    border-left: 2px solid var(--border-base);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
   }
 
   &__replying-to {
     margin: 0;
-    font-size: 11px;
-    color: var(--text-secondary, #999);
+    font-size: var(--font-size-2xs);
+    color: var(--text-secondary);
   }
 
   // ---- 加载更多按钮 ----
@@ -275,15 +275,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    margin-top: 12px;
-    padding: 8px 0;
-    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.04));
+    gap: var(--size-gap-3);
+    margin-top: var(--size-gap-3);
+    padding: var(--size-gap-2) 0;
+    border-top: 1px solid var(--border-base);
   }
 
   &__count-info {
-    font-size: 11px;
-    color: var(--text-tertiary, #666);
+    font-size: var(--font-size-2xs);
+    color: var(--text-tertiary);
     font-variant-numeric: tabular-nums;
   }
 }

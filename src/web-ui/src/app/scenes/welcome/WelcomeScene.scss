@@ -46,9 +46,11 @@
 
   &__title {
     margin: 0;
-    font-size: var(--font-size-2xl);
+    /* 门面签名排版：衬线 Display（规范 2.2），工作台内取适度尺寸 */
+    font-family: var(--font-family-serif);
+    font-size: clamp(1.75rem, 2.5vw, 2.5rem);
     line-height: $line-height-tight;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
     color: var(--color-text-primary);
     font-weight: $font-weight-semibold;
   }
@@ -103,8 +105,8 @@
   &__link-btn {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px $size-gap-2;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) $size-gap-2;
     border: none;
     border-radius: $size-radius-sm;
     background: transparent;
@@ -132,7 +134,7 @@
   &__recent-list {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: var(--size-gap-0-25);
   }
 
   &__recent-row {
@@ -162,7 +164,7 @@
     }
 
     &:hover .welcome-scene__recent-time-btn:hover {
-      background: var(--element-bg-muted);
+      background: var(--color-bg-tertiary);
 
       .welcome-scene__recent-time-btn__icon svg {
         transform: scale(1.12);
@@ -176,7 +178,7 @@
     gap: $size-gap-2;
     flex: 1;
     min-width: 0;
-    padding: $size-gap-1 + 2px $size-gap-2;
+    padding: calc($size-gap-1 + var(--size-gap-0-5)) $size-gap-2;
     border: none;
     background: transparent;
     color: var(--color-text-secondary);
@@ -212,7 +214,7 @@
       align-items: center;
       justify-content: flex-end;
       min-height: 100%;
-      padding-right: 1px;
+      padding-right: var(--size-gap-0-25);
       transition: opacity $motion-fast $easing-standard;
     }
 
@@ -238,7 +240,7 @@
 
     &:focus-visible {
       color: var(--color-text-primary);
-      outline: 2px solid var(--focus-ring-color, var(--color-accent));
+      outline: 2px solid var(--color-accent-500);
       outline-offset: -2px;
       z-index: 1;
     }

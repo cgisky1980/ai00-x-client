@@ -1,8 +1,8 @@
 /* Model round item styles (BEM). */
 
 .model-round-item {
-  margin-bottom: 0.5rem;
-  padding: 0 3rem;
+  margin-bottom: var(--size-gap-2);
+  padding: 0 var(--size-gap-12);
   animation: fadeIn 0.4s ease;
   position: relative;
 
@@ -19,19 +19,19 @@
 
   // Reduce spacing when compact tool cards are present.
   &:has(.compact-tool-card) {
-    margin-bottom: 0.001rem;
+    margin-bottom: var(--size-gap-0-25);
   }
 
   @media (max-width: 768px) {
-    padding: 0 1.5rem;
+    padding: 0 var(--size-gap-6);
   }
 }
 
 .model-round-item__header {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 0.5rem;
-  padding: 0 0.5rem;
+  margin-bottom: var(--size-gap-2);
+  padding: 0 var(--size-gap-2);
 }
 
 // Action button container (bottom-right of last round).
@@ -39,9 +39,9 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
-  margin-top: 0.5rem;
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-2) 0;
+  margin-top: var(--size-gap-2);
 }
 
 .model-round-item__action-btn {
@@ -60,7 +60,7 @@
   opacity: 1;
   
   &:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background:color-mix(in srgb, var(--color-text-primary) 8%, transparent);
     color: var(--color-text-primary);
   }
 
@@ -78,8 +78,8 @@
 // Copy button
 .model-round-item__copy-btn {
   &.copied {
-    color: #22c55e;
-    background: rgba(34, 197, 94, 0.1);
+    color: var(--color-success);
+    background: var(--color-success-bg);
   }
 }
 
@@ -124,7 +124,7 @@
 
 // Reduce spacing between consecutive collapsed explore regions.
 .model-round-item:has(.explore-region--collapsed) + .model-round-item:has(.explore-region--collapsed) {
-  margin-top: -4px;
+  margin-top: calc(var(--size-gap-1) * -1);
 }
 
 /* Focus highlight for programmatic "jump to marker" navigation. */

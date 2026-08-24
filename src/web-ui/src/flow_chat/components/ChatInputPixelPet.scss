@@ -38,7 +38,7 @@
 }
 
 .ai00-x-panda__halo {
-  fill: #ffffff;
+  fill: var(--color-accent-foreground);
 }
 
 /* Face fill: light gray so the head reads on light UI; halo + eye whites stay brighter */
@@ -51,7 +51,7 @@
 }
 
 .ai00-x-panda__eye-hi {
-  fill: #ffffff;
+  fill: var(--color-accent-foreground);
 }
 
 .ai00-x-panda__pupil {
@@ -116,7 +116,7 @@
 
   &__wait-pips .ai00-x-panda-head__wait-pip {
     animation: ai00-x-wait-pip 0.7s ease-in-out infinite;
-    fill: #94a3b8;
+    fill: var(--color-text-muted);
   }
 
   &__wait-pips .ai00-x-panda-head__wait-pip:nth-child(1) {
@@ -144,7 +144,7 @@
   }
 
   &__speed .ai00-x-panda-head__speed-line {
-    fill: #94a3b8;
+    fill: var(--color-text-muted);
     opacity: 0.85;
   }
 
