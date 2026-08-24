@@ -233,7 +233,7 @@ a { color: inherit; text-decoration: none; }
   }
 
   &:hover {
-    border-color: var(--border-medium);
+    border-color: var(--ds-card-hover-ring);
     box-shadow: var(--shadow-base);
     transform: translateY(-3px);
 
@@ -316,6 +316,8 @@ a { color: inherit; text-decoration: none; }
       &::before { display: none; }
       &:hover {
         transform: none;
+        border-color: var(--ds-card-hover-ring);
+        box-shadow: 0 0 0 1px var(--ds-card-hover-ring);
         background: var(--ds-glow-card), var(--element-bg-base);
       }
     }

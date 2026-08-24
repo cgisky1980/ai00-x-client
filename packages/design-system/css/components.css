@@ -111,22 +111,29 @@
 }
 .ds-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-base), var(--inner-glow-top);
+  /* 1px 亮环 = 暗色主信号（Linear 式）；无实体 border 避免 1px 抖动 */
+  box-shadow: var(--shadow-base), var(--inner-glow-top),
+    0 0 0 1px var(--ds-card-hover-ring);
 }
 .ds-card:hover::before {
   opacity: 1;
 }
 
-/* 通用悬停光晕配方（v0.14.1）：主题自适应
- * 暗色（松烟墨默认）：accent-300 @16% —— 冷墨面上用亮青更清透（500 发灰发闷）
- * 亮色（宣纸覆盖）：accent-500 @12% —— 原配方 */
+/* 悬停反馈配方（v0.14.2 · 暗色重调）：参考 Linear/Vercel 暗色卡惯例——
+ * 主信号 = 边框亮化（白 16% 环），辅以表面微提亮（白 3%），
+ * 彩色光只做左上角 9% 点缀（16% 青光在墨面上发闷，弃）。
+ * 亮色维持原：青 12% 光 + 墨阶边框。
+ * 白/墨由 --color-text-primary 派生（暗≈白、亮≈墨），天然主题自适应且零硬编码。 */
 :root {
-  --ds-glow-card: radial-gradient(ellipse 80% 60% at 10% 0%,
-    color-mix(in srgb, var(--color-accent-300) 16%, transparent), transparent);
+  --ds-glow-card: radial-gradient(ellipse 90% 70% at 10% 0%,
+    color-mix(in srgb, var(--color-accent-300) 9%, transparent), transparent 60%),
+    color-mix(in srgb, var(--color-text-primary) 3%, transparent);
+  --ds-card-hover-ring: color-mix(in srgb, var(--color-text-primary) 16%, transparent);
 }
 [data-theme-type="light"] {
   --ds-glow-card: radial-gradient(ellipse 80% 60% at 10% 0%,
     color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent);
+  --ds-card-hover-ring: var(--border-medium);
 }
 
 /* 通用悬停光晕工具类（任意卡面/区块可挂）：与 ds-card 同款 */
@@ -149,6 +156,7 @@
 }
 .ds-hover-glow:hover {
   transform: translateY(-2px);
+  box-shadow: 0 0 0 1px var(--ds-card-hover-ring);
 }
 .ds-hover-glow:hover::before {
   opacity: 1;
