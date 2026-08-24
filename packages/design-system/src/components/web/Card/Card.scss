@@ -46,7 +46,7 @@
     position: relative;
     z-index: 0; /* 建 stacking context：光晕(-1) 沉到内容之下 */
 
-    /* v0.14：黛青径向光晕淡入（与 ds-card 同款默认悬停反馈） */
+    /* v0.14：黛青径向光晕淡入（与 ds-card 同款，配方 --ds-glow-card 主题自适应） */
     &::before {
       content: '';
       position: absolute;
@@ -55,8 +55,7 @@
       border-radius: inherit;
       opacity: 0;
       transition: opacity 0.3s var(--easing-standard);
-      background: radial-gradient(ellipse 80% 60% at 10% 0%,
-        color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent);
+      background: var(--ds-glow-card);
       pointer-events: none;
     }
 
