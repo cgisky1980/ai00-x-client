@@ -3,3 +3,4 @@ packages:
   - "src/loader-ui"
   - "src/underlay-ui"
   - "packages/shared"
+  - "packages/design-system"

@@ -8,9 +8,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--modal-overlay);
   backdrop-filter: blur(4px);
-  z-index: 260;
+  z-index: var(--z-modal);
   animation: fadeIn 0.2s ease;
 
   // Beat `.ai00-x-app-layout *:focus-visible` (same specificity as a single-class :focus-visible; load order can win).
@@ -36,7 +36,7 @@
   background: var(--color-bg-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  box-shadow:0 24px 48px var(--modal-overlay), 0 0 0 1px color-mix(in srgb, var(--color-text-primary) 4%, transparent);
   overflow: hidden;
   animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -44,12 +44,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
+    padding: var(--size-gap-4) var(--size-gap-5);
     border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
 
     &-title {
-      font-size: 16px;
+      font-size: var(--font-size-xl);
       font-weight: 600;
       color: var(--color-text-primary);
       margin: 0;
@@ -80,8 +80,8 @@
   &__breadcrumb {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 10px 20px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-2-5) var(--size-gap-5);
     background: var(--color-bg-tertiary);
     border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
@@ -101,14 +101,14 @@
   &__breadcrumb-path {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex: 1;
     min-width: 0;
     flex-wrap: nowrap;
     cursor: text;
     border-radius: 6px;
-    padding: 2px 4px;
-    margin: -2px -4px;
+    padding: var(--size-gap-0-5) var(--size-gap-1);
+    margin: calc(var(--size-gap-0-5) * -1) calc(var(--size-gap-1) * -1);
     transition: background var(--motion-fast) var(--easing-standard);
 
     &:hover {
@@ -119,11 +119,11 @@
   &__path-input {
     flex: 1;
     min-width: 0;
-    padding: 4px 8px;
+    padding: var(--size-gap-1) var(--size-gap-2);
     background: var(--color-bg-primary);
     border: 1px solid var(--color-accent-500);
     border-radius: 6px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-family: var(--font-family-mono);
     color: var(--color-text-primary);
     outline: none;
@@ -141,11 +141,11 @@
   &__breadcrumb-btn {
     display: inline-flex;
     align-items: center;
-    padding: 4px 8px;
+    padding: var(--size-gap-1) var(--size-gap-2);
     background: transparent;
     border: none;
     border-radius: 4px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     cursor: pointer;
     white-space: nowrap;
@@ -168,18 +168,18 @@
   }
 
   &__breadcrumb-current {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     color: var(--color-text-primary);
     font-weight: 500;
-    padding: 4px 8px;
+    padding: var(--size-gap-1) var(--size-gap-2);
   }
 
   // Toolbar
   &__toolbar {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2-5) var(--size-gap-5);
     border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
   }
@@ -212,9 +212,9 @@
   &__transfer-status {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 20px;
-    font-size: 13px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2) var(--size-gap-5);
+    font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
@@ -235,12 +235,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 16px 20px;
-    padding: 12px 14px;
+    margin: var(--size-gap-4) var(--size-gap-5);
+    padding: var(--size-gap-3) var(--size-gap-3-5);
     background: var(--color-error-bg);
     border: 1px solid var(--color-error-border);
     border-radius: 6px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     color: var(--color-error);
 
     button {
@@ -248,8 +248,8 @@
       border: none;
       color: var(--color-error);
       cursor: pointer;
-      font-size: 16px;
-      padding: 0 4px;
+      font-size: var(--font-size-xl);
+      padding: 0 var(--size-gap-1);
     }
   }
 
@@ -258,10 +258,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    padding: 64px;
+    gap: var(--size-gap-3);
+    padding: var(--size-gap-16);
     color: var(--color-text-muted);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
   }
 
   &__spinner {
@@ -269,20 +269,9 @@
     color: var(--color-accent-500);
   }
 
-  &__table {
-    width: 100%;
-    border-collapse: collapse;
-
-    th,
-    td {
-      border-left: none;
-      border-right: none;
-    }
-
-    tbody td {
-      border-bottom: none;
-    }
-  }
+  // v0.13：表格结构样式由 DS Table（.ds-table，dense）承担。
+  // 表格嵌在滚动容器内：wrap 的卡片边框退役，由容器承担表面
+  .ds-table-wrap { border: none; border-radius: 0; background: transparent; }
 
   &__thead {
     position: sticky;
@@ -291,8 +280,8 @@
     z-index: 1;
 
     th {
-      padding: 10px 20px;
-      font-size: 11px;
+      padding: var(--size-gap-2-5) var(--size-gap-5);
+      font-size: var(--font-size-2xs);
       font-weight: 600;
       color: var(--color-text-muted);
       text-align: left;
@@ -331,8 +320,6 @@
 
   &__tbody {
     tr {
-      border-bottom: 1px solid var(--border-subtle);
-      transition: background var(--motion-fast) var(--easing-standard);
       cursor: pointer;
 
       &:hover {
@@ -347,18 +334,12 @@
         color: var(--color-text-muted);
       }
     }
-
-    td {
-      padding: 10px 20px;
-      font-size: 13px;
-      color: var(--color-text-primary);
-    }
   }
 
   &__name-cell {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--size-gap-2-5);
     min-width: 0;
   }
 
@@ -369,7 +350,7 @@
     &--size {
       color: var(--color-text-muted);
       font-family: var(--font-family-mono);
-      font-size: 12px;
+      font-size: var(--font-size-xs);
       white-space: nowrap;
       min-width: 152px;
       box-sizing: border-box;
@@ -377,7 +358,7 @@
     }
     &--date {
       color: var(--color-text-muted);
-      font-size: 12px;
+      font-size: var(--font-size-xs);
       text-align: right;
     }
   }
@@ -391,7 +372,7 @@
     }
 
     &--link {
-      color: var(--color-purple-500);
+      color: var(--color-accent-500);
     }
 
     &--file {
@@ -401,12 +382,12 @@
 
   &__name {
     font-family: var(--font-family-mono);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
   }
 
   &__empty {
     text-align: center;
-    padding: 48px 20px !important;
+    padding: var(--size-gap-12) var(--size-gap-5) !important;
     color: var(--color-text-muted);
   }
 
@@ -417,21 +398,21 @@
     background: var(--color-bg-secondary);
     border: 1px solid var(--border-base);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    padding: 4px;
-    z-index: 100;
+    box-shadow: 0 8px 24px var(--modal-overlay);
+    padding: var(--size-gap-1);
+    z-index: var(--z-overlay);
   }
 
   &__context-menu-item {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--size-gap-2-5);
     width: 100%;
-    padding: 8px 12px;
+    padding: var(--size-gap-2) var(--size-gap-3);
     background: transparent;
     border: none;
     border-radius: 4px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     cursor: pointer;
     text-align: left;
@@ -464,7 +445,7 @@
   }
 
   &__context-menu-icon {
-    font-size: 14px;
+    font-size: var(--font-size-base);
     width: 16px;
     text-align: center;
   }
@@ -472,7 +453,7 @@
   &__context-menu-divider {
     height: 1px;
     background: var(--border-subtle);
-    margin: 4px 0;
+    margin: var(--size-gap-1) 0;
   }
 
   // Dialog overlay
@@ -482,8 +463,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.6);
-    z-index: 270;
+    background: var(--modal-overlay);
+    z-index: var(--z-modal-active);
   }
 
   &__dialog {
@@ -492,24 +473,24 @@
     background: var(--color-bg-secondary);
     border: 1px solid var(--border-subtle);
     border-radius: 10px;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
-    padding: 20px;
+    box-shadow: 0 16px 48px var(--modal-overlay);
+    padding: var(--size-gap-5);
   }
 
   &__dialog-title {
-    font-size: 16px;
+    font-size: var(--font-size-xl);
     font-weight: 600;
     color: var(--color-text-primary);
-    margin: 0 0 16px 0;
+    margin: 0 0 var(--size-gap-4) 0;
   }
 
   &__dialog-input {
     width: 100%;
-    padding: 10px 12px;
+    padding: var(--size-gap-2-5) var(--size-gap-3);
     background: var(--color-bg-primary);
     border: 1px solid var(--border-base);
     border-radius: 6px;
-    font-size: 14px;
+    font-size: var(--font-size-base);
     font-family: var(--font-family-mono);
     color: var(--color-text-primary);
     outline: none;
@@ -528,14 +509,14 @@
   &__dialog-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    margin-top: 16px;
+    gap: var(--size-gap-2);
+    margin-top: var(--size-gap-4);
 
     .btn.btn-sm {
       height: 28px;
       min-height: 28px;
-      padding: 0 10px;
-      font-size: 11px;
+      padding: 0 var(--size-gap-2-5);
+      font-size: var(--font-size-2xs);
     }
   }
 
@@ -544,14 +525,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 20px;
+    padding: var(--size-gap-2-5) var(--size-gap-5);
     border-top: 1px solid var(--border-subtle);
     flex-shrink: 0;
     background: var(--color-bg-secondary);
   }
 
   &__footer-info {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     color: var(--color-text-muted);
   }
 
@@ -561,10 +542,10 @@
 
   &__footer-path {
     font-family: var(--font-family-mono);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
     background: var(--element-bg-subtle);
-    padding: 2px 8px;
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     border-radius: 4px;
   }
 
@@ -575,13 +556,13 @@
 
   &__footer-actions {
     display: flex;
-    gap: 8px;
+    gap: var(--size-gap-2);
 
     .btn.btn-sm {
       height: 28px;
       min-height: 28px;
-      padding: 0 10px;
-      font-size: 11px;
+      padding: 0 var(--size-gap-2-5);
+      font-size: var(--font-size-2xs);
     }
   }
 }

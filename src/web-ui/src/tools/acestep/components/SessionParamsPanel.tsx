@@ -17,7 +17,7 @@ import {
   ChevronUp,
   Sparkles,
 } from 'lucide-react';
-import { Modal } from '@/component-library/components/Modal/Modal';
+import { Modal } from '@ai00-x/design-system/web';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useAceStepStore } from '../store/acestepStore';
 import { MusicModelSelector } from './MusicModelSelector';

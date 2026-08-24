@@ -107,12 +107,12 @@
       z-index: 1;
       background: var(--element-bg-soft);
       transform: translateY(-2px);
-      box-shadow: var(--shadow-sm, 0 4px 14px rgba(0, 0, 0, 0.2));
+      box-shadow: var(--shadow-sm);
     }
 
     &:active {
       transform: translateY(-1px);
-      box-shadow: var(--shadow-xs, 0 2px 6px rgba(0, 0, 0, 0.16));
+      box-shadow: var(--shadow-xs);
     }
 
     &:focus-visible {
@@ -220,8 +220,8 @@
     line-height: $line-height-relaxed;
     padding: $size-gap-3 $size-gap-4;
     border-radius: $size-radius-base;
-    background: rgba(248, 113, 113, 0.06);
-    border: 1px solid rgba(248, 113, 113, 0.2);
+    background: var(--color-error);
+    border: 1px solid var(--color-error);
   }
 
   &__form-actions {

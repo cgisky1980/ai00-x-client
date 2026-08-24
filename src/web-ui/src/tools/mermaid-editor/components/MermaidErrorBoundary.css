@@ -8,29 +8,29 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 24px;
-  background: var(--color-bg-primary, #121214);
+  padding: var(--size-gap-6);
+  background: var(--color-bg-primary);
 }
 
 .error-content {
   text-align: center;
   max-width: 500px;
   width: 100%;
-  padding: 32px;
-  background: var(--color-bg-secondary, #18181a);
-  border: 1px solid var(--border-base, rgba(255, 255, 255, 0.08));
+  padding: var(--size-gap-8);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--border-base);
   border-radius: 12px;
 }
 
 .error-content h3 {
-  margin: 0 0 12px 0;
-  color: var(--color-text-primary, #e8e8e8);
-  font-size: 18px;
+  margin: 0 0 var(--size-gap-3) 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2xl);
   font-weight: 600;
 }
 
 .error-icon {
-  margin-bottom: 16px;
+  margin-bottom: var(--size-gap-4);
   display: flex;
   justify-content: center;
 }
@@ -38,42 +38,42 @@
 .error-icon svg {
   width: 48px;
   height: 48px;
-  color: var(--color-error, #ef4444);
+  color: var(--color-error);
 }
 
 .error-message {
-  margin: 0 0 24px 0;
-  color: var(--color-text-secondary, #e5e5e5);
-  font-size: 14px;
+  margin: 0 0 var(--size-gap-6) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
   line-height: 1.5;
 }
 
 .error-actions {
   display: flex;
   justify-content: center;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: var(--size-gap-3);
+  margin-bottom: var(--size-gap-6);
 }
 
 /* Retry button - minimal style */
 .retry-button {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: var(--glass-blue-subtle, rgba(59, 130, 246, 0.08));
-  color: var(--color-accent-500, #60a5fa);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-2-5) var(--size-gap-5);
+  background: var(--glass-blue-subtle);
+  color: var(--color-accent-500);
+  border:1px solid color-mix(in srgb, var(--color-accent-600) 20%, transparent);
   border-radius: 8px;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .retry-button:hover {
-  background: rgba(59, 130, 246, 0.12);
-  border-color: rgba(59, 130, 246, 0.3);
+  background:color-mix(in srgb, var(--color-accent-600) 12%, transparent);
+  border-color:color-mix(in srgb, var(--color-accent-600) 30%, transparent);
 }
 
 .retry-button:active {
@@ -83,39 +83,39 @@
 /* Error details */
 .error-details {
   text-align: left;
-  margin-top: 16px;
-  padding: 16px;
-  background: var(--element-bg-base, rgba(255, 255, 255, 0.08));
-  border: 1px solid var(--border-base, rgba(255, 255, 255, 0.08));
+  margin-top: var(--size-gap-4);
+  padding: var(--size-gap-4);
+  background: var(--element-bg-base);
+  border: 1px solid var(--border-base);
   border-radius: 8px;
 }
 
 .error-details summary {
-  color: var(--color-text-primary, #e8e8e8);
+  color: var(--color-text-primary);
   font-weight: 500;
   cursor: pointer;
-  margin-bottom: 12px;
-  padding: 8px;
+  margin-bottom: var(--size-gap-3);
+  padding: var(--size-gap-2);
   border-radius: 6px;
   transition: background 0.15s ease;
 }
 
 .error-details summary:hover {
-  background: var(--glass-base, rgba(255, 255, 255, 0.04));
+  background: var(--glass-base);
 }
 
 .error-stack,
 .error-info {
-  background: var(--color-bg-primary, #121214);
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
-  padding: 12px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--border-subtle);
+  padding: var(--size-gap-3);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  color: var(--color-text-secondary, #e5e5e5);
+  color: var(--color-text-secondary);
   white-space: pre-wrap;
   word-break: break-all;
-  margin: 8px 0;
+  margin: var(--size-gap-2) 0;
   max-height: 200px;
   overflow-y: auto;
   line-height: 1.5;
@@ -126,15 +126,15 @@
 /* Responsive layout */
 @media (max-width: 768px) {
   .mermaid-error-boundary {
-    padding: 16px;
+    padding: var(--size-gap-4);
   }
 
   .error-content {
-    padding: 24px;
+    padding: var(--size-gap-6);
   }
 
   .error-content h3 {
-    font-size: 16px;
+    font-size: var(--font-size-xl);
   }
 
   .error-icon svg {
@@ -143,11 +143,11 @@
   }
 
   .error-message {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
   }
 
   .retry-button {
-    padding: 8px 16px;
-    font-size: 13px;
+    padding: var(--size-gap-2) var(--size-gap-4);
+    font-size: var(--font-size-sm);
   }
 }

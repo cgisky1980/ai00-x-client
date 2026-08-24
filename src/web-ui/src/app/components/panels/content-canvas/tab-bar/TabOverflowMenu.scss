@@ -40,8 +40,8 @@
   // Styles when overflow exists
   &.has-overflow {
     width: auto;
-    padding: 0 6px;
-    gap: 2px;
+    padding: 0 var(--size-gap-1-5);
+    gap: var(--size-gap-0-5);
   }
 
   // Overflow-only mode (no mission control)
@@ -57,10 +57,10 @@
 
   // Overflow count badge
   &__badge {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     color: var(--color-primary);
-    margin-left: 2px;
+    margin-left: var(--size-gap-0-5);
     transition: color 0.15s ease;
   }
 
@@ -76,57 +76,41 @@
 }
 
 // Overflow menu
+// v0.13：定位与浮层视觉由 DS Popover（.ds-popover）接管，仅保留尺寸约束
 .canvas-tab-overflow-menu {
-  background: var(--color-bg-elevated, var(--color-bg-primary));
-  border: 1px solid var(--border-base);
-  border-radius: 6px;
-  box-shadow: 0 8px 24px var(--color-shadow);
   min-width: 200px;
   max-width: 280px;
   max-height: 360px;
   overflow: hidden;
-  z-index: 99999;
-  animation: menuSlideIn 0.12s ease-out;
-
-  @keyframes menuSlideIn {
-    from {
-      opacity: 0;
-      transform: translateY(-4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
 
   // Mission control entry (fixed first item)
   &__mission-control {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2) var(--size-gap-3);
     cursor: pointer;
     color: var(--color-text-primary);
     transition: background-color 0.15s ease;
 
     &:hover {
       // Use accent-200 for clear hover in light/dark themes
-      background: var(--color-accent-200, var(--color-accent-100, var(--element-bg-medium)));
+      background: var(--color-accent-200);
     }
 
     span {
       flex: 1;
-      font-size: 12px;
+      font-size: var(--font-size-xs);
       font-weight: 500;
     }
 
     kbd {
-      font-size: 10px;
-      padding: 2px 5px;
+      font-size: var(--font-size-xxs);
+      padding: var(--size-gap-0-5) var(--size-gap-1);
       background: var(--color-bg-secondary);
       border: 1px solid var(--border-base);
       border-radius: 3px;
-      color: var(--color-text-tertiary);
+      color: var(--color-text-muted);
       font-family: inherit;
     }
 
@@ -138,13 +122,13 @@
   // Divider
   &__divider {
     height: 1px;
-    margin: 4px 12px;
+    margin: var(--size-gap-1) var(--size-gap-3);
     background: var(--border-base);
   }
 
   // Tab list
   &__list {
-    padding: 4px 0;
+    padding: var(--size-gap-1) 0;
     max-height: 280px;
     overflow-y: auto;
 
@@ -157,7 +141,7 @@
     }
 
     &::-webkit-scrollbar-thumb {
-      background: var(--color-scrollbar);
+      background: var(--color-bg-tertiary);
       border-radius: 3px;
     }
   }
@@ -166,15 +150,15 @@
   &__item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1-5) var(--size-gap-3);
     cursor: pointer;
     transition: background-color 0.1s ease;
 
     &:hover {
       // Use element-bg-medium for clear hover in light/dark themes
       // Light theme: blue-gray tint; dark theme: translucent white
-      background: var(--element-bg-medium, var(--element-bg-base, var(--color-bg-hover)));
+      background: var(--element-bg-medium);
 
       .canvas-tab-overflow-menu__item-close {
         opacity: 1;
@@ -183,10 +167,10 @@
 
     &.is-active {
       // Use accent-100 as active background
-      background: var(--color-accent-100, var(--color-accent-200, var(--element-bg-base)));
+      background: var(--color-accent-100);
 
       .canvas-tab-overflow-menu__item-title {
-        color: var(--color-primary, var(--color-accent-500));
+        color: var(--color-primary);
       }
     }
 
@@ -196,7 +180,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 12px;
+      font-size: var(--font-size-xs);
       color: var(--color-text-primary);
 
       em {
@@ -207,7 +191,7 @@
 
     &-dirty {
       flex-shrink: 0;
-      font-size: 8px;
+      font-size: var(--font-size-xxs);
       color: var(--color-warning);
     }
 
@@ -220,7 +204,7 @@
       padding: 0;
       background: none;
       border: none;
-      color: var(--color-text-tertiary);
+      color: var(--color-text-muted);
       cursor: pointer;
       border-radius: 3px;
       flex-shrink: 0;
@@ -228,7 +212,7 @@
       transition: all 0.1s ease;
 
       &:hover {
-        background: var(--color-error-alpha);
+        background: var(--color-error-bg);
         color: var(--color-error);
       }
     }

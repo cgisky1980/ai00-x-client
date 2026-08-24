@@ -1,11 +1,10 @@
 /**
  * Status bar popovers: go to line, indent, encoding, language mode.
- * Styled to match Cursor/VS Code popover interactions.
+ * v0.13：浮层收敛至 DS Popover（.ds-popover，Radix 定位/外点关闭/ESC）；
+ * 调用方仍传 anchorRect（快照 rect 包装为 virtualElement）。
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { usePortalContainer } from '@/infrastructure/contexts/PortalContainerContext';
 import {
   FileCode,
   FileText,
@@ -15,7 +14,7 @@ import {
   FileJson,
   type LucideIcon,
 } from 'lucide-react';
-import { Button, Input } from '@/component-library';
+import { Button, Input, Popover, PopoverAnchor, PopoverContent } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
 import './StatusBarPopovers.scss';
 
@@ -29,6 +28,18 @@ export interface AnchorRect {
   width: number;
   height: number;
 }
+
+/** 把 rect 快照包装为 Popper virtualRef（无 DOM 锚点场景） */
+const useVirtualRef = (rect: AnchorRect) =>
+  React.useMemo(
+    () => ({
+      current: {
+        getBoundingClientRect: () =>
+          new DOMRect(rect.left, rect.top, rect.width, rect.height),
+      },
+    }),
+    [rect],
+  );
 
 export interface GoToLinePopoverProps {
   anchorRect: AnchorRect;
@@ -46,10 +57,9 @@ export const GoToLinePopover: React.FC<GoToLinePopoverProps> = ({
   onClose,
 }) => {
   const { t } = useI18n('tools');
-  const portalContainer = usePortalContainer();
-  const portalTarget = portalContainer ?? document.body;
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const virtualRef = useVirtualRef(anchorRect);
 
   useEffect(() => {
     setValue(`${currentLine}:${currentColumn}`);
@@ -79,33 +89,34 @@ export const GoToLinePopover: React.FC<GoToLinePopoverProps> = ({
     }
   };
 
-  const top = anchorRect.top - 4;
-  const left = Math.max(8, Math.min(anchorRect.right - 200, anchorRect.left));
-
-  return createPortal(
-    <div
-      className="status-bar-popover"
-      data-no-penetrate
-      style={{ top, left }}
-      role="dialog"
-      aria-label={t('editor.statusBar.goToLine')}
-    >
-      <div className="status-bar-popover__hint">{t('editor.statusBar.goToLineHint')}</div>
-      <div className="status-bar-popover__input-wrap">
-        <Input
-          ref={inputRef}
-          type="text"
-          className="status-bar-popover__input"
-          variant="outlined"
-          inputSize="small"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={t('editor.statusBar.goToLinePlaceholder')}
-        />
-      </div>
-    </div>,
-    portalTarget
+  return (
+    <Popover open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <PopoverAnchor virtualRef={virtualRef} />
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={4}
+        className="status-bar-popover"
+        data-no-penetrate
+        role="dialog"
+        aria-label={t('editor.statusBar.goToLine')}
+      >
+        <div className="status-bar-popover__hint">{t('editor.statusBar.goToLineHint')}</div>
+        <div className="status-bar-popover__input-wrap">
+          <Input
+            ref={inputRef}
+            type="text"
+            className="status-bar-popover__input"
+            variant="outlined"
+            inputSize="small"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={t('editor.statusBar.goToLinePlaceholder')}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -142,8 +153,7 @@ export const IndentPopover: React.FC<IndentPopoverProps> = ({
   onClose,
 }) => {
   const { t } = useI18n('tools');
-  const portalContainer = usePortalContainer();
-  const portalTarget = portalContainer ?? document.body;
+  const virtualRef = useVirtualRef(anchorRect);
   const handleSelect = useCallback(
     (opt: { tabSize: number; insertSpaces: boolean }) => {
       onConfirm(opt.tabSize, opt.insertSpaces);
@@ -152,56 +162,57 @@ export const IndentPopover: React.FC<IndentPopoverProps> = ({
     [onConfirm, onClose]
   );
 
-  const top = anchorRect.top - 4;
-  const left = Math.max(8, Math.min(anchorRect.right - 160, anchorRect.left));
-
-  return createPortal(
-    <div
-      className="status-bar-popover"
-      data-no-penetrate
-      style={{ top, left }}
-      role="dialog"
-      aria-label={t('editor.statusBar.indentSettings')}
-    >
-      <div className="status-bar-popover__hint">{t('editor.statusBar.selectIndent')}</div>
-      <div className="status-bar-popover__list">
-        {INDENT_OPTIONS.map((opt) => {
-          const label = opt.insertSpaces
-            ? t('editor.statusBar.indentOptionSpaces', { n: opt.tabSize })
-            : t('editor.statusBar.indentOptionTab', { n: opt.tabSize });
-          return (
-            <Button
-              key={`${opt.insertSpaces ? 's' : 't'}-${opt.tabSize}`}
-              className={`status-bar-popover__item ${
-                opt.tabSize === currentTabSize && opt.insertSpaces === currentInsertSpaces
-                  ? 'status-bar-popover__item--active'
-                  : ''
-              }`}
-              variant="ghost"
-              size="small"
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleSelect(opt);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+  return (
+    <Popover open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <PopoverAnchor virtualRef={virtualRef} />
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={4}
+        className="status-bar-popover"
+        data-no-penetrate
+        role="dialog"
+        aria-label={t('editor.statusBar.indentSettings')}
+      >
+        <div className="status-bar-popover__hint">{t('editor.statusBar.selectIndent')}</div>
+        <div className="status-bar-popover__list">
+          {INDENT_OPTIONS.map((opt) => {
+            const label = opt.insertSpaces
+              ? t('editor.statusBar.indentOptionSpaces', { n: opt.tabSize })
+              : t('editor.statusBar.indentOptionTab', { n: opt.tabSize });
+            return (
+              <Button
+                key={`${opt.insertSpaces ? 's' : 't'}-${opt.tabSize}`}
+                className={`status-bar-popover__item ${
+                  opt.tabSize === currentTabSize && opt.insertSpaces === currentInsertSpaces
+                    ? 'status-bar-popover__item--active'
+                    : ''
+                }`}
+                variant="ghost"
+                size="small"
+                type="button"
+                onMouseDown={(e) => {
                   e.preventDefault();
+                  e.stopPropagation();
                   handleSelect(opt);
-                }
-                if (e.key === 'Escape') onClose();
-              }}
-              role="option"
-              tabIndex={0}
-            >
-              {label}
-            </Button>
-          );
-        })}
-      </div>
-    </div>,
-    portalTarget
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSelect(opt);
+                  }
+                  if (e.key === 'Escape') onClose();
+                }}
+                role="option"
+                tabIndex={0}
+              >
+                {label}
+              </Button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -221,46 +232,47 @@ export const EncodingPopover: React.FC<EncodingPopoverProps> = ({
   onClose,
 }) => {
   const { t } = useI18n('tools');
-  const portalContainer = usePortalContainer();
-  const portalTarget = portalContainer ?? document.body;
-  const top = anchorRect.top - 4;
-  const left = Math.max(8, Math.min(anchorRect.right - 160, anchorRect.left));
+  const virtualRef = useVirtualRef(anchorRect);
 
-  return createPortal(
-    <div
-      className="status-bar-popover"
-      data-no-penetrate
-      style={{ top, left }}
-      role="dialog"
-      aria-label={t('editor.statusBar.fileEncoding')}
-    >
-      <div className="status-bar-popover__hint">{t('editor.statusBar.selectEncoding')}</div>
-      <div className="status-bar-popover__list">
-        {ENCODING_OPTIONS.map((enc) => (
-          <Button
-            key={enc}
-            className={`status-bar-popover__item ${
-              enc === currentEncoding ? 'status-bar-popover__item--active' : ''
-            }`}
-            variant="ghost"
-            size="small"
-            type="button"
-            onClick={() => {
-              onConfirm(enc);
-              onClose();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') onClose();
-            }}
-            role="option"
-            tabIndex={0}
-          >
-            {enc}
-          </Button>
-        ))}
-      </div>
-    </div>,
-    portalTarget
+  return (
+    <Popover open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <PopoverAnchor virtualRef={virtualRef} />
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={4}
+        className="status-bar-popover"
+        data-no-penetrate
+        role="dialog"
+        aria-label={t('editor.statusBar.fileEncoding')}
+      >
+        <div className="status-bar-popover__hint">{t('editor.statusBar.selectEncoding')}</div>
+        <div className="status-bar-popover__list">
+          {ENCODING_OPTIONS.map((enc) => (
+            <Button
+              key={enc}
+              className={`status-bar-popover__item ${
+                enc === currentEncoding ? 'status-bar-popover__item--active' : ''
+              }`}
+              variant="ghost"
+              size="small"
+              type="button"
+              onClick={() => {
+                onConfirm(enc);
+                onClose();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') onClose();
+              }}
+              role="option"
+              tabIndex={0}
+            >
+              {enc}
+            </Button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -334,51 +346,53 @@ export const LanguagePopover: React.FC<LanguagePopoverProps> = ({
   onClose,
 }) => {
   const { t } = useI18n('tools');
-  const portalContainer2 = usePortalContainer();
-  const portalTarget = portalContainer2 ?? document.body;
-  const top = anchorRect.top - 4;
-  const left = Math.max(8, Math.min(anchorRect.right - 180, anchorRect.left));
+  const virtualRef = useVirtualRef(anchorRect);
 
-  return createPortal(
-    <div
-      className="status-bar-popover"
-      data-no-penetrate
-      style={{ top, left, maxHeight: 320 }}
-      role="dialog"
-      aria-label={t('editor.statusBar.selectLanguageMode')}
-    >
-      <div className="status-bar-popover__hint">{t('editor.statusBar.selectLanguageModeHint')}</div>
-      <div className="status-bar-popover__list">
-        {languages.map((lang) => {
-          const Icon = getLanguageIcon(lang.id);
-          return (
-            <Button
-              key={lang.id}
-              className={`status-bar-popover__item ${
-                lang.id === currentLanguageId ? 'status-bar-popover__item--active' : ''
-              }`}
-              variant="ghost"
-              size="small"
-              type="button"
-              onClick={() => {
-                onConfirm(lang.id);
-                onClose();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') onClose();
-              }}
-              role="option"
-              tabIndex={0}
-            >
-              <span className="status-bar-popover__item-icon" aria-hidden>
-                <Icon size={14} strokeWidth={2} />
-              </span>
-              {getLanguageDisplayName(lang.id, lang.aliases)}
-            </Button>
-          );
-        })}
-      </div>
-    </div>,
-    portalTarget
+  return (
+    <Popover open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <PopoverAnchor virtualRef={virtualRef} />
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={4}
+        className="status-bar-popover"
+        data-no-penetrate
+        role="dialog"
+        aria-label={t('editor.statusBar.selectLanguageMode')}
+        style={{ maxHeight: 320 }}
+      >
+        <div className="status-bar-popover__hint">{t('editor.statusBar.selectLanguageModeHint')}</div>
+        <div className="status-bar-popover__list">
+          {languages.map((lang) => {
+            const Icon = getLanguageIcon(lang.id);
+            return (
+              <Button
+                key={lang.id}
+                className={`status-bar-popover__item ${
+                  lang.id === currentLanguageId ? 'status-bar-popover__item--active' : ''
+                }`}
+                variant="ghost"
+                size="small"
+                type="button"
+                onClick={() => {
+                  onConfirm(lang.id);
+                  onClose();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') onClose();
+                }}
+                role="option"
+                tabIndex={0}
+              >
+                <span className="status-bar-popover__item-icon" aria-hidden>
+                  <Icon size={14} strokeWidth={2} />
+                </span>
+                {getLanguageDisplayName(lang.id, lang.aliases)}
+              </Button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };

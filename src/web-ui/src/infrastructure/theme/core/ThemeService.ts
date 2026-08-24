@@ -12,7 +12,11 @@ import {
   SYSTEM_THEME_ID,
   ThemeSelectionId,
 } from '../types';
-import { builtinThemes, getSystemPreferredDefaultThemeId } from '../presets';
+import {
+  builtinThemes,
+  getSystemPreferredDefaultThemeId,
+  LEGACY_BUILTIN_THEME_FALLBACK,
+} from '../presets';
 import { configAPI } from '@/infrastructure/api';
 import { monacoThemeSync } from '../integrations/MonacoThemeSync';
 import { hueFromAccentColor, DEFAULT_ACCENT_HUE } from '../utils/accentGenerator';
@@ -55,10 +59,17 @@ export class ThemeService {
         await this.applyTheme(SYSTEM_THEME_ID);
       } else if (saved && this.themes.has(saved)) {
         await this.applyTheme(saved);
+      } else if (saved && LEGACY_BUILTIN_THEME_FALLBACK[saved]) {
+        // 裁撤的多风格预设（slate/midnight/china/cyber）→ 平滑落到同明暗档
+        log.info('Migrating legacy builtin theme', { from: saved, to: LEGACY_BUILTIN_THEME_FALLBACK[saved] });
+        await this.applyTheme(LEGACY_BUILTIN_THEME_FALLBACK[saved]);
       } else {
         const preInjectedThemeId = document.documentElement.getAttribute('data-theme');
-        if (preInjectedThemeId && this.themes.has(preInjectedThemeId as ThemeId)) {
-          await this.applyTheme(preInjectedThemeId as ThemeId);
+        const migratedPreInjected = preInjectedThemeId && LEGACY_BUILTIN_THEME_FALLBACK[preInjectedThemeId]
+          ? LEGACY_BUILTIN_THEME_FALLBACK[preInjectedThemeId]
+          : preInjectedThemeId;
+        if (migratedPreInjected && this.themes.has(migratedPreInjected as ThemeId)) {
+          await this.applyTheme(migratedPreInjected as ThemeId);
         } else {
           await this.applyTheme(SYSTEM_THEME_ID);
         }

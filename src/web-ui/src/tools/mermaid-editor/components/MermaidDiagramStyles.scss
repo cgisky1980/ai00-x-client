@@ -25,9 +25,9 @@
   .node path {
     fill: var(--mermaid-node-fill);
     stroke: var(--mermaid-node-stroke);
-    stroke-width: var(--mermaid-node-stroke-width, 1.5px);
-    stroke-dasharray: var(--mermaid-node-dash-array, 4 2);
-    transition: all var(--mermaid-transition-duration, 0.3s) var(--mermaid-transition-easing, ease);
+    stroke-width: var(--mermaid-node-stroke-width);
+    stroke-dasharray: var(--mermaid-node-dash-array);
+    transition: all var(--mermaid-transition-duration) var(--mermaid-transition-easing);
   }
 
   // Node hover: dashed to solid.
@@ -93,17 +93,17 @@
   }
 
   .node rect {
-    rx: var(--mermaid-node-radius, 6px);
-    ry: var(--mermaid-node-radius, 6px);
+    rx: var(--mermaid-node-radius);
+    ry: var(--mermaid-node-radius);
   }
 
   // Edges.
   .edgePath path.path {
     stroke: var(--mermaid-edge-stroke);
-    stroke-width: var(--mermaid-edge-stroke-width, 1.5px);
+    stroke-width: var(--mermaid-edge-stroke-width);
     stroke-linecap: round;
     stroke-linejoin: round;
-    transition: all var(--mermaid-transition-duration, 0.3s) var(--mermaid-transition-easing, ease);
+    transition: all var(--mermaid-transition-duration) var(--mermaid-transition-easing);
   }
 
   .edgePath:hover path.path {
@@ -132,7 +132,7 @@
       stroke-dasharray: 3 2;
       rx: 4px;
       ry: 4px;
-      transition: all var(--mermaid-transition-duration, 0.3s) ease;
+      transition: all var(--mermaid-transition-duration) ease;
     }
 
     &:hover rect {
@@ -149,11 +149,11 @@
   .cluster rect {
     fill: var(--mermaid-cluster-fill);
     stroke: var(--mermaid-cluster-stroke);
-    stroke-width: var(--mermaid-cluster-stroke-width, 1px);
-    stroke-dasharray: var(--mermaid-cluster-dash-array, 5 3);
-    rx: var(--mermaid-cluster-radius, 8px);
-    ry: var(--mermaid-cluster-radius, 8px);
-    transition: all var(--mermaid-transition-duration, 0.3s) ease;
+    stroke-width: var(--mermaid-cluster-stroke-width);
+    stroke-dasharray: var(--mermaid-cluster-dash-array);
+    rx: var(--mermaid-cluster-radius);
+    ry: var(--mermaid-cluster-radius);
+    transition: all var(--mermaid-transition-duration) ease;
   }
 
   .cluster:hover rect {
@@ -177,7 +177,7 @@
     stroke-width: 1.5px;
     rx: 6px;
     ry: 6px;
-    transition: all var(--mermaid-transition-duration, 0.3s) ease;
+    transition: all var(--mermaid-transition-duration) ease;
   }
 
   .actor:hover {
@@ -195,7 +195,7 @@
   .messageLine1 {
     stroke: var(--mermaid-signal-stroke);
     stroke-width: 1.5px;
-    transition: stroke-width var(--mermaid-transition-duration, 0.3s) ease;
+    transition: stroke-width var(--mermaid-transition-duration) ease;
   }
 
   .messageLine1 {
@@ -264,7 +264,7 @@
     stroke-width: 1.5px;
     rx: 4px;
     ry: 4px;
-    transition: all var(--mermaid-transition-duration, 0.3s) ease;
+    transition: all var(--mermaid-transition-duration) ease;
   }
 
   .task:hover {
@@ -303,8 +303,8 @@
   // Pie chart.
   .pieCircle {
     stroke: var(--mermaid-pie-stroke);
-    stroke-width: var(--mermaid-pie-stroke-width, 2px);
-    transition: all var(--mermaid-transition-duration, 0.3s) ease;
+    stroke-width: var(--mermaid-pie-stroke-width);
+    transition: all var(--mermaid-transition-duration) ease;
   }
 
   .pieCircle:hover {
@@ -320,7 +320,7 @@
   }
 
   .slice {
-    transition: all var(--mermaid-transition-duration, 0.3s) ease;
+    transition: all var(--mermaid-transition-duration) ease;
   }
 
   .slice:hover {
@@ -551,8 +551,8 @@
 
     .label,
     .nodeLabel {
-      fill: #000 !important;
-      color: #000 !important;
+      fill: var(--color-bg-primary) !important;
+      color: var(--color-bg-primary) !important;
     }
   }
 }

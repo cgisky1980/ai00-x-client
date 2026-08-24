@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { usePortalContainer } from '@/infrastructure/contexts/PortalContainerContext';
 import { Check, ChevronDown } from 'lucide-react';
-import { Tooltip } from '@/component-library/components/Tooltip';
+import { Tooltip } from '@ai00-x/design-system/web';
 import { type WorkspaceInfo } from '@/shared/types';
 
 interface ShellNavWorkspaceSwitcherProps {

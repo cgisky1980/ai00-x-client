@@ -24,6 +24,7 @@
       "gestureActions": "管理保存的动作，如运行程序和脚本。",
       "clickEffect": "鼠标点击特效与吉祥话自定义。",
       "smartDesktop": "桌面替换模式、网格布局与智能桌面功能。",
+      "plugins": "桌面插件安装、启用与卸载。",
       "memory": "知识图谱、搜索与维护。",
       "account": "用户账户与退出登录。",
       "about": "版本、更新与许可证。"
@@ -51,6 +52,7 @@
       "gestureActions": "动作设置",
       "clickEffect": "鼠标特效",
       "smartDesktop": "智能桌面",
+      "plugins": "插件",
       "memory": "记忆",
       "account": "账户",
       "about": "关于"

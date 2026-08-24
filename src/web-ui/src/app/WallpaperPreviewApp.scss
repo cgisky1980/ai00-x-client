@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-bg-flowchat, #121214);
+  background: var(--color-bg-flowchat);
   color: var(--color-text-primary);
 }
 
@@ -13,19 +13,19 @@
   align-items: center;
   justify-content: space-between;
   height: 40px;
-  padding: 0 8px 0 14px;
-  background: var(--element-bg-soft, rgba(255, 255, 255, 0.05));
-  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  padding: 0 var(--size-gap-2) 0 var(--size-gap-3-5);
+  background: var(--element-bg-soft);
+  border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
-  gap: 8px;
+  gap: var(--size-gap-2);
   user-select: none;
   overflow: hidden;
 }
 
 .wp-preview-app__title {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  color: var(--color-text-secondary, rgba(255, 255, 255, 0.6));
+  color: var(--color-text-secondary);
   letter-spacing: 0.02em;
   white-space: nowrap;
   flex-shrink: 0;
@@ -34,7 +34,7 @@
 .wp-preview-app__titlebar-tools {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--size-gap-1);
   flex: 1;
   min-width: 0;
   justify-content: flex-end;
@@ -43,35 +43,35 @@
 
 .wp-preview-app__ratio-select,
 .wp-preview-app__scale-select {
-  font-size: 11px;
-  padding: 3px 8px;
+  font-size: var(--font-size-2xs);
+  padding: var(--size-gap-0-5) var(--size-gap-2);
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #2a2a3e;
-  color: rgba(255, 255, 255, 0.85);
+  border:1px solid color-mix(in srgb, var(--color-text-primary) 12%, transparent);
+  background:var(--color-bg-sunken);
+  color:color-mix(in srgb, var(--color-text-primary) 85%, transparent);
   cursor: pointer;
   outline: none;
   transition: border-color 0.15s ease;
   flex-shrink: 0;
 
   &:hover {
-    border-color: rgba(255, 255, 255, 0.3);
+    border-color:color-mix(in srgb, var(--color-text-primary) 30%, transparent);
   }
 
   &:focus {
-    border-color: rgba(59, 130, 246, 0.5);
+    border-color:color-mix(in srgb, var(--color-accent-600) 50%, transparent);
   }
 
   option {
-    background: #2a2a3e;
-    color: rgba(255, 255, 255, 0.9);
-    padding: 4px 8px;
+    background:var(--color-bg-sunken);
+    color:var(--color-bg-overlay);
+    padding: var(--size-gap-1) var(--size-gap-2);
   }
 }
 
 .wp-preview-app__size-info {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.4);
+  font-size: var(--font-size-xxs);
+  color:color-mix(in srgb, var(--color-text-primary) 40%, transparent);
   font-family: monospace;
   white-space: nowrap;
   flex-shrink: 0;
@@ -86,28 +86,28 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--color-text-secondary, rgba(255, 255, 255, 0.6));
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
 
   &:hover {
-    background: var(--element-bg-hover, rgba(255, 255, 255, 0.1));
-    color: var(--color-text-primary, rgba(255, 255, 255, 0.9));
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
   }
 
   &--active {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
+    background:color-mix(in srgb, var(--color-accent-600) 15%, transparent);
+    color: var(--color-accent-600);
   }
 
   &--active:hover {
-    background: rgba(59, 130, 246, 0.25);
-    color: #60a5fa;
+    background:color-mix(in srgb, var(--color-accent-600) 25%, transparent);
+    color: var(--color-accent-600);
   }
 
   &--apply:hover {
-    background: rgba(59, 130, 246, 0.2);
-    color: #60a5fa;
+    background:color-mix(in srgb, var(--color-accent-600) 20%, transparent);
+    color: var(--color-accent-600);
   }
 }
 
@@ -119,7 +119,7 @@
   flex: 1;
   display: flex;
   overflow: hidden;
-  background: #000;
+  background:var(--color-bg-sunken);
 }
 
 .wp-preview-app__iframe {
@@ -127,7 +127,7 @@
   height: 100%;
   border: none;
   display: block;
-  background: #000;
+  background:var(--color-bg-sunken);
 }
 
 .wp-preview-app__empty {
@@ -136,8 +136,8 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: var(--color-text-tertiary, rgba(255, 255, 255, 0.3));
-  font-size: 14px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
 }
 
 // On narrow windows (e.g. 9:16 portrait), hide non-critical controls so

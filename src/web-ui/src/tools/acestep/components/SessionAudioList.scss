@@ -15,7 +15,7 @@
   &--empty {
     align-items: center;
     justify-content: center;
-    padding: 0.9rem 1rem;
+    padding: var(--size-gap-3-5) var(--size-gap-4);
     text-align: center;
     color: var(--color-text-secondary);
     flex: 1;
@@ -30,13 +30,13 @@
     height: 36px;
     border-radius: 50%;
     background: var(--card-bg-accent);
-    margin-bottom: 0.35rem;
+    margin-bottom: var(--size-gap-1-5);
     color: var(--color-text-muted);
   }
 
   &--empty p {
     margin: 0;
-    font-size: 0.78rem;
+    font-size: var(--font-size-xs);
     line-height: 1.5;
     max-width: 220px;
   }
@@ -47,14 +47,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.6rem 0.8rem;
+    padding: var(--size-gap-2-5) var(--size-gap-3);
     background: var(--card-bg-accent);
     border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
   }
 
   &__title {
-    font-size: 0.8rem;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--color-text-primary);
   }
@@ -65,11 +65,11 @@
     justify-content: center;
     min-width: 22px;
     height: 22px;
-    padding: 0 0.4rem;
+    padding: 0 var(--size-gap-1-5);
     border-radius: 11px;
     background: var(--element-bg-base);
     color: var(--color-text-secondary);
-    font-size: 0.7rem;
+    font-size: var(--font-size-2xs);
     font-weight: 600;
   }
 
@@ -78,10 +78,10 @@
   &__list {
     flex: 1;
     overflow-y: auto;
-    padding: 0.5rem;
+    padding: var(--size-gap-2);
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: var(--size-gap-2);
 
     &::-webkit-scrollbar {
       width: 5px;
@@ -95,7 +95,7 @@
   // ---- Item card ----
 
   &__item {
-    padding: 0.6rem 0.7rem;
+    padding: var(--size-gap-2-5) var(--size-gap-3);
     border-radius: 9px;
     background: var(--element-bg-base);
     border: 1px solid var(--border-subtle);
@@ -106,12 +106,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.4rem;
-    margin-bottom: 0.3rem;
+    gap: var(--size-gap-1-5);
+    margin-bottom: var(--size-gap-1);
   }
 
   &__item-label {
-    font-size: 0.76rem;
+    font-size: var(--font-size-xs);
     color: var(--color-text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -134,7 +134,7 @@
     transition: background 0.15s, color 0.15s;
 
     &:hover {
-      background: var(--color-error-bg, transparent);
+      background: var(--color-error-bg);
       color: var(--color-error);
     }
   }
@@ -143,8 +143,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 0.4rem;
-    font-size: 0.68rem;
+    margin-bottom: var(--size-gap-1-5);
+    font-size: var(--font-size-2xs);
     color: var(--color-text-secondary);
   }
 
@@ -169,21 +169,21 @@
   &__item-actions {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    margin-top: 0.4rem;
+    gap: var(--size-gap-1-5);
+    margin-top: var(--size-gap-1-5);
   }
 
   &__item-lrc-btn,
   &__item-lrc-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.25rem 0.55rem;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     background: var(--element-bg-soft);
     color: var(--color-text-secondary);
-    font-size: 0.68rem;
+    font-size: var(--font-size-2xs);
     cursor: pointer;
     transition: background 0.15s, color 0.15s, border-color 0.15s;
 
@@ -201,7 +201,7 @@
 
   &__item-lrc-toggle {
     margin-left: auto;
-    padding: 0.25rem 0.45rem;
+    padding: var(--size-gap-1) var(--size-gap-2);
   }
 
   &__spin {
@@ -211,7 +211,7 @@
   // ---- LRC preview block ----
 
   &__item-lrc {
-    margin-top: 0.4rem;
+    margin-top: var(--size-gap-1-5);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     background: var(--card-bg-accent);
@@ -222,14 +222,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.4rem;
-    padding: 0.3rem 0.5rem;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1) var(--size-gap-2);
     border-bottom: 1px solid var(--border-subtle);
   }
 
   &__item-lrc-path {
     flex: 1;
-    font-size: 0.62rem;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -259,11 +259,11 @@
 
   &__item-lrc-content {
     margin: 0;
-    padding: 0.4rem 0.5rem;
+    padding: var(--size-gap-1-5) var(--size-gap-2);
     max-height: 200px;
     overflow-y: auto;
     font-family: 'Cascadia Code', 'Consolas', monospace;
-    font-size: 0.66rem;
+    font-size: var(--font-size-2xs);
     line-height: 1.5;
     color: var(--color-text-primary);
     white-space: pre-wrap;
@@ -278,26 +278,26 @@
     }
   }
   &__item-lrc-status {
-    margin-top: 0.3rem;
-    padding: 0.2rem 0.5rem;
-    font-size: 0.66rem;
-    color: var(--color-success, #22c55e);
-    background: var(--color-success-bg, rgba(34, 197, 94, 0.1));
+    margin-top: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2);
+    font-size: var(--font-size-2xs);
+    color: var(--color-success);
+    background: var(--color-success-bg);
     border-radius: 4px;
-    border: 1px solid var(--color-success-border, rgba(34, 197, 94, 0.2));
+    border: 1px solid var(--color-success-border);
   }
 
   &__item-error {
     display: flex;
     align-items: flex-start;
-    gap: 0.3rem;
-    margin-top: 0.3rem;
-    padding: 0.3rem 0.5rem;
-    font-size: 0.66rem;
+    gap: var(--size-gap-1);
+    margin-top: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2);
+    font-size: var(--font-size-2xs);
     color: var(--color-error);
-    background: var(--color-error-bg, rgba(239, 68, 68, 0.08));
+    background: var(--color-error-bg);
     border-radius: 4px;
-    border: 1px solid var(--color-error-border, rgba(239, 68, 68, 0.15));
+    border: 1px solid var(--color-error-border);
   }
 
   &__item-error-text {
@@ -314,7 +314,7 @@
     background: transparent;
     color: var(--color-error);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--font-size-sm);
     line-height: 1;
     padding: 0;
     display: flex;

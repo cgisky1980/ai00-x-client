@@ -8,8 +8,8 @@
 .cover-crop-dialog {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 4px 0;
+  gap: var(--size-gap-3);
+  padding: var(--size-gap-1) 0;
 
   // ---- Cropper 区域 ----
   &__cropper {
@@ -17,7 +17,7 @@
     width: 100%;
     aspect-ratio: 1 / 1;
     max-height: 400px;
-    background: var(--element-bg-base, #1a1a1a);
+    background: var(--element-bg-base);
     border-radius: 8px;
     overflow: hidden;
 
@@ -35,9 +35,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    color: var(--color-text-muted, #888);
-    font-size: 13px;
+    gap: var(--size-gap-2);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
 
     .is-spinning {
       animation: cover-crop-spin 0.8s linear infinite;
@@ -47,8 +47,8 @@
   // ---- 提示 ----
   &__hint {
     margin: 0;
-    font-size: 12px;
-    color: var(--color-text-muted, #888);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
     text-align: center;
   }
 
@@ -56,20 +56,20 @@
   &__error {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2-5) var(--size-gap-3);
     border-radius: 6px;
-    background: rgba(255, 80, 80, 0.08);
-    color: var(--color-text-error, #ff6b6b);
-    font-size: 12px;
+    background:color-mix(in srgb, var(--color-error) 8%, transparent);
+    color: var(--color-error);
+    font-size: var(--font-size-xs);
   }
 
   // ---- 操作按钮 ----
   &__actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    padding-top: 4px;
+    gap: var(--size-gap-2);
+    padding-top: var(--size-gap-1);
   }
 }
 

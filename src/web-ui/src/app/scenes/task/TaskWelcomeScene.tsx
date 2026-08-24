@@ -6,13 +6,14 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { CheckSquare, Plus, FolderOpen } from 'lucide-react';
+import { Plus, FolderOpen } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { FlowChatManager } from '@/flow_chat/services/FlowChatManager';
 import { globalAPI } from '@/infrastructure/api/service-api/GlobalAPI';
 import { createLogger } from '@/shared/utils/logger';
+import { BrandMark } from '@ai00-x/design-system/react';
 import './TaskWelcomeScene.scss';
 
 const log = createLogger('TaskWelcomeScene');
@@ -54,10 +55,8 @@ const TaskWelcomeScene: React.FC = () => {
     <div className="task-welcome-scene">
       <div className="task-welcome-scene__content">
         {/* Hero */}
-        <div className="task-welcome-scene__hero">
-          <div className="task-welcome-scene__icon">
-            <CheckSquare size={28} strokeWidth={1.5} />
-          </div>
+        <div className="task-welcome-scene__hero ds-brush-reveal">
+          <BrandMark variant="seal" size={56} />
           <h1 className="task-welcome-scene__title">{t('welcomeScene.task.title')}</h1>
           <p className="task-welcome-scene__description">
             {t('welcomeScene.task.description')}

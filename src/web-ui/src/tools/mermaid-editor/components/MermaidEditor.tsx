@@ -8,7 +8,7 @@ import { useMermaidEditor } from '../hooks/useMermaidEditor';
 import { MermaidEditorProps, LayoutMode, MermaidComponent } from '../types';
 import { useContextStore } from '../../../shared/context-system';
 import type { MermaidDiagramContext } from '../../../shared/types/context';
-import { CubeLoading } from '@/component-library/components/CubeLoading';
+import { CubeLoading } from '@ai00-x/design-system/web';
 import { Sparkles } from 'lucide-react';
 import { aiApi } from '../../../infrastructure/api';
 import { useI18n } from '@/infrastructure/i18n';

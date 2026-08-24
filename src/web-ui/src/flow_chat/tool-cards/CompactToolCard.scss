@@ -32,12 +32,12 @@
 .compact-tool-card {
   background: transparent !important;
   border: none !important;
-  padding: 2px 8px 2px 1rem !important;
+  padding: var(--size-gap-0-5) var(--size-gap-2) var(--size-gap-0-5) var(--size-gap-4) !important;
   margin: 0 !important;
   box-shadow: none !important;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 
@@ -86,7 +86,7 @@
 /* ========== Header element styles ========== */
 
 .compact-card-status-icon {
-  font-size: 14px;
+  font-size: var(--font-size-base);
   flex-shrink: 0;
   color: var(--color-text-muted);
   display: inline-flex;
@@ -95,7 +95,7 @@
 }
 
 .compact-card-action {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--color-text-muted);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -104,7 +104,7 @@
 
 .compact-card-content {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   min-width: 0;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -120,14 +120,14 @@
 }
 
 .compact-card-extra {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   color: var(--color-text-muted);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
 
 .compact-card-right-icon {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   flex-shrink: 0;
   color: var(--color-text-muted);
   display: inline-flex;
@@ -164,16 +164,15 @@
 /* ========== Expanded content area ========== */
 .compact-tool-card-expanded {
   position: relative;
-  margin-top: 8px;
-  margin-left: 1rem;
-  padding: 12px;
+  margin-top: var(--size-gap-2);
+  margin-left: var(--size-gap-4);
+  padding: var(--size-gap-3);
   background: var(--color-bg-primary);
   border: 1px solid var(--border-base);
   border-radius: 6px;
   animation: expandDown 0.2s ease-out;
-  box-shadow: 
-    0 2px 8px rgba(0, 0, 0, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  box-shadow:0 2px 8px var(--color-overlay),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 4%, transparent);
   backdrop-filter: blur(8px);
   
 }
@@ -183,18 +182,18 @@
 .compact-detail-info-inline {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--size-gap-3);
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
+  margin-bottom: var(--size-gap-3);
+  padding-bottom: var(--size-gap-2);
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
 }
 
 .compact-detail-inline-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--size-gap-1);
   white-space: nowrap;
 }
 
@@ -215,14 +214,14 @@
 .compact-expanded-results-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--size-gap-3);
   max-height: 400px;
   overflow-y: auto;
 
 }
 
 .compact-expanded-result-item {
-  padding: 8px;
+  padding: var(--size-gap-2);
   border-radius: 4px;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -234,12 +233,12 @@
 .compact-expanded-result-title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
   color: var(--color-text-secondary);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
-  margin-bottom: 4px;
+  margin-bottom: var(--size-gap-1);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
   &:hover {
@@ -261,17 +260,17 @@
 
 .compact-expanded-result-snippet {
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   line-height: 1.5;
-  margin-bottom: 4px;
-  padding-left: 18px;
+  margin-bottom: var(--size-gap-1);
+  padding-left: var(--size-gap-4-5);
 }
 
 .compact-expanded-result-url {
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   font-family: var(--tool-card-font-mono);
-  padding-left: 18px;
+  padding-left: var(--size-gap-4-5);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -284,10 +283,10 @@
     background: var(--color-bg-secondary);
     border: 1px solid var(--border-subtle);
     border-radius: 4px;
-    padding: 10px;
+    padding: var(--size-gap-2-5);
     color: var(--color-text-primary);
     font-family: var(--tool-card-font-mono);
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;

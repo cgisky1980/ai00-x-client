@@ -8,20 +8,20 @@
 .package-dialog {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--size-gap-1);
   // 左右留白避免内容顶格；上方紧接标题栏，下方留出呼吸空间
-  padding: 4px 20px 16px;
+  padding: var(--size-gap-1) var(--size-gap-5) var(--size-gap-4);
 
   // ---- Section (visual grouping) ----
   &__section {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px 0;
-    border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.06));
+    gap: var(--size-gap-2-5);
+    padding: var(--size-gap-3-5) 0;
+    border-bottom: 1px solid var(--color-border);
 
     &:first-child {
-      padding-top: 4px;
+      padding-top: var(--size-gap-1);
     }
 
     &:last-of-type {
@@ -31,9 +31,9 @@
 
   // ---- Section title ----
   &__section-title {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 600;
-    color: var(--color-text-secondary, rgba(255, 255, 255, 0.6));
+    color: var(--color-text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     user-select: none;
@@ -43,7 +43,7 @@
   &__cover {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: var(--size-gap-3-5);
   }
 
   &__cover-preview {
@@ -52,8 +52,8 @@
     height: 72px;
     border-radius: 8px;
     overflow: hidden;
-    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
-    background: var(--color-bg-secondary, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -66,7 +66,7 @@
   }
 
   &__cover-placeholder {
-    color: var(--color-text-tertiary, rgba(255, 255, 255, 0.25));
+    color: var(--color-text-muted);
   }
 
   &__cover-actions {
@@ -74,12 +74,12 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
   }
 
   &__cover-name {
-    font-size: 12px;
-    color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -87,13 +87,13 @@
 
   &__cover-buttons {
     display: flex;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
   }
 
   // ---- Directory row (input + browse button) ----
   &__dir-row {
     display: flex;
-    gap: 8px;
+    gap: var(--size-gap-2);
     align-items: stretch;
 
     > :first-child {
@@ -106,21 +106,21 @@
   &__footer {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    padding-top: 14px;
+    gap: var(--size-gap-2);
+    padding-top: var(--size-gap-3-5);
   }
 
   // ---- Hint text under a field ----
   &__hint {
-    font-size: 11px;
-    color: var(--color-text-tertiary, rgba(255, 255, 255, 0.35));
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
     line-height: 1.4;
   }
 
   // ---- Error text under a field ----
   &__error {
-    font-size: 11px;
-    color: var(--color-danger, #ef4444);
+    font-size: var(--font-size-2xs);
+    color: var(--color-danger);
     line-height: 1.4;
   }
 }

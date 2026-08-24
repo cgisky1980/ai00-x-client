@@ -150,6 +150,8 @@ export const DynamicIsland: React.FC = () => {
               {renderActivity()}
             </div>
           </div>
+          {/* Plugin extension slot (overlay:island hook) — visible when expanded */}
+          <div id="ai00-island-slot" className="dynamic-island__plugin-slot" />
         </div>
       </div>
       {popups.includes('music') && <MusicPopup />}

@@ -14,7 +14,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    padding: 4px 6px;
+    padding: var(--size-gap-1) var(--size-gap-1-5);
     flex-shrink: 0;
   }
 
@@ -33,7 +33,7 @@
     transition: background 0.15s, color 0.15s;
 
     &:hover {
-      background: var(--color-bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-primary);
     }
   }
@@ -44,8 +44,8 @@
     align-items: center;
     justify-content: center;
     flex: 1;
-    gap: 48px;
-    padding: 40px;
+    gap: var(--size-gap-12);
+    padding: var(--size-gap-10);
     max-width: 400px;
     align-self: center;
     text-align: center;
@@ -56,7 +56,7 @@
   &__message {
     p {
       margin: 0;
-      font-size: 16px;
+      font-size: var(--font-size-xl);
       color: var(--color-text-secondary);
     }
   }

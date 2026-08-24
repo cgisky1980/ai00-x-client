@@ -9,8 +9,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 10px 0;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-2-5) 0;
     width: 60px;
     flex-shrink: 0;
     background: var(--element-bg-soft);
@@ -22,7 +22,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: var(--size-gap-0-5);
     width: 48px;
     height: 48px;
     border: none;
@@ -38,7 +38,7 @@
     }
 
     &__label {
-      font-size: 9px;
+      font-size: var(--font-size-xxs);
       font-weight: 500;
       line-height: 1;
       opacity: 0.8;
@@ -84,6 +84,6 @@
     justify-content: center;
     height: 100%;
     color: var(--color-text-secondary);
-    font-size: 0.85rem;
+    font-size: var(--font-size-base);
   }
 }

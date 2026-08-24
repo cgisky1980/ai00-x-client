@@ -1,0 +1,64 @@
+/* ============================================================
+ * @ai00-x/design-system Tailwind v4 主题 — AUTO-GENERATED（勿手改）
+ * 用法（消费方 CSS 入口）：
+ *   @import "@ai00-x/design-system/css";   // CSS 变量
+ *   @import "@ai00-x/design-system/tw";    // 本文件（@theme inline）
+ * 生成 bg-bg-primary / text-text-primary / border-line-base / rounded-lg 等
+ * 工具类；@theme inline 使工具类直接引用运行时变量（随 data-theme 切换）。
+ * ============================================================ */
+@theme inline {
+  --color-bg-primary: var(--color-bg-primary);
+  --color-bg-secondary: var(--color-bg-secondary);
+  --color-bg-tertiary: var(--color-bg-tertiary);
+  --color-bg-quaternary: var(--color-bg-quaternary);
+  --color-bg-elevated: var(--color-bg-elevated);
+  --color-bg-workbench: var(--color-bg-workbench);
+  --color-bg-scene: var(--color-bg-scene);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-disabled: var(--color-text-disabled);
+  --color-accent: var(--color-accent);
+  --color-accent-300: var(--color-accent-300);
+  --color-accent-400: var(--color-accent-400);
+  --color-accent-500: var(--color-accent-500);
+  --color-accent-600: var(--color-accent-600);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-error: var(--color-error);
+  --color-info: var(--color-info);
+  --color-brand-seal: var(--color-brand-seal);
+  --color-brand-seal-foreground: var(--color-brand-seal-foreground);
+  --color-bg-card: var(--color-bg-card);
+  --color-bg-overlay: var(--color-bg-overlay);
+  --color-bg-modal: var(--color-bg-modal);
+  --color-line-subtle: var(--border-subtle);
+  --color-line-base: var(--border-base);
+  --color-line-medium: var(--border-medium);
+  --color-line-strong: var(--border-strong);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-base);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --font-sans: var(--font-family-sans);
+  --font-serif: var(--font-family-serif);
+  --font-mono: var(--font-family-mono);
+  --color-background: var(--color-bg-base);
+  --color-foreground: var(--color-text-primary);
+  --color-card: var(--color-bg-card);
+  --color-card-foreground: var(--color-text-primary);
+  --color-popover: var(--color-bg-overlay);
+  --color-popover-foreground: var(--color-text-primary);
+  --color-primary: var(--color-accent-500);
+  --color-primary-foreground: oklch(0.97 0.01 90);
+  --color-secondary: var(--element-bg-base);
+  --color-secondary-foreground: var(--color-text-primary);
+  --color-muted: var(--element-bg-base);
+  --color-muted-foreground: var(--color-text-muted);
+  --color-destructive: var(--color-error);
+  --color-destructive-foreground: oklch(0.97 0.01 90);
+  --color-border: var(--border-base);
+  --color-input: var(--input-border);
+  --color-ring: var(--color-accent-400);
+}

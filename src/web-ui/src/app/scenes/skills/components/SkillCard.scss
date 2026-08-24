@@ -28,7 +28,7 @@
   overflow: hidden;
   cursor: pointer;
   animation: skill-card-in 0.22s $easing-decelerate both;
-  animation-delay: calc(var(--card-index, 0) * 35ms);
+  animation-delay: calc(var(--card-index) * 35ms);
   transition:
     transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.35s ease;
@@ -50,7 +50,7 @@
 
   &:hover {
     transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 16px 40px var(--color-overlay);
 
     &::before {
       opacity: 0.4;
@@ -80,19 +80,19 @@
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.12);
+    background:color-mix(in srgb, var(--color-text-primary) 12%, transparent);
     backdrop-filter: blur(8px);
   }
 
   &__icon {
     color: var(--color-text-primary);
     animation: skill-card-icon-pop 0.46s $easing-decelerate both;
-    animation-delay: calc(var(--card-index, 0) * 35ms + 50ms);
+    animation-delay: calc(var(--card-index) * 35ms + 50ms);
   }
 
   &__badges {
     display: flex;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex-wrap: wrap;
     justify-content: flex-end;
   }
@@ -103,7 +103,7 @@
     padding: $size-gap-2 $size-gap-3;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--size-gap-1);
     overflow: hidden;
     position: relative;
     z-index: 1;
@@ -147,7 +147,7 @@
   &__meta {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex-shrink: 0;
     margin: 0;
     padding: 0;
@@ -201,7 +201,7 @@
     height: 35px;
     padding: 0;
     border: none;
-    background: rgba(255, 255, 255, 0.08);
+    background:color-mix(in srgb, var(--color-text-primary) 8%, transparent);
     color: var(--color-text-secondary);
     cursor: pointer;
     transition:
@@ -209,7 +209,7 @@
       color 0.25s ease;
 
     &:not(:last-child) {
-      border-right: 1px solid rgba(255, 255, 255, 0.06);
+      border-right:1px solid color-mix(in srgb, var(--color-text-primary) 6%, transparent);
     }
 
     &:disabled {
@@ -218,7 +218,7 @@
     }
 
     &:not(:disabled):hover {
-      background: rgba(255, 255, 255, 0.15);
+      background:color-mix(in srgb, var(--color-text-primary) 16%, transparent);
       color: var(--color-text-primary);
     }
 

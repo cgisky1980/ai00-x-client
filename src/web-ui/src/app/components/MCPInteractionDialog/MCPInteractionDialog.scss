@@ -1,7 +1,7 @@
 .mcp-interaction-dialog {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--size-gap-3);
   min-height: 420px;
 }
 
@@ -9,8 +9,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: var(--size-gap-2);
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
@@ -27,22 +27,22 @@
 .mcp-interaction-dialog__section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
 }
 
 .mcp-interaction-dialog__label {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
 .mcp-interaction-dialog__params {
   margin: 0;
-  padding: 10px;
+  padding: var(--size-gap-2-5);
   border-radius: 8px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-primary);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--border-base);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
@@ -53,13 +53,13 @@
 .mcp-interaction-dialog__editor {
   width: 100%;
   min-height: 190px;
-  padding: 10px;
+  padding: var(--size-gap-2-5);
   border-radius: 8px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
+  border: 1px solid var(--border-base);
   color: var(--text-primary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   line-height: 1.5;
   resize: vertical;
 }
@@ -67,5 +67,5 @@
 .mcp-interaction-dialog__actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--size-gap-2);
 }

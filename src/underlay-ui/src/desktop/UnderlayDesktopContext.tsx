@@ -286,12 +286,12 @@ export function UnderlayDesktopProvider({ children }: { children: React.ReactNod
            try {
              if (invoke) {
                const pluginsList = await invoke<any[]>("get_plugins")
-               console.log("Loaded plugins:", pluginsList)
                setPlugins(pluginsList)
-               
+
                for (const plugin of pluginsList) {
-                 const underlay = plugin.manifest.entry_points?.underlay
-                 if (underlay && underlay.type === "widget") {
+                 if (!plugin.enabled) continue
+                 const underlay = plugin.manifest.hooks?.["underlay:widget"]
+                 if (underlay && typeof underlay.path === "string") {
                    // Unique path for plugin widget: plugin:{id}
                    const widgetPath = `plugin:${plugin.manifest.id}`
                    if (!grid.find(i => i.path === widgetPath)) {
@@ -321,6 +321,51 @@ export function UnderlayDesktopProvider({ children }: { children: React.ReactNod
       }).catch(() => { })
     }
     init()
+
+    // Hot-plug: react to install/uninstall/enable/disable of plugins
+    let unlistenPlugins: (() => void) | null = null
+    listen<import("@ai00-x/shared").PluginsChangedEvent>("plugins-changed", async () => {
+      try {
+        const pluginsList = await invoke<any[]>("get_plugins")
+        setPlugins(pluginsList)
+        // Sync grid items for underlay:widget plugins
+        setGridItems((prev) => {
+          let next = prev
+          const activeWidgetIds = new Set(
+            pluginsList
+              .filter((p) => p.enabled && typeof p.manifest.hooks?.["underlay:widget"]?.path === "string")
+              .map((p) => p.manifest.id as string)
+          )
+          // Add grid items for newly installed/enabled plugin widgets
+          for (const id of activeWidgetIds) {
+            const widgetPath = `plugin:${id}`
+            if (next.find((i) => i.path === widgetPath)) continue
+            const cfg = pluginsList.find((p) => p.manifest.id === id)?.manifest.hooks?.["underlay:widget"]
+            const w = cfg?.width || 2
+            const h = cfg?.height || 2
+            const pos = findNextPosition(next, { w, h })
+            if (pos) {
+              const item: GridItem = { path: widgetPath, x: pos.x, y: pos.y, w, h, kind: "widget", locked: !cfg?.resizable }
+              idbSetGridItem(item).catch(() => {})
+              next = [...next, item]
+            }
+          }
+          // Remove grid items of disabled/uninstalled plugin widgets
+          const removed = next.filter(
+            (i) => i.path.startsWith("plugin:") && !activeWidgetIds.has(i.path.slice("plugin:".length))
+          )
+          if (removed.length > 0) {
+            for (const item of removed) {
+              idbRemoveGridItem(item.path).catch(() => {})
+            }
+            next = next.filter((i) => !removed.includes(i))
+          }
+          return next === prev ? prev : next
+        })
+      } catch {
+        // Plugin system not available in this build
+      }
+    }).then((fn) => { unlistenPlugins = fn })
 
     // Listen for KV storage changes (cross-webview sync, replaces 'storage' event)
     let unlistenKv: (() => void) | null = null
@@ -356,6 +401,7 @@ export function UnderlayDesktopProvider({ children }: { children: React.ReactNod
 
     return () => {
       unlistenKv?.()
+      try { unlistenPlugins?.() } catch { }
       // 安全关闭 BroadcastChannel
       try {
         if (channelRef.current) {

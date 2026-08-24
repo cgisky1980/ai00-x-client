@@ -5,8 +5,8 @@
 
 .ai00-x-config-page-header {
   flex-shrink: 0;
-  padding: var(--size-gap-12, 100px) var(--config-page-content-inline-padding, 20px) 0;
-  margin-bottom: var(--size-gap-6, 24px);
+  padding: var(--size-gap-12) var(--config-page-content-inline-padding) 0;
+  margin-bottom: var(--size-gap-6);
 }
 
 .ai00-x-config-page-header__inner {
@@ -32,7 +32,7 @@
 }
 
 .ai00-x-config-page-header__title {
-  margin: 0 0 4px 0;
+  margin: 0 0 var(--size-gap-1) 0;
   font-size: calc(var(--font-size-xl) * 1.5);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
@@ -42,7 +42,7 @@
 
 .ai00-x-config-page-header__subtitle {
   margin: 0;
-  margin-top: 2px;
+  margin-top: var(--size-gap-0-5);
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   line-height: var(--line-height-relaxed);
@@ -93,7 +93,7 @@
   height: 1px;
   background: var(--border-subtle);
   width: min(
-    calc(100% - (2 * var(--config-page-content-inline-padding, 20px))),
+    calc(100% - (2 * var(--config-page-content-inline-padding)),)
     var(--config-page-content-max-width)
   );
   margin: var(--size-gap-4) auto;
@@ -105,7 +105,7 @@
 
 @container config-panel (max-width: 520px) {
   .ai00-x-config-page-header {
-    padding-top: var(--size-gap-5, 20px);
+    padding-top: var(--size-gap-5);
   }
 
   .ai00-x-config-page-header__inner {
@@ -121,7 +121,7 @@
 
   .ai00-x-config-page-header__title {
     font-size: calc(var(--font-size-lg) * 1.5);
-    margin-bottom: 2px;
+    margin-bottom: var(--size-gap-0-5);
   }
 
   .ai00-x-config-page-header__subtitle {

@@ -1,0 +1,45 @@
+/* ============================================================
+ * @ai00-x/design-system · 签名纹理「宣纸颗粒」（规范 2.3）
+ * 手写文件（非构建产物）。远看纯色，近看有材质。
+ * 实现：SVG feTurbulence 灰度噪声 data URI 作为背景图（零图片文件/
+ * 零网络请求/静态无重绘）。透明度烘焙进 SVG：暗色 0.06（深墨生宣）
+ * / 亮色 0.09（宣纸）——灰噪双向可见（暗底显亮粒/白底显墨点）。
+ * v0.10：消费方禁止在 body/html 上用 background shorthand（会重置
+ * 本纹理），一律 background-color。禁用场景：高密度数据区、动效表面。
+ * ============================================================ */
+
+:root {
+  /* 深墨生宣（暗色默认） */
+  --ds-paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+}
+
+[data-theme-type='light'] {
+  /* 宣纸（亮色）：透明度略高 */
+  --ds-paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E");
+}
+
+/* 全局纸纹：html + body 双层叠加（防 body 被内联背景遮挡时 html 兜底；
+ * 与背景色同层绘制，零额外合成层） */
+.ds-texture,
+html,
+body {
+  background-image: var(--ds-paper-grain);
+}
+
+/* 卡片表面纸纹（规范 2.3 应用范围：body + 卡片表面）
+ * 用法：<div class="surface-paper">…</div>（自动带 L3 墨面底色 + 纸纹） */
+.surface-paper {
+  background-color: var(--color-bg-card);
+  background-image: var(--ds-paper-grain);
+  border-radius: var(--size-radius-base);
+}
+
+/* 尊重对比度偏好：可关纹理（规范 7.5 纸纹不得影响判读） */
+@media (prefers-contrast: more) {
+  .ds-texture,
+  html,
+  body,
+  .surface-paper {
+    background-image: none;
+  }
+}

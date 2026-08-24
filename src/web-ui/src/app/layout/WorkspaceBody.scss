@@ -62,7 +62,7 @@ $_nav-collapsed-width: 80px;
 .ai00-x-workspace-body__nav-area {
   display: flex;
   flex-direction: column;
-  width: var(--nav-width, $_nav-width);
+  width: var(--nav-width);
   flex-shrink: 0;
   height: 100%;
   overflow: hidden;
@@ -156,14 +156,14 @@ $_nav-collapsed-width: 80px;
     opacity: 0;
   }
   to {
-    width: var(--nav-width, $_nav-width);
+    width: var(--nav-width);
     opacity: 1;
   }
 }
 
 @keyframes wb-nav-slide-out {
   from {
-    width: var(--nav-width, $_nav-width);
+    width: var(--nav-width);
     opacity: 1;
   }
   to {

@@ -4,14 +4,14 @@
  * - Mission control without overflow: click to open mission control
  * - Overflow: show +N badge and dropdown; first item is mission control (if available)
  * - Overflow without mission control: show overflow menu only
+ *
+ * v0.13：浮层收敛至 DS Popover（.ds-popover，Radix 定位/外点关闭）。
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { usePortalContainer } from '@/infrastructure/contexts/PortalContainerContext';
+import React, { useState, useCallback } from 'react';
 import { LayoutGrid, ChevronDown, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Tooltip } from '@/component-library';
+import { Tooltip, Popover, PopoverTrigger, PopoverContent } from '@/component-library';
 import type { CanvasTab } from '../types';
 import './TabOverflowMenu.scss';
 export interface TabOverflowMenuProps {
@@ -37,74 +37,11 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
   onReorderTab,
   onOpenMissionControl,
 }) => {
-  const portalContainer = usePortalContainer();
-  const portalTarget = portalContainer ?? document.body;
   const { t } = useTranslation('components');
   const [isOpen, setIsOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const hasOverflow = overflowTabs.length > 0;
   const hasMissionControl = !!onOpenMissionControl;
-
-  // Update menu position
-  const updateMenuPosition = useCallback(() => {
-    if (wrapperRef.current) {
-      const rect = wrapperRef.current.getBoundingClientRect();
-      const menuWidth = 240;
-      
-      // Compute left to keep menu within right boundary
-      let left = rect.left;
-      if (left + menuWidth > window.innerWidth) {
-        left = rect.right - menuWidth;
-      }
-      
-      setMenuPosition({
-        top: rect.bottom + 4,
-        left: Math.max(8, left),
-      });
-    }
-  }, []);
-
-  // Button click
-  const handleButtonClick = useCallback(() => {
-    if (hasOverflow) {
-      if (!isOpen) {
-        updateMenuPosition();
-      }
-      setIsOpen(prev => !prev);
-    } else if (hasMissionControl) {
-      onOpenMissionControl?.();
-    }
-  }, [hasOverflow, hasMissionControl, isOpen, updateMenuPosition, onOpenMissionControl]);
-
-  // Close menu on outside click
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(target) &&
-        wrapperRef.current &&
-        !wrapperRef.current.contains(target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    // Delay listener to avoid triggering the current click
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 0);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen]);
 
   // Handle mission control click
   const handleMissionControlClick = useCallback(() => {
@@ -151,13 +88,13 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
 
   // Decide whether to show button: overflow tabs or mission control
   const shouldShowButton = hasOverflow || hasMissionControl;
-  
+
   // Hide button when no overflow and no mission control
   if (!shouldShowButton) {
     return null;
   }
 
-  const tooltipContent = hasOverflow 
+  const tooltipContent = hasOverflow
     ? hasMissionControl
       ? `${t('tabs.missionControl')} · ${t('tabs.hiddenTabsCount', { count: overflowTabs.length })}`
       : t('tabs.hiddenTabsCount', { count: overflowTabs.length })
@@ -165,36 +102,43 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
       ? t('tabs.missionControl')
       : '';
 
-  return (
-    <div ref={wrapperRef} className="canvas-tab-panorama-wrapper">
-      <Tooltip content={tooltipContent} placement="bottom">
-        <button
-          className={`canvas-tab-panorama-btn ${hasOverflow ? 'has-overflow' : ''} ${isOpen ? 'is-open' : ''} ${!hasMissionControl ? 'overflow-only' : ''}`}
-          onClick={handleButtonClick}
-        >
-          {hasMissionControl ? (
-            <LayoutGrid size={14} />
-          ) : (
-            <ChevronDown size={14} />
-          )}
-          {hasOverflow && (
-            <span className="canvas-tab-panorama-btn__badge">
-              +{overflowTabs.length}
-            </span>
-          )}
-        </button>
-      </Tooltip>
+  const triggerButton = (
+    <button
+      className={`canvas-tab-panorama-btn ${hasOverflow ? 'has-overflow' : ''} ${isOpen ? 'is-open' : ''} ${!hasMissionControl ? 'overflow-only' : ''}`}
+      onClick={hasOverflow ? undefined : handleMissionControlClick}
+    >
+      {hasMissionControl ? (
+        <LayoutGrid size={14} />
+      ) : (
+        <ChevronDown size={14} />
+      )}
+      {hasOverflow && (
+        <span className="canvas-tab-panorama-btn__badge">
+          +{overflowTabs.length}
+        </span>
+      )}
+    </button>
+  );
 
-      {isOpen && hasOverflow && createPortal(
-        <div
-          ref={menuRef}
+  return (
+    <div className="canvas-tab-panorama-wrapper">
+      <Popover open={hasOverflow ? isOpen : false} onOpenChange={setIsOpen}>
+        <Tooltip content={tooltipContent} placement="bottom">
+          {hasOverflow ? (
+            <PopoverTrigger asChild>
+              {triggerButton}
+            </PopoverTrigger>
+          ) : (
+            triggerButton
+          )}
+        </Tooltip>
+
+        <PopoverContent
+          side="bottom"
+          align="start"
+          sideOffset={4}
           className="canvas-tab-overflow-menu"
           data-no-penetrate
-          style={{
-            position: 'fixed',
-            top: `${menuPosition.top}px`,
-            left: `${menuPosition.left}px`,
-          }}
         >
           {/* Mission control entry - shown only when available */}
           {hasMissionControl && (
@@ -232,11 +176,11 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
                   {tab.state === 'preview' && <em>{titleWithDeleted}</em>}
                   {tab.state !== 'preview' && titleWithDeleted}
                 </span>
-                
+
                 {tab.isDirty && (
                   <span className="canvas-tab-overflow-menu__item-dirty">●</span>
                 )}
-                
+
                 <button
                   className="canvas-tab-overflow-menu__item-close"
                   onClick={(e) => handleCloseClick(e, tab.id)}
@@ -247,9 +191,8 @@ export const TabOverflowMenu: React.FC<TabOverflowMenuProps> = ({
             );
             })}
           </div>
-        </div>,
-        portalTarget
-      )}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 };

@@ -47,9 +47,11 @@
 
   &__title {
     margin: 0;
-    font-size: var(--font-size-2xl);
+    /* 门面签名排版：衬线 Display（规范 2.2） */
+    font-family: var(--font-family-serif);
+    font-size: clamp(1.75rem, 2.5vw, 2.5rem);
     line-height: $line-height-tight;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
     color: var(--color-text-primary);
     font-weight: $font-weight-semibold;
   }
@@ -125,7 +127,7 @@
 
     &--primary {
       background: var(--color-accent);
-      color: var(--color-text-on-accent);
+      color: var(--color-accent-foreground);
 
       &:hover:not(:disabled) {
         opacity: 0.9;

@@ -14,7 +14,7 @@
   background: var(--color-bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: $size-radius-base;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 12px var(--color-overlay);
 
   padding: $size-gap-1 0;
   box-sizing: border-box;
@@ -33,14 +33,14 @@
 
   :root[data-theme-type='light'] & {
     box-shadow:
-      0 1px 2px rgba(15, 23, 42, 0.05),
-      0 10px 28px -8px rgba(15, 23, 42, 0.12);
+      0 1px 2px var(--color-bg-primary),
+      0 10px 28px -8px var(--color-bg-primary);
   }
 
   :root[data-theme-type='dark'] & {
     box-shadow:
-      0 1px 0 color-mix(in srgb, #fff 4%, transparent),
-      0 10px 28px -8px rgba(0, 0, 0, 0.55);
+      0 1px 0 color-mix(in srgb, var(--color-accent-foreground) 4%, transparent),
+      0 10px 28px -8px var(--modal-overlay);
   }
 
   &.visible {
@@ -119,7 +119,7 @@
 }
 
 .context-menu-item-shortcut {
-  font-size: 10px;
+  font-size: var(--font-size-xxs);
   color: var(--color-text-muted);
   font-weight: var(--font-weight-normal);
   opacity: 0.7;
@@ -191,8 +191,8 @@
   
   
   
-  margin-left: -8px;
-  padding-left: 12px; 
+  margin-left: calc(var(--size-gap-2) * -1);
+  padding-left: var(--size-gap-3); 
   
   
   opacity: 0;

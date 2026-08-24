@@ -4,14 +4,14 @@
     flex-direction: column;
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 32px var(--modal-overlay), 0 2px 8px var(--color-overlay);
     pointer-events: auto;
     background-color: var(--color-bg-primary);
     border: 1px solid var(--border-subtle);
     transition: box-shadow 0.2s ease;
 
     &:hover {
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 12px 40px var(--modal-overlay), 0 4px 12px var(--color-overlay);
     }
 
     &--resizing {
@@ -24,7 +24,7 @@
     display: flex;
     align-items: center;
     height: 36px;
-    padding: 0 8px 0 16px;
+    padding: 0 var(--size-gap-2) 0 var(--size-gap-4);
     cursor: grab;
     flex-shrink: 0;
     background-color: var(--nav-bg);
@@ -36,7 +36,7 @@
 }
 
 .settings-dialog__title {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-muted);
     user-select: none;
@@ -47,9 +47,9 @@
 .settings-dialog__titlebar-extra {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     margin-left: auto;
-    margin-right: 4px;
+    margin-right: var(--size-gap-1);
     pointer-events: auto;
 }
 

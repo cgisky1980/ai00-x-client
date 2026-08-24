@@ -798,6 +798,7 @@
     "projectContext": "项目概况",
     "agents": "智能体",
     "skills": "技能",
+    "plugins": "插件",
     "miniApps": "小应用",
     "browser": "浏览器",
     "mermaidEditor": "Mermaid 图表",

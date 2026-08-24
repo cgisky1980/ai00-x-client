@@ -139,7 +139,7 @@
   &__model-option {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__model-option-label {
@@ -151,7 +151,7 @@
   &__model-value {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__model-value-label {
@@ -164,9 +164,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 1px 5px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 3px;
-    font-size: 8px;
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     letter-spacing: 0.3px;
     line-height: 1;
@@ -174,18 +174,18 @@
     flex-shrink: 0;
 
     &--free {
-      background: rgba(34, 197, 94, 0.15);
-      color: rgba(34, 197, 94, 0.9);
+      background: var(--color-success-bg);
+      color: var(--color-success);
     }
 
     &--vip {
-      background: rgba(251, 146, 60, 0.15);
-      color: rgba(251, 146, 60, 0.9);
+      background: var(--color-warning-bg);
+      color: var(--color-warning);
     }
 
     &--svip {
-      background: rgba(168, 85, 247, 0.15);
-      color: rgba(168, 85, 247, 0.9);
+      background: var(--color-accent-500);
+      color: var(--color-accent-500);
     }
   }
 }

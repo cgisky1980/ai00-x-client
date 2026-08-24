@@ -24,7 +24,7 @@
     flex-direction: row;
     align-items: center;
     min-width: 0;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
   }
 
   &__title {
@@ -44,15 +44,15 @@
   &__workspace-trigger {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     min-width: 0;
     max-width: 100%;
     height: 24px;
-    padding: 0 4px;
+    padding: 0 var(--size-gap-1);
     border: none;
     border-radius: 6px;
     background: transparent;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
     cursor: default;
     transition:
       color $motion-fast $easing-standard,
@@ -91,21 +91,21 @@
     position: fixed;
     min-width: 220px;
     max-width: min(320px, calc(100vw - 32px));
-    padding: 6px;
+    padding: var(--size-gap-1-5);
     border: 1px solid var(--border-subtle);
     border-radius: 10px;
-    background: var(--panel-bg, var(--color-bg-elevated));
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+    background: var(--panel-bg);
+    box-shadow: 0 10px 28px var(--color-overlay);
     z-index: 8;
   }
 
   &__workspace-menu-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     width: 100%;
     min-height: 30px;
-    padding: 0 8px;
+    padding: 0 var(--size-gap-2);
     border: none;
     border-radius: 8px;
     background: transparent;
@@ -202,21 +202,21 @@
     top: calc(100% + 6px);
     right: 0;
     min-width: 168px;
-    padding: 6px;
+    padding: var(--size-gap-1-5);
     border: 1px solid var(--border-subtle);
     border-radius: 10px;
-    background: var(--panel-bg, var(--color-bg-elevated));
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+    background: var(--panel-bg);
+    box-shadow: 0 10px 28px var(--color-overlay);
     z-index: 8;
   }
 
   &__dropdown-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     width: 100%;
     height: 30px;
-    padding: 0 8px;
+    padding: 0 var(--size-gap-2);
     border: none;
     border-radius: 8px;
     background: transparent;
@@ -236,16 +236,16 @@
 
   &__dropdown-separator {
     height: 1px;
-    margin: 6px 4px;
+    margin: var(--size-gap-1-5) var(--size-gap-1);
     background: color-mix(in srgb, var(--border-subtle) 80%, transparent);
   }
 
   &__view-toggle {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 4px;
+    gap: var(--size-gap-1);
     margin: 0 $size-gap-3 $size-gap-2;
-    padding: 3px;
+    padding: var(--size-gap-0-5);
     border-radius: 10px;
     background: var(--element-bg-soft);
     flex-shrink: 0;
@@ -299,14 +299,14 @@
   &__terminal-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     padding: 0 $size-gap-2;
   }
 
   &__terminal-item-main {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     flex: 1;
     min-width: 0;
   }
@@ -314,7 +314,7 @@
   &__terminal-item {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     width: 100%;
     height: 32px;
     padding: 0 $size-gap-2;
@@ -333,7 +333,7 @@
 
     &:hover {
       color: var(--color-text-primary);
-      background: var(--element-bg-medium, var(--element-bg-soft));
+      background: var(--element-bg-medium);
 
       .ai00-x-shell-nav__terminal-dot { display: none; }
       .ai00-x-shell-nav__terminal-close { display: inline-flex; }
@@ -360,7 +360,7 @@
         background: color-mix(
           in srgb,
           var(--color-primary) 14%,
-          var(--element-bg-medium, var(--element-bg-soft))
+          var(--element-bg-medium)
         );
       }
     }
@@ -433,7 +433,7 @@
 
   &__cmd-indicator {
     flex-shrink: 0;
-    padding: 2px 5px;
+    padding: var(--size-gap-0-5) var(--size-gap-1);
     border-radius: 999px;
     font-size: var(--font-size-xxs);
     line-height: 1;
@@ -443,7 +443,7 @@
 
   &__saved-indicator {
     flex-shrink: 0;
-    padding: 2px 5px;
+    padding: var(--size-gap-0-5) var(--size-gap-1);
     border-radius: 999px;
     font-size: var(--font-size-xxs);
     line-height: 1;

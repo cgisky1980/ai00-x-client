@@ -2,8 +2,8 @@
 @use '../../../component-library/styles/_extended-mixins' as mixins;
 
 $_node-height: 28px;
-$_node-padding-y: 4px;
-$_node-padding-x: 8px;
+$_node-padding-y: var(--size-gap-1);
+$_node-padding-x: var(--size-gap-2);
 $_icon-size: 16px;
 
 .ai00-x-search-results {
@@ -141,7 +141,7 @@ $_icon-size: 16px;
   &-toggle {
     @include mixins.flex-layout(row, center, center, 3px);
     flex-shrink: 0;
-    padding: 2px 6px;
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     min-height: 20px;
     border: none;
     border-radius: 10px;
@@ -230,9 +230,9 @@ $_icon-size: 16px;
 }
 
 .ai00-x-search-results__highlight {
-  background: rgba($color-accent-500, 0.25);
+  background:color-mix(in srgb, var(--color-accent-500) 25%, transparent);
   color: var(--color-accent-500);
-  padding: 1px 2px;
+  padding: var(--size-gap-0-25) var(--size-gap-0-5);
   border-radius: 2px;
   font-weight: $font-weight-medium;
 }

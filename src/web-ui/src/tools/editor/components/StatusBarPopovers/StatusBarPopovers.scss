@@ -1,32 +1,19 @@
 /**
  * Status bar popover styles (Cursor/VS Code style).
- * Small popover, fade-in + subtle scale animation.
+ * v0.13：定位与浮层视觉由 DS Popover（.ds-popover）接管，仅保留尺寸与列表项样式。
  */
 
- @use '@/component-library/styles/tokens' as *;
+@use '@/component-library/styles/tokens' as *;
 
- $popover-z: 360;
- $popover-gap: 4px;
- $popover-radius: 6px;
- $popover-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
- 
- .status-bar-popover {
-   position: absolute;
-   z-index: $popover-z;
-   min-width: 200px;
-   max-width: 320px;
-   background: var(--color-bg-elevated);
-   border: 1px solid var(--color-border-subtle);
-   border-radius: $popover-radius;
-   box-shadow: $popover-shadow;
-   font-size: 12px;
-   font-family: $font-family-sans;
-   color: var(--color-text-primary);
-   transform: translateY(-100%);
-   animation: status-bar-popover-enter 0.15s cubic-bezier(0, 0, 0.2, 1) forwards;
- 
-   &__input-wrap {
-     padding: 8px 10px;
+.status-bar-popover {
+  min-width: 200px;
+  max-width: 320px;
+  font-size: var(--font-size-xs);
+  font-family: $font-family-sans;
+  color: var(--color-text-primary);
+
+  &__input-wrap {
+     padding: var(--size-gap-2) var(--size-gap-2-5);
    }
  
    &__input {
@@ -34,12 +21,12 @@
 
     .ai00-x-input-container {
       height: 28px;
-      padding: 0 8px;
+      padding: 0 var(--size-gap-2);
       border-radius: 4px;
     }
 
     .ai00-x-input {
-      font-size: 12px;
+      font-size: var(--font-size-xs);
       font-family: $font-family-mono;
     }
    }
@@ -47,7 +34,7 @@
    &__list {
      max-height: 280px;
      overflow-y: auto;
-     padding: 4px 0;
+     padding: var(--size-gap-1) 0;
    }
  
    &__item {
@@ -60,25 +47,25 @@
     border-radius: 0;
     border: none;
     box-shadow: none;
-     padding: 6px 12px;
+     padding: var(--size-gap-1-5) var(--size-gap-3);
      cursor: pointer;
      white-space: nowrap;
      transition: background 0.1s ease;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 400;
     color: var(--color-text-primary);
  
      &:hover {
-       background: rgba(255, 255, 255, 0.08);
+       background:color-mix(in srgb, var(--color-text-primary) 8%, transparent);
      }
 
     &:focus-visible {
       outline: none;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--element-bg-subtle);
     }
 
      &--active {
-       background: rgba(255, 255, 255, 0.12);
+       background:color-mix(in srgb, var(--color-text-primary) 12%, transparent);
        color: var(--color-accent-400);
      }
    }
@@ -89,7 +76,7 @@
      justify-content: center;
      width: 18px;
      height: 18px;
-     margin-right: 8px;
+     margin-right: var(--size-gap-2);
      flex-shrink: 0;
      color: var(--color-text-muted);
      opacity: 0.9;
@@ -100,21 +87,9 @@
    }
  
    &__hint {
-     padding: 6px 12px;
-     font-size: 11px;
+     padding: var(--size-gap-1-5) var(--size-gap-3);
+     font-size: var(--font-size-2xs);
      color: var(--color-text-muted);
-     border-bottom: 1px solid var(--color-border-subtle);
+     border-bottom: 1px solid var(--border-subtle);
    }
  }
- 
- @keyframes status-bar-popover-enter {
-   from {
-     opacity: 0;
-     transform: translateY(-100%) scale(0.96);
-   }
-   to {
-     opacity: 1;
-     transform: translateY(-100%) scale(1);
-   }
- }
- 

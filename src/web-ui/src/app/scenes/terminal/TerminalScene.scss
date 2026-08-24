@@ -15,7 +15,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: var(--size-gap-3);
     color: var(--color-text-muted);
   }
 
@@ -24,7 +24,7 @@
   }
 
   &__empty-hint {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     margin: 0;
   }
 }

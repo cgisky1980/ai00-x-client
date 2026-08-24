@@ -4,7 +4,7 @@
   .task-header-wrapper {
     display: flex;
     align-items: stretch;
-    gap: 4px;
+    gap: var(--size-gap-1);
     width: 100%;
   }
 
@@ -15,8 +15,8 @@
     justify-content: center;
     flex-shrink: 0;
     align-self: stretch;
-    padding-right: 10px;
-    margin-right: 8px;
+    padding-right: var(--size-gap-2-5);
+    margin-right: var(--size-gap-2);
     box-sizing: border-box;
     min-height: 0;
     color: var(--color-text-secondary);
@@ -25,8 +25,8 @@
       content: '';
       position: absolute;
       right: 0;
-      top: calc(-1 * var(--tool-card-header-pad-y, 10px));
-      bottom: calc(-1 * var(--tool-card-header-pad-y, 10px));
+      top: calc(-1 * var(--tool-card-header-pad-y));
+      bottom: calc(-1 * var(--tool-card-header-pad-y));
       width: 0;
       border-right: 1px solid var(--border-base);
       pointer-events: none;
@@ -36,8 +36,8 @@
     .task-task-icon-marks {
       position: relative;
       z-index: 1;
-      width: var(--tool-card-header-icon-rail, 28px);
-      height: var(--tool-card-header-icon-rail, 28px);
+      width: var(--tool-card-header-icon-rail);
+      height: var(--tool-card-header-icon-rail);
       flex-shrink: 0;
       display: flex;
       align-items: center;
@@ -138,17 +138,17 @@
     align-self: stretch;
     flex-shrink: 0;
     min-width: 40px;
-    padding: 0 0 0 8px;
-    margin-left: 4px;
+    padding: 0 0 0 var(--size-gap-2);
+    margin-left: var(--size-gap-1);
 
     /* Hover fill: full header height + extend into header right padding to card inner edge. */
     &::before {
       content: '';
       position: absolute;
       left: 0;
-      right: calc(-1 * var(--tool-card-header-pad-x, 10px));
-      top: calc(-1 * var(--tool-card-header-pad-y, 10px));
-      bottom: calc(-1 * var(--tool-card-header-pad-y, 10px));
+      right: calc(-1 * var(--tool-card-header-pad-x));
+      top: calc(-1 * var(--tool-card-header-pad-y));
+      bottom: calc(-1 * var(--tool-card-header-pad-y));
       background-color: transparent;
       border-radius: 0;
       transition: background-color 0.15s ease;
@@ -157,7 +157,7 @@
     }
 
     &:hover::before {
-      background-color: var(--tool-card-bg-hover, var(--color-bg-hover));
+      background-color: var(--tool-card-bg-hover);
     }
 
     &:hover .task-header-rail__visual {
@@ -168,8 +168,8 @@
       content: '';
       position: absolute;
       left: 0;
-      top: calc(-1 * var(--tool-card-header-pad-y, 10px));
-      bottom: calc(-1 * var(--tool-card-header-pad-y, 10px));
+      top: calc(-1 * var(--tool-card-header-pad-y));
+      bottom: calc(-1 * var(--tool-card-header-pad-y));
       width: 0;
       border-left: 1px solid var(--border-base);
       pointer-events: none;
@@ -180,9 +180,9 @@
   .task-header-rail__hit {
     position: absolute;
     left: 0;
-    top: calc(-1 * var(--tool-card-header-pad-y, 10px));
-    right: calc(-1 * var(--tool-card-header-pad-x, 10px));
-    bottom: calc(-1 * var(--tool-card-header-pad-y, 10px));
+    top: calc(-1 * var(--tool-card-header-pad-y));
+    right: calc(-1 * var(--tool-card-header-pad-x));
+    bottom: calc(-1 * var(--tool-card-header-pad-y));
     z-index: 2;
     margin: 0;
     padding: 0;
@@ -206,7 +206,7 @@
     align-items: center;
     justify-content: center;
     align-self: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     color: var(--color-text-muted);
     pointer-events: none;
   }
@@ -214,13 +214,13 @@
   .task-header-main {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     width: 100%;
     min-height: 20px;
   }
 
   .task-action {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-primary);
     flex-shrink: 1;
@@ -243,34 +243,34 @@
   .task-failed-badge {
     display: inline-flex;
     align-items: center;
-    padding: 1px 5px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 3px;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     font-weight: 500;
     flex-shrink: 0;
     color: var(--color-text-muted);
-    background: rgba(107, 114, 128, 0.15);
+    background:color-mix(in srgb, var(--color-text-muted) 15%, transparent);
   }
 
   .agent-type-badge {
     display: inline-flex;
     align-items: center;
-    padding: 2px 6px;
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     border-radius: 4px;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     font-weight: 500;
     flex-shrink: 0;
     color: var(--color-text-secondary);
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--element-bg-subtle);
     letter-spacing: 0.02em;
   }
 
   .task-header-meta {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     margin-left: auto;
-    margin-right: 10px;
+    margin-right: var(--size-gap-2-5);
     flex-shrink: 0;
   }
 
@@ -279,8 +279,8 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    margin-left: 4px;
-    padding-left: 4px;
+    margin-left: var(--size-gap-1);
+    padding-left: var(--size-gap-1);
     border-left: 1px solid var(--border-base);
     
     .icon-completed {
@@ -309,15 +309,15 @@
 
   /* Extra breathing room below header / divider before prompt + actions. */
   &.base-tool-card-wrapper > .base-tool-card-expanded {
-    padding-top: 14px;
+    padding-top: var(--size-gap-3-5);
   }
 
   .duration-text {
     display: flex;
     align-items: center;
-    gap: 4px;
-    color: var(--tool-card-text-secondary, var(--color-text-secondary));
-    font-size: 12px;
+    gap: var(--size-gap-1);
+    color: var(--tool-card-text-secondary);
+    font-size: var(--font-size-xs);
     font-weight: 600;
     letter-spacing: 0.01em;
     line-height: 1.2;
@@ -331,9 +331,9 @@
   .section-header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 8px;
-    font-size: 11px;
+    gap: var(--size-gap-1-5);
+    margin-bottom: var(--size-gap-2);
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     color: var(--tool-card-text-secondary);
     text-transform: uppercase;
@@ -353,18 +353,18 @@
   .task-expanded-content {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--size-gap-3);
   }
 
 
   .error-content {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   .error-message {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     color: var(--color-error);
     line-height: 1.4;
   }
@@ -372,8 +372,8 @@
   .error-meta {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 11px;
+    gap: var(--size-gap-2);
+    font-size: var(--font-size-2xs);
     color: var(--tool-card-text-muted);
   }
 
@@ -388,15 +388,15 @@
 
   .tool-actions {
     display: flex;
-    gap: 8px;
-    margin-top: 12px;
+    gap: var(--size-gap-2);
+    margin-top: var(--size-gap-3);
   }
 
   .confirm-button,
   .reject-button {
-    padding: 6px 12px;
+    padding: var(--size-gap-1-5) var(--size-gap-3);
     border-radius: 4px;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -410,10 +410,10 @@
 
   .confirm-button {
     background: var(--color-primary);
-    color: white;
+    color: var(--color-accent-foreground);
 
     &:hover:not(:disabled) {
-      background: var(--color-primary-dark);
+      background: var(--color-accent-700);
     }
   }
 
@@ -423,7 +423,7 @@
     border: 1px solid var(--tool-card-border);
 
     &:hover:not(:disabled) {
-      background: var(--tool-card-bg-tertiary);
+      background: var(--tool-card-bg-secondary);
       border-color: var(--color-error);
       color: var(--color-error);
     }
@@ -450,22 +450,19 @@
 .task-with-subagent-wrapper {
   position: relative;
   border-radius: 8px;
-  margin-bottom: 10px;
+  margin-bottom: var(--size-gap-2-5);
   transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
   // Expanded state: subtle default elevation.
   &:has(.subagent-items-wrapper--expanded) {
-    box-shadow:
-      0 2px 6px rgba(0, 0, 0, 0.15),
-      0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow:var(--shadow-base);
   }
 
   // Hover over expanded card: stronger elevation.
   &:has(.subagent-items-wrapper--expanded):hover {
-    box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.25),
-      0 2px 8px rgba(0, 0, 0, 0.15),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow:0 4px 16px var(--color-overlay),
+      0 2px 8px var(--color-overlay),
+      inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 4%, transparent);
   }
 
   // Square the bottom corners of the task header card when expanded.

@@ -1,41 +1,18 @@
+/* Ai00-X underlay-ui 样式入口
+ * 设计令牌来源：@ai00-x/design-system（唯一事实来源，规范见 参考/前端视觉设计规范-新东方极简.md）
+ * - tokens/字体/纸纹/签名动效/组件样式：main.tsx 里 JS 导入 "@ai00-x/design-system/styles"
+ *   （不走本文件 @import：tailwindcss/postcss 会内联 import 并使 url() 逃逸
+ *    Vite 资产管线，自托管字体 woff2 无法解析——E4 实测）
+ * - Tailwind v4 工具类映射（含 shadcn 语义名兼容）：@ai00-x/design-system/tw */
 @import "tailwindcss";
+@import "@ai00-x/design-system/tw";
+
 @source "./src";
 /* 显式扫描共享包源码：shared 组件（AvatarCustomizer 等）的 Tailwind 类名
    不在本包源码中出现，不加 @source 时不会生成对应 CSS */
 @source "../../packages/shared/src";
 
 @theme {
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
 
@@ -49,63 +26,10 @@
   }
 }
 
-:root {
-  /* Dark Theme Variables (Zinc) */
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 98%;
-
-  --card: 240 10% 3.9%;
-  --card-foreground: 0 0% 98%;
-
-  --popover: 240 10% 3.9%;
-  --popover-foreground: 0 0% 98%;
-
-  --primary: 0 0% 98%;
-  --primary-foreground: 240 5.9% 10%;
-
-  --secondary: 240 3.7% 15.9%;
-  --secondary-foreground: 0 0% 98%;
-
-  --muted: 240 3.7% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
-
-  --accent: 240 3.7% 15.9%;
-  --accent-foreground: 0 0% 98%;
-
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
-
-  --border: 240 3.7% 15.9%;
-  --input: 240 3.7% 15.9%;
-  --ring: 240 4.9% 83.9%;
-
-  --radius: 0.5rem;
-}
-
+/* 桌面层底色：走 token（默认深墨 + 宣纸颗粒） */
 body {
-  background-color: #0f0c29 !important;
-  color: hsl(var(--foreground));
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-}
-
-#root {
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
-}
-
-body.underlay-main #root {
-  margin-top: 30px;
-}
-
-/* 桌面 grid item 的 content 需要显式设置 pointer-events: auto，
-   因为 underlay-ui 的 HTML 层祖先元素设置了 pointer-events: none（为不拦截 PIXI 事件），
-   pointer-events 是继承属性，content 必须显式 auto 才能接收拖拽事件。 */
-.grid-stack-item-content {
-  pointer-events: auto;
-  /* gridstack 默认给 content 设置了 background-color: #fff（白色），
-     ItemWrapper 在 content 内部设置半透明背景色，两个背景叠加会导致透明度效果不对
-     （白色 + 60%蓝色 = 浅蓝色，而非 60% 透明的蓝色）。
-     覆盖为透明，让只有 ItemWrapper 的背景色生效。 */
-  background-color: transparent !important;
+  background-color: var(--color-bg-base);
+  background-image: var(--ds-paper-grain);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
 }

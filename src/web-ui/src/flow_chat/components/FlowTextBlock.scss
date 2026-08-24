@@ -78,7 +78,7 @@
   /* Tighter code fence toolbar than global Markdown.scss (flow chat only). */
   .markdown-renderer .code-block-toolbar {
     min-height: 1.625rem;
-    padding: 0.2rem 0.45rem 0.2rem 0.6rem;
+    padding: var(--size-gap-1) var(--size-gap-2) var(--size-gap-1) var(--size-gap-2-5);
   }
 
   .markdown-renderer .code-block-lang {
@@ -89,7 +89,7 @@
   .markdown-renderer .code-block-wrapper .copy-button {
     width: 26px;
     height: 26px;
-    padding: 0.2rem;
+    padding: var(--size-gap-1);
     transition:
       transform 0.15s ease,
       opacity 0.2s ease;
@@ -108,7 +108,7 @@
   }
 
   .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover {
-    color: #22c55e;
+    color: var(--color-success);
     transform: scale(1.08);
   }
 
@@ -127,19 +127,19 @@
     &--streaming {
       -webkit-mask-image: linear-gradient(
         90deg,
-        #000 0%,
-        #000 50%,
-        rgba(0, 0, 0, 0.7) 70%,
-        rgba(0, 0, 0, 0.4) 85%,
-        rgba(0, 0, 0, 0.15) 100%
+        var(--color-bg-primary) 0%,
+        var(--color-bg-primary) 50%,
+        var(--modal-overlay) 70%,
+        var(--modal-overlay) 85%,
+        var(--color-overlay) 100%
       );
       mask-image: linear-gradient(
         90deg,
-        #000 0%,
-        #000 50%,
-        rgba(0, 0, 0, 0.7) 70%,
-        rgba(0, 0, 0, 0.4) 85%,
-        rgba(0, 0, 0, 0.15) 100%
+        var(--color-bg-primary) 0%,
+        var(--color-bg-primary) 50%,
+        var(--modal-overlay) 70%,
+        var(--modal-overlay) 85%,
+        var(--color-overlay) 100%
       );
       animation: ink-fade-pulse 2s ease-in-out infinite;
     }
@@ -154,14 +154,14 @@
 :root[data-theme-type='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button:hover,
 [data-theme-type='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button:hover,
 .light .flow-text-block .markdown-renderer .code-block-wrapper .copy-button:hover {
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--modal-overlay);
 }
 
 :root[data-theme='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover,
 :root[data-theme-type='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover,
 [data-theme-type='light'] .flow-text-block .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover,
 .light .flow-text-block .markdown-renderer .code-block-wrapper .copy-button.copy-success:hover {
-  color: #1a7f37;
+  color: var(--color-success);
 }
 
 :root[data-theme='light'] .flow-text-block .markdown-renderer .inline-code,
@@ -193,37 +193,37 @@
   0%, 100% {
     -webkit-mask-image: linear-gradient(
       90deg,
-      #000 0%,
-      #000 50%,
-      rgba(0, 0, 0, 0.7) 70%,
-      rgba(0, 0, 0, 0.4) 85%,
-      rgba(0, 0, 0, 0.15) 100%
+      var(--color-bg-primary) 0%,
+      var(--color-bg-primary) 50%,
+      var(--modal-overlay) 70%,
+      var(--modal-overlay) 85%,
+      var(--color-overlay) 100%
     );
     mask-image: linear-gradient(
       90deg,
-      #000 0%,
-      #000 50%,
-      rgba(0, 0, 0, 0.7) 70%,
-      rgba(0, 0, 0, 0.4) 85%,
-      rgba(0, 0, 0, 0.15) 100%
+      var(--color-bg-primary) 0%,
+      var(--color-bg-primary) 50%,
+      var(--modal-overlay) 70%,
+      var(--modal-overlay) 85%,
+      var(--color-overlay) 100%
     );
   }
   50% {
     -webkit-mask-image: linear-gradient(
       90deg,
-      #000 0%,
-      #000 55%,
-      rgba(0, 0, 0, 0.75) 75%,
-      rgba(0, 0, 0, 0.5) 90%,
-      rgba(0, 0, 0, 0.25) 100%
+      var(--color-bg-primary) 0%,
+      var(--color-bg-primary) 55%,
+      var(--modal-overlay) 75%,
+      var(--modal-overlay) 90%,
+      var(--color-overlay) 100%
     );
     mask-image: linear-gradient(
       90deg,
-      #000 0%,
-      #000 55%,
-      rgba(0, 0, 0, 0.75) 75%,
-      rgba(0, 0, 0, 0.5) 90%,
-      rgba(0, 0, 0, 0.25) 100%
+      var(--color-bg-primary) 0%,
+      var(--color-bg-primary) 55%,
+      var(--modal-overlay) 75%,
+      var(--modal-overlay) 90%,
+      var(--color-overlay) 100%
     );
   }
 }

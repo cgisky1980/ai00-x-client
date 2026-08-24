@@ -75,7 +75,7 @@
   &.is-maximized {
     position: absolute;
     inset: 0;
-    z-index: 100;
+    z-index: var(--z-overlay);
   }
 
   // Resize handle
@@ -104,7 +104,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px;
+    padding: var(--size-gap-1-5) var(--size-gap-3);
     background: var(--color-bg-secondary);
     border-bottom: 1px solid var(--border-base);
     flex-shrink: 0;
@@ -113,8 +113,8 @@
   &__title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12px;
+    gap: var(--size-gap-2);
+    font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-primary);
 
@@ -126,7 +126,7 @@
   &__actions {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__action-btn {
@@ -144,7 +144,7 @@
     transition: background-color 0.15s ease, color 0.15s ease;
 
     &:hover {
-      background: var(--color-bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-primary);
     }
   }

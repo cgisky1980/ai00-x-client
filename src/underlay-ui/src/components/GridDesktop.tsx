@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react"
-import { IconTooltip } from "@underlay/components/ui/IconTooltip"
+import { IconTooltip } from "@underlay/components/IconTooltip"
 import { GridStack } from "gridstack"
 import { useUnderlayDesktop } from "@underlay/desktop/UnderlayDesktopContext"
 import { cn } from "@underlay/lib/utils"
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter"
 import { Lock, Unlock, Trash2, FolderOpen } from "lucide-react"
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@underlay/components/ui/context-menu"
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@ai00-x/design-system/react"
 import { createRoot } from "react-dom/client"
 import type { Root } from "react-dom/client"
 
@@ -14,6 +14,7 @@ import { DesktopShortcut } from "@underlay/components/DesktopShortcut"
 import { SystemMonitorWidget } from "@underlay/components/SystemMonitorWidget"
 import { ClockWidget } from "@underlay/components/ClockWidget"
 import { PluginWidget } from "@underlay/components/PluginWidget"
+import { isIframeHook } from "@ai00-x/shared"
 import { ItemWrapper } from "@underlay/components/ItemWrapper"
 import { storage } from "@underlay/lib/storage"
 
@@ -529,7 +530,8 @@ export function GridDesktop() {
           } else if (gi.kind === "widget" && gi.path.startsWith("plugin:")) {
              const pluginId = gi.path.replace("plugin:", "")
              const plugin = plugins.find(p => p.manifest.id === pluginId)
-             if (plugin && plugin.manifest.entry_points?.underlay?.path) {
+             const underlayHook = plugin?.manifest.hooks?.["underlay:widget"]
+             if (plugin && plugin.enabled && isIframeHook(underlayHook)) {
                 root.render(
                   <ItemWrapper
                     color={gi.color}
@@ -537,7 +539,7 @@ export function GridDesktop() {
                     onColorChange={(c) => updateGridItem(gi.path, { color: c })}
                     onOpacityChange={(o) => updateGridItem(gi.path, { opacity: o })}
                   >
-                    <PluginWidget pluginId={pluginId} entryPath={plugin.manifest.entry_points.underlay.path} />
+                    <PluginWidget pluginId={pluginId} entryPath={underlayHook.path} />
                   </ItemWrapper>
                 )
              } else {

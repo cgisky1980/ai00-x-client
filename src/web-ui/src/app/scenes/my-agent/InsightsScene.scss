@@ -4,19 +4,19 @@
 // Design tokens
 // ============================================================
 
-$ins-blue:   var(--color-accent-500);   // #60a5fa
-$ins-green:  #6eb88c;
+$ins-blue:   var(--color-accent-500);
+$ins-green:  var(--color-success);
 $ins-red:    var(--color-error);
-$ins-orange: #c9944d;
+$ins-orange: var(--color-warning);
 
-$ins-blue-bg:  var(--color-accent-100);   // rgba(96,165,250,0.08)
-$ins-green-bg: rgba(110, 184, 140, 0.08);
+$ins-blue-bg:  var(--color-accent-100);
+$ins-green-bg: var(--color-success-bg);
 $ins-red-bg:   var(--color-error-bg);
 
 $ins-surface:       var(--color-bg-quaternary); // #202024, clearly above scene #16161a
 $ins-surface-hover: var(--color-bg-quaternary); // same base, border differentiates hover
-$ins-border:        rgba(255, 255, 255, 0.10);
-$ins-border-hover:  rgba(255, 255, 255, 0.22);
+$ins-border:        var(--element-bg-subtle);
+$ins-border-hover:  var(--color-gray-600);
 
 // Spacing: 4 / 8 / 14 / 22 / 40
 $ins-xs: 4px;
@@ -91,7 +91,7 @@ $ins-label:   12px;
   font-size: $ins-title;
   font-weight: 600;
   color: var(--color-text-primary);
-  margin: 0 0 2px;
+  margin: 0 0 var(--size-gap-0-5);
   letter-spacing: -0.02em;
 }
 
@@ -130,7 +130,7 @@ $ins-label:   12px;
 }
 
 .insights-scene__day-filter-label {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   font-weight: $font-weight-medium;
   color: var(--color-text-muted);
   white-space: nowrap;
@@ -141,7 +141,7 @@ $ins-label:   12px;
   display: inline-flex;
   align-items: center;
   gap: $ins-xs;
-  padding: 4px 11px;
+  padding: var(--size-gap-1) var(--size-gap-2-5);
   border: none;
   border-radius: $ins-r-sm;
   font-size: $ins-small;
@@ -155,14 +155,14 @@ $ins-label:   12px;
   @extend %ins-btn;
   background: $ins-blue-bg;
   color: $ins-blue;
-  &:hover { background: rgba(96, 165, 250, 0.15); }
+  &:hover { background: var(--color-accent-200); }
 }
 
 .insights-scene__cancel-btn {
   @extend %ins-btn;
   background: $ins-red-bg;
   color: $ins-red;
-  &:hover { background: rgba(199, 112, 112, 0.15); }
+  &:hover { background: var(--color-error); }
 }
 
 // Error / progress
@@ -171,7 +171,7 @@ $ins-label:   12px;
   align-items: center;
   gap: $ins-sm;
   margin: $ins-sm $ins-lg 0;
-  padding: 5px $ins-md;
+  padding: var(--size-gap-1) $ins-md;
   background: $ins-red-bg;
   border-radius: $ins-r-sm;
   font-size: $ins-small;
@@ -180,7 +180,7 @@ $ins-label:   12px;
   span { flex: 1; }
   button {
     background: none; border: none; color: inherit;
-    cursor: pointer; font-size: 14px; padding: 0; opacity: 0.6;
+    cursor: pointer; font-size: var(--font-size-base); padding: 0; opacity: 0.6;
     &:hover { opacity: 1; }
   }
 }
@@ -220,7 +220,7 @@ $ins-label:   12px;
 .insights-scene__history-hint {
   font-weight: 400;
   text-transform: none;
-  font-size: 10px;
+  font-size: var(--font-size-xxs);
   opacity: 0.55;
   letter-spacing: 0;
   margin-left: $ins-sm;
@@ -245,7 +245,7 @@ $ins-label:   12px;
 .insights-scene__report-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--size-gap-1);
 }
 
 // Meta cards (report list items)
@@ -266,15 +266,15 @@ $ins-label:   12px;
   will-change: transform, box-shadow;
 
   &:hover {
-    background: color-mix(in srgb, var(--color-bg-quaternary) 100%, white 4%);
+    background:color-mix(in srgb, var(--color-bg-quaternary) 100%, var(--color-text-primary) 4%);
     border-color: $ins-border-hover;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18), 0 1px 3px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 2px 12px var(--color-overlay), 0 1px 3px var(--color-overlay);
     transform: translateY(-1px);
   }
 
   &:active {
     transform: translateY(0);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 1px 4px var(--color-overlay);
     transition-duration: 0.08s;
   }
 
@@ -310,14 +310,14 @@ $ins-label:   12px;
   &__stats-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     margin-bottom: $ins-xs;
   }
 
   &__stat {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: var(--size-gap-0-5);
     font-size: $ins-label;
     color: var(--color-text-muted);
     transition: color 0.2s;
@@ -331,8 +331,8 @@ $ins-label:   12px;
   }
 
   &__tag {
-    font-size: 10px;
-    padding: 1px 6px;
+    font-size: var(--font-size-xxs);
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
     border-radius: 3px;
     background: $ins-blue-bg;
     color: $ins-blue;
@@ -380,7 +380,7 @@ $ins-label:   12px;
     display: inline-flex;
     align-items: center;
     gap: $ins-xs;
-    padding: 3px $ins-sm;
+    padding: var(--size-gap-0-5) $ins-sm;
     border: none;
     border-radius: $ins-r-sm;
     background: transparent;
@@ -417,7 +417,7 @@ $ins-label:   12px;
     span {
       display: inline-flex;
       align-items: center;
-      gap: 3px;
+      gap: var(--size-gap-0-5);
     }
   }
 
@@ -427,7 +427,7 @@ $ins-label:   12px;
     display: inline-flex;
     align-items: center;
     gap: $ins-xs;
-    padding: 3px 10px;
+    padding: var(--size-gap-0-5) var(--size-gap-2-5);
     border: none;
     border-radius: $ins-r-sm;
     background: $ins-surface;
@@ -458,10 +458,10 @@ $ins-label:   12px;
   &::-webkit-scrollbar { width: 5px; }
   &::-webkit-scrollbar-track { background: transparent; }
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.10);
+    background: var(--element-bg-subtle);
     border-radius: 3px;
   }
-  &::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.20); }
+  &::-webkit-scrollbar-thumb:hover { background:color-mix(in srgb, var(--color-text-primary) 16%, transparent); }
 }
 
 // Report body column
@@ -477,7 +477,7 @@ $ins-label:   12px;
   margin: 0 auto;
   // Bottom space must live on the inner wrapper so scroll height includes it
   // (flex-stretched body alone can make bottom padding feel “eaten”).
-  padding-bottom: $ins-xl * 2 + $ins-lg;
+  padding-bottom: calc($ins-xl * 2 + $ins-lg);
 }
 
 // Report title — centered in body, larger than header chrome
@@ -487,7 +487,7 @@ $ins-label:   12px;
 
   &__title {
     margin: 0;
-    font-size: 26px;
+    font-size: var(--font-size-4xl);
     font-weight: 700;
     letter-spacing: -0.035em;
     line-height: 1.2;
@@ -514,7 +514,7 @@ $ins-label:   12px;
 
   // Section group label (reserved) - keeps structure flexible
   &__group-label {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.6px;
@@ -528,7 +528,7 @@ $ins-label:   12px;
     display: flex;
     align-items: center;
     gap: $ins-sm;
-    padding: 5px $ins-sm 5px $ins-md;
+    padding: var(--size-gap-1) $ins-sm var(--size-gap-1) $ins-md;
     border: none;
     background: transparent;
     color: var(--color-text-muted);
@@ -592,7 +592,7 @@ $ins-label:   12px;
   display: flex;
   align-items: baseline;
   gap: $ins-sm;
-  font-size: 18px;
+  font-size: var(--font-size-2xl);
   font-weight: 700;
   letter-spacing: -0.025em;
   color: var(--color-text-primary);
@@ -636,7 +636,7 @@ $ins-label:   12px;
   &:hover { border-color: var(--border-medium); }
 
   &__title {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.6px;
@@ -711,11 +711,11 @@ $ins-label:   12px;
 
   &:hover {
     border-color: $ins-border-hover;
-    background: color-mix(in srgb, var(--color-bg-quaternary) 100%, white 4%);
+    background:color-mix(in srgb, var(--color-bg-quaternary) 100%, var(--color-text-primary) 4%);
   }
 
   &__value {
-    font-size: 20px;
+    font-size: var(--font-size-2xl);
     font-weight: 600;
     color: var(--color-text-primary);
     letter-spacing: -0.03em;
@@ -723,11 +723,11 @@ $ins-label:   12px;
   }
 
   &__label {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    margin-top: 4px;
+    margin-top: var(--size-gap-1);
   }
 }
 
@@ -751,7 +751,7 @@ $ins-label:   12px;
   padding: 0;
 
   &__title {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.6px;
@@ -764,7 +764,7 @@ $ins-label:   12px;
 .insights-bar-row {
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: var(--size-gap-2-5);
 
   &:last-child { margin-bottom: 0; }
 
@@ -781,7 +781,7 @@ $ins-label:   12px;
   &__track {
     flex: 1;
     height: 8px;
-    background: rgba(255, 255, 255, 0.06);
+    background:color-mix(in srgb, var(--color-text-primary) 6%, transparent);
     border-radius: 4px;
     margin: 0 $ins-sm;
     overflow: hidden;
@@ -816,7 +816,7 @@ $ins-label:   12px;
 
   &:hover {
     border-color: $ins-border-hover;
-    background: color-mix(in srgb, var(--color-bg-quaternary) 100%, white 3%);
+    background:color-mix(in srgb, var(--color-bg-quaternary) 100%, var(--color-text-primary) 3%);
   }
 }
 
@@ -873,7 +873,7 @@ $ins-label:   12px;
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin-bottom: 4px;
+    margin-bottom: var(--size-gap-1);
     gap: $ins-sm;
   }
 
@@ -913,7 +913,7 @@ $ins-label:   12px;
     font-size: $ins-body;
     color: var(--color-text-primary);
     letter-spacing: -0.01em;
-    margin: 0 0 4px;
+    margin: 0 0 var(--size-gap-1);
   }
 
   &__desc {
@@ -926,7 +926,7 @@ $ins-label:   12px;
   // "→ impact" — action-oriented, stands out
   &__impact {
     display: flex;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     font-size: $ins-small;
     font-weight: 500;
     color: var(--color-text-primary);
@@ -957,7 +957,7 @@ $ins-label:   12px;
     font-size: $ins-body;
     color: var(--color-text-primary);
     letter-spacing: -0.01em;
-    margin: 0 0 4px;
+    margin: 0 0 var(--size-gap-1);
   }
 
   &__desc {
@@ -975,7 +975,7 @@ $ins-label:   12px;
     padding: 0;
 
     li {
-      margin-bottom: 2px;
+      margin-bottom: var(--size-gap-0-5);
       &::before { content: '·  '; color: var(--color-text-muted); }
     }
   }
@@ -983,7 +983,7 @@ $ins-label:   12px;
   // "→ suggestion" — actionable advice
   &__suggestion {
     display: flex;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     margin-top: $ins-sm;
     font-size: $ins-small;
     font-weight: 500;
@@ -1006,7 +1006,7 @@ $ins-label:   12px;
 // Highlight block: must-read conclusions, key findings
 // Use sparingly - 1-2 per report maximum
 .insights-highlight-block {
-  background: rgba(255, 255, 255, 0.05);
+  background:color-mix(in srgb, var(--color-text-primary) 6%, transparent);
   border-radius: $ins-r;
   padding: $ins-md $ins-lg;
   margin-bottom: $ins-md;
@@ -1031,10 +1031,10 @@ $ins-label:   12px;
 .insights-key-metric {
   display: inline-flex;
   align-items: baseline;
-  gap: 3px;
+  gap: var(--size-gap-0-5);
 
   &__value {
-    font-size: 17px;
+    font-size: var(--font-size-xl);
     font-weight: 600;
     letter-spacing: -0.03em;
     color: $ins-blue;
@@ -1088,12 +1088,12 @@ $ins-label:   12px;
 
   &__badge {
     display: inline-block;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     color: var(--color-text-muted);
-    background: rgba(255, 255, 255, 0.06);
+    background:color-mix(in srgb, var(--color-text-primary) 6%, transparent);
     border-radius: $ins-r-sm;
-    padding: 2px 7px;
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     letter-spacing: 0.02em;
   }
 
@@ -1124,14 +1124,14 @@ $ins-label:   12px;
   &:first-of-type { border-top: 1px solid $ins-border; }
 
   &__index {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: $ins-blue;
     line-height: 1.5;
     min-width: 18px;
     flex-shrink: 0;
     opacity: 0.7;
-    padding-top: 1px;
+    padding-top: var(--size-gap-0-25);
   }
 
   &__body {
@@ -1144,7 +1144,7 @@ $ins-label:   12px;
     font-size: $ins-body;
     color: var(--color-text-primary);
     letter-spacing: -0.01em;
-    margin: 0 0 3px;
+    margin: 0 0 var(--size-gap-0-5);
   }
 
   &__desc {
@@ -1158,7 +1158,7 @@ $ins-label:   12px;
     font-size: $ins-small;
     color: var(--color-text-muted);
     line-height: 1.55;
-    margin: 4px 0 0;
+    margin: var(--size-gap-1) 0 0;
     font-style: italic;
   }
 }
@@ -1182,7 +1182,7 @@ $ins-label:   12px;
     font-size: $ins-body;
     color: var(--color-text-primary);
     letter-spacing: -0.01em;
-    margin: 0 0 3px;
+    margin: 0 0 var(--size-gap-0-5);
   }
 
   &__desc {
@@ -1224,7 +1224,7 @@ $ins-label:   12px;
     background: $ins-surface;
     border: 1px solid $ins-border;
     // right padding reserves space for the button
-    padding: $ins-sm 40px $ins-sm $ins-md;
+    padding: $ins-sm var(--size-gap-10) $ins-sm $ins-md;
     border-radius: $ins-r-sm;
     font-size: $ins-small;
     font-family: $font-family-mono;
@@ -1249,14 +1249,14 @@ $ins-label:   12px;
     height: 24px;
     border: none;
     border-radius: $ins-r-sm;
-    background: rgba(255, 255, 255, 0.08);
+    background:color-mix(in srgb, var(--color-text-primary) 8%, transparent);
     color: var(--color-text-muted);
     cursor: pointer;
     opacity: 0;   // hidden until row hover
     transition: opacity 0.15s, background 0.15s, color 0.15s;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.14);
+      background: var(--element-bg-soft);
       color: var(--color-text-primary);
     }
   }
@@ -1283,7 +1283,7 @@ $ins-label:   12px;
 
   // left: large muted index number
   &__index {
-    font-size: 22px;
+    font-size: var(--font-size-3xl);
     font-weight: 700;
     letter-spacing: -0.04em;
     color: var(--color-text-muted);
@@ -1292,7 +1292,7 @@ $ins-label:   12px;
     flex-shrink: 0;
     width: 24px;
     text-align: right;
-    padding-top: 2px;
+    padding-top: var(--size-gap-0-5);
   }
 
   &__body {
@@ -1305,7 +1305,7 @@ $ins-label:   12px;
     font-size: $ins-body;
     color: var(--color-text-primary);
     letter-spacing: -0.01em;
-    margin: 0 0 5px;
+    margin: 0 0 var(--size-gap-1);
   }
 
   &__desc {
@@ -1329,7 +1329,7 @@ $ins-label:   12px;
   }
 
   &__how-label {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1342,9 +1342,9 @@ $ins-label:   12px;
 // ── Fun ending — left-aligned card ───────────────────────────
 
 .insights-fun-ending {
-  margin-top: $ins-xl + $ins-md;
+  margin-top: calc($ins-xl + $ins-md);
   margin-bottom: $ins-xl;
-  padding-top: $ins-xl + $ins-sm;
+  padding-top: calc($ins-xl + $ins-sm);
   // Clear divider from section above (stronger than $ins-border)
   border-top: 1px solid var(--border-base);
   text-align: left;
@@ -1361,17 +1361,17 @@ $ins-label:   12px;
     // subtle accent wash — distinct from stats / other cards, still theme-token
     background: var(--color-accent-100);
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow:0 1px 0 color-mix(in srgb, var(--color-text-primary) 4%, transparent);
 
     &:hover {
       border-color: $ins-border-hover;
-      background: color-mix(in srgb, var(--color-accent-100) 100%, white 6%);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+      background:color-mix(in srgb, var(--color-accent-100) 100%, var(--color-text-primary) 6%);
+      box-shadow: 0 4px 20px var(--color-overlay);
     }
   }
 
   &__headline {
-    font-size: 18px;
+    font-size: var(--font-size-2xl);
     font-weight: 600;
     color: var(--color-text-primary);
     margin: 0 0 $ins-sm;

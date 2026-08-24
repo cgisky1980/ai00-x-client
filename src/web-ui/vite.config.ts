@@ -101,7 +101,12 @@ export default defineConfig(({ mode, command }) => {
   // Optimize dependency pre-building
   optimizeDeps: {
     // Exclude dependencies that need to be dynamically loaded
-    exclude: [],
+    exclude: [
+      // workspace 源码包必须排除：预构建(esbuild)会丢弃包内组件的 .scss 副作用导入，
+      // 导致 dev 下 design-system 组件样式整体丢失（按钮裸奔）。
+      '@ai00-x/design-system',
+      '@ai00-x/shared',
+    ],
     // Force pre-building dependencies
     // Resolve Vite 7 and React 18 compatibility issues
     include: [
@@ -135,6 +140,7 @@ export default defineConfig(({ mode, command }) => {
         chat: path.resolve(__dirname, 'chat.html'),
         preview: path.resolve(__dirname, 'preview.html'),
         'member-chat': path.resolve(__dirname, 'member-chat.html'),
+        design: path.resolve(__dirname, 'design.html'),
       },
       // v9 重构：原 webtorrent external 配置已移除。
       // P2P 改用 Tauri 命令调用 Rust fx-torrent，前端不再依赖 webtorrent npm 包。

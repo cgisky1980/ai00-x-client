@@ -1,8 +1,16 @@
-/** Push button with optional force-push dropdown. */
+/** Push button with optional force-push dropdown (DS DropdownMenu). */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import { ChevronDown, ArrowUp, AlertTriangle } from 'lucide-react';
-import { Button, IconButton } from '@/component-library';
+import {
+  Button,
+  IconButton,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
 import './PushButton.scss';
 
@@ -32,135 +40,74 @@ export const PushButton: React.FC<PushButtonProps> = ({
   className = '',
   iconOnly = false
 }) => {
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
   const { t } = useI18n('panels/git');
 
-
-  useEffect(() => {
-    if (showDropdown && wrapperRef.current) {
-      const rect = wrapperRef.current.getBoundingClientRect();
-      setMenuPosition({
-        top: rect.bottom + 6,
-        left: rect.left,
-        width: 0
-      });
-    }
-  }, [showDropdown]);
-
-
-  useEffect(() => {
-    if (!showDropdown) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showDropdown]);
-
-
   const handlePush = async (force: boolean = false) => {
-    setShowDropdown(false);
     await onPush(force);
   };
 
-
-  const handleToggleDropdown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!disabled && !loading) {
-      setShowDropdown(!showDropdown);
-    }
-  };
-
   return (
-    <div className={`ai00-x-push-button ${className}`} ref={dropdownRef}>
-      <div className="ai00-x-push-button__wrapper" ref={wrapperRef}>
-        {iconOnly ? (
-          <IconButton
-            size={size}
-            onClick={() => handlePush(false)}
-            disabled={disabled || loading}
-            className="ai00-x-push-button__main"
-          >
-            <ArrowUp size={14} />
-          </IconButton>
-        ) : (
-          <Button
-            variant={variant}
-            size={size}
-            onClick={() => handlePush(false)}
-            disabled={disabled || loading}
-            className="ai00-x-push-button__main"
-          >
+    <div className={`ai00-x-push-button ${className}`}>
+      <DropdownMenu>
+        <div className="ai00-x-push-button__wrapper">
+          {iconOnly ? (
+            <IconButton
+              size={size}
+              onClick={() => handlePush(false)}
+              disabled={disabled || loading}
+              className="ai00-x-push-button__main"
+            >
+              <ArrowUp size={14} />
+            </IconButton>
+          ) : (
+            <Button
+              variant={variant}
+              size={size}
+              onClick={() => handlePush(false)}
+              disabled={disabled || loading}
+              className="ai00-x-push-button__main"
+            >
+              <ArrowUp size={14} />
+              <span>{t('actions.push')}</span>
+            </Button>
+          )}
+
+          <DropdownMenuTrigger asChild disabled={disabled || loading}>
+            {iconOnly ? (
+              <IconButton
+                size={size}
+                disabled={disabled || loading}
+                className="ai00-x-push-button__dropdown-trigger"
+              >
+                <ChevronDown size={14} className="ai00-x-push-button__arrow" />
+              </IconButton>
+            ) : (
+              <Button
+                variant={variant}
+                size={size}
+                disabled={disabled || loading}
+                className="ai00-x-push-button__dropdown-trigger"
+              >
+                <ChevronDown size={14} className="ai00-x-push-button__arrow" />
+              </Button>
+            )}
+          </DropdownMenuTrigger>
+        </div>
+
+        <DropdownMenuContent align="start" sideOffset={4}>
+          <DropdownMenuItem onClick={() => handlePush(false)}>
             <ArrowUp size={14} />
             <span>{t('actions.push')}</span>
-          </Button>
-        )}
+          </DropdownMenuItem>
 
-        {iconOnly ? (
-          <IconButton
-            size={size}
-            onClick={handleToggleDropdown}
-            disabled={disabled || loading}
-            className="ai00-x-push-button__dropdown-trigger"
-          >
-            <ChevronDown 
-              size={14} 
-              className={`ai00-x-push-button__arrow ${showDropdown ? 'ai00-x-push-button__arrow--open' : ''}`}
-            />
-          </IconButton>
-        ) : (
-          <Button
-            variant={variant}
-            size={size}
-            onClick={handleToggleDropdown}
-            disabled={disabled || loading}
-            className="ai00-x-push-button__dropdown-trigger"
-          >
-            <ChevronDown 
-              size={14} 
-              className={`ai00-x-push-button__arrow ${showDropdown ? 'ai00-x-push-button__arrow--open' : ''}`}
-            />
-          </Button>
-        )}
-      </div>
+          <DropdownMenuSeparator />
 
-      {showDropdown && (
-        <div 
-          className="ai00-x-push-button__menu"
-          style={{
-            top: `${menuPosition.top}px`,
-            left: `${menuPosition.left}px`
-          }}
-        >
-          <button
-            className="ai00-x-push-button__menu-item"
-            onClick={() => handlePush(false)}
-          >
-            <ArrowUp size={14} />
-            <span className="ai00-x-push-button__menu-item-title">{t('actions.push')}</span>
-          </button>
-
-          <div className="ai00-x-push-button__menu-divider" />
-
-          <button
-            className="ai00-x-push-button__menu-item ai00-x-push-button__menu-item--danger"
-            onClick={() => handlePush(true)}
-          >
+          <DropdownMenuItem destructive onClick={() => handlePush(true)}>
             <AlertTriangle size={14} />
-            <span className="ai00-x-push-button__menu-item-title">{t('actions.forcePush')}</span>
-          </button>
-        </div>
-      )}
+            <span>{t('actions.forcePush')}</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 };
-

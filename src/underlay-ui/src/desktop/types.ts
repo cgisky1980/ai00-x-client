@@ -33,7 +33,7 @@ export interface DesktopState {
   selection: string[]
   drawerOpen: boolean
   categories: Category[]
-  plugins: any[] // Store plugin manifests
+  plugins: import("@ai00-x/shared").PluginInfo[]
 }
 
 export interface DesktopContextType extends DesktopState {

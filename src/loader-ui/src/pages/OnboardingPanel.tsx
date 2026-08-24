@@ -139,26 +139,26 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
 
   const inputStyle: React.CSSProperties = {
     backgroundColor: 'var(--secondary)',
-    borderColor: 'var(--border)',
-    color: 'var(--text-90)',
+    borderColor: 'var(--border-base)',
+    color: 'var(--color-text-primary)',
   };
 
   return (
     <div
       className="h-full w-full flex relative overflow-hidden"
       style={{
-        background: 'var(--card-bg)',
-        color: 'var(--text-90)',
+        background: 'var(--color-bg-card)',
+        color: 'var(--color-text-primary)',
       }}
     >
       {/* 背景光效装饰（主题色） */}
       <div
         className="absolute top-[-100px] left-[-100px] w-[400px] h-[400px] rounded-full pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(var(--primary), 0.12), transparent 70%)' }}
+        style={{ background: 'radial-gradient(circle, var(--color-accent-100), transparent 70%)' }}
       />
       <div
         className="absolute bottom-[-100px] right-[200px] w-[500px] h-[500px] rounded-full pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(var(--primary), 0.08), transparent 70%)' }}
+        style={{ background: 'radial-gradient(circle, var(--color-accent-100), transparent 70%)' }}
       />
 
       {/* ===== 左侧区域 ===== */}
@@ -172,11 +172,11 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
         <div
           className={`flex-1 rounded-2xl border flex items-center justify-center relative overflow-hidden ${editMode && canEnter ? 'cursor-pointer group' : ''}`}
           style={{
-            borderColor: editMode && canEnter ? 'rgb(var(--primary))' : 'var(--border)',
-            background: 'radial-gradient(ellipse at center, rgba(var(--primary), 0.06), var(--card-bg))',
+            borderColor: editMode && canEnter ? 'var(--color-accent-500)' : 'var(--border-base)',
+            background: 'radial-gradient(ellipse at center, var(--color-accent-100), var(--color-bg-card))',
             boxShadow: editMode && canEnter
-              ? 'inset 0 0 40px rgba(var(--primary), 0.08), 0 0 20px rgba(var(--primary), 0.15)'
-              : 'inset 0 0 40px rgba(var(--primary), 0.05)',
+              ? 'inset 0 0 40px var(--color-accent-100), 0 0 20px var(--color-accent-100)'
+              : 'inset 0 0 40px var(--color-accent-100)',
             transition: 'all 0.3s ease',
           }}
           onClick={editMode && canEnter && onEnter ? onEnter : undefined}
@@ -185,7 +185,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
             <h2
               className="text-lg font-bold tracking-wide"
-              style={{ color: 'var(--text-90)', textShadow: '0 0 10px rgba(var(--primary), 0.4)' }}
+              style={{ color: 'var(--color-text-primary)', textShadow: '0 0 10px var(--color-accent-100)' }}
             >
               {editMode ? (canEnter ? t('welcomeBack') : t('initBooting')) : t('onboardingTitle')}
             </h2>
@@ -199,7 +199,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none">
               {entering ? (
                 <div className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-base"
-                  style={{ background: 'rgba(var(--primary), 0.2)', color: 'rgb(var(--primary))' }}>
+                  style={{ background: 'var(--color-accent-200)', color: 'var(--color-accent-500)' }}>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   {t('homeOpenMainApp')}
                 </div>
@@ -209,16 +209,16 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
                   onClick={(e) => { e.stopPropagation(); onEnter?.(); }}
                   className="pointer-events-auto px-8 py-3 rounded-full font-bold text-base tracking-wide transition-all duration-300 hover:scale-105 active:scale-95"
                   style={{
-                    background: 'linear-gradient(135deg, rgb(var(--primary)), rgba(var(--primary), 0.8))',
+                    background: 'var(--color-accent-500)',
                     color: 'white',
-                    boxShadow: '0 4px 20px rgba(var(--primary), 0.4), 0 0 40px rgba(var(--primary), 0.15)',
+                    boxShadow: '0 4px 20px var(--color-accent-100), 0 0 40px var(--color-accent-100)',
                   }}
                 >
                   {t('enterApp')}
                 </button>
               ) : (
                 <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
-                  style={{ background: 'var(--secondary)', color: 'var(--text-50)' }}>
+                  style={{ background: 'var(--secondary)', color: 'var(--color-text-muted)' }}>
                   <Loader2 className="w-4 h-4 animate-spin" style={{ animationDuration: '1.5s' }} />
                   {t('waitForInit')}
                 </div>
@@ -232,22 +232,22 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
         <div
           className="rounded-2xl border p-4"
           style={{
-            borderColor: 'var(--border)',
+            borderColor: 'var(--border-base)',
             backgroundColor: 'var(--secondary)',
           }}
         >
           <div className="grid grid-cols-2 gap-3">
             {/* 昵称（必填 *） */}
             <div>
-              <label className="text-xs block mb-1 font-medium" style={{ color: 'var(--text-50)' }}>
-                {t('nickname')} <span style={{ color: 'var(--destructive)' }}>*</span>
+              <label className="text-xs block mb-1 font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                {t('nickname')} <span style={{ color: 'var(--color-error)' }}>*</span>
               </label>
               <input
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder={t('nicknamePlaceholder')}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-all focus:border-[rgb(var(--primary))]"
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-all focus:border-[var(--color-accent-500)]"
                 style={inputStyle}
                 maxLength={32}
               />
@@ -255,8 +255,8 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
 
             {/* 性别（必填 *） */}
             <div>
-              <label className="text-xs block mb-1 font-medium" style={{ color: 'var(--text-50)' }}>
-                {t('gender')} <span style={{ color: 'var(--destructive)' }}>*</span>
+              <label className="text-xs block mb-1 font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                {t('gender')} <span style={{ color: 'var(--color-error)' }}>*</span>
               </label>
               <div className="flex gap-1">
                 {(['male', 'female', 'secret'] as const).map((g) => (
@@ -266,10 +266,10 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
                     onClick={() => setGender(g)}
                     className="flex-1 rounded-lg border py-2 text-xs font-medium transition-all"
                     style={{
-                      borderColor: gender === g ? 'rgb(var(--primary))' : 'var(--border)',
-                      backgroundColor: gender === g ? 'rgba(var(--primary), 0.18)' : 'var(--secondary)',
-                      color: gender === g ? 'rgb(var(--primary))' : 'var(--text-50)',
-                      boxShadow: gender === g ? '0 0 8px rgba(var(--primary), 0.3)' : 'none',
+                      borderColor: gender === g ? 'var(--color-accent-500)' : 'var(--border-base)',
+                      backgroundColor: gender === g ? 'var(--color-accent-100)' : 'var(--secondary)',
+                      color: gender === g ? 'var(--color-accent-500)' : 'var(--color-text-muted)',
+                      boxShadow: gender === g ? '0 0 8px var(--color-accent-100)' : 'none',
                     }}
                   >
                     {t(`gender${g.charAt(0).toUpperCase() + g.slice(1)}`)}
@@ -303,7 +303,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
               type="button"
               onClick={handleRandom}
               className="flex-1 rounded-lg border py-2 text-sm font-medium transition-all hover:opacity-80"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-50)' }}
+              style={{ borderColor: 'var(--border-base)', color: 'var(--color-text-muted)' }}
               disabled={saving}
             >
               🎲 {t('random')}
@@ -314,10 +314,10 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
               className="flex-1 rounded-lg py-2 text-sm font-bold transition-all"
               style={{
                 background: canSave
-                  ? 'rgb(var(--primary))'
+                  ? 'var(--color-accent-500)'
                   : 'var(--secondary)',
-                color: canSave ? 'white' : 'var(--text-50)',
-                boxShadow: canSave ? '0 4px 16px rgba(var(--primary), 0.35)' : 'none',
+                color: canSave ? 'white' : 'var(--color-text-muted)',
+                boxShadow: canSave ? '0 4px 16px var(--color-accent-100)' : 'none',
                 cursor: canSave ? 'pointer' : 'not-allowed',
               }}
               disabled={!canSave}
@@ -333,14 +333,14 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
       {!editMode && (
       <div
         className="w-[420px] border-l flex flex-col relative z-10"
-        style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card-bg)' }}
+        style={{ borderColor: 'var(--border-base)', backgroundColor: 'var(--color-bg-card)' }}
       >
         {/* 右侧标题 */}
-        <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-          <h3 className="text-base font-bold tracking-wide" style={{ color: 'var(--text-90)' }}>
+        <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border-base)' }}>
+          <h3 className="text-base font-bold tracking-wide" style={{ color: 'var(--color-text-primary)' }}>
             ✦ {t('avatarParts')}
           </h3>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-50)' }}>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
             {t('customizeYourLook')}
           </p>
         </div>
@@ -389,25 +389,25 @@ function ProgressInfoBlock({ info }: { info: ProgressInfo }) {
     <div
       className="rounded-2xl border px-4 py-3 flex flex-col gap-2"
       style={{
-        borderColor: 'var(--border)',
+        borderColor: 'var(--border-base)',
         backgroundColor: 'var(--secondary)',
       }}
     >
       {/* 状态行：图标 + 状态文字 */}
       <div className="flex items-center gap-2 min-h-[20px]">
         {failed ? (
-          <span className="text-base font-bold" style={{ color: 'var(--destructive)' }}>!</span>
+          <span className="text-base font-bold" style={{ color: 'var(--color-error)' }}>!</span>
         ) : initialized ? (
-          <span className="text-base font-bold" style={{ color: 'rgb(var(--primary))', textShadow: '0 0 8px rgba(var(--primary), 0.5)' }}>✓</span>
+          <span className="text-base font-bold" style={{ color: 'var(--color-accent-500)', textShadow: '0 0 8px var(--color-accent-100)' }}>✓</span>
         ) : (
           <Loader2
             className="w-4 h-4 animate-spin"
-            style={{ color: 'rgb(var(--primary))', animationDuration: '1.5s' }}
+            style={{ color: 'var(--color-accent-500)', animationDuration: '1.5s' }}
           />
         )}
         <span
           className="text-sm font-medium tracking-wide truncate"
-          style={{ color: 'var(--text-90)' }}
+          style={{ color: 'var(--color-text-primary)' }}
         >
           {status}
         </span>
@@ -416,7 +416,7 @@ function ProgressInfoBlock({ info }: { info: ProgressInfo }) {
       {/* 进度条 */}
       <div
         className="w-full h-1.5 rounded-full overflow-hidden border relative"
-        style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border)' }}
+        style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--border-base)' }}
       >
         <div
           className={`absolute top-0 left-0 h-full rounded-full transition-all duration-300 ease-out ${
@@ -424,8 +424,8 @@ function ProgressInfoBlock({ info }: { info: ProgressInfo }) {
           }`}
           style={{
             width: barWidth,
-            backgroundColor: failed ? 'var(--destructive)' : 'rgb(var(--primary))',
-            boxShadow: failed ? 'none' : '0 0 10px rgba(var(--primary), 0.5)',
+            backgroundColor: failed ? 'var(--color-error)' : 'var(--color-accent-500)',
+            boxShadow: failed ? 'none' : '0 0 10px var(--color-accent-100)',
           }}
         />
       </div>
@@ -433,7 +433,7 @@ function ProgressInfoBlock({ info }: { info: ProgressInfo }) {
       {/* 副状态文字 */}
       <div
         className="text-xs font-mono tracking-widest"
-        style={{ color: 'var(--text-50)' }}
+        style={{ color: 'var(--color-text-muted)' }}
       >
         {subStatus}
       </div>
@@ -516,7 +516,7 @@ function BirthdatePicker({
     notify(year, month, d);
   };
 
-  const selectClass = 'rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-[rgb(var(--primary))]';
+  const selectClass = 'rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-[var(--color-accent-500)]';
 
   return (
     <div className="flex gap-1">

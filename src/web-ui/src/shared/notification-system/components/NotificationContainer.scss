@@ -10,7 +10,7 @@
   z-index: $z-notification;
   display: flex;
   flex-direction: column-reverse;
-  gap: 8px;
+  gap: var(--size-gap-2);
   pointer-events: none;
 
   > * {

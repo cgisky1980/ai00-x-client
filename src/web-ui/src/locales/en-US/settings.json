@@ -24,6 +24,7 @@
       "gestureActions": "Manage saved actions such as running programs and scripts.",
       "clickEffect": "Customize mouse click effects and blessing words.",
       "smartDesktop": "Desktop replacement mode, grid layout, and smart desktop features.",
+      "plugins": "Install, enable and uninstall desktop plugins.",
       "memory": "Knowledge graph, search, and maintenance.",
       "account": "User account and sign out.",
       "about": "Version, updates, and license."
@@ -51,6 +52,7 @@
       "gestureActions": "Action Settings",
       "clickEffect": "Click Effects",
       "smartDesktop": "Smart Desktop",
+      "plugins": "Plugins",
       "memory": "Memory",
       "account": "Account",
       "about": "About"

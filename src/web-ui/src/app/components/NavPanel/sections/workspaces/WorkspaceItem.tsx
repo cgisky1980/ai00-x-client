@@ -1,6 +1,4 @@
-import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { usePortalContainer } from '@/infrastructure/contexts/PortalContainerContext';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { FolderOpen, MoreHorizontal, FolderSearch, Plus, ChevronDown, Copy, FileText } from 'lucide-react';
 import { DotMatrixArrowRightIcon } from './DotMatrixArrowRightIcon';
 import { useI18n } from '@/infrastructure/i18n';
@@ -13,6 +11,13 @@ import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
 import { openMainSession } from '@/flow_chat/services/sessionNavigation';
 import { findReusableEmptySessionId } from '@/app/utils/projectSessionWorkspace';
 import SessionsSection from '../sessions/SessionsSection';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/component-library';
 import {
   isRemoteWorkspace,
   type WorkspaceInfo,
@@ -38,8 +43,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   onDragStart,
   onDragEnd,
 }) => {
-  const portalContainer = usePortalContainer();
-  const portalTarget = portalContainer ?? document.body;
   const { t } = useI18n('common');
   const {
     setActiveWorkspace,
@@ -47,10 +50,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   } = useWorkspaceContext();
   const [menuOpen, setMenuOpen] = useState(false);
   const [sessionsCollapsed, setSessionsCollapsed] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuAnchorRef = useRef<HTMLDivElement>(null);
-  const menuPopoverRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [isTaskWs, setIsTaskWs] = useState(false);
 
   useEffect(() => {
@@ -67,50 +66,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     ? (sshContext.workspaceStatuses[workspace.connectionId] ?? 'connecting')
     : undefined;
 
-  const updateMenuPosition = useCallback(() => {
-    const anchor = menuAnchorRef.current;
-    if (!anchor) return;
-
-    const rect = anchor.getBoundingClientRect();
-    const viewportPadding = 8;
-    const estimatedWidth = 240;
-    const maxLeft = window.innerWidth - estimatedWidth - viewportPadding;
-
-    setMenuPosition({
-      top: Math.max(viewportPadding, rect.bottom + 6),
-      left: Math.max(viewportPadding, Math.min(rect.left, maxLeft)),
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const isInsideTriggerArea = menuRef.current?.contains(target);
-      const isInsidePopover = menuPopoverRef.current?.contains(target);
-      if (!isInsideTriggerArea && !isInsidePopover) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [menuOpen]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    updateMenuPosition();
-
-    const handleViewportChange = () => updateMenuPosition();
-    window.addEventListener('resize', handleViewportChange);
-    window.addEventListener('scroll', handleViewportChange, true);
-
-    return () => {
-      window.removeEventListener('resize', handleViewportChange);
-      window.removeEventListener('scroll', handleViewportChange, true);
-    };
-  }, [menuOpen, updateMenuPosition]);
-
   const handleCollapseToggle = useCallback(() => {
     setSessionsCollapsed(prev => !prev);
   }, []);
@@ -124,7 +79,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   }, [isActive, setActiveWorkspace, workspace.id]);
 
   const handleCloseWorkspace = useCallback(async () => {
-    setMenuOpen(false);
     try {
       await closeWorkspaceById(workspace.id);
     } catch (error) {
@@ -136,7 +90,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   }, [closeWorkspaceById, t, workspace.id]);
 
   const handleReveal = useCallback(async () => {
-    setMenuOpen(false);
     if (isRemoteWorkspace(workspace)) return;
     try {
       await workspaceAPI.revealInExplorer(workspace.rootPath);
@@ -149,7 +102,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   }, [t, workspace]);
 
   const handleCopyWorkspacePath = useCallback(async () => {
-    setMenuOpen(false);
     const path = workspace.rootPath;
     if (!path) return;
     try {
@@ -164,7 +116,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   }, [t, workspace.rootPath]);
 
   const handleCreateSession = useCallback(async (mode?: 'Code') => {
-    setMenuOpen(false);
     try {
       const reusableId = findReusableEmptySessionId(workspace, mode);
       if (reusableId) {
@@ -201,8 +152,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   }, [handleCreateSession]);
 
   const handleCreateInitSession = useCallback(async () => {
-    setMenuOpen(false);
-
     try {
       const sessionId = await flowChatManager.createChatSession(
         {
@@ -298,64 +247,52 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
           </span>
         </button>
 
-        <div className="ai00-x-nav-panel__workspace-item-menu" ref={menuRef}>
-          <div ref={menuAnchorRef}>
-            <button
-              type="button"
-              className={`ai00-x-nav-panel__workspace-item-menu-trigger${menuOpen ? ' is-open' : ''}`}
-              onClick={() => setMenuOpen(prev => !prev)}
-            >
-              <MoreHorizontal size={14} />
-            </button>
-          </div>
-
-          {menuOpen && menuPosition && createPortal(
-            <div
-              ref={menuPopoverRef}
-              className="ai00-x-nav-panel__workspace-item-menu-popover"
-              data-no-penetrate
-              role="menu"
-              style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
-            >
-              <button type="button" className="ai00-x-nav-panel__workspace-item-menu-item" onClick={handleCreateNewSession}>
-                <Plus size={13} />
-                <span className="ai00-x-nav-panel__workspace-item-menu-label">{t('nav.sessions.newSessionShort')}</span>
-              </button>
-              {!isTaskWs && (
-              <button type="button" className="ai00-x-nav-panel__workspace-item-menu-item" onClick={() => { void handleCreateInitSession(); }}>
-                <FileText size={13} />
-                <span className="ai00-x-nav-panel__workspace-item-menu-label">{t('nav.workspaces.actions.initAgents')}</span>
-              </button>
-              )}
-              <div className="ai00-x-nav-panel__workspace-item-menu-divider" />
+        <div className="ai00-x-nav-panel__workspace-item-menu">
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="ai00-x-nav-panel__workspace-item-menu-item"
+                className={`ai00-x-nav-panel__workspace-item-menu-trigger${menuOpen ? ' is-open' : ''}`}
+              >
+                <MoreHorizontal size={14} />
+              </button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="start" sideOffset={6} data-no-penetrate>
+              <DropdownMenuItem onClick={handleCreateNewSession}>
+                <Plus size={13} />
+                <span>{t('nav.sessions.newSessionShort')}</span>
+              </DropdownMenuItem>
+              {!isTaskWs && (
+                <DropdownMenuItem onClick={() => { void handleCreateInitSession(); }}>
+                  <FileText size={13} />
+                  <span>{t('nav.workspaces.actions.initAgents')}</span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
                 onClick={() => { void handleCopyWorkspacePath(); }}
                 disabled={!workspace.rootPath}
               >
                 <Copy size={13} />
-                <span className="ai00-x-nav-panel__workspace-item-menu-label">{t('nav.workspaces.actions.copyPath')}</span>
-              </button>
-              <button
-                type="button"
-                className="ai00-x-nav-panel__workspace-item-menu-item"
+                <span>{t('nav.workspaces.actions.copyPath')}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 onClick={() => { void handleReveal(); }}
                 disabled={isRemoteWorkspace(workspace)}
               >
                 <FolderSearch size={13} />
-                <span className="ai00-x-nav-panel__workspace-item-menu-label">{t('nav.workspaces.actions.reveal')}</span>
-              </button>
-              <div className="ai00-x-nav-panel__workspace-item-menu-divider" />
+                <span>{t('nav.workspaces.actions.reveal')}</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {!isTaskWs && (
-              <button type="button" className="ai00-x-nav-panel__workspace-item-menu-item is-danger" onClick={() => { void handleCloseWorkspace(); }}>
-                <FolderOpen size={13} />
-                <span className="ai00-x-nav-panel__workspace-item-menu-label">{t('nav.workspaces.actions.close')}</span>
-              </button>
+                <DropdownMenuItem destructive onClick={() => { void handleCloseWorkspace(); }}>
+                  <FolderOpen size={13} />
+                  <span>{t('nav.workspaces.actions.close')}</span>
+                </DropdownMenuItem>
               )}
-            </div>,
-            portalTarget
-          )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

@@ -3,17 +3,17 @@
  */
 
 .ssh-auth-prompt-dialog {
-  padding: 8px 0 16px;
+  padding: var(--size-gap-2) 0 var(--size-gap-4);
 
   &__description {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
+    gap: var(--size-gap-2-5);
+    padding: var(--size-gap-3) var(--size-gap-3-5);
     background: var(--element-bg-subtle);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
-    margin-bottom: 16px;
+    margin-bottom: var(--size-gap-4);
 
     &-icon {
       display: flex;
@@ -28,7 +28,7 @@
     }
 
     &-text {
-      font-size: 13px;
+      font-size: var(--font-size-sm);
       color: var(--color-text-secondary);
       font-family: var(--font-family-mono);
       word-break: break-all;
@@ -37,39 +37,39 @@
 
   &__label {
     display: block;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-secondary);
-    margin-bottom: 6px;
+    margin-bottom: var(--size-gap-1-5);
   }
 
   &__field {
-    margin-bottom: 14px;
+    margin-bottom: var(--size-gap-3-5);
   }
 
   &__browse-key {
     flex-shrink: 0;
-    margin-right: -6px;
+    margin-right: calc(var(--size-gap-1-5) * -1);
   }
 
   &__hint {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
-    margin: 0 0 16px;
+    margin: 0 0 var(--size-gap-4);
     line-height: 1.45;
   }
 
   &__actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    margin-top: 8px;
+    gap: var(--size-gap-2);
+    margin-top: var(--size-gap-2);
 
     .btn.btn-sm {
       height: 28px;
       min-height: 28px;
-      padding: 0 10px;
-      font-size: 11px;
+      padding: 0 var(--size-gap-2-5);
+      font-size: var(--font-size-2xs);
     }
 
     .btn-loading-icon {
@@ -80,7 +80,7 @@
 
   &__spinner {
     animation: ssh-auth-spin 1s linear infinite;
-    margin-right: 6px;
+    margin-right: var(--size-gap-1-5);
   }
 }
 

@@ -2,7 +2,7 @@
 
 .grid-layout {
   display: grid;
-  gap: 24px;
+  gap: var(--size-gap-6);
 }
 
 .grid-cols-2 {
@@ -33,42 +33,42 @@
 }
 
 .grid-card-header {
-  padding: 20px;
+  padding: var(--size-gap-5);
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .grid-card-title {
-  margin: 0 0 8px 0;
-  font-size: 18px;
+  margin: 0 0 var(--size-gap-2) 0;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
   color: var(--color-text-primary);
 }
 
 .grid-card-description {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   line-height: 1.5;
 }
 
 .grid-card-preview {
-  padding: 20px;
+  padding: var(--size-gap-5);
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
 .preview-label {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   text-transform: uppercase;
   color: var(--color-text-muted);
-  margin-bottom: 12px;
+  margin-bottom: var(--size-gap-3);
   letter-spacing: 0.5px;
 }
 
 .preview-canvas {
-  padding: 32px;
+  padding: var(--size-gap-8);
   background: var(--color-bg-primary);
   border-radius: 8px;
   border: 1px dashed var(--border-base);
@@ -83,7 +83,7 @@
 }
 
 .grid-card-info {
-  padding: 20px;
+  padding: var(--size-gap-5);
   border-top: 1px solid var(--border-subtle);
 }
 
@@ -91,8 +91,8 @@
   margin: 0;
   display: grid;
   grid-template-columns: 60px 1fr;
-  gap: 8px;
-  font-size: 12px;
+  gap: var(--size-gap-2);
+  font-size: var(--font-size-xs);
 }
 
 .info-list dt {
@@ -103,5 +103,5 @@
 .info-list dd {
   margin: 0;
   color: var(--color-text-secondary);
-  font-family: var(--tool-card-font-mono, 'Courier New', monospace);
+  font-family: var(--tool-card-font-mono);
 }

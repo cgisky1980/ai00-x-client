@@ -5,13 +5,13 @@
   &__trigger {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.3rem 0.55rem;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2);
     border: 1px solid var(--border-base);
     border-radius: 8px;
     background: var(--element-bg-soft);
     color: var(--color-text-secondary);
-    font-size: 0.74rem;
+    font-size: var(--font-size-xs);
     font-family: inherit;
     cursor: pointer;
     transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -32,42 +32,34 @@
   &__progress-badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.2rem;
-    padding: 0.05rem 0.3rem;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 4px;
-    font-size: 0.6rem;
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     background: var(--color-accent-500);
-    color: var(--btn-primary-color, #fff);
+    color: var(--btn-primary-color);
     white-space: nowrap;
   }
 
   // ---- Dropdown (opens upward) ----
-
+  // v0.13：定位与浮层视觉由 DS Popover（.ds-popover）接管，仅保留尺寸约束
   &__dropdown {
-    position: absolute;
-    bottom: calc(100% + 4px);
-    left: 0;
     min-width: 240px;
     max-height: 380px;
     overflow-y: auto;
-    border: 1px solid var(--border-base);
-    border-radius: 10px;
-    background: var(--color-bg-elevated);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
-    z-index: 100;
-    padding: 0.25rem 0;
+    padding: var(--size-gap-1) 0;
   }
 
   &__divider {
     height: 1px;
     background: var(--border-subtle);
-    margin: 0.3rem 0;
+    margin: var(--size-gap-1) 0;
   }
 
   &__section-title {
-    padding: 0.3rem 0.7rem 0.2rem;
-    font-size: 0.68rem;
+    padding: var(--size-gap-1) var(--size-gap-3) var(--size-gap-1);
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     color: var(--color-text-muted);
     text-transform: uppercase;
@@ -80,8 +72,8 @@
     position: relative;
     display: flex;
     align-items: center;
-    gap: 0.2rem;
-    padding: 0 0.4rem 0 0;
+    gap: var(--size-gap-1);
+    padding: 0 var(--size-gap-1-5) 0 0;
 
     &.is-selected {
       .music-model-selector__option {
@@ -102,11 +94,11 @@
     justify-content: space-between;
     flex: 1;
     min-width: 0;
-    padding: 0.4rem 0.5rem;
+    padding: var(--size-gap-1-5) var(--size-gap-2);
     border: none;
     background: transparent;
     color: var(--color-text-primary);
-    font-size: 0.74rem;
+    font-size: var(--font-size-xs);
     font-family: inherit;
     cursor: pointer;
     text-align: left;
@@ -129,7 +121,7 @@
   &__option-info {
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: var(--size-gap-0-5);
     flex: 1;
     min-width: 0;
   }
@@ -137,14 +129,14 @@
   &__option-name {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: var(--size-gap-1);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   &__option-meta {
-    font-size: 0.66rem;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
   }
 
@@ -153,9 +145,9 @@
   &__badge {
     display: inline-flex;
     align-items: center;
-    padding: 0.05rem 0.3rem;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 3px;
-    font-size: 0.58rem;
+    font-size: var(--font-size-xxs);
     font-weight: 700;
     letter-spacing: 0.03em;
     flex-shrink: 0;
@@ -166,14 +158,14 @@
     }
 
     &.is-xl-base {
-      background: var(--color-purple-500, #a855f7);
-      color: #fff;
+      background: var(--color-accent-500);
+      color: var(--color-accent-foreground);
     }
   }
 
   &__check {
     color: var(--color-accent-500);
-    font-size: 0.8rem;
+    font-size: var(--font-size-sm);
     flex-shrink: 0;
 
     &--muted {
@@ -225,7 +217,7 @@
 
   &__progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--color-accent-500), var(--color-purple-500, #a855f7));
+    background: linear-gradient(90deg, var(--color-accent-500), var(--color-accent-500));
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -233,7 +225,7 @@
     position: absolute;
     bottom: 4px;
     right: 0.5rem;
-    font-size: 0.58rem;
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     color: var(--color-text-muted);
   }
@@ -243,18 +235,18 @@
     align-items: center;
     color: var(--color-error);
     flex-shrink: 0;
-    margin-right: 0.3rem;
+    margin-right: var(--size-gap-1);
   }
 
   &__download-spinner {
     flex-shrink: 0;
-    margin-right: 0.4rem;
+    margin-right: var(--size-gap-1-5);
     color: var(--color-accent-500);
   }
 
   &__empty-hint {
-    padding: 0.5rem 0.7rem;
-    font-size: 0.72rem;
+    padding: var(--size-gap-2) var(--size-gap-3);
+    font-size: var(--font-size-xs);
     color: var(--color-text-muted);
     line-height: 1.4;
   }

@@ -8,7 +8,7 @@ import { usePortalContainer } from '@/infrastructure/contexts/PortalContainerCon
 import { mermaidService, MERMAID_THEME_CHANGE_EVENT } from '../services/MermaidService';
 import { usePanZoom } from '../hooks/usePanZoom';
 import { useSvgInteraction, NodeInfo, EdgeInfo } from '../hooks/useSvgInteraction';
-import { CubeLoading } from '@/component-library/components/CubeLoading';
+import { CubeLoading } from '@ai00-x/design-system/web';
 import { useI18n } from '@/infrastructure/i18n';
 import type { NodeMetadata, TooltipData } from '../types/MermaidPanelTypes';
 import './MermaidPreview.css';

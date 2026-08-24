@@ -8,7 +8,7 @@
  * missing variant downloads just that single DiT file.
  */
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Music,
   ChevronDown,
@@ -18,6 +18,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
+import { Popover, PopoverTrigger, PopoverContent } from '@/component-library';
 import { aceStepService } from '../services/AceStepService';
 import { useAceStepStore } from '../store/acestepStore';
 import type {
@@ -74,7 +75,6 @@ export const MusicModelSelector: React.FC = () => {
   const [progress, setProgress] = useState<Record<string, AceStepDownloadProgress>>({});
   // Task ids of the active bundle download (text encoder + DiT + VAE).
   const [activeTasks, setActiveTasks] = useState<string[]>([]);
-  const ref = useRef<HTMLDivElement>(null);
 
   const selectedDiTFilename = useAceStepStore((s) => s.selectedDiTFilename);
   const setSelectedDiTFilename = useAceStepStore((s) => s.setSelectedDiTFilename);
@@ -142,16 +142,6 @@ export const MusicModelSelector: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [activeTasks, refreshCatalog]);
-
-  // ---- Outside-click close ----
-
-  useEffect(() => {
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    if (open) document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [open]);
 
   // ---- Derived state ----
 
@@ -224,27 +214,33 @@ export const MusicModelSelector: React.FC = () => {
   // ---- Render ----
 
   return (
-    <div className="music-model-selector" ref={ref}>
-      <button
-        className="music-model-selector__trigger"
-        onClick={() => setOpen(!open)}
-        title={t('chatCreate.musicModelTitle', {
-          defaultValue: 'Music model (DiT)',
-        })}
-      >
-        <Music size={14} />
-        <span className="music-model-selector__label">{selectedLabel}</span>
-        {overallPercent !== null && (
-          <span className="music-model-selector__progress-badge">
-            <Loader2 size={10} className="spin" />
-            {overallPercent}%
-          </span>
-        )}
-        <ChevronDown size={14} />
-      </button>
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="music-model-selector">
+        <PopoverTrigger asChild>
+          <button
+            className="music-model-selector__trigger"
+            title={t('chatCreate.musicModelTitle', {
+              defaultValue: 'Music model (DiT)',
+            })}
+          >
+            <Music size={14} />
+            <span className="music-model-selector__label">{selectedLabel}</span>
+            {overallPercent !== null && (
+              <span className="music-model-selector__progress-badge">
+                <Loader2 size={10} className="spin" />
+                {overallPercent}%
+              </span>
+            )}
+            <ChevronDown size={14} />
+          </button>
+        </PopoverTrigger>
 
-      {open && (
-        <div className="music-model-selector__dropdown">
+        <PopoverContent
+          side="top"
+          align="start"
+          sideOffset={4}
+          className="music-model-selector__dropdown"
+        >
           {/* No models downloaded — show hint */}
           {!catalog.some((e) => e.exists) && (
             <div className="music-model-selector__empty-hint">
@@ -346,8 +342,8 @@ export const MusicModelSelector: React.FC = () => {
               </div>
             );
           })}
-        </div>
-      )}
-    </div>
+        </PopoverContent>
+      </div>
+    </Popover>
   );
 };

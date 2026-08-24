@@ -3,30 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0a0e1a" />
+  <meta name="theme-color" content="#242729" />
   <meta name="description" content="Ai00-X Relay Server — Remote Connect Relay Service." />
   <title>Ai00-X Relay Server</title>
-  <link rel="icon" type="image/png" href="https://ai00-x.com/Logo-ICON.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3Cmask id='c' maskUnits='userSpaceOnUse' maskContentUnits='userSpaceOnUse'%3E%3Crect width='24' height='24' fill='white'/%3E%3Ccircle cx='12' cy='12' r='8.5' fill='black'/%3E%3C/mask%3E%3C/defs%3E%3Cg stroke='%23ECEAE4' stroke-width='4' stroke-linecap='round' mask='url(%23c)'%3E%3Cline x1='3' y1='3' x2='21' y2='21'/%3E%3Cline x1='21' y1='3' x2='3' y2='21'/%3E%3C/g%3E%3Ccircle cx='12' cy='12' r='8.5' fill='none' stroke='%23ECEAE4' stroke-width='1.6'/%3E%3Ccircle cx='8.5' cy='12' r='1.5' fill='%23ECEAE4'/%3E%3Ccircle cx='15.5' cy='12' r='1.5' fill='%23ECEAE4'/%3E%3C/svg%3E" />
   <style>
+    /* Ai00-X Relay · 新东方极简（松烟墨/黛青/朱砂）· 自包含零外部依赖
+       值来源：@ai00-x/design-system 暗色主题 v0.11（oklch 换算 sRGB 近似） */
     :root{
-      --bg:#0a0e1a;--surface:rgba(255,255,255,.04);--surface-hover:rgba(255,255,255,.07);
-      --border:rgba(255,255,255,.08);--border-hover:rgba(74,222,128,.25);
-      --text:#e2e8f0;--text-dim:#64748b;--accent:#22c55e;--blue:#38bdf8;
+      --bg:#242729;--surface:rgba(230,232,234,.05);--surface-hover:rgba(230,232,234,.08);
+      --border:rgba(236,234,228,.10);--border-hover:rgba(77,156,214,.30);
+      --text:#ECEAE4;--text-dim:#9A968E;
+      /* 黛青（唯一交互色 oklch(0.70 0.12 235)）与朱砂（品牌印 oklch(0.63 0.19 28)） */
+      --accent:#4D9CD6;--blue:#7FB8E0;--seal:#BD4A33;
     }
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{height:100%;overflow:hidden}
-    body{font-family:"DM Sans",system-ui,sans-serif;color:var(--text);background:var(--bg)}
+    body{font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--text);background:var(--bg)}
 
     /* ── BG layers ── */
     .glow{position:fixed;inset:0;pointer-events:none;z-index:0}
-    .glow::before,.glow::after{content:"";position:absolute;border-radius:50%;filter:blur(100px);opacity:.35}
-    .glow::before{width:600px;height:600px;top:-200px;left:-100px;background:radial-gradient(circle,rgba(56,189,248,.3),transparent 70%)}
-    .glow::after{width:500px;height:500px;bottom:-180px;right:-80px;background:radial-gradient(circle,rgba(34,197,94,.25),transparent 70%)}
+    .glow::before,.glow::after{content:"";position:absolute;border-radius:50%;filter:blur(100px);opacity:.28}
+    .glow::before{width:600px;height:600px;top:-200px;left:-100px;background:radial-gradient(circle,rgba(77,156,214,.26),transparent 70%)}
+    .glow::after{width:500px;height:500px;bottom:-180px;right:-80px;background:radial-gradient(circle,rgba(189,74,51,.18),transparent 70%)}
     .grid-bg{position:fixed;inset:0;pointer-events:none;z-index:0;
-      background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);
+      background-image:linear-gradient(rgba(236,234,228,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(236,234,228,.02) 1px,transparent 1px);
       background-size:60px 60px}
 
     /* ── Shell: 100vh, content centered ── */
@@ -50,24 +51,24 @@
       padding:0 4px;
     }
     .brand{display:flex;align-items:center;gap:10px}
-    .brand-dot{width:8px;height:8px;border-radius:3px;flex:none;background:linear-gradient(135deg,var(--blue),var(--accent));box-shadow:0 0 14px rgba(34,197,94,.4)}
-    .brand-name{font-family:"Space Grotesk",sans-serif;font-size:.88rem;font-weight:600;letter-spacing:.01em}
+    .brand-dot{width:20px;height:20px;border-radius:3.6px;flex:none;background:var(--seal);display:grid;place-items:center}
+    .brand-name{font-size:.88rem;font-weight:600;letter-spacing:.01em}
     .nav-right{display:flex;align-items:center;gap:8px}
-    .lang-btn{padding:5px 12px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-family:"Space Grotesk",sans-serif;font-size:.72rem;font-weight:500;letter-spacing:.04em;transition:border-color .2s,color .2s}
+    .lang-btn{padding:5px 12px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-size:.72rem;font-weight:500;letter-spacing:.04em;transition:border-color .2s,color .2s}
     .lang-btn:hover{border-color:rgba(255,255,255,.18);color:var(--text)}
     .lang-btn:focus-visible{outline:2px solid rgba(255,255,255,.7);outline-offset:2px}
-    .status-pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;border:1px solid rgba(34,197,94,.14);background:rgba(34,197,94,.05);font-size:.72rem;color:#86efac}
-    .status-dot{width:5px;height:5px;border-radius:50%;flex:none;background:var(--accent);box-shadow:0 0 0 3px rgba(34,197,94,.12);animation:pulse 2.4s ease-in-out infinite}
+    .status-pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;border:1px solid rgba(77,156,214,.20);background:rgba(77,156,214,.07);font-size:.72rem;color:#8CC3EA}
+    .status-dot{width:5px;height:5px;border-radius:50%;flex:none;background:var(--accent);box-shadow:0 0 0 3px rgba(77,156,214,.14);animation:pulse 2.4s ease-in-out infinite}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
     /* ── Hero ── */
     .hero{text-align:center}
-    .hero-logo{width:clamp(56px,8vw,80px);height:clamp(56px,8vw,80px);margin:0 auto clamp(10px,1.5vh,18px);display:block;border-radius:18px;filter:drop-shadow(0 4px 24px rgba(34,197,94,.18))}
-    .hero h1{font-family:"Space Grotesk",sans-serif;font-size:clamp(2rem,4.5vw,3.4rem);font-weight:700;line-height:1.08;letter-spacing:-.045em}
-    .grad{background:linear-gradient(135deg,var(--blue),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .hero-logo{width:clamp(56px,8vw,80px);height:clamp(56px,8vw,80px);margin:0 auto clamp(10px,1.5vh,18px);display:block;border-radius:18px;filter:drop-shadow(0 4px 24px rgba(77,156,214,.20))}
+    .hero h1{font-size:clamp(2rem,4.5vw,3.4rem);font-weight:700;line-height:1.08;letter-spacing:-.045em}
+    .grad{background:linear-gradient(135deg,var(--accent),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
     .hero-sub{margin:clamp(6px,1vh,12px) auto 0;max-width:440px;font-size:clamp(.84rem,1vw,.92rem);line-height:1.6;color:var(--text-dim)}
     .cta{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:clamp(14px,2.2vh,24px)}
-    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border-radius:999px;font-family:"Space Grotesk",sans-serif;font-size:.84rem;font-weight:600;text-decoration:none;cursor:pointer;transition:transform .2s ease-out,box-shadow .2s ease-out,border-color .2s ease-out,background .2s ease-out}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border-radius:999px;font-size:.84rem;font-weight:600;text-decoration:none;cursor:pointer;transition:transform .2s ease-out,box-shadow .2s ease-out,border-color .2s ease-out,background .2s ease-out}
     .btn:hover{transform:translateY(-1px)}
     .btn:focus-visible{outline:2px solid rgba(255,255,255,.7);outline-offset:3px}
     .btn svg{width:16px;height:16px;flex:none}
@@ -92,7 +93,7 @@
     .flow-node:nth-child(3):hover .flow-circle{border-color:rgba(34,197,94,.35)}
     .flow-node:nth-child(5) .flow-circle{background:rgba(148,163,184,.05);color:#94a3b8}
     .flow-node:nth-child(5):hover .flow-circle{border-color:rgba(148,163,184,.25)}
-    .flow-label{font-family:"Space Grotesk",sans-serif;font-size:clamp(.72rem,.9vw,.84rem);font-weight:600;letter-spacing:-.01em;text-align:center}
+    .flow-label{font-size:clamp(.72rem,.9vw,.84rem);font-weight:600;letter-spacing:-.01em;text-align:center}
     .flow-sublabel{font-size:clamp(.62rem,.72vw,.72rem);color:var(--text-dim);text-align:center;line-height:1.4}
     .flow-arrow{flex:1;min-width:24px;max-width:140px;height:1px;position:relative;background:linear-gradient(90deg,rgba(255,255,255,.04),rgba(255,255,255,.12),rgba(255,255,255,.04))}
     .flow-arrow::before,.flow-arrow::after{content:"";position:absolute;top:50%;width:0;height:0}
@@ -110,7 +111,7 @@
     .feat-icon.blue{background:rgba(56,189,248,.1);color:var(--blue)}
     .feat-icon.green{background:rgba(34,197,94,.1);color:var(--accent)}
     .feat-icon.slate{background:rgba(148,163,184,.08);color:#94a3b8}
-    .feat h3{font-family:"Space Grotesk",sans-serif;font-size:.82rem;font-weight:600;letter-spacing:-.01em}
+    .feat h3{font-size:.82rem;font-weight:600;letter-spacing:-.01em}
     .feat p{font-size:.74rem;line-height:1.55;color:var(--text-dim)}
 
     /* ── Footer (pinned bottom) ── */
@@ -152,7 +153,7 @@
   <div class="shell">
     <nav>
       <div class="brand">
-        <span class="brand-dot" aria-hidden="true"></span>
+        <span class="brand-dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#F7F4EC" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="width:72%;height:72%"><path d="M7 3.2 H17.4 M7 3.2 V10.8 M7 7 H14 M7 10.8 H16.2 M9.4 13.2 L8.1 15.8 M12.9 13.2 L14.2 15.6 M11.8 13.4 C10.2 16.6 9.1 18.9 8.1 20.9 M10.9 16.6 C12.9 18.4 14.4 19.8 15.8 20.9"/></svg></span>
         <span class="brand-name">Ai00-X Relay Server</span>
       </div>
       <div class="nav-right">
@@ -166,7 +167,7 @@
 
     <main class="inner">
       <section class="hero">
-        <img class="hero-logo" src="https://ai00-x.com/Logo-ICON.png" alt="Ai00-X Logo" />
+        <span class="hero-logo" role="img" aria-label="Ai00-X" style="border-radius:18%;background:var(--seal);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" fill="none" stroke="#F7F4EC" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="width:72%;height:72%"><path d="M7 3.2 H17.4 M7 3.2 V10.8 M7 7 H14 M7 10.8 H16.2 M9.4 13.2 L8.1 15.8 M12.9 13.2 L14.2 15.6 M11.8 13.4 C10.2 16.6 9.1 18.9 8.1 20.9 M10.9 16.6 C12.9 18.4 14.4 19.8 15.8 20.9"/></svg></span>
         <h1><span class="grad">Ai00-X</span> Relay Server</h1>
         <p class="hero-sub" data-i18n="desc">桌面端与移动端之间的中继服务，提供配对与消息转发能力。</p>
         <div class="cta">

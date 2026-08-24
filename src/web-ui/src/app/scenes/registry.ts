@@ -115,6 +115,15 @@ export const SCENE_TAB_REGISTRY: SceneTabDef[] = [
     defaultOpen: false,
   },
   {
+    id: 'plugins' as SceneTabId,
+    label: 'Plugins',
+    labelKey: 'scenes.plugins',
+    Icon: Puzzle,
+    pinned: false,
+    singleton: true,
+    defaultOpen: false,
+  },
+  {
     id: 'session-config' as SceneTabId,
     label: 'Session Config',
     labelKey: 'nav.items.sessionConfig',

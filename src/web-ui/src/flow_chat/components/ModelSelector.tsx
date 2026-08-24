@@ -35,7 +35,7 @@ import {
 import { getEffectiveReasoningMode, isReasoningVisiblyEnabled } from '@/infrastructure/config/utils/reasoning';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import type { AIModelConfig } from '@/infrastructure/config/types';
-import { Tooltip } from '@/component-library';
+import { Tooltip, Popover, PopoverTrigger, PopoverContent } from '@/component-library';
 import { FlowChatStore } from '../store/FlowChatStore';
 import { createLogger } from '@/shared/utils/logger';
 import { UpgradeDialog } from './UpgradeDialog';
@@ -173,7 +173,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const [xfModels, setXfModels] = useState<Ai00sModelInfo[]>([]);
   const [upgradeDialog, setUpgradeDialog] = useState<{ modelName: string; requiredTier: string } | null>(null);
 
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const autoSelectedRef = useRef(false);
 
   const loadConfigData = useCallback(async () => {
@@ -255,22 +254,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       unsubscribe();
     };
   }, [loadConfigData]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setDropdownOpen(false);
-      }
-    };
-
-    if (dropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [dropdownOpen]);
 
   const primaryModelId = defaultModels.primary || null;
 
@@ -546,49 +529,52 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       : baseTooltip;
 
   return (
-    <div
-      ref={dropdownRef}
-      className={`ai00-x-model-selector ${className}`}
-    >
-      <Tooltip content={tooltipContent}>
-        <button
-          className={`ai00-x-model-selector__trigger ${dropdownOpen ? 'ai00-x-model-selector__trigger--open' : ''}`}
-          onClick={() => setDropdownOpen(!dropdownOpen)}
-          disabled={loading}
-        >
-          <Cpu size={10} className="ai00-x-model-selector__icon" />
-          <span className="ai00-x-model-selector__name">
-            {triggerLabel}
-          </span>
-          {(isAutoMode && primaryModelId && isAi00sModel(primaryModelId)) && (
-            <span className={`ai00-x-model-selector__tier-badge ai00-x-model-selector__tier-badge--${getAi00sTier(primaryModelId!, userTier)}`}>
-              {getAi00sTier(primaryModelId!, userTier)}
-            </span>
-          )}
-          {(!isAutoMode && currentModel && isAi00sModel(currentModel.id)) && (
-            <span className={`ai00-x-model-selector__tier-badge ai00-x-model-selector__tier-badge--${getAi00sTier(currentModel.id, userTier)}`}>
-              {getAi00sTier(currentModel.id, userTier)}
-            </span>
-          )}
-          {currentModel?.enableThinking && (
-            <Sparkles size={9} className="ai00-x-model-selector__thinking-icon" />
-          )}
-          {currentModel?.reasoningEffort && (
-            <span className="ai00-x-model-selector__effort-badge">
-              {currentModel.reasoningEffort}
-            </span>
-          )}
-          {tokenPercentage > 0 && (
-            <span className={`ai00-x-model-selector__ctx-usage${tokenStatusClass ? ` ai00-x-model-selector__ctx-usage--${tokenStatusClass}` : ''}`}>
-              · {tokenPercentage}%
-            </span>
-          )}
-          <ChevronDown size={10} className="ai00-x-model-selector__chevron" />
-        </button>
-      </Tooltip>
+    <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
+      <div className={`ai00-x-model-selector ${className}`}>
+        <Tooltip content={tooltipContent}>
+          <PopoverTrigger asChild>
+            <button
+              className={`ai00-x-model-selector__trigger ${dropdownOpen ? 'ai00-x-model-selector__trigger--open' : ''}`}
+              disabled={loading}
+            >
+              <Cpu size={10} className="ai00-x-model-selector__icon" />
+              <span className="ai00-x-model-selector__name">
+                {triggerLabel}
+              </span>
+              {(isAutoMode && primaryModelId && isAi00sModel(primaryModelId)) && (
+                <span className={`ai00-x-model-selector__tier-badge ai00-x-model-selector__tier-badge--${getAi00sTier(primaryModelId!, userTier)}`}>
+                  {getAi00sTier(primaryModelId!, userTier)}
+                </span>
+              )}
+              {(!isAutoMode && currentModel && isAi00sModel(currentModel.id)) && (
+                <span className={`ai00-x-model-selector__tier-badge ai00-x-model-selector__tier-badge--${getAi00sTier(currentModel.id, userTier)}`}>
+                  {getAi00sTier(currentModel.id, userTier)}
+                </span>
+              )}
+              {currentModel?.enableThinking && (
+                <Sparkles size={9} className="ai00-x-model-selector__thinking-icon" />
+              )}
+              {currentModel?.reasoningEffort && (
+                <span className="ai00-x-model-selector__effort-badge">
+                  {currentModel.reasoningEffort}
+                </span>
+              )}
+              {tokenPercentage > 0 && (
+                <span className={`ai00-x-model-selector__ctx-usage${tokenStatusClass ? ` ai00-x-model-selector__ctx-usage--${tokenStatusClass}` : ''}`}>
+                  · {tokenPercentage}%
+                </span>
+              )}
+              <ChevronDown size={10} className="ai00-x-model-selector__chevron" />
+            </button>
+          </PopoverTrigger>
+        </Tooltip>
 
-      {dropdownOpen && (
-        <div className="ai00-x-model-selector__dropdown">
+        <PopoverContent
+          side="top"
+          align="start"
+          sideOffset={6}
+          className="ai00-x-model-selector__dropdown"
+        >
           <div className="ai00-x-model-selector__dropdown-header">
             <span>{t('modelSelector.modelSelection')}</span>
             <span className="ai00-x-model-selector__dropdown-hint">
@@ -747,8 +733,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               </div>
             </>
           )}
-        </div>
-      )}
+        </PopoverContent>
+      </div>
 
       <UpgradeDialog
         isOpen={upgradeDialog !== null}
@@ -757,7 +743,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         requiredTier={upgradeDialog?.requiredTier ?? ''}
         currentTier={userTier}
       />
-    </div>
+    </Popover>
   );
 };
 export default ModelSelector;

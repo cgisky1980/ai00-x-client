@@ -27,8 +27,8 @@
   &__roster {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 14px;
-    padding: 14px 0;
+    gap: var(--size-gap-3-5);
+    padding: var(--size-gap-3-5) 0;
   }
 
   &__toggle {
@@ -38,7 +38,7 @@
     width: 32px;
     height: 32px;
     border: 1px solid var(--border-base);
-    border-radius: var(--radius-sm, 4px);
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text-secondary);
     cursor: pointer;

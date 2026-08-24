@@ -55,30 +55,37 @@ export function generateAccentFromHue(hue: number, isDark: boolean): AccentColor
   };
 }
 
+/**
+ * 从 accent.500 反推色相。注意：返回 OKLCH 色相（与 tokens.css 的
+ * oklch(L var(--chroma) var(--hue)) 公式同一色彩空间）——此前误用 HSL 色相，
+ * 两个空间的 hue 数值不可互换（如 #177ba8：OKLCH hue≈235，HSL hue≈199），
+ * 导致注入 --hue 后整体色相偏移。
+ */
 export function hueFromAccentColor(accent500: string): number {
   const rgb = hexToRgb(accent500);
-  if (!rgb) return 220;
+  if (!rgb) return DEFAULT_ACCENT_HUE;
 
-  const r = rgb.r / 255;
-  const g = rgb.g / 255;
-  const b = rgb.b / 255;
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const r = lin(rgb.r);
+  const g = lin(rgb.g);
+  const b = lin(rgb.b);
 
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const d = max - min;
+  // linear sRGB → OKLab
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
 
-  if (d === 0) return 0;
+  const a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+  const b2 = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
 
-  let h: number;
-  if (max === r) {
-    h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-  } else if (max === g) {
-    h = ((b - r) / d + 2) / 6;
-  } else {
-    h = ((r - g) / d + 4) / 6;
-  }
-
-  return Math.round(h * 360);
+  if (a === 0 && b2 === 0) return DEFAULT_ACCENT_HUE;
+  let h = (Math.atan2(b2, a) * 180) / Math.PI;
+  if (h < 0) h += 360;
+  return Math.round(h);
 }
 
-export const DEFAULT_ACCENT_HUE = 220;
+/** 黛青（规范：oklch hue 235） */
+export const DEFAULT_ACCENT_HUE = 235;

@@ -142,8 +142,8 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--page-bg)' }}>
-        <div className="animate-spin w-8 h-8 border-2 rounded-full" style={{ borderColor: 'rgb(var(--primary))', borderTopColor: 'transparent' }} />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-bg-base)' }}>
+        <div className="animate-spin w-8 h-8 border-2 rounded-full" style={{ borderColor: 'var(--color-accent-500)', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -161,8 +161,8 @@ export function GuestGuard({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--page-bg)' }}>
-        <div className="animate-spin w-8 h-8 border-2 rounded-full" style={{ borderColor: 'rgb(var(--primary))', borderTopColor: 'transparent' }} />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-bg-base)' }}>
+        <div className="animate-spin w-8 h-8 border-2 rounded-full" style={{ borderColor: 'var(--color-accent-500)', borderTopColor: 'transparent' }} />
       </div>
     );
   }

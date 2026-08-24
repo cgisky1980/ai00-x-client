@@ -4,7 +4,7 @@
   &__body {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--size-gap-4);
   }
 
   // ---- Cover (large, centered) ----
@@ -45,7 +45,7 @@
   }
 
   &__header-title {
-    font-size: 1.1rem;
+    font-size: var(--font-size-2xl);
     font-weight: 600;
     color: var(--color-text-primary);
     overflow: hidden;
@@ -54,12 +54,12 @@
   }
 
   &__header-artist {
-    margin-top: 0.3rem;
-    font-size: 0.8rem;
+    margin-top: var(--size-gap-1);
+    font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
 
     svg {
       opacity: 0.7;
@@ -70,8 +70,8 @@
   &__stats {
     display: flex;
     justify-content: center;
-    gap: 1.5rem;
-    padding: 0.75rem 1rem;
+    gap: var(--size-gap-6);
+    padding: var(--size-gap-3) var(--size-gap-4);
     border-radius: 10px;
     background: var(--element-bg-soft);
     border: 1px solid var(--border-subtle);
@@ -80,8 +80,8 @@
   &__stat {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.8rem;
+    gap: var(--size-gap-1-5);
+    font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
 
     svg {
@@ -101,11 +101,11 @@
   &__stats-error {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.72rem;
-    color: var(--color-warning, #f5a623);
-    background: rgba(245, 166, 35, 0.1);
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2) var(--size-gap-3);
+    font-size: var(--font-size-xs);
+    color: var(--color-warning);
+    background:color-mix(in srgb, var(--color-warning) 10%, transparent);
     border-radius: 6px;
   }
 
@@ -113,9 +113,9 @@
   &__meta {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 0.5rem;
+    gap: var(--size-gap-2);
     margin: 0;
-    padding: 0.75rem 1rem;
+    padding: var(--size-gap-3) var(--size-gap-4);
     border-radius: 10px;
     background: var(--element-bg-soft);
     border: 1px solid var(--border-subtle);
@@ -124,15 +124,15 @@
   &__meta-row {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    font-size: 0.8rem;
+    gap: var(--size-gap-3);
+    font-size: var(--font-size-sm);
     min-width: 0;
   }
 
   &__meta-row dt {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: var(--size-gap-1);
     flex-shrink: 0;
     min-width: 110px;
     color: var(--color-text-muted);
@@ -156,10 +156,10 @@
   &__share-id {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.7rem;
+    gap: var(--size-gap-1-5);
+    font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
-    padding: 0.4rem 0.6rem;
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
     background: var(--element-bg-base);
     border-radius: 6px;
     border: 1px dashed var(--border-subtle);
@@ -183,8 +183,8 @@
   &__actions {
     display: flex;
     justify-content: flex-end;
-    gap: 0.5rem;
-    padding-top: 0.5rem;
+    gap: var(--size-gap-2);
+    padding-top: var(--size-gap-2);
     border-top: 1px solid var(--border-subtle);
   }
 
@@ -192,8 +192,8 @@
     display: inline-block;
     width: 14px;
     height: 14px;
-    border: 2px solid rgba(255, 255, 255, 0.35);
-    border-top-color: #fff;
+    border: 2px solid var(--border-base);
+    border-top-color: var(--color-accent-foreground);
     border-radius: 50%;
     animation: ai00-x-share-detail-spin 0.8s linear infinite;
   }

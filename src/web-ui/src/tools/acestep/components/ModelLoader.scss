@@ -2,8 +2,8 @@
 
 .acestep-model-loader {
   max-width: 600px;
-  margin: 0 auto 1rem;
-  padding: 1rem;
+  margin: 0 auto var(--size-gap-4);
+  padding: var(--size-gap-4);
   border: 1px solid var(--border-base);
   border-radius: 12px;
   background: var(--element-bg-soft);
@@ -11,9 +11,9 @@
   &__header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-    font-size: 0.95rem;
+    gap: var(--size-gap-2);
+    margin-bottom: var(--size-gap-3);
+    font-size: var(--font-size-lg);
     font-weight: 600;
     color: var(--color-text-primary);
 
@@ -26,7 +26,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    padding: 0.25rem;
+    padding: var(--size-gap-1);
     color: var(--color-text-secondary);
     display: flex;
     align-items: center;
@@ -45,31 +45,31 @@
   &__loaded-banner {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.4rem 0.6rem;
-    margin-bottom: 0.75rem;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
+    margin-bottom: var(--size-gap-3);
     border-radius: 8px;
     background: var(--color-success-bg);
     border: 1px solid var(--color-success-border);
     color: var(--color-success);
-    font-size: 0.85rem;
+    font-size: var(--font-size-base);
   }
 
   &__roles {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-    margin-bottom: 0.75rem;
+    gap: var(--size-gap-2-5);
+    margin-bottom: var(--size-gap-3);
   }
 
   &__role {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: var(--size-gap-1);
   }
 
   &__role-label {
-    font-size: 0.8rem;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--color-text-secondary);
     text-transform: uppercase;
@@ -79,11 +79,11 @@
   &__variants {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
+    gap: var(--size-gap-1-5);
   }
 
   &__empty {
-    font-size: 0.8rem;
+    font-size: var(--font-size-sm);
     color: var(--color-text-muted);
     font-style: italic;
   }
@@ -91,13 +91,13 @@
   &__variant {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.3rem 0.6rem;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1) var(--size-gap-2-5);
     border: 1px solid var(--border-base);
     border-radius: 8px;
     background: var(--element-bg-soft);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: var(--font-size-sm);
     color: var(--color-text-primary);
     transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 
@@ -127,7 +127,7 @@
   }
 
   &__variant-size {
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
   }
 
@@ -144,13 +144,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
-    padding: 0.5rem;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2);
     border: none;
     border-radius: 10px;
     background: var(--color-accent-500);
     color: var(--btn-primary-color);
-    font-size: 0.9rem;
+    font-size: var(--font-size-base);
     font-weight: 500;
     cursor: pointer;
     transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s, opacity 0.15s;
@@ -167,8 +167,8 @@
   }
 
   &__warning {
-    margin-top: 0.5rem;
-    font-size: 0.78rem;
+    margin-top: var(--size-gap-2);
+    font-size: var(--font-size-xs);
     color: var(--color-warning);
     text-align: center;
   }

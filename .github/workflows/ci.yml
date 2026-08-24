@@ -43,6 +43,9 @@ jobs:
       - name: Lint web UI
         run: pnpm run lint:web
 
+      - name: Lint styles (design tokens guard)
+        run: pnpm run lint:style
+
   # ── Rust: syntax checks only (cargo check / fmt / clippy) ─────────
   rust-check:
     name: Rust Check (${{ matrix.os }})

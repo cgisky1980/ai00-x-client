@@ -8,7 +8,7 @@
 .audio-overlay-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50008;
+  z-index: var(--z-modal-active);
   pointer-events: auto;
 }
 
@@ -29,20 +29,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50010;
+  z-index: calc(var(--z-modal-active) + 1);
   pointer-events: auto;
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background 0.3s ease;
-  box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.35),
+  box-shadow:0 4px 20px var(--modal-overlay),
     0 0 16px color-mix(in oklch, var(--color-primary) 20%, transparent),
-    inset 0 1px 0 color-mix(in oklch, white 15%, transparent);
+    inset 0 1px 0 color-mix(in oklch, var(--color-text-primary) 15%, transparent);
 
   &:hover {
     transform: scale(1.1);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.45),
+    box-shadow:0 8px 32px var(--modal-overlay),
       0 0 24px color-mix(in oklch, var(--color-primary) 35%, transparent),
-      inset 0 1px 0 color-mix(in oklch, white 20%, transparent);
+      inset 0 1px 0 color-mix(in oklch, var(--color-text-primary) 20%, transparent);
   }
 
   &:active {
@@ -53,10 +51,9 @@
   &--playing {
     background: color-mix(in oklch, var(--color-primary) 60%, var(--color-bg-elevated));
     border-color: var(--color-primary);
-    box-shadow:
-      0 4px 20px rgba(0, 0, 0, 0.35),
+    box-shadow:0 4px 20px var(--modal-overlay),
       0 0 24px color-mix(in oklch, var(--color-primary) 40%, transparent),
-      inset 0 1px 0 color-mix(in oklch, white 15%, transparent);
+      inset 0 1px 0 color-mix(in oklch, var(--color-text-primary) 15%, transparent);
 
     .audio-overlay-fab__icon {
       animation: audioFabSpin 3s linear infinite;
@@ -85,13 +82,12 @@
   background: color-mix(in oklch, var(--color-bg-elevated) 92%, transparent);
   backdrop-filter: blur(32px) saturate(1.6);
   -webkit-backdrop-filter: blur(32px) saturate(1.6);
-  box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.45),
-    0 0 40px rgba(0, 0, 0, 0.2),
+  box-shadow:0 24px 80px var(--modal-overlay),
+    0 0 40px var(--color-overlay),
     0 0 20px color-mix(in oklch, var(--color-primary) 15%, transparent),
-    inset 0 1px 0 color-mix(in oklch, white 12%, transparent),
+    inset 0 1px 0 color-mix(in oklch, var(--color-text-primary) 12%, transparent),
     inset 0 -1px 0 color-mix(in oklch, var(--color-primary) 8%, transparent);
-  z-index: 50010;
+  z-index: var(--z-chrome-island);
   pointer-events: auto;
   display: flex;
   flex-direction: column;
@@ -120,8 +116,8 @@
 // === Mode Switcher (top bar) ===
 .audio-mode-switcher {
   display: flex;
-  gap: 2px;
-  padding: 8px 12px;
+  gap: var(--size-gap-0-5);
+  padding: var(--size-gap-2) var(--size-gap-3);
   border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent);
   background: color-mix(in oklch, var(--color-bg-elevated) 85%, transparent);
   backdrop-filter: blur(16px);
@@ -140,13 +136,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 6px 8px;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-1-5) var(--size-gap-2);
   border-radius: 6px;
   border: none;
   background: transparent;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -158,12 +154,12 @@
   }
 
   &--active {
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
     background: color-mix(in oklch, var(--color-accent-400) 15%, transparent);
     box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 15%, transparent);
 
     &:hover {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
       background: color-mix(in oklch, var(--color-accent-400) 22%, transparent);
     }
   }
@@ -173,8 +169,8 @@
 .audio-now-playing {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-2) var(--size-gap-3);
   border-top: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent);
   background: color-mix(in oklch, var(--color-accent-50) 40%, transparent);
   flex-shrink: 0;
@@ -187,11 +183,11 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--size-gap-0-25);
 }
 
 .audio-now-playing__name {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-primary);
   white-space: nowrap;
@@ -206,7 +202,7 @@
 }
 
 .audio-now-playing__time {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -222,7 +218,7 @@
 
 .audio-now-playing__progress-fill {
   height: 100%;
-  background: var(--color-accent-400, #06b6d4);
+  background: var(--color-accent-400);
   border-radius: 1px;
   transition: width 0.5s linear;
   box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
@@ -231,15 +227,15 @@
 .audio-now-playing__controls {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--size-gap-1);
   flex-shrink: 0;
 }
 
 .audio-now-playing__volume {
   display: flex;
   align-items: center;
-  gap: 4px;
-  color: var(--color-accent-400, #06b6d4);
+  gap: var(--size-gap-1);
+  color: var(--color-accent-400);
   flex-shrink: 0;
 }
 
@@ -252,7 +248,7 @@
 .audio-spectrum {
   display: flex;
   align-items: flex-end;
-  gap: 1.5px;
+  gap: var(--size-gap-0-25);
   height: 16px;
   flex-shrink: 0;
   opacity: 0.3;
@@ -267,7 +263,7 @@
   width: 2px;
   height: 3px;
   border-radius: 1px;
-  background: var(--color-accent-400, #06b6d4);
+  background: var(--color-accent-400);
   transition: height 0.1s ease;
 
   .audio-spectrum--active & {
@@ -285,23 +281,23 @@
 .audio-section__title {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: var(--size-gap-1-5);
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin-bottom: 6px;
-  padding: 0 2px;
+  margin-bottom: var(--size-gap-1-5);
+  padding: 0 var(--size-gap-0-5);
 
   svg {
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
   }
 }
 
 .audio-volume-pct {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
@@ -310,8 +306,8 @@
 .audio-channel-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
+  gap: var(--size-gap-1-5);
+  margin-bottom: var(--size-gap-1);
 
   &:last-child {
     margin-bottom: 0;
@@ -319,7 +315,7 @@
 }
 
 .audio-channel-name {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   max-width: 80px;
   overflow: hidden;
@@ -350,12 +346,12 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: var(--color-accent-400, #06b6d4);
+    background: var(--color-accent-400);
     border: 2px solid var(--color-bg-primary);
     cursor: pointer;
     box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 40%, transparent);
     transition: transform 0.15s ease;
-    margin-top: -5px;
+    margin-top: calc(var(--size-gap-1) * -1);
 
     &:hover {
       transform: scale(1.2);
@@ -366,7 +362,7 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: var(--color-accent-400, #06b6d4);
+    background: var(--color-accent-400);
     border: 2px solid var(--color-bg-primary);
     cursor: pointer;
     box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 40%, transparent);
@@ -415,11 +411,11 @@
 
   &--accent:hover {
     background: color-mix(in oklch, var(--color-accent-400) 35%, transparent);
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
   }
 
   &--glow {
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
 
     &:hover {
       background: color-mix(in oklch, var(--color-accent-400) 25%, transparent);
@@ -440,16 +436,16 @@
     color: var(--color-text-muted);
 
     &:hover {
-      color: #f43f5e;
-      background: color-mix(in oklch, #f43f5e 20%, transparent);
+      color: var(--color-error);
+      background: color-mix(in oklch, var(--color-error) 20%, transparent);
     }
   }
 
   &--favorited {
-    color: #f43f5e;
+    color: var(--color-error);
 
     &:hover {
-      background: color-mix(in oklch, #f43f5e 15%, transparent);
+      background: color-mix(in oklch, var(--color-error) 15%, transparent);
     }
   }
 
@@ -459,7 +455,7 @@
   }
 
   &--skip {
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
 
     &:hover {
       background: color-mix(in oklch, var(--color-accent-400) 25%, transparent);
@@ -468,10 +464,10 @@
   }
 
   &--confirm {
-    color: #22c55e;
+    color: var(--color-success);
 
     &:hover {
-      background: color-mix(in oklch, #22c55e 25%, transparent);
+      background: color-mix(in oklch, var(--color-success) 25%, transparent);
     }
   }
 
@@ -490,11 +486,11 @@
   margin-left: auto;
   background: none;
   border: none;
-  color: var(--color-accent-400, #06b6d4);
-  font-size: 11px;
+  color: var(--color-accent-400);
+  font-size: var(--font-size-2xs);
   font-weight: 500;
   cursor: pointer;
-  padding: 2px 6px;
+  padding: var(--size-gap-0-5) var(--size-gap-1-5);
   border-radius: 4px;
   transition: background 0.15s ease;
 
@@ -508,18 +504,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
   width: 100%;
-  padding: 8px 12px;
+  padding: var(--size-gap-2) var(--size-gap-3);
   border-radius: 8px;
   border: 1px solid color-mix(in oklch, var(--color-accent-400) 45%, transparent);
   background: color-mix(in oklch, var(--color-accent-400) 12%, transparent);
-  color: var(--color-accent-400, #06b6d4);
-  font-size: 12px;
+  color: var(--color-accent-400);
+  font-size: var(--font-size-xs);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-top: 6px;
+  margin-top: var(--size-gap-1-5);
 
   &:hover {
     background: color-mix(in oklch, var(--color-accent-400) 22%, transparent);
@@ -528,14 +524,14 @@
   }
 
   &--playlist {
-    border-color: color-mix(in oklch, #a78bfa 45%, transparent);
-    background: color-mix(in oklch, #a78bfa 12%, transparent);
-    color: #a78bfa;
+    border-color: color-mix(in oklch, var(--color-accent-300) 45%, transparent);
+    background: color-mix(in oklch, var(--color-accent-300) 12%, transparent);
+    color: var(--color-accent-300);
 
     &:hover {
-      background: color-mix(in oklch, #a78bfa 22%, transparent);
-      border-color: color-mix(in oklch, #a78bfa 65%, transparent);
-      box-shadow: 0 0 12px color-mix(in oklch, #a78bfa 15%, transparent);
+      background: color-mix(in oklch, var(--color-accent-300) 22%, transparent);
+      border-color: color-mix(in oklch, var(--color-accent-300) 65%, transparent);
+      box-shadow: 0 0 12px color-mix(in oklch, var(--color-accent-300) 15%, transparent);
     }
   }
 }
@@ -544,19 +540,19 @@
 .audio-save-inline {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 6px;
+  gap: var(--size-gap-1);
+  margin-top: var(--size-gap-1-5);
 }
 
 .audio-save-input {
   flex: 1;
   min-width: 0;
-  padding: 6px 8px;
+  padding: var(--size-gap-1-5) var(--size-gap-2);
   border-radius: 8px;
   border: 1px solid color-mix(in oklch, var(--color-primary) 35%, transparent);
   background: color-mix(in oklch, var(--color-bg-primary) 55%, transparent);
   color: var(--color-text-primary);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   outline: none;
 
   &::placeholder {
@@ -564,18 +560,18 @@
   }
 
   &:focus {
-    border-color: var(--color-accent-400, #06b6d4);
+    border-color: var(--color-accent-400);
     box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-accent-400) 20%, transparent);
   }
 }
 
 .audio-save-select {
-  padding: 6px 8px;
+  padding: var(--size-gap-1-5) var(--size-gap-2);
   border-radius: 8px;
   border: 1px solid color-mix(in oklch, var(--color-primary) 35%, transparent);
   background: color-mix(in oklch, var(--color-bg-primary) 75%, transparent);
   color: var(--color-text-primary);
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   outline: none;
   cursor: pointer;
 
@@ -596,8 +592,8 @@
 // === List Sub-tabs (Music / SFX) ===
 .audio-list-subtabs {
   display: flex;
-  gap: 4px;
-  padding: 8px 12px;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-2) var(--size-gap-3);
   border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 15%, transparent);
   flex-shrink: 0;
 }
@@ -607,13 +603,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 6px 8px;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-1-5) var(--size-gap-2);
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -624,19 +620,19 @@
   }
 
   &--active {
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
     background: color-mix(in oklch, var(--color-accent-400) 12%, transparent);
     border-color: color-mix(in oklch, var(--color-accent-400) 30%, transparent);
   }
 }
 
 .audio-list-subtab__badge {
-  font-size: 10px;
+  font-size: var(--font-size-xxs);
   font-weight: 700;
-  padding: 0 4px;
+  padding: 0 var(--size-gap-1);
   border-radius: 8px;
   background: color-mix(in oklch, var(--color-accent-400) 25%, transparent);
-  color: var(--color-accent-400, #06b6d4);
+  color: var(--color-accent-400);
   min-width: 14px;
   text-align: center;
   line-height: 14px;
@@ -656,9 +652,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 40px 20px;
-  font-size: 13px;
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-10) var(--size-gap-5);
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   text-align: center;
 
@@ -668,7 +664,7 @@
 }
 
 .audio-list-empty__hint {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   opacity: 0.6;
   line-height: 1.4;
 }
@@ -677,22 +673,22 @@
 .audio-playlist-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-2) var(--size-gap-3);
 }
 
 .audio-playlist-items {
   flex: 1;
   overflow-y: auto;
-  padding: 0 12px 8px;
+  padding: 0 var(--size-gap-3) var(--size-gap-2);
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.1)) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 
   &::-webkit-scrollbar {
     width: 3px;
   }
   &::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.1));
+    background: var(--scrollbar-thumb);
     border-radius: 2px;
   }
 }
@@ -700,8 +696,8 @@
 .audio-playlist-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: var(--size-gap-1-5);
+  padding: var(--size-gap-1-5) var(--size-gap-2);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -714,17 +710,17 @@
     background: color-mix(in oklch, var(--color-accent-400) 15%, transparent);
 
     .audio-playlist-item__name {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
     }
 
     .audio-playlist-item__index {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
     }
   }
 }
 
 .audio-playlist-item__index {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   color: var(--color-text-muted);
   width: 16px;
   text-align: center;
@@ -734,7 +730,7 @@
 
 .audio-playlist-item__name {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -770,8 +766,8 @@
 .sound-category-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px 12px;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-2) var(--size-gap-3);
   flex-shrink: 0;
   border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 15%, transparent);
 }
@@ -779,13 +775,13 @@
 .sound-category-tab {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-1) var(--size-gap-2-5);
   border-radius: 20px;
   border: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent);
   background: transparent;
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
@@ -799,7 +795,7 @@
   &--active {
     background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
     border-color: color-mix(in oklch, var(--color-accent-400) 45%, transparent);
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
     box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 10%, transparent);
 
     &:hover {
@@ -809,28 +805,28 @@
 }
 
 .sound-category-icon {
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 // === Sound Grid ===
 .sound-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  padding: 8px 12px;
+  gap: var(--size-gap-1-5);
+  padding: var(--size-gap-2) var(--size-gap-3);
   overflow-y: auto;
   flex: 1;
   max-height: 200px;
   align-content: start;
 
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12)) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 
   &::-webkit-scrollbar {
     width: 4px;
   }
   &::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12));
+    background: var(--scrollbar-thumb);
     border-radius: 2px;
   }
 }
@@ -839,8 +835,8 @@
   grid-column: 1 / -1;
   text-align: center;
   color: var(--color-text-muted);
-  font-size: 12px;
-  padding: 20px 0;
+  font-size: var(--font-size-xs);
+  padding: var(--size-gap-5) 0;
 }
 
 .sound-card {
@@ -849,7 +845,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 10px 6px;
+  padding: var(--size-gap-2-5) var(--size-gap-1-5);
   min-height: 52px;
   border-radius: 8px;
   border: 1px solid color-mix(in oklch, var(--color-primary) 20%, transparent);
@@ -866,7 +862,7 @@
     left: -100%;
     width: 60%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, color-mix(in oklch, white 8%, transparent), transparent);
+    background:linear-gradient(90deg, transparent, color-mix(in oklch, var(--color-text-primary) 8%, transparent), transparent);
     transition: left 0.4s ease;
     pointer-events: none;
   }
@@ -875,7 +871,7 @@
     background: color-mix(in oklch, var(--color-primary) 25%, transparent);
     border-color: color-mix(in oklch, var(--color-primary) 40%, transparent);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--color-overlay);
 
     &::before {
       left: 120%;
@@ -894,13 +890,13 @@
       inset 0 0 8px color-mix(in oklch, var(--color-accent-400) 5%, transparent);
 
     .sound-card__name {
-      color: var(--color-accent-400, #06b6d4);
+      color: var(--color-accent-400);
     }
   }
 }
 
 .sound-card__name {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-primary);
   text-align: center;
   line-height: 1.3;
@@ -918,7 +914,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--color-accent-400, #06b6d4);
+  background: var(--color-accent-400);
   animation: soundCardPulse 1.2s ease-in-out infinite;
   box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
 }
@@ -969,9 +965,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: var(--size-gap-2) var(--size-gap-3);
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   color: var(--color-text-secondary);
   text-transform: uppercase;
@@ -982,16 +978,16 @@
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  padding: 0 12px 8px;
+  padding: 0 var(--size-gap-3) var(--size-gap-2);
 
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12)) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 
   &::-webkit-scrollbar {
     width: 4px;
   }
   &::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12));
+    background: var(--scrollbar-thumb);
     border-radius: 2px;
   }
 }
@@ -1004,13 +1000,13 @@
   overflow-y: auto;
 
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12)) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 
   &::-webkit-scrollbar {
     width: 4px;
   }
   &::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12));
+    background: var(--scrollbar-thumb);
     border-radius: 2px;
   }
 }
@@ -1018,8 +1014,8 @@
 // === Gen Sub-tabs ===
 .audio-gen-subtabs {
   display: flex;
-  gap: 4px;
-  padding: 8px 12px;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-2) var(--size-gap-3);
   border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 15%, transparent);
 }
 
@@ -1028,13 +1024,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 6px 8px;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-1-5) var(--size-gap-2);
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1045,34 +1041,34 @@
   }
 
   &--active {
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
     background: color-mix(in oklch, var(--color-accent-400) 12%, transparent);
     border-color: color-mix(in oklch, var(--color-accent-400) 30%, transparent);
   }
 }
 
 .audio-gen-field {
-  padding: 8px 12px;
+  padding: var(--size-gap-2) var(--size-gap-3);
 }
 
 .audio-gen-label {
   display: block;
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   color: var(--color-text-secondary);
-  margin-bottom: 4px;
+  margin-bottom: var(--size-gap-1);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .audio-gen-textarea {
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--size-gap-2) var(--size-gap-2-5);
   border-radius: 8px;
   border: 1px solid color-mix(in oklch, var(--color-primary) 35%, transparent);
   background: color-mix(in oklch, var(--color-bg-primary) 55%, transparent);
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   line-height: 1.4;
   resize: vertical;
   outline: none;
@@ -1084,19 +1080,19 @@
   }
 
   &:focus {
-    border-color: var(--color-accent-400, #06b6d4);
+    border-color: var(--color-accent-400);
     box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-accent-400) 20%, transparent);
   }
 }
 
 .audio-gen-input {
   width: 100%;
-  padding: 6px 10px;
+  padding: var(--size-gap-1-5) var(--size-gap-2-5);
   border-radius: 8px;
   border: 1px solid color-mix(in oklch, var(--color-primary) 35%, transparent);
   background: color-mix(in oklch, var(--color-bg-primary) 55%, transparent);
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   outline: none;
   font-family: inherit;
 
@@ -1105,33 +1101,33 @@
   }
 
   &:focus {
-    border-color: var(--color-accent-400, #06b6d4);
+    border-color: var(--color-accent-400);
     box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-accent-400) 20%, transparent);
   }
 }
 
 .audio-gen-error {
-  margin: 4px 12px;
-  padding: 6px 10px;
+  margin: var(--size-gap-1) var(--size-gap-3);
+  padding: var(--size-gap-1-5) var(--size-gap-2-5);
   border-radius: 8px;
   background: color-mix(in oklch, var(--color-error) 12%, transparent);
   border: 1px solid color-mix(in oklch, var(--color-error) 35%, transparent);
   color: var(--color-error);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .audio-gen-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin: 8px 12px;
-  padding: 8px 12px;
+  gap: var(--size-gap-2);
+  margin: var(--size-gap-2) var(--size-gap-3);
+  padding: var(--size-gap-2) var(--size-gap-3);
   border-radius: 8px;
   border: 1px solid color-mix(in oklch, var(--color-accent-400) 45%, transparent);
   background: color-mix(in oklch, var(--color-accent-400) 15%, transparent);
-  color: var(--color-accent-400, #06b6d4);
-  font-size: 13px;
+  color: var(--color-accent-400);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1146,7 +1142,7 @@
     left: -100%;
     width: 50%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, color-mix(in oklch, white 10%, transparent), transparent);
+    background:linear-gradient(90deg, transparent, color-mix(in oklch, var(--color-text-primary) 10%, transparent), transparent);
     transition: left 0.5s ease;
   }
 
@@ -1180,21 +1176,21 @@
 }
 
 .audio-gen-result {
-  padding: 8px 12px;
+  padding: var(--size-gap-2) var(--size-gap-3);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--size-gap-1);
 }
 
 .audio-gen-result-text {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
 }
 
 .audio-gen-result-actions {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--size-gap-1);
 }
 
 // === Audio Radio Panel ===
@@ -1203,16 +1199,16 @@
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
-  padding: 12px;
+  padding: var(--size-gap-3);
 
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12)) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 
   &::-webkit-scrollbar {
     width: 4px;
   }
   &::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.12));
+    background: var(--scrollbar-thumb);
     border-radius: 2px;
   }
 }
@@ -1220,7 +1216,7 @@
 .audio-radio-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 8px;
+  gap: var(--size-gap-2);
 }
 
 .audio-radio-card {
@@ -1229,10 +1225,10 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 10px 4px;
+  padding: var(--size-gap-2-5) var(--size-gap-1);
   border-radius: 8px;
-  border: 1px solid color-mix(in oklch, var(--radio-color, var(--color-primary)) 30%, transparent);
-  background: color-mix(in oklch, var(--radio-color, var(--color-primary)) 8%, transparent);
+  border: 1px solid color-mix(in oklch, var(--radio-color) 30%, transparent);
+  background: color-mix(in oklch, var(--radio-color) 8%, transparent);
   color: var(--color-text-primary);
   cursor: pointer;
   transition: all 0.25s ease;
@@ -1246,15 +1242,15 @@
     left: 0;
     right: 0;
     height: 50%;
-    background: linear-gradient(180deg, color-mix(in oklch, white 8%, transparent), transparent);
+    background:linear-gradient(180deg, color-mix(in oklch, var(--color-text-primary) 8%, transparent), transparent);
     pointer-events: none;
   }
 
   &:hover {
-    border-color: color-mix(in oklch, var(--radio-color, var(--color-primary)) 50%, transparent);
-    background: color-mix(in oklch, var(--radio-color, var(--color-primary)) 15%, transparent);
+    border-color: color-mix(in oklch, var(--radio-color) 50%, transparent);
+    background: color-mix(in oklch, var(--radio-color) 15%, transparent);
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 0 12px color-mix(in oklch, var(--radio-color, var(--color-primary)) 15%, transparent);
+    box-shadow: 0 8px 24px var(--color-overlay), 0 0 12px color-mix(in oklch, var(--radio-color) 15%, transparent);
   }
 
   &:active {
@@ -1262,29 +1258,29 @@
   }
 
   &--active {
-    border-color: color-mix(in oklch, var(--radio-color, var(--color-primary)) 60%, transparent);
-    background: color-mix(in oklch, var(--radio-color, var(--color-primary)) 18%, transparent);
+    border-color: color-mix(in oklch, var(--radio-color) 60%, transparent);
+    background: color-mix(in oklch, var(--radio-color) 18%, transparent);
     box-shadow:
-      0 0 20px color-mix(in oklch, var(--radio-color, var(--color-primary)) 20%, transparent),
-      inset 0 0 12px color-mix(in oklch, var(--radio-color, var(--color-primary)) 5%, transparent);
+      0 0 20px color-mix(in oklch, var(--radio-color) 20%, transparent),
+      inset 0 0 12px color-mix(in oklch, var(--radio-color) 5%, transparent);
   }
 }
 
 .audio-radio-card__icon {
-  font-size: 20px;
-  margin-bottom: 3px;
+  font-size: var(--font-size-2xl);
+  margin-bottom: var(--size-gap-0-5);
 }
 
 .audio-radio-card__name {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-text-primary);
 }
 
 .audio-radio-card__name-en {
-  font-size: 10px;
+  font-size: var(--font-size-xxs);
   color: var(--color-text-muted);
-  margin-top: 1px;
+  margin-top: var(--size-gap-0-25);
 }
 
 .audio-radio-card__wave {
@@ -1293,7 +1289,7 @@
   right: 8px;
   display: flex;
   align-items: flex-end;
-  gap: 1.5px;
+  gap: var(--size-gap-0-25);
   height: 12px;
 }
 
@@ -1301,7 +1297,7 @@
   width: 2px;
   height: 3px;
   border-radius: 1px;
-  background: var(--radio-color, var(--color-accent-400));
+  background: var(--radio-color);
   animation: radioWaveBar 0.6s ease-in-out infinite alternate;
 }
 

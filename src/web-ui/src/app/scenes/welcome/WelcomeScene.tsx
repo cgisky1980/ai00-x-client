@@ -7,12 +7,13 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  FolderOpen, Clock, FolderPlus, Trash2, Code,
+  FolderOpen, Clock, FolderPlus, Trash2,
 } from 'lucide-react';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useI18n } from '@/infrastructure/i18n';
 import { Tooltip } from '@/component-library';
+import { BrandMark } from '@ai00-x/design-system/react';
 import { createLogger } from '@/shared/utils/logger';
 import type { SceneTabId } from '@/app/components/SceneBar/types';
 import type { WorkspaceInfo } from '@/shared/types';
@@ -97,10 +98,8 @@ const WelcomeScene: React.FC = () => {
   return (
     <div className="welcome-scene">
       <div className="welcome-scene__content">
-        <div className="welcome-scene__greeting">
-          <div className="welcome-scene__mode-icon">
-            <Code size={28} strokeWidth={1.5} />
-          </div>
+        <div className="welcome-scene__greeting ds-brush-reveal">
+          <BrandMark variant="seal" size={56} />
           <h1 className="welcome-scene__title">{t('welcomeScene.code.title')}</h1>
           <p className="welcome-scene__greeting-label">
             {t('welcomeScene.code.description')}

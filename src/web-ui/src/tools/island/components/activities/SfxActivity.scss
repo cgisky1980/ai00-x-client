@@ -6,20 +6,20 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 10px 14px;
-  gap: 6px;
+  padding: var(--size-gap-2-5) var(--size-gap-3-5);
+  gap: var(--size-gap-1-5);
   position: relative;
 
   &--empty {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   &__empty-text {
     color: var(--color-text-muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     flex: 1;
   }
 
@@ -32,20 +32,20 @@
   }
 
   &__title {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--color-text-primary);
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
   }
 
   &__count {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     font-weight: 500;
-    color: var(--color-accent-400, #06b6d4);
-    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 18%, transparent);
-    padding: 1px 6px;
+    color: var(--color-accent-400);
+    background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
     border-radius: 8px;
     line-height: 1.4;
   }
@@ -53,7 +53,7 @@
   &__header-actions {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
   }
 
   &__header-btn {
@@ -101,7 +101,7 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
@@ -122,13 +122,13 @@
   &__chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px 4px 10px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1) var(--size-gap-2) var(--size-gap-1) var(--size-gap-2-5);
     border-radius: 14px;
-    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 16%, transparent);
-    border: 1px solid color-mix(in oklch, var(--color-accent-400, #06b6d4) 30%, transparent);
-    color: var(--color-accent-400, #06b6d4);
-    font-size: 11px;
+    background: color-mix(in oklch, var(--color-accent-400) 16%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-accent-400) 30%, transparent);
+    color: var(--color-accent-400);
+    font-size: var(--font-size-2xs);
     flex-shrink: 0;
     height: 24px;
   }
@@ -146,7 +146,7 @@
     appearance: none;
     width: 40px;
     height: 2px;
-    background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 30%, transparent);
+    background: color-mix(in oklch, var(--color-accent-400) 30%, transparent);
     border-radius: 1px;
     outline: none;
     cursor: pointer;
@@ -157,7 +157,7 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--color-accent-400, #06b6d4);
+      background: var(--color-accent-400);
       cursor: pointer;
     }
 
@@ -165,7 +165,7 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--color-accent-400, #06b6d4);
+      background: var(--color-accent-400);
       border: none;
       cursor: pointer;
     }
@@ -180,13 +180,13 @@
     border: none;
     border-radius: 50%;
     background: transparent;
-    color: var(--color-accent-400, #06b6d4);
+    color: var(--color-accent-400);
     cursor: pointer;
     padding: 0;
     transition: background 0.15s ease;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-accent-400, #06b6d4) 25%, transparent);
+      background: color-mix(in oklch, var(--color-accent-400) 25%, transparent);
     }
   }
 }

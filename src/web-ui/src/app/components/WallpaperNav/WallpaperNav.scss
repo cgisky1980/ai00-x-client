@@ -4,16 +4,16 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 0 0 8px;
-  gap: 4px;
-  background: var(--bg-panel, var(--color-bg-base));
+  padding: 0 0 var(--size-gap-2);
+  gap: var(--size-gap-1);
+  background: var(--color-bg-card);
 
   &__header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    margin-bottom: 4px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-1) var(--size-gap-2);
+    margin-bottom: var(--size-gap-1);
     color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
     font-weight: 600;
@@ -24,15 +24,15 @@
   &__items {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: var(--size-gap-0-25);
   }
 
   &__item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--size-gap-2);
     width: 100%;
-    padding: 6px 8px;
+    padding: var(--size-gap-1-5) var(--size-gap-2);
     border: none;
     border-radius: var(--size-radius-base);
     background: transparent;
@@ -64,8 +64,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
-    padding: 8px 8px 4px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2) var(--size-gap-2) var(--size-gap-1);
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
     font-weight: 600;
@@ -76,7 +76,7 @@
   &__section-header-left {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
   }
 
   &__section-action {
@@ -109,7 +109,7 @@
   &__projects {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: var(--size-gap-0-25);
     overflow-y: auto;
     flex: 1;
     min-height: 0;
@@ -117,7 +117,7 @@
   }
 
   &__projects-empty {
-    padding: 8px 4px;
+    padding: var(--size-gap-2) var(--size-gap-1);
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
     font-style: italic;
@@ -133,8 +133,8 @@
   &__project-card {
     display: flex;
     align-items: center;
-    gap: 2px;
-    padding: 2px 4px;
+    gap: var(--size-gap-0-5);
+    padding: var(--size-gap-0-5) var(--size-gap-1);
     border-radius: var(--size-radius-base);
     transition: background 0.15s ease;
 
@@ -148,8 +148,8 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 6px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1) var(--size-gap-1-5);
     border: none;
     border-radius: 4px;
     background: transparent;
@@ -158,7 +158,7 @@
     transition: background 0.15s;
 
     &:hover {
-      background: var(--element-bg-hover);
+      background: var(--color-bg-secondary);
     }
 
     &.is-active {
@@ -202,7 +202,7 @@
     transition: opacity 0.15s, background 0.15s, color 0.15s;
 
     &:hover {
-      background: var(--element-bg-hover);
+      background: var(--color-bg-secondary);
       color: var(--color-text-primary);
     }
 
@@ -215,66 +215,7 @@
     }
   }
 
-  // ── Project action menu popover ──
-  &__project-menu-popover {
-    position: fixed;
-    z-index: 10000;
-    min-width: 180px;
-    padding: 4px;
-    border-radius: var(--size-radius-base);
-    background: var(--color-bg-elevated, var(--color-bg-base));
-    border: 1px solid var(--color-border-default, rgba(255, 255, 255, 0.1));
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  }
-
-  &__project-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 6px 10px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    cursor: pointer;
-    text-align: left;
-    white-space: nowrap;
-    transition: color 0.15s, background 0.15s;
-
-    svg {
-      flex-shrink: 0;
-      opacity: 0.7;
-      transition: opacity 0.15s;
-    }
-
-    &:hover:not(:disabled) {
-      color: var(--color-text-primary);
-      background: var(--element-bg-soft);
-
-      svg { opacity: 1; }
-    }
-
-    &.is-danger {
-      color: var(--color-error, #e74c3c);
-
-      &:hover {
-        background: rgba(239, 68, 68, 0.1);
-      }
-    }
-
-    &:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
-  }
-
-  &__project-menu-divider {
-    height: 1px;
-    margin: 4px 0;
-    background: var(--color-border-default, rgba(255, 255, 255, 0.1));
-  }
+  // ── Project action menu（浮层本体已由 DS DropdownMenu .ds-menu 承担）──
 
   // Mini spinner for publishing state
   &__spinner {

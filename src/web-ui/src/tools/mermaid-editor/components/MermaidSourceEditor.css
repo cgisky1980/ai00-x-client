@@ -7,40 +7,40 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-bg-secondary, #18181a);
-  border: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.06));
+  background: var(--color-bg-secondary);
+  border: 1px dashed var(--border-subtle);
   border-radius: 0;
   overflow: hidden;
   transition: border-color 0.2s ease, border-style 0.2s ease;
 }
 
 .mermaid-source-editor:hover {
-  border-color: var(--border-medium, rgba(255, 255, 255, 0.12));
+  border-color: var(--border-medium);
 }
 
 .mermaid-source-editor:focus-within {
   border-style: solid;
-  border-color: var(--color-accent-400, rgba(96, 165, 250, 0.4));
+  border-color: var(--color-accent-400);
 }
 
 /* ==================== Header ==================== */
 .mermaid-source-editor .editor-header {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
-  background: var(--color-bg-secondary, #18181a);
-  border-bottom: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.06));
+  padding: var(--size-gap-2) var(--size-gap-3);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px dashed var(--border-subtle);
   flex-shrink: 0;
 }
 
 .mermaid-source-editor .editor-header h4 {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--color-text-primary, #e8e8e8);
+  color: var(--color-text-primary);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
 }
 
 .mermaid-source-editor .editor-header h4::before {
@@ -48,7 +48,7 @@
   display: inline-block;
   width: 3px;
   height: 12px;
-  background: var(--color-accent-500, #60a5fa);
+  background: var(--color-accent-500);
   border-radius: 2px;
 }
 
@@ -57,7 +57,7 @@
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: var(--color-bg-primary, #121214);
+  background: var(--color-bg-primary);
   cursor: text;
 }
 
@@ -69,9 +69,9 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: radial-gradient(
+  background-image:radial-gradient(
     circle at center,
-    rgba(255, 255, 255, 0.025) 1px,
+    color-mix(in srgb, var(--color-text-primary) 3%, transparent) 1px,
     transparent 1px
   );
   background-size: 16px 16px;
@@ -86,13 +86,13 @@
   width: 100%;
   height: 100%;
   min-height: 200px;
-  padding: 12px;
+  padding: var(--size-gap-3);
   background: transparent;
   border: none;
   outline: none;
-  color: var(--color-text-primary, #e8e8e8);
+  color: var(--color-text-primary);
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   line-height: 1.6;
   resize: none;
   box-sizing: border-box;
@@ -105,17 +105,17 @@
 
 /* Selection highlight */
 .source-textarea::selection {
-  background: var(--color-accent-500, #60a5fa);
-  color: white;
+  background: var(--color-accent-500);
+  color:var(--color-text-primary);
 }
 
 .source-textarea::-moz-selection {
-  background: var(--color-accent-500, #60a5fa);
-  color: white;
+  background: var(--color-accent-500);
+  color:var(--color-text-primary);
 }
 
 .source-textarea::placeholder {
-  color: var(--color-text-muted, #606060);
+  color: var(--color-text-muted);
 }
 
 .source-textarea:focus {
@@ -133,12 +133,12 @@
 }
 
 .source-textarea::-webkit-scrollbar-thumb {
-  background: var(--border-subtle, rgba(255, 255, 255, 0.1));
+  background: var(--border-subtle);
   border-radius: 3px;
 }
 
 .source-textarea::-webkit-scrollbar-thumb:hover {
-  background: var(--border-medium, rgba(255, 255, 255, 0.2));
+  background: var(--border-medium);
 }
 
 /* ==================== Status bar ==================== */
@@ -146,11 +146,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 12px;
-  background: var(--color-bg-secondary, #18181a);
-  border-top: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.06));
-  font-size: 11px;
-  color: var(--color-text-muted, #707070);
+  padding: var(--size-gap-1) var(--size-gap-3);
+  background: var(--color-bg-secondary);
+  border-top: 1px dashed var(--border-subtle);
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-muted);
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
   flex-shrink: 0;
 }
@@ -159,14 +159,14 @@
 .mermaid-source-editor .status-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--size-gap-3);
 }
 
 .mermaid-source-editor .status-item {
   white-space: nowrap;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--size-gap-1);
 }
 
 .mermaid-source-editor .status-item:not(:last-child)::after {
@@ -174,27 +174,27 @@
   display: inline-block;
   width: 1px;
   height: 10px;
-  background: var(--border-subtle, rgba(255, 255, 255, 0.08));
-  margin-left: 12px;
+  background: var(--border-subtle);
+  margin-left: var(--size-gap-3);
 }
 
 /* ==================== Responsive ==================== */
 @media (max-width: 768px) {
   .mermaid-source-editor .editor-header {
-    padding: 6px 10px;
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
   }
 
   .mermaid-source-editor .editor-header h4 {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
   }
 
   .source-textarea {
-    padding: 10px;
-    font-size: 12px;
+    padding: var(--size-gap-2-5);
+    font-size: var(--font-size-xs);
   }
 
   .mermaid-source-editor .editor-status-bar {
-    padding: 3px 10px;
-    font-size: 10px;
+    padding: var(--size-gap-0-5) var(--size-gap-2-5);
+    font-size: var(--font-size-xxs);
   }
 }

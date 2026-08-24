@@ -35,6 +35,7 @@ import zhCNScenesCapabilities from '../../../locales/zh-CN/scenes/capabilities.j
 import zhCNScenesAgents from '../../../locales/zh-CN/scenes/agents.json';
 import zhCNScenesProfile from '../../../locales/zh-CN/scenes/profile.json';
 import zhCNScenesSkills from '../../../locales/zh-CN/scenes/skills.json';
+import zhCNScenesPlugins from '../../../locales/zh-CN/scenes/plugins.json';
 import zhCNScenesMiniapp from '../../../locales/zh-CN/scenes/miniapp.json';
 import zhCNScenesWallpaper from '../../../locales/zh-CN/scenes/wallpaper.json';
 import zhCNPanelsFiles from '../../../locales/zh-CN/panels/files.json';
@@ -52,6 +53,7 @@ import zhCNSettingsLsp from '../../../locales/zh-CN/settings/lsp.json';
 import zhCNSettingsDebug from '../../../locales/zh-CN/settings/debug.json';
 import zhCNSettingsEditor from '../../../locales/zh-CN/settings/editor.json';
 import zhCNSettingsSkills from '../../../locales/zh-CN/settings/skills.json';
+import zhCNSettingsPlugins from '../../../locales/zh-CN/settings/plugins.json';
 import zhCNSettingsAiRules from '../../../locales/zh-CN/settings/ai-rules.json';
 import zhCNSettingsAiMemory from '../../../locales/zh-CN/settings/ai-memory.json';
 import zhCNSettingsAiContext from '../../../locales/zh-CN/settings/ai-context.json';
@@ -79,6 +81,7 @@ import enUSScenesCapabilities from '../../../locales/en-US/scenes/capabilities.j
 import enUSScenesAgents from '../../../locales/en-US/scenes/agents.json';
 import enUSScenesProfile from '../../../locales/en-US/scenes/profile.json';
 import enUSScenesSkills from '../../../locales/en-US/scenes/skills.json';
+import enUSScenesPlugins from '../../../locales/en-US/scenes/plugins.json';
 import enUSScenesMiniapp from '../../../locales/en-US/scenes/miniapp.json';
 import enUSScenesWallpaper from '../../../locales/en-US/scenes/wallpaper.json';
 import enUSPanelsFiles from '../../../locales/en-US/panels/files.json';
@@ -96,6 +99,7 @@ import enUSSettingsLsp from '../../../locales/en-US/settings/lsp.json';
 import enUSSettingsDebug from '../../../locales/en-US/settings/debug.json';
 import enUSSettingsEditor from '../../../locales/en-US/settings/editor.json';
 import enUSSettingsSkills from '../../../locales/en-US/settings/skills.json';
+import enUSSettingsPlugins from '../../../locales/en-US/settings/plugins.json';
 import enUSSettingsAiRules from '../../../locales/en-US/settings/ai-rules.json';
 import enUSSettingsAiMemory from '../../../locales/en-US/settings/ai-memory.json';
 import enUSSettingsAiContext from '../../../locales/en-US/settings/ai-context.json';
@@ -130,6 +134,7 @@ const resources = {
     'scenes/agents': zhCNScenesAgents,
     'scenes/profile': zhCNScenesProfile,
     'scenes/skills': zhCNScenesSkills,
+    'scenes/plugins': zhCNScenesPlugins,
     'scenes/miniapp': zhCNScenesMiniapp,
     'scenes/wallpaper': zhCNScenesWallpaper,
     'panels/files': zhCNPanelsFiles,
@@ -147,6 +152,7 @@ const resources = {
     'settings/debug': zhCNSettingsDebug,
     'settings/editor': zhCNSettingsEditor,
     'settings/skills': zhCNSettingsSkills,
+    'settings/plugins': zhCNSettingsPlugins,
     'settings/ai-rules': zhCNSettingsAiRules,
     'settings/ai-memory': zhCNSettingsAiMemory,
     'settings/ai-context': zhCNSettingsAiContext,
@@ -175,6 +181,7 @@ const resources = {
     'scenes/agents': enUSScenesAgents,
     'scenes/profile': enUSScenesProfile,
     'scenes/skills': enUSScenesSkills,
+    'scenes/plugins': enUSScenesPlugins,
     'scenes/miniapp': enUSScenesMiniapp,
     'scenes/wallpaper': enUSScenesWallpaper,
     'panels/files': enUSPanelsFiles,
@@ -192,6 +199,7 @@ const resources = {
     'settings/debug': enUSSettingsDebug,
     'settings/editor': enUSSettingsEditor,
     'settings/skills': enUSSettingsSkills,
+    'settings/plugins': enUSSettingsPlugins,
     'settings/ai-rules': enUSSettingsAiRules,
     'settings/ai-memory': enUSSettingsAiMemory,
     'settings/ai-context': enUSSettingsAiContext,
@@ -243,6 +251,7 @@ export class I18nService {
           'scenes/agents',
           'scenes/profile',
           'scenes/skills',
+          'scenes/plugins',
           'scenes/miniapp',
           'scenes/wallpaper',
           'panels/files',
@@ -259,6 +268,7 @@ export class I18nService {
           'settings/debug',
           'settings/editor',
           'settings/skills',
+          'settings/plugins',
           'settings/ai-rules',
           'settings/ai-memory',
           'settings/ai-context',

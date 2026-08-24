@@ -11,7 +11,7 @@
   background: var(--color-bg-primary);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 32px var(--color-overlay);
   overflow: hidden;
   animation: branch-quick-switch-enter 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -24,13 +24,13 @@
 // ── Search ──────────────────────────────────────────────
 
 .branch-quick-switch__search {
-  padding: 8px;
+  padding: var(--size-gap-2);
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .branch-quick-switch__input {
   width: 100%;
-  padding: 6px 10px;
+  padding: var(--size-gap-1-5) var(--size-gap-2-5);
   font-size: var(--font-size-xs);
   border: 1px solid var(--border-subtle);
   border-radius: 4px;
@@ -67,11 +67,11 @@
 
 .branch-quick-switch__loading,
 .branch-quick-switch__empty {
-  padding: 20px;
+  padding: var(--size-gap-5);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--size-gap-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
@@ -81,8 +81,8 @@
 .branch-quick-switch__item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-2) var(--size-gap-3);
   cursor: pointer;
   transition: background 0.1s ease;
 

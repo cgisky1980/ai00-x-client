@@ -1,30 +1,11 @@
+/* Ai00-X loader-ui 样式入口
+ * 设计令牌来源：@ai00-x/design-system（规范见 参考/前端视觉设计规范-新东方极简.md）
+ * 主题：:root 为深墨默认（暗色），[data-theme="light"] 为宣纸覆盖（index.html 按系统偏好设置） */
 @import "tailwindcss";
-/* 显式扫描共享包源码：AvatarCustomizer/LocationPicker 等 shared 组件的
-   Tailwind 类名（如 fixed inset-0 z-[10000]）不在本包源码中出现，
-   不加 @source 时不会生成对应 CSS，Portal 弹窗会退化为 static 布局 */
+@import "@ai00-x/design-system/styles";
+@import "@ai00-x/design-system/tw";
+
 @source "../../../packages/shared/src";
-
-:root {
-  --page-bg: #f3f3f5;
-  --card-bg: #ffffff;
-  --primary: 100 100 240;
-  --secondary: #f1f5f9;
-  --border: #e2e8f0;
-  --text-90: #1e293b;
-  --text-50: #64748b;
-  --destructive: #ef4444;
-}
-
-[data-theme-type="dark"] {
-  --page-bg: #121214;
-  --card-bg: #1a1c1e;
-  --primary: 120 160 255;
-  --secondary: #1e2023;
-  --border: #2d3035;
-  --text-90: #e4e6e8;
-  --text-50: #8a8d92;
-  --destructive: #f87171;
-}
 
 html, body, #root {
   height: 100%;
@@ -33,37 +14,42 @@ html, body, #root {
   padding: 0;
   overflow: hidden;
   background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
 }
 
+/* ==== 页面基础类（token 化） ====
+ * 迁移期兼容层（--page-bg/--card-bg/--text-90/--text-50/--primary 等旧名映射）
+ * 已于 2026-08 全量替换为直接 token 引用后删除。 */
 .btn-plain {
   background: transparent;
   border: none;
   cursor: pointer;
-  color: var(--text-50);
-  transition: all 0.15s ease;
+  color: var(--color-text-muted);
+  transition: color var(--motion-fast) var(--easing-standard);
 }
 
 .btn-plain:hover {
-  color: var(--text-90);
+  color: var(--color-text-primary);
 }
 
 .btn-primary {
-  background: rgb(var(--primary));
-  color: white;
+  background: var(--color-accent-500);
+  color: oklch(0.97 0.01 90);
   border: none;
-  border-radius: 0.5rem;
-  padding: 0.5rem 1rem;
+  border-radius: var(--size-radius-base);
+  padding: var(--size-gap-2) var(--size-gap-4);
   cursor: pointer;
-  font-weight: 500;
-  transition: all 0.15s ease;
+  font-weight: var(--font-weight-medium);
+  transition: background-color var(--motion-fast) var(--easing-standard);
 }
 
 .btn-primary:hover {
-  opacity: 0.9;
+  background: var(--color-accent-600);
 }
 
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 
@@ -71,16 +57,16 @@ input[type="text"],
 input[type="password"],
 input[type="email"] {
   width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--page-bg);
-  color: var(--text-90);
-  font-size: 0.875rem;
+  padding: var(--size-gap-2) var(--size-gap-3);
+  border: 1px solid var(--input-border);
+  border-radius: var(--size-radius-sm);
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: var(--font-size-base);
   outline: none;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--motion-fast) var(--easing-standard);
 }
 
 input:focus {
-  border-color: rgb(var(--primary));
+  border-color: var(--input-border-focus);
 }

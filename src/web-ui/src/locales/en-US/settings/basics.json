@@ -52,26 +52,6 @@
       "ai00-x-light": {
         "name": "Light",
         "description": "Light theme - Elegant and refined, soft blue-gray tones"
-      },
-      "ai00-x-midnight": {
-        "name": "Midnight",
-        "description": "Midnight gray dark theme - Professional and elegant, inspired by JetBrains IDE"
-      },
-      "ai00-x-china-style": {
-        "name": "Ink Charm",
-        "description": "Chinese style theme - Rice paper and ink, blue and vermilion, warm and elegant"
-      },
-      "ai00-x-china-night": {
-        "name": "Ink Night",
-        "description": "Chinese dark theme - Starlit ink night, moonlight like water, serene and elegant"
-      },
-      "ai00-x-cyber": {
-        "name": "Cyber",
-        "description": "Tech-style theme - Deep black hole, neon future, ultimate tech aesthetics"
-      },
-      "ai00-x-slate": {
-        "name": "Slate",
-        "description": "Slate gray geometric theme - Deep immersion, high contrast grayscale aesthetics"
       }
     },
     "fontSize": {

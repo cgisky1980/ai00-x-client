@@ -14,11 +14,11 @@
   right: 0;
   bottom: 0;
   z-index: $z-modal;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--modal-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--size-gap-6);
   animation: branch-overlay-fade 0.2s ease;
 }
 
@@ -36,7 +36,7 @@
   background: var(--color-bg-primary);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 16px 48px var(--modal-overlay);
   width: 380px;
   max-width: calc(100vw - 48px);
   max-height: min(520px, calc(100vh - 48px));
@@ -66,7 +66,7 @@
   border: 1px solid transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-  padding: 5px;
+  padding: var(--size-gap-1);
   border-radius: 5px;
   transition: all 0.15s ease;
   display: flex;
@@ -87,12 +87,12 @@
 
 .branch-select-dialog__header {
   flex-shrink: 0;
-  padding: 16px 20px 12px;
+  padding: var(--size-gap-4) var(--size-gap-5) var(--size-gap-3);
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .branch-select-dialog__title {
-  font-size: 14px;
+  font-size: var(--font-size-base);
   font-weight: 500;
   margin: 0;
   color: var(--color-text-primary);
@@ -104,8 +104,8 @@
 .branch-select-dialog__content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 16px;
+  gap: var(--size-gap-2-5);
+  padding: var(--size-gap-3) var(--size-gap-4);
   flex: 1;
   min-height: 0;
 }
@@ -124,12 +124,12 @@
 // ==================== Error Message ====================
 
 .branch-select-dialog__error {
-  padding: 8px 12px;
-  background: rgba(244, 67, 54, 0.08);
-  border: 1px solid rgba(244, 67, 54, 0.2);
+  padding: var(--size-gap-2) var(--size-gap-3);
+  background:color-mix(in srgb, var(--color-error) 8%, transparent);
+  border:1px solid color-mix(in srgb, var(--color-error) 20%, transparent);
   border-radius: 6px;
-  color: #f44336;
-  font-size: 12px;
+  color: var(--color-error);
+  font-size: var(--font-size-xs);
 }
 
 // ==================== Branch List ====================
@@ -147,18 +147,18 @@
 }
 
 .branch-select-dialog__loading {
-  padding: 24px;
+  padding: var(--size-gap-6);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: var(--size-gap-2-5);
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .branch-select-dialog__loading-dots {
   display: flex;
-  gap: 4px;
+  gap: var(--size-gap-1);
 
   span {
     width: 4px;
@@ -178,10 +178,10 @@
 }
 
 .branch-select-dialog__empty {
-  padding: 24px;
+  padding: var(--size-gap-6);
   text-align: center;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
 }
 
 // ==================== Branch Item ====================
@@ -189,8 +189,8 @@
 .branch-select-dialog__item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-2) var(--size-gap-3);
   cursor: pointer;
   transition: background 0.12s ease;
 
@@ -238,7 +238,7 @@
 
 .branch-select-dialog__item-name {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -251,8 +251,8 @@
 
 .branch-select-dialog__item-badge {
   flex-shrink: 0;
-  padding: 2px 6px;
-  font-size: 10px;
+  padding: var(--size-gap-0-5) var(--size-gap-1-5);
+  font-size: var(--font-size-xxs);
   font-weight: 500;
   text-transform: uppercase;
   color: var(--color-accent-500);
@@ -261,7 +261,7 @@
 
   &--worktree {
     color: var(--color-warning);
-    background: rgba(255, 152, 0, 0.1);
+    background:color-mix(in srgb, var(--color-warning) 10%, transparent);
   }
 }
 
@@ -272,9 +272,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--size-gap-3);
   flex-wrap: wrap;
-  padding: 12px 16px 16px;
+  padding: var(--size-gap-3) var(--size-gap-4) var(--size-gap-4);
   border-top: 1px solid var(--border-subtle);
 }
 
@@ -284,8 +284,8 @@
 }
 
 .branch-select-dialog__btn {
-  padding: 7px 14px;
-  font-size: 12px;
+  padding: var(--size-gap-1-5) var(--size-gap-3-5);
+  font-size: var(--font-size-xs);
   font-weight: 500;
   border: none;
   border-radius: 6px;
@@ -307,7 +307,7 @@
 
   &--confirm {
     background: var(--color-accent-500);
-    color: white;
+    color: var(--color-accent-foreground);
 
     &:hover:not(:disabled) {
       background: var(--color-accent-600);

@@ -1,0 +1,14 @@
+/* ============================================================
+ * @ai00-x/design-system 自托管字体 — 手写维护（非生成物）
+ * Ai00 X Serif = 思源宋体（Noto Serif SC / Source Han Serif 同源）
+ * Display 专用子集：GB2312 一级常用字 3755 + 仓库用字 + ASCII/中西标点，
+ * CFF2 可变字重 200–900，woff2 约 1.54MB（E4 预算 ≤1.5MB 量级）。
+ * 再生成：pnpm --dir packages/design-system run build:fonts
+ * ============================================================ */
+@font-face {
+  font-family: 'Ai00 X Serif';
+  src: url('../fonts/Ai00XSerif-Display.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}

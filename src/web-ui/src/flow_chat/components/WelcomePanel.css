@@ -9,7 +9,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  padding: 32px 24px;
+  padding: var(--size-gap-8) var(--size-gap-6);
   box-sizing: border-box;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -19,7 +19,7 @@
 .welcome-panel__content {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: var(--size-gap-7);
   width: 100%;
   max-width: 520px;
 }
@@ -29,20 +29,20 @@
 .welcome-panel__greeting {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--size-gap-1);
 }
 
 .welcome-panel__greeting-inner {
   display: flex;
   flex-direction: row;
   align-items: flex-end;
-  gap: 16px;
+  gap: var(--size-gap-4);
 }
 
 .welcome-panel__greeting-text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--size-gap-1);
   min-width: 0;
 }
 
@@ -86,7 +86,7 @@
 
 .welcome-panel__heading {
   margin: 0;
-  font-size: 26px;
+  font-size: var(--font-size-4xl);
   font-weight: 700;
   color: var(--color-text-primary);
   line-height: 1.2;
@@ -94,8 +94,8 @@
 }
 
 .welcome-panel__tagline {
-  margin: 6px 0 0;
-  font-size: 15px;
+  margin: var(--size-gap-1-5) 0 0;
+  font-size: var(--font-size-lg);
   color: var(--color-text-muted);
   line-height: 1.5;
 }
@@ -115,7 +115,7 @@
 
 .welcome-panel__narrative-text {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--font-size-lg);
   line-height: 1.55;
   color: var(--color-text-muted);
 }
@@ -123,9 +123,9 @@
 .welcome-panel__inline-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 0 5px;
-  margin: 0 1px;
+  gap: var(--size-gap-0-5);
+  padding: 0 var(--size-gap-1);
+  margin: 0 var(--size-gap-0-25);
   background: none;
   border: none;
   border-radius: 5px;
@@ -160,9 +160,9 @@
 .welcome-panel__workspace-name {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 0 5px;
-  margin: 0 1px;
+  gap: var(--size-gap-0-5);
+  padding: 0 var(--size-gap-1);
+  margin: 0 var(--size-gap-0-25);
   font-weight: 600;
   color: var(--color-text-primary);
 }
@@ -170,9 +170,9 @@
 .welcome-panel__worktree-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 6px;
-  margin: 0 1px;
+  gap: var(--size-gap-1);
+  padding: 0 var(--size-gap-1-5);
+  margin: 0 var(--size-gap-0-25);
   background: var(--color-accent-100);
   border-radius: 5px;
   font-weight: 600;
@@ -200,11 +200,11 @@
 
 @media (max-width: 480px) {
   .welcome-panel {
-    padding: 20px 16px;
+    padding: var(--size-gap-5) var(--size-gap-4);
   }
 
   .welcome-panel__heading {
-    font-size: 22px;
+    font-size: var(--font-size-3xl);
   }
 }
 

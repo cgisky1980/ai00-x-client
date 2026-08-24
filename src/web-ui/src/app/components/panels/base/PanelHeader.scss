@@ -4,7 +4,7 @@
   align-items: center;
   justify-content: center;
   // Unified header height: IconButton(xs=24px) + padding(6px*2)=36px
-  padding: 6px 12px;
+  padding: var(--size-gap-1-5) var(--size-gap-3);
   background: var(--color-bg-primary);
   border-bottom: 1px solid var(--border-base);
   flex-shrink: 0;
@@ -12,7 +12,7 @@
 
   &__title {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-primary);
     text-align: center;
@@ -28,7 +28,7 @@
     transform: translateY(-50%);
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex-shrink: 0;
   }
 }

@@ -6,8 +6,8 @@
 .tool-display-compact {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--size-gap-2);
+  font-size: var(--font-size-sm);
   line-height: 1.4;
   position: relative;
 }

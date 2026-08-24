@@ -5,8 +5,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import { Button } from '@/component-library';
-import { ConfirmDialog } from './ConfirmDialog';
+import { Button, confirmDialog, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/component-library';
 import type { RemoteFileEntry } from './types';
 import { sshApi } from './sshApi';
 import {
@@ -38,11 +37,6 @@ interface ContextMenuState {
   show: boolean;
   x: number;
   y: number;
-  entry: RemoteFileEntry | null;
-}
-
-interface DeleteConfirmState {
-  show: boolean;
   entry: RemoteFileEntry | null;
 }
 
@@ -105,10 +99,6 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
   });
   const [renameEntry, setRenameEntry] = useState<RemoteFileEntry | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({
-    show: false,
-    entry: null,
-  });
   const [transferBusy, setTransferBusy] = useState(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
@@ -232,9 +222,23 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
 
     try {
       switch (action) {
-        case 'delete':
-          setDeleteConfirm({ show: true, entry });
+        case 'delete': {
+          const confirmed = await confirmDialog({
+            title: t('ssh.remote.deleteTitle') || 'Delete',
+            message: t('ssh.remote.deleteConfirm') || `Delete "${entry.name}"?`,
+            confirmText: t('actions.delete') || 'Delete',
+            cancelText: t('actions.cancel'),
+            confirmDanger: true,
+          });
+          if (!confirmed) break;
+          try {
+            await sshApi.remove(connectionId, entry.path, entry.isDir);
+            loadDirectory(currentPath);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Delete failed');
+          }
           break;
+        }
         case 'open':
           if (entry.isDir) {
             navigateTo(entry.path);
@@ -253,19 +257,6 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Operation failed');
-    }
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteConfirm.entry) return;
-    const entry = deleteConfirm.entry;
-    setDeleteConfirm({ show: false, entry: null });
-
-    try {
-      await sshApi.remove(connectionId, entry.path, entry.isDir);
-      loadDirectory(currentPath);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Delete failed');
     }
   };
 
@@ -488,67 +479,67 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
               <span>Loading...</span>
             </div>
           ) : (
-            <table className="remote-file-browser__table">
-              <thead className="remote-file-browser__thead">
-                <tr>
-                  <th className="remote-file-browser__th remote-file-browser__th--name">
+            <Table className="remote-file-browser__table" dense>
+              <TableHeader className="remote-file-browser__thead">
+                <TableRow>
+                  <TableHead className="remote-file-browser__th remote-file-browser__th--name">
                     {t('ssh.remote.name')}
-                  </th>
-                  <th className="remote-file-browser__th remote-file-browser__th--size">
+                  </TableHead>
+                  <TableHead className="remote-file-browser__th remote-file-browser__th--size">
                     {t('ssh.remote.size')}
-                  </th>
-                  <th className="remote-file-browser__th remote-file-browser__th--date">
+                  </TableHead>
+                  <TableHead className="remote-file-browser__th remote-file-browser__th--date">
                     {t('ssh.remote.modified')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="remote-file-browser__tbody">
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="remote-file-browser__tbody">
                 {/* Parent directory link */}
                 {getRemoteParentPath(currentPath) !== null && (
-                  <tr
+                  <TableRow
                     onClick={() => {
                       const parent = getRemoteParentPath(currentPath);
                       if (parent !== null) navigateTo(parent);
                     }}
                     className="remote-file-browser__row remote-file-browser__row--parent"
                   >
-                    <td colSpan={3}>
+                    <TableCell colSpan={3}>
                       <Folder size={16} className="remote-file-browser__entry-icon remote-file-browser__entry-icon--parent" />
                       <span>..</span>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
                 {entries.map((entry) => (
-                  <tr
+                  <TableRow
                     key={entry.path}
                     onClick={() => handleEntryClick(entry)}
                     onDoubleClick={() => handleEntryDoubleClick(entry)}
                     onContextMenu={(e) => handleContextMenu(e, entry)}
                     className={`remote-file-browser__row ${selectedPath === entry.path ? 'remote-file-browser__row--selected' : ''}`}
                   >
-                    <td className="remote-file-browser__td remote-file-browser__td--name">
+                    <TableCell className="remote-file-browser__td remote-file-browser__td--name">
                       <div className="remote-file-browser__name-cell">
                         {getEntryIcon(entry)}
                         <span className="remote-file-browser__name">{entry.name}</span>
                       </div>
-                    </td>
-                    <td className="remote-file-browser__td remote-file-browser__td--size">
+                    </TableCell>
+                    <TableCell className="remote-file-browser__td remote-file-browser__td--size">
                       {entry.isDir ? '-' : formatFileSize(entry.size)}
-                    </td>
-                    <td className="remote-file-browser__td remote-file-browser__td--date">
+                    </TableCell>
+                    <TableCell className="remote-file-browser__td remote-file-browser__td--date">
                       {formatDate(entry.modified)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
                 {entries.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={3} className="remote-file-browser__empty">
+                  <TableRow>
+                    <TableCell colSpan={3} className="remote-file-browser__empty">
                       {t('ssh.remote.emptyDirectory')}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
         </div>
 
@@ -626,21 +617,6 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
             </div>
           </div>
         )}
-
-        {/* Delete Confirmation Dialog */}
-        <ConfirmDialog
-          open={deleteConfirm.show}
-          title={t('ssh.remote.deleteTitle') || 'Delete'}
-          message={deleteConfirm.entry
-            ? t('ssh.remote.deleteConfirm') || `Delete "${deleteConfirm.entry.name}"?`
-            : ''
-          }
-          confirmText={t('actions.delete') || 'Delete'}
-          cancelText={t('actions.cancel')}
-          onConfirm={handleDeleteConfirm}
-          onCancel={() => setDeleteConfirm({ show: false, entry: null })}
-          destructive
-        />
 
         {/* Footer */}
         <div className="remote-file-browser__footer">

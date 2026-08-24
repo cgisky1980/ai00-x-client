@@ -18,7 +18,7 @@
 
 // Subagent container for items under the same parent task.
 .subagent-items-container {
-  padding: 12px 14px;
+  padding: var(--size-gap-3) var(--size-gap-3-5);
 
   // Continue the task card border on left/right/bottom; top border is hidden.
   background: var(--color-bg-flowchat);

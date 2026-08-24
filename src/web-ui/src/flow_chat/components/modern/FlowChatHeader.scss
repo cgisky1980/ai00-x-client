@@ -121,13 +121,13 @@
     }
 
     &--active {
-      background: color-mix(in srgb, var(--accent-primary) 12%, var(--element-bg-soft));
+      background: color-mix(in srgb, var(--color-accent-500) 12%, var(--element-bg-soft));
     }
   }
 
   &__turn-list-badge {
     flex: 0 0 auto;
-    padding: 2px 8px;
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     border-radius: 999px;
     background: color-mix(in srgb, var(--element-bg-soft) 82%, transparent);
     color: var(--color-text-secondary);
@@ -163,7 +163,7 @@
     align-items: center;
     flex: 0 0 auto;
     max-width: 100%;
-    padding: 2px 8px;
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     border-radius: 999px;
     background: color-mix(in srgb, var(--element-bg-soft) 82%, transparent);
     color: var(--color-text-secondary);

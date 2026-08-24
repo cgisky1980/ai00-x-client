@@ -1,84 +1,506 @@
 /* Component registry */
 import React from 'react';
 import type { ComponentCategory } from '../types';
-import { Button } from '@components/Button';
-import { IconButton } from '@components/IconButton';
-import { WindowControls } from '@components/WindowControls';
-import { Input } from '@components/Input';
-import { Search } from '@components/Search';
-import { Select } from '@components/Select';
-import { Checkbox } from '@components/Checkbox';
-import { Switch } from '@components/Switch';
-import { Textarea } from '@components/Textarea';
-import { Modal } from '@components/Modal';
-import { CubeLoading } from '@components/CubeLoading';
-import { Alert } from '@components/Alert';
-import { Tooltip } from '@components/Tooltip';
-import { Tabs, TabPane } from '@components/Tabs';
-import { Tag } from '@components/Tag';
-import { Avatar, AvatarGroup } from '@components/Avatar';
-import { Empty } from '@components/Empty';
+/* 基础组件已物理迁移至 @ai00-x/design-system（./web 出口），经
+   '@/component-library' re-export 消费；本地仅存应用组件。
+   flowchat 工具卡演示已移除（业务组件在真实会话页查看，且其 barrel
+   引入 preview 图谱会造成模块初始化环）。 */
+import {
+  Button, IconButton, Input, Search, Select, Checkbox, Switch, Textarea,
+  Modal, CubeLoading, Alert, Tooltip, Tabs, TabPane, Tag, Badge,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuLabel,
+  Popover, PopoverTrigger, PopoverContent,
+  toast, toastSuccess, toastWarning, toastError,
+  Progress, Skeleton, Separator, Avatar, Empty, ScrollArea,
+  AlertDialog, AlertDialogTrigger, AlertDialogSimple,
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+  Drawer, DrawerTrigger, DrawerPanel,
+  Pagination, Tree, type TreeNodeData,
+} from '@/component-library';
+import { Tooltip as DsTooltip } from '@ai00-x/design-system/react';
+import { WindowControls } from '@/component-library';
 import { Markdown } from '@components/Markdown';
 import { CodeEditor } from '@components/CodeEditor';
-import { StreamText } from '@components/StreamText';
-import { TodoWriteDisplay } from '@/flow_chat/tool-cards/TodoWriteDisplay';
-import { TaskToolDisplay } from '@/flow_chat/tool-cards/TaskToolDisplay';
-import { WebSearchCard as RealWebSearchCard } from '@/flow_chat/tool-cards/WebSearchCard';
-import { ReadFileDisplay } from '@/flow_chat/tool-cards/ReadFileDisplay';
-import { GrepSearchDisplay } from '@/flow_chat/tool-cards/GrepSearchDisplay';
-import { GlobSearchDisplay } from '@/flow_chat/tool-cards/GlobSearchDisplay';
-import { FileOperationToolCard } from '@/flow_chat/tool-cards/FileOperationToolCard';
-import { LSDisplay } from '@/flow_chat/tool-cards/LSDisplay';
-import { MCPToolDisplay } from '@/flow_chat/tool-cards/MCPToolDisplay';
-import { MermaidInteractiveDisplay } from '@/flow_chat/tool-cards/MermaidInteractiveDisplay';
-import { ContextCompressionDisplay } from '@/flow_chat/tool-cards/ContextCompressionDisplay';
-import { SkillDisplay } from '@/flow_chat/tool-cards/SkillDisplay';
-import { AskUserQuestionCard } from '@/flow_chat/tool-cards/AskUserQuestionCard';
-import { GitToolDisplay } from '@/flow_chat/tool-cards/GitToolDisplay';
-import { CreatePlanDisplay } from '@/flow_chat/tool-cards/CreatePlanDisplay';
-import { InitMiniAppDisplay } from '@/flow_chat/tool-cards/MiniAppToolDisplay';
-import type { FlowToolItem, FlowThinkingItem } from '@/flow_chat/types/flow-chat';
-import { TOOL_CARD_CONFIGS } from '@/flow_chat/tool-cards';
-import { ModelThinkingDisplay } from '@/flow_chat/tool-cards/ModelThinkingDisplay';
-import { ReproductionStepsBlock } from '@components/Markdown/ReproductionStepsBlock';
+import { BrandMark, Button as DsButton } from '@ai00-x/design-system/react';
+import { DesignShowcase } from '../preview/DesignShowcase';
 
-function createMockToolItem(
-  toolName: string,
-  input: any,
-  result?: any,
-  status: 'pending' | 'preparing' | 'streaming' | 'running' | 'completed' | 'error' = 'completed'
-): FlowToolItem {
-  const config = TOOL_CARD_CONFIGS[toolName];
-  return {
-    id: `mock-${toolName}-${Date.now()}`,
-    type: 'tool',
-    status,
-    timestamp: Date.now(),
-    toolName,
-    toolCall: {
-      id: `call-${toolName}`,
-      input
-    },
-    toolResult: result ? {
-      result,
-      success: status === 'completed',
-      error: status === 'error' ? '执行失败' : undefined
-    } : undefined,
-    config: config || {
-      toolName,
-      displayName: toolName,
-      icon: '🔧',
-      requiresConfirmation: false,
-      resultDisplayType: 'summary',
-      description: '',
-      displayMode: 'compact',
-      primaryColor: '#6b7280'
-    }
-  } as FlowToolItem;
-}
+/** Tree demo 数据 */
+const TREE_DEMO_NODES: TreeNodeData[] = [
+  {
+    id: 'src',
+    label: 'src',
+    children: [
+      {
+        id: 'src/web-ui',
+        label: 'web-ui',
+        children: [
+          { id: 'src/web-ui/App.tsx', label: 'App.tsx' },
+          { id: 'src/web-ui/main.tsx', label: 'main.tsx' },
+        ],
+      },
+      {
+        id: 'src/packages',
+        label: 'packages',
+        children: [{ id: 'src/packages/design-system', label: 'design-system' }],
+      },
+    ],
+  },
+  { id: 'AGENTS.md', label: 'AGENTS.md' },
+  { id: 'pnpm-lock.yaml', label: 'pnpm-lock.yaml' },
+];
+
+/** Pagination demo（受控页码） */
+const PaginationDemo: React.FC = () => {
+  const [page, setPage] = React.useState(7);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <Pagination page={page} total={20} onChange={setPage} />
+      <span className="ds-data" style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+        第 {page} / 20 页
+      </span>
+    </div>
+  );
+};
+
+/** 新东方极简·四签名示范页（活文档：规范 2.1–2.5 的可视参照） */
+const SignatureShowcase: React.FC = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 48, padding: '8px 16px 48px', maxWidth: 860 }}>
+    {/* 签名一：黛青为神，朱砂为印 */}
+    <section>
+      <h2 style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--color-text-primary)' }}>签名一 · 黛青为神，朱砂为印</h2>
+      <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+        黛青是唯一交互色（可多处）；朱砂一屏一处（此处属于灵印）。主按钮黛青+纸白字（对比 5.69）。
+      </p>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <DsButton variant="primary">主按钮 · 黛青</DsButton>
+        <DsButton variant="default">次级</DsButton>
+        <DsButton variant="ghost">幽灵</DsButton>
+        <DsButton variant="destructive">危险</DsButton>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>↓ 朱砂印章按钮（全页唯一 CTA；本页已有灵印，实际页面应改黛青）</span>
+        <DsButton variant="seal">开始生成</DsButton>
+      </div>
+      <div style={{ display: 'flex', gap: 12, marginTop: 16, alignItems: 'center' }}>
+        <Badge variant="accent">黛青</Badge>
+        <Badge variant="success">成功</Badge>
+        <Badge variant="warning">警告</Badge>
+        <Badge variant="error">错误</Badge>
+        <Badge>中性</Badge>
+      </div>
+    </section>
+
+    {/* 签名二：超大衬线标题 + 紧凑等宽数据 */}
+    <section>
+      <h2 style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--color-text-primary)' }}>签名二 · 超大衬线标题 + 紧凑等宽数据</h2>
+      <p className="ds-display" style={{ margin: '0 0 16px', fontSize: 'clamp(1.75rem,3vw,2.75rem)' }}>
+        墨为骨 · 青为神 · 朱为印 · 白为息
+      </p>
+      <div style={{ display: 'flex', gap: 32 }}>
+        <div>
+          <div className="ds-data" style={{ fontSize: 28 }}>128,406</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>TOKENS · TABULAR</div>
+        </div>
+        <div>
+          <div className="ds-data" style={{ fontSize: 28 }}>98.7%</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>成功率 · MONO</div>
+        </div>
+      </div>
+    </section>
+
+    {/* 签名三：宣纸颗粒 */}
+    <section>
+      <h2 style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--color-text-primary)' }}>签名三 · 宣纸颗粒</h2>
+      <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+        远看纯色，近看有材质。下方卡片为 L3 墨面 + 纸纹（.ds-card / .surface-paper）。
+      </p>
+      <div className="ds-card" style={{ maxWidth: 360, padding: 20 }}>
+        <b style={{ fontSize: 14 }}>墨面卡片</b>
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--color-text-muted)' }}>
+          层次靠墨阶，不靠边框堆砌。
+        </p>
+      </div>
+    </section>
+
+    {/* 签名四：笔触与墨滴（白名单时刻） */}
+    <section>
+      <h2 style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--color-text-primary)' }}>签名四 · 笔触与墨滴</h2>
+      <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+        brush-reveal 用于标题进入/Tab 指示条/主题切换；ink-ripple 用于关键按钮反馈与 AI 生成起始。
+        点击下方按钮后按钮短暂重播笔触入场。
+      </p>
+      <DsButton
+        variant="primary"
+        onClick={(e) => {
+          const el = e.currentTarget as HTMLElement;
+          el.classList.remove('ds-brush-reveal');
+          void el.offsetWidth; // reflow 重置动画
+          el.classList.add('ds-brush-reveal');
+        }}
+      >
+        重播 brush-reveal
+      </DsButton>
+    </section>
+  </div>
+);
+
 
 
 export const componentRegistry: ComponentCategory[] = [
+  {
+    id: 'showcase',
+    name: '总览',
+    description: '设计系统全组件总览（新东方极简 · 单页长卷）',
+    layoutType: 'full-page',
+    components: [
+      {
+        id: 'ds-showcase',
+        name: 'DesignShowcase',
+        description: '门面 + 令牌 + 23 组件',
+        category: 'showcase',
+        component: () => <DesignShowcase />,
+      },
+    ],
+  },
+  {
+    id: 'design-system',
+    name: '设计系统',
+    description: 'Ai00-X 统一设计系统（@ai00-x/design-system · 新东方极简）',
+    layoutType: 'grid-4',
+    components: [
+      {
+        id: 'ds-brand-mark',
+        name: 'BrandMark · 灵印',
+        description: '品牌符号：seal 朱砂阳刻 / inverse 阴刻 / line 线稿 / lockup 落款',
+        category: 'design-system',
+        component: () => (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <BrandMark variant="seal" size={48} />
+            <BrandMark variant="seal" size={32} />
+            <BrandMark variant="seal" size={16} />
+            <BrandMark variant="inverse" size={32} />
+            <BrandMark variant="line" />
+            <BrandMark variant="lockup" size={28} subtitle="Agentic OS" />
+          </div>
+        ),
+      },
+      {
+        id: 'ds-button',
+        name: 'Button · 黛青/朱砂',
+        description: 'primary 黛青 / seal 朱砂印章（一屏一处）/ default / ghost / destructive',
+        category: 'design-system',
+        component: () => (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <DsButton variant="primary">Primary</DsButton>
+            <DsButton variant="seal">Seal CTA</DsButton>
+            <DsButton variant="default">Default</DsButton>
+            <DsButton variant="ghost">Ghost</DsButton>
+            <DsButton variant="destructive">Destructive</DsButton>
+            <DsButton variant="primary" size="sm">Small</DsButton>
+          </div>
+        ),
+      },
+      {
+        id: 'ds-input',
+        name: 'Input · 黛青 focus',
+        description: '沉底表面 + 黛青 focus ring',
+        category: 'design-system',
+        component: () => <Input placeholder="沉底输入框…" style={{ maxWidth: 220 }} />,
+      },
+      {
+        id: 'ds-badge',
+        name: 'Badge · 语义色',
+        description: 'accent/success/warning/error/neutral',
+        category: 'design-system',
+        component: () => (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Badge variant="accent">accent</Badge>
+            <Badge variant="success">success</Badge>
+            <Badge variant="warning">warning</Badge>
+            <Badge variant="error">error</Badge>
+            <Badge>neutral</Badge>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    id: 'signatures',
+    name: '四签名示范',
+    description: '新东方极简四签名（签名色/排版/纹理/动效）——规范的活文档',
+    layoutType: 'full-page',
+    components: [
+      {
+        id: 'ds-signature-showcase',
+        name: '四签名示范页',
+        description: '墨为骨 · 青为神 · 朱为印 · 白为息',
+        category: 'signatures',
+        component: () => <SignatureShowcase />,
+      },
+    ],
+  },
+  {
+    id: 'primitives',
+    name: '交互原语',
+    description: 'v0.13 扩展：浮层/反馈/展示原语（Radix + CVA · ds 系双出口）',
+    layoutType: 'grid-4',
+    components: [
+      {
+        id: 'ds-dropdown-menu',
+        name: 'DropdownMenu · 下拉菜单',
+        description: '.ds-menu 玻璃浮层；键盘导航 Radix 自带；destructive 危险项',
+        category: 'primitives',
+        component: () => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary">打开菜单 ▾</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuLabel>操作</DropdownMenuLabel>
+              <DropdownMenuItem>重命名</DropdownMenuItem>
+              <DropdownMenuItem>复制链接</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem destructive>删除</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
+      {
+        id: 'ds-popover',
+        name: 'Popover · 锚定浮层',
+        description: '.ds-popover 非模态；适合「锚点+面板」组合',
+        category: 'primitives',
+        component: () => (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost">锚点 ▾</Button>
+            </PopoverTrigger>
+            <PopoverContent style={{ width: 240 }}>
+              <div style={{ fontSize: 14, color: 'var(--color-text-primary)' }}>墨面浮层</div>
+              <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-text-muted)' }}>
+                非模态锚定：点击外部关闭，不阻断操作流。
+              </div>
+            </PopoverContent>
+          </Popover>
+        ),
+      },
+      {
+        id: 'ds-tooltip-react',
+        name: 'Tooltip · react 系',
+        description: 'L4 玻璃小字 12px · delay 300ms（仅 ./react 出口）',
+        category: 'primitives',
+        component: () => (
+          <div style={{ display: 'flex', gap: 12 }}>
+            <DsTooltip content="黛青是唯一交互色">
+              <Button variant="secondary">悬停看上</Button>
+            </DsTooltip>
+            <DsTooltip content="一句话以内，不承载操作" side="bottom">
+              <Button variant="ghost">悬停看下</Button>
+            </DsTooltip>
+          </div>
+        ),
+      },
+      {
+        id: 'ds-toast',
+        name: 'Toast · 命令式通知',
+        description: 'toast()/toastSuccess()/toastWarning()/toastError()；语义色只表状态',
+        category: 'primitives',
+        component: () => (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button variant="secondary" onClick={() => toast('模型已切换', { description: 'RWKV-7 World 2.9B' })}>Info</Button>
+            <Button variant="secondary" onClick={() => toastSuccess('配置已保存')}>Success</Button>
+            <Button variant="secondary" onClick={() => toastWarning('磁盘空间不足 10%')}>Warning</Button>
+            <Button variant="secondary" onClick={() => toastError('连接失败', { description: 'ECONNREFUSED 127.0.0.1:8081' })}>Error</Button>
+          </div>
+        ),
+      },
+      {
+        id: 'ds-progress',
+        name: 'Progress · 进度',
+        description: '黛青填充；语义变体仅表状态；高 6px 细条',
+        category: 'primitives',
+        component: () => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 320 }}>
+            <Progress value={64} />
+            <Progress value={100} variant="success" />
+            <Progress value={32} variant="warning" />
+            <Progress value={18} variant="error" />
+          </div>
+        ),
+      },
+      {
+        id: 'ds-skeleton',
+        name: 'Skeleton · 骨架',
+        description: '墨阶底慢速脉冲（≈1.6s）；尺寸由消费方给',
+        category: 'primitives',
+        component: () => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 280 }}>
+            <Skeleton style={{ height: 16, width: '60%' }} />
+            <Skeleton style={{ height: 12, width: '100%' }} />
+            <Skeleton style={{ height: 12, width: '85%' }} />
+          </div>
+        ),
+      },
+      {
+        id: 'ds-separator',
+        name: 'Separator · 分隔',
+        description: '1px border.subtle；horizontal / vertical',
+        category: 'primitives',
+        component: () => (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%' }}>
+            <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>墨</span>
+            <Separator orientation="vertical" style={{ height: 24 }} />
+            <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>青</span>
+            <Separator orientation="vertical" style={{ height: 24 }} />
+            <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>朱</span>
+          </div>
+        ),
+      },
+      {
+        id: 'ds-avatar',
+        name: 'Avatar · 头像',
+        description: '圆形；失败回退墨阶圆底+首字；sm/base/lg/xl',
+        category: 'primitives',
+        component: () => (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <Avatar name="灵" size="sm" />
+            <Avatar name="Ai00" />
+            <Avatar name="墨客" size="lg" />
+            <Avatar name="X" size="xl" />
+          </div>
+        ),
+      },
+      {
+        id: 'ds-empty',
+        name: 'Empty · 墨韵空态',
+        description: '大留白居中；默认灵印 line muted；action 唯一主行动',
+        category: 'primitives',
+        component: () => (
+          <div style={{ border: '1px dashed var(--border-subtle)', borderRadius: 8, width: '100%' }}>
+            <Empty description="还没有会话——落笔即开始" action={<Button variant="seal">新建会话</Button>} />
+          </div>
+        ),
+      },
+      {
+        id: 'ds-scroll-area',
+        name: 'ScrollArea · 滚动区',
+        description: '8px 命中区 4px 墨阶 thumb；悬停显形',
+        category: 'primitives',
+        component: () => (
+          <ScrollArea style={{ height: 120, width: '100%', maxWidth: 280, border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
+            <div style={{ padding: 12, fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
+              {Array.from({ length: 16 }, (_, i) => (
+                <div key={i}>松烟墨 第 {i + 1} 行 · 冷青 hue 240</div>
+              ))}
+            </div>
+          </ScrollArea>
+        ),
+      },
+      {
+        id: 'ds-alert-dialog',
+        name: 'AlertDialog · 确认框',
+        description: 'L4 玻璃确认原语（组合式）；Action 可 destructive',
+        category: 'primitives',
+        component: () => (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">删除工作区…</Button>
+            </AlertDialogTrigger>
+            <AlertDialogSimple
+              title="删除工作区？"
+              description="此操作不可撤销，所有未提交的更改将永久丢失。"
+              variant="destructive"
+              actionText="永久删除"
+            />
+          </AlertDialog>
+        ),
+      },
+    ],
+  },
+  {
+    id: 'data-display',
+    name: '数据展示',
+    description: 'v0.13 扩展：Table/Tree/Drawer/Pagination（数据区组件）',
+    layoutType: 'grid-4',
+    components: [
+      {
+        id: 'ds-table',
+        name: 'Table · 数据表',
+        description: '组合式（不内建排序/分页）；dense 密度变体；数字列 .ds-data',
+        category: 'data-display',
+        component: () => (
+          <Table dense style={{ width: '100%' }}>
+            <TableHeader>
+              <TableRow>
+                <TableHead>模型</TableHead>
+                <TableHead style={{ textAlign: 'right' }}>参数量</TableHead>
+                <TableHead style={{ textAlign: 'right' }}>上下文</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell>RWKV-7 World</TableCell>
+                <TableCell className="ds-data" style={{ textAlign: 'right' }}>2.9B</TableCell>
+                <TableCell className="ds-data" style={{ textAlign: 'right' }}>64k</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>RWKV-7 Goose</TableCell>
+                <TableCell className="ds-data" style={{ textAlign: 'right' }}>19B</TableCell>
+                <TableCell className="ds-data" style={{ textAlign: 'right' }}>128k</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>RWKV-8 试验</TableCell>
+                <TableCell className="ds-data" style={{ textAlign: 'right' }}>1.5B</TableCell>
+                <TableCell className="ds-data" style={{ textAlign: 'right' }}>32k</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        ),
+      },
+      {
+        id: 'ds-tree',
+        name: 'Tree · 树形',
+        description: '每级缩进 16px + guide line；chevron 旋转；选中黛青浅染',
+        category: 'data-display',
+        component: () => (
+          <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 4, width: '100%' }}>
+            <Tree
+              defaultExpandedIds={['src']}
+              nodes={TREE_DEMO_NODES}
+              onSelect={(n) => toast(`选中：${String(n.label)}`)}
+            />
+          </div>
+        ),
+      },
+      {
+        id: 'ds-drawer',
+        name: 'Drawer · 侧拉',
+        description: 'Radix Dialog side 变体；滑入 0.3s；遮罩 + L4 玻璃',
+        category: 'data-display',
+        component: () => (
+          <Drawer>
+            <DrawerTrigger asChild>
+              <Button variant="secondary">打开侧拉面板</Button>
+            </DrawerTrigger>
+            <DrawerPanel title="会话详情" description="侧拉面板正文区可滚动">
+              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
+                松烟墨 hue 240，与黛青 235° 同族一体——墨是青的沉睡态，青是墨的苏醒态。
+                侧拉面板适用于详情、配置等非模态浏览场景。
+              </p>
+            </DrawerPanel>
+          </Drawer>
+        ),
+      },
+      {
+        id: 'ds-pagination',
+        name: 'Pagination · 分页',
+        description: '页码 mono+tabular-nums；当前页黛青；与 Table 组合',
+        category: 'data-display',
+        component: () => (
+          <PaginationDemo />
+        ),
+      },
+    ],
+  },
   {
     id: 'basic',
     name: '基础组件',
@@ -345,45 +767,6 @@ export const componentRegistry: ComponentCategory[] = [
             <Alert type="info" message="Info message" showIcon />
           </div>
         ),
-      },
-      {
-        id: 'stream-text-demo',
-        name: 'StreamText - 流式文本演示',
-        description: 'AI 流式文本打字机效果',
-        category: 'feedback',
-        component: () => {
-          const [key, setKey] = React.useState(0);
-
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-              <div style={{
-                fontSize: '15px',
-                lineHeight: '1.8',
-                minHeight: '120px',
-                padding: '20px',
-                background: 'rgba(255, 255, 255, 0.02)',
-                borderRadius: '8px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                maxWidth: '700px'
-              }}>
-                <StreamText
-                  key={key}
-                  text="Streaming AI demo text."
-                  effect="smooth"
-                  speed={30}
-                  showCursor={true}
-                />
-              </div>
-              <Button
-                size="small"
-                variant="secondary"
-                onClick={() => setKey(prev => prev + 1)}
-              >
-                重新播放
-              </Button>
-            </div>
-          );
-        },
       },
     ],
   },
@@ -1022,1104 +1405,6 @@ console.log(user.greet());`);
             </Tooltip>
           </div>
         ),
-      },
-    ],
-  },
-  {
-    id: 'flowchat-cards',
-    name: 'FlowChat 卡片',
-    description: '展示 FlowChat 工具调用卡片组件的预览',
-    layoutType: 'column',
-    components: [
-      {
-        id: 'read-file-card',
-        name: 'ReadFile - 文件读取卡片',
-        description: '读取文件的工具卡片',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>读取文件 - 成功</h3>
-            <ReadFileDisplay
-              toolItem={createMockToolItem('Read',
-                { target_file: 'src/App.tsx', offset: 1, limit: 50 },
-                {
-                  content: 'import React from "react";\n\nfunction App() {\n  return <div>Hello World</div>;\n}\n\nexport default App;',
-                  lines_read: 7,
-                  total_lines: 150,
-                  file_size: 2048
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Read']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>读取文件 - 执行中</h3>
-            <ReadFileDisplay
-              toolItem={createMockToolItem('Read',
-                { target_file: 'src/components/Header.tsx' },
-                undefined,
-                'running'
-              )}
-              config={TOOL_CARD_CONFIGS['Read']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'file-operation-card',
-        name: 'FileOperation - 文件操作卡片',
-        description: '文件写入、编辑、删除操作的工具卡片',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>写入文件</h3>
-            <FileOperationToolCard
-              toolItem={createMockToolItem('Write',
-                {
-                  file_path: 'src/newFile.ts',
-                  contents: 'export const greeting = "Hello World";'
-                },
-                { success: true },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Write']}
-              sessionId="preview-session"
-              onConfirm={async () => alert('已确认')}
-              onReject={async () => alert('已拒绝')}
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>编辑文件</h3>
-            <FileOperationToolCard
-              toolItem={createMockToolItem('Edit',
-                {
-                  file_path: 'src/components/Header.tsx',
-                  old_string: 'const title = "Old Title"',
-                  new_string: 'const title = "New Title"'
-                },
-                { success: true },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Edit']}
-              sessionId="preview-session"
-              onConfirm={async () => alert('已确认')}
-              onReject={async () => alert('已拒绝')}
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>删除文件</h3>
-            <FileOperationToolCard
-              toolItem={createMockToolItem('Delete',
-                { target_file: 'src/oldFile.ts' },
-                { success: true },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Delete']}
-              sessionId="preview-session"
-              onConfirm={async () => alert('已删除')}
-              onReject={async () => alert('已取消')}
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'search-card',
-        name: 'Search - 搜索卡片',
-        description: '搜索工具结果展示',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>Grep 搜索结果</h3>
-            <GrepSearchDisplay
-              toolItem={createMockToolItem('Grep',
-                { pattern: 'function', path: 'src/' },
-                {
-                  matches: [
-                    'src/app.ts:10:function main() {',
-                    'src/utils.ts:5:function helper() {'
-                  ],
-                  total_matches: 2,
-                  files_searched: 10
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Grep']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Grep - 多结果示例</h3>
-            <GrepSearchDisplay
-              toolItem={createMockToolItem('Grep',
-                { pattern: 'import React', path: 'src/components' },
-                {
-                  matches: [
-                    "src/components/App.tsx:1:import React from 'react';",
-                    "src/components/Header.tsx:1:import React from 'react';",
-                    "src/components/Button.tsx:1:import React from 'react';"
-                  ],
-                  total_matches: 3,
-                  files_searched: 20
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Grep']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Glob 搜索结果</h3>
-            <GlobSearchDisplay
-              toolItem={createMockToolItem('Glob',
-                { glob_pattern: '*.tsx' },
-                {
-                  files: ['App.tsx', 'Header.tsx', 'Footer.tsx', 'Button.tsx'],
-                  total_count: 4
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Glob']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>LS 目录列表</h3>
-            <LSDisplay
-              toolItem={createMockToolItem('LS',
-                { target_directory: 'src/components' },
-                {
-                  items: [
-                    'App.tsx',
-                    'Header.tsx',
-                    'Footer.tsx',
-                    'Button.tsx',
-                    'Input.tsx'
-                  ],
-                  total_count: 5
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['LS']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'task-card',
-        name: 'Task - AI任务卡片',
-        description: 'AI 任务执行卡片',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>AI 任务 - 执行中</h3>
-            <TaskToolDisplay
-              toolItem={createMockToolItem('Task',
-                {
-                  description: '分析代码库结构',
-                  prompt: '分析当前项目的代码结构',
-                  model_name: 'claude-3.5-sonnet',
-                  subagent_type: 'code-analyzer'
-                },
-                undefined,
-                'running'
-              )}
-              config={TOOL_CARD_CONFIGS['Task']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>AI 任务 - 已完成</h3>
-            <TaskToolDisplay
-              toolItem={createMockToolItem('Task',
-                {
-                  description: '创建新功能',
-                  prompt: '创建一个新的功能模块',
-                  model_name: 'claude-3.5-sonnet',
-                  subagent_type: 'architect'
-                },
-                {
-                  status: 'completed',
-                  result: `任务已成功完成
-
-1. 搭建 React + TypeScript 环境
-2. 配置 Zustand 状态管理
-3. 添加 SCSS 与 BEM 样式体系
-4. 实现核心组件
-
-所有需求均已满足`,
-                  duration_ms: 12500,
-                  tool_uses: 8
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Task']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'todo-card',
-        name: 'TodoWrite - Todo任务管理',
-        description: 'Todo 任务状态卡片',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>Todo - 基础示例</h3>
-            <TodoWriteDisplay
-              toolItem={createMockToolItem('TodoWrite',
-                {
-                  todos: [
-                    { id: '1', content: '任务 A', status: 'completed' },
-                    { id: '2', content: '任务 B', status: 'in_progress' },
-                    { id: '3', content: '任务 C', status: 'pending' }
-                  ]
-                },
-                {
-                  todos: [
-                    { id: '1', content: '任务 A', status: 'completed' },
-                    { id: '2', content: '任务 B', status: 'in_progress' },
-                    { id: '3', content: '任务 C', status: 'pending' }
-                  ]
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['TodoWrite']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Todo - 多任务示例</h3>
-            <TodoWriteDisplay
-              toolItem={createMockToolItem('TodoWrite',
-                {
-                  todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'in_progress' },
-                    { id: '3', content: '集成 API', status: 'in_progress' },
-                    { id: '4', content: '任务 4', status: 'in_progress' },
-                    { id: '5', content: '任务 5', status: 'pending' },
-                    { id: '6', content: '任务 6', status: 'pending' }
-                  ]
-                },
-                {
-                  todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'in_progress' },
-                    { id: '3', content: '集成 API', status: 'in_progress' },
-                    { id: '4', content: '任务 4', status: 'in_progress' },
-                    { id: '5', content: '任务 5', status: 'pending' },
-                    { id: '6', content: '任务 6', status: 'pending' }
-                  ]
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['TodoWrite']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Todo进度 - 进行中</h3>
-            <TodoWriteDisplay
-              toolItem={createMockToolItem('TodoWrite',
-                {
-                  todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'completed' },
-                    { id: '3', content: '任务 3', status: 'in_progress' },
-                    { id: '4', content: '任务 4', status: 'pending' },
-                    { id: '5', content: '任务 5', status: 'pending' }
-                  ]
-                },
-                {
-                  todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'completed' },
-                    { id: '3', content: '任务 3', status: 'in_progress' },
-                    { id: '4', content: '任务 4', status: 'pending' },
-                    { id: '5', content: '任务 5', status: 'pending' }
-                  ]
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['TodoWrite']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Todo - 待处理</h3>
-            <TodoWriteDisplay
-              toolItem={createMockToolItem('TodoWrite',
-                {
-                  todos: [
-                    { id: '1', content: '事项', status: 'pending' },
-                    { id: '2', content: '集成 API', status: 'pending' },
-                    { id: '3', content: '任务 3', status: 'pending' },
-                    { id: '4', content: '任务 4', status: 'pending' }
-                  ]
-                },
-                {
-                  todos: [
-                    { id: '1', content: '事项', status: 'pending' },
-                    { id: '2', content: '集成 API', status: 'pending' },
-                    { id: '3', content: '任务 3', status: 'pending' },
-                    { id: '4', content: '任务 4', status: 'pending' }
-                  ]
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['TodoWrite']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Todo - 已完成</h3>
-            <TodoWriteDisplay
-              toolItem={createMockToolItem('TodoWrite',
-                {
-                  todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'completed' },
-                    { id: '3', content: '任务 3', status: 'completed' }
-                  ]
-                },
-                {
-                  todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'completed' },
-                    { id: '3', content: '任务 3', status: 'completed' }
-                  ]
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['TodoWrite']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'web-search-card',
-        name: 'WebSearch - 搜索结果卡片',
-        description: '网络搜索结果和URL展示',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>网页搜索 - 结果</h3>
-            <RealWebSearchCard
-              toolItem={createMockToolItem('WebSearch',
-                { query: 'React Hooks 教程' },
-                {
-                  results: [
-                    {
-                      title: 'React Hooks 指南',
-                      url: 'https://react.dev/hooks',
-                      snippet: '学习 React Hooks 的基础用法与最佳实践...'
-                    }
-                  ]
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['WebSearch']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>多结果 - 网页搜索</h3>
-            <RealWebSearchCard
-              toolItem={createMockToolItem('WebSearch',
-                { query: 'TypeScript best practices' },
-                {
-                  results: [
-                    {
-                      title: 'TypeScript Best Practices',
-                      url: 'https://www.typescriptlang.org/docs/handbook/declaration-files/do-s-and-don-ts.html',
-                      snippet: 'This guide covers the best practices for writing TypeScript code...'
-                    },
-                    {
-                      title: 'TypeScript Deep Dive',
-                      url: 'https://basarat.gitbook.io/typescript/',
-                      snippet: 'A comprehensive guide to TypeScript...'
-                    },
-                    {
-                      title: 'Clean Code with TypeScript',
-                      url: 'https://github.com/labs42io/clean-code-typescript',
-                      snippet: "Software engineering principles, from Robert C. Martin's book..."
-                    }
-                  ]
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['WebSearch']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'mcp-tool-card',
-        name: 'MCP - MCP工具卡片',
-        description: '展示MCP工具调用的卡片组件',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>MCP工具 - 文件列表</h3>
-            <MCPToolDisplay
-              toolItem={createMockToolItem('mcp__server__list_files',
-                { directory: '/project/src' },
-                {
-                  content: [
-                    {
-                      type: 'text',
-                      text: 'Found 5 files:\n- App.tsx\n- Header.tsx\n- Footer.tsx\n- Button.tsx\n- Input.tsx'
-                    }
-                  ]
-                },
-                'completed'
-              )}
-              config={{
-                toolName: 'mcp__server__list_files',
-                displayName: 'list_files',
-                icon: '🔌',
-                requiresConfirmation: false,
-                resultDisplayType: 'detailed',
-                description: 'MCP工具调用',
-                displayMode: 'compact',
-                primaryColor: '#8b5cf6'
-              }}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>MCP - 执行中</h3>
-            <MCPToolDisplay
-              toolItem={createMockToolItem('mcp__server__fetch_data',
-                { url: 'https://api.example.com/data' },
-                undefined,
-                'running'
-              )}
-              config={{
-                toolName: 'mcp__server__fetch_data',
-                displayName: 'fetch_data',
-                icon: '🔌',
-                requiresConfirmation: false,
-                resultDisplayType: 'detailed',
-                description: 'MCP工具调用',
-                displayMode: 'compact',
-                primaryColor: '#8b5cf6'
-              }}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'mermaid-interactive-card',
-        name: 'MermaidInteractive - Mermaid图表',
-        description: '展示Mermaid交互式图表',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>Mermaid - 已完成</h3>
-            <MermaidInteractiveDisplay
-              toolItem={createMockToolItem('MermaidInteractive',
-                {
-                  mermaid_code: 'graph TD\n  A[Start] --> B[Process]\n  B --> C[End]',
-                  title: '流程图',
-                  mode: 'interactive'
-                },
-                {
-                  panel_id: 'mermaid-123',
-                  success: true
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['MermaidInteractive']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Mermaid - 执行中</h3>
-            <MermaidInteractiveDisplay
-              toolItem={createMockToolItem('MermaidInteractive',
-                {
-                  mermaid_code: 'sequenceDiagram\n  Alice->>Bob: Hello',
-                  title: '时序图',
-                  mode: 'interactive'
-                },
-                undefined,
-                'running'
-              )}
-              config={TOOL_CARD_CONFIGS['MermaidInteractive']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'context-compression-card',
-        name: 'ContextCompression - 上下文压缩',
-        description: '上下文压缩过程卡片',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>上下文压缩 - 示例</h3>
-            <ContextCompressionDisplay
-              toolItem={createMockToolItem('ContextCompression',
-                {
-                  trigger: 'ai_response',
-                  tokens_before: 50000
-                },
-                {
-                  compression_count: 3,
-                  has_summary: true,
-                  summary_source: 'model',
-                  tokens_before: 50000,
-                  tokens_after: 15000,
-                  compression_ratio: 0.7,
-                  duration: 2500
-                },
-                'completed'
-              )}
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>上下文压缩 - 本地 fallback</h3>
-            <ContextCompressionDisplay
-              toolItem={createMockToolItem('ContextCompression',
-                {
-                  trigger: 'manual',
-                  tokens_before: 42000
-                },
-                {
-                  compression_count: 4,
-                  has_summary: false,
-                  summary_source: 'local_fallback',
-                  tokens_before: 42000,
-                  tokens_after: 18000,
-                  compression_ratio: 0.43,
-                  duration: 1800
-                },
-                'completed'
-              )}
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>上下文压缩 - 执行中</h3>
-            <ContextCompressionDisplay
-              toolItem={createMockToolItem('ContextCompression',
-                { trigger: 'user_message' },
-                undefined,
-                'running'
-              )}
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'skill-card',
-        name: 'Skill - 技能调用',
-        description: '展示Skill技能调用组件',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>Skill调用</h3>
-            <SkillDisplay
-              toolItem={createMockToolItem('Skill',
-                {
-                  skill_name: 'code-review',
-                  skill_input: { file_path: 'src/App.tsx' }
-                },
-                {
-                  result: '代码审查已完成',
-                  suggestions: ['使用 React.memo', '优化渲染性能', '修复现有警告']
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Skill']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'ask-user-card',
-        name: 'AskUserQuestion - 用户问题',
-        description: 'AI 用户提问卡片',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>向用户提问 - 单题示例</h3>
-            <AskUserQuestionCard
-              toolItem={createMockToolItem('AskUserQuestion',
-                {
-                  questions: [
-                    {
-                      question: '您更偏好哪个选项?',
-                      header: '问题',
-                      options: [
-                        { label: '选项 1', description: '第一个选项' },
-                        { label: '选项 2', description: '第二个选项' },
-                        { label: '选项 3', description: '第三个选项' }
-                      ],
-                      multiSelect: false
-                    }
-                  ]
-                },
-                undefined,
-                'running'
-              )}
-              config={TOOL_CARD_CONFIGS['AskUserQuestion']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>多问题 - 单选和多选</h3>
-            <AskUserQuestionCard
-              toolItem={createMockToolItem('AskUserQuestion',
-                {
-                  questions: [
-                    {
-                      question: '您想使用哪种UI框架?',
-                      header: 'UI框架',
-                      options: [
-                        { label: 'React', description: '使用React框架' },
-                        { label: 'Vue', description: '使用Vue框架' },
-                        { label: 'Angular', description: '使用Angular框架' }
-                      ],
-                      multiSelect: false
-                    },
-                    {
-                      question: '需要哪些开发工具?',
-                      header: '开发工具',
-                      options: [
-                        { label: 'TypeScript', description: '使用TypeScript' },
-                        { label: 'ESLint', description: '代码规范检查' },
-                        { label: 'Prettier', description: '代码格式化工具' },
-                        { label: '其他', description: '其他开发工具' }
-                      ],
-                      multiSelect: true
-                    }
-                  ]
-                },
-                undefined,
-                'running'
-              )}
-              config={TOOL_CARD_CONFIGS['AskUserQuestion']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>已回答 - 数据库选择</h3>
-            <AskUserQuestionCard
-              toolItem={createMockToolItem('AskUserQuestion',
-                {
-                  questions: [
-                    {
-                      question: '您想使用哪种数据库?',
-                      header: '数据库',
-                      options: [
-                        { label: 'PostgreSQL', description: '关系型数据库' },
-                        { label: 'MongoDB', description: 'NoSQL文档数据库' },
-                        { label: 'SQLite', description: '轻量级嵌入式数据库' }
-                      ],
-                      multiSelect: false
-                    }
-                  ]
-                },
-                {
-                  status: 'answered',
-                  answers: { "0": "PostgreSQL" }
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['AskUserQuestion']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'reproduction-steps-card',
-        name: 'ReproductionSteps - 复现步骤',
-        description: '用于展示问题复现步骤并等待用户操作确认的卡片',
-        category: 'flowchat-cards',
-        component: () => {
-          const CompletedReproductionSteps = () => {
-            const [hasProceeded] = React.useState(true);
-            return (
-              <div className={`reproduction-steps-block ${hasProceeded ? 'proceeded' : ''}`}>
-                <div className="reproduction-steps-header">
-                  <div className="reproduction-steps-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  </div>
-                  <div className="reproduction-steps-title">Steps</div>
-                </div>
-                <div className="reproduction-steps-content">
-                  <ol className="reproduction-steps-list">
-                    <li className="reproduction-step-item">Step 1</li>
-                    <li className="reproduction-step-item">Step 2</li>
-                    <li className="reproduction-step-item">Step 3</li>
-                  </ol>
-                </div>
-                <div className="reproduction-steps-completed">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  <span>Waiting for AI to proceed...</span>
-                </div>
-              </div>
-            );
-          };
-
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-              <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>Reproduction Steps</h3>
-              <ReproductionStepsBlock
-                steps={`1. Run npm run dev
-2. Open http://localhost:3000
-3. Click "Button"
-4. Check console`}
-                onProceed={() => {}}
-              />
-
-              <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>已完成</h3>
-              <CompletedReproductionSteps />
-            </div>
-          );
-        },
-      },
-      {
-        id: 'create-plan-card',
-        name: 'CreatePlan - 计划创建',
-        description: '计划创建卡片',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>Create Plan - Streaming</h3>
-            <CreatePlanDisplay
-              toolItem={createMockToolItem('CreatePlan',
-                {
-                  name: 'Plan Name',
-                  overview: 'Plan overview...'
-                },
-                null,
-                'streaming'
-              )}
-              config={TOOL_CARD_CONFIGS['CreatePlan']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>创建计划 - 已完成</h3>
-            <CreatePlanDisplay
-              toolItem={createMockToolItem('CreatePlan',
-                {},
-                {
-                  plan_file_path: '/Users/demo/.ai00-x/projects/project-slug/plans/refactor-user-module.plan.md',
-                  name: 'Refactor Module',
-                  overview: 'Plan overview',
-                  todos: [
-                    { id: 'todo-1', content: 'Task 1', status: 'completed' },
-                    { id: 'todo-2', content: 'Task 2', status: 'completed' },
-                    { id: 'todo-3', content: 'Task 3', status: 'in_progress' },
-                    { id: 'todo-4', content: 'Add CRUD operations', status: 'pending' },
-                    { id: 'todo-5', content: 'Task 5', status: 'pending' },
-                    { id: 'todo-6', content: 'API integration', status: 'pending' }
-                  ]
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['CreatePlan']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Create Plan - Dark Mode</h3>
-            <CreatePlanDisplay
-              toolItem={createMockToolItem('CreatePlan',
-                {},
-                {
-                  plan_file_path: '/Users/demo/.ai00-x/projects/project-slug/plans/add-dark-mode.plan.md',
-                  name: 'Dark Mode',
-                  overview: 'Add dark mode support',
-                  todos: [
-                    { id: 'dm-1', content: 'Add CSS variables', status: 'completed' },
-                    { id: 'dm-2', content: 'Update components', status: 'completed' },
-                    { id: 'dm-3', content: 'Diagram 3', status: 'completed' }
-                  ]
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['CreatePlan']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'git-tool-card',
-        name: 'Git - 版本控制卡片',
-        description: '展示Git操作结果的工具卡片组件',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>Git Status - Success</h3>
-            <GitToolDisplay
-              toolItem={createMockToolItem('Git',
-                {
-                  operation: 'status',
-                  args: '',
-                  working_directory: '/project'
-                },
-                {
-                  success: true,
-                  exit_code: 0,
-                  stdout: `On branch main
-Your branch is up to date with 'origin/main'.
-
-Changes to be committed:
-  (use "git restore --staged <file>..." to unstage)
-        modified:   src/components/App.tsx
-        new file:   src/utils/helpers.ts
-
-Changes not staged for commit:
-  (use "git add <file>..." to update what will be committed)
-        modified:   package.json`,
-                  stderr: '',
-                  execution_time_ms: 45,
-                  working_directory: '/project',
-                  command: 'git status',
-                  operation: 'status'
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Git']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Git Commit - Success</h3>
-            <GitToolDisplay
-              toolItem={createMockToolItem('Git',
-                {
-                  operation: 'commit',
-                  args: '-m "feat: add new feature"',
-                  working_directory: '/project'
-                },
-                {
-                  success: true,
-                  exit_code: 0,
-                  stdout: `[main abc1234] feat: add new feature
- 2 files changed, 45 insertions(+), 12 deletions(-)
- create mode 100644 src/utils/helpers.ts`,
-                  stderr: '',
-                  execution_time_ms: 120,
-                  command: 'git commit -m "feat: add new feature"',
-                  operation: 'commit'
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Git']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Git Diff - View</h3>
-            <GitToolDisplay
-              toolItem={createMockToolItem('Git',
-                {
-                  operation: 'diff',
-                  args: 'HEAD~1',
-                  working_directory: '/project'
-                },
-                {
-                  success: true,
-                  exit_code: 0,
-                  stdout: `diff --git a/src/App.tsx b/src/App.tsx
-index abc1234..def5678 100644
---- a/src/App.tsx
-+++ b/src/App.tsx
-@@ -10,6 +10,8 @@ export function App() {
-   const [count, setCount] = useState(0);
-+  const [name, setName] = useState('');
-+
-   return (
-     <div className="app">`,
-                  stderr: '',
-                  execution_time_ms: 35,
-                  command: 'git diff HEAD~1',
-                  operation: 'diff'
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['Git']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Git Push - 执行中</h3>
-            <GitToolDisplay
-              toolItem={createMockToolItem('Git',
-                {
-                  operation: 'push',
-                  args: 'origin main',
-                  working_directory: '/project'
-                },
-                null,
-                'running'
-              )}
-              config={TOOL_CARD_CONFIGS['Git']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>Git Pull - 冲突错误</h3>
-            <GitToolDisplay
-              toolItem={createMockToolItem('Git',
-                {
-                  operation: 'pull',
-                  args: 'origin main',
-                  working_directory: '/project'
-                },
-                {
-                  success: false,
-                  exit_code: 1,
-                  stdout: '',
-                  stderr: `error: Your local changes to the following files would be overwritten by merge:
-        src/config.ts
-Please commit your changes or stash them before you merge.
-Aborting`,
-                  execution_time_ms: 1500,
-                  command: 'git pull origin main',
-                  operation: 'pull'
-                },
-                'error'
-              )}
-              config={TOOL_CARD_CONFIGS['Git']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'init-miniapp-card',
-        name: 'InitMiniApp - 小应用创建',
-        description: '创建 Mini App 骨架后的工具卡片（InitMiniApp）',
-        category: 'flowchat-cards',
-        component: () => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>InitMiniApp - 执行中</h3>
-            <InitMiniAppDisplay
-              toolItem={createMockToolItem(
-                'InitMiniApp',
-                { name: 'Weather Dashboard', description: 'A small weather widget' },
-                undefined,
-                'running'
-              )}
-              config={TOOL_CARD_CONFIGS['InitMiniApp']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>InitMiniApp - 参数流式</h3>
-            <InitMiniAppDisplay
-              toolItem={
-                {
-                  ...createMockToolItem('InitMiniApp', {}, undefined, 'streaming'),
-                  isParamsStreaming: true,
-                  partialParams: { name: 'My Mini App' },
-                } as FlowToolItem
-              }
-              config={TOOL_CARD_CONFIGS['InitMiniApp']}
-              sessionId="preview-session"
-            />
-
-            <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>InitMiniApp - 创建成功</h3>
-            <InitMiniAppDisplay
-              toolItem={createMockToolItem(
-                'InitMiniApp',
-                { name: 'Weather Dashboard' },
-                {
-                  app_id: 'ma-preview-001',
-                  path: '.ai00-x/miniapps/ma-preview-001',
-                },
-                'completed'
-              )}
-              config={TOOL_CARD_CONFIGS['InitMiniApp']}
-              sessionId="preview-session"
-            />
-          </div>
-        ),
-      },
-      {
-        id: 'model-thinking-card',
-        name: 'ModelThinking - 思考过程',
-        description: '展示 AI 模型推理过程的思考状态组件',
-        category: 'flowchat-cards',
-        component: () => {
-          const createMockThinkingItem = (
-            content: string,
-            isStreaming: boolean,
-            status: 'streaming' | 'completed'
-          ): FlowThinkingItem => ({
-            id: `thinking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type: 'thinking',
-            timestamp: Date.now(),
-            status,
-            content,
-            isStreaming,
-            isCollapsed: !isStreaming
-          });
-
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-              <h3 style={{ color: '#ffffff', marginBottom: '8px' }}>模型思考 - 流式输出</h3>
-              <ModelThinkingDisplay
-                thinkingItem={createMockThinkingItem(
-                  `正在分析用户的请求..
-
-让我仔细思考这个问题的解决方案
-- 首先需要理解用户的具体需求
-- 然后考虑可行的实现方案
-- 最后选择最优的解决方案
-
-继续深入分析相关细节..`,
-                  true,
-                  'streaming'
-                )}
-              />
-
-              <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>模型思考 - 折叠完成状态</h3>
-              <ModelThinkingDisplay
-                thinkingItem={createMockThinkingItem(
-                  `分析了用户关于性能优化的问题
-
-解决方案
-1. 使用虚拟列表减少DOM渲染
-2. 引入 React.memo 缓存组件
-3. 懒加载非关键资源
-
-优化重点
-- 减少不必要的重渲染
-- 合理使用 memoization
-- 分割大型组件
-
-以上方案可以显著提升应用性能`,
-                  false,
-                  'completed'
-                )}
-              />
-
-              <h3 style={{ color: '#ffffff', marginTop: '16px', marginBottom: '8px' }}>模型思考 - 长内容展示</h3>
-              <ModelThinkingDisplay
-                thinkingItem={createMockThinkingItem(
-                  `这是一个复杂任务，需要多步骤分析
-
-背景信息
-用户希望在组件库预览页面中展示各种工具卡片的效果，包括FlowChat 相关的 ModelThinkingDisplay 组件
-
-需求分析
-我需要为预览页面创建ModelThinkingDisplay 的示例数据，包含以下场景
-- 流式输出状态（模拟AI正在思考的动态效果）
-- 完成折叠状态（思考完成后默认折叠）
-
-实现计划
-在 registry.tsx 中
-1. 导入 ModelThinkingDisplay 组件
-2. 创建 FlowThinkingItem 类型数据
-3. 设置不同的状态场景
-4. 添加展示样例
-
-执行结果
-已成功创建三种不同状态的思考展示示例
-
-总结
-ModelThinkingDisplay 组件展示效果符合预期`,
-                  false,
-                  'completed'
-                )}
-              />
-            </div>
-          );
-        },
       },
     ],
   },

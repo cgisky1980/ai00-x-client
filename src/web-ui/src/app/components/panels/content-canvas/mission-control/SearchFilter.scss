@@ -3,7 +3,7 @@
  */
 
 .canvas-search-filter {
-  padding: 8px 16px;
+  padding: var(--size-gap-2) var(--size-gap-4);
   flex-shrink: 0;
 
   &__search {
@@ -15,22 +15,22 @@
       border: 1px solid var(--border-base);
       
       &:hover {
-        border-color: var(--border-medium, var(--color-primary, var(--color-accent-500)));
+        border-color: var(--border-medium);
         border-style: solid;
       }
     }
 
     &.search--focused .search__wrapper {
       border-style: solid;
-      border-color: var(--color-accent-500, var(--color-primary));
-      background: var(--color-accent-50, var(--color-accent-100));
+      border-color: var(--color-accent-500);
+      background: var(--color-accent-50);
     }
   }
 
   &__count {
-    font-size: 11px;
-    color: var(--color-text-tertiary);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
     white-space: nowrap;
-    padding: 0 8px;
+    padding: 0 var(--size-gap-2);
   }
 }

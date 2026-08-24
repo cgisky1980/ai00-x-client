@@ -543,19 +543,19 @@ export function HomePage() {
     <div className="h-screen w-screen flex flex-col bg-transparent">
       <div
         className="flex-1 flex flex-col items-center justify-center relative overflow-hidden rounded-xl border shadow-2xl m-2"
-        style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card-bg)' }}
+        style={{ borderColor: 'var(--border-base)', backgroundColor: 'var(--color-bg-card)' }}
       >
         {/* 统一页头：可拖拽 + 语言切换，始终在最上层 */}
         <div
           className="absolute top-0 left-0 right-0 h-10 z-[80] flex items-center justify-end px-4"
           data-tauri-drag-region
-          style={{ backgroundColor: 'var(--card-bg)', borderBottom: '1px solid var(--border)' }}
+          style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--border-base)' }}
         >
           <button
             type="button"
             onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
             className="btn-plain rounded-md px-2 py-1 text-xs font-medium"
-            style={{ color: "var(--text-50)" }}
+            style={{ color: "var(--color-text-muted)" }}
           >
             {locale === "zh" ? "EN" : "中"}
           </button>

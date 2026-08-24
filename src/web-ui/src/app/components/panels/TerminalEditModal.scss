@@ -14,11 +14,11 @@
   right: 0;
   bottom: 0;
   z-index: $z-modal;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--modal-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--size-gap-6);
   animation: terminal-edit-overlay-fade 0.2s ease;
 }
 
@@ -36,7 +36,7 @@
   background: var(--color-bg-primary);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 16px 48px var(--modal-overlay);
   width: 380px;
   max-width: calc(100vw - 48px);
   overflow: hidden;
@@ -65,7 +65,7 @@
   border: 1px solid transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-  padding: 5px;
+  padding: var(--size-gap-1);
   border-radius: 5px;
   transition: all 0.15s ease;
   display: flex;
@@ -86,12 +86,12 @@
 
 .terminal-edit-dialog__header {
   flex-shrink: 0;
-  padding: 16px 20px 12px;
+  padding: var(--size-gap-4) var(--size-gap-5) var(--size-gap-3);
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .terminal-edit-dialog__title {
-  font-size: 14px;
+  font-size: var(--font-size-base);
   font-weight: 500;
   margin: 0;
   color: var(--color-text-primary);
@@ -103,8 +103,8 @@
 .terminal-edit-dialog__content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 20px;
+  gap: var(--size-gap-4);
+  padding: var(--size-gap-4) var(--size-gap-5);
 }
 
 // ==================== Form Fields ====================
@@ -112,20 +112,20 @@
 .terminal-edit-dialog__field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--size-gap-1-5);
 }
 
 .terminal-edit-dialog__label {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--color-text-secondary);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--size-gap-1);
 }
 
 .terminal-edit-dialog__required {
-  color: #f44336;
+  color: var(--color-error);
 }
 
 .terminal-edit-dialog__optional {
@@ -135,8 +135,8 @@
 
 .terminal-edit-dialog__input {
   width: 100%;
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: var(--size-gap-2) var(--size-gap-3);
+  font-size: var(--font-size-sm);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   background: var(--color-bg-secondary);
@@ -159,9 +159,9 @@
 }
 
 .terminal-edit-dialog__hint {
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   color: var(--color-text-muted);
-  margin-top: 2px;
+  margin-top: var(--size-gap-0-5);
 }
 
 // ==================== Footer Buttons ====================
@@ -170,14 +170,14 @@
   flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 20px 16px;
+  gap: var(--size-gap-2);
+  padding: var(--size-gap-3) var(--size-gap-5) var(--size-gap-4);
   border-top: 1px solid var(--border-subtle);
 }
 
 .terminal-edit-dialog__btn {
-  padding: 7px 14px;
-  font-size: 12px;
+  padding: var(--size-gap-1-5) var(--size-gap-3-5);
+  font-size: var(--font-size-xs);
   font-weight: 500;
   border: none;
   border-radius: 6px;
@@ -199,7 +199,7 @@
 
   &--confirm {
     background: var(--color-accent-500);
-    color: white;
+    color: var(--color-accent-foreground);
 
     &:hover:not(:disabled) {
       background: var(--color-accent-600);

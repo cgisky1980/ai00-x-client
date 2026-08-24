@@ -1,13 +1,13 @@
 .click-effect-settings {
   &__section-body {
-    padding: 16px;
+    padding: var(--size-gap-4);
   }
 
   &__toggle {
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 14px;
+    gap: var(--size-gap-3);
+    font-size: var(--font-size-base);
   }
 
   &__switch {
@@ -38,7 +38,7 @@
       width: 18px;
       left: 3px;
       bottom: 3px;
-      background: #fff;
+      background: var(--color-accent-foreground);
       border-radius: 50%;
       transition: transform 0.2s;
     }
@@ -53,51 +53,51 @@
   }
 
   &__hint {
-    font-size: 12px;
-    color: var(--color-text-secondary, #888);
-    margin: 0 0 12px 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    margin: 0 0 var(--size-gap-3) 0;
   }
 
   &__words-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
+    gap: var(--size-gap-2);
+    margin-bottom: var(--size-gap-3);
   }
 
   &__word-chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2-5);
     border-radius: 16px;
-    background: var(--color-bg-secondary, #f0f0f0);
-    border: 1px solid var(--color-border, #ddd);
-    font-size: 13px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    font-size: var(--font-size-sm);
     transition: background 0.15s, border-color 0.15s;
 
     &:hover {
-      border-color: var(--color-primary, #4a90d9);
+      border-color: var(--color-primary);
     }
   }
 
   &__word-text {
     cursor: pointer;
-    color: var(--color-text-primary, #333);
+    color: var(--color-text-primary);
 
     &:hover {
-      color: var(--color-primary, #4a90d9);
+      color: var(--color-primary);
     }
   }
 
   &__word-edit-input {
     width: 60px;
-    padding: 2px 6px;
-    font-size: 13px;
-    border: 1px solid var(--color-primary, #4a90d9);
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-primary);
     border-radius: 4px;
-    background: var(--color-bg-primary, #fff);
-    color: var(--color-text-primary, #333);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
     outline: none;
   }
 
@@ -109,8 +109,8 @@
     height: 18px;
     border: none;
     background: transparent;
-    color: var(--color-text-secondary, #999);
-    font-size: 14px;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-base);
     cursor: pointer;
     border-radius: 50%;
     padding: 0;
@@ -118,41 +118,41 @@
     transition: color 0.15s, background 0.15s;
 
     &:hover {
-      color: #e74c3c;
-      background: rgba(231, 76, 60, 0.1);
+      color: var(--color-error);
+      background:color-mix(in srgb, var(--color-warning) 10%, transparent);
     }
   }
 
   &__add-word {
     display: flex;
-    gap: 8px;
+    gap: var(--size-gap-2);
     align-items: center;
   }
 
   &__add-word-input {
     flex: 1;
     max-width: 200px;
-    padding: 6px 10px;
-    font-size: 13px;
-    border: 1px solid var(--color-border, #ddd);
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-border);
     border-radius: 6px;
-    background: var(--color-bg-primary, #fff);
-    color: var(--color-text-primary, #333);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
     outline: none;
     transition: border-color 0.15s;
 
     &:focus {
-      border-color: var(--color-primary, #4a90d9);
+      border-color: var(--color-primary);
     }
   }
 
   &__add-word-btn {
-    padding: 6px 14px;
-    font-size: 13px;
-    border: 1px solid var(--color-primary, #4a90d9);
+    padding: var(--size-gap-1-5) var(--size-gap-3-5);
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-primary);
     border-radius: 6px;
-    background: var(--color-primary, #4a90d9);
-    color: #fff;
+    background: var(--color-primary);
+    color: var(--color-accent-foreground);
     cursor: pointer;
     transition: opacity 0.15s;
 
@@ -169,59 +169,59 @@
   &__range-row {
     display: flex;
     align-items: flex-end;
-    gap: 12px;
+    gap: var(--size-gap-3);
   }
 
   &__range-field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--size-gap-1);
 
     label {
-      font-size: 12px;
-      color: var(--color-text-secondary, #888);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
     }
 
     input {
       width: 80px;
-      padding: 6px 10px;
-      font-size: 13px;
-      border: 1px solid var(--color-border, #ddd);
+      padding: var(--size-gap-1-5) var(--size-gap-2-5);
+      font-size: var(--font-size-sm);
+      border: 1px solid var(--color-border);
       border-radius: 6px;
-      background: var(--color-bg-primary, #fff);
-      color: var(--color-text-primary, #333);
+      background: var(--color-bg-primary);
+      color: var(--color-text-primary);
       outline: none;
 
       &:focus {
-        border-color: var(--color-primary, #4a90d9);
+        border-color: var(--color-primary);
       }
     }
   }
 
   &__range-separator {
-    font-size: 18px;
-    color: var(--color-text-secondary, #888);
-    padding-bottom: 6px;
+    font-size: var(--font-size-2xl);
+    color: var(--color-text-secondary);
+    padding-bottom: var(--size-gap-1-5);
   }
 
   &__actions {
     display: flex;
-    gap: 12px;
+    gap: var(--size-gap-3);
   }
 
   &__reset-btn {
-    padding: 8px 20px;
-    font-size: 13px;
-    border: 1px solid var(--color-border, #ddd);
+    padding: var(--size-gap-2) var(--size-gap-5);
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-border);
     border-radius: 6px;
     background: transparent;
-    color: var(--color-text-secondary, #888);
+    color: var(--color-text-secondary);
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s;
 
     &:hover {
-      border-color: #e74c3c;
-      color: #e74c3c;
+      border-color: var(--color-error);
+      color: var(--color-error);
     }
   }
 }

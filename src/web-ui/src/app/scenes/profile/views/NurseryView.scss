@@ -12,7 +12,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--size-gap-3);
   width: min(100%, 1480px);
   margin: 0 auto;
   padding: 0 $gutter $size-gap-5;
@@ -44,7 +44,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     transition: opacity 0.30s $easing-standard;
     user-select: none;
     -webkit-user-drag: none;
-    filter: drop-shadow(2px 6px 14px rgba(0, 0, 0, 0.24));
+    filter: drop-shadow(2px 6px 14px var(--color-overlay));
 
     &--default {
       opacity: 1;
@@ -77,11 +77,11 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   overflow: hidden;
   cursor: pointer;
   border: none;
-  background: linear-gradient(
+  background:linear-gradient(
     135deg,
-    rgba(16, 185, 129, 0.10) 0%,
-    rgba(59, 130, 246, 0.07) 55%,
-    rgba(139, 92, 246, 0.10) 100%
+    color-mix(in srgb, var(--color-success) 10%, transparent) 0%,
+    var(--color-accent-200) 55%,
+    var(--color-accent-200) 100%
   );
   position: relative;
   text-align: left;
@@ -95,7 +95,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(52, 211, 153, 0.08) 0%, rgba(96, 165, 250, 0.08) 100%);
+    background: linear-gradient(135deg, var(--color-success-bg) 0%, var(--color-accent-100) 100%);
     opacity: 0;
     transition: opacity 0.32s ease;
     pointer-events: none;
@@ -104,13 +104,13 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   &:hover {
     transform: translateY(-3px) scale(1.006);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.20);
+    box-shadow: 0 12px 32px var(--color-overlay);
 
     &::before { opacity: 1; }
   }
 
   &:focus-visible {
-    outline: 2px solid #34d399;
+    outline: 2px solid var(--color-success);
     outline-offset: 2px;
   }
 
@@ -147,11 +147,11 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   &__action {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    margin-top: 2px;
+    gap: var(--size-gap-1);
+    margin-top: var(--size-gap-0-5);
     font-size: var(--font-size-xs);
     font-weight: $font-weight-medium;
-    color: #34d399;
+    color: var(--color-success);
     opacity: 0.72;
     transition:
       opacity $motion-fast $easing-standard,
@@ -160,7 +160,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   &:hover &__action {
     opacity: 1;
-    gap: 7px;
+    gap: var(--size-gap-1-5);
   }
 
   // ── Stat chips row ────────────────────────────────────────────────────
@@ -168,18 +168,18 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   &__stats {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
-    margin-top: 1px;
+    gap: var(--size-gap-1);
+    margin-top: var(--size-gap-0-25);
   }
 
   &__stat {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 7px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     border-radius: $size-radius-full;
-    border: 1px solid rgba(52, 211, 153, 0.18);
-    background: rgba(52, 211, 153, 0.06);
+    border: 1px solid var(--color-success-bg);
+    background: var(--color-success-bg);
     font-size: var(--font-size-2xs);
     font-weight: $font-weight-medium;
     color: var(--color-text-muted);
@@ -190,39 +190,39 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
       background $motion-fast $easing-standard;
 
     &--accent {
-      border-color: rgba(96, 165, 250, 0.22);
-      background: rgba(96, 165, 250, 0.07);
+      border-color: var(--color-accent-200);
+      background: var(--color-accent-200);
     }
 
     &--muted {
-      border-color: rgba(255, 255, 255, 0.08);
-      background: rgba(255, 255, 255, 0.04);
+      border-color:color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+      background:color-mix(in srgb, var(--color-text-primary) 4%, transparent);
     }
 
     &--token {
-      border-color: rgba(251, 191, 36, 0.20);
-      background: rgba(251, 191, 36, 0.06);
+      border-color: var(--color-warning-bg);
+      background: var(--color-warning-bg);
     }
   }
 
   &:hover &__stat {
-    border-color: rgba(52, 211, 153, 0.30);
+    border-color: var(--color-success-border);
     color: var(--color-text-secondary);
-    background: rgba(52, 211, 153, 0.10);
+    background: var(--color-success-bg);
 
     &--accent {
-      border-color: rgba(96, 165, 250, 0.36);
-      background: rgba(96, 165, 250, 0.12);
+      border-color: var(--color-accent-200);
+      background: var(--color-accent-200);
     }
 
     &--muted {
-      border-color: rgba(255, 255, 255, 0.14);
-      background: rgba(255, 255, 255, 0.07);
+      border-color: var(--element-bg-soft);
+      background:color-mix(in srgb, var(--color-text-primary) 8%, transparent);
     }
 
     &--token {
-      border-color: rgba(251, 191, 36, 0.36);
-      background: rgba(251, 191, 36, 0.10);
+      border-color: var(--color-warning-bg);
+      background: var(--color-warning-bg);
     }
   }
 
@@ -244,14 +244,14 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     transition: transform 0.55s $easing-standard, color 0.4s ease;
 
     &--1 {
-      color: rgba(52, 211, 153, 0.13);
+      color: var(--color-success-bg);
       top: -14px;
       right: -14px;
       transform: rotate(18deg);
     }
 
     &--2 {
-      color: rgba(96, 165, 250, 0.09);
+      color: var(--color-accent-200);
       bottom: 4px;
       right: 22px;
       transform: rotate(-12deg);
@@ -260,12 +260,12 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   &:hover &__deco-egg--1 {
     transform: rotate(26deg) scale(1.1);
-    color: rgba(52, 211, 153, 0.24);
+    color: var(--color-success-bg);
   }
 
   &:hover &__deco-egg--2 {
     transform: rotate(-22deg) translateY(-5px) scale(1.1);
-    color: rgba(96, 165, 250, 0.18);
+    color: var(--color-accent-200);
   }
 }
 
@@ -285,7 +285,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   text-align: left;
   font-family: $font-family-sans;
   animation: nursery-card-in 0.22s $easing-decelerate both;
-  animation-delay: calc(var(--card-index, 0) * 40ms);
+  animation-delay: calc(var(--card-index) * 40ms);
   transition:
     transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.35s ease;
@@ -298,7 +298,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     left: 0;
     right: 0;
     bottom: 40px;
-    background: var(--assistant-card-gradient, linear-gradient(135deg, rgba(96,165,250,0.2) 0%, rgba(139,92,246,0.14) 100%));
+    background: linear-gradient(var(--color-accent-100) 0%, var(--color-accent-200) 100%);
     opacity: 0;
     transition: opacity 0.35s ease;
     pointer-events: none;
@@ -307,7 +307,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   &:hover {
     transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 16px 40px var(--color-overlay);
 
     &::before {
       opacity: 0.4;
@@ -339,13 +339,13 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.12);
+    background:color-mix(in srgb, var(--color-text-primary) 12%, transparent);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
 
   &__emoji {
-    font-size: 22px;
+    font-size: var(--font-size-3xl);
     line-height: 1;
   }
 
@@ -359,7 +359,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: var(--size-gap-1);
   }
 
   &__title-row {
@@ -381,7 +381,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   &__badges {
     display: flex;
-    gap: 4px;
+    gap: var(--size-gap-1);
     flex-wrap: wrap;
   }
 
@@ -432,7 +432,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
       content: '';
       position: absolute;
       inset: 0;
-      background: var(--assistant-card-gradient, linear-gradient(135deg, rgba(96,165,250,0.2) 0%, rgba(139,92,246,0.14) 100%));
+      background: linear-gradient(var(--color-accent-100) 0%, var(--color-accent-200) 100%);
       opacity: 0.4;
       transition: opacity 0.35s ease;
       pointer-events: none;
@@ -477,7 +477,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__new-session-btn {
@@ -498,7 +498,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
       color 0.15s ease;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.14);
+      background: var(--element-bg-soft);
       color: var(--color-text-primary);
     }
 
@@ -530,7 +530,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
       color 0.15s ease;
 
     &:hover {
-      background: rgba(239, 68, 68, 0.18);
+      background: var(--color-error-bg);
       color: var(--color-error);
     }
 
@@ -546,13 +546,13 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   }
 
   &__primary-badge {
-    margin-left: 6px;
-    padding: 1px 6px;
+    margin-left: var(--size-gap-1-5);
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
     border-radius: 4px;
     font-size: var(--font-size-2xs);
     font-weight: $font-weight-semibold;
     color: var(--color-accent-400);
-    background: rgba(96, 165, 250, 0.12);
+    background: var(--color-accent-200);
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -563,7 +563,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 .nursery-delete-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -572,22 +572,22 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
 .nursery-delete-dialog {
   pointer-events: auto;
-  background: var(--color-bg-elevated, var(--color-bg-secondary));
+  background: var(--color-bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
-  padding: 24px;
+  padding: var(--size-gap-6);
   width: min(400px, calc(100vw - 40px));
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 20px 60px var(--modal-overlay);
 
   &__title {
-    margin: 0 0 10px;
+    margin: 0 0 var(--size-gap-2-5);
     font-size: var(--font-size-base);
     font-weight: $font-weight-semibold;
     color: var(--color-text-primary);
   }
 
   &__message {
-    margin: 0 0 20px;
+    margin: 0 0 var(--size-gap-5);
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     line-height: $line-height-relaxed;
@@ -596,11 +596,11 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   &__actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--size-gap-2);
   }
 
   &__btn {
-    padding: 7px 16px;
+    padding: var(--size-gap-1-5) var(--size-gap-4);
     border-radius: 8px;
     font-size: var(--font-size-sm);
     font-weight: $font-weight-medium;
@@ -618,17 +618,17 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
       color: var(--color-text-secondary);
 
       &:hover:not(:disabled) {
-        background: var(--element-bg-hover);
+        background: var(--color-bg-secondary);
         color: var(--color-text-primary);
       }
     }
 
     &--confirm {
-      background: rgba(239, 68, 68, 0.15);
+      background: var(--color-error-bg);
       color: var(--color-error);
 
       &:hover:not(:disabled) {
-        background: rgba(239, 68, 68, 0.25);
+        background: var(--color-error-bg);
       }
     }
   }
@@ -657,7 +657,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    padding: 2px 0 2px $size-gap-1;
+    padding: var(--size-gap-0-5) 0 var(--size-gap-0-5) $size-gap-1;
     border-bottom: none;
     background: none;
     min-height: 0;
@@ -849,10 +849,10 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 1px 7px;
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
     border-radius: $size-radius-full;
     background: var(--element-bg-medium);
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     font-weight: $font-weight-medium;
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
@@ -962,7 +962,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   &__label {
     font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
-    margin-top: 3px;
+    margin-top: var(--size-gap-0-5);
     text-align: right;
   }
 }
@@ -972,14 +972,14 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 .nursery-tool-list {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--size-gap-0-25);
 }
 
 .nursery-tool-row {
   display: flex;
   align-items: center;
   gap: $size-gap-3;
-  padding: 5px $size-gap-2;
+  padding: var(--size-gap-1) $size-gap-2;
   border-radius: $size-radius-sm;
   transition: background $motion-fast $easing-standard;
 
@@ -992,7 +992,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: var(--size-gap-0-25);
   }
 
   &__name {
@@ -1020,7 +1020,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
 .nursery-skill-chip {
   font-size: var(--font-size-2xs);
-  padding: 3px $size-gap-2;
+  padding: var(--size-gap-0-5) $size-gap-2;
   border-radius: $size-radius-full;
   border: 1px solid var(--border-subtle);
   color: var(--color-text-muted);
@@ -1098,7 +1098,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
 .nursery-identity {
   &__name {
-    font-size: 20px;
+    font-size: var(--font-size-2xl);
     font-weight: $font-weight-semibold;
     color: var(--color-text-primary);
     cursor: pointer;
@@ -1112,7 +1112,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   }
 
   &__name-input {
-    font-size: 20px;
+    font-size: var(--font-size-2xl);
     font-weight: $font-weight-semibold;
   }
 
@@ -1147,7 +1147,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
     cursor: pointer;
-    padding: 2px $size-gap-2;
+    padding: var(--size-gap-0-5) $size-gap-2;
     border-radius: $size-radius-sm;
     transition: background $motion-fast $easing-standard;
     flex: 1;
@@ -1435,7 +1435,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
     cursor: pointer;
-    padding: 2px $size-gap-2;
+    padding: var(--size-gap-0-5) $size-gap-2;
     border-radius: $size-radius-sm;
     transition: background $motion-fast $easing-standard;
 
@@ -1624,7 +1624,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--color-text-muted);
-    margin-bottom: 2px;
+    margin-bottom: var(--size-gap-0-5);
   }
 
   &__title {
@@ -1678,8 +1678,8 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   &__badge {
     align-self: flex-start;
-    font-size: 10px;
-    padding: 2px 6px;
+    font-size: var(--font-size-xxs);
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     border-radius: $size-radius-full;
     border: 1px solid var(--border-subtle);
     color: var(--color-text-muted);
@@ -1730,7 +1730,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   &__error {
     margin: 0;
     font-size: var(--font-size-2xs);
-    color: var(--color-danger-600);
+    color: var(--color-error);
     line-height: $line-height-relaxed;
   }
 
@@ -1745,7 +1745,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 .tc-persona-doc-list {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--size-gap-0-25);
   background: var(--border-subtle);
   border: 1px solid var(--border-subtle);
   border-radius: $size-radius-base;
@@ -1909,7 +1909,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     display: inline-flex;
     align-items: center;
     gap: $size-gap-2;
-    padding: 8px $size-gap-3;
+    padding: var(--size-gap-2) $size-gap-3;
     border: none;
     background: transparent;
     cursor: pointer;
@@ -1933,8 +1933,8 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     color: var(--color-text-muted);
 
     &--mcp {
-      color: #fb923c;
-      background: rgba(251, 146, 60, 0.1);
+      color: var(--color-warning);
+      background: var(--color-warning-bg);
       border-color: transparent;
     }
   }
@@ -1978,7 +1978,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   &__title {
     margin: 0;
-    padding: 7px $size-gap-3;
+    padding: var(--size-gap-1-5) $size-gap-3;
     font-size: var(--font-size-2xs);
     font-weight: $font-weight-semibold;
     text-transform: uppercase;
@@ -2103,7 +2103,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     display: inline-flex;
     align-items: center;
     gap: $size-gap-2;
-    padding: 8px $size-gap-3;
+    padding: var(--size-gap-2) $size-gap-3;
     border: none;
     background: transparent;
     cursor: pointer;
@@ -2125,8 +2125,8 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   &__level {
     flex-shrink: 0;
-    font-size: 10px;
-    padding: 1px 6px;
+    font-size: var(--font-size-xxs);
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
     border-radius: $size-radius-full;
     border: 1px solid var(--border-subtle);
     color: var(--color-text-muted);
@@ -2157,11 +2157,10 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     position: absolute;
     inset: 0;
     border-radius: 14px;
-    background:
-      linear-gradient(135deg,
-        rgba(16, 185, 129, 0.09) 0%,
-        rgba(59, 130, 246, 0.06) 55%,
-        rgba(139, 92, 246, 0.08) 100%
+    background:linear-gradient(135deg,
+        color-mix(in srgb, var(--color-success) 9%, transparent) 0%,
+        var(--color-accent-200) 55%,
+        var(--color-accent-100) 100%
       ),
       var(--element-bg-subtle);
     pointer-events: none;
@@ -2204,7 +2203,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   &__identity {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: var(--size-gap-0-5);
   }
 
   &__tag {
@@ -2212,7 +2211,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     font-weight: $font-weight-semibold;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    color: #34d399;
+    color: var(--color-success);
     opacity: 0.85;
   }
 
@@ -2243,7 +2242,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   &__chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
+    gap: var(--size-gap-1);
     margin-top: auto;
     padding-top: $size-gap-2;
   }
@@ -2251,29 +2250,29 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   &__chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 7px;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-0-5) var(--size-gap-1-5);
     border-radius: $size-radius-full;
-    border: 1px solid rgba(52, 211, 153, 0.18);
-    background: rgba(52, 211, 153, 0.06);
+    border: 1px solid var(--color-success-bg);
+    background: var(--color-success-bg);
     font-size: var(--font-size-2xs);
     font-weight: $font-weight-medium;
     color: var(--color-text-muted);
     letter-spacing: 0.1px;
 
     &--fast {
-      border-color: rgba(96, 165, 250, 0.22);
-      background: rgba(96, 165, 250, 0.07);
+      border-color: var(--color-accent-200);
+      background: var(--color-accent-200);
     }
 
     &--tools {
-      border-color: rgba(251, 191, 36, 0.22);
-      background: rgba(251, 191, 36, 0.06);
+      border-color: var(--color-warning-bg);
+      background: var(--color-warning-bg);
     }
 
     &--skills {
-      border-color: rgba(139, 92, 246, 0.22);
-      background: rgba(139, 92, 246, 0.07);
+      border-color: var(--color-accent-200);
+      background: var(--color-accent-200);
     }
   }
 }
@@ -2303,7 +2302,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     font-size: var(--font-size-sm);
     font-weight: $font-weight-medium;
     color: var(--color-text-secondary);
-    padding: 2px 8px;
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     background: var(--element-bg-subtle);
     border: 1px solid var(--border-subtle);
     border-radius: $size-radius-sm;
@@ -2340,8 +2339,8 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     font-weight: $font-weight-semibold;
     color: var(--color-text-secondary);
 
-    &--warn   { color: #f59e0b; }
-    &--danger { color: #f87171; }
+    &--warn   { color: var(--color-warning); }
+    &--danger { color: var(--color-error); }
   }
 
   // Segmented bar
@@ -2351,7 +2350,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     border-radius: $size-radius-full;
     overflow: hidden;
     background: var(--element-bg-medium);
-    gap: 1px;
+    gap: var(--size-gap-0-25);
   }
 
   &__segment {
@@ -2377,7 +2376,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     display: grid;
     // columns: dot  name  tok  pct
     grid-template-columns: 8px 1fr auto auto;
-    row-gap: 3px;
+    row-gap: var(--size-gap-0-5);
     column-gap: $size-gap-2;
     margin-top: $size-gap-1;
     align-items: center;
@@ -2446,7 +2445,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   display: flex;
   align-items: center;
   gap: $size-gap-2;
-  padding: 7px $size-gap-3;
+  padding: var(--size-gap-1-5) $size-gap-3;
   background: var(--element-bg-subtle);
   border-bottom: 1px solid var(--border-subtle);
 
@@ -2478,7 +2477,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     flex-shrink: 0;
     color: var(--color-text-muted);
 
-    &--mcp { color: #fb923c; }
+    &--mcp { color: var(--color-warning); }
   }
 
   &__name {
@@ -2495,32 +2494,32 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   // MCP server connection status badge
   &__status {
     flex-shrink: 0;
-    font-size: 10px;
-    padding: 1px 6px;
+    font-size: var(--font-size-xxs);
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
     border-radius: $size-radius-full;
     font-weight: $font-weight-medium;
     border: 1px solid transparent;
 
     &--connected,
     &--healthy {
-      color: #34d399;
-      background: rgba(52, 211, 153, 0.08);
-      border-color: rgba(52, 211, 153, 0.22);
+      color: var(--color-success);
+      background: var(--color-success-bg);
+      border-color: var(--color-success-bg);
     }
 
     &--starting,
     &--reconnecting {
-      color: #f59e0b;
-      background: rgba(245, 158, 11, 0.08);
-      border-color: rgba(245, 158, 11, 0.22);
+      color: var(--color-warning);
+      background: var(--color-warning-bg);
+      border-color: var(--color-warning-bg);
     }
 
     &--failed,
     &--stopped,
     &--stopping {
-      color: #f87171;
-      background: rgba(248, 113, 113, 0.08);
-      border-color: rgba(248, 113, 113, 0.22);
+      color: var(--color-error);
+      background: var(--color-error);
+      border-color: var(--color-error);
     }
 
     &--unknown,
@@ -2533,10 +2532,10 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   &__count {
     flex-shrink: 0;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
-    padding: 1px 6px;
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
     border-radius: $size-radius-full;
     background: var(--element-bg-medium);
     font-weight: $font-weight-medium;
@@ -2580,7 +2579,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 .tc-tool-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1px;
+  gap: var(--size-gap-0-25);
   background: var(--border-subtle);
 }
 
@@ -2588,7 +2587,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
   display: flex;
   align-items: center;
   gap: $size-gap-2;
-  padding: 8px $size-gap-3;
+  padding: var(--size-gap-2) $size-gap-3;
   min-width: 0;           // prevent grid blowout
   background: var(--color-bg-scene);
   transition: background $motion-fast $easing-standard;
@@ -2613,8 +2612,8 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     color: var(--color-text-muted);
 
     &--mcp {
-      color: #fb923c;
-      background: rgba(251, 146, 60, 0.1);
+      color: var(--color-warning);
+      background: var(--color-warning-bg);
     }
   }
 
@@ -2623,7 +2622,7 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: var(--size-gap-0-25);
   }
 
   &__name {
@@ -2689,14 +2688,14 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
   }
 
   // Name + level badge on the same line
   &__title-row {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--size-gap-1-5);
     min-width: 0;
   }
 
@@ -2712,8 +2711,8 @@ $nursery-scene-gutter: clamp(40px, 6vw, 80px);
 
   &__level {
     flex-shrink: 0;
-    font-size: 10px;
-    padding: 1px 6px;
+    font-size: var(--font-size-xxs);
+    padding: var(--size-gap-0-25) var(--size-gap-1-5);
     border-radius: $size-radius-full;
     border: 1px solid var(--border-subtle);
     background: var(--element-bg-medium);
@@ -2786,7 +2785,7 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
   display: flex;
   align-items: center;
   gap: $size-gap-2;
-  padding: 3px $size-gap-2;
+  padding: var(--size-gap-0-5) $size-gap-2;
   flex-shrink: 0;
   min-height: 32px;
 }
@@ -2848,8 +2847,8 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
     line-height: 1.12;
     cursor: pointer;
     border-radius: $size-radius-sm;
-    padding: 1px 4px;
-    margin-left: -4px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
+    margin-left: calc(var(--size-gap-1) * -1);
     transition: color $motion-fast $easing-standard;
 
     &:hover {
@@ -2870,7 +2869,7 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
     flex-wrap: wrap;
     gap: $size-gap-2;
     min-width: 0;
-    margin-top: 2px;
+    margin-top: var(--size-gap-0-5);
   }
 
   &__meta-tag {
@@ -2878,8 +2877,8 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
     color: var(--color-text-muted);
     cursor: pointer;
     border-radius: $size-radius-sm;
-    padding: 1px 4px;
-    margin-left: -4px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
+    margin-left: calc(var(--size-gap-1) * -1);
     transition: color $motion-fast $easing-standard;
 
     &:hover {
@@ -3023,11 +3022,11 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
   gap: $size-gap-3;
   padding: $size-gap-3 $size-gap-3;
   border-radius: $size-radius-base;
-  background: linear-gradient(
+  background:linear-gradient(
     135deg,
-    rgba(16, 185, 129, 0.06) 0%,
-    rgba(59, 130, 246, 0.04) 55%,
-    rgba(139, 92, 246, 0.06) 100%
+    color-mix(in srgb, var(--color-success) 6%, transparent) 0%,
+    var(--color-accent-200) 55%,
+    var(--color-accent-200) 100%
   );
   border: 1px solid var(--border-subtle);
 
@@ -3044,11 +3043,11 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
   }
 
   &__emoji {
-    font-size: 22px;
+    font-size: var(--font-size-3xl);
     line-height: 1;
     cursor: pointer;
     border-radius: $size-radius-sm;
-    padding: 2px;
+    padding: var(--size-gap-0-5);
     transition: background $motion-fast $easing-standard;
 
     &:hover {
@@ -3058,7 +3057,7 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
 
   &__emoji-input {
     width: 38px;
-    font-size: 16px;
+    font-size: var(--font-size-xl);
     text-align: center;
   }
 
@@ -3068,7 +3067,7 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
     display: flex;
     flex-direction: column;
     gap: $size-gap-1;
-    padding-top: 1px;
+    padding-top: var(--size-gap-0-25);
   }
 
   &__name {
@@ -3077,8 +3076,8 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
     color: var(--color-text-primary);
     cursor: pointer;
     border-radius: $size-radius-sm;
-    padding: 1px 4px;
-    margin-left: -4px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
+    margin-left: calc(var(--size-gap-1) * -1);
     letter-spacing: -0.01em;
     line-height: $line-height-tight;
     transition: color $motion-fast $easing-standard, background $motion-fast $easing-standard;
@@ -3098,8 +3097,8 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
   &__meta {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    margin-top: 2px;
+    gap: var(--size-gap-0-5);
+    margin-top: var(--size-gap-0-5);
   }
 
   &__meta-row {
@@ -3111,7 +3110,7 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
 
   &__meta-label {
     flex-shrink: 0;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     font-weight: $font-weight-semibold;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -3125,7 +3124,7 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
     cursor: pointer;
-    padding: 1px $size-gap-1;
+    padding: var(--size-gap-0-25) $size-gap-1;
     border-radius: $size-radius-sm;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3380,7 +3379,7 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
   &__error {
     margin: 0 0 $size-gap-3;
     font-size: var(--font-size-xs);
-    color: var(--color-danger-600);
+    color: var(--color-error);
     line-height: $line-height-relaxed;
   }
 
@@ -3442,7 +3441,7 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
   &__option {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__option-label {
@@ -3454,7 +3453,7 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
   &__value {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
   }
 
   &__value-label {
@@ -3467,9 +3466,9 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 1px 5px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
     border-radius: 3px;
-    font-size: 8px;
+    font-size: var(--font-size-xxs);
     font-weight: 600;
     letter-spacing: 0.3px;
     line-height: 1;
@@ -3477,13 +3476,13 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
     flex-shrink: 0;
 
     &--free {
-      background: rgba(34, 197, 94, 0.15);
-      color: rgba(34, 197, 94, 0.9);
+      background: var(--color-success-bg);
+      color: var(--color-success);
     }
 
     &--vip {
-      background: rgba(251, 146, 60, 0.15);
-      color: rgba(251, 146, 60, 0.9);
+      background: var(--color-warning-bg);
+      color: var(--color-warning);
     }
   }
 }

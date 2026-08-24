@@ -31,6 +31,14 @@ import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { createLogger } from '@/shared/utils/logger';
 import { usageStatsApi } from '@/infrastructure/api/usageStatsApi';
 import type { AppRule, Category } from '@/infrastructure/api/usageStatsApi';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/component-library';
 import DashboardView from './DashboardView';
 import HistoryView from './HistoryView';
 import DataTrendsView from './DataTrendsView';
@@ -214,27 +222,27 @@ const AppsView: React.FC = () => {
           })}
         </p>
       ) : (
-        <table className="apps-view__table">
-          <thead>
-            <tr>
-              <th></th>
-              <th>{t('usageStats.processName', { defaultValue: 'Process' })}</th>
-              <th>{t('usageStats.displayName', { defaultValue: 'Display Name' })}</th>
-              <th>{t('usageStats.category', { defaultValue: 'Category' })}</th>
-              <th>{t('usageStats.color', { defaultValue: 'Color' })}</th>
-              <th>{t('usageStats.exclude', { defaultValue: 'Exclude' })}</th>
-              <th>{t('usageStats.captureTitle', { defaultValue: 'Title' })}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="apps-view__table" dense>
+          <TableHeader>
+            <TableRow>
+              <TableHead></TableHead>
+              <TableHead>{t('usageStats.processName', { defaultValue: 'Process' })}</TableHead>
+              <TableHead>{t('usageStats.displayName', { defaultValue: 'Display Name' })}</TableHead>
+              <TableHead>{t('usageStats.category', { defaultValue: 'Category' })}</TableHead>
+              <TableHead>{t('usageStats.color', { defaultValue: 'Color' })}</TableHead>
+              <TableHead>{t('usageStats.exclude', { defaultValue: 'Exclude' })}</TableHead>
+              <TableHead>{t('usageStats.captureTitle', { defaultValue: 'Title' })}</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rules.map((rule) => (
-              <tr key={rule.exe_path}>
+              <TableRow key={rule.exe_path}>
                 {editingPath === rule.exe_path && editForm ? (
                   <>
-                    <td><AppIcon icon={rule.icon} exePath={rule.exe_path} size={20} /></td>
-                    <td title={rule.exe_path}>{rule.process_name}</td>
-                    <td>
+                    <TableCell><AppIcon icon={rule.icon} exePath={rule.exe_path} size={20} /></TableCell>
+                    <TableCell title={rule.exe_path}>{rule.process_name}</TableCell>
+                    <TableCell>
                       <input
                         type="text"
                         value={editForm.display_name ?? ''}
@@ -243,8 +251,8 @@ const AppsView: React.FC = () => {
                         }
                         placeholder={rule.process_name}
                       />
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <select
                         value={editForm.category_id ?? ''}
                         onChange={(e) =>
@@ -261,8 +269,8 @@ const AppsView: React.FC = () => {
                           </option>
                         ))}
                       </select>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <input
                         type="color"
                         value={editForm.color ?? '#4a9eff'}
@@ -270,8 +278,8 @@ const AppsView: React.FC = () => {
                           setEditForm({ ...editForm, color: e.target.value })
                         }
                       />
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <input
                         type="checkbox"
                         checked={editForm.exclude_from_stats}
@@ -279,8 +287,8 @@ const AppsView: React.FC = () => {
                           setEditForm({ ...editForm, exclude_from_stats: e.target.checked })
                         }
                       />
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <input
                         type="checkbox"
                         checked={editForm.capture_title}
@@ -288,8 +296,8 @@ const AppsView: React.FC = () => {
                           setEditForm({ ...editForm, capture_title: e.target.checked })
                         }
                       />
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <div className="apps-view__row-actions">
                         <button type="button" className="apps-view__btn-save" onClick={saveEdit}>
                           <Check size={14} />
@@ -298,17 +306,17 @@ const AppsView: React.FC = () => {
                           <X size={14} />
                         </button>
                       </div>
-                    </td>
+                    </TableCell>
                   </>
                 ) : (
                   <>
-                    <td><AppIcon icon={rule.icon} exePath={rule.exe_path} size={20} /></td>
-                    <td title={rule.exe_path}>{rule.process_name}</td>
-                    <td>{rule.display_name ?? '—'}</td>
-                    <td>
+                    <TableCell><AppIcon icon={rule.icon} exePath={rule.exe_path} size={20} /></TableCell>
+                    <TableCell title={rule.exe_path}>{rule.process_name}</TableCell>
+                    <TableCell>{rule.display_name ?? '—'}</TableCell>
+                    <TableCell>
                       {categories.find((c) => c.id === rule.category_id)?.name ?? '—'}
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       {rule.color ? (
                         <span
                           className="apps-view__color-chip"
@@ -317,10 +325,10 @@ const AppsView: React.FC = () => {
                       ) : (
                         '—'
                       )}
-                    </td>
-                    <td>{rule.exclude_from_stats ? '✓' : ''}</td>
-                    <td>{rule.capture_title ? '✓' : ''}</td>
-                    <td>
+                    </TableCell>
+                    <TableCell>{rule.exclude_from_stats ? '✓' : ''}</TableCell>
+                    <TableCell>{rule.capture_title ? '✓' : ''}</TableCell>
+                    <TableCell>
                       <div className="apps-view__row-actions">
                         <button type="button" onClick={() => startEdit(rule)} title={t('usageStats.edit')}>
                           <Pencil size={14} />
@@ -333,13 +341,13 @@ const AppsView: React.FC = () => {
                           <Trash2 size={14} />
                         </button>
                       </div>
-                    </td>
+                    </TableCell>
                   </>
                 )}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
 
       <div className="apps-view__categories">

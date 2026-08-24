@@ -19,13 +19,12 @@
   );
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.35),
-    0 4px 16px rgba(0, 0, 0, 0.2),
-    0 0 1px rgba(96, 165, 250, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow:0 8px 32px var(--modal-overlay),
+    0 4px 16px var(--color-overlay),
+    0 0 1px var(--color-accent-300),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-primary) 6%, transparent);
   overflow: hidden;
-  z-index: 1100;
+  z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
   backdrop-filter: blur(20px) saturate(1.2);
@@ -48,11 +47,11 @@
   &__header {
     display: flex;
     align-items: center;
-    gap: 5px;
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--color-border-subtle);
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
+    border-bottom: 1px solid var(--border-subtle);
     color: var(--color-text-muted);
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     letter-spacing: 0.02em;
     
@@ -68,15 +67,15 @@
     width: 18px;
     height: 18px;
     padding: 0;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background:color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+    border: 1px solid var(--element-bg-subtle);
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s ease;
     color: var(--color-text-muted);
     
     &:hover {
-      background: rgba(255, 255, 255, 0.15);
+      background:color-mix(in srgb, var(--color-text-primary) 16%, transparent);
       color: var(--color-text-primary);
     }
   }
@@ -103,10 +102,10 @@
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 12px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-3);
     color: var(--color-text-muted);
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     
     span {
       opacity: 0.7;
@@ -124,20 +123,20 @@
   }
   
   &__list {
-    padding: 3px;
+    padding: var(--size-gap-0-5);
   }
   
   &__item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1) var(--size-gap-2);
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.12s ease;
     
     &:hover {
-      background: rgba(255, 255, 255, 0.06);
+      background:color-mix(in srgb, var(--color-text-primary) 6%, transparent);
       
       .file-mention-picker__expand-icon {
         opacity: 1;
@@ -145,10 +144,10 @@
     }
     
     &--selected {
-      background: linear-gradient(135deg, rgba(96, 165, 250, 0.15), rgba(59, 130, 246, 0.1));
+      background: linear-gradient(135deg, var(--color-accent-200), var(--color-accent-200));
       
       .file-mention-picker__item-name {
-        color: rgba(147, 197, 253, 1);
+        color:var(--color-accent-500);
       }
       
       .file-mention-picker__expand-icon {
@@ -161,17 +160,17 @@
     flex-shrink: 0;
     
     &--file {
-      color: rgba(96, 165, 250, 0.85);
+      color: var(--color-accent-500);
     }
     
     &--folder {
-      color: rgba(251, 191, 36, 0.85);
+      color: var(--color-warning);
     }
   }
   
   &__item-name {
     flex: 1;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 400;
     color: var(--color-text-primary);
     white-space: nowrap;
@@ -191,16 +190,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    padding: 6px 10px;
-    border-top: 1px solid var(--color-border-subtle);
-    font-size: 10px;
+    gap: var(--size-gap-3);
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
+    border-top: 1px solid var(--border-subtle);
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     
     span {
       display: flex;
       align-items: center;
-      gap: 3px;
+      gap: var(--size-gap-0-5);
       opacity: 0.7;
     }
     
@@ -210,11 +209,11 @@
       justify-content: center;
       min-width: 16px;
       height: 16px;
-      padding: 0 3px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 0 var(--size-gap-0-5);
+      background:color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+      border:1px solid color-mix(in srgb, var(--color-text-primary) 12%, transparent);
       border-radius: 3px;
-      font-size: 9px;
+      font-size: var(--font-size-xxs);
       font-family: $font-family-mono;
       color: var(--color-text-secondary);
     }
@@ -229,16 +228,16 @@
     -webkit-backdrop-filter: none;
     border-color: var(--border-subtle);
     box-shadow:
-      0 4px 18px rgba(15, 23, 42, 0.04),
-      0 1px 3px rgba(15, 23, 42, 0.03),
-      inset 0 1px 0 rgba(255, 255, 255, 0.95);
+      0 4px 18px var(--color-bg-primary),
+      0 1px 3px var(--color-bg-primary),
+      inset 0 1px 0 var(--color-text-primary);
 
     &__back-btn {
-      background: rgba(15, 23, 42, 0.04);
-      border-color: rgba(15, 23, 42, 0.08);
+      background: var(--color-bg-primary);
+      border-color: var(--color-bg-primary);
 
       &:hover {
-        background: rgba(15, 23, 42, 0.06);
+        background: var(--color-bg-primary);
       }
     }
 
@@ -251,14 +250,14 @@
       background: var(--element-bg-medium);
       background: color-mix(
         in srgb,
-        var(--color-accent-primary, var(--color-accent-500)) 22%,
+        var(--color-accent-primary) 22%,
         var(--color-bg-elevated) 78%
       );
 
       .file-mention-picker__item-name {
         color: color-mix(
           in srgb,
-          var(--color-accent-primary, var(--color-accent-500)) 72%,
+          var(--color-accent-primary) 72%,
           var(--color-text-primary)
         );
       }
@@ -267,7 +266,7 @@
       .file-mention-picker__expand-icon {
         color: color-mix(
           in srgb,
-          var(--color-accent-primary, var(--color-accent-500)) 65%,
+          var(--color-accent-primary) 65%,
           var(--color-text-primary)
         );
         opacity: 0.92;
@@ -275,8 +274,8 @@
     }
 
     &__footer kbd {
-      background: rgba(15, 23, 42, 0.04);
-      border-color: rgba(15, 23, 42, 0.08);
+      background: var(--color-bg-primary);
+      border-color: var(--color-bg-primary);
     }
   }
 }

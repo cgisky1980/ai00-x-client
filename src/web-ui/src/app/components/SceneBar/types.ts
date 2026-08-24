@@ -15,6 +15,7 @@ export type SceneTabId =
   | 'profile'
   | 'agents'
   | 'skills'
+  | 'plugins'
   | 'session-config'
   | 'ai-context'
   | 'mcp-tools'

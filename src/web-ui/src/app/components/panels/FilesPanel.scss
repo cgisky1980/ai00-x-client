@@ -34,7 +34,7 @@
   &__sync-indicator {
     display: inline-flex;
     align-items: center;
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     opacity: 0.6;
     animation: subtle-spin 2s linear infinite;
   }
@@ -144,7 +144,7 @@
   &__search-modes {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
     min-width: 0;
   }
 
@@ -160,7 +160,7 @@
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     transition: all $motion-base $easing-standard;
 
@@ -384,11 +384,11 @@
 @container files-panel (max-width: 140px) {
   .ai00-x-files-panel {
     &__search {
-      padding: 4px 6px;
+      padding: var(--size-gap-1) var(--size-gap-1-5);
     }
 
     &__search-toolbar {
-      gap: 4px;
+      gap: var(--size-gap-1);
     }
 
     &__search-options {
@@ -396,16 +396,16 @@
     }
 
     &__search-status {
-      padding: 4px 6px;
-      font-size: 10px;
-      gap: 4px;
+      padding: var(--size-gap-1) var(--size-gap-1-5);
+      font-size: var(--font-size-xxs);
+      gap: var(--size-gap-1);
     }
 
     &__placeholder {
-      padding: 16px 8px;
+      padding: var(--size-gap-4) var(--size-gap-2);
       
       p {
-        font-size: 11px;
+        font-size: var(--font-size-2xs);
       }
     }
 
@@ -416,7 +416,7 @@
 
     &__loading {
       p {
-        font-size: 11px;
+        font-size: var(--font-size-2xs);
       }
     }
 
@@ -426,16 +426,16 @@
     }
 
     &__error {
-      padding: 16px 8px;
+      padding: var(--size-gap-4) var(--size-gap-2);
       
       p {
-        font-size: 11px;
+        font-size: var(--font-size-2xs);
       }
     }
 
     &__retry-button {
-      padding: 3px 8px;
-      font-size: 10px;
+      padding: var(--size-gap-0-5) var(--size-gap-2);
+      font-size: var(--font-size-xxs);
     }
   }
 }
@@ -452,7 +452,7 @@
     }
 
     &__search-options {
-      gap: 4px;
+      gap: var(--size-gap-1);
     }
 
     &__search-option {

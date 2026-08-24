@@ -7,12 +7,12 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding: 0.75rem;
+  padding: var(--size-gap-3);
 
   // ---- Split layout (two-column) ----
 
   &--split {
-    gap: 0.75rem;
+    gap: var(--size-gap-3);
   }
 
   &__body {
@@ -20,7 +20,7 @@
     min-width: 0;
     min-height: 0;
     display: flex;
-    gap: 0.75rem;
+    gap: var(--size-gap-3);
     overflow: hidden;
   }
 
@@ -30,7 +30,7 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
+    gap: var(--size-gap-3);
     // Match flow_chat: constrain content width and center it.
     align-items: center;
 
@@ -46,10 +46,10 @@
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: var(--size-gap-3);
     min-width: 0;
     min-height: 0;
-    padding-left: 0.75rem;
+    padding-left: var(--size-gap-3);
     border-left: 1px solid var(--border-subtle);
   }
 
@@ -61,8 +61,8 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
-    padding: 0.25rem 0;
+    gap: var(--size-gap-3);
+    padding: var(--size-gap-1) 0;
 
     &::-webkit-scrollbar {
       width: 6px;
@@ -78,7 +78,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
+    gap: var(--size-gap-4);
     flex: 1;
     color: var(--color-text-secondary);
 
@@ -96,7 +96,7 @@
 
     p {
       margin: 0;
-      font-size: 0.82rem;
+      font-size: var(--font-size-sm);
       text-align: center;
       max-width: 280px;
       line-height: 1.5;
@@ -106,18 +106,18 @@
   &__empty-prompts {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
+    gap: var(--size-gap-1-5);
     justify-content: center;
     max-width: 340px;
   }
 
   &__empty-prompt {
-    padding: 0.35rem 0.7rem;
+    padding: var(--size-gap-1-5) var(--size-gap-3);
     border: 1px solid var(--border-subtle);
     border-radius: 20px;
     background: var(--element-bg-soft);
     color: var(--color-text-secondary);
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -158,15 +158,15 @@
   }
 
   &__bubble-content {
-    padding: 0.7rem 0.95rem;
+    padding: var(--size-gap-3) var(--size-gap-4);
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: var(--size-gap-2);
   }
 
   &__bubble-text {
     margin: 0;
-    font-size: 0.82rem;
+    font-size: var(--font-size-sm);
     line-height: 1.65;
     word-break: break-word;
     font-family: inherit;
@@ -180,7 +180,7 @@
 
   // Markdown inside bubbles — reset margins so it sits cleanly in the bubble.
   &__bubble-markdown {
-    font-size: 0.82rem;
+    font-size: var(--font-size-sm);
     line-height: 1.65;
 
     p:first-child { margin-top: 0; }
@@ -188,7 +188,7 @@
   }
 
   &__card-markdown {
-    font-size: 0.78rem;
+    font-size: var(--font-size-xs);
     line-height: 1.6;
 
     p:first-child { margin-top: 0; }
@@ -196,11 +196,11 @@
   }
 
   &__bubble-error {
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     color: var(--color-error);
-    padding: 0.3rem 0.55rem;
+    padding: var(--size-gap-1) var(--size-gap-2);
     border-radius: 6px;
-    background: var(--color-error-bg, transparent);
+    background: var(--color-error-bg);
     border: 1px solid var(--color-error);
   }
 
@@ -209,8 +209,8 @@
   &__typing {
     display: inline-flex;
     align-items: center;
-    gap: 0.22rem;
-    padding: 0.2rem 0;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) 0;
 
     span {
       width: 5px;
@@ -241,12 +241,12 @@
   &__input {
     flex: 1;
     width: 100%;
-    padding: 0.5rem 0.6rem;
+    padding: var(--size-gap-2) var(--size-gap-2-5);
     border: none;
     border-radius: 8px;
     background: transparent;
     color: var(--color-text-primary);
-    font-size: 0.82rem;
+    font-size: var(--font-size-sm);
     line-height: 1.45;
     resize: none;
     min-height: 36px;
@@ -273,11 +273,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
-    padding: 0.5rem 1rem;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2) var(--size-gap-4);
     border: none;
     border-radius: 8px;
-    font-size: 0.8rem;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     cursor: pointer;
     transition: opacity 0.15s, background 0.15s, transform 0.15s;
@@ -290,11 +290,11 @@
   }
 
   &__btn--ghost {
-    padding: 0.35rem 0.65rem;
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
     background: var(--element-bg-soft);
     border: 1px solid var(--border-subtle);
     color: var(--color-text-secondary);
-    font-size: 0.74rem;
+    font-size: var(--font-size-xs);
     border-radius: 8px;
 
     &:hover:not(:disabled) {
@@ -306,12 +306,12 @@
   // ---- Status / errors ----
 
   &__error {
-    padding: 0.5rem 0.75rem;
+    padding: var(--size-gap-2) var(--size-gap-3);
     border-radius: 10px;
-    background: var(--color-error-bg, transparent);
+    background: var(--color-error-bg);
     border: 1px solid var(--color-error);
     color: var(--color-error);
-    font-size: 0.78rem;
+    font-size: var(--font-size-xs);
     animation: acestep-msg-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     flex-shrink: 0;
   }
@@ -324,12 +324,12 @@
   &__plan-ready {
     position: relative;
     flex-shrink: 0;
-    padding: 0.7rem 0.9rem;
+    padding: var(--size-gap-3) var(--size-gap-3-5);
     border-radius: 12px;
     background: linear-gradient(
       135deg,
       color-mix(in srgb, var(--color-accent-500) 14%, transparent),
-      color-mix(in srgb, var(--color-purple-500, var(--color-accent-500)) 10%, transparent)
+      color-mix(in srgb, var(--color-accent-500) 10%, transparent)
     );
     border: 1px solid color-mix(in srgb, var(--color-accent-400) 55%, transparent);
     box-shadow:
@@ -338,7 +338,7 @@
     animation: acestep-plan-ready-in 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     align-items: flex-start;
-    gap: 0.55rem;
+    gap: var(--size-gap-2);
   }
 
   &__plan-ready-close {
@@ -367,29 +367,29 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
-    padding-right: 1.2rem; // leave room for the close button
+    gap: var(--size-gap-1);
+    padding-right: var(--size-gap-5); // leave room for the close button
   }
 
   &__plan-ready-title {
-    font-size: 0.82rem;
+    font-size: var(--font-size-sm);
     font-weight: 600;
-    color: var(--color-accent-500, var(--color-text-primary));
+    color: var(--color-accent-500);
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: var(--size-gap-1-5);
   }
 
   &__plan-ready-hint {
-    font-size: 0.74rem;
+    font-size: var(--font-size-xs);
     line-height: 1.5;
     color: var(--color-text-secondary);
   }
 
   &__plan-ready-actions {
     display: flex;
-    gap: 0.45rem;
-    margin-top: 0.35rem;
+    gap: var(--size-gap-2);
+    margin-top: var(--size-gap-1-5);
     flex-wrap: wrap;
   }
 
@@ -397,10 +397,10 @@
   &__plan-ready-generate {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.35rem 0.7rem;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1-5) var(--size-gap-3);
     border-radius: 8px;
-    font-size: 0.74rem;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     cursor: pointer;
     border: 1px solid transparent;
@@ -428,7 +428,7 @@
   &__plan-ready-generate {
     background: var(--color-accent-500);
     border-color: var(--color-accent-500);
-    color: #fff;
+    color: var(--color-accent-foreground);
 
     &:hover {
       background: var(--color-accent-600);
@@ -445,8 +445,8 @@
   &__progress {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.65rem 0.85rem;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2-5) var(--size-gap-3-5);
     border-radius: 12px;
     background: var(--element-bg-soft);
     border: 1px solid var(--border-subtle);
@@ -463,20 +463,20 @@
   &__progress-fill {
     height: 100%;
     border-radius: 3px;
-    background: var(--acestep-progress-gradient, linear-gradient(90deg, var(--color-accent-500), var(--color-purple-500)));
+    background: linear-gradient(90deg, var(--color-accent-400), var(--color-accent-600)), var(--color-accent-500);
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &__progress-text {
-    font-size: 0.72rem;
+    font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
   }
 
   // ---- Inline ask options (rendered inside the assistant bubble) ----
 
   &__ask {
-    margin-top: 0.6rem;
-    padding-top: 0.55rem;
+    margin-top: var(--size-gap-2-5);
+    padding-top: var(--size-gap-2);
     border-top: 1px solid var(--border-subtle);
     animation: acestep-msg-in 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -484,18 +484,18 @@
   &__ask-options {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
+    gap: var(--size-gap-1-5);
     // Left-aligned inside the assistant bubble to match reading order.
     justify-content: flex-start;
   }
 
   &__ask-option {
-    padding: 0.4rem 0.85rem;
-    border: 1px solid var(--border-accent-subtle, var(--border-medium));
+    padding: var(--size-gap-1-5) var(--size-gap-3-5);
+    border: 1px solid var(--border-accent-subtle);
     border-radius: 14px;
-    background: var(--card-bg-accent, var(--element-bg-soft));
-    color: var(--color-accent-500, var(--color-text-primary));
-    font-size: 0.76rem;
+    background: var(--card-bg-accent);
+    color: var(--color-accent-500);
+    font-size: var(--font-size-xs);
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -503,7 +503,7 @@
     &:hover:not(:disabled) {
       background: var(--color-accent-500);
       border-color: var(--color-accent-500);
-      color: #fff;
+      color: var(--color-accent-foreground);
       transform: translateY(-1px);
     }
 
@@ -528,18 +528,18 @@
   &__ask-custom {
     display: flex;
     align-items: center;
-    gap: 0.3rem;
-    margin-top: 0.45rem;
+    gap: var(--size-gap-1);
+    margin-top: var(--size-gap-2);
   }
 
   &__ask-custom-input {
     flex: 1;
-    padding: 0.35rem 0.6rem;
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
     border: 1px solid var(--border-subtle);
     border-radius: 10px;
     background: var(--element-bg-soft);
     color: var(--color-text-primary);
-    font-size: 0.74rem;
+    font-size: var(--font-size-xs);
     font-family: inherit;
 
     &::placeholder {
@@ -564,7 +564,7 @@
     border: none;
     border-radius: 50%;
     background: var(--color-accent-500);
-    color: #fff;
+    color: var(--color-accent-foreground);
     display: inline-flex;
     align-items: center;
     justify-content: center;

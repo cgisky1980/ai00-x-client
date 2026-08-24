@@ -18,7 +18,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 8px 24px 24px;
+    padding: var(--size-gap-2) var(--size-gap-6) var(--size-gap-6);
     text-align: center;
     position: relative;
     overflow: hidden;
@@ -30,7 +30,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 10px;
+    margin-bottom: var(--size-gap-2-5);
     animation: new-project-icon-enter 0.4s ease-out;
 
     svg {
@@ -50,16 +50,16 @@
   }
 
   &__title {
-    font-size: 18px;
+    font-size: var(--font-size-2xl);
     font-weight: 600;
     color: var(--color-text-primary);
-    margin: 0 0 6px 0;
+    margin: 0 0 var(--size-gap-1-5) 0;
     position: relative;
     z-index: 1;
   }
 
   &__subtitle {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     color: var(--color-text-muted);
     margin: 0;
     position: relative;
@@ -69,10 +69,10 @@
   // ==================== Content Area ====================
 
   &__content {
-    padding: 0 24px 20px;
+    padding: 0 var(--size-gap-6) var(--size-gap-5);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--size-gap-4);
   }
 
   // ==================== Form Fields ====================
@@ -80,7 +80,7 @@
   &__field {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--size-gap-2);
     animation: new-project-field-enter 0.35s ease-out both;
     
     &:nth-child(1) { animation-delay: 0.05s; }
@@ -101,8 +101,8 @@
   &__label {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
+    gap: var(--size-gap-1-5);
+    font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--color-text-secondary);
     margin: 0;
@@ -118,7 +118,7 @@
 
   &__path-selector {
     display: flex;
-    gap: 4px;
+    gap: var(--size-gap-1);
     align-items: stretch;
   }
 
@@ -130,16 +130,16 @@
       width: 100%;
       cursor: default;
       user-select: none;
-      font-size: 12px;
-      padding: 10px 12px;
-      background: rgba(255, 255, 255, 0.02);
+      font-size: var(--font-size-xs);
+      padding: var(--size-gap-2-5) var(--size-gap-3);
+      background:color-mix(in srgb, var(--color-text-primary) 4%, transparent);
       border: 1px dashed var(--border-subtle);
       border-radius: 8px;
       color: var(--color-text-primary);
       
       &::placeholder {
         color: var(--color-text-muted);
-        font-size: 12px;
+        font-size: var(--font-size-xs);
       }
       
       &:focus {
@@ -154,8 +154,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 0 14px;
+    gap: var(--size-gap-1-5);
+    padding: 0 var(--size-gap-3-5);
     min-width: 80px;
     white-space: nowrap;
     flex-shrink: 0;
@@ -163,7 +163,7 @@
     border: 1px dashed var(--border-subtle);
     border-radius: 8px;
     color: var(--color-text-secondary);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -196,9 +196,9 @@
   &__name-input {
     input {
       width: 100%;
-      font-size: 12px;
-      padding: 10px 12px;
-      background: rgba(255, 255, 255, 0.02);
+      font-size: var(--font-size-xs);
+      padding: var(--size-gap-2-5) var(--size-gap-3);
+      background:color-mix(in srgb, var(--color-text-primary) 4%, transparent);
       border: 1px solid var(--border-subtle);
       border-radius: 8px;
       color: var(--color-text-primary);
@@ -206,7 +206,7 @@
       
       &::placeholder {
         color: var(--color-text-muted);
-        font-size: 12px;
+        font-size: var(--font-size-xs);
       }
       
       &:focus {
@@ -227,8 +227,8 @@
   &__preview {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2-5) var(--size-gap-3);
     background: color-mix(in srgb, var(--color-primary) 8%, transparent);
     border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent);
     border-radius: 8px;
@@ -264,18 +264,18 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--size-gap-0-5);
   }
 
   &__preview-label {
-    font-size: 10px;
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   &__preview-path {
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
     font-family: 'Consolas', 'Monaco', monospace;
     color: var(--color-text-secondary);
     white-space: nowrap;
@@ -288,10 +288,10 @@
   &__error {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2-5) var(--size-gap-3);
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error-bg);
     border-radius: 8px;
     animation: new-project-error-shake 0.4s ease-out;
     
@@ -299,12 +299,12 @@
       flex-shrink: 0;
       width: 14px;
       height: 14px;
-      color: #ef4444;
+      color: var(--color-error);
     }
     
     span {
-      font-size: 12px;
-      color: #ef4444;
+      font-size: var(--font-size-xs);
+      color: var(--color-error);
     }
   }
 
@@ -321,16 +321,16 @@
   &__footer {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    padding: 8px 16px;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2) var(--size-gap-4);
     border-top: 1px solid var(--border-subtle);
     background: transparent;
 
     .btn.btn-sm {
       height: 28px;
       min-height: 28px;
-      padding: 0 10px;
-      font-size: 11px;
+      padding: 0 var(--size-gap-2-5);
+      font-size: var(--font-size-2xs);
     }
 
     .btn-loading-icon {
@@ -343,7 +343,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     font-weight: 500;
     border-radius: 6px;
     cursor: pointer;
@@ -411,15 +411,15 @@
     width: 100%;
     
     &__hero {
-      padding: 8px 16px 20px;
+      padding: var(--size-gap-2) var(--size-gap-4) var(--size-gap-5);
     }
     
     &__content {
-      padding: 0 16px 16px;
+      padding: 0 var(--size-gap-4) var(--size-gap-4);
     }
     
     &__footer {
-      padding: 10px 16px;
+      padding: var(--size-gap-2-5) var(--size-gap-4);
     }
     
     &__path-selector {
@@ -428,7 +428,7 @@
     
     &__select-btn {
       width: 100%;
-      padding: 10px;
+      padding: var(--size-gap-2-5);
     }
   }
 }

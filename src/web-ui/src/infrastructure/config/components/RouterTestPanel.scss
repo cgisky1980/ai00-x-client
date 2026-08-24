@@ -1,13 +1,13 @@
 .router-test-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
 }
 
 .router-test-panel__row {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
 }
 
 .router-test-panel__input {
@@ -17,35 +17,35 @@
 .router-test-panel__result {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2, 8px);
-  padding: var(--spacing-2, 8px);
-  border-radius: var(--border-radius-sm, 6px);
-  background: var(--color-bg-secondary, rgba(255, 255, 255, 0.03));
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  border-radius: var(--size-radius-sm);
+  background: var(--color-bg-secondary);
 }
 
 .router-test-panel__bars {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
 }
 
 .router-test-panel__bar-row {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
 }
 
 .router-test-panel__bar-label {
   width: 90px;
-  font-size: var(--font-size-xs, 12px);
-  color: var(--color-text-muted, #b0b0b8);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .router-test-panel__bar-label--win {
-  color: var(--color-text-primary, #fff);
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
@@ -53,42 +53,42 @@
   flex: 1;
   height: 6px;
   border-radius: 3px;
-  background: var(--color-border-primary, rgba(255, 255, 255, 0.08));
+  background: var(--border-base);
   overflow: hidden;
 }
 
 .router-test-panel__bar-fill {
   height: 100%;
   border-radius: 3px;
-  background: var(--color-border-primary, rgba(255, 255, 255, 0.2));
+  background: var(--border-base);
   transition: width 0.25s ease;
 }
 
 .router-test-panel__bar-fill--win {
-  background: var(--color-primary, #4f9cf9);
+  background: var(--color-primary);
 }
 
 .router-test-panel__bar-value {
   width: 48px;
   text-align: right;
-  font-size: var(--font-size-xs, 12px);
-  color: var(--color-text-muted, #b0b0b8);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .router-test-panel__verdict {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
-  font-size: var(--font-size-xs, 12px);
-  color: var(--color-text-secondary, #d0d0d8);
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
 }
 
 .router-test-panel__tag {
-  padding: 0 6px;
+  padding: 0 var(--size-gap-1-5);
   border-radius: 4px;
-  background: var(--color-bg-tertiary, rgba(255, 255, 255, 0.06));
-  font-size: 10px;
+  background: var(--color-bg-tertiary);
+  font-size: var(--font-size-xxs);
   line-height: 18px;
-  color: var(--color-text-muted, #b0b0b8);
+  color: var(--color-text-muted);
 }

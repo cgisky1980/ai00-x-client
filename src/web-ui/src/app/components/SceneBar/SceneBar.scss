@@ -7,7 +7,7 @@
 
 @use '../../../component-library/styles/tokens.scss' as *;
 
-$_tab-v-margin: 6px;   // symmetric top/bottom gap inside SceneBar
+$_tab-v-margin: var(--size-gap-1-5);   // symmetric top/bottom gap inside SceneBar
 
 .ai00-x-scene-bar {
   display: flex;
@@ -27,7 +27,7 @@ $_tab-v-margin: 6px;   // symmetric top/bottom gap inside SceneBar
     --scene-tab-count: 1;
     // Keep horizontal breathing room so edge tabs don't have
     // their rounded corners visually clipped at container bounds.
-    padding: $_tab-v-margin 2px;
+    padding: $_tab-v-margin var(--size-gap-0-5);
     overflow: hidden;
   }
 
@@ -247,10 +247,6 @@ $_tab-v-margin: 6px;   // symmetric top/bottom gap inside SceneBar
       opacity: 1 !important;
     }
   }
-}
-
-[data-theme='ai00-x-slate'] .ai00-x-scene-tab__icon {
-  opacity: 0.94;
 }
 
 // Light themes: inactive = former active (soft tint on chrome); active = former inactive (lifted pill + edge).
