@@ -7,7 +7,10 @@
 html, body, #root { margin: 0; padding: 0; min-height: 100%; }
 
 .uikit {
-  min-height: 100vh;
+  /* 视口不滚（overflow hidden）：滚动收敛到侧边栏/内容区各自局部滚动，
+   * 滚动条起点落在顶栏下方；也避开 Windows Chrome 视口滚动条的平台怪癖 */
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background-color: var(--color-bg-base);
@@ -27,11 +30,12 @@ a { color: inherit; text-decoration: none; }
   z-index: var(--z-chrome-island);
   display: flex;
   align-items: center;
-  gap: var(--size-gap-5);
-  height: 56px;
-  padding: 0 var(--size-gap-6);
+  gap: var(--size-gap-6);
+  height: 64px;
+  padding: 0 var(--size-gap-7);
   background: var(--color-bg-secondary);
   border-bottom: 1px solid var(--border-base);
+  box-shadow: var(--shadow-xs);
 }
 
 .uikit-brand {
@@ -40,11 +44,23 @@ a { color: inherit; text-decoration: none; }
   gap: var(--size-gap-2-5);
   flex-shrink: 0;
 
+  &__text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+  }
+
   &__name {
     font-family: var(--font-family-serif);
-    font-size: var(--font-size-xl);
+    font-size: var(--font-size-lg);
     font-weight: var(--font-weight-bold);
     letter-spacing: 0.02em;
+  }
+
+  &__sub {
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+    letter-spacing: 0.06em;
   }
 }
 
@@ -96,9 +112,24 @@ a { color: inherit; text-decoration: none; }
 }
 
 .uikit-gh {
-  font-size: var(--font-size-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-gap-1-5);
+  padding: var(--size-gap-1) var(--size-gap-2-5);
+  border: 1px solid var(--border-base);
+  border-radius: var(--size-radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
-  &:hover { color: var(--color-accent-600); }
+  transition: color var(--motion-fast) var(--easing-standard),
+    border-color var(--motion-fast) var(--easing-standard),
+    background-color var(--motion-fast) var(--easing-standard);
+
+  &:hover {
+    color: var(--color-accent-600);
+    border-color: var(--color-accent-500);
+    background: var(--element-bg-soft);
+  }
 }
 
 /* ================= 主体 ================= */
@@ -108,21 +139,24 @@ a { color: inherit; text-decoration: none; }
   min-height: 0;
 }
 
-/* ---------- 侧边栏 ---------- */
+/* ---------- 侧边栏（antd 分层：组标题独立呼吸区 + 36px 行高条目 + 激活左缘指示条） ---------- */
 .uikit-sider {
-  width: 248px;
+  width: 256px;
   flex-shrink: 0;
   border-right: 1px solid var(--border-subtle);
+  background: var(--color-bg-secondary);
   overflow-y: auto;
-  padding: var(--size-gap-5) var(--size-gap-2-5);
-  position: sticky;
-  top: 56px;
-  height: calc(100vh - 56px);
+  padding: var(--size-gap-5) var(--size-gap-3) var(--size-gap-10);
+  /* 视口已不滚（.uikit overflow hidden），无需 sticky，flex 拉伸即全高 */
+  /* 滚动条：走 design-system 全局墨阶细滚动条（components.css） */
 }
 
 .uikit-sider__item {
-  display: block;
-  padding: var(--size-gap-1) var(--size-gap-2-5);
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 var(--size-gap-2-5);
   border-radius: var(--size-radius-base);
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
@@ -133,39 +167,70 @@ a { color: inherit; text-decoration: none; }
     color: var(--color-text-primary);
     background: var(--element-bg-soft);
   }
+
+  /* 激活：黛青染色 + 左缘 3px 指示条（签名语法） */
   &.is-active {
     color: var(--color-accent-700);
     background: var(--color-accent-100);
     font-weight: var(--font-weight-semibold);
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: var(--size-gap-0-75, 3px);
+      height: 60%;
+      border-radius: var(--size-radius-full);
+      background: var(--color-accent-500);
+    }
   }
+
+  /* 顶部固定项（设计语言总览）：独立区 + 分隔线 */
   &--top {
     font-weight: var(--font-weight-semibold);
-    margin-bottom: var(--size-gap-2);
+    color: var(--color-text-primary);
   }
 }
 
 .uikit-sider__group {
-  margin-top: var(--size-gap-4);
+  margin-top: var(--size-gap-6);
+
+  /* 首组之上加分隔线，拉开与顶部项的层级 */
+  &:first-of-type {
+    margin-top: var(--size-gap-4);
+    padding-top: var(--size-gap-4);
+    border-top: 1px solid var(--border-subtle);
+  }
 
   &-title {
-    padding: 0 var(--size-gap-2-5) var(--size-gap-1);
+    padding: 0 var(--size-gap-2-5) var(--size-gap-1-5);
     font-size: var(--font-size-2xs);
     font-weight: var(--font-weight-semibold);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.12em;
     color: var(--color-text-muted);
+  }
+
+  /* 组内条目垂直间距收紧（成组感） */
+  .uikit-sider__item + .uikit-sider__item {
+    margin-top: var(--size-gap-0-25);
   }
 }
 
-/* ---------- 内容区 ---------- */
+/* ---------- 内容区（在侧边栏右侧的剩余空间内水平居中） ---------- */
 .uikit-content {
   flex: 1;
   min-width: 0;
-  padding: var(--size-gap-8) var(--size-gap-8) var(--size-gap-14);
+  overflow-y: auto; /* 内容区局部滚动：滚动条起点在顶栏下方 */
+  padding: var(--size-gap-10) var(--size-gap-8) var(--size-gap-16);
 }
 
 .uikit-doc {
-  max-width: 860px;
+  /* 居中：max-width 容器在剩余空间内 margin auto */
+  max-width: 780px;
+  margin: 0 auto;
 
   &__crumb {
     font-size: var(--font-size-xs);
@@ -174,10 +239,11 @@ a { color: inherit; text-decoration: none; }
   }
 
   h1 {
-    font-size: var(--font-size-3xl);
+    font-size: var(--font-size-4xl);
     font-weight: var(--font-weight-bold);
     line-height: 1.3;
     margin: 0 0 var(--size-gap-3);
+    letter-spacing: 0.01em;
   }
 
   &__en {
@@ -191,7 +257,8 @@ a { color: inherit; text-decoration: none; }
   &__desc {
     font-size: var(--font-size-base);
     color: var(--color-text-secondary);
-    margin: 0 0 var(--size-gap-7);
+    margin: 0 0 var(--size-gap-8);
+    line-height: 1.8;
   }
 
   &__section {
