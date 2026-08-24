@@ -197,7 +197,7 @@ export default function App() {
         <p className="hp-section__desc hp-reveal">从摸鱼到加班，Ai00-X 正在成为许多人的「数字搭子」与桌面氛围担当。</p>
         <div className="hp-grid hp-grid--2 hp-reveal">
           {PROOF.map((t) => (
-            <figure key={t.name} className="hp-quote">
+            <figure key={t.name} className="hp-quote ds-hover-glow">
               <div className="hp-quote__stars" aria-label="五星好评">★★★★★</div>
               <blockquote>「{t.quote}」</blockquote>
               <figcaption>

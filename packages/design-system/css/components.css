@@ -87,11 +87,65 @@
 }
 
 /* ==================== Card（规范 5.2：墨面 + 纸纹实体） ==================== */
+/* v0.14：默认悬停反馈 = 黛青径向光晕淡入 + 上浮 -2px（沿旧版官网效果，守唯一交互色） */
 .ds-card {
+  position: relative;
   background-color: var(--color-bg-card);
   background-image: var(--ds-paper-grain);
   border-radius: var(--size-radius-lg);
   box-shadow: var(--shadow-sm), var(--inner-glow-top);
+  transition: transform var(--motion-fast) var(--easing-standard),
+    box-shadow var(--motion-fast) var(--easing-standard);
+}
+.ds-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit; /* 圆角自适应，不裁浮层（不用 overflow:hidden） */
+  opacity: 0;
+  transition: opacity 0.3s var(--easing-standard);
+  background: radial-gradient(ellipse 80% 60% at 10% 0%,
+    color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent);
+  pointer-events: none;
+}
+.ds-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-base), var(--inner-glow-top);
+}
+.ds-card:hover::before {
+  opacity: 1;
+}
+
+/* 通用悬停光晕工具类（任意卡面/区块可挂）：与 ds-card 同款 */
+.ds-hover-glow {
+  position: relative;
+  transition: transform var(--motion-fast) var(--easing-standard),
+    box-shadow var(--motion-fast) var(--easing-standard);
+}
+.ds-hover-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s var(--easing-standard);
+  background: radial-gradient(ellipse 80% 60% at 10% 0%,
+    color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+.ds-hover-glow:hover {
+  transform: translateY(-2px);
+}
+.ds-hover-glow:hover::before {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-card,
+  .ds-hover-glow {
+    transform: none !important;
+    transition: none !important;
+  }
 }
 .ds-card__header { padding: var(--size-gap-4) var(--size-gap-4) 0; }
 .ds-card__title {
