@@ -2,5 +2,6 @@ packages:
   - "src/web-ui"
   - "src/loader-ui"
   - "src/underlay-ui"
+  - "src/ui-kit"
   - "packages/shared"
   - "packages/design-system"

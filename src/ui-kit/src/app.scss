@@ -1,0 +1,167 @@
+/* Ai00-UI 演示站佈局 —— 全 token 化（stylelint 卡點範圍內：色彩/間距/字號零硬編碼） */
+* { box-sizing: border-box; }
+
+.uikit {
+  min-height: 100vh;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  transition: background-color var(--motion-base) var(--easing-standard);
+
+  .mono { font-family: var(--font-family-mono); font-size: var(--font-size-xs); }
+  .mono-num { font-family: var(--font-family-mono); font-variant-numeric: tabular-nums; }
+
+  a { color: var(--color-accent-600); text-decoration: none; }
+}
+
+/* ---------- Hero（門面：襯線 Display + 靈印 + 朱砂一印） ---------- */
+.uikit-hero {
+  display: flex; align-items: center; gap: var(--size-gap-5);
+  max-width: 1080px; margin: 0 auto;
+  padding: var(--size-gap-12) var(--size-gap-6) var(--size-gap-8);
+
+  &__mark { flex-shrink: 0; }
+  &__text { flex: 1; min-width: 0; }
+  &__eyebrow {
+    font-family: var(--font-family-mono); font-size: var(--font-size-xs);
+    letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+  &__title {
+    font-family: var(--font-family-serif);
+    font-size: var(--font-size-5xl); font-weight: var(--font-weight-bold);
+    line-height: 1.15; margin: var(--size-gap-0-5) 0;
+    color: var(--color-text-primary);
+  }
+  &__sub { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+  &__actions { display: flex; align-items: center; gap: var(--size-gap-2); }
+}
+
+.uikit-home {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: var(--size-radius-full);
+  color: var(--color-text-secondary); transition: color var(--motion-fast) var(--easing-standard);
+  &:hover { color: var(--color-accent-600); }
+}
+
+/* ---------- 主體 ---------- */
+.uikit-main {
+  max-width: 1080px; margin: 0 auto;
+  padding: 0 var(--size-gap-6) var(--size-gap-10);
+  display: flex; flex-direction: column; gap: var(--size-gap-8);
+}
+
+.uikit-section {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--size-radius-lg);
+  padding: var(--size-gap-6);
+  display: flex; flex-direction: column; gap: var(--size-gap-4);
+
+  &__head h2 {
+    font-family: var(--font-family-serif);
+    font-size: var(--font-size-2xl); font-weight: var(--font-weight-semibold);
+  }
+  &__note {
+    margin-top: var(--size-gap-0-5);
+    color: var(--color-text-muted); font-size: var(--font-size-xs);
+  }
+  &__body { display: flex; flex-direction: column; gap: var(--size-gap-4); }
+}
+
+.uikit-row {
+  display: flex; flex-direction: column; gap: var(--size-gap-1-5);
+
+  &__label {
+    font-size: var(--font-size-2xs); font-weight: var(--font-weight-medium);
+    color: var(--color-text-muted);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  &__content {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: var(--size-gap-2-5);
+    &:empty { display: none; }
+  }
+}
+
+/* ---------- 色板 ---------- */
+.uikit-swatches {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: var(--size-gap-3);
+}
+.uikit-swatch {
+  &__chip {
+    height: 56px; border-radius: var(--size-radius-base);
+    border: 1px solid var(--border-subtle);
+    &--accent { background-color: var(--color-accent-500); }
+    &--seal { background-color: var(--color-brand-seal); }
+  }
+  figcaption {
+    margin-top: var(--size-gap-1);
+    display: flex; flex-direction: column; gap: var(--size-gap-0-25);
+    .mono { color: var(--color-text-secondary); }
+    small { color: var(--color-text-muted); font-size: var(--font-size-2xs); }
+  }
+}
+
+/* ---------- 排版 ---------- */
+.uikit-type-display {
+  font-family: var(--font-family-serif);
+  font-size: var(--font-size-4xl); font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+}
+.uikit-type-scale {
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: var(--size-gap-0-5) var(--size-gap-4);
+  color: var(--color-text-primary);
+}
+
+/* ---------- 間距刻度 ---------- */
+.uikit-gaps {
+  display: flex; flex-wrap: wrap; align-items: flex-end;
+  gap: var(--size-gap-3) var(--size-gap-4);
+}
+.uikit-gap {
+  display: flex; flex-direction: column; align-items: center; gap: var(--size-gap-0-5);
+  &__bar {
+    height: var(--size-gap-4);
+    min-width: var(--size-gap-0-25);
+    background-color: var(--color-accent-500);
+    border-radius: var(--size-radius-0-25, 1px);
+  }
+  .mono { color: var(--color-text-muted); }
+}
+
+/* ---------- 表單網格 ---------- */
+.uikit-form-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--size-gap-4);
+  .uikit-row { grid-column: 1 / -1; }
+  > .uikit-row:nth-child(-n + 3) { grid-column: auto; }
+}
+
+/* ---------- 雜項 ---------- */
+.uikit-pane { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.uikit-popover-body {
+  display: flex; flex-direction: column; gap: var(--size-gap-2); min-width: 220px;
+  p { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+}
+.uikit-range { accent-color: var(--color-accent-500); }
+
+/* ---------- 頁腳 ---------- */
+.uikit-footer {
+  max-width: 1080px; margin: 0 auto;
+  padding: 0 var(--size-gap-6) var(--size-gap-10);
+  p {
+    display: flex; align-items: center; flex-wrap: wrap; gap: var(--size-gap-1-5);
+    padding-top: var(--size-gap-4);
+    color: var(--color-text-muted); font-size: var(--font-size-xs);
+  }
+}
+
+/* ---------- 響應式 ---------- */
+@media (max-width: 720px) {
+  .uikit-form-grid { grid-template-columns: 1fr; }
+  .uikit-hero { flex-direction: column; align-items: flex-start; gap: var(--size-gap-3); }
+}
