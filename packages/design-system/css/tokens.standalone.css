@@ -797,8 +797,7 @@ body {
   border-radius: inherit; /* 圆角自适应，不裁浮层（不用 overflow:hidden） */
   opacity: 0;
   transition: opacity 0.3s var(--easing-standard);
-  background: radial-gradient(ellipse 80% 60% at 10% 0%,
-    color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent);
+  background: var(--ds-glow-card);
   pointer-events: none;
 }
 .ds-card:hover {
@@ -807,6 +806,18 @@ body {
 }
 .ds-card:hover::before {
   opacity: 1;
+}
+
+/* 通用悬停光晕配方（v0.14.1）：主题自适应
+ * 暗色（松烟墨默认）：accent-300 @16% —— 冷墨面上用亮青更清透（500 发灰发闷）
+ * 亮色（宣纸覆盖）：accent-500 @12% —— 原配方 */
+:root {
+  --ds-glow-card: radial-gradient(ellipse 80% 60% at 10% 0%,
+    color-mix(in srgb, var(--color-accent-300) 16%, transparent), transparent);
+}
+[data-theme-type="light"] {
+  --ds-glow-card: radial-gradient(ellipse 80% 60% at 10% 0%,
+    color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent);
 }
 
 /* 通用悬停光晕工具类（任意卡面/区块可挂）：与 ds-card 同款 */
@@ -824,8 +835,7 @@ body {
   border-radius: inherit;
   opacity: 0;
   transition: opacity 0.3s var(--easing-standard);
-  background: radial-gradient(ellipse 80% 60% at 10% 0%,
-    color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent);
+  background: var(--ds-glow-card);
   pointer-events: none;
 }
 .ds-hover-glow:hover {
