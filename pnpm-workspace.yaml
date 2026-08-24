@@ -3,5 +3,6 @@ packages:
   - "src/loader-ui"
   - "src/underlay-ui"
   - "src/ui-kit"
+  - "src/homepage"
   - "packages/shared"
   - "packages/design-system"
