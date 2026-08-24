@@ -180,7 +180,16 @@ def main() -> None:
         default=0.0,
         help="CrossEntropy label smoothing 系数（边界过自信缓解）。",
     )
+    parser.add_argument(
+        "--hidden-dim",
+        type=int,
+        default=None,
+        help="MLP 隐层宽度（head.rs 从 JSON 读 hidden_dim，契约安全）；缺省 256。",
+    )
     args = parser.parse_args()
+    global HIDDEN_DIM
+    if args.hidden_dim:
+        HIDDEN_DIM = args.hidden_dim
 
     torch.manual_seed(SEED)
     np.random.seed(SEED)
