@@ -28,62 +28,17 @@
     gap: var(--size-gap-1-5);
   }
 
-  &__grid {
+  /* 卡片走 design-system Prompts；此覆盖保持原 3 列布局 */
+  &__prompts {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--size-gap-2-5);
-  }
-
-  &__card {
-    cursor: pointer;
-    user-select: none;
-    min-height: 86px;
-    display: flex;
-    flex-direction: column;
-    gap: var(--size-gap-1-5);
-    padding: var(--size-gap-2-5) var(--size-gap-2-5);
-  }
-
-  &__card-header {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-2);
-  }
-
-  &__card-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: var(--color-bg-primary);
-    border: 1px solid var(--color-border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-text-primary);
-    flex-shrink: 0;
-  }
-
-  &__card-title {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--color-text-primary);
-    line-height: 1.2;
-  }
-
-  &__card-desc {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
-    line-height: 1.35;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
   }
 }
 
 @media (max-width: 720px) {
   .ai00-x-cowork-example-cards {
-    &__grid {
+    &__prompts {
       grid-template-columns: 1fr;
     }
   }

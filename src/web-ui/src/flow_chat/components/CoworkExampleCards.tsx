@@ -21,7 +21,7 @@ import {
   RotateCcw,
   Plus,
 } from 'lucide-react';
-import { Card, IconButton, Tooltip } from '@/component-library';
+import { IconButton, Tooltip, Prompts } from '@/component-library';
 import './CoworkExampleCards.scss';
 
 type ExampleId =
@@ -92,32 +92,23 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
     setSelected(pickRandomUnique(EXAMPLES, 3));
   }, []);
 
-  const cards = useMemo(() => {
+  // 卡片渲染走 design-system Prompts（v0.15 AI 系）；仅保留随机选题与 i18n 逻辑
+  const promptItems = useMemo(() => {
     return selected.map((example) => {
       const Icon = example.icon;
       const title = t(`coreExamples.items.${example.id}.title`);
       const description = t(`coreExamples.items.${example.id}.description`);
       const prompt = t(`coreExamples.items.${example.id}.prompt`);
 
-      return (
-        <Card
-          key={example.id}
-          className="ai00-x-cowork-example-cards__card"
-          variant="subtle"
-          interactive
-          onClick={() => onSelectPrompt(prompt)}
-        >
-          <div className="ai00-x-cowork-example-cards__card-header">
-            <div className="ai00-x-cowork-example-cards__card-icon">
-              <Icon size={18} />
-            </div>
-            <div className="ai00-x-cowork-example-cards__card-title">{title}</div>
-          </div>
-          <div className="ai00-x-cowork-example-cards__card-desc">{description}</div>
-        </Card>
-      );
+      return {
+        key: example.id,
+        icon: <Icon size={16} />,
+        title,
+        description,
+        prompt,
+      };
     });
-  }, [onSelectPrompt, selected, t]);
+  }, [selected, t]);
 
   return (
     <div className="ai00-x-cowork-example-cards">
@@ -160,9 +151,14 @@ export const CoworkExampleCards: React.FC<CoworkExampleCardsProps> = ({
           )}
         </div>
       </div>
-      <div className="ai00-x-cowork-example-cards__grid">
-        {cards}
-      </div>
+      <Prompts
+        className="ai00-x-cowork-example-cards__prompts"
+        items={promptItems}
+        onSelect={(key) => {
+          const item = promptItems.find((p) => p.key === key);
+          if (item) onSelectPrompt(item.prompt);
+        }}
+      />
     </div>
   );
 };
