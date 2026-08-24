@@ -1,0 +1,115 @@
+/**
+ * Attachments —— 附件列表样式（v0.15 AI 系）
+ */
+.ai-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-gap-2);
+
+  &__item {
+    position: relative;
+
+    &--image {
+      width: 56px;
+      height: 56px;
+    }
+
+    &--file {
+      max-width: 260px;
+    }
+  }
+
+  &__thumb {
+    display: block;
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: var(--size-radius-base);
+    border: 1px solid var(--border-subtle);
+    background: var(--element-bg-soft);
+
+    &.is-loading {
+      animation: ai-attachments-pulse 1.6s var(--easing-standard) infinite;
+    }
+  }
+
+  &__file {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-base);
+    background: var(--element-bg-soft);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    min-width: 0;
+  }
+
+  &__file-icon {
+    flex-shrink: 0;
+    width: 15px;
+    height: 15px;
+    color: var(--color-accent-600);
+  }
+
+  &__file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__file-size {
+    flex-shrink: 0;
+    font-family: var(--font-family-mono);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: var(--size-radius-full);
+    border: 1px solid var(--border-base);
+    background: var(--color-bg-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--easing-standard),
+      color var(--motion-fast) var(--easing-standard),
+      border-color var(--motion-fast) var(--easing-standard);
+
+    svg {
+      width: 8px;
+      height: 8px;
+    }
+  }
+
+  &__item:hover &__remove,
+  &__remove:focus-visible {
+    opacity: 1;
+  }
+
+  &__remove:hover {
+    color: var(--color-error);
+    border-color: var(--color-error-border);
+  }
+}
+
+@keyframes ai-attachments-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-attachments__thumb.is-loading {
+    animation: none;
+    opacity: 0.7;
+  }
+}

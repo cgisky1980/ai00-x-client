@@ -1,0 +1,109 @@
+/**
+ * PromptInput —— 聊天输入框样式（v0.15 AI 系）
+ */
+.ai-prompt-input {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-base);
+  border-radius: var(--size-radius-lg);
+  background: var(--element-bg-base);
+  transition: border-color var(--motion-fast) var(--easing-standard),
+    box-shadow var(--motion-fast) var(--easing-standard);
+
+  &:focus-within {
+    border-color: var(--color-accent-400);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-500) 12%, transparent);
+  }
+
+  &.is-disabled {
+    opacity: var(--opacity-disabled);
+  }
+
+  &__row {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-1-5) var(--size-gap-2) var(--size-gap-1-5) var(--size-gap-3-5);
+  }
+
+  &__textarea {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    resize: none;
+    background: transparent;
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    line-height: 1.6;
+    color: var(--color-text-primary);
+    padding: var(--size-gap-1) 0;
+    max-height: 200px;
+
+    &::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    &:disabled {
+      cursor: default;
+    }
+  }
+
+  &__send,
+  &__stop {
+    flex-shrink: 0;
+    appearance: none;
+    border: none;
+    border-radius: var(--size-radius-sm);
+    padding: var(--size-gap-1-5) var(--size-gap-3-5);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1);
+    transition: background-color var(--motion-fast) var(--easing-standard),
+      color var(--motion-fast) var(--easing-standard),
+      opacity var(--motion-fast) var(--easing-standard);
+  }
+
+  &__send {
+    background: var(--color-accent-500);
+    color: var(--color-accent-foreground);
+
+    &:hover:not(:disabled) {
+      background: var(--color-accent-600);
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+  }
+
+  &__stop {
+    background: var(--element-bg-medium);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--border-base);
+
+    svg {
+      width: 10px;
+      height: 10px;
+    }
+
+    &:hover {
+      color: var(--color-error);
+      border-color: var(--color-error-border);
+    }
+  }
+
+  &__footer {
+    border-top: 1px solid var(--border-subtle);
+    padding: var(--size-gap-1-5) var(--size-gap-3);
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+    min-height: 40px;
+  }
+}

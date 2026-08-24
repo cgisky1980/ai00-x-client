@@ -1,0 +1,121 @@
+/**
+ * ThinkingPanel —— 思考面板样式（v0.15 AI 系）
+ * 折叠头呼吸三点（仅 thinking 态）；正文淡墨小字（思考内容弱于正式回答）。
+ */
+.ai-thinking {
+  border-radius: var(--size-radius-base);
+  background: var(--element-bg-soft);
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+    width: 100%;
+    padding: var(--size-gap-1-5) var(--size-gap-3);
+    border: none;
+    background: transparent;
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--motion-fast) var(--easing-standard);
+
+    &:hover { color: var(--color-text-primary); }
+    &:focus-visible {
+      outline: 2px solid var(--color-accent-400);
+      outline-offset: -2px;
+    }
+  }
+
+  &__dots {
+    display: inline-flex;
+    gap: 3px;
+
+    i {
+      width: 4px;
+      height: 4px;
+      border-radius: var(--size-radius-full);
+      background: var(--color-text-muted);
+    }
+  }
+
+  &.is-thinking &__dots i {
+    background: var(--color-accent-500);
+    animation: ai-thinking-wave 1.2s var(--easing-standard) infinite;
+
+    &:nth-child(2) { animation-delay: 0.15s; }
+    &:nth-child(3) { animation-delay: 0.3s; }
+  }
+
+  &.is-thinking &__label {
+    color: var(--color-text-secondary);
+  }
+
+  &__label {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__chevron {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    color: var(--color-text-muted);
+    transition: transform var(--motion-fast) var(--easing-standard);
+  }
+
+  &.is-open &__chevron {
+    transform: rotate(180deg);
+  }
+
+  &__body {
+    position: relative;
+    padding: var(--size-gap-2) var(--size-gap-3) var(--size-gap-3);
+    border-top: 1px solid var(--border-subtle);
+    font-size: var(--font-size-xs);
+    line-height: 1.7;
+    color: var(--color-text-muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    background: var(--color-accent-500);
+    animation: ai-thinking-blink 1s steps(1) infinite;
+  }
+}
+
+@keyframes ai-thinking-wave {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@keyframes ai-thinking-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-thinking__dots i,
+  .ai-thinking__cursor {
+    animation: none;
+    opacity: 0.8;
+  }
+}

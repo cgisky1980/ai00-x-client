@@ -1,0 +1,97 @@
+/**
+ * Prompts —— 提示词卡样式（v0.15 AI 系）
+ * 卡面 hover：v0.14.2 配方（--ds-glow-card + --ds-card-hover-ring）。
+ */
+.ai-prompts {
+  display: grid;
+  gap: var(--size-gap-2-5);
+
+  &--c2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  &--c1 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  &__item {
+    position: relative;
+    z-index: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--size-gap-2-5);
+    padding: var(--size-gap-3) var(--size-gap-3-5);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-base);
+    background-color: var(--color-bg-card);
+    background-image: var(--ds-paper-grain);
+    font-family: var(--font-family-sans);
+    text-align: left;
+    cursor: pointer;
+    transition: transform var(--motion-fast) var(--easing-standard),
+      border-color var(--motion-fast) var(--easing-standard),
+      box-shadow var(--motion-fast) var(--easing-standard);
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity 0.3s var(--easing-standard);
+      background: var(--ds-glow-card);
+      pointer-events: none;
+    }
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 0 1px var(--ds-card-hover-ring);
+
+      &::before {
+        opacity: 1;
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent-400);
+      outline-offset: 2px;
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    padding-top: var(--size-gap-0-5);
+    color: var(--color-accent-600);
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5);
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+  }
+
+  &__desc {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 640px) {
+  .ai-prompts--c2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,52 @@
+/**
+ * AIProcessingIndicator —— 处理中指示样式（v0.15 AI 系）
+ * 三点波浪：黛青，错峰 1.2s 循环；reduced-motion 呼吸退化为静态。
+ */
+.ai-processing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-gap-1-5);
+  padding: var(--size-gap-1) var(--size-gap-2-5);
+  border-radius: var(--size-radius-full);
+  background: var(--element-bg-soft);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+
+  &__dots {
+    display: inline-flex;
+    gap: 3px;
+
+    i {
+      width: 4px;
+      height: 4px;
+      border-radius: var(--size-radius-full);
+      background: var(--color-accent-500);
+      animation: ai-processing-wave 1.2s var(--easing-standard) infinite;
+
+      &:nth-child(2) { animation-delay: 0.15s; }
+      &:nth-child(3) { animation-delay: 0.3s; }
+    }
+  }
+
+  &__text {
+    color: var(--color-text-secondary);
+  }
+}
+
+@keyframes ai-processing-wave {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-processing__dots i {
+    animation: none;
+    opacity: 0.8;
+  }
+}

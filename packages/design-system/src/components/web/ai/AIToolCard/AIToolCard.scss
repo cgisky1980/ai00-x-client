@@ -1,0 +1,172 @@
+/**
+ * AIToolCard —— 工具调用卡样式（v0.15 AI 系）
+ * 卡面：墨面卡 + 细边；状态色仅图标语义用（running=黛青 spinner、ok=success、err=error、ask=warning、cancel=淡墨）。
+ */
+.ai-tool-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--size-radius-base);
+  background-color: var(--color-bg-card);
+  background-image: var(--ds-paper-grain);
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+    padding: var(--size-gap-2) var(--size-gap-3);
+    min-height: 40px;
+  }
+
+  &--expandable &__head {
+    cursor: pointer;
+    transition: background-color var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      background: var(--element-bg-subtle);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--color-accent-400);
+      outline-offset: -2px;
+    }
+  }
+
+  &__status {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+  }
+
+  &__spinner {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--size-radius-full);
+    border: 2px solid color-mix(in srgb, var(--color-accent-500) 30%, transparent);
+    border-top-color: var(--color-accent-500);
+    animation: ai-tool-spin 0.8s linear infinite;
+  }
+
+  &__mark {
+    width: 14px;
+    height: 14px;
+
+    &--ok { color: var(--color-success); }
+    &--err { color: var(--color-error); }
+    &--ask { color: var(--color-warning); }
+    &--cancel { color: var(--color-text-disabled); }
+  }
+
+  &--confirm {
+    border-color: var(--color-warning-border);
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-base);
+  }
+
+  &__title {
+    flex: 1;
+    min-width: 0;
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__meta {
+    flex-shrink: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__chevron {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    color: var(--color-text-muted);
+    transition: transform var(--motion-fast) var(--easing-standard);
+  }
+
+  &.is-expanded &__chevron {
+    transform: rotate(180deg);
+  }
+
+  &__body {
+    border-top: 1px solid var(--border-subtle);
+    padding: var(--size-gap-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-2-5);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
+  &__error {
+    padding: var(--size-gap-2) var(--size-gap-2-5);
+    border-radius: var(--size-radius-sm);
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error-border);
+    color: var(--color-error);
+    font-size: var(--font-size-xs);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__confirm {
+    display: flex;
+    gap: var(--size-gap-2);
+    padding-top: var(--size-gap-1);
+  }
+
+  &__btn {
+    appearance: none;
+    border: 1px solid var(--border-base);
+    border-radius: var(--size-radius-sm);
+    background: var(--element-bg-base);
+    padding: var(--size-gap-1) var(--size-gap-3);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--motion-fast) var(--easing-standard),
+      border-color var(--motion-fast) var(--easing-standard),
+      background-color var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      color: var(--color-text-primary);
+      border-color: var(--border-medium);
+    }
+
+    &--primary {
+      background: var(--color-accent-500);
+      border-color: var(--color-accent-500);
+      color: var(--color-accent-foreground);
+
+      &:hover {
+        background: var(--color-accent-600);
+        border-color: var(--color-accent-600);
+        color: var(--color-accent-foreground);
+      }
+    }
+  }
+}
+
+@keyframes ai-tool-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-tool-card__spinner {
+    animation-duration: 1.6s;
+  }
+}

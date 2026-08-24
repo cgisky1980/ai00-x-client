@@ -1,6 +1,6 @@
 # @ai00-x/design-system
 
-> Ai00-X 统一设计系统（新东方极简）：352 DTCG token + 42 React 组件 + 灵印品牌资产。
+> Ai00-X 统一设计系统（新东方极简）：363 DTCG token + 53 React 组件 + 灵印品牌资产。
 > 本文件是组件 API 与 token 惯例的机器可读清单——AI 生成 UI 代码前必读。
 > 设计规则（哲学/纪律全文）见 `参考/前端视觉设计规范-新东方极简.md` 与工作区 `AGENTS.md`（分工：本文件=API 数据，AGENTS=规则入口）。
 
@@ -8,7 +8,7 @@
 
 ```ts
 import { Button } from '@ai00-x/design-system/react'  // 或 '.' —— ds 精简系（24 组件）
-import { Button, Modal, confirmDialog } from '@ai00-x/design-system/web'  // web-ui API 兼容系（42 组件）
+import { Button, Modal, confirmDialog } from '@ai00-x/design-system/web'  // web-ui API 兼容系（53 组件）
 import '@ai00-x/design-system/styles'   // 全量 CSS（tokens+纸纹+动效+组件）
 import '@ai00-x/design-system/css'      // 仅 CSS 变量
 import '@ai00-x/design-system/tw'       // Tailwind v4 @theme 映射
@@ -61,6 +61,22 @@ Timeline           复合: Timeline → TimelineItem(time?/title?/description?/s
 Statistic          props: value/precision?=0/groupSeparator?=','/title?/prefix?/suffix?/motion?=true（值变化 rAF count-up 600ms；reduced-motion 直出；mono+tabular）
 Collapse           复合: Collapse(defaultActiveKeys?/activeKeys?/onChange?/accordion?) → CollapseItem(itemKey/header/open?/defaultOpen?/disabled?)（grid-rows 高度过渡；button[aria-expanded]+region）
 Steps              props: steps: {title, description?}[]/current（横向；finish 勾/process 实心呼吸/wait 墨阶；≤640px 纵排）
+```
+
+## AI 系组件（v0.15 · ./web 出口；源 src/components/web/ai/；类前缀 `.ai-`；纯 UI / props 数据注入 / 零 store 依赖）
+
+```
+ChatMessage        props: role: 'user'|'assistant'/avatar?/children（Markdown 由消费方渲染后传入）/time?/actions?/streaming?（antd X Bubble 对位；user=右侧浅青气泡，暗色自动反转黛青透底）
+PromptInput        props: value/onChange/onSubmit?/onStop?/loading?/placeholder?/disabled?/maxHeight?=200/footer?（antd X Sender 对位；Enter 发送+IME 守卫+Shift+Enter 换行；loading→停止按钮；footer=业务扩展条）
+Conversations      props: items: {id, label, icon?, group?, timestamp?}[]/activeId?/onSelect?/itemActions?(id)（antd X Conversations 对位；分组+激活左缘指示条；时间 mono+tabular）
+ThinkingPanel      props: children/phase: 'thinking'|'done'/duration?/defaultOpen?=false（antd X ThoughtChain 对位；thinking→done 自动折叠；折叠头呼吸三点+用时）
+AIToolCard         props: icon?/title/status: 'running'|'success'|'error'|'confirm'|'cancelled'/meta?/expandable?/defaultExpanded?/confirm?: {onConfirm, onReject, confirmText?, rejectText?}/error?/children（antd X Tool 对位；确认态强制展开显示按钮组）
+StreamingText      props: text/streaming?/className?（数据驱动增量；streaming 末尾黛青光标 blink；无内部定时器）
+AIProcessingIndicator  props: visible/text?（默认「正在思考…」；三点波浪呼吸）
+CodeBlock          props: code/language?（仅标签）/streaming?（自动滚底）/showLineNumbers?=true/maxHeight?=320/header?（顶栏+内置复制；mono 无语法高亮）
+DiffView           props: lines: {type: 'add'|'del'|'ctx'|'hunk', oldNo?, newNo?, content}[]/filePath?/stats?: {additions, deletions}/maxHeight?=320（diff 算法归消费方；语义色 add=success/del=error）
+Attachments        props: items: {id, name, type: 'image'|'file', size?, url?}[]/onRemove?/uploadingIds?（image=缩略网格/file=图标行；上传骨架）
+Prompts            props: items: {key, icon?, title, description?}[]/onSelect?/columns?: 1|2（示例/推荐卡；hover 走 --ds-glow-card 光晕）
 ```
 
 ## web 系组件（props API 与原 web-ui 一致；源 src/components/web/）
