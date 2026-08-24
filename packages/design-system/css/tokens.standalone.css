@@ -1421,3 +1421,16 @@ body {
   color: var(--color-text-primary);
 }
 
+
+/* ==================== 全局滚动条（墨阶细滚动条 · token 化，明暗自适应） ====================
+ * 仅用标准属性 scrollbar-width/color（Chrome 121+ / Firefox 64+ / Safari 18.2+ 全支持）。
+ * ⚠️ 不要混入 ::-webkit-scrollbar 伪元素：Chromium 121+ 会在伪元素存在时走旧渲染路径，
+ *    而伪元素绘制已被移除 → Windows 呈现白底+箭头的老式滚动条（实测 Chrome 151）。
+ * 拇指色走 --scrollbar-thumb（语义 token，暗=墨白/亮=墨黑，随主题切换）。
+ * Radix ScrollArea（.ds-scroll-area）自绘视口，不受本规则影响。
+ * ========================================================================================== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
