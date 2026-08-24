@@ -146,9 +146,13 @@ a { color: inherit; text-decoration: none; }
   border-right: 1px solid var(--border-subtle);
   background: var(--color-bg-secondary);
   overflow-y: auto;
-  padding: var(--size-gap-5) var(--size-gap-3) var(--size-gap-10);
+  padding: var(--size-gap-4) var(--size-gap-3) var(--size-gap-10);
   /* 视口已不滚（.uikit overflow hidden），无需 sticky，flex 拉伸即全高 */
   /* 滚动条：走 design-system 全局墨阶细滚动条（components.css） */
+}
+
+.uikit-sider__search {
+  margin-bottom: var(--size-gap-4);
 }
 
 .uikit-sider__item {
