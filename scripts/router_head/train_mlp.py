@@ -169,6 +169,17 @@ def main() -> None:
         help="train 中带上下文样本（增强文件里 prev_tier 非 None）的目标占比（0-1）。"
         "镜像线上分布：会话第二轮起必有上下文。None = 不过采样。",
     )
+    parser.add_argument(
+        "--class-weights",
+        default=None,
+        help="逐类损失权重，如 1,1,1,3（R3 提权）；None = 均匀。",
+    )
+    parser.add_argument(
+        "--label-smoothing",
+        type=float,
+        default=0.0,
+        help="CrossEntropy label smoothing 系数（边界过自信缓解）。",
+    )
     args = parser.parse_args()
 
     torch.manual_seed(SEED)
@@ -260,7 +271,13 @@ def main() -> None:
     model = MlpClassifier(input_dim).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
+    if args.class_weights:
+        cw = torch.tensor(
+            [float(x) for x in args.class_weights.split(",")], dtype=torch.float32, device=device
+        )
+        criterion = nn.CrossEntropyLoss(weight=cw, label_smoothing=args.label_smoothing)
+        print(f"class weights: {cw.tolist()}")
 
     Xtr, ytr = Xt[idx_train], yt[idx_train]
     Xdv, ydv = Xt[idx_dev], yt[idx_dev]
