@@ -355,6 +355,8 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- 代码块 ---------- */
 .uikit-code {
+  /* 光晕（ds-hover-glow）在内容下层 */
+  pre { position: relative; z-index: 1; }
   position: relative;
   background: var(--color-bg-sunken);
   border: 1px solid var(--border-subtle);

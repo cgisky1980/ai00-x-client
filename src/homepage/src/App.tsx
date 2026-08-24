@@ -151,8 +151,8 @@ export default function App() {
           <span className="hp-flow__node">任务进来</span>
           <span className="hp-flow__arrow">智能判断 · 成本与复杂度</span>
           <div className="hp-flow__split">
-            <span className="hp-flow__node hp-flow__node--local">本地 RWKV<br /><em>快 · 免费 · 隐私</em></span>
-            <span className="hp-flow__node">云端大模型<br /><em>强 · 按需 · 兜底</em></span>
+            <span className="hp-flow__node hp-flow__node--local ds-hover-glow">本地 RWKV<br /><em>快 · 免费 · 隐私</em></span>
+            <span className="hp-flow__node ds-hover-glow">云端大模型<br /><em>强 · 按需 · 兜底</em></span>
           </div>
         </div>
       </section>

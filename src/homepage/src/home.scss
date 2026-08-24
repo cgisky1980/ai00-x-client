@@ -311,8 +311,20 @@ a { color: inherit; text-decoration: none; }
     border: 1px solid var(--border-base);
     font-size: var(--font-size-sm);
     text-align: center;
+    /* 悬停光晕（与 ds-hover-glow 同款配方）：胶囊节点文本无壳，
+       ::before 会盖字 → 改背景叠加法（文本天然在上），并禁上浮 */
+    &.ds-hover-glow {
+      &::before { display: none; }
+      &:hover {
+        transform: none;
+        background:
+          radial-gradient(ellipse 80% 60% at 10% 0%,
+            color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent),
+          var(--element-bg-base);
+      }
+    }
 
-    em { font-style: normal; font-size: var(--font-size-2xs); color: var(--color-text-muted); }
+    em { font-style: normal; font-size: var(--size-gap-2); color: var(--color-text-muted); }
 
     &--local {
       border-color: var(--color-accent-300);

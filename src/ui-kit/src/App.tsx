@@ -245,7 +245,7 @@ const CodeBlock = ({ code }: { code: string }) => {
     setTimeout(() => setCopied(false), 1600);
   };
   return (
-    <div className="uikit-code">
+    <div className="uikit-code ds-hover-glow">
       <button type="button" className="uikit-code__copy" onClick={() => void copy()}>
         {copied ? "已复制" : "复制"}
       </button>
