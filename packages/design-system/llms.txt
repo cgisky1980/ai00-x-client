@@ -39,7 +39,7 @@ web-ui 消费方统一走 `'@/component-library'` barrel（re-export 全部 web 
 ```
 BrandMark          props: variant?: 'ink'|'seal'|'inverse'|'line'|'lockup'; size?: number; subtitle?: string(lockup)
 Button             props: variant?: 'primary'|'seal'|'default'|'ghost'|'destructive'; size?: 'sm'|'base'|'lg'
-Card               复合: Card/CardHeader/CardTitle/CardContent/CardFooter（className 定制）
+Card               复合: Card/CardHeader/CardTitle/CardContent/CardFooter（className 定制）；v0.14 起默认悬停反馈=黛青径向光晕淡入+上浮-2px；任意元素可挂 `.ds-hover-glow` 获同款
 Input/Textarea     薄封装（.ds-input）
 ContextMenu        复合: ContextMenu(Trigger/Content/Item/Separator/Label)（Radix；.ds-menu）
 DropdownMenu       复合: Root/Trigger/Content/Item(checkbox?/radio?/destructive?)/ItemIndicator/Label/Separator/Sub(Trigger/Content)
