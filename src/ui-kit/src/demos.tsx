@@ -4,7 +4,32 @@
  */
 import React from 'react';
 import { componentRegistry } from './registry';
-import { Button, NumberInput, StarRating, Card, ConfigPageLoading, ConfigPageMessage, ConfigPageRefreshButton, Timeline, TimelineItem, Statistic, Collapse, CollapseItem, Steps } from '@ai00-x/design-system/web';
+import {
+  Button,
+  NumberInput,
+  StarRating,
+  Card,
+  ConfigPageLoading,
+  ConfigPageMessage,
+  ConfigPageRefreshButton,
+  Timeline,
+  TimelineItem,
+  Statistic,
+  Collapse,
+  CollapseItem,
+  Steps,
+  ChatMessage,
+  PromptInput,
+  Conversations,
+  ThinkingPanel,
+  AIToolCard,
+  StreamingText,
+  AIProcessingIndicator,
+  CodeBlock,
+  DiffView,
+  Attachments,
+  Prompts,
+} from '@ai00-x/design-system/web';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@ai00-x/design-system/react';
 
 /* 从 registry 展平全部 demo */
@@ -75,6 +100,159 @@ const ContextMenuDemo: React.FC = () => (
       <ContextMenuItem>删除</ContextMenuItem>
     </ContextMenuContent>
   </ContextMenu>
+);
+
+/* ---- v0.15 AI 系 demo ---- */
+
+const ChatMessageDemo: React.FC = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 560 }}>
+    <ChatMessage role="user" time="23:47">帮我重构这个模块，顺便补几个测试。</ChatMessage>
+    <ChatMessage
+      role="assistant"
+      time="23:47"
+      actions={<span>复制 · 重试</span>}
+    >
+      好的，我先看一下现有结构，再给出重构方案。
+    </ChatMessage>
+    <ChatMessage role="assistant" streaming>正在分析依赖关系…</ChatMessage>
+  </div>
+);
+
+const PromptInputDemo: React.FC = () => {
+  const [v, setV] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  return (
+    <div style={{ maxWidth: 520 }}>
+      <PromptInput
+        value={v}
+        onChange={setV}
+        loading={busy}
+        onSubmit={() => { setBusy(true); setTimeout(() => setBusy(false), 2000); }}
+        onStop={() => setBusy(false)}
+        footer={<span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Enter 发送 · Shift+Enter 换行 · 中文输入法安全</span>}
+      />
+    </div>
+  );
+};
+
+const ConversationsDemo: React.FC = () => {
+  const [active, setActive] = React.useState('c2');
+  return (
+    <div style={{ maxWidth: 320 }}>
+      <Conversations
+        activeId={active}
+        onSelect={setActive}
+        items={[
+          { id: 'c1', label: '重构任务窗口模块', group: '今天', timestamp: '23:47' },
+          { id: 'c2', label: '官网首页动效方案', group: '今天', timestamp: '21:02' },
+          { id: 'c3', label: '数据库分库设计', group: '本周', timestamp: '周三' },
+          { id: 'c4', label: 'TTS 音色调研', group: '本周', timestamp: '周二' },
+          { id: 'c5', label: '桌面宠物行为树', timestamp: '08/12' },
+        ]}
+      />
+    </div>
+  );
+};
+
+const ThinkingPanelDemo: React.FC = () => {
+  const [phase, setPhase] = React.useState<'thinking' | 'done'>('thinking');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+      <ThinkingPanel phase={phase} duration={12}>
+        用户要求重构模块。先梳理现有文件结构，确认公共依赖，再评估测试覆盖…
+      </ThinkingPanel>
+      <Button size="small" onClick={() => setPhase((p) => (p === 'thinking' ? 'done' : 'thinking'))}>
+        切换 phase（thinking ↔ done，观察自动折叠）
+      </Button>
+    </div>
+  );
+};
+
+const AIToolCardDemo: React.FC = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
+    <AIToolCard title="Bash · pnpm build" status="running" meta="执行中" />
+    <AIToolCard title="Bash · pnpm build" status="success" meta="3.8s" expandable>
+      <pre style={{ margin: 0, fontSize: 12 }}>✓ built in 3.8s</pre>
+    </AIToolCard>
+    <AIToolCard title="Bash · rm -rf node_modules" status="confirm" meta="危险操作"
+      confirm={{ onConfirm: () => {}, onReject: () => {} }} />
+    <AIToolCard title="Bash · cargo build" status="error" error="error[E0308]: mismatched types" expandable>
+      <pre style={{ margin: 0, fontSize: 12 }}>expected `i32`, found `String`</pre>
+    </AIToolCard>
+  </div>
+);
+
+const StreamingTextDemo: React.FC = () => {
+  const full = '本地优先，云端兜底：小任务交给本地 RWKV，大任务才请求云端。省费用，也保隐私。';
+  const [n, setN] = React.useState(12);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
+      <StreamingText text={full.slice(0, n)} streaming={n < full.length} />
+      <Button size="small" onClick={() => setN((v) => (v >= full.length ? 12 : v + 8))}>追加 8 字（模拟流式）</Button>
+    </div>
+  );
+};
+
+const AIProcessingIndicatorDemo: React.FC = () => {
+  const [on, setOn] = React.useState(true);
+  return (
+    <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+      <AIProcessingIndicator visible={on} />
+      <Button size="small" onClick={() => setOn((v) => !v)}>toggle</Button>
+    </div>
+  );
+};
+
+const CodeBlockDemo: React.FC = () => (
+  <div style={{ maxWidth: 520 }}>
+    <CodeBlock
+      header="main.rs"
+      language="rust"
+      code={'fn main() {\n    println!("Hello, Ai00-X!");\n}'}
+    />
+  </div>
+);
+
+const DiffViewDemo: React.FC = () => (
+  <div style={{ maxWidth: 520 }}>
+    <DiffView
+      filePath="src/app.tsx"
+      stats={{ additions: 2, deletions: 1 }}
+      lines={[
+        { type: 'ctx', oldNo: 1, newNo: 1, content: 'function App() {' },
+        { type: 'del', oldNo: 2, content: '  const [v] = useState(0);' },
+        { type: 'add', newNo: 2, content: '  const [v, setV] = useState(0);' },
+        { type: 'ctx', oldNo: 3, newNo: 3, content: '  return <div>{v}</div>;' },
+        { type: 'hunk', content: '@@ -10,3 +10,4 @@ export' },
+        { type: 'add', newNo: 11, content: '  setV(1);' },
+      ]}
+    />
+  </div>
+);
+
+const AttachmentsDemo: React.FC = () => {
+  const [items, setItems] = React.useState([
+    { id: 'a1', name: 'screenshot.png', type: 'image' as const, size: '248KB' },
+    { id: 'a2', name: '需求文档.docx', type: 'file' as const, size: '1.2MB' },
+    { id: 'a3', name: '数据集.csv', type: 'file' as const, size: '86KB' },
+  ]);
+  return (
+    <Attachments items={items} onRemove={(id) => setItems((l) => l.filter((i) => i.id !== id))} uploadingIds={['a1']} />
+  );
+};
+
+const PromptsDemo: React.FC = () => (
+  <div style={{ maxWidth: 560 }}>
+    <Prompts
+      onSelect={() => {}}
+      items={[
+        { key: 'p1', title: '写一个工作 BGM 电台', description: '按今天的心情生成歌单，逐词歌词随音符流动' },
+        { key: 'p2', title: '重构这个模块', description: '读代码 → 评估 → 给方案 → 补测试，一条龙' },
+        { key: 'p3', title: '生成星空壁纸', description: '说一句「我想要星空」，AI 为你定制桌面' },
+        { key: 'p4', title: '做一个小工具', description: '一句话需求 → 可运行的 Mini App' },
+      ]}
+    />
+  </div>
 );
 
 /* ---- v0.14 新组件 demo ---- */
@@ -174,6 +352,18 @@ export const DEMO_MAP: Record<string, React.ComponentType[]> = {
   popover: pick('ds-popover'),
   drawer: pick('ds-drawer'),
   'context-menu': [ContextMenuDemo],
+  // AI 组件（v0.15）
+  'chat-message': [ChatMessageDemo],
+  'prompt-input': [PromptInputDemo],
+  conversations: [ConversationsDemo],
+  'thinking-panel': [ThinkingPanelDemo],
+  'ai-tool-card': [AIToolCardDemo],
+  'streaming-text': [StreamingTextDemo],
+  'ai-processing-indicator': [AIProcessingIndicatorDemo],
+  'code-block': [CodeBlockDemo],
+  'diff-view': [DiffViewDemo],
+  attachments: [AttachmentsDemo],
+  prompts: [PromptsDemo],
   // 布局与其它
   separator: pick('ds-separator'),
   'scroll-area': pick('ds-scroll-area'),

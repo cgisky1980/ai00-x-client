@@ -707,6 +707,216 @@ if (await confirmDialog({ title: '删除？', message: '不可撤销', confirmDa
     ],
   },
   {
+    id: 'ai',
+    title: 'AI 组件',
+    components: [
+      {
+        id: 'chat-message',
+        title: '聊天气泡 ChatMessage',
+        en: 'ChatMessage',
+        desc: 'AI 对话消息（antd X Bubble 对位）：user 右侧浅青气泡，assistant 全宽无底；内容经 children 传入（Markdown 由消费方渲染）。',
+        usage: [
+          'user 气泡暗色自动反转为黛青透底（Tag 配方），明暗对比双达标',
+          'actions 悬停显现（复制/重试等操作行）',
+          'streaming 时 assistant 末尾黛青光标',
+        ],
+        api: [
+          { param: 'role', desc: '角色', type: "'user' | 'assistant'", required: true },
+          { param: 'children', desc: '内容（消费方渲染后传入）', type: 'ReactNode', required: true },
+          { param: 'avatar', desc: 'assistant 左侧头像', type: 'ReactNode' },
+          { param: 'time', desc: '时间戳（mono+tabular）', type: 'string' },
+          { param: 'actions', desc: 'hover 显现的操作行', type: 'ReactNode' },
+          { param: 'streaming', desc: '流式光标', type: 'boolean', default: 'false' },
+        ],
+        code: `import { ChatMessage } from '@ai00-x/design-system/web';
+
+<ChatMessage role="user">帮我重构这个模块</ChatMessage>
+<ChatMessage role="assistant" streaming>好的，先看一下现有结构…</ChatMessage>`,
+      },
+      {
+        id: 'prompt-input',
+        title: '聊天输入框 PromptInput',
+        en: 'PromptInput',
+        desc: 'AI 聊天输入（antd X Sender 对位）：自增高 + Enter 发送（IME 守卫）+ loading 停止按钮；footer 槽位承载业务扩展。',
+        usage: [
+          '中文输入法拼写中 Enter 不触发发送（compositionstart/end 守卫）',
+          '提供 onStop 时 loading 态按钮切换为「停止」',
+          'footer 放命令按钮/模型选择（slash 命令等重业务留消费方）',
+        ],
+        api: [
+          { param: 'value / onChange', desc: '受控值', type: 'string / (v) => void', required: true },
+          { param: 'onSubmit', desc: 'Enter 发送回调', type: '() => void' },
+          { param: 'onStop', desc: '停止回调（loading 态显示停止按钮）', type: '() => void' },
+          { param: 'loading', desc: '生成中', type: 'boolean', default: 'false' },
+          { param: 'maxHeight', desc: '最大高度（超出内滚）', type: 'number', default: '200' },
+          { param: 'footer', desc: '底部扩展条', type: 'ReactNode' },
+        ],
+        code: `import { PromptInput } from '@ai00-x/design-system/web';
+
+<PromptInput value={v} onChange={setV} onSubmit={send} loading={busy} onStop={stop} />`,
+      },
+      {
+        id: 'conversations',
+        title: '会话列表 Conversations',
+        en: 'Conversations',
+        desc: 'AI 会话列表（antd X Conversations 对位）：分组标题 + 激活项黛青左缘指示条。',
+        usage: [
+          'group 字段分组；无 group 归入未分组区',
+          'itemActions 回调渲染右侧 hover 操作（删除/重命名）',
+          '时间戳 mono+tabular-nums',
+        ],
+        api: [
+          { param: 'items', desc: '会话数据', type: '{id, label, icon?, group?, timestamp?}[]', required: true },
+          { param: 'activeId', desc: '激活会话 id', type: 'string' },
+          { param: 'onSelect', desc: '选中回调', type: '(id) => void' },
+          { param: 'itemActions', desc: '右侧操作渲染器', type: '(id) => ReactNode' },
+        ],
+        code: `import { Conversations } from '@ai00-x/design-system/web';
+
+<Conversations items={items} activeId={active} onSelect={setActive} />`,
+      },
+      {
+        id: 'thinking-panel',
+        title: '思考面板 ThinkingPanel',
+        en: 'ThinkingPanel',
+        desc: 'AI 思考流（antd X ThoughtChain 对位）：thinking 呼吸折叠头 → done 显示用时并自动折叠；展开流式内容。',
+        usage: [
+          'phase 由 thinking 变 done 时自动折叠（用户可手动重开）',
+          'duration 秒数显示「用时 Ns」',
+          '正文淡墨小字（思考内容视觉弱于正式回答）',
+        ],
+        api: [
+          { param: 'children', desc: '思考内容（消费方流式注入）', type: 'ReactNode', required: true },
+          { param: 'phase', desc: '阶段', type: "'thinking' | 'done'", required: true },
+          { param: 'duration', desc: '用时（秒）', type: 'number' },
+          { param: 'defaultOpen', desc: '初始展开', type: 'boolean', default: 'false' },
+        ],
+        code: `import { ThinkingPanel } from '@ai00-x/design-system/web';
+
+<ThinkingPanel phase="done" duration={12}>先看模块依赖…</ThinkingPanel>`,
+      },
+      {
+        id: 'ai-tool-card',
+        title: '工具调用卡 AIToolCard',
+        en: 'AIToolCard',
+        desc: 'AI 工具调用卡（antd X Tool 对位）：五态流转 + 确认按钮组 + 折叠展开。',
+        usage: [
+          'status 五态：running（spinner）/ success / error / confirm（确认按钮组）/ cancelled',
+          'confirm 态强制展开显示确认/拒绝按钮',
+          'meta 放耗时/文件名（mono+tabular）',
+        ],
+        api: [
+          { param: 'title', desc: '标题', type: 'ReactNode', required: true },
+          { param: 'status', desc: '状态', type: "'running' | 'success' | 'error' | 'confirm' | 'cancelled'", required: true },
+          { param: 'icon / meta', desc: '图标与 meta 信息', type: 'ReactNode' },
+          { param: 'expandable / defaultExpanded', desc: '可折叠与初始展开', type: 'boolean', default: 'false' },
+          { param: 'confirm', desc: '确认态按钮组', type: '{onConfirm, onReject, confirmText?, rejectText?}' },
+          { param: 'error / children', desc: '错误详情与展开内容', type: 'ReactNode' },
+        ],
+        code: `import { AIToolCard } from '@ai00-x/design-system/web';
+
+<AIToolCard title="Bash · pnpm build" status="success" meta="3.2s" expandable>
+  <pre>✓ built in 3.8s</pre>
+</AIToolCard>`,
+      },
+      {
+        id: 'streaming-text',
+        title: '流式文本 StreamingText',
+        en: 'StreamingText',
+        desc: 'AI 流式文本：数据驱动增量（无内部定时器），streaming 时末尾黛青光标 blink。',
+        usage: ['消费方 append 后整体传入 text', 'reduced-motion 光标静态'],
+        api: [
+          { param: 'text', desc: '已到达文本', type: 'string', required: true },
+          { param: 'streaming', desc: '流式进行中（显示光标）', type: 'boolean', default: 'false' },
+        ],
+        code: `import { StreamingText } from '@ai00-x/design-system/web';
+
+<StreamingText text={partial} streaming />`,
+      },
+      {
+        id: 'ai-processing-indicator',
+        title: '处理指示 AIProcessingIndicator',
+        en: 'AIProcessingIndicator',
+        desc: 'AI 处理中指示：三点波浪呼吸 + 文案（默认「正在思考…」）。',
+        usage: ['visible=false 完全卸载', 'text 可自定义文案'],
+        api: [
+          { param: 'visible', desc: '是否显示', type: 'boolean', required: true },
+          { param: 'text', desc: '文案（默认正在思考…）', type: 'string' },
+        ],
+        code: `import { AIProcessingIndicator } from '@ai00-x/design-system/web';
+
+<AIProcessingIndicator visible={busy} />`,
+      },
+      {
+        id: 'code-block',
+        title: '代码块 CodeBlock',
+        en: 'CodeBlock',
+        desc: 'AI 代码输出块：沉底墨面 + mono + 行号 + 内置复制；streaming 自动滚底。',
+        usage: [
+          '不带语法高亮（design-system 零运行时依赖，高亮由消费方实现）',
+          'header 提供后显示顶栏（文件名）+ 复制按钮',
+        ],
+        api: [
+          { param: 'code', desc: '代码文本', type: 'string', required: true },
+          { param: 'language', desc: '语言标签（仅展示）', type: 'string' },
+          { param: 'streaming', desc: '流式（自动滚底）', type: 'boolean', default: 'false' },
+          { param: 'showLineNumbers', desc: '行号', type: 'boolean', default: 'true' },
+          { param: 'maxHeight', desc: '最大高度', type: 'number', default: '320' },
+          { param: 'header', desc: '顶栏内容', type: 'ReactNode' },
+        ],
+        code: `import { CodeBlock } from '@ai00-x/design-system/web';
+
+<CodeBlock header="main.rs" language="rust" code={src} />`,
+      },
+      {
+        id: 'diff-view',
+        title: '差异视图 DiffView',
+        en: 'DiffView',
+        desc: '行内 diff 视图：双列行号 + add/del 语义色（success/error 10% 透底）+ hunk 分隔。',
+        usage: ['diff 算法归消费方（web-ui 已有），本组件只渲染 lines', 'stats 显示 +N −M 统计'],
+        api: [
+          { param: 'lines', desc: 'diff 行数据', type: "{type: 'add'|'del'|'ctx'|'hunk', oldNo?, newNo?, content}[]", required: true },
+          { param: 'filePath', desc: '顶栏文件路径', type: 'string' },
+          { param: 'stats', desc: '增删统计', type: '{additions, deletions}' },
+          { param: 'maxHeight', desc: '最大高度', type: 'number', default: '320' },
+        ],
+        code: `import { DiffView, type DiffLine } from '@ai00-x/design-system/web';
+
+<DiffView filePath="src/app.ts" stats={{ additions: 2, deletions: 1 }} lines={lines} />`,
+      },
+      {
+        id: 'attachments',
+        title: '附件列表 Attachments',
+        en: 'Attachments',
+        desc: 'AI 输入附件（antd X Attachments 对位）：image 缩略网格 / file 图标行；上传骨架；hover 移除按钮。',
+        usage: ['uploadingIds 中的项显示骨架', 'onRemove 提供后 hover 显示移除按钮'],
+        api: [
+          { param: 'items', desc: '附件数据', type: "{id, name, type: 'image'|'file', size?, url?}[]", required: true },
+          { param: 'onRemove', desc: '移除回调', type: '(id) => void' },
+          { param: 'uploadingIds', desc: '上传中 id 集合', type: 'string[]' },
+        ],
+        code: `import { Attachments } from '@ai00-x/design-system/web';
+
+<Attachments items={files} onRemove={remove} uploadingIds={['a1']} />`,
+      },
+      {
+        id: 'prompts',
+        title: '提示词卡 Prompts',
+        en: 'Prompts',
+        desc: 'AI 示例/推荐卡（antd X Prompts/Welcome 对位）：网格卡片，hover 走主题自适应光晕。',
+        usage: ['欢迎页/智能推荐场景', 'columns=2 默认，≤640px 自动单列', '与 Empty 组合可搭 Welcome 页'],
+        api: [
+          { param: 'items', desc: '卡片数据', type: '{key, icon?, title, description?}[]', required: true },
+          { param: 'onSelect', desc: '点击回调', type: '(key) => void' },
+          { param: 'columns', desc: '列数', type: '1 | 2', default: '2' },
+        ],
+        code: `import { Prompts } from '@ai00-x/design-system/web';
+
+<Prompts items={examples} onSelect={fillInput} />`,
+      },
+    ],
+  },
+  {
     id: 'layout',
     title: '布局与其它',
     components: [
