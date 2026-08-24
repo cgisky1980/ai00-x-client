@@ -2,6 +2,38 @@
  * Select dropdown component styles
  */
 
+/* 暗色修正：accent-100/200 亮底 × accent-500 亮字对比不足——
+   选中项 / 多选标签 / 自定义值 chip 反转为深青透底 + 亮青字（Tag 同款配方） */
+[data-theme-type='dark'],
+html:not([data-theme-type='light']) {
+  .select__option--selected {
+    background: color-mix(in srgb, var(--color-accent-500) 16%, transparent);
+    color: var(--color-accent-300);
+
+    &:hover {
+      background: color-mix(in srgb, var(--color-accent-500) 24%, transparent);
+    }
+  }
+
+  .select__tag {
+    background: color-mix(in srgb, var(--color-accent-500) 16%, transparent);
+    color: var(--color-accent-300);
+
+    &:hover {
+      background: color-mix(in srgb, var(--color-accent-500) 24%, transparent);
+    }
+  }
+
+  .select__custom-value-hint {
+    background: color-mix(in srgb, var(--color-accent-500) 16%, transparent);
+    color: var(--color-accent-300);
+
+    &:hover {
+      background: color-mix(in srgb, var(--color-accent-500) 24%, transparent);
+    }
+  }
+}
+
 .select {
   position: relative;
   width: 100%;

@@ -2,6 +2,12 @@
  * NumberInput component styles
  */
 
+/* 暗色修正：拖拽态 accent-100 亮底会淹没 text-primary 亮字 */
+[data-theme-type='dark'] .ai00-x-number-input--dragging .ai00-x-number-input__container,
+html:not([data-theme-type='light']) .ai00-x-number-input--dragging .ai00-x-number-input__container {
+  background: color-mix(in srgb, var(--color-accent-500) 12%, transparent);
+}
+
 .ai00-x-number-input {
   display: flex;
   flex-direction: column;

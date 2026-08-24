@@ -3,6 +3,28 @@
  * Keep the style consistent with the Switch component
  */
 
+/* 暗色修正：勾选框 accent-100 亮底 × accent-500 勾对比弱——
+   反转为黛青透底 + 亮青勾 */
+[data-theme-type='dark'] .ai00-x-checkbox__input:checked + .ai00-x-checkbox__box,
+[data-theme-type='dark'] .ai00-x-checkbox__input:indeterminate + .ai00-x-checkbox__box,
+html:not([data-theme-type='light']) .ai00-x-checkbox__input:checked + .ai00-x-checkbox__box,
+html:not([data-theme-type='light']) .ai00-x-checkbox__input:indeterminate + .ai00-x-checkbox__box {
+  background: color-mix(in srgb, var(--color-accent-500) 22%, transparent);
+  border-color: var(--color-accent-500);
+}
+[data-theme-type='dark'] .ai00-x-checkbox__input:checked + .ai00-x-checkbox__box .ai00-x-checkbox__icon,
+[data-theme-type='dark'] .ai00-x-checkbox__input:indeterminate + .ai00-x-checkbox__box .ai00-x-checkbox__icon,
+html:not([data-theme-type='light']) .ai00-x-checkbox__input:checked + .ai00-x-checkbox__box .ai00-x-checkbox__icon,
+html:not([data-theme-type='light']) .ai00-x-checkbox__input:indeterminate + .ai00-x-checkbox__box .ai00-x-checkbox__icon {
+  color: var(--color-accent-300);
+}
+[data-theme-type='dark'] .ai00-x-checkbox:hover:not(.ai00-x-checkbox--disabled) .ai00-x-checkbox__input:checked + .ai00-x-checkbox__box,
+[data-theme-type='dark'] .ai00-x-checkbox:hover:not(.ai00-x-checkbox--disabled) .ai00-x-checkbox__input:indeterminate + .ai00-x-checkbox__box,
+html:not([data-theme-type='light']) .ai00-x-checkbox:hover:not(.ai00-x-checkbox--disabled) .ai00-x-checkbox__input:checked + .ai00-x-checkbox__box,
+html:not([data-theme-type='light']) .ai00-x-checkbox:hover:not(.ai00-x-checkbox--disabled) .ai00-x-checkbox__input:indeterminate + .ai00-x-checkbox__box {
+  background: color-mix(in srgb, var(--color-accent-500) 30%, transparent);
+}
+
 .ai00-x-checkbox {
   display: inline-flex;
   align-items: flex-start;

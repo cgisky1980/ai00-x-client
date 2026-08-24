@@ -34,6 +34,39 @@
     }
   }
 
+  /* 暗色修正：亮青底(L0.85) × 浅灰字(L0.78) 对比不足——
+     反转为深青底 + 亮青字（描边式），语义与亮色档对齐 */
+  [data-theme-type='dark'] &,
+  :root:not([data-theme-type='light']) & {
+    &--blue {
+      background: color-mix(in srgb, var(--color-accent-500) 16%, transparent);
+      color: var(--color-accent-300);
+
+      &:hover {
+        background: color-mix(in srgb, var(--color-accent-500) 24%, transparent);
+      }
+    }
+
+    &--purple {
+      background: color-mix(in srgb, var(--color-accent-500) 16%, transparent);
+      color: var(--color-accent-300);
+
+      &:hover {
+        background: color-mix(in srgb, var(--color-accent-500) 24%, transparent);
+      }
+    }
+
+    /* 灰：白28% 亮底 × 浅字同理 → 深底 + 主文字色 */
+    &--gray {
+      background: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+      color: var(--color-text-primary);
+
+      &:hover {
+        background: color-mix(in srgb, var(--color-text-primary) 16%, transparent);
+      }
+    }
+  }
+
   &--green {
     background: var(--color-success-bg);
     color: var(--color-success);
