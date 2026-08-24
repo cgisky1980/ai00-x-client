@@ -111,6 +111,16 @@ export {
 export { Pagination, type PaginationProps } from './components/pagination';
 export { Tree, type TreeNodeData, type TreeProps } from './components/tree';
 
+export {
+  Timeline,
+  TimelineItem,
+  type TimelineProps,
+  type TimelineItemProps,
+} from './components/timeline';
+export { Statistic, type StatisticProps } from './components/statistic';
+export { Collapse, CollapseItem } from './components/collapse';
+export { Steps, type StepsProps, type StepItem } from './components/steps';
+
 export { BrandMark, type BrandMarkProps, type BrandMarkVariant } from './components/brand-mark';
 export { Button, type ButtonProps } from './components/button';
 export {

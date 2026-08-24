@@ -354,6 +354,80 @@ import { Copy } from 'lucide-react';
 <Pagination page={p} total={20} onChange={setP} />`,
       },
       {
+        id: 'timeline',
+        title: '时间线 Timeline',
+        en: 'Timeline',
+        desc: '竖向时间线：节点三态流转（finish 勾线黛青 / active 实心呼吸 / pending 墨点），时间列 mono+tabular。',
+        usage: ['时间列由 time prop 直出（数字/时间戳走 mono）', 'status 三态表达进度语义，勿用色彩装饰', '末项自动断线；dot 可替换自定义节点'],
+        api: [
+          { param: 'time', desc: '左列时间戳', type: 'ReactNode' },
+          { param: 'title / description', desc: '标题与描述', type: 'ReactNode' },
+          { param: 'status', desc: '节点状态', type: "'finish' | 'active' | 'pending'", default: "'pending'" },
+          { param: 'dot', desc: '自定义节点（替代圆点）', type: 'ReactNode' },
+        ],
+        code: `import { Timeline, TimelineItem } from '@ai00-x/design-system/web';
+
+<Timeline>
+  <TimelineItem time="08:30" title="音乐电台" description="AI 按节奏挑好曲子" status="finish" />
+  <TimelineItem time="09:00" title="专注工作" status="active" />
+  <TimelineItem time="23:00" title="晚安" />
+</Timeline>`,
+      },
+      {
+        id: 'statistic',
+        title: '数字统计 Statistic',
+        en: 'Statistic',
+        desc: '数值展示 + count-up 滚动动画（值变化 600ms easeOutCubic）；数字 mono+tabular-nums。',
+        usage: ['仪表盘 KPI / 名额 / 计数场景', 'reduced-motion 用户自动直出终值', 'motion=false 关闭动画（高频刷新场景）'],
+        api: [
+          { param: 'value', desc: '数值', type: 'number', required: true },
+          { param: 'title / prefix / suffix', desc: '标题与前後缀', type: 'ReactNode' },
+          { param: 'precision', desc: '小数位', type: 'number', default: '0' },
+          { param: 'groupSeparator', desc: '千分位符（空串关闭）', type: 'string', default: "','" },
+          { param: 'motion', desc: 'count-up 动画', type: 'boolean', default: 'true' },
+        ],
+        code: `import { Statistic } from '@ai00-x/design-system/web';
+
+<Statistic title="剩余名额" value={quota} suffix=" 个" />`,
+      },
+      {
+        id: 'collapse',
+        title: '折叠面板 Collapse',
+        en: 'Collapse',
+        desc: '分组收纳长内容；grid-rows 高度过渡（无 max-height 魔数），a11y 完整（aria-expanded + region）。',
+        usage: ['accordion=true 手风琴（同时只开一个）', '受控 activeKeys / 非受控 defaultActiveKeys', 'disabled 整项禁用'],
+        api: [
+          { param: 'defaultActiveKeys', desc: '初始展开项', type: 'Array<string | number>' },
+          { param: 'activeKeys / onChange', desc: '受控展开项与回调', type: 'Array / (keys) => void' },
+          { param: 'accordion', desc: '手风琴模式', type: 'boolean', default: 'false' },
+          { param: 'CollapseItem: itemKey / header', desc: '项键与头内容', type: 'string | number / ReactNode', required: true },
+        ],
+        code: `import { Collapse, CollapseItem } from '@ai00-x/design-system/web';
+
+<Collapse defaultActiveKeys={['a']}>
+  <CollapseItem itemKey="a" header="什么是 Vibe OS？">好氛围 + 高效工具集。</CollapseItem>
+  <CollapseItem itemKey="b" header="本地优先？">数据不出机器。</CollapseItem>
+</Collapse>`,
+      },
+      {
+        id: 'steps',
+        title: '步骤条 Steps',
+        en: 'Steps',
+        desc: '横向流程步骤：finish 勾 / process 实心呼吸 / wait 墨阶；连接线随完成流转黛青。',
+        usage: ['current 之前全部 finish，之后 wait', '窄屏（≤640px）自动纵排', 'description 可选副文本'],
+        api: [
+          { param: 'steps', desc: '步骤数据', type: '{title, description?}[]', required: true },
+          { param: 'current', desc: '当前步索引（0 起）', type: 'number', required: true },
+        ],
+        code: `import { Steps } from '@ai00-x/design-system/web';
+
+<Steps current={1} steps={[
+  { title: '抢资格', description: '每小时 20 名' },
+  { title: '填问卷', description: '10 分钟内' },
+  { title: '收邀请码', description: '发到邮箱' },
+]} />`,
+      },
+      {
         id: 'avatar',
         title: '头像 Avatar',
         en: 'Avatar',

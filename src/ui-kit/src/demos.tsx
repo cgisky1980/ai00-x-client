@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { componentRegistry } from './registry';
-import { Button, NumberInput, StarRating, Card, ConfigPageLoading, ConfigPageMessage, ConfigPageRefreshButton } from '@ai00-x/design-system/web';
+import { Button, NumberInput, StarRating, Card, ConfigPageLoading, ConfigPageMessage, ConfigPageRefreshButton, Timeline, TimelineItem, Statistic, Collapse, CollapseItem, Steps } from '@ai00-x/design-system/web';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@ai00-x/design-system/react';
 
 /* 从 registry 展平全部 demo */
@@ -77,6 +77,59 @@ const ContextMenuDemo: React.FC = () => (
   </ContextMenu>
 );
 
+/* ---- v0.14 新组件 demo ---- */
+const TimelineDemo: React.FC = () => (
+  <div style={{ maxWidth: 520 }}>
+    <Timeline>
+      <TimelineItem time="08:30" title="音乐电台" description="打开工作 BGM，AI 按今天的节奏挑好曲子" status="finish" />
+      <TimelineItem time="09:00" title="专注工作" description="代码 Agent 在任务窗口里自主读改跑验证" status="active" />
+      <TimelineItem time="15:00" title="摸鱼时刻" description="给花园浇浇水，收一株果实" />
+      <TimelineItem time="23:00" title="晚安" description="AI 道声晚安，明天见" />
+    </Timeline>
+  </div>
+);
+
+const StatisticDemo: React.FC = () => {
+  const [v, setV] = React.useState(128);
+  return (
+    <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <button className="ds-btn ds-btn--sm ds-btn--default" onClick={() => setV(Math.max(0, v - 7))} type="button">-7</button>
+      <Statistic title="剩余名额" value={v} suffix=" 个" />
+      <Statistic title="配额" value={1.57} prefix="×" precision={2} />
+      <Statistic title="静态（motion=false）" value={42} motion={false} />
+    </div>
+  );
+};
+
+const CollapseDemo: React.FC = () => (
+  <div style={{ maxWidth: 520 }}>
+    <Collapse defaultActiveKeys={['a']}>
+      <CollapseItem itemKey="a" header="什么是 Vibe OS？">
+        住在你桌面里的 AI 伙伴。好氛围——音乐、桌面、灵动工位；高效工具集——Agent、AI 应用、创作分享。
+      </CollapseItem>
+      <CollapseItem itemKey="b" header="本地优先是什么？">
+        小任务交给本地 RWKV，大任务才请求云端。省费用，也保隐私。
+      </CollapseItem>
+      <CollapseItem itemKey="c" header="禁用态示例" disabled>
+        不可展开。
+      </CollapseItem>
+    </Collapse>
+  </div>
+);
+
+const StepsDemo: React.FC = () => (
+  <div style={{ maxWidth: 640 }}>
+    <Steps
+      current={1}
+      steps={[
+        { title: '抢资格', description: '每小时 20 名' },
+        { title: '填问卷', description: '10 分钟内' },
+        { title: '收邀请码', description: '发到邮箱' },
+      ]}
+    />
+  </div>
+);
+
 export const DEMO_MAP: Record<string, React.ComponentType[]> = {
   // 通用
   button: pick('button-primary', 'button-secondary', 'button-sizes'),
@@ -98,6 +151,10 @@ export const DEMO_MAP: Record<string, React.ComponentType[]> = {
   table: pick('ds-table'),
   tree: pick('ds-tree'),
   pagination: pick('ds-pagination'),
+  timeline: [TimelineDemo],
+  statistic: [StatisticDemo],
+  collapse: [CollapseDemo],
+  steps: [StepsDemo],
   avatar: pick('ds-avatar'),
   empty: pick('ds-empty'),
   progress: pick('ds-progress'),
