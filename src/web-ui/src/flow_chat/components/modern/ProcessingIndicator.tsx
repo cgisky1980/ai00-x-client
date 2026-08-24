@@ -7,7 +7,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { DotMatrixLoader } from '@/component-library';
+import { DotMatrixLoader, AIProcessingIndicator } from '@/component-library';
 import { processingHintsZh, processingHintsEn } from '../../constants/processingHints';
 import './ProcessingIndicator.scss';
 
@@ -65,6 +65,8 @@ export const ProcessingIndicator: React.FC<ProcessingIndicatorProps> = ({ visibl
         className="processing-indicator__content"
         style={visible ? undefined : { visibility: 'hidden' as const }}
       >
+        {/* 前 1s（hint 延迟期内）用 design-system AIProcessingIndicator 补即时反馈 */}
+        {visible && !showHint && <AIProcessingIndicator visible />}
         {showHint && hints.length > 0 && (
           <>
             <DotMatrixLoader size="medium" />
