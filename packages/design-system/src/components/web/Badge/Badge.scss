@@ -53,3 +53,13 @@
     color: var(--color-info);
   }
 }
+
+/* 暗色修正：accent-100/200 亮青底(L0.85+) × 亮字对比不足——
+   反转为深青透底 + 亮青字（与 Tag 同款配方，语义两档对齐） */
+[data-theme-type='dark'] .badge--accent,
+[data-theme-type='dark'] .badge--purple,
+html:not([data-theme-type='light']) .badge--accent,
+html:not([data-theme-type='light']) .badge--purple {
+  background: color-mix(in srgb, var(--color-accent-500) 16%, transparent);
+  color: var(--color-accent-300);
+}

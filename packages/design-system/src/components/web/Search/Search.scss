@@ -2,6 +2,13 @@
  * Search input styles
  */
 
+/* 暗色修正：按钮 hover accent-100 亮底 × accent-400 亮字对比不足 */
+[data-theme-type='dark'] .search__button:hover:not(:disabled),
+html:not([data-theme-type='light']) .search__button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent-500) 16%, transparent);
+  color: var(--color-accent-300);
+}
+
 .search {
   position: relative;
   width: 100%;
