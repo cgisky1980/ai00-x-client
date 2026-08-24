@@ -1,0 +1,324 @@
+/**
+ * Ai00-UI 文档站排版 —— antd/shadcn 文档范式，全 token 化。
+ * 布局：sticky 顶栏 + 侧边栏(240) + 内容(max 860)；
+ * 文档块：H1+描述 → 演示卡 → 何时使用 → API 表 → 代码块。
+ */
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; padding: 0; min-height: 100%; }
+
+.uikit {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-base);
+  background-image: var(--ds-paper-grain);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  line-height: 1.7;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ================= 顶栏 ================= */
+.uikit-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-chrome-island);
+  display: flex;
+  align-items: center;
+  gap: var(--size-gap-5);
+  height: 56px;
+  padding: 0 var(--size-gap-6);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--border-base);
+}
+
+.uikit-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--size-gap-2-5);
+  flex-shrink: 0;
+
+  &__name {
+    font-family: var(--font-family-serif);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.02em;
+  }
+}
+
+.uikit-header__search {
+  flex: 1;
+  max-width: 360px;
+}
+
+.uikit-header__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--size-gap-4);
+  flex-shrink: 0;
+}
+
+/* 主题分段按钮 */
+.uikit-theme-switch {
+  display: inline-flex;
+  padding: var(--size-gap-0-5);
+  background: var(--element-bg-soft);
+  border: 1px solid var(--border-base);
+  border-radius: 999px;
+  gap: var(--size-gap-0-25);
+
+  &__btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: var(--size-gap-0-5) var(--size-gap-2-5);
+    border-radius: 999px;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--motion-fast) var(--easing-standard),
+      background-color var(--motion-fast) var(--easing-standard);
+
+    &:hover { color: var(--color-text-primary); }
+    &.is-active {
+      background: var(--color-accent-500);
+      color: var(--color-accent-foreground);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--color-accent-600);
+      outline-offset: 1px;
+    }
+  }
+}
+
+.uikit-gh {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  &:hover { color: var(--color-accent-600); }
+}
+
+/* ================= 主体 ================= */
+.uikit-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* ---------- 侧边栏 ---------- */
+.uikit-sider {
+  width: 248px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+  padding: var(--size-gap-5) var(--size-gap-2-5);
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+}
+
+.uikit-sider__item {
+  display: block;
+  padding: var(--size-gap-1) var(--size-gap-2-5);
+  border-radius: var(--size-radius-base);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  transition: background-color var(--motion-fast) var(--easing-standard),
+    color var(--motion-fast) var(--easing-standard);
+
+  &:hover {
+    color: var(--color-text-primary);
+    background: var(--element-bg-soft);
+  }
+  &.is-active {
+    color: var(--color-accent-700);
+    background: var(--color-accent-100);
+    font-weight: var(--font-weight-semibold);
+  }
+  &--top {
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--size-gap-2);
+  }
+}
+
+.uikit-sider__group {
+  margin-top: var(--size-gap-4);
+
+  &-title {
+    padding: 0 var(--size-gap-2-5) var(--size-gap-1);
+    font-size: var(--font-size-2xs);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-muted);
+  }
+}
+
+/* ---------- 内容区 ---------- */
+.uikit-content {
+  flex: 1;
+  min-width: 0;
+  padding: var(--size-gap-8) var(--size-gap-8) var(--size-gap-14);
+}
+
+.uikit-doc {
+  max-width: 860px;
+
+  &__crumb {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-bottom: var(--size-gap-1);
+  }
+
+  h1 {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    line-height: 1.3;
+    margin: 0 0 var(--size-gap-3);
+  }
+
+  &__en {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-normal);
+    color: var(--color-text-muted);
+    margin-left: var(--size-gap-2);
+  }
+
+  &__desc {
+    font-size: var(--font-size-base);
+    color: var(--color-text-secondary);
+    margin: 0 0 var(--size-gap-7);
+  }
+
+  &__section {
+    margin: 0 0 var(--size-gap-7);
+
+    h2 {
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-semibold);
+      padding-bottom: var(--size-gap-1);
+      border-bottom: 1px solid var(--border-subtle);
+      margin: 0 0 var(--size-gap-3);
+    }
+  }
+
+  &__usage {
+    margin: 0;
+    padding-left: var(--size-gap-5);
+    color: var(--color-text-secondary);
+
+    li { margin: var(--size-gap-0-5) 0; }
+  }
+}
+
+/* ---------- 演示卡 ---------- */
+.uikit-demo-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--size-radius-lg);
+  padding: var(--size-gap-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-5);
+
+  &__item + &__item {
+    border-top: 1px dashed var(--border-subtle);
+    padding-top: var(--size-gap-5);
+  }
+}
+
+.uikit-demo-empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- API 表（antd 风格） ---------- */
+.uikit-api-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+
+  th, td {
+    text-align: left;
+    padding: var(--size-gap-1-5) var(--size-gap-2-5);
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: top;
+  }
+
+  th {
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border-base);
+  }
+
+  tr:hover td { background: var(--element-bg-soft); }
+
+  &__param {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-accent-700);
+    white-space: nowrap;
+  }
+
+  &__type {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-secondary);
+    word-break: break-all;
+  }
+
+  &__req {
+    font-style: normal;
+    font-size: var(--font-size-2xs);
+    color: var(--color-brand-seal);
+  }
+}
+
+/* ---------- 代码块 ---------- */
+.uikit-code {
+  position: relative;
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--size-radius-base);
+  overflow: auto;
+
+  pre {
+    margin: 0;
+    padding: var(--size-gap-4) var(--size-gap-4);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    line-height: 1.8;
+    color: var(--color-text-primary);
+  }
+
+  &__copy {
+    position: absolute;
+    top: var(--size-gap-1-5);
+    right: var(--size-gap-1-5);
+    appearance: none;
+    border: 1px solid var(--border-base);
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+    border-radius: var(--size-radius-sm);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
+    font-size: var(--font-size-2xs);
+    cursor: pointer;
+
+    &:hover { color: var(--color-accent-600); border-color: var(--color-accent-500); }
+  }
+}
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 900px) {
+  .uikit-sider { display: none; }
+  .uikit-content { padding: var(--size-gap-5) var(--size-gap-4); }
+  .uikit-header__search { display: none; }
+}
