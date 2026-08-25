@@ -62,6 +62,10 @@ fn router() -> Router {
         .hoop(Compression::new())
         .hoop(cors_allow_all)
         .push(
+            // Ai00-X AI 网关：dsh @ai00-x/ai-bridge 插件的统一 LLM 入口
+            Router::with_path("ai00-internal").push(crate::ai_gateway::router()),
+        )
+        .push(
             Router::with_path("underlay/assets/{*path}")
                 .hoop(cache_headers)
                 .get(

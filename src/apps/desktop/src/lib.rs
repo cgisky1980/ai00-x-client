@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 //! Ai00-X Desktop - Tauri-based desktop application with TransportAdapter architecture
 
+pub mod ai_gateway;
 pub mod api;
 pub mod asr;
 pub mod audio_capture;

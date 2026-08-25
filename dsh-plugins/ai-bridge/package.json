@@ -1,0 +1,14 @@
+{
+  "name": "@ai00-x/dsh-ai-bridge",
+  "version": "0.1.0",
+  "description": "Ai00-X AI bridge: routes dsh model calls through the Ai00-X desktop gateway (local RWKV + ai00-x.com + smart routing)",
+  "type": "module",
+  "main": "src/index.js",
+  "keywords": ["dsh-plugin", "cordis-plugin"],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

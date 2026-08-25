@@ -43,10 +43,15 @@ impl AIClient {
     pub(crate) const HTTP_TCP_KEEPALIVE_SECS: u64 = 60;
     pub(crate) const HTTP_RESPONSE_TIMEOUT_SECS: u64 = 300;
 
-    /// Create an AIClient without proxy.
+    /// Create a new client without proxy.
     pub fn new(config: AIConfig) -> Self {
         let client = http::create_http_client(None, config.skip_ssl_verify);
         Self { client, config }
+    }
+
+    /// 公开 HTTP client（ai-gateway 转发分支复用连接池与代理配置）。
+    pub fn http_client(&self) -> &Client {
+        &self.client
     }
 
     /// Create an AIClient with proxy configuration.

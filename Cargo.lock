@@ -237,6 +237,7 @@ dependencies = [
  "async-trait",
  "atspi",
  "base64 0.22.1",
+ "bytes",
  "chrono",
  "claxon",
  "core-foundation 0.9.4",
