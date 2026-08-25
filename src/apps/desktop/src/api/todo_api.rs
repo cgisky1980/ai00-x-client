@@ -44,8 +44,7 @@ pub async fn todo_store_set(value: Value) -> Result<(), String> {
             .await
             .map_err(|e| format!("create todo dir: {e}"))?;
     }
-    let content =
-        serde_json::to_string(&value).map_err(|e| format!("serialize todo data: {e}"))?;
+    let content = serde_json::to_string(&value).map_err(|e| format!("serialize todo data: {e}"))?;
     let tmp = path.with_extension("json.tmp");
     fs::write(&tmp, content)
         .await
@@ -83,7 +82,9 @@ pub async fn todo_focus_append(
     }
     // 读（不存在则骨架）→ 追加 → 原子写
     let mut root: Value = match fs::read_to_string(&path).await {
-        Ok(content) => serde_json::from_str(&content).map_err(|e| format!("corrupt todo data: {e}"))?,
+        Ok(content) => {
+            serde_json::from_str(&content).map_err(|e| format!("corrupt todo data: {e}"))?
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => json!({
             "version": 3,
             "lists": [],

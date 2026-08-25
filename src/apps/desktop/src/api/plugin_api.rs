@@ -483,21 +483,19 @@ struct BundledPlugin {
 /// (todo 已于 2026-08-25 从插件提升为 overlay 核心功能——React 重写于
 /// web-ui `tools/todo/`，本地数据走 todo_api.rs，游戏化走服务器
 /// member_xp_events。源码保留在 plugins/todo/ 供参考。)
-const BUNDLED_PLUGINS: &[BundledPlugin] = &[
-    BundledPlugin {
-        manifest: include_str!("../../../../../../plugins/sticky-notes/manifest.json"),
-        files: &[
-            (
-                "overlay.mjs",
-                include_str!("../../../../../../plugins/sticky-notes/overlay.mjs"),
-            ),
-            (
-                "island.mjs",
-                include_str!("../../../../../../plugins/sticky-notes/island.mjs"),
-            ),
-        ],
-    },
-];
+const BUNDLED_PLUGINS: &[BundledPlugin] = &[BundledPlugin {
+    manifest: include_str!("../../../../../../plugins/sticky-notes/manifest.json"),
+    files: &[
+        (
+            "overlay.mjs",
+            include_str!("../../../../../../plugins/sticky-notes/overlay.mjs"),
+        ),
+        (
+            "island.mjs",
+            include_str!("../../../../../../plugins/sticky-notes/island.mjs"),
+        ),
+    ],
+}];
 
 /// Default plugins retired from the bundle. Any installed copy is removed at
 /// startup (files + registry entries) and recorded in `removed_defaults` so
