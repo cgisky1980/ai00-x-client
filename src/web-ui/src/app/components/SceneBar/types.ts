@@ -31,6 +31,7 @@ export type SceneTabId =
   | 'panel-view'
   | 'usage-stats'
   | 'acestep'
+  | 'dsh'
   | `miniapp:${string}`;
 
 /** Static definition (from registry) for a scene tab type */

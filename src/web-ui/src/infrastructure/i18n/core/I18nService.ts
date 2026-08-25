@@ -38,6 +38,7 @@ import zhCNScenesSkills from '../../../locales/zh-CN/scenes/skills.json';
 import zhCNScenesPlugins from '../../../locales/zh-CN/scenes/plugins.json';
 import zhCNScenesMiniapp from '../../../locales/zh-CN/scenes/miniapp.json';
 import zhCNScenesWallpaper from '../../../locales/zh-CN/scenes/wallpaper.json';
+import zhCNScenesDsh from '../../../locales/zh-CN/scenes/dsh.json';
 import zhCNPanelsFiles from '../../../locales/zh-CN/panels/files.json';
 import zhCNPanelsGit from '../../../locales/zh-CN/panels/git.json';
 import zhCNPanelsTerminal from '../../../locales/zh-CN/panels/terminal.json';
@@ -84,6 +85,7 @@ import enUSScenesSkills from '../../../locales/en-US/scenes/skills.json';
 import enUSScenesPlugins from '../../../locales/en-US/scenes/plugins.json';
 import enUSScenesMiniapp from '../../../locales/en-US/scenes/miniapp.json';
 import enUSScenesWallpaper from '../../../locales/en-US/scenes/wallpaper.json';
+import enUSScenesDsh from '../../../locales/en-US/scenes/dsh.json';
 import enUSPanelsFiles from '../../../locales/en-US/panels/files.json';
 import enUSPanelsGit from '../../../locales/en-US/panels/git.json';
 import enUSPanelsTerminal from '../../../locales/en-US/panels/terminal.json';
@@ -135,6 +137,7 @@ const resources = {
     'scenes/profile': zhCNScenesProfile,
     'scenes/skills': zhCNScenesSkills,
     'scenes/plugins': zhCNScenesPlugins,
+    'scenes/dsh': zhCNScenesDsh,
     'scenes/miniapp': zhCNScenesMiniapp,
     'scenes/wallpaper': zhCNScenesWallpaper,
     'panels/files': zhCNPanelsFiles,
@@ -182,6 +185,7 @@ const resources = {
     'scenes/profile': enUSScenesProfile,
     'scenes/skills': enUSScenesSkills,
     'scenes/plugins': enUSScenesPlugins,
+    'scenes/dsh': enUSScenesDsh,
     'scenes/miniapp': enUSScenesMiniapp,
     'scenes/wallpaper': enUSScenesWallpaper,
     'panels/files': enUSPanelsFiles,
@@ -252,6 +256,7 @@ export class I18nService {
           'scenes/profile',
           'scenes/skills',
           'scenes/plugins',
+          'scenes/dsh',
           'scenes/miniapp',
           'scenes/wallpaper',
           'panels/files',

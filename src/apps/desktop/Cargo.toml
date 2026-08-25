@@ -65,6 +65,7 @@ salvo = { workspace = true }
 ai00-run = { workspace = true }
 bytes = "1"
 win32job = "2"
+tokio-tungstenite = "0.24"
 once_cell = { workspace = true }
 zip = { workspace = true }
 sha2 = { workspace = true }

@@ -1,0 +1,28 @@
+{
+  "title": "Agent",
+  "sessions": {
+    "title": "Sessions",
+    "new": "New session",
+    "refresh": "Refresh list",
+    "loading": "Loading…",
+    "empty": "No sessions yet"
+  },
+  "chat": {
+    "placeholder": "Ai00-X Agent powered by the dsh engine",
+    "empty": "Type a message to start",
+    "inputPlaceholder": "Send a message (Enter to send, Shift+Enter for newline)",
+    "send": "Send",
+    "stop": "Stop",
+    "thinking": "Thinking…",
+    "reasoning": "Reasoning"
+  },
+  "status": {
+    "starting": "Starting engine…",
+    "installing": "Installing: {{stage}}",
+    "ready": "Engine ready",
+    "running": "Engine running",
+    "failed": "Engine failed: {{error}}",
+    "wsOn": "Event stream connected",
+    "wsOff": "Event stream disconnected"
+  }
+}

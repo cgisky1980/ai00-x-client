@@ -30,6 +30,7 @@ import {
   CheckSquare,
   Activity,
   Music,
+  Bot,
 } from 'lucide-react';
 import type { SceneTabDef, SceneTabId } from '../components/SceneBar/types';
 
@@ -256,6 +257,15 @@ export const SCENE_TAB_REGISTRY: SceneTabDef[] = [
     label: 'ACE-Step',
     labelKey: 'scenes.acestep',
     Icon: Music,
+    pinned: false,
+    singleton: true,
+    defaultOpen: false,
+  },
+  {
+    id: 'dsh' as SceneTabId,
+    label: 'Agent',
+    labelKey: 'scenes.dsh',
+    Icon: Bot,
     pinned: false,
     singleton: true,
     defaultOpen: false,

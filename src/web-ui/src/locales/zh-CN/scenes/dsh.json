@@ -1,0 +1,28 @@
+{
+  "title": "Agent",
+  "sessions": {
+    "title": "会话",
+    "new": "新建会话",
+    "refresh": "刷新列表",
+    "loading": "正在加载…",
+    "empty": "暂无会话"
+  },
+  "chat": {
+    "placeholder": "dsh 引擎驱动的 Ai00-X Agent",
+    "empty": "输入消息开始对话",
+    "inputPlaceholder": "发送消息（Enter 发送，Shift+Enter 换行）",
+    "send": "发送",
+    "stop": "停止",
+    "thinking": "思考中…",
+    "reasoning": "推理过程"
+  },
+  "status": {
+    "starting": "引擎启动中…",
+    "installing": "安装中：{{stage}}",
+    "ready": "引擎就绪",
+    "running": "引擎运行中",
+    "failed": "引擎故障：{{error}}",
+    "wsOn": "事件流已连接",
+    "wsOff": "事件流未连接"
+  }
+}

@@ -169,6 +169,11 @@ pub fn get() -> &'static DshManager {
     INIT.get_or_init(|| Box::leak(Box::new(DshManager::new())))
 }
 
+/// 引擎 sidecar 是否处于运行态（dsh_proxy 拒绝 WS 升级前探测用）。
+pub fn engine_running() -> bool {
+    get().running()
+}
+
 impl DshManager {
     fn new() -> Self {
         Self {
@@ -182,6 +187,11 @@ impl DshManager {
 
     pub fn phase(&self) -> DshPhase {
         self.phase.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// 引擎 sidecar 是否处于运行态（dsh_proxy 拒绝升级前探测用）。
+    pub fn running(&self) -> bool {
+        matches!(self.phase(), DshPhase::Running { .. })
     }
 
     fn set_phase(&self, phase: DshPhase) {
@@ -598,10 +608,16 @@ async fn spawn_sidecar() -> Result<(), String> {
     let mut cmd = process_manager::create_tokio_command(node_exe());
     // 注意：不能写 `web` 子命令（与 --profile 互斥）；profile bundles 含
     // dsh-web-app，boot 后 app 自动是 web——直接跟 web app 的 flags。
+    // trusted-host：放行我们 webview 的 origin（正式=内嵌服务器 2100，
+    // dev=tauri.localhost）访问 /api 信任栅栏。
     cmd.arg(&bin)
         .args(["--profile", DSH_PROFILE, "--no-open", "--host", "127.0.0.1"])
         .arg("--port")
         .arg(DSH_PORT.to_string())
+        .arg("--trusted-host")
+        .arg("127.0.0.1:2100")
+        .arg("--trusted-host")
+        .arg("tauri.localhost")
         .env("DSH_HOME", dsh_home())
         .env(
             "AI00_S_INTERNAL_TOKEN",

@@ -13,6 +13,7 @@ pub mod computer_use;
 pub mod desktop;
 pub mod download_manager;
 pub mod dsh_manager;
+pub mod dsh_proxy;
 pub mod embedding;
 pub mod kv_store;
 pub mod logging;

@@ -18,6 +18,7 @@ import {
   Brain,
   Wrench,
   Code,
+  Bot,
 } from 'lucide-react';
 import { Tooltip, Modal } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -235,6 +236,15 @@ const PersistentFooterActions: React.FC<PersistentFooterActionsProps> = ({ compa
                   {!compact && <div className="ai00-x-nav-panel__footer-menu-divider" />}
 
                   {/* Extensions (定制) items */}
+                  <button
+                    type="button"
+                    className={`ai00-x-nav-panel__footer-menu-item${activeTabId === 'dsh' ? ' is-active' : ''}`}
+                    role="menuitem"
+                    onClick={() => { closeMenu(); openScene('dsh'); }}
+                  >
+                    <Bot size={14} />
+                    <span>{t('scenes.dsh', { defaultValue: 'Agent' })}</span>
+                  </button>
                   <button
                     type="button"
                     className={`ai00-x-nav-panel__footer-menu-item${activeTabId === 'agents' ? ' is-active' : ''}`}

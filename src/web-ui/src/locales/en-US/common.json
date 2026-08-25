@@ -807,7 +807,8 @@
     "wallpaper": "Wallpaper",
     "panelView": "Panel View",
     "usageStats": "Usage Stats",
-    "acestep": "AI00-Music"
+    "acestep": "AI00-Music",
+    "dsh": "Agent"
   },
   "usageStats": {
     "title": "Usage Statistics",

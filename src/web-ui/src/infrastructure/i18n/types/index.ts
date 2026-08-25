@@ -46,7 +46,8 @@ export type I18nNamespace =
   | 'scenes/skills'
   | 'scenes/wallpaper'
   | 'vrm'
-  | 'acestep';
+  | 'acestep'
+  | 'scenes/dsh';
 
  
 export interface I18nConfig {
