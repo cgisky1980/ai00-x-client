@@ -12,6 +12,7 @@ pub mod auth_vault;
 pub mod computer_use;
 pub mod desktop;
 pub mod download_manager;
+pub mod dsh_manager;
 pub mod embedding;
 pub mod kv_store;
 pub mod logging;
@@ -299,6 +300,12 @@ pub async fn run() {
 
             let app_handle = app.handle().clone();
             server::start_salvo_server();
+            // dsh 引擎：注入 AppHandle（phase 事件推送）+ 后台静默安装启动
+            // （node/dsh/plugin 自动安装链，见 dsh_manager.rs；失败只记日志不阻塞主窗口）
+            {
+                dsh_manager::set_app_handle(app_handle.clone());
+                dsh_manager::spawn_bootstrap();
+            }
             // Seed/upgrade bundled default plugins (sticky-notes etc.)
             // before the frontend windows come up; the frontend also reacts
             // to the emitted `plugins-changed` event if it loads first.
@@ -515,6 +522,9 @@ pub async fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            dsh_manager::dsh_status,
+            dsh_manager::dsh_ensure_ready,
+            dsh_manager::dsh_stop,
             theme::open_overlay_force,
             theme::show_main_window,
             theme::hide_loader_window,

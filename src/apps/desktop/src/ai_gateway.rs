@@ -220,42 +220,20 @@ async fn local_rwkv_sse(body: Value, session_id: Option<String>, res: &mut Respo
     {
         Ok(rx) => rx,
         Err(e) if e.contains("not initialized") => {
-            // lazy-init：dsh 插件调用不要求用户先在 UI 里加载 RWKV 模型
-            match crate::rwkv_llm::init_engine_internal(None, None, None).await {
-                Ok(_) => match pool_infer(
-                    prompt,
-                    max_tokens,
-                    top_p,
-                    0,
-                    0.3,
-                    0.3,
-                    0.996,
-                    Some(stop),
-                    None,
-                    stream,
-                    false,
-                    String::new(),
-                )
-                .await
-                {
-                    Ok(rx) => rx,
-                    Err(e) => {
-                        res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
-                        res.body(
-                            json!({"error": {"message": format!("RWKV engine error: {e}")}})
-                                .to_string(),
-                        );
-                        return;
-                    }
-                },
-                Err(e) => {
-                    res.status_code(StatusCode::SERVICE_UNAVAILABLE);
-                    res.body(
-                        json!({"error": {"message": format!("RWKV init failed: {e}")}}).to_string(),
-                    );
-                    return;
+            // RWKV 引擎未初始化：后台触发 lazy-init（加载耗时且推理池串行，
+            // 阻塞等待会让并发请求全部积压挂死）。本请求立即 503，
+            // 由 dsh llm-retry 层重试直到引擎就绪。
+            tokio::spawn(async move {
+                if let Err(e) = crate::rwkv_llm::init_engine_internal(None, None, None).await {
+                    log::warn!("[ai-gateway] RWKV lazy-init failed: {e}");
                 }
-            }
+            });
+            res.status_code(StatusCode::SERVICE_UNAVAILABLE);
+            res.body(
+                json!({"error": {"message": "RWKV engine not initialized; loading in background, retry shortly"}})
+                    .to_string(),
+            );
+            return;
         }
         Err(e) => {
             res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
@@ -341,6 +319,9 @@ async fn local_rwkv_sse(body: Value, session_id: Option<String>, res: &mut Respo
 
 /// 转发到 primary 模型（OpenAI 兼容 SSE 透传）。
 async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response) {
+    // 恢复登录态：dsh 侧请求可能先于任何前端登录流程到达，
+    // AI00S_AUTH_TOKEN 是内存态——从 vault 兜底恢复（幂等，已有则秒回）。
+    let _ = crate::auth::ensure_auth_synced().await;
     let client = match AIClientFactory::get_global() {
         Ok(f) => match f.get_client_resolved("primary").await {
             Ok(c) => c,
