@@ -16,7 +16,6 @@ import { getTerminalService } from '@/tools/terminal';
 import type { ShellInfo } from '@/tools/terminal/types/session';
 import {
   useTheme,
-  HueSlider,
 } from '@/infrastructure/theme';
 import { useLanguageSelector } from '@/infrastructure/i18n';
 import type { LocaleId } from '@/infrastructure/i18n/types';
@@ -36,7 +35,7 @@ const log = createLogger('BasicsConfig');
 
 export function BasicsAppearanceSection() {
   const { t } = useTranslation('settings/basics');
-  const { isDark, isLight, accentHue, setAccentHue, themes, setTheme, loading } = useTheme();
+  const { isDark, isLight, themes, setTheme, loading } = useTheme();
   const { currentLanguage, supportedLocales, selectLanguage, isChanging } = useLanguageSelector();
 
   const handleThemeTypeToggle = useCallback(async () => {
@@ -46,10 +45,6 @@ export function BasicsAppearanceSection() {
       await setTheme(targetTheme.id);
     }
   }, [isDark, themes, setTheme]);
-
-  const handleHueChange = useCallback(async (hue: number) => {
-    await setAccentHue(hue);
-  }, [setAccentHue]);
 
   return (
     <div className="theme-config">
@@ -103,25 +98,6 @@ export function BasicsAppearanceSection() {
                 <Moon size={14} />
                 <span>{t('appearance.darkMode')}</span>
               </button>
-            </div>
-          </ConfigPageRow>
-          <ConfigPageRow
-            label={t('appearance.accentColor', { defaultValue: 'Accent Color' })}
-            description={t('appearance.accentColorRowHint', {
-              defaultValue: 'Pick the accent color for the interface.',
-            })}
-            align="center"
-          >
-            <div className="theme-config__accent-picker">
-              <HueSlider
-                hue={accentHue}
-                onChange={handleHueChange}
-                disabled={loading}
-              />
-              <div
-                className="theme-config__accent-preview"
-                style={{ backgroundColor: `hsl(${accentHue}, 72%, ${isDark ? 65 : 45}%)` }}
-              />
             </div>
           </ConfigPageRow>
         </ConfigPageSection>

@@ -98,6 +98,12 @@ fn router() -> Router {
                 .hoop(no_cache)
                 .get(StaticDir::new([wallpaper_dir()]).auto_list(false)),
         )
+        // Plugin static assets: http://127.0.0.1:2100/plugins/{plugin_id}/...
+        .push(
+            Router::with_path("plugins/{*path}")
+                .hoop(no_cache)
+                .get(StaticDir::new([crate::api::plugin_api::plugins_dir()]).auto_list(false)),
+        )
         // URL: http://127.0.0.1:2100/wallpaper/projects/<uuid>/index.html
         .push(
             Router::with_path("wallpaper/projects/{*path}")

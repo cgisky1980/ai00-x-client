@@ -694,7 +694,7 @@ export function LocationPicker({
           readOnly
           onClick={toggleExpanded}
           placeholder={placeholder}
-          className="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none focus:border-[rgb(var(--primary))] cursor-pointer"
+          className="flex-1 rounded-lg border px-3 py-1.5 text-xs outline-none focus:border-(--color-accent-500) cursor-pointer"
           style={inputStyle}
         />
         <button
@@ -703,9 +703,11 @@ export function LocationPicker({
           title={t('locationPick')}
           className="rounded-lg border px-2 py-1.5 text-xs transition-all hover:opacity-80"
           style={{
-            borderColor: expanded ? 'rgb(var(--primary))' : 'var(--border)',
-            background: expanded ? 'rgba(var(--primary), 0.15)' : 'var(--secondary)',
-            color: expanded ? 'rgb(var(--primary))' : 'var(--text-50)',
+            borderColor: expanded ? 'var(--color-accent-500)' : 'var(--border-base)',
+            background: expanded
+              ? 'color-mix(in srgb, var(--color-accent-500) 15%, transparent)'
+              : 'var(--element-bg-base)',
+            color: expanded ? 'var(--color-accent-500)' : 'var(--color-text-muted)',
           }}
         >
           <Globe className="w-4 h-4" />
@@ -716,7 +718,7 @@ export function LocationPicker({
             onClick={handleClear}
             title={t('clear')}
             className="rounded-lg border px-2 py-1.5 text-xs transition-all hover:opacity-80"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-50)' }}
+            style={{ borderColor: 'var(--border-base)', color: 'var(--color-text-muted)' }}
           >
             <X className="w-4 h-4" />
           </button>
@@ -725,8 +727,12 @@ export function LocationPicker({
 
       {expanded && createPortal(
         <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}
+          className="fixed inset-0 flex items-center justify-center"
+          style={{
+            zIndex: 'var(--z-modal)',
+            background: 'color-mix(in srgb, var(--color-bg-workbench) 65%, transparent)',
+            backdropFilter: 'blur(2px)',
+          }}
           onClick={() => setExpanded(false)}
         >
           <div
@@ -736,14 +742,14 @@ export function LocationPicker({
               maxWidth: '1200px',
               height: '88vh',
               maxHeight: '760px',
-              borderColor: 'var(--border)',
+              borderColor: 'var(--border-base)',
               background: 'var(--card-bg)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
               className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
-              style={{ borderColor: 'var(--border)' }}
+              style={{ borderColor: 'var(--border-subtle)' }}
             >
               <div className="flex items-center gap-2 min-w-0">
                 {view === 'country' && (
@@ -751,20 +757,20 @@ export function LocationPicker({
                     type="button"
                     onClick={backToWorld}
                     className="rounded-md p-1 transition-all hover:opacity-70 flex-shrink-0"
-                    style={{ color: 'var(--text-50)' }}
+                    style={{ color: 'var(--color-text-muted)' }}
                     title={t('locationBackToWorld')}
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                 )}
-                <Globe className="w-4 h-4 flex-shrink-0" style={{ color: 'rgb(var(--primary))' }} />
-                <span className="text-sm font-medium truncate" style={{ color: 'var(--text-90)' }}>
+                <Globe className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-accent-500)' }} />
+                <span className="text-sm font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
                   {view === 'world' ? t('locationPick') : selectedCountry ? getCountryZh(selectedCountry.name, isZh, selectedCountry.iso2) : ''}
                 </span>
                 {selectedProvince && (
                   <>
-                    <span className="text-xs" style={{ color: 'var(--text-50)' }}>/</span>
-                    <span className="text-xs truncate" style={{ color: 'rgb(var(--primary))' }}>
+                    <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>/</span>
+                    <span className="text-xs truncate" style={{ color: 'var(--color-accent-500)' }}>
                       {getProvinceZh(selectedProvince, zhMap)}
                     </span>
                   </>
@@ -774,7 +780,7 @@ export function LocationPicker({
                 type="button"
                 onClick={() => setExpanded(false)}
                 className="rounded-md p-1 transition-all hover:opacity-80 flex-shrink-0"
-                style={{ color: 'var(--text-50)' }}
+                style={{ color: 'var(--color-text-muted)' }}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -885,7 +891,7 @@ export function LocationPicker({
                     type="button"
                     onClick={() => zoomBy(1 / 1.6)}
                     className="rounded-md border w-9 h-9 flex items-center justify-center transition-all hover:opacity-80 shadow-lg"
-                    style={{ borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.95)', color: '#0c4a6e' }}
+                    style={{ borderColor: 'var(--border-base)', background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -893,7 +899,7 @@ export function LocationPicker({
                     type="button"
                     onClick={() => zoomBy(1.6)}
                     className="rounded-md border w-9 h-9 flex items-center justify-center transition-all hover:opacity-80 shadow-lg"
-                    style={{ borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.95)', color: '#0c4a6e' }}
+                    style={{ borderColor: 'var(--border-base)', background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
                   >
                     <Minus className="w-4 h-4" />
                   </button>
@@ -902,15 +908,15 @@ export function LocationPicker({
                     onClick={() => setViewBox(view === 'world' ? (worldData?.viewBox || FULL_VIEW) : (provinceData?.viewBox || FULL_VIEW))}
                     title={t('locationReset')}
                     className="rounded-md border w-9 h-9 flex items-center justify-center transition-all hover:opacity-80 shadow-lg"
-                    style={{ borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.95)', color: '#0c4a6e' }}
+                    style={{ borderColor: 'var(--border-base)', background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}
                   >
                     <Maximize className="w-4 h-4" />
                   </button>
                 </div>
 
                 <div
-                  className="absolute bottom-3 right-3 px-2 py-1 rounded text-[10px] font-mono z-10"
-                  style={{ background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.85)' }}
+                  className="absolute bottom-3 right-3 px-2 py-1 rounded text-[length:var(--font-size-xxs)] font-mono z-10"
+                  style={{ background: 'var(--element-bg-medium)', color: 'var(--color-text-secondary)' }}
                 >
                   {view === 'world'
                     ? `${((worldData?.viewBox.w || 1010) / viewBox.w).toFixed(1)}x`
@@ -920,13 +926,13 @@ export function LocationPicker({
 
               <div
                 className="w-[280px] border-l flex flex-col flex-shrink-0"
-                style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}
+                style={{ borderColor: 'var(--border-base)', background: 'var(--card-bg)' }}
               >
                 <div
                   className="px-3 py-2 border-b text-xs font-medium flex items-center gap-1.5 flex-shrink-0"
-                  style={{ borderColor: 'var(--border)', color: 'var(--text-90)' }}
+                  style={{ borderColor: 'var(--border-subtle)', color: 'var(--color-text-primary)' }}
                 >
-                  <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgb(var(--primary))' }} />
+                  <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-accent-500)' }} />
                   <span className="truncate">
                     {view === 'world'
                       ? t('locationClickCountryHint')
@@ -935,7 +941,7 @@ export function LocationPicker({
                       : ''}
                   </span>
                   {view === 'country' && provinceList.length > 0 && (
-                    <span className="ml-auto text-[10px] flex-shrink-0" style={{ color: 'var(--text-50)' }}>
+                    <span className="ml-auto text-[length:var(--font-size-xxs)] flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>
                       {provinceList.length}
                     </span>
                   )}
@@ -944,7 +950,7 @@ export function LocationPicker({
                   {view === 'world' ? (
                     <div
                       className="px-3 py-8 text-center text-xs"
-                      style={{ color: 'var(--text-50)' }}
+                      style={{ color: 'var(--color-text-muted)' }}
                     >
                       {loadingWorld ? t('locationLoading') : t('locationClickCountryHint')}
                     </div>
@@ -963,15 +969,15 @@ export function LocationPicker({
                           className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors"
                           style={{
                             background: isSelected
-                              ? 'rgba(var(--primary), 0.2)'
+                              ? 'color-mix(in srgb, var(--color-accent-500) 14%, transparent)'
                               : isHover
-                              ? 'rgba(var(--primary), 0.12)'
+                              ? 'color-mix(in srgb, var(--color-accent-500) 8%, transparent)'
                               : 'transparent',
-                            color: isSelected ? 'rgb(var(--primary))' : 'var(--text-90)',
-                            borderBottom: '1px solid var(--border)',
+                            color: isSelected ? 'var(--color-accent-500)' : 'var(--color-text-primary)',
+                            borderBottom: '1px solid var(--border-subtle)',
                           }}
                         >
-                          <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: isSelected ? 'rgb(var(--primary))' : 'var(--text-50)' }} />
+                          <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: isSelected ? 'var(--color-accent-500)' : 'var(--color-text-muted)' }} />
                           <span className="flex-1 truncate font-medium">{provZh}</span>
                         </button>
                       );
@@ -979,7 +985,7 @@ export function LocationPicker({
                   ) : (
                     <div
                       className="px-3 py-8 text-center text-xs"
-                      style={{ color: 'var(--text-50)' }}
+                      style={{ color: 'var(--color-text-muted)' }}
                     >
                       {loadingCountry ? t('locationLoading') : ''}
                     </div>

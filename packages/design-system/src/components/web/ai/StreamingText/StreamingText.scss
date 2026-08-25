@@ -10,7 +10,7 @@
     display: inline-block;
     width: 2px;
     height: 1em;
-    margin-left: 2px;
+    margin-left: var(--size-gap-0-5);
     vertical-align: text-bottom;
     background: var(--color-accent-500);
     border-radius: var(--size-radius-full);

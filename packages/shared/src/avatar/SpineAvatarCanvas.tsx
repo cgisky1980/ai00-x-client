@@ -160,7 +160,7 @@ export default function SpineAvatarCanvas({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'rgb(var(--primary))',
+            color: 'var(--color-accent-500)',
           }}
         >
           <Loader2 className="w-8 h-8 animate-spin" style={{ animationDuration: '1.2s' }} />
@@ -174,8 +174,8 @@ export default function SpineAvatarCanvas({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--destructive, #f00)',
-            fontSize: '12px',
+            color: 'var(--color-error)',
+            fontSize: 'var(--font-size-xs)',
             padding: '8px',
             textAlign: 'center',
           }}

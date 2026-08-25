@@ -14,7 +14,7 @@
 
   &__dots {
     display: inline-flex;
-    gap: 3px;
+    gap: var(--size-gap-0-5);
 
     i {
       width: 4px;

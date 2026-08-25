@@ -210,6 +210,15 @@ pub async fn run() {
     setup_panic_hook();
 
     tauri::Builder::default()
+        // 单实例守卫：必须第一个注册。二次启动时新进程立即退出，
+        // 回调里聚焦已有主窗口（loader）。
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("loader") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(logging::build_log_plugin(log_targets))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -289,6 +298,15 @@ pub async fn run() {
 
             let app_handle = app.handle().clone();
             server::start_salvo_server();
+            // Seed/upgrade bundled default plugins (sticky-notes etc.)
+            // before the frontend windows come up; the frontend also reacts
+            // to the emitted `plugins-changed` event if it loads first.
+            {
+                let handle = app_handle.clone();
+                tokio::spawn(async move {
+                    api::plugin_api::ensure_default_plugins(&handle).await;
+                });
+            }
             // Loader 窗口统一从内嵌 salvo 服务器加载（与正式环境一致，走目录/zip 服务），
             // 不再依赖 dev 模式的 Vite dev server，避免 dev/正式运行环境偏差。
             // 窗口在 tauri.conf.json 中设为 visible:false，此处等 salvo 就绪后
@@ -772,6 +790,23 @@ pub async fn run() {
             validate_skill_path,
             add_skill,
             delete_skill,
+            api::plugin_api::get_plugins,
+            api::plugin_api::install_plugin,
+            api::plugin_api::install_plugin_from_github,
+            api::plugin_api::uninstall_plugin,
+            api::plugin_api::set_plugin_enabled,
+            api::plugin_api::proxy_http_request,
+            api::plugin_api::plugin_data_get,
+            api::plugin_api::plugin_data_set,
+            api::plugin_api::plugin_data_remove,
+            api::plugin_api::plugin_data_keys,
+            api::plugin_api::plugin_data_clear,
+            api::plugin_api::plugin_ai_complete,
+            api::plugin_api::plugin_emit_event,
+            api::plugin_api::plugin_data_dir,
+            api::todo_api::todo_store_get,
+            api::todo_api::todo_store_set,
+            api::todo_api::todo_focus_append,
             git_is_repository,
             git_get_repository,
             git_get_status,

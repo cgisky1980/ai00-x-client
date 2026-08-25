@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Sun, Moon } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeSelectionId } from '../types';
-import HueSlider from './HueSlider';
 import './ThemeSelector.scss';
 
 export interface ThemeSelectorProps {
@@ -12,12 +11,15 @@ export interface ThemeSelectorProps {
     onChange?: (themeId: ThemeSelectionId) => void;
 }
 
+/**
+ * 明暗档切换器（换肤滑杆已随自定义调色功能移除——黛青唯一交互色，色板固定）
+ */
 export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
     mode = 'compact',
     className = '',
     onChange,
 }) => {
-    const { themes, setTheme, accentHue, setAccentHue, isDark, loading } = useTheme();
+    const { themes, setTheme, isDark, loading } = useTheme();
     const { t } = useTranslation('common');
 
     const handleThemeTypeToggle = useCallback(async () => {
@@ -29,20 +31,9 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
         }
     }, [isDark, themes, setTheme, onChange]);
 
-    const handleHueChange = useCallback(async (hue: number) => {
-        await setAccentHue(hue);
-    }, [setAccentHue]);
-
     if (mode === 'compact') {
         return (
             <div className={`theme-selector theme-selector--compact ${className}`}>
-                <div className="theme-selector__hue-slider">
-                    <HueSlider
-                        hue={accentHue}
-                        onChange={handleHueChange}
-                        disabled={loading}
-                    />
-                </div>
                 <button
                     className="theme-selector__mode-btn"
                     onClick={handleThemeTypeToggle}
@@ -68,14 +59,6 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
                     {isDark ? <Moon size={14} /> : <Sun size={14} />}
                     <span>{isDark ? t('theme.dark') : t('theme.light')}</span>
                 </button>
-            </div>
-            <div className="theme-selector__hue-section">
-                <span className="theme-selector__hue-label">{t('theme.accent')}</span>
-                <HueSlider
-                    hue={accentHue}
-                    onChange={handleHueChange}
-                    disabled={loading}
-                />
             </div>
         </div>
     );

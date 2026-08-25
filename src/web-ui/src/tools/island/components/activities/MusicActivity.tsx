@@ -427,6 +427,8 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenPopup }) => 
                 <ListMusic size={13} />
               </button>
             )}
+            {/* Desktop pet / task window buttons moved to the Tools activity
+                (island function panel). */}
             {/* Open playlist popup — pinned to right edge with margin-left: auto */}
             <button
               className="music-activity__btn music-activity__btn--expand"

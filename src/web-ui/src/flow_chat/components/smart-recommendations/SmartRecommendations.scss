@@ -47,66 +47,7 @@
     gap: var(--size-gap-2);
   }
 
-  &__action {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-1-5);
-    padding: var(--size-gap-2) var(--size-gap-3-5);
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    background: var(--color-bg-primary);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-
-    svg {
-      flex-shrink: 0;
-    }
-
-    &:hover:not(:disabled) {
-      background: var(--color-bg-secondary);
-      border-color: var(--color-primary);
-      transform: translateY(-1px);
-      box-shadow:var(--shadow-sm);
-    }
-
-    &:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-
-    // Primary button styles
-    &--primary {
-      background: var(--color-primary);
-      color: var(--color-accent-foreground);
-      border-color: var(--color-primary);
-
-      &:hover:not(:disabled) {
-        background: var(--color-primary-hover);
-        border-color: var(--color-primary-hover);
-      }
-    }
-
-    // Danger button styles
-    &--danger {
-      background: var(--color-danger);
-      color: var(--color-accent-foreground);
-      border-color: var(--color-danger);
-
-      &:hover:not(:disabled) {
-        background: var(--color-error);
-        border-color: var(--color-error);
-      }
-    }
-  }
-
+  /* 按钮本体走 design-system Button（ds-btn 体系）；此处仅保留 loading 省略号动画 */
   &__loading {
     animation: blink 1s infinite;
   }

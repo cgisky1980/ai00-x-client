@@ -1,5 +1,10 @@
 /**
  * Model thinking display component.
+ * Thin shell over design-system ThinkingPanel (v0.15 AI suite): rendering
+ * goes through the standard control, while flow-chat keeps its
+ * virtual-scroll height contract, typewriter streaming, char-count label,
+ * capped scroll area with fade gradients and auto-collapse semantics.
+ *
  * Default expanded while this is still the active last step.
  * If the component mounts after later content already appeared
  * (for example after a parent remount), start collapsed directly
@@ -8,12 +13,12 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { FlowThinkingItem } from '../types/flow-chat';
 import { useTypewriter } from '../hooks/useTypewriter';
 import { useToolCardHeightContract } from './useToolCardHeightContract';
 import { Markdown } from '@/component-library/components/Markdown/Markdown';
+import { ThinkingPanel } from '@/component-library';
 import './ModelThinkingDisplay.scss';
 
 interface ModelThinkingDisplayProps {
@@ -43,6 +48,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({ thin
     },
   });
 
+  // Auto-collapse once later content appears (unless the user toggled).
   useEffect(() => {
     if (userToggledRef.current) return;
     if (!isLastItem && isExpanded) {
@@ -92,38 +98,37 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({ thin
     return t('toolCards.think.thinkingCharacters', { count: content.length });
   }, [content, t]);
 
-  const handleToggleClick = () => {
-    const nextExpanded = !isExpanded;
+  const handleToggle = useCallback((nextExpanded: boolean) => {
     userToggledRef.current = true;
     applyExpandedState(isExpanded, nextExpanded, setIsExpanded);
-  };
+  }, [applyExpandedState, isExpanded]);
 
-  const headerLabel = (isExpanded
+  const headerLabel = isExpanded
     ? (isActive ? t('toolCards.think.thinking') : t('toolCards.think.thinkingProcess'))
-    : contentLengthText).replace(/ /g, '\u00A0');
-
-  const wrapperClassName = [
-    'flow-thinking-item',
-    isExpanded ? 'expanded' : 'collapsed',
-  ].filter(Boolean).join(' ');
+    : contentLengthText;
 
   const renderedContent = isActive ? displayContent : content;
 
   return (
-    <div ref={wrapperRef} data-tool-card-id={thinkingItem.id} className={wrapperClassName}>
-      <div
-        className="thinking-collapsed-header"
-        onClick={handleToggleClick}
+    <div
+      ref={wrapperRef}
+      data-tool-card-id={thinkingItem.id}
+      className={`flow-thinking-item ${isExpanded ? 'expanded' : 'collapsed'}${isActive ? ' streaming' : ''}`}
+    >
+      <ThinkingPanel
+        phase={isActive ? 'thinking' : 'done'}
+        open={isExpanded}
+        onToggle={handleToggle}
+        label={headerLabel}
+        cursor={false}
+        className="flow-thinking-item__panel"
       >
-        <ChevronRight size={14} className="thinking-chevron" />
-        <span className="thinking-label">{headerLabel}</span>
-      </div>
-
-      <div className={`thinking-expand-container ${isExpanded ? 'thinking-expand-container--open' : ''}`}>
-        <div className={`thinking-content-wrapper ${scrollState.hasScroll ? 'has-scroll' : ''} ${scrollState.atTop ? 'at-top' : ''} ${scrollState.atBottom ? 'at-bottom' : ''}`}>
+        <div
+          className={`thinking-content-wrapper ${scrollState.hasScroll ? 'has-scroll' : ''} ${scrollState.atTop ? 'at-top' : ''} ${scrollState.atBottom ? 'at-bottom' : ''}`}
+        >
           <div
             ref={contentRef}
-            className={`thinking-content expanded`}
+            className="thinking-content expanded"
             onScroll={checkScrollState}
           >
             <Markdown
@@ -133,7 +138,7 @@ export const ModelThinkingDisplay: React.FC<ModelThinkingDisplayProps> = ({ thin
             />
           </div>
         </div>
-      </div>
+      </ThinkingPanel>
     </div>
   );
 };

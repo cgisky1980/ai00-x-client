@@ -8,6 +8,7 @@ import { NotificationContainer } from '../shared/notification-system';
 import { ConfirmDialogRenderer } from '../component-library';
 import { InteractionOverlay } from '../tools/vrm/components/InteractionOverlay';
 import { DynamicIsland, LyricsOverlay } from '../tools/island';
+import { TodoOverlay } from '../tools/todo';
 import { PlayerEngine } from '@/tools/acestep/components/PlayerEngine';
 import { startPlayerBridge } from '@/tools/acestep/services/PlayerBridge';
 
@@ -142,6 +143,7 @@ function App() {
           {/* Injected plugin mount layer: below DynamicIsland (z 50010).
               Plugin DOM marks itself `.no-penetrate` to gain mouse capture. */}
           <div id="ai00-plugin-layer" style={{ position: 'fixed', inset: 0, zIndex: 50000, pointerEvents: 'none' }} />
+          <TodoOverlay />
           <DynamicIsland />
           <LyricsOverlay />
           <PlayerEngine />

@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom'
 import { useIslandStore } from '../store/islandStore'
 import { useAudioPlaybackStore } from '../../vrm/store/audioPlaybackStore'
 import { MusicActivity } from './activities/MusicActivity'
-import { ThemeActivity } from './activities/ThemeActivity'
 import { SfxActivity } from './activities/SfxActivity'
+import { ToolsActivity } from './activities/ToolsActivity'
 import { MusicPopup } from './MusicPopup/MusicPopup'
 import { SfxPopup } from './SfxPopup/SfxPopup'
 import { refreshRegions } from '../../../infrastructure/overlay'
@@ -119,9 +119,6 @@ export const DynamicIsland: React.FC = () => {
   }, [activeActivityId, openPopup])
 
   const renderActivity = () => {
-    if (activeActivityId === 'theme') {
-      return <ThemeActivity />
-    }
     if (activeActivityId === 'sfx') {
       return <SfxActivity onOpenPopup={handleOpenPopup} />
     }
@@ -140,18 +137,30 @@ export const DynamicIsland: React.FC = () => {
         onClick={onClick}
         onWheel={onWheel}
       >
-        {/* Activity content */}
+        {/* Activity content. The Tools pane stays MOUNTED at all times
+            (hidden via CSS) so the plugin extension slot #ai00-island-slot
+            it hosts remains in the DOM — the plugin runtime discovers it
+            once at startup and must not lose it on activity switches. */}
         <div className="dynamic-island__content">
           <div className="dynamic-island__activity-wrapper">
+            {activeActivityId !== 'tools' && (
+              <div
+                key={activeActivityId}
+                className="dynamic-island__activity-pane"
+              >
+                {renderActivity()}
+              </div>
+            )}
             <div
-              key={activeActivityId}
-              className="dynamic-island__activity-pane"
+              className={`dynamic-island__tools-pane${
+                activeActivityId === 'tools'
+                  ? ' dynamic-island__tools-pane--active'
+                  : ''
+              }`}
             >
-              {renderActivity()}
+              <ToolsActivity />
             </div>
           </div>
-          {/* Plugin extension slot (overlay:island hook) — visible when expanded */}
-          <div id="ai00-island-slot" className="dynamic-island__plugin-slot" />
         </div>
       </div>
       {popups.includes('music') && <MusicPopup />}

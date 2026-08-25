@@ -1,0 +1,38 @@
+{
+  "title": "插件",
+  "count": "共 {{total}} 个 · 启用 {{enabled}} 个",
+  "install": {
+    "localButton": "本地安装",
+    "githubButton": "GitHub 安装",
+    "githubPlaceholder": "owner/repo 或 GitHub Release / Archive 链接",
+    "selectPackage": "选择插件包",
+    "installing": "安装中…",
+    "refreshTooltip": "刷新列表"
+  },
+  "list": {
+    "loading": "正在加载插件…",
+    "errorPrefix": "加载失败：",
+    "empty": "尚未安装任何插件",
+    "disabled": "已禁用",
+    "enabledLabel": "启用 {{name}}",
+    "uninstallTooltip": "卸载"
+  },
+  "messages": {
+    "installSuccess": "插件安装成功",
+    "installFailed": "安装失败：{{error}}",
+    "uninstallSuccess": "已卸载 {{name}}",
+    "uninstallFailed": "卸载失败：{{error}}",
+    "toggleFailed": "操作失败：{{error}}"
+  },
+  "uninstallModal": {
+    "title": "卸载插件",
+    "message": "确定要卸载插件「{{name}}」吗？插件目录将被删除。",
+    "dataHint": "插件数据会保留（重装后自动恢复）。",
+    "injectedWarning": "该插件包含注入式模块（与宿主同源运行），卸载后立即失效。",
+    "confirm": "卸载",
+    "cancel": "取消"
+  },
+  "footer": {
+    "devGuide": "想开发自己的插件？源码与开发指南见仓库 plugins/ 目录（README.md 与 AGENT_GUIDE.md）。"
+  }
+}

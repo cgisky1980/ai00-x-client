@@ -71,9 +71,9 @@
       "activity": {
         "music": "Music",
         "song": "Song",
-        "theme": "Theme",
         "sfx": "Sound Effects",
-        "sfxEmpty": "No sound effects"
+        "sfxEmpty": "No sound effects",
+        "tools": "Tools"
       },
       "action": {
         "toggleDesktop": "Switch Desktop",
@@ -110,13 +110,6 @@
       "radio": "Radio",
       "list": "SFX",
       "create": "Create"
-    },
-    "theme": {
-      "presets": "Theme Presets",
-      "accentColor": "Accent Color",
-      "reset": "Reset",
-      "toggleDarkLight": "Toggle Dark/Light Theme",
-      "default": "Default Theme"
     },
     "radio": {
       "live": "Live",

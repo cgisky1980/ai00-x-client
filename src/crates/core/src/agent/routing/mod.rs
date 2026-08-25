@@ -84,7 +84,12 @@ impl SmartRouter {
         // prev_tier（sticky 表）作为 v4 head 的 one-hot 特征与后处理共用。
         let prev_tier = self.previous_tier(session_id);
         let raw = match self
-            .classify(user_input, summary, prev_tier.map(|t| t.index() as u8), config)
+            .classify(
+                user_input,
+                summary,
+                prev_tier.map(|t| t.index() as u8),
+                config,
+            )
             .await
         {
             Ok(decision) => decision,

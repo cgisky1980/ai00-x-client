@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { X } from "lucide-react";
 import { authApi } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -106,9 +107,9 @@ export function ForgotPasswordPage() {
   })();
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-transparent">
+    <div className="h-screen w-screen flex items-center justify-center bg-transparent p-5">
       <div
-        className="w-full h-full relative overflow-hidden rounded-xl border shadow-2xl"
+        className="w-full h-full relative overflow-hidden rounded-xl border loader-card"
         style={{ borderColor: "var(--border-base)", backgroundColor: "var(--color-bg-card)" }}
       >
         <div className="absolute top-0 left-0 right-0 h-10 z-0" data-tauri-drag-region />
@@ -130,14 +131,15 @@ export function ForgotPasswordPage() {
             className="btn-plain rounded-lg h-7 w-7 p-0 flex items-center justify-center hover:opacity-70"
             aria-label={t("exit")}
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="h-full flex flex-col items-center justify-center px-8">
           <div className="w-full max-w-md">
-            <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--color-text-primary)" }}>
+            {/* 门面：衬线 Display 标题 + 笔触动效（对齐 Login 门面标准，规范 6.1 #2） */}
+            <div className="text-center mb-8 ds-brush-reveal">
+              <h1 className="ds-display mb-2" style={{ color: "var(--color-text-primary)" }}>
                 {t("forgotPasswordTitle") || "重置密码"}
               </h1>
             </div>

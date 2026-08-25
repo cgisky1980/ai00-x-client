@@ -13,10 +13,6 @@ export function useTheme() {
     error,
     initialize,
     setTheme,
-    setAccentHue,
-    clearAccentOverride,
-    accentHue,
-    accentOverride,
     refreshThemes,
   } = useThemeStore();
 
@@ -34,11 +30,7 @@ export function useTheme() {
     themes,
     loading,
     error,
-    accentHue,
-    accentOverride,
     setTheme,
-    setAccentHue,
-    clearAccentOverride,
     refreshThemes,
     isDark: currentTheme?.type === 'dark',
     isLight: currentTheme?.type === 'light',

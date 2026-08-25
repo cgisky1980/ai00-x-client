@@ -64,6 +64,24 @@ impl AIClient {
         }
     }
 
+    pub fn with_temperature(&self, temperature: f64) -> Self {
+        let mut config = self.config.clone();
+        config.temperature = Some(temperature);
+        Self {
+            client: self.client.clone(),
+            config,
+        }
+    }
+
+    pub fn with_top_p(&self, top_p: f64) -> Self {
+        let mut config = self.config.clone();
+        config.top_p = Some(top_p);
+        Self {
+            client: self.client.clone(),
+            config,
+        }
+    }
+
     pub fn with_stop(&self, stop: Vec<String>) -> Self {
         let mut config = self.config.clone();
         config.stop = Some(stop);

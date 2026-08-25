@@ -38,6 +38,7 @@ tauri-plugin-log = { workspace = true }
 tauri-plugin-autostart = { workspace = true }
 tauri-plugin-notification = { workspace = true }
 tauri-plugin-updater = { workspace = true }
+tauri-plugin-single-instance = { workspace = true }
 
 # Inherited from workspace
 tokio = { workspace = true }

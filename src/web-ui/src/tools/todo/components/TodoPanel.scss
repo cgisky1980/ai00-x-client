@@ -1,0 +1,342 @@
+// TodoPanel — overlay 核心待办面板（React 重写版）。
+// 浮窗 chrome 与 MusicPopup/SfxPopup 同一套：useDraggable + usePopupResize，
+// BEM + 全 token（新东方极简），机器输出 mono + tabular-nums。
+.todo-panel {
+  position: fixed;
+  z-index: var(--z-chrome-overlay, 50013);
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in oklch, var(--color-bg-overlay, var(--color-bg-elevated)) 94%, transparent);
+  backdrop-filter: blur(32px) saturate(1.6);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  color: var(--color-text-primary);
+  border-radius: var(--size-radius-lg, 12px);
+  border: 1px solid color-mix(in oklch, var(--color-text-primary) 12%, transparent);
+  box-shadow: 0 16px 48px var(--color-overlay, rgba(0, 0, 0, 0.5));
+  overflow: hidden;
+  font-family: var(--font-family-sans, sans-serif);
+  font-size: var(--font-size-base, 14px);
+  user-select: none;
+
+  &.is-dragging,
+  &.is-resizing {
+    animation: none;
+    transition: none;
+  }
+
+  // ===== Resize handles（8 向，与 MusicPopup 同几何）=====
+  &__resize-handle {
+    position: absolute;
+    z-index: 1;
+    pointer-events: auto;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-accent) 35%, transparent);
+    }
+
+    &--n  { top: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+    &--s  { bottom: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+    &--e  { right: -3px; top: 8px; bottom: 8px; width: 6px; cursor: ew-resize; }
+    &--w  { left: -3px; top: 8px; bottom: 8px; width: 6px; cursor: ew-resize; }
+    &--ne { top: -3px; right: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+    &--nw { top: -3px; left: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+    &--se { bottom: -3px; right: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+    &--sw { bottom: -3px; left: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+  }
+
+  // ===== Header（拖动把手 + 等级 + XP 条 + 成长 + 关闭）=====
+  &__header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2, 8px);
+    padding: var(--size-gap-2-5, 10px) var(--size-gap-3-5, 14px);
+    cursor: grab;
+    border-bottom: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+
+    .is-dragging & { cursor: grabbing; }
+  }
+
+  &__grip {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    opacity: 0.4;
+    display: flex;
+    align-items: center;
+  }
+
+  &__title {
+    font-size: var(--font-size-lg, 15px);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__spacer { flex: 1; }
+
+  &__lv {
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs, 12px);
+    font-weight: 700;
+    color: var(--color-accent);
+    white-space: nowrap;
+  }
+
+  &__xpbar {
+    width: 48px;
+    height: 4px;
+    border-radius: var(--size-radius-full, 9999px);
+    background: color-mix(in oklch, var(--color-text-primary) 12%, transparent);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  &__xpfill {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--color-accent);
+    border-radius: inherit;
+    transition: width 0.3s ease;
+  }
+
+  &__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--size-radius-base, 8px);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-text-primary) 10%, transparent);
+      color: var(--color-text-primary);
+    }
+  }
+
+  // ===== Footer：底部固定创建区（所有视图的添加入口统一沉底，不随列表滚动）=====
+  &__footer {
+    flex-shrink: 0;
+    padding: var(--size-gap-2, 8px) var(--size-gap-3, 12px) var(--size-gap-2-5, 10px);
+    border-top: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+    background: color-mix(in oklch, var(--color-bg-overlay, var(--color-bg-elevated)) 60%, transparent);
+  }
+
+  // ===== Capture（快速捕获 + 细谈，置于面板底部）=====
+  &__capture {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2, 8px);
+
+    input {
+      flex: 1;
+      min-width: 0;
+      height: 30px;
+      padding: 0 var(--size-gap-3, 12px);
+      border: none;
+      border-radius: var(--size-radius-full, 9999px);
+      background: color-mix(in oklch, var(--color-text-primary) 7%, transparent);
+      color: var(--color-text-primary);
+      font-size: var(--font-size-sm, 13px);
+      font-family: inherit;
+      outline: none;
+
+      &:focus {
+        background: color-mix(in oklch, var(--color-text-primary) 10%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-accent) 55%, transparent);
+      }
+
+      &::placeholder { color: var(--color-text-muted); }
+    }
+  }
+
+  // ===== Body：nav + list =====
+  &__body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  &__nav {
+    width: 64px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1, 4px);
+    padding: var(--size-gap-2, 8px) var(--size-gap-1, 4px);
+    overflow-y: auto;
+    border-right: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+  }
+
+  &__nav-sep {
+    height: 1px;
+    margin: var(--size-gap-1-5, 6px) var(--size-gap-1, 4px);
+    background: color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+    flex-shrink: 0;
+  }
+
+  &__nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--size-gap-0-5, 2px);
+    padding: var(--size-gap-1, 4px) var(--size-gap-0-5, 2px);
+    border: none;
+    border-radius: var(--size-radius-sm, 6px);
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    position: relative;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-text-primary) 7%, transparent);
+      color: var(--color-text-primary);
+    }
+
+    &.is-active {
+      background: color-mix(in oklch, var(--color-accent) 16%, transparent);
+      color: var(--color-accent);
+
+      .todo-panel__nav-seal {
+        border-color: color-mix(in oklch, currentColor 55%, transparent);
+      }
+    }
+  }
+
+  // 印章式圆框：单字印记居中于圆环内（朱印意趣，色随导航态）
+  &__nav-seal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid color-mix(in oklch, currentColor 28%, transparent);
+    border-radius: var(--size-radius-full, 9999px);
+    line-height: 0;
+    transition: border-color 0.15s ease;
+  }
+
+  &__nav-label {
+    font-size: var(--font-size-xs, 12px);
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  &__nav-count {
+    position: absolute;
+    top: 0;
+    right: 2px;
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-muted);
+  }
+
+  &__list {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    overflow: hidden;
+    padding: var(--size-gap-2, 8px) var(--size-gap-2, 8px) 0;
+
+    // 单视图（志/恒常/修行）直接填满；today/done 走 tasks+detail 双栏
+    > *:only-child {
+      flex: 1;
+      min-width: 0;
+      overflow-y: auto;
+      padding-bottom: var(--size-gap-2, 8px);
+    }
+  }
+
+  // 双栏：左任务列表 / 右详情（点击任务行展开）
+  &__tasks {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding-bottom: var(--size-gap-2, 8px);
+  }
+
+  &__detail {
+    flex-shrink: 0;
+    width: 232px;
+    margin-left: var(--size-gap-2, 8px);
+    overflow-y: auto;
+    padding: var(--size-gap-1, 4px) 0 var(--size-gap-2, 8px) var(--size-gap-2, 8px);
+    border-left: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+  }
+
+  &__empty {
+    padding: var(--size-gap-5, 20px) var(--size-gap-2, 8px);
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm, 13px);
+  }
+
+  // ===== 今日概览条 =====
+  &__overview {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-3, 12px);
+    padding: var(--size-gap-1-5, 6px) var(--size-gap-2, 8px);
+    margin-bottom: var(--size-gap-2, 8px);
+    border-radius: var(--size-radius-base, 8px);
+    background: color-mix(in oklch, var(--color-accent) 8%, transparent);
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-secondary);
+
+    span { display: inline-flex; align-items: center; gap: var(--size-gap-1, 4px); }
+    svg { flex-shrink: 0; }
+  }
+
+  // ===== XP 浮字 / 勋章 toast =====
+  &__toast {
+    position: absolute;
+    top: 52px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, 2px);
+    padding: var(--size-gap-2-5, 10px) var(--size-gap-4, 16px);
+    border-radius: var(--size-radius-lg, 12px);
+    background-color: var(--color-bg-overlay, var(--color-bg-elevated));
+    box-shadow: var(--shadow-xl);
+    z-index: 40;
+    pointer-events: none;
+    animation: todoToastIn 0.3s var(--easing-standard, ease);
+  }
+
+  &__toast-title {
+    font-weight: 700;
+    color: var(--color-accent);
+    font-size: var(--font-size-sm, 13px);
+  }
+
+  &__toast-sub {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs, 12px);
+  }
+}
+
+@keyframes todoToastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes todoXpFloat {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-18px); }
+}

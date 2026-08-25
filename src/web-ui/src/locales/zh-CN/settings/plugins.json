@@ -1,0 +1,42 @@
+{
+  "title": "插件",
+  "subtitle": "管理桌面插件：安装、启用/禁用与卸载（实时生效）",
+  "install": {
+    "title": "安装插件",
+    "description": "从本地 .a00pkg 包或 GitHub 安装插件。",
+    "localButton": "本地安装",
+    "githubButton": "GitHub 安装",
+    "githubPlaceholder": "owner/repo 或 GitHub Release / Archive 链接",
+    "selectPackage": "选择插件包",
+    "installing": "安装中…",
+    "refreshTooltip": "刷新列表",
+    "hint": "注入式插件与宿主同源运行，拥有应用完全权限，请仅安装可信来源的插件。"
+  },
+  "list": {
+    "title": "已安装插件",
+    "description": "启用状态与卸载实时生效，无需重启。",
+    "loading": "正在加载插件…",
+    "errorPrefix": "加载失败：",
+    "empty": "尚未安装任何插件。",
+    "item": {
+      "enabledLabel": "启用 {{name}}",
+      "uninstallTooltip": "卸载",
+      "hooksLabel": "挂载点",
+      "repositoryLabel": "仓库"
+    }
+  },
+  "messages": {
+    "installSuccess": "插件安装成功",
+    "installFailed": "安装失败：{{error}}",
+    "uninstallSuccess": "已卸载 {{name}}",
+    "uninstallFailed": "卸载失败：{{error}}",
+    "toggleFailed": "操作失败：{{error}}"
+  },
+  "deleteModal": {
+    "title": "卸载插件",
+    "message": "确定要卸载插件「{{name}}」吗？插件目录将被删除。",
+    "warning": "该插件包含注入式模块（与宿主同源运行），卸载后立即失效。",
+    "delete": "卸载",
+    "cancel": "取消"
+  }
+}

@@ -48,12 +48,6 @@ impl ThemeConfig {
         }
     }
 
-    pub fn with_accent_hue(mut self, hue: u16) -> Self {
-        let (r, g, b) = hsl_to_rgb(hue, 72, if self.is_light { 45 } else { 65 });
-        self.accent_color = format!("#{:02x}{:02x}{:02x}", r, g, b);
-        self
-    }
-
     pub fn load_from_config() -> Self {
         let default = Self::default();
 
@@ -94,22 +88,10 @@ impl ThemeConfig {
 
         let is_light = Self::resolve_is_light(theme_id);
 
-        let accent_hue = global_config
-            .themes
-            .as_ref()
-            .map(|t| t.accent_hue)
-            .unwrap_or(-1);
-
-        let theme = if is_light {
+        if is_light {
             Self::light()
         } else {
             Self::dark()
-        };
-
-        if accent_hue >= 0 {
-            theme.with_accent_hue(accent_hue as u16)
-        } else {
-            theme
         }
     }
 
@@ -160,22 +142,6 @@ impl ThemeConfig {
         let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(20);
         tauri::window::Color(r, g, b, 255)
     }
-}
-
-fn hsl_to_rgb(h: u16, s: u32, l: u32) -> (u8, u8, u8) {
-    let h = h as f64 / 360.0;
-    let s = s as f64 / 100.0;
-    let l = l as f64 / 100.0;
-
-    let a = s * l.min(1.0 - l);
-
-    let f = |n: f64| {
-        let k = (n + h * 12.0) % 12.0;
-        let color = l - a * (k - 3.0).min(9.0 - k).clamp(-1.0, 1.0);
-        (color * 255.0).round() as u8
-    };
-
-    (f(0.0), f(8.0), f(4.0))
 }
 
 #[tauri::command]

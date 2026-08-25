@@ -42,7 +42,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: var(--size-radius-lg);
   background: color-mix(in oklch, var(--color-bg-elevated) 94%, transparent);
   backdrop-filter: blur(32px) saturate(1.6);
   -webkit-backdrop-filter: blur(32px) saturate(1.6);
@@ -139,7 +139,7 @@
     width: 28px;
     height: 28px;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--size-radius-base);
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
@@ -187,7 +187,7 @@
     gap: var(--size-gap-2);
     padding: var(--size-gap-2) var(--size-gap-2-5);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--size-radius-base);
     background: transparent;
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
@@ -226,7 +226,7 @@
     background: color-mix(in oklch, var(--color-text-muted) 18%, transparent);
     color: var(--color-text-secondary);
     padding: 0 var(--size-gap-1-5);
-    border-radius: 8px;
+    border-radius: var(--size-radius-base);
     line-height: 16px;
     font-variant-numeric: tabular-nums;
   }
@@ -317,7 +317,7 @@
     font-size: var(--font-size-xxs);
     background: color-mix(in oklch, var(--color-text-muted) 22%, transparent);
     padding: var(--size-gap-0-25) var(--size-gap-1-5);
-    border-radius: 8px;
+    border-radius: var(--size-radius-base);
     line-height: 14px;
     color: var(--color-text-muted);
     font-weight: 500;
@@ -338,7 +338,7 @@
     color: var(--color-accent-400);
     background: color-mix(in oklch, var(--color-accent-400) 14%, transparent);
     border: 1px solid color-mix(in oklch, var(--color-accent-400) 32%, transparent);
-    border-radius: 6px;
+    border-radius: var(--size-radius-sm);
     cursor: pointer;
     transition: background var(--motion-fast) var(--easing-standard),
       border-color var(--motion-fast) var(--easing-standard);
@@ -365,21 +365,29 @@
     background: transparent;
     cursor: pointer;
     text-align: left;
-    transition: transform 0.15s ease;
+    // 标准 hover 配方走封面子元素（卡片本体无背景）
+    transition: transform var(--motion-fast) var(--easing-standard);
 
     &:hover {
       transform: translateY(-2px);
 
-      .music-popup__radio-overlay {
+      .music-popup__radio-cover {
+        box-shadow: 0 0 0 1px var(--ds-card-hover-ring);
+
+        &::before {
+          opacity: 1;
+        }
+      }
+
+      .music-popup__radio-play {
         opacity: 1;
       }
     }
 
     &.is-active {
       .music-popup__radio-cover {
-        box-shadow:
-          0 0 0 2px var(--color-accent-400),
-          0 0 16px color-mix(in oklch, var(--color-accent-400) 40%, transparent);
+        border-color: var(--color-accent-400);
+        box-shadow: 0 0 0 1px var(--color-accent-400);
       }
 
       .music-popup__radio-name {
@@ -390,24 +398,41 @@
 
   &__radio-cover {
     position: relative;
+    z-index: 0; // stacking context：标准光晕配方沉底
     width: 100%;
     aspect-ratio: 1;
-    border-radius: 12px;
+    border-radius: var(--size-radius-base);
     overflow: hidden;
+    // 规范卡片：实体墨面沉底（层次靠墨阶，不靠彩色渐变），
+    // 左上角仅一点 accent 浅染呼应电台档位（radio-color 现为黛青系）
     background:
-      radial-gradient(circle at 30% 30%, color-mix(in oklch, var(--radio-color) 60%, transparent), transparent 70%),
-      linear-gradient(135deg, var(--radio-color), color-mix(in oklch, var(--radio-color) 40%, var(--color-bg-primary)));
+      radial-gradient(circle at 18% 14%, color-mix(in oklch, var(--radio-color) 16%, transparent), transparent 55%),
+      var(--color-bg-sunken);
+    border: 1px solid var(--border-base);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px color-mix(in oklch, var(--radio-color) 30%, transparent);
-    transition: box-shadow 0.2s ease;
+    transition: box-shadow var(--motion-fast) var(--easing-standard),
+      border-color var(--motion-fast) var(--easing-standard);
+
+    // 标准 hover 光晕（design-system v0.14.2 配方）
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity 0.3s var(--easing-standard);
+      background: var(--ds-glow-card);
+      pointer-events: none;
+    }
   }
 
   &__radio-icon {
-    font-size: var(--font-size-5xl);
+    font-size: var(--font-size-4xl);
     line-height: 1;
-    filter: drop-shadow(0 2px 4px var(--modal-overlay));
+    color: var(--color-accent-400);
   }
 
   &__radio-wave {
@@ -424,22 +449,27 @@
     display: block;
     width: 2px;
     height: 100%;
-    background: var(--color-text-primary);
+    background: var(--color-accent-400);
     border-radius: 1px;
     transform-origin: bottom;
     animation: musicPopupBarWave 0.9s ease-in-out infinite;
   }
 
-  &__radio-overlay {
+  // hover 播放徽标：右上角小图标（非模态，无遮罩）
+  &__radio-play {
     position: absolute;
-    inset: 0;
+    top: var(--size-gap-1);
+    right: var(--size-gap-1);
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--modal-overlay);
-    color: var(--color-accent-foreground);
+    width: 20px;
+    height: 20px;
+    border-radius: var(--size-radius-sm);
+    background: color-mix(in srgb, var(--color-accent-400) 18%, transparent);
+    color: var(--color-accent-400);
     opacity: 0;
-    transition: opacity 0.15s ease;
+    transition: opacity var(--motion-fast) var(--easing-standard);
   }
 
   &__radio-name {
@@ -466,19 +496,13 @@
     gap: var(--size-gap-1-5);
     width: 100%;
     padding: var(--size-gap-1-5) var(--size-gap-2);
-    border-radius: 10px;
+    border-radius: var(--size-radius-base);
     background: transparent;
     color: var(--color-text-secondary);
     transition: background 0.15s ease;
 
     &:hover {
       background: color-mix(in oklch, var(--color-primary) 18%, transparent);
-
-      .music-popup__song-cover {
-        .music-popup__cover-overlay {
-          opacity: 1;
-        }
-      }
 
       .music-popup__song-actions {
         opacity: 1;
@@ -535,7 +559,7 @@
     width: 24px;
     height: 24px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--size-radius-sm);
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
@@ -564,7 +588,7 @@
     width: 100%;
     padding: 0;
     border: none;
-    border-radius: 10px;
+    border-radius: var(--size-radius-base);
     background: transparent;
     color: var(--color-text-secondary);
     cursor: default;
@@ -641,7 +665,7 @@
     margin-left: auto;
     flex-shrink: 0;
     border: none;
-    border-radius: 5px;
+    border-radius: var(--size-radius-sm);
     background: color-mix(in oklch, var(--color-accent-400) 16%, transparent);
     color: var(--color-accent-400);
     cursor: pointer;
@@ -664,7 +688,7 @@
     position: relative;
     width: 48px;
     height: 48px;
-    border-radius: 8px;
+    border-radius: var(--size-radius-base);
     overflow: hidden;
     background: color-mix(in oklch, var(--color-primary) 14%, transparent);
     display: flex;
@@ -681,18 +705,28 @@
     }
   }
 
+  // 封面角标（hover 播放/播放中暂停）：右上角小徽标，非模态无遮罩
   &__cover-overlay {
     position: absolute;
-    inset: 0;
+    top: var(--size-gap-0-5);
+    right: var(--size-gap-0-5);
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--modal-overlay);
+    width: 18px;
+    height: 18px;
+    border-radius: var(--size-radius-sm);
+    background: color-mix(in srgb, var(--color-accent-400) 20%, transparent);
     color: var(--color-accent-400);
     opacity: 0;
-    transition: opacity 0.15s ease;
+    transition: opacity var(--motion-fast) var(--easing-standard);
 
     .is-current & {
+      opacity: 1;
+    }
+
+    // hover 行时显示播放角标（当前播放行常显暂停角标）
+    :is(.music-popup__song-card, .music-popup__community-main, .music-popup__recommend-play):hover & {
       opacity: 1;
     }
   }
@@ -766,7 +800,7 @@
     bottom: 0;
     height: 3px;
     background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
-    border-radius: 0 0 10px 10px;
+    border-radius: 0 0 var(--size-radius-base) var(--size-radius-base);
     overflow: hidden;
     pointer-events: none;
 
@@ -792,7 +826,7 @@
     gap: var(--size-gap-1);
     padding: var(--size-gap-0-5) var(--size-gap-1-5);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--size-radius-sm);
     background: color-mix(in oklch, var(--color-primary) 16%, transparent);
     color: var(--color-accent-400);
     font-size: var(--font-size-xxs);
@@ -833,7 +867,7 @@
     align-items: center;
     gap: var(--size-gap-1-5);
     padding: var(--size-gap-2) var(--size-gap-2-5);
-    border-radius: 8px;
+    border-radius: var(--size-radius-base);
     background: color-mix(in oklch, var(--color-accent-400) 12%, transparent);
     color: var(--color-accent-400);
     font-size: var(--font-size-2xs);
@@ -844,7 +878,7 @@
     align-items: center;
     gap: var(--size-gap-2-5);
     padding: var(--size-gap-2) var(--size-gap-2-5);
-    border-radius: 10px;
+    border-radius: var(--size-radius-base);
     background: color-mix(in oklch, var(--color-primary) 8%, transparent);
   }
 
@@ -887,7 +921,7 @@
     gap: var(--size-gap-1);
     padding: var(--size-gap-0-5) var(--size-gap-2);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--size-radius-sm);
     background: color-mix(in oklch, var(--color-primary) 16%, transparent);
     color: var(--color-accent-400);
     font-size: var(--font-size-xxs);
@@ -917,7 +951,7 @@
     align-items: center;
     gap: var(--size-gap-1-5);
     padding: var(--size-gap-1-5) var(--size-gap-3);
-    border-radius: 8px;
+    border-radius: var(--size-radius-base);
     background: color-mix(in oklch, var(--color-bg-elevated) 96%, transparent);
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--border-base);
@@ -1025,7 +1059,7 @@
     justify-content: center;
     width: 30px;
     height: 30px;
-    border-radius: 8px;
+    border-radius: var(--size-radius-base);
     border: none;
     background: transparent;
     color: var(--color-text-secondary);

@@ -40,8 +40,6 @@
     "darkMode": "Dark",
     "mode": "Mode",
     "modeRowHint": "Switch between light and dark mode.",
-    "accentColor": "Accent Color",
-    "accentColorRowHint": "Pick the accent color for the interface.",
     "systemTheme": "Match system",
     "systemThemeDescription": "Use light or dark theme based on your OS appearance. Updates when the system switches.",
     "presets": {

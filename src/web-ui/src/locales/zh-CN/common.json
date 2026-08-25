@@ -1089,8 +1089,7 @@
   },
   "theme": {
     "dark": "深色",
-    "light": "浅色",
-    "accent": "强调色"
+    "light": "浅色"
   },
   "mcpDialog": {
     "server": "服务器：",

@@ -32,15 +32,20 @@
   cursor: pointer;
   user-select: none;
 
-  // 固定暗色背景和文字 — 主题色(accent/primary)仍跟随全局主题
-  --color-bg-primary: var(--color-bg-primary);
-  --color-bg-elevated: var(--color-bg-elevated);
-  --color-text-primary: var(--color-text-primary);
-  --color-text-secondary: var(--color-text-secondary);
-  --color-text-muted: var(--color-text-muted);
+  // 固定松烟墨暗色（悬浮岛不随明暗主题切换，同 iOS 灵动岛）；
+  // 公式取自 design-system tokens.css :root 暗档——hue-ink/chroma-surface 为
+  // 主题不变 primitive，亮色主题下本作用域仍解析为暗墨值。
+  // accent 交互色仍跟随全局主题。
+  --color-bg-primary: oklch(0.27 calc(var(--chroma-surface, 0.012) * 0.5) var(--hue-ink, 240));
+  --color-bg-elevated: oklch(0.45 calc(var(--chroma-surface, 0.012) * 0.85) var(--hue-ink, 240));
+  --color-text-primary: oklch(0.92 calc(var(--chroma-surface, 0.012) * 0.33) var(--hue-ink, 240));
+  --color-text-secondary: oklch(0.78 calc(var(--chroma-surface, 0.012) * 0.25) var(--hue-ink, 240));
+  --color-text-muted: oklch(0.64 calc(var(--chroma-surface, 0.012) * 0.06) var(--hue-ink, 240));
 
-  // Base pill shape
-  background: color-mix(in oklch, var(--color-bg-elevated) 92%, transparent);
+  // Base pill shape — bg-primary (deep ink 0.27) at 96% keeps text/buttons
+  // legible over bright wallpapers; the previous bg-elevated(0.45) 92% let
+  // too much light through after the blur.
+  background: color-mix(in oklch, var(--color-bg-primary) 96%, transparent);
   backdrop-filter: blur(32px) saturate(1.6);
   -webkit-backdrop-filter: blur(32px) saturate(1.6);
   border: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent);
@@ -58,14 +63,16 @@
   &--compact {
     width: 160px;
     height: 40px;
-    border-radius: 999px;
+    border-radius: var(--size-radius-full);
   }
 
   // === Expanded state: 400×96 rounded ===
+  // Visual spec v0.15: floating surfaces use radius.lg (12px) — the big
+  // 20px corner is retired. Compact pill below stays the signature form.
   &--expanded {
     width: 400px;
     height: 96px;
-    border-radius: 28px;
+    border-radius: var(--size-radius-lg);
   }
 
   // === Playing highlight: inner glow + breathing animation ===
@@ -106,32 +113,26 @@
   overflow: hidden;
 }
 
-// === Plugin extension slot (overlay:island hook) ===
-// Bottom strip inside the island, visible only when expanded.
-// Plugin modules mount their compact DOM here (e.g. badges, countdowns).
-.dynamic-island__plugin-slot {
-  display: none;
-}
-
-.dynamic-island--expanded .dynamic-island__plugin-slot {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--spacing-2);
-  height: 22px;
-  padding: 0 var(--size-gap-3);
-  flex-shrink: 0;
-  overflow: hidden;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  cursor: default;
-}
+// The plugin extension slot (overlay:island hook, #ai00-island-slot) moved
+// into the Tools activity panel (ToolsActivity.scss).
 
 .dynamic-island__activity-pane {
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+// Tools pane — always mounted (hosts the plugin slot), shown only when the
+// tools activity is active. `position:absolute; inset:0` keeps it out of the
+// flex flow when hidden would still occupy space otherwise.
+.dynamic-island__tools-pane {
+  display: none;
+}
+
+.dynamic-island__tools-pane--active {
+  display: block;
+  position: absolute;
+  inset: 0;
 }
 
 // === Slide animations for activity switching ===
@@ -163,7 +164,7 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--size-radius-base);
   border: none;
   background: transparent;
   color: var(--color-text-muted);

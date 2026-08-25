@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { X } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
@@ -542,27 +543,40 @@ export function HomePage() {
   return (
     <div className="h-screen w-screen flex flex-col bg-transparent">
       <div
-        className="flex-1 flex flex-col items-center justify-center relative overflow-hidden rounded-xl border shadow-2xl m-2"
+        className="flex-1 flex flex-col items-center justify-center relative overflow-hidden rounded-xl border loader-card m-5"
         style={{ borderColor: 'var(--border-base)', backgroundColor: 'var(--color-bg-card)' }}
       >
         {/* 统一页头：可拖拽 + 语言切换，始终在最上层 */}
         <div
-          className="absolute top-0 left-0 right-0 h-10 z-[80] flex items-center justify-end px-4"
+          className="absolute top-0 left-0 right-0 h-10 flex items-center justify-end px-4"
           data-tauri-drag-region
-          style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--border-base)' }}
+          style={{ zIndex: 'var(--z-header)', backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--border-base)' }}
         >
-          <button
-            type="button"
-            onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
-            className="btn-plain rounded-md px-2 py-1 text-xs font-medium"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            {locale === "zh" ? "EN" : "中"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
+              className="btn-plain rounded-md px-2 py-1 text-xs font-medium"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              {locale === "zh" ? "EN" : "中"}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const currentWindow = await getCurrentWindow();
+                await currentWindow.close();
+              }}
+              className="btn-plain rounded-lg h-7 w-7 p-0 flex items-center justify-center hover:opacity-70"
+              aria-label={t("exit")}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* 主内容：从页头下方开始（top-10） */}
-        <div className="absolute top-10 inset-x-0 bottom-0 z-[60] flex">
+        <div className="absolute top-10 inset-x-0 bottom-0 flex" style={{ zIndex: 'var(--z-content)' }}>
           <OnboardingPanel
             initialProfile={initialProfile}
             onComplete={handleComplete}

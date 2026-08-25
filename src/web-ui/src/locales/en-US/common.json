@@ -1088,8 +1088,7 @@
   },
   "theme": {
     "dark": "Dark",
-    "light": "Light",
-    "accent": "Accent"
+    "light": "Light"
   },
   "mcpDialog": {
     "server": "Server:",

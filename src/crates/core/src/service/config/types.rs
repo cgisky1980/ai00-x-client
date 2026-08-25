@@ -777,6 +777,9 @@ pub struct ThemeShadows {
 }
 
 /// Theme system configuration (new).
+/// Note: the custom accent-hue override field was removed — the palette is
+/// fixed per the design language (黛青唯一交互色); stale `accentHue` keys in
+/// existing config JSON are ignored via serde's default behavior.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ThemesConfig {
@@ -785,13 +788,6 @@ pub struct ThemesConfig {
     /// User-defined themes (stored as JSON).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom: Option<serde_json::Value>,
-    /// Accent hue value (0-360), -1 means use theme default.
-    #[serde(default = "default_accent_hue")]
-    pub accent_hue: i32,
-}
-
-fn default_accent_hue() -> i32 {
-    -1
 }
 
 impl Default for ThemesConfig {
@@ -799,7 +795,6 @@ impl Default for ThemesConfig {
         Self {
             current: "ai00-x-dark".to_string(),
             custom: None,
-            accent_hue: -1,
         }
     }
 }

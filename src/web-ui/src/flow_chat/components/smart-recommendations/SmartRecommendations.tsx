@@ -8,7 +8,7 @@ import { X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { recommendationRegistry } from './RecommendationRegistry';
 import { RecommendationAction, RecommendationContext } from './types';
-import { Tooltip } from '@/component-library';
+import { Button, Tooltip } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
 import './SmartRecommendations.scss';
 
@@ -107,18 +107,19 @@ export const SmartRecommendations: React.FC<SmartRecommendationsProps> = ({
         </Tooltip>
       </div>
 
+      {/* 渲染层走 design-system Button（v0.15 渐进替换：原手写按钮样式退役） */}
       <div className="ai00-x-smart-recommendations__actions">
         {actions.map(action => {
-          const IconComponent = action.icon 
-            ? (LucideIcons as any)[action.icon] 
+          const IconComponent = action.icon
+            ? (LucideIcons as any)[action.icon]
             : null;
-          
+
           const isLoading = actionLoading[action.id] || action.loading;
-          
+
           return (
-            <button
+            <Button
               key={action.id}
-              className={`ai00-x-smart-recommendations__action ai00-x-smart-recommendations__action--${action.type || 'secondary'}`}
+              variant={action.type === 'primary' ? 'primary' : action.type === 'danger' ? 'danger' : 'secondary'}
               onClick={() => handleActionClick(action)}
               disabled={action.disabled || isLoading}
               title={action.description}
@@ -126,7 +127,7 @@ export const SmartRecommendations: React.FC<SmartRecommendationsProps> = ({
               {IconComponent && <IconComponent size={16} />}
               <span>{action.label}</span>
               {isLoading && <span className="ai00-x-smart-recommendations__loading">...</span>}
-            </button>
+            </Button>
           );
         })}
       </div>

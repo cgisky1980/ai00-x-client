@@ -260,7 +260,9 @@ mod tests {
         let p = build_summary_prompt(Some("Translating a Rust doc"), "改成中文", "好的，已翻译。");
         // Material first, then blank line, then Question/Answer lines.
         assert!(p.starts_with("Conversation so far:\nSummary: Translating a Rust doc\n"));
-        assert!(p.contains("\n\nQuestion: Summarize the conversation. What task is in progress?\nAnswer:"));
+        assert!(p.contains(
+            "\n\nQuestion: Summarize the conversation. What task is in progress?\nAnswer:"
+        ));
         assert!(p.ends_with("Answer:"));
 
         let first = build_summary_prompt(None, "hello", "hi");

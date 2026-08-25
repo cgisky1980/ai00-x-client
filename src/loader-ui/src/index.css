@@ -1,6 +1,6 @@
 /* Ai00-X loader-ui 样式入口
  * 设计令牌来源：@ai00-x/design-system（规范见 参考/前端视觉设计规范-新东方极简.md）
- * 主题：:root 为深墨默认（暗色），[data-theme="light"] 为宣纸覆盖（index.html 按系统偏好设置） */
+ * 主题：:root 为深墨默认（暗色），[data-theme-type="light"] 为宣纸覆盖（index.html 按系统偏好设置双属性） */
 @import "tailwindcss";
 @import "@ai00-x/design-system/styles";
 @import "@ai00-x/design-system/tw";
@@ -13,7 +13,7 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: transparent;
+  background-color: transparent;
   color: var(--color-text-primary);
   font-family: var(--font-family-sans);
 }
@@ -35,7 +35,7 @@ html, body, #root {
 
 .btn-primary {
   background: var(--color-accent-500);
-  color: oklch(0.97 0.01 90);
+  color: var(--color-accent-foreground);
   border: none;
   border-radius: var(--size-radius-base);
   padding: var(--size-gap-2) var(--size-gap-4);
@@ -69,4 +69,22 @@ input[type="email"] {
 
 input:focus {
   border-color: var(--input-border-focus);
+}
+
+/* ==== 透明无边框窗口悬浮卡（loader 专属） ====
+ * 窗口 transparent + shadow:false，阴影只能由 webview 内 CSS 绘制。
+ * 阴影必须在卡片外 20px 透明 gutter（页面外层 p-5 / m-5）内自然衰减完毕，
+ * 否则会被窗口边缘硬切成方形暗环（模糊半径 ≤ gutter 宽度）。
+ * 颜色经 --color-overlay color-mix，明暗两档主题下均保持深色。 */
+.loader-card {
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-overlay) 60%, transparent);
+}
+
+/* 登录门面 lockup 放大：印 64px 时 wordmark 同步升档（默认 name=base/sub=2xs 过小） */
+.login-brand .ds-brand-mark__name {
+  font-size: var(--font-size-4xl);
+}
+
+.login-brand .ds-brand-mark__sub {
+  font-size: var(--font-size-base);
 }

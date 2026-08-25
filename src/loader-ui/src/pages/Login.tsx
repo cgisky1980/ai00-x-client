@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { User, X } from "lucide-react";
 import { setLoggedInPair, getCurrentUser, logout, downloadProfile } from "@/lib/auth";
 import { authApi, DeviceBindError, DEVICE_BIND_ERROR_CODES } from "@/lib/api";
 import { tokenManager } from "@/lib/tokenManager";
@@ -298,9 +299,9 @@ export function LoginPage() {
   };
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-transparent">
+    <div className="h-screen w-screen flex items-center justify-center bg-transparent p-5">
       <div
-        className="w-full h-full relative overflow-hidden rounded-xl border shadow-2xl"
+        className="w-full h-full relative overflow-hidden rounded-xl border loader-card"
         style={{ borderColor: "var(--border-base)", backgroundColor: "var(--color-bg-base)", backgroundImage: "var(--ds-paper-grain)" }}
       >
         <div className="absolute top-0 left-0 right-0 h-10 z-0" data-tauri-drag-region />
@@ -322,21 +323,15 @@ export function LoginPage() {
             className="btn-plain rounded-lg h-7 w-7 p-0 flex items-center justify-center hover:opacity-70"
             aria-label={t("exit")}
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="h-full flex flex-col items-center justify-center px-8">
           <div className="w-full max-w-md">
-            {/* 门面：灵印落款 + 衬线 Display 标语（规范 2.2/2.5/6.3） */}
-            <div className="flex flex-col items-center text-center mb-8 gap-4 ds-brush-reveal">
-              <BrandMark variant="lockup" size={44} subtitle={t("appDescription")} />
-              <h1
-                className="ds-display"
-                style={{ fontSize: "clamp(1.5rem, 3vw, 2.25rem)" }}
-              >
-                {t("appName")}
-              </h1>
+            {/* 门面：灵印 lockup 放大单件（印 + wordmark + Agentic OS 副标；规范 2.5/6.3） */}
+            <div className="flex flex-col items-center text-center mb-8 ds-brush-reveal">
+              <BrandMark variant="lockup" size={64} subtitle={t("appDescription")} className="login-brand" animated />
             </div>
 
             {mode === "success" ? (
@@ -366,7 +361,7 @@ export function LoginPage() {
                     {savedAuth.avatarSelection ? (
                       <AvatarCustomizer value={savedAuth.avatarSelection} previewOnly onChange={() => {}} />
                     ) : (
-                      <span className="text-4xl">👤</span>
+                      <User className="w-10 h-10" style={{ color: "var(--color-accent-foreground)" }} />
                     )}
                   </div>
                   <div>

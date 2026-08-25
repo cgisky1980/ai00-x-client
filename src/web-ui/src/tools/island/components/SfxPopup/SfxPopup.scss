@@ -26,7 +26,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: var(--size-radius-lg);
   background: color-mix(in oklch, var(--color-bg-elevated) 94%, transparent);
   backdrop-filter: blur(32px) saturate(1.6);
   -webkit-backdrop-filter: blur(32px) saturate(1.6);
@@ -209,44 +209,88 @@
 
   &__card {
     position: relative;
+    z-index: 0; // stacking context：标准光晕配方沉底
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: var(--size-gap-1);
     padding: var(--size-gap-2-5) var(--size-gap-1) var(--size-gap-2);
-    border: 1px solid color-mix(in oklch, var(--color-text-muted) 14%, transparent);
-    border-radius: 10px;
-    background: color-mix(in oklch, var(--color-bg-tertiary) 50%, transparent);
+    // 规范卡片：实体墨面沉底 + border-base（与 MusicPopup 电台卡一致）
+    border: 1px solid var(--border-base);
+    border-radius: var(--size-radius-base);
+    background: var(--color-bg-sunken);
     color: var(--color-text-secondary);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: transform var(--motion-fast) var(--easing-standard),
+      box-shadow var(--motion-fast) var(--easing-standard);
     overflow: hidden;
     min-height: 80px;
 
-    &:hover {
-      background: color-mix(in oklch, var(--color-primary) 18%, transparent);
-      color: var(--color-text-primary);
-      transform: translateY(-1px);
-      border-color: color-mix(in oklch, var(--color-primary) 30%, transparent);
+    // 标准 hover 配方（design-system v0.14.2）：光晕 ::before + 1px 亮环 + 上浮 -2px
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity 0.3s var(--easing-standard);
+      background: var(--ds-glow-card);
+      pointer-events: none;
+    }
 
-      .sfx-popup__card-overlay--hover {
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 0 1px var(--ds-card-hover-ring);
+
+      .sfx-popup__card-play {
         opacity: 1;
       }
     }
 
+    &:hover::before {
+      opacity: 1;
+    }
+
+    // active：accent 描边 + 1px ring（同电台卡选中态）
     &.is-active {
-      background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
       color: var(--color-accent-400);
-      border-color: color-mix(in oklch, var(--color-accent-400) 35%, transparent);
-      box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 18%, transparent);
+      border-color: var(--color-accent-400);
+      box-shadow: 0 0 0 1px var(--color-accent-400);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transform: none !important;
+      transition: none !important;
     }
   }
 
   &__card-icon {
     font-size: var(--font-size-3xl);
     line-height: 1;
-    filter: drop-shadow(0 1px 2px var(--modal-overlay));
+  }
+
+  // hover 播放/active 暂停图标：右上角小徽标，替代原整卡遮罩（非模态）
+  &__card-play,
+  &__card-pause {
+    position: absolute;
+    top: var(--size-gap-1);
+    right: var(--size-gap-1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--size-radius-sm);
+    background: color-mix(in srgb, var(--color-accent-400) 18%, transparent);
+    color: var(--color-accent-400);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  &__card-pause {
+    opacity: 1;
   }
 
   &__card-name {
@@ -267,36 +311,12 @@
   &__card-indicator {
     position: absolute;
     top: 4px;
-    right: 4px;
+    left: 4px;
     width: 6px;
     height: 6px;
     border-radius: 50%;
     background: var(--color-accent-400);
-    box-shadow: 0 0 6px color-mix(in oklch, var(--color-accent-400) 70%, transparent);
     animation: sfxPulse 1.5s ease-in-out infinite;
-  }
-
-  &__card-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--modal-overlay);
-    color: var(--color-accent-foreground);
-    opacity: 0;
-    transition: opacity 0.15s ease;
-
-    // Active state always shows overlay (with Pause icon)
-    .sfx-popup__card.is-active & {
-      opacity: 1;
-    }
-
-    &--hover {
-      .sfx-popup__card.is-active & {
-        opacity: 0; // hide hover overlay when active (active shows Pause)
-      }
-    }
   }
 
   &__card-delete {

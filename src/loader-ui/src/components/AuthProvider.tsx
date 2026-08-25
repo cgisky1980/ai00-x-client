@@ -49,16 +49,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // 启动时策略:
-        // - access 未过期 → 直接进主页
-        // - access 过期 + 有 refresh_token → 调 tokenManager.refreshIfNeeded() 拿新 access → 进主页
+        // - access 未过期 → 不自动进主页，停留在登录页由 LoginPage 展示
+        //   「免登录进入 / 切换账号」选择卡片（用户主动选择后进入）
+        // - access 过期 + 有 refresh_token → refresh 拿新 access（静默，同样停留登录页选择）
         // - access 过期 + 无 refresh_token → logout(旧用户首次升级)
         // - refresh 也过期(401 from server) → 由 onRefreshFailed 监听器触发 logout
         if (!isTokenExpired(user.token, 60)) {
-          // access 未过期,直接进主页
+          // access 未过期：仅结束 loading， isLoggedIn 保持 false →
+          // 路由守卫把用户留在 /login，LoginPage 自行检测 savedAuth 显示选择卡片
           if (!settled) {
             settled = true;
-            setIsLoggedIn(true);
-            setUsername(user.username);
             setIsLoading(false);
           }
           return;
@@ -80,8 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!settled) {
           settled = true;
           if (newToken) {
-            setIsLoggedIn(true);
-            setUsername(user.username);
+            // refresh 成功：同样不自动进主页，停留登录页由用户选择
             setIsLoading(false);
           } else {
             // refresh 失败,由 onRefreshFailed 监听器处理跳登录页

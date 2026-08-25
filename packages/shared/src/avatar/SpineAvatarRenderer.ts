@@ -390,7 +390,11 @@ export class SpineAvatarRenderer {
   private clearCanvas(text: string): void {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     if (text) {
-      this.ctx.fillStyle = text.startsWith('加载失败') ? '#ff6b6b' : 'var(--text-50, #888)';
+      // canvas fillStyle 不解析 CSS 变量，需从 computed style 读取 design-system token
+      const style = getComputedStyle(this.canvas);
+      const errorColor = style.getPropertyValue('--color-error').trim() || '#ff6b6b';
+      const mutedColor = style.getPropertyValue('--color-text-muted').trim() || '#888888';
+      this.ctx.fillStyle = text.startsWith('加载失败') ? errorColor : mutedColor;
       this.ctx.font = '14px Arial';
       this.ctx.textAlign = 'center';
       this.ctx.fillText(text, this.canvas.width / 2, this.canvas.height / 2);

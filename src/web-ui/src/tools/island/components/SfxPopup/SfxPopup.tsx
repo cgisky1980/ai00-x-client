@@ -148,16 +148,15 @@ export const SfxPopup: React.FC = () => {
                   </span>
                   <span className="sfx-popup__card-name">{sound.name}</span>
                   {active && (
-                    <>
-                      <span className="sfx-popup__card-indicator" />
-                      <span className="sfx-popup__card-overlay">
-                        <Pause size={16} />
-                      </span>
-                    </>
+                    <span className="sfx-popup__card-indicator" />
                   )}
-                  {!active && (
-                    <span className="sfx-popup__card-overlay sfx-popup__card-overlay--hover">
-                      <Play size={16} />
+                  {active ? (
+                    <span className="sfx-popup__card-pause">
+                      <Pause size={12} />
+                    </span>
+                  ) : (
+                    <span className="sfx-popup__card-play">
+                      <Play size={12} />
                     </span>
                   )}
                   {isGenerated(sound) && (

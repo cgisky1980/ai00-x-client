@@ -8,6 +8,7 @@
  */
 import { storage } from '@underlay/lib/storage';
 import { todayDateStr, localDateStr } from '@underlay/lib/api/usageStatsApi';
+import { invoke } from '@tauri-apps/api/core';
 
 // ============ Types ============
 
@@ -161,6 +162,17 @@ export const pomodoroStore = {
     };
     await this.addSession(finished);
     await this.setCurrentSession(null);
+    // 桥接「知行」成长系统：原子追加专注记录（Rust 侧 RMW + 事件广播），
+    // web-ui 收 todo-focus-appended 后并入统计并发放 XP。失败静默（番茄钟自身不受影响）。
+    try {
+      await invoke('todo_focus_append', {
+        startedAt: finished.startedAt,
+        minutes: finished.plannedDurationMin,
+        outcome: 'finished',
+      });
+    } catch {
+      /* 知行数据文件不可用等情况——忽略 */
+    }
     return finished;
   },
 

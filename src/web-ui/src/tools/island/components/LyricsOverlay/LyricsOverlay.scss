@@ -105,13 +105,14 @@
     border-radius: 6px;
     border: none;
     background: transparent;
-    color: var(--border-prominent);
+    // 标题栏底为 --modal-overlay（明暗两档均深色 scrim）——图标用固定纸白系
+    color: color-mix(in srgb, var(--color-accent-foreground) 70%, transparent);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
     flex-shrink: 0;
 
     &:hover {
-      background:color-mix(in srgb, var(--color-text-primary) 16%, transparent);
+      background: color-mix(in srgb, var(--color-accent-foreground) 16%, transparent);
       color: var(--color-accent-foreground);
     }
 
@@ -137,13 +138,14 @@
     border-radius: 6px;
     border: none;
     background: transparent;
-    color: var(--border-prominent);
+    // 同标题栏：深色 scrim 上的固定纸白系图标
+    color: color-mix(in srgb, var(--color-accent-foreground) 70%, transparent);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
     flex-shrink: 0;
 
     &:hover:not(:disabled) {
-      background:color-mix(in srgb, var(--color-text-primary) 16%, transparent);
+      background: color-mix(in srgb, var(--color-accent-foreground) 16%, transparent);
       color: var(--color-accent-foreground);
     }
 
@@ -155,7 +157,7 @@
 
   &__sync-value {
     font-size: var(--font-size-xxs);
-    color: var(--border-strong);
+    color: color-mix(in srgb, var(--color-accent-foreground) 70%, transparent);
     font-variant-numeric: tabular-nums;
     min-width: 28px;
     text-align: center;
@@ -223,7 +225,8 @@
 
   &__word {
     transition: color 0.12s linear;
-    color: var(--border-prominent);
+    // 桌面歌词浮于任意背景：未唱字用固定纸白降透明（明暗主题一致可读）
+    color: color-mix(in srgb, var(--color-accent-foreground) 75%, transparent);
 
     &--sung {
       color: var(--color-accent-400);
@@ -266,7 +269,7 @@
     align-items: center;
     justify-content: center;
     background:color-mix(in srgb, var(--color-text-primary) 8%, transparent);
-    color: var(--border-strong);
+    color: var(--color-text-secondary);
 
     img {
       width: 100%;
@@ -287,7 +290,7 @@
   &__player-title {
     font-size: calc(14px * var(--overlay-scale));
     font-weight: 600;
-    color: var(--color-accent-foreground);
+    color: var(--color-text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -295,7 +298,7 @@
 
   &__player-artist {
     font-size: calc(12px * var(--overlay-scale));
-    color: var(--border-strong);
+    color: var(--color-text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -316,13 +319,13 @@
     align-items: center;
     justify-content: center;
     background: transparent;
-    color: var(--border-strong);
+    color: var(--color-text-muted);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
 
     &:hover {
       background:color-mix(in srgb, var(--color-text-primary) 12%, transparent);
-      color: var(--color-accent-foreground);
+      color: var(--color-text-primary);
     }
   }
 
@@ -354,11 +357,11 @@
     font-size: calc(13px * var(--overlay-scale));
     line-height: 1.7;
     padding: calc(4px * var(--overlay-scale)) calc(8px * var(--overlay-scale));
-    color: var(--border-medium);
+    color: var(--color-text-muted);
     transition: color 0.3s ease, font-size 0.3s ease;
 
     &.is-adjacent {
-      color: var(--border-strong);
+      color: var(--color-text-secondary);
     }
 
     &.is-current {
@@ -375,7 +378,7 @@
     justify-content: center;
     height: 100%;
     min-height: 0;
-    color: var(--border-medium);
+    color: var(--color-text-muted);
     font-size: calc(13px * var(--overlay-scale));
   }
 
@@ -389,7 +392,7 @@
 
   &__player-time {
     font-size: calc(11px * var(--overlay-scale));
-    color: var(--border-strong);
+    color: var(--color-text-secondary);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
     min-width: calc(34px * var(--overlay-scale));
@@ -448,13 +451,13 @@
     align-items: center;
     justify-content: center;
     background: transparent;
-    color: var(--border-prominent);
+    color: var(--color-text-secondary);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 
     &:hover:not(:disabled) {
       background:color-mix(in srgb, var(--color-text-primary) 12%, transparent);
-      color: var(--color-accent-foreground);
+      color: var(--color-text-primary);
     }
 
     &:active:not(:disabled) {

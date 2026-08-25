@@ -31,7 +31,7 @@
 
   &__dots {
     display: inline-flex;
-    gap: 3px;
+    gap: var(--size-gap-0-5);
 
     i {
       width: 4px;
@@ -74,7 +74,23 @@
     transform: rotate(180deg);
   }
 
+  /* 展开容器常驻 DOM，grid 0fr↔1fr 实现平滑折叠动画 */
+  &__collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.25s var(--easing-standard);
+
+    &--open {
+      grid-template-rows: 1fr;
+    }
+  }
+
   &__body {
+    min-height: 0; /* 0fr trick 必需 */
+    overflow: hidden;
+  }
+
+  &__body-inner {
     position: relative;
     padding: var(--size-gap-2) var(--size-gap-3) var(--size-gap-3);
     border-top: 1px solid var(--border-subtle);
@@ -89,7 +105,7 @@
     display: inline-block;
     width: 2px;
     height: 1em;
-    margin-left: 2px;
+    margin-left: var(--size-gap-0-5);
     vertical-align: text-bottom;
     background: var(--color-accent-500);
     animation: ai-thinking-blink 1s steps(1) infinite;
@@ -117,5 +133,9 @@
   .ai-thinking__cursor {
     animation: none;
     opacity: 0.8;
+  }
+
+  .ai-thinking__collapse {
+    transition: none;
   }
 }

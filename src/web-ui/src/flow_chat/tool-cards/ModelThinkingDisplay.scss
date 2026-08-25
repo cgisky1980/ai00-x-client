@@ -2,84 +2,35 @@
  * ModelThinking tool styles.
  * Shows internal model reasoning.
  *
- * Single DOM structure for both streaming and completed states.
- * Expanded: max-height with scroll; streaming uses slightly brighter muted text.
- * Completed: auto-collapses via CSS grid-template-rows animation.
+ * Thin shell over design-system ThinkingPanel: header / chevron / collapse
+ * animation live in the standard control (.ai-thinking); this file only
+ * keeps flow-chat specifics — message-flow rhythm, capped scroll area with
+ * fade gradients, muted markdown density and streaming text tint.
+ * NOTE: .thinking-content-wrapper / .thinking-content / .thinking-markdown
+ * are also consumed by TaskToolDisplay — keep them standalone.
  */
 
 @use './_tool-card-common.scss';
 
-/* Minimal, borderless layout */
+/* Message-flow rhythm around the ThinkingPanel card */
 .flow-thinking-item {
   padding: var(--size-gap-1) 0;
   margin: var(--size-gap-1) 0;
-  background: transparent;
-  border: none;
   transition: padding 0.2s ease;
 
   &.streaming {
     padding: var(--size-gap-2) 0;
   }
-}
 
-.thinking-collapsed-header {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--size-gap-1-5);
-  padding: var(--size-gap-1) 0;
-  height: 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  background: transparent;
-
-  &:hover {
-    .thinking-label {
-      color: var(--text-secondary);
-      opacity: 1;
-    }
-
-    .thinking-chevron {
-      opacity: 1;
-    }
+  /* Body padding comes from ThinkingPanel body-inner; avoid double padding */
+  .thinking-content {
+    padding: 0;
+    border-radius: 0;
   }
 
-  .thinking-chevron {
-    flex-shrink: 0;
-    color: var(--text-tertiary);
-    opacity: 0.6;
-    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease;
-    transform: rotate(0deg);
-  }
-
-  .thinking-label {
-    font-size: var(--font-size-xs);
-    font-weight: normal;
-    color: var(--text-tertiary);
-    opacity: 0.8;
-    line-height: 12px;
-    height: 12px;
-    display: inline-flex;
-    align-items: center;
-  }
-}
-
-/* Rotate chevron when expanded */
-.flow-thinking-item.expanded .thinking-chevron {
-  transform: rotate(90deg);
-}
-
-/* Expand container with animation */
-.thinking-expand-container {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.25s ease-out;
-
-  &--open {
-    grid-template-rows: 1fr;
-  }
-
-  > .thinking-content-wrapper {
-    overflow: hidden;
+  /* Fade base must match the ThinkingPanel surface */
+  .thinking-content-wrapper {
+    --thinking-scroll-fade-base: var(--element-bg-soft);
   }
 }
 

@@ -1,0 +1,38 @@
+{
+  "title": "Plugins",
+  "count": "{{total}} total · {{enabled}} enabled",
+  "install": {
+    "localButton": "Local Package",
+    "githubButton": "Install from GitHub",
+    "githubPlaceholder": "owner/repo or a GitHub Release / Archive URL",
+    "selectPackage": "Select plugin package",
+    "installing": "Installing…",
+    "refreshTooltip": "Refresh list"
+  },
+  "list": {
+    "loading": "Loading plugins…",
+    "errorPrefix": "Failed to load: ",
+    "empty": "No plugins installed yet",
+    "disabled": "Disabled",
+    "enabledLabel": "Enable {{name}}",
+    "uninstallTooltip": "Uninstall"
+  },
+  "messages": {
+    "installSuccess": "Plugin installed",
+    "installFailed": "Install failed: {{error}}",
+    "uninstallSuccess": "Uninstalled {{name}}",
+    "uninstallFailed": "Uninstall failed: {{error}}",
+    "toggleFailed": "Operation failed: {{error}}"
+  },
+  "uninstallModal": {
+    "title": "Uninstall Plugin",
+    "message": "Uninstall plugin \"{{name}}\"? Its directory will be removed.",
+    "dataHint": "Plugin data is kept (restored automatically on reinstall).",
+    "injectedWarning": "This plugin contains injected modules (same-origin with the host) and will stop immediately after uninstall.",
+    "confirm": "Uninstall",
+    "cancel": "Cancel"
+  },
+  "footer": {
+    "devGuide": "Want to build your own plugin? See the plugins/ directory in the repository (README.md and AGENT_GUIDE.md)."
+  }
+}

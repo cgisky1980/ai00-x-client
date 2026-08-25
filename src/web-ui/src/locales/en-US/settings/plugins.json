@@ -1,0 +1,42 @@
+{
+  "title": "Plugins",
+  "subtitle": "Manage desktop plugins: install, enable/disable and uninstall (live effect)",
+  "install": {
+    "title": "Install Plugin",
+    "description": "Install plugins from a local .a00pkg package or from GitHub.",
+    "localButton": "Local Package",
+    "githubButton": "Install from GitHub",
+    "githubPlaceholder": "owner/repo or a GitHub Release / Archive URL",
+    "selectPackage": "Select plugin package",
+    "installing": "Installing…",
+    "refreshTooltip": "Refresh list",
+    "hint": "Injected plugins run same-origin with the host and have full app access. Only install plugins from trusted sources."
+  },
+  "list": {
+    "title": "Installed Plugins",
+    "description": "Enable state and uninstall take effect immediately, no restart needed.",
+    "loading": "Loading plugins…",
+    "errorPrefix": "Failed to load: ",
+    "empty": "No plugins installed yet.",
+    "item": {
+      "enabledLabel": "Enable {{name}}",
+      "uninstallTooltip": "Uninstall",
+      "hooksLabel": "Hooks",
+      "repositoryLabel": "Repository"
+    }
+  },
+  "messages": {
+    "installSuccess": "Plugin installed",
+    "installFailed": "Install failed: {{error}}",
+    "uninstallSuccess": "Uninstalled {{name}}",
+    "uninstallFailed": "Uninstall failed: {{error}}",
+    "toggleFailed": "Operation failed: {{error}}"
+  },
+  "deleteModal": {
+    "title": "Uninstall Plugin",
+    "message": "Uninstall plugin \"{{name}}\"? Its directory will be removed.",
+    "warning": "This plugin contains injected modules (same-origin with the host) and will stop immediately after uninstall.",
+    "delete": "Uninstall",
+    "cancel": "Cancel"
+  }
+}

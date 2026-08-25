@@ -45,7 +45,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: '',
     bpmRange: [0, 0],
     icon: '🎲',
-    color: '#8b5cf6',
+    color: 'var(--color-accent-400)',
   },
   {
     id: 'lofi',
@@ -54,7 +54,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Band | Genre: Hip Hop | Subgenre: Lo-Fi | Instruments: Drum Machine, Synthesizer, Vinyl crackle, Warm Bass | Moods: Chill, Mellow, Nostalgic, Relaxing | BPM: {BPM}',
     bpmRange: [70, 90],
     icon: '🎧',
-    color: '#a78bfa',
+    color: 'var(--color-accent-300)',
   },
   {
     id: 'rock',
@@ -63,7 +63,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Band | Genre: Rock | Subgenre: Alternative Rock | Instruments: Electric Guitar, Bass Guitar, Drum Kit, Distorted Riffs | Moods: Energetic, Powerful, Rebellious, Raw | BPM: {BPM}',
     bpmRange: [110, 140],
     icon: '🎸',
-    color: '#ef4444',
+    color: 'var(--color-accent-600)',
   },
   {
     id: 'eightbit',
@@ -72,7 +72,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Band | Genre: Electronic | Subgenre: Chiptune 8-Bit | Instruments: Game Boy Sound Chip, NES Pulse Wave, Square Wave Bass, Noise Drum | Moods: Nostalgic, Playful, Retro, Bouncy | BPM: {BPM}',
     bpmRange: [120, 150],
     icon: '👾',
-    color: '#f59e0b',
+    color: 'var(--color-accent-400)',
   },
   {
     id: 'anime',
@@ -81,7 +81,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Band | Genre: Pop | Subgenre: J-Pop Anime | Instruments: Synthesizer, Electric Guitar, Piano, Strings | Moods: Passionate, Dramatic, Emotional, Uplifting | BPM: {BPM}',
     bpmRange: [120, 160],
     icon: '🌸',
-    color: '#ec4899',
+    color: 'var(--color-accent-300)',
   },
   {
     id: 'electronic',
@@ -90,7 +90,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Band | Genre: Electronic | Subgenre: Synthwave | Instruments: Synthesizer Arp, Deep Bass, Drum Machine, Synth Pads | Moods: Futuristic, Pulsing, Driving, Energetic | BPM: {BPM}',
     bpmRange: [115, 130],
     icon: '⚡',
-    color: '#6366f1',
+    color: 'var(--color-accent-500)',
   },
   {
     id: 'cinematic',
@@ -99,7 +99,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Orchestra | Genre: Cinematic | Subgenre: Film Score | Instruments: Sweeping Strings, Brass Section, Timpani, Piano | Moods: Epic, Dramatic, Inspiring, Powerful | BPM: {BPM}',
     bpmRange: [80, 120],
     icon: '🎬',
-    color: '#f97316',
+    color: 'var(--color-accent-600)',
   },
   {
     id: 'jazz',
@@ -108,7 +108,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Band | Genre: Jazz | Subgenre: Smooth Jazz | Instruments: Saxophone, Piano, Upright Bass, Brush Drums | Moods: Warm, Cozy, Soulful, Late Night | BPM: {BPM}',
     bpmRange: [80, 140],
     icon: '🎷',
-    color: '#10b981',
+    color: 'var(--color-accent-400)',
   },
   {
     id: 'ambient',
@@ -117,7 +117,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Band | Genre: Electronic | Subgenre: Ambient | Instruments: Synthesizer Pads, Ethereal Drones, Reverb Tails, Soft Percussion | Moods: Atmospheric, Spacious, Peaceful, Floating | BPM: {BPM}',
     bpmRange: [60, 90],
     icon: '🌌',
-    color: '#06b6d4',
+    color: 'var(--color-accent-300)',
   },
   {
     id: 'classical',
@@ -126,7 +126,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Solo | Genre: Classical | Subgenre: Contemporary Classical | Instruments: Piano, Strings, Harp | Moods: Elegant, Refined, Sentimental, Timeless | BPM: {BPM}',
     bpmRange: [60, 120],
     icon: '🎻',
-    color: '#8b5cf6',
+    color: 'var(--color-accent-500)',
   },
   {
     id: 'meditation',
@@ -135,7 +135,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Solo | Genre: Ambient | Subgenre: Meditation | Instruments: Singing Bowls, Deep Drone, Soft Chimes, Flute | Moods: Spiritual, Calming, Mindful, Tranquil | BPM: {BPM}',
     bpmRange: [50, 70],
     icon: '🧘',
-    color: '#14b8a6',
+    color: 'var(--color-accent-300)',
   },
   {
     id: 'rnb',
@@ -144,7 +144,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Band | Genre: R&B | Subgenre: Neo-Soul | Instruments: Warm Keys, Bass Guitar, Soft Drums, Horn Stabs | Moods: Smooth, Sensual, Groovy, Soulful | BPM: {BPM}',
     bpmRange: [60, 100],
     icon: '🎤',
-    color: '#d946ef',
+    color: 'var(--color-accent-500)',
   },
   {
     id: 'country',
@@ -153,7 +153,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Band | Genre: Country | Subgenre: Contemporary Country | Instruments: Acoustic Guitar, Fiddle, Steel Guitar, Banjo | Moods: Warm, Storytelling, Down-to-Earth, Heartfelt | BPM: {BPM}',
     bpmRange: [80, 120],
     icon: '🤠',
-    color: '#b45309',
+    color: 'var(--color-accent-600)',
   },
   {
     id: 'folk',
@@ -162,7 +162,7 @@ export const RADIO_PRESETS: RadioPreset[] = [
     prompt: 'Format: Solo | Genre: Folk | Subgenre: Indie Folk | Instruments: Acoustic Guitar, Harmonica, Mandolin, Light Percussion | Moods: Intimate, Storytelling, Wistful, Gentle | BPM: {BPM}',
     bpmRange: [85, 120],
     icon: '🏕️',
-    color: '#65a30d',
+    color: 'var(--color-accent-400)',
   },
 ]
 

@@ -85,23 +85,6 @@
     }
   }
 
-  &__accent-picker {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-2);
-    width: min(220px, 100%);
-    margin-left: auto;
-  }
-
-  &__accent-preview {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    border: 2px solid var(--color-bg-primary);
-    box-shadow: 0 0 0 1px var(--border-base);
-    flex-shrink: 0;
-  }
-  
   &__language-btn {
     position: relative;
     display: flex;

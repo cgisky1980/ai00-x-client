@@ -28,7 +28,5 @@ export {
 } from './hooks/useTheme';
 
 export { ThemeSelector } from './components/ThemeSelector';
-export { default as HueSlider } from './components/HueSlider';
-export { generateAccentFromHue, hueFromAccentColor, DEFAULT_ACCENT_HUE } from './utils/accentGenerator';
 
 

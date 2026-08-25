@@ -40,6 +40,12 @@ pub async fn send_stream(
     }
 
     let prompt = messages_to_prompt(&messages, tools.as_deref());
+    // Single-turn extraction tasks render as the official Instruction format
+    // (see messages_to_prompt). Their response is compact structured output;
+    // any role marker the model invents AFTER the answer is runaway
+    // continuation (often with NO preceding newline — "。System: ..." — so
+    // stop sequences can't catch it) and must be trimmed.
+    let is_instruction_format = prompt.starts_with("Instruction: ");
 
     eprintln!("[TRACE] RWKV_SEND_STREAM prompt_len={}", prompt.len());
     info!("[RWKV] Prompt ({} chars):\n{}", prompt.len(), prompt);
@@ -49,16 +55,30 @@ pub async fn send_stream(
     let temperature = client.config.temperature.unwrap_or(0.3) as f32;
     let top_p = client.config.top_p.unwrap_or(0.95) as f32;
     let max_tokens = client.config.max_tokens.unwrap_or(512) as usize;
-    let stop = client
-        .config
-        .stop
-        .clone()
-        .unwrap_or_else(|| vec!["\n\nUser:".to_string(), "\n\nSystem:".to_string()]);
+    let mut stop = client.config.stop.clone().unwrap_or_else(|| {
+        vec![
+            "\n\nUser:".to_string(),
+            "\n\nSystem:".to_string(),
+            "\n\nInstruction:".to_string(),
+            "\n\nInput:".to_string(),
+        ]
+    });
+    if is_instruction_format {
+        // Bare "\n\n" stop: Instruction-format answers are single-line
+        // compact output (one sentence / one-line JSON). ANY blank line
+        // means the model left the answer and started free continuation —
+        // stop right there, before it can hallucinate a new block.
+        stop.push("\n\n".to_string());
+    }
 
-    let full_text = engine
+    let mut full_text = engine
         .infer(prompt, max_tokens, temperature, top_p, stop)
         .await
         .map_err(|e| anyhow!("RWKV engine error: {}", e))?;
+
+    if is_instruction_format {
+        full_text = truncate_at_role_marker(&full_text);
+    }
 
     eprintln!("[TRACE] RWKV_INFER_COMPLETED text_len={}", full_text.len());
 
@@ -172,6 +192,35 @@ fn find_matching_json_end(json_start: &str) -> Option<usize> {
 }
 
 fn messages_to_prompt(messages: &[Message], tools: Option<&[ToolDefinition]>) -> String {
+    // RWKV official prompt guidelines (RWKV-wiki "Prompting Format
+    // Guidelines"): RWKV is an RNN variant and is ORDER-SENSITIVE.
+    //
+    // Single-turn extraction tasks (exactly [system, user], no tools) use
+    // the official Instruction format — Instruction BEFORE Input: the model
+    // first understands the instruction, then processes the material.
+    // Swapping the order loses information ("recall" is weak).
+    //
+    // Multi-turn conversations keep the System/User/Assistant World format
+    // (RWKV-7 chat template).
+    if tools.is_none()
+        && messages.len() == 2
+        && messages[0].role == "system"
+        && messages[1].role == "user"
+    {
+        let mut prompt = String::new();
+        if let Some(instruction) = &messages[0].content {
+            prompt.push_str(&format!(
+                "Instruction: {}\n\n",
+                sanitize_rwkv_content(instruction)
+            ));
+        }
+        if let Some(input) = &messages[1].content {
+            prompt.push_str(&format!("Input: {}\n\n", sanitize_rwkv_content(input)));
+        }
+        prompt.push_str("Response: ");
+        return prompt;
+    }
+
     let mut prompt = String::new();
     let mut tools_injected = false;
 
@@ -241,6 +290,22 @@ fn messages_to_prompt(messages: &[Message], tools: Option<&[ToolDefinition]>) ->
         prompt.push_str("Assistant: ");
     }
     prompt
+}
+
+/// Trim runaway continuation from an Instruction-format response: the model
+/// sometimes keeps generating past the answer and hallucinates a new role
+/// block ("。System: ### 🌍💼 任务…" — frequently with no newline before the
+/// marker, so engine stop sequences never fire). Everything from the FIRST
+/// invented marker on is structural garbage, not content.
+fn truncate_at_role_marker(text: &str) -> String {
+    const MARKERS: [&str; 5] = ["System:", "User:", "Assistant:", "Instruction:", "Input:"];
+    let mut cut = text.len();
+    for marker in MARKERS {
+        if let Some(idx) = text.find(marker) {
+            cut = cut.min(idx);
+        }
+    }
+    text[..cut].trim_end().to_string()
 }
 
 fn inject_tools(prompt: &mut String, tools: &[ToolDefinition]) {
@@ -418,5 +483,61 @@ mod tests {
         let prompt = messages_to_prompt(&msgs, None::<&[ToolDefinition]>);
         assert!(prompt.ends_with("Assistant: "));
         assert!(!prompt.ends_with("```json\n"));
+    }
+
+    #[test]
+    fn single_turn_system_user_uses_instruction_format() {
+        // Official RWKV guideline: single-turn extraction (system+user) must
+        // render as Instruction → Input → Response, instruction FIRST.
+        let msgs = vec![
+            Message {
+                role: "system".to_string(),
+                content: Some("提取任务".to_string()),
+                reasoning_content: None,
+                thinking_signature: None,
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                tool_image_attachments: None,
+                is_error: Some(false),
+            },
+            Message {
+                role: "user".to_string(),
+                content: Some("明天买菜".to_string()),
+                reasoning_content: None,
+                thinking_signature: None,
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                tool_image_attachments: None,
+                is_error: Some(false),
+            },
+        ];
+        let prompt = messages_to_prompt(&msgs, None::<&[ToolDefinition]>);
+        assert!(
+            prompt.starts_with("Instruction: 提取任务\n\nInput: 明天买菜\n\nResponse: "),
+            "{}",
+            prompt
+        );
+        assert!(!prompt.contains("System:"));
+        assert!(!prompt.contains("User:"));
+    }
+
+    #[test]
+    fn truncate_at_role_marker_trims_runaway_continuation() {
+        // Real-world failure: model finished the insight then hallucinated a
+        // new System block with NO newline separator — engine stops can't fire.
+        let raw = "近7日完成2项，新增8项，专注25分钟。System: ### 🌍💼 任务你是一位数据分析师顾问";
+        assert_eq!(
+            truncate_at_role_marker(raw),
+            "近7日完成2项，新增8项，专注25分钟。"
+        );
+        // Clean answer passes through unchanged.
+        assert_eq!(
+            truncate_at_role_marker("{\"tasks\":[{\"title\":\"买菜\"}]}"),
+            "{\"tasks\":[{\"title\":\"买菜\"}]}"
+        );
+        // Marker at position 0 → empty (caller falls back).
+        assert_eq!(truncate_at_role_marker("User: echo"), "");
     }
 }

@@ -11,96 +11,126 @@ interface PluginWidgetProps {
   className?: string
 }
 
+/**
+ * Hosts a sandboxed iframe plugin widget.
+ *
+ * The iframe is served from the embedded server via path routing
+ * (`/plugins/{id}/{path}`) and sandboxed WITHOUT `allow-same-origin`, so the
+ * plugin gets an opaque origin (`event.origin === "null"`) and cannot touch
+ * host storage/cookies. Messages are validated by matching
+ * `event.source === iframe.contentWindow`.
+ */
 export function PluginWidget({ pluginId, entryPath, className }: PluginWidgetProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  // Use the subdomain isolation scheme
-  // http://{plugin_id}.localhost:{port}/{entry_path}
-  const src = `http://${pluginId}.localhost:${EMBEDDED_SERVER_PORT}/${entryPath}`
+  const src = `http://127.0.0.1:${EMBEDDED_SERVER_PORT}/plugins/${pluginId}/${entryPath.replace(/^\/+/, "")}`
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Verify origin matches the plugin's origin
-      const allowedOrigin = `http://${pluginId}.localhost:${EMBEDDED_SERVER_PORT}`
-      console.log(`[PluginWidget] Message from ${event.origin}, expected: ${allowedOrigin}`, event.data)
-      
-      // Allow messages from the specific plugin origin
-      // Relaxed check for debugging - just warn if mismatch
-      if (event.origin !== allowedOrigin) {
-          console.warn(`[PluginWidget] Origin mismatch! Received: ${event.origin}, expected: ${allowedOrigin}`)
-          // return // Temporarily commented out for debugging
-      }
+      // Sandboxed iframe (no allow-same-origin) has opaque origin "null";
+      // authenticity is guaranteed by matching the source window.
+      if (event.origin !== "null") return
+      if (event.source !== iframeRef.current?.contentWindow) return
 
-      if (!event.data || typeof event.data !== 'object') return
-      const { type, payload } = event.data as { type: string, payload: any }
+      if (!event.data || typeof event.data !== "object") return
+      const { type, payload } = event.data as { type: string; payload: any }
       if (!type) return
 
-      console.log(`[Plugin:${pluginId}] Message received:`, type, payload)
+      // Opaque origin: target origin must be "*"
+      const post = (msg: unknown) =>
+        iframeRef.current?.contentWindow?.postMessage(msg, "*")
 
       switch (type) {
         case 'plugin.ready':
-            // Send initial config or theme if needed
-            // TODO: Get actual theme from context
-            iframeRef.current?.contentWindow?.postMessage({
-                type: 'host.init',
-                payload: { theme: 'dark' } 
-            }, allowedOrigin)
-            break
-        
-        case 'plugin.proxy_request':
-            const { requestId, url, method, headers } = payload
-            invoke('proxy_http_request', { url, method, headers })
-                .then((response) => {
-                    iframeRef.current?.contentWindow?.postMessage({
-                        type: 'host.proxy_response',
-                        payload: { requestId, success: true, data: response }
-                    }, allowedOrigin)
-                })
-                .catch((error) => {
-                     iframeRef.current?.contentWindow?.postMessage({
-                        type: 'host.proxy_response',
-                        payload: { requestId, success: false, error: String(error) }
-                    }, allowedOrigin)
-                })
-            break
+          // Send initial config or theme if needed
+          post({
+            type: 'host.init',
+            payload: { theme: 'dark' }
+          })
+          break
 
-        case 'plugin.open_external':
-            const { url: openUrlStr } = payload
-            console.log(`[Plugin:${pluginId}] Opening external URL:`, openUrlStr)
-            
-            if (openUrlStr) {
-                const tryOpen = async () => {
-                    // Try plugin-opener JS API (Recommended for Tauri v2)
-                    try {
-                        console.log(`[Plugin:${pluginId}] Trying plugin-opener JS API...`)
-                        await openUrl(openUrlStr)
-                        console.log(`[Plugin:${pluginId}] Success: plugin-opener JS API`)
-                        return
-                    } catch (e0) {
-                        console.warn(`[Plugin:${pluginId}] plugin-opener JS API failed:`, e0)
-                    }
+        case 'plugin.proxy_request': {
+          const { requestId, url, method, headers } = payload
+          invoke('proxy_http_request', { url, method, headers })
+            .then((response) => {
+              post({
+                type: 'host.proxy_response',
+                payload: { requestId, success: true, data: response }
+              })
+            })
+            .catch((error) => {
+              post({
+                type: 'host.proxy_response',
+                payload: { requestId, success: false, error: String(error) }
+              })
+            })
+          break
+        }
 
-                    // Fallback to shell plugin
-                    try {
-                        console.log(`[Plugin:${pluginId}] Trying shell|open (JS API)...`)
-                        await openShell(openUrlStr)
-                        console.log(`[Plugin:${pluginId}] Success: shell|open`)
-                        return
-                    } catch (e3) {
-                        console.error(`[Plugin:${pluginId}] shell|open failed:`, e3)
-                    }
+        case 'plugin.open_external': {
+          const { url: openUrlStr } = payload
+          if (!openUrlStr) break
 
-                    // Last resort: window.open (might be blocked)
-                    try {
-                        console.log(`[Plugin:${pluginId}] Trying window.open...`)
-                        window.open(openUrlStr, '_blank')
-                    } catch (e4) {
-                        console.error(`[Plugin:${pluginId}] window.open failed:`, e4)
-                    }
-                }
-
-                tryOpen()
+          const tryOpen = async () => {
+            // Try plugin-opener JS API (Recommended for Tauri v2)
+            try {
+              await openUrl(openUrlStr)
+              return
+            } catch (e0) {
+              console.warn(`[Plugin:${pluginId}] plugin-opener failed:`, e0)
             }
-            break
+            // Fallback to shell plugin
+            try {
+              await openShell(openUrlStr)
+              return
+            } catch (e3) {
+              console.warn(`[Plugin:${pluginId}] shell|open failed:`, e3)
+            }
+            // Last resort: window.open (might be blocked)
+            try {
+              window.open(openUrlStr, '_blank')
+            } catch (e4) {
+              console.warn(`[Plugin:${pluginId}] window.open failed:`, e4)
+            }
+          }
+
+          tryOpen()
+          break
+        }
+
+        case 'plugin.storage_request': {
+          // Unified plugin data storage access. The host fills pluginId
+          // (sandboxed plugins cannot impersonate other plugins' data).
+          const { requestId, op, key, value } = payload ?? {}
+          const respond = (result: Record<string, unknown>) =>
+            post({ type: 'host.storage_response', payload: { requestId, ...result } })
+
+          const run = async () => {
+            switch (op) {
+              case 'get':
+                respond({ success: true, data: await invoke('plugin_data_get', { pluginId, key }) })
+                break
+              case 'set':
+                await invoke('plugin_data_set', { pluginId, key, value })
+                respond({ success: true })
+                break
+              case 'remove':
+                await invoke('plugin_data_remove', { pluginId, key })
+                respond({ success: true })
+                break
+              case 'keys':
+                respond({ success: true, data: await invoke('plugin_data_keys', { pluginId }) })
+                break
+              case 'clear':
+                await invoke('plugin_data_clear', { pluginId })
+                respond({ success: true })
+                break
+              default:
+                respond({ success: false, error: `unsupported op: ${op}` })
+            }
+          }
+          run().catch((error) => respond({ success: false, error: String(error) }))
+          break
+        }
       }
     }
 
@@ -110,14 +140,13 @@ export function PluginWidget({ pluginId, entryPath, className }: PluginWidgetPro
 
   return (
     <div className={cn("w-full h-full bg-background/80 backdrop-blur-sm rounded-xl overflow-hidden border border-border/50 shadow-sm group", className)}>
-      <iframe 
+      <iframe
         ref={iframeRef}
         src={src}
         className="w-full h-full border-0 pointer-events-auto"
-        sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin"
-        allow="cross-origin-isolated"
+        sandbox="allow-scripts allow-forms allow-popups allow-modals"
       />
-      
+
       {/* Overlay to allow dragging/resizing without iframe capturing mouse events when not interacting */}
       <div className="absolute inset-0 pointer-events-none group-hover:pointer-events-none" />
     </div>

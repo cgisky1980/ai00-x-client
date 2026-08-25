@@ -119,7 +119,7 @@ const CommunityCard: React.FC<{
           )}
           {isPlaying && (
             <span className="music-popup__cover-overlay">
-              {<Pause size={14} />}
+              {<Pause size={10} />}
             </span>
           )}
         </span>
@@ -210,7 +210,7 @@ const RecommendCard: React.FC<{
           )}
           {isPlaying && (
             <span className="music-popup__cover-overlay">
-              {<Pause size={14} />}
+              {<Pause size={10} />}
             </span>
           )}
         </span>
@@ -957,7 +957,7 @@ export const MusicPopup: React.FC = () => {
                   >
                     <span className="music-popup__radio-cover">
                       <span className="music-popup__radio-icon">{preset.icon}</span>
-                      {isActive && (
+                      {isActive ? (
                         <span className="music-popup__radio-wave">
                           {Array.from({ length: 4 }).map((_, i) => (
                             <span
@@ -967,10 +967,11 @@ export const MusicPopup: React.FC = () => {
                             />
                           ))}
                         </span>
+                      ) : (
+                        <span className="music-popup__radio-play">
+                          <Play size={12} />
+                        </span>
                       )}
-                      <span className="music-popup__radio-overlay">
-                        <Play size={18} />
-                      </span>
                     </span>
                     <span className="music-popup__radio-name">
                       {t(`audio.radio.${preset.id}`, { defaultValue: preset.name })}
@@ -1039,9 +1040,9 @@ export const MusicPopup: React.FC = () => {
                           )}
                           <span className="music-popup__cover-overlay">
                             {isCurrent && acestepState?.isPlaying ? (
-                              <Pause size={14} />
+                              <Pause size={10} />
                             ) : (
-                              <Play size={14} />
+                              <Play size={10} />
                             )}
                           </span>
                         </span>

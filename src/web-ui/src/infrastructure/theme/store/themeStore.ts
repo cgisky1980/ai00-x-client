@@ -11,13 +11,9 @@ interface ThemeState {
   themes: ThemeMetadata[];
   loading: boolean;
   error: string | null;
-  accentHue: number;
-  accentOverride: boolean;
 
   initialize: () => Promise<void>;
   setTheme: (themeId: ThemeSelectionId) => Promise<void>;
-  setAccentHue: (hue: number) => Promise<void>;
-  clearAccentOverride: () => Promise<void>;
   refreshThemes: () => void;
   addTheme: (theme: ThemeConfig) => Promise<void>;
   removeTheme: (themeId: ThemeId) => Promise<void>;
@@ -30,8 +26,6 @@ export const useThemeStore = create<ThemeState>((set) => ({
   themes: [],
   loading: false,
   error: null,
-  accentHue: themeService.getAccentHue(),
-  accentOverride: themeService.isAccentOverride(),
 
   initialize: async () => {
     set({ loading: true, error: null });
@@ -41,8 +35,6 @@ export const useThemeStore = create<ThemeState>((set) => ({
         set({
           currentTheme: themeService.getCurrentTheme(),
           currentThemeId: themeService.getCurrentThemeId(),
-          accentHue: themeService.getAccentHue(),
-          accentOverride: themeService.isAccentOverride(),
         });
       });
 
@@ -65,8 +57,6 @@ export const useThemeStore = create<ThemeState>((set) => ({
         loading: false,
         currentTheme: themeService.getCurrentTheme(),
         currentThemeId: themeService.getCurrentThemeId(),
-        accentHue: themeService.getAccentHue(),
-        accentOverride: themeService.isAccentOverride(),
       });
     } catch (error) {
       log.error('Failed to initialize', error);
@@ -89,31 +79,6 @@ export const useThemeStore = create<ThemeState>((set) => ({
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to switch theme',
       });
-    }
-  },
-
-  setAccentHue: async (hue: number) => {
-    // 立即更新 store 状态，避免滑条跳动
-    set({
-      accentHue: hue,
-      accentOverride: true,
-    });
-    try {
-      await themeService.setAccentHue(hue);
-    } catch (error) {
-      log.error('Failed to set accent hue', { hue, error });
-    }
-  },
-
-  clearAccentOverride: async () => {
-    try {
-      await themeService.clearAccentOverride();
-      set({
-        accentHue: themeService.getAccentHue(),
-        accentOverride: false,
-      });
-    } catch (error) {
-      log.error('Failed to clear accent override', error);
     }
   },
 

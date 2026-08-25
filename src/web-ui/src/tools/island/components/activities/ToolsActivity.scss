@@ -1,0 +1,116 @@
+// Tools activity — island function dock (expanded 400x96).
+// Dock layout: ONE row, evenly spaced & centered, no wrap; buttons share
+// the same geometry (incl. plugin-injected ones). Tokens only (新东方极简);
+// the island pins its own dark ink tokens so this surface is theme-stable
+// while accent follows the global theme.
+
+.tools-activity {
+  position: absolute;
+  inset: 0;
+  display: flex;
+
+  &--compact {
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__icon {
+    color: var(--color-text-secondary);
+  }
+
+  &--expanded {
+    align-items: stretch;
+    padding: 0 var(--spacing-5, 20px);
+  }
+
+  // The dock: host buttons + plugin slot all in ONE flex row, centered
+  // with a FIXED gap (macOS-dock rhythm). space-evenly treated the slot as
+  // one block, which squeezed plugin buttons together and broke spacing.
+  &__dock {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--size-gap-6, 24px);
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  &__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: var(--radius-lg, 12px);
+    background: color-mix(in oklch, var(--color-text-primary) 10%, transparent);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    transition:
+      background var(--motion-fast, 0.15s) var(--easing-standard, ease),
+      color var(--motion-fast, 0.15s) var(--easing-standard, ease),
+      transform var(--motion-fast, 0.15s) var(--easing-bounce, ease);
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-accent) 24%, transparent);
+      color: var(--color-accent);
+      // Dock-style lift on hover.
+      transform: translateY(-3px) scale(1.06);
+    }
+
+    &:active {
+      transform: translateY(-1px) scale(0.98);
+    }
+  }
+
+  // Plugin extension slot (overlay:island hook) — inline dock member.
+  // Normalizes ANY plugin button (descendant — the plugin runtime wraps
+  // each entry in an .ai00-plugin-container div, so buttons are NOT direct
+  // children) so entries from different plugins share the dock's rhythm:
+  // same 44px geometry, same gap, same 18px icon size as host buttons.
+  &__plugin-slot {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--size-gap-6, 24px);
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    min-width: 0;
+
+    button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: var(--radius-lg, 12px);
+      background: color-mix(in oklch, var(--color-text-primary) 10%, transparent);
+      color: var(--color-text-primary);
+      cursor: pointer;
+      padding: 0;
+      transition:
+        background var(--motion-fast, 0.15s) var(--easing-standard, ease),
+        color var(--motion-fast, 0.15s) var(--easing-standard, ease),
+        transform var(--motion-fast, 0.15s) var(--easing-bounce, ease);
+    }
+
+    button:hover {
+      background: color-mix(in oklch, var(--color-accent) 24%, transparent);
+      color: var(--color-accent);
+      transform: translateY(-3px) scale(1.06);
+    }
+
+    // Icons inside plugin buttons carry small hardcoded svg width/height
+    // attrs (13px) — CSS wins over attributes; unify with the host's 18px.
+    button :is(svg, img) {
+      width: 18px;
+      height: 18px;
+    }
+  }
+}

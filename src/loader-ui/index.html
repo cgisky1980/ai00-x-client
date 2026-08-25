@@ -7,13 +7,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
     <script>
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      // 统一主题属性：design-system 以 :root 为深墨默认，[data-theme="light"] 为宣纸覆盖
-      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-      document.documentElement.style.backgroundColor = 'transparent';
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      // 双属性对齐 web-ui ThemeService：data-theme=主题 id，data-theme-type=明暗档
+      // （design-system token 覆盖选择器是 [data-theme-type='light']，仅设 data-theme 不生效）
+      const applyTheme = (prefersDark) => {
+        const theme = prefersDark ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-theme-type', theme);
+        document.documentElement.style.backgroundColor = 'transparent';
+      };
+      applyTheme(mq.matches);
+      // 系统主题切换实时跟随
+      mq.addEventListener('change', (e) => applyTheme(e.matches));
     </script>
   </head>
-  <body style="margin:0;padding:0;overflow:hidden;background:transparent;">
+  <body style="margin:0;padding:0;overflow:hidden;background-color:transparent;">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

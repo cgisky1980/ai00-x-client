@@ -781,15 +781,21 @@ if (await confirmDialog({ title: '删除？', message: '不可撤销', confirmDa
         en: 'ThinkingPanel',
         desc: 'AI 思考流（antd X ThoughtChain 对位）：thinking 呼吸折叠头 → done 显示用时并自动折叠；展开流式内容。',
         usage: [
-          'phase 由 thinking 变 done 时自动折叠（用户可手动重开）',
+          'phase 由 thinking 变 done 时自动折叠（用户可手动重开；受控模式下不生效）',
           'duration 秒数显示「用时 Ns」',
+          '受控模式：提供 open + onToggle 接管展开态（如需折叠前发高度契约事件）',
+          'label 覆盖折叠头默认文案；cursor=false 关闭流式光标（children 为滚动容器场景）',
           '正文淡墨小字（思考内容视觉弱于正式回答）',
         ],
         api: [
           { param: 'children', desc: '思考内容（消费方流式注入）', type: 'ReactNode', required: true },
           { param: 'phase', desc: '阶段', type: "'thinking' | 'done'", required: true },
           { param: 'duration', desc: '用时（秒）', type: 'number' },
-          { param: 'defaultOpen', desc: '初始展开', type: 'boolean', default: 'false' },
+          { param: 'defaultOpen', desc: '初始展开（非受控）', type: 'boolean', default: 'false' },
+          { param: 'open', desc: '受控展开态；提供时接管内部状态', type: 'boolean' },
+          { param: 'onToggle', desc: '头部点击回调（受控模式必配）', type: '(open: boolean) => void' },
+          { param: 'label', desc: '覆盖折叠头默认双态文案', type: 'ReactNode' },
+          { param: 'cursor', desc: '流式光标', type: 'boolean', default: 'true' },
         ],
         code: `import { ThinkingPanel } from '@ai00-x/design-system/web';
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Music, Palette, Waves } from 'lucide-react'
+import { LayoutGrid, Music, Waves } from 'lucide-react'
 import type React from 'react'
 
 export type IslandState = 'compact' | 'expanded'
@@ -29,11 +29,11 @@ const DEFAULT_ACTIVITIES: Activity[] = [
     labelKey: 'island.activity.sfx',
   },
   {
-    id: 'theme',
+    id: 'tools',
     priority: 5,
     visible: true,
-    icon: Palette,
-    labelKey: 'island.activity.theme',
+    icon: LayoutGrid,
+    labelKey: 'island.activity.tools',
   },
 ]
 

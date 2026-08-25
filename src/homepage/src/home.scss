@@ -625,7 +625,7 @@ a { color: inherit; text-decoration: none; }
 
   &__num {
     /* Statistic 组件容器：放大 + 黛青 */
-    font-size: 2.4rem;
+    font-size: calc(var(--font-size-5xl) * 1.2);
     color: var(--color-accent-700);
 
     .ds-statistic__value {

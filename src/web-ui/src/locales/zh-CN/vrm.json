@@ -71,9 +71,9 @@
       "activity": {
         "music": "音乐",
         "song": "歌曲",
-        "theme": "主题",
         "sfx": "环境音效",
-        "sfxEmpty": "暂无环境音效"
+        "sfxEmpty": "暂无环境音效",
+        "tools": "功能"
       },
       "action": {
         "toggleDesktop": "切换桌面",
@@ -110,13 +110,6 @@
       "radio": "电台",
       "list": "音效",
       "create": "创作"
-    },
-    "theme": {
-      "presets": "主题预设",
-      "accentColor": "强调色",
-      "reset": "重置",
-      "toggleDarkLight": "切换明暗主题",
-      "default": "默认主题"
     },
     "radio": {
       "live": "直播中",

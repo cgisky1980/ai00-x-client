@@ -6,7 +6,7 @@ import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('SettingsSyncService');
 
-type SettingsEventType = 'theme:changed' | 'accent-hue:changed' | 'language:changed' | 'workspace:changed';
+type SettingsEventType = 'theme:changed' | 'language:changed' | 'workspace:changed';
 
 interface SettingsSyncMessage {
   type: SettingsEventType;
@@ -86,9 +86,6 @@ class SettingsSyncServiceImpl {
         case 'theme:changed':
           await this.syncTheme(message.payload as string);
           break;
-        case 'accent-hue:changed':
-          await this.syncAccentHue(message.payload as number);
-          break;
         case 'language:changed':
           await this.syncLanguage(message.payload as string);
           break;
@@ -109,17 +106,6 @@ class SettingsSyncServiceImpl {
       log.info('Synced theme from other window', { themeId });
     } catch (error) {
       log.warn('Failed to sync theme', error);
-    }
-  }
-
-  private async syncAccentHue(hue: number): Promise<void> {
-    try {
-      const current = themeService.getAccentHue();
-      if (current === hue) return;
-      await themeService.setAccentHue(hue);
-      log.info('Synced accent hue from other window', { hue });
-    } catch (error) {
-      log.warn('Failed to sync accent hue', error);
     }
   }
 

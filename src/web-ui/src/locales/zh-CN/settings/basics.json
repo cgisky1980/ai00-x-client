@@ -40,8 +40,6 @@
     "darkMode": "深色",
     "mode": "模式",
     "modeRowHint": "在浅色和深色模式之间切换。",
-    "accentColor": "强调色",
-    "accentColorRowHint": "选择界面的强调色。",
     "systemTheme": "跟随系统",
     "systemThemeDescription": "根据系统浅色/深色外观自动在亮暗主题间切换，并随系统切换而更新。",
     "presets": {

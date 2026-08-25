@@ -30,11 +30,6 @@
                 cursor: not-allowed;
             }
         }
-
-        .theme-selector__hue-slider {
-            width: 80px;
-            flex-shrink: 0;
-        }
     }
 
     &--full {
@@ -76,24 +71,6 @@
                 opacity: 0.6;
                 cursor: not-allowed;
             }
-        }
-
-        .theme-selector__hue-section {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            width: 100%;
-        }
-
-        .theme-selector__hue-label {
-            font-size: 11px;
-            color: var(--color-text-muted);
-            flex-shrink: 0;
-        }
-
-        .theme-selector__hue-slider {
-            flex: 1;
-            min-width: 0;
         }
     }
 }

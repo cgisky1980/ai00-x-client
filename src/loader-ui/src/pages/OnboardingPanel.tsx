@@ -138,7 +138,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
   const canSave = nickname.trim().length > 0 && gender && !saving;
 
   const inputStyle: React.CSSProperties = {
-    backgroundColor: 'var(--secondary)',
+    backgroundColor: 'var(--element-bg-base)',
     borderColor: 'var(--border-base)',
     color: 'var(--color-text-primary)',
   };
@@ -151,16 +151,6 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
         color: 'var(--color-text-primary)',
       }}
     >
-      {/* 背景光效装饰（主题色） */}
-      <div
-        className="absolute top-[-100px] left-[-100px] w-[400px] h-[400px] rounded-full pointer-events-none"
-        style={{ background: 'radial-gradient(circle, var(--color-accent-100), transparent 70%)' }}
-      />
-      <div
-        className="absolute bottom-[-100px] right-[200px] w-[500px] h-[500px] rounded-full pointer-events-none"
-        style={{ background: 'radial-gradient(circle, var(--color-accent-100), transparent 70%)' }}
-      />
-
       {/* ===== 左侧区域 ===== */}
       <div className="flex-1 flex flex-col p-6 gap-4 min-w-0 relative z-10">
         {/* 进度信息（显示在 canvas 上方） */}
@@ -168,16 +158,13 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
           <ProgressInfoBlock info={progressInfo} />
         )}
 
-        {/* 形象预览 */}
+        {/* 形象预览（实体沉底表面，层次靠墨阶） */}
         <div
           className={`flex-1 rounded-2xl border flex items-center justify-center relative overflow-hidden ${editMode && canEnter ? 'cursor-pointer group' : ''}`}
           style={{
-            borderColor: editMode && canEnter ? 'var(--color-accent-500)' : 'var(--border-base)',
-            background: 'radial-gradient(ellipse at center, var(--color-accent-100), var(--color-bg-card))',
-            boxShadow: editMode && canEnter
-              ? 'inset 0 0 40px var(--color-accent-100), 0 0 20px var(--color-accent-100)'
-              : 'inset 0 0 40px var(--color-accent-100)',
-            transition: 'all 0.3s ease',
+            borderColor: editMode && canEnter ? 'var(--color-accent-500)' : 'var(--border-subtle)',
+            background: 'var(--color-bg-sunken)',
+            transition: 'var(--motion-base) var(--easing-standard)',
           }}
           onClick={editMode && canEnter && onEnter ? onEnter : undefined}
         >
@@ -185,7 +172,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
             <h2
               className="text-lg font-bold tracking-wide"
-              style={{ color: 'var(--color-text-primary)', textShadow: '0 0 10px var(--color-accent-100)' }}
+              style={{ color: 'var(--color-text-primary)' }}
             >
               {editMode ? (canEnter ? t('welcomeBack') : t('initBooting')) : t('onboardingTitle')}
             </h2>
@@ -199,7 +186,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none">
               {entering ? (
                 <div className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-base"
-                  style={{ background: 'var(--color-accent-200)', color: 'var(--color-accent-500)' }}>
+                  style={{ background: 'color-mix(in srgb, var(--color-accent-500) 14%, transparent)', color: 'var(--color-accent-500)' }}>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   {t('homeOpenMainApp')}
                 </div>
@@ -207,18 +194,18 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onEnter?.(); }}
-                  className="pointer-events-auto px-8 py-3 rounded-full font-bold text-base tracking-wide transition-all duration-300 hover:scale-105 active:scale-95"
+                  className="pointer-events-auto px-8 py-3 rounded-full font-bold text-base tracking-wide transition-all duration-(--motion-base) hover:bg-(--color-accent-600) active:translate-y-px"
                   style={{
                     background: 'var(--color-accent-500)',
-                    color: 'white',
-                    boxShadow: '0 4px 20px var(--color-accent-100), 0 0 40px var(--color-accent-100)',
+                    color: 'var(--color-accent-foreground)',
+                    boxShadow: 'var(--shadow-base)',
                   }}
                 >
                   {t('enterApp')}
                 </button>
               ) : (
                 <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
-                  style={{ background: 'var(--secondary)', color: 'var(--color-text-muted)' }}>
+                  style={{ background: 'var(--element-bg-base)', color: 'var(--color-text-muted)' }}>
                   <Loader2 className="w-4 h-4 animate-spin" style={{ animationDuration: '1.5s' }} />
                   {t('waitForInit')}
                 </div>
@@ -233,7 +220,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
           className="rounded-2xl border p-4"
           style={{
             borderColor: 'var(--border-base)',
-            backgroundColor: 'var(--secondary)',
+            backgroundColor: 'var(--element-bg-base)',
           }}
         >
           <div className="grid grid-cols-2 gap-3">
@@ -267,9 +254,10 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
                     className="flex-1 rounded-lg border py-2 text-xs font-medium transition-all"
                     style={{
                       borderColor: gender === g ? 'var(--color-accent-500)' : 'var(--border-base)',
-                      backgroundColor: gender === g ? 'var(--color-accent-100)' : 'var(--secondary)',
+                      backgroundColor: gender === g
+                        ? 'color-mix(in srgb, var(--color-accent-500) 14%, transparent)'
+                        : 'var(--element-bg-base)',
                       color: gender === g ? 'var(--color-accent-500)' : 'var(--color-text-muted)',
-                      boxShadow: gender === g ? '0 0 8px var(--color-accent-100)' : 'none',
                     }}
                   >
                     {t(`gender${g.charAt(0).toUpperCase() + g.slice(1)}`)}
@@ -311,13 +299,13 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
             <button
               type="button"
               onClick={handleSave}
-              className="flex-1 rounded-lg py-2 text-sm font-bold transition-all"
+              className="flex-1 rounded-lg py-2 text-sm font-bold transition-all duration-(--motion-base)"
               style={{
                 background: canSave
                   ? 'var(--color-accent-500)'
-                  : 'var(--secondary)',
-                color: canSave ? 'white' : 'var(--color-text-muted)',
-                boxShadow: canSave ? '0 4px 16px var(--color-accent-100)' : 'none',
+                  : 'var(--element-bg-base)',
+                color: canSave ? 'var(--color-accent-foreground)' : 'var(--color-text-muted)',
+                boxShadow: canSave ? 'var(--shadow-base)' : 'none',
                 cursor: canSave ? 'pointer' : 'not-allowed',
               }}
               disabled={!canSave}
@@ -340,7 +328,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
           <h3 className="text-base font-bold tracking-wide" style={{ color: 'var(--color-text-primary)' }}>
             ✦ {t('avatarParts')}
           </h3>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+          <p className="text-[length:var(--font-size-xxs)] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
             {t('customizeYourLook')}
           </p>
         </div>
@@ -390,7 +378,7 @@ function ProgressInfoBlock({ info }: { info: ProgressInfo }) {
       className="rounded-2xl border px-4 py-3 flex flex-col gap-2"
       style={{
         borderColor: 'var(--border-base)',
-        backgroundColor: 'var(--secondary)',
+        backgroundColor: 'var(--element-bg-base)',
       }}
     >
       {/* 状态行：图标 + 状态文字 */}
@@ -398,7 +386,7 @@ function ProgressInfoBlock({ info }: { info: ProgressInfo }) {
         {failed ? (
           <span className="text-base font-bold" style={{ color: 'var(--color-error)' }}>!</span>
         ) : initialized ? (
-          <span className="text-base font-bold" style={{ color: 'var(--color-accent-500)', textShadow: '0 0 8px var(--color-accent-100)' }}>✓</span>
+          <span className="text-base font-bold" style={{ color: 'var(--color-accent-500)' }}>✓</span>
         ) : (
           <Loader2
             className="w-4 h-4 animate-spin"
@@ -413,19 +401,18 @@ function ProgressInfoBlock({ info }: { info: ProgressInfo }) {
         </span>
       </div>
 
-      {/* 进度条 */}
+      {/* 进度条（6px 细条，轨道沉底填充黛青） */}
       <div
-        className="w-full h-1.5 rounded-full overflow-hidden border relative"
-        style={{ backgroundColor: 'var(--color-bg-card)', borderColor: 'var(--border-base)' }}
+        className="w-full h-1.5 rounded-full overflow-hidden relative"
+        style={{ backgroundColor: 'var(--element-bg-base)' }}
       >
         <div
-          className={`absolute top-0 left-0 h-full rounded-full transition-all duration-300 ease-out ${
-            isPulsing ? 'w-full animate-[pulse_2s_ease-in-out_infinite] opacity-50' : ''
+          className={`absolute top-0 left-0 h-full rounded-full transition-all duration-(--motion-base) ${
+            isPulsing ? 'w-full animate-[pulse_2s_ease-in-out_infinite] opacity-50 motion-reduce:animate-none' : ''
           }`}
           style={{
             width: barWidth,
             backgroundColor: failed ? 'var(--color-error)' : 'var(--color-accent-500)',
-            boxShadow: failed ? 'none' : '0 0 10px var(--color-accent-100)',
           }}
         />
       </div>

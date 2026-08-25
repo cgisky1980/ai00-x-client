@@ -19,7 +19,6 @@ import {
 } from '../presets';
 import { configAPI } from '@/infrastructure/api';
 import { monacoThemeSync } from '../integrations/MonacoThemeSync';
-import { hueFromAccentColor, DEFAULT_ACCENT_HUE } from '../utils/accentGenerator';
 import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('ThemeService');
@@ -33,9 +32,7 @@ export class ThemeService {
   private systemThemeCleanup: (() => void) | null = null;
   private listeners: Map<ThemeEventType, Set<ThemeEventListener>> = new Map();
   private hooks: ThemeHooks = {};
-  private _accentHue: number = DEFAULT_ACCENT_HUE;
-  private _accentOverride: boolean = false;
-  
+
   constructor() {
     this.initializeBuiltinThemes();
   }
@@ -75,19 +72,12 @@ export class ThemeService {
         }
       }
 
-      const savedHue = await this.loadAccentHue();
-      if (savedHue >= 0) {
-        this._accentHue = savedHue;
-        this._accentOverride = true;
-        this.applyOklchHue(savedHue);
-      } else {
-        const currentTheme = this.getCurrentTheme();
-        this._accentHue = hueFromAccentColor(currentTheme.colors.accent[500]);
-        this.applyOklchHue(this._accentHue);
-      }
+      // 自定义调色功能已移除（黛青唯一交互色，色板固定）：
+      // 一次性清理历史残留的 themes.accentHue 配置值，避免脏数据。
+      await this.resetLegacyAccentHue();
 
       this.loadUserThemes().catch(() => {
-        
+
       });
     } catch (error) {
       log.error('Theme system initialization failed', error);
@@ -202,62 +192,21 @@ export class ThemeService {
     return this.resolvedThemeId;
   }
 
-  getAccentHue(): number {
-    return this._accentHue;
-  }
-
-  isAccentOverride(): boolean {
-    return this._accentOverride;
-  }
-
-  private accentHueSaveTimer: ReturnType<typeof setTimeout> | null = null;
-
-  async setAccentHue(hue: number): Promise<void> {
-    this._accentHue = hue;
-    this._accentOverride = true;
-    // 立即应用 CSS，视觉无延迟
-    this.applyOklchHue(hue);
-
-    // Debounce 配置保存 + 事件广播，避免滑条拖动时后端刷屏
-    // 也不发 theme:after-change 事件 — store 已直接设置 accentHue，
-    // 事件会触发监听器重新读取 service 覆盖更新的值，导致跳动
-    if (this.accentHueSaveTimer) clearTimeout(this.accentHueSaveTimer);
-    this.accentHueSaveTimer = setTimeout(() => {
-      this.saveAccentHue(hue).catch(() => {});
-      import('@/infrastructure/services/infra/SettingsSyncService').then(({ settingsSyncService }) => {
-        settingsSyncService.broadcast('accent-hue:changed', hue);
-      }).catch(() => {});
-    }, 300);
-  }
-
-  async clearAccentOverride(): Promise<void> {
-    this._accentOverride = false;
-    await this.saveAccentHue(-1);
-    const currentTheme = this.getCurrentTheme();
-    this._accentHue = hueFromAccentColor(currentTheme.colors.accent[500]);
-    this.applyOklchHue(this._accentHue);
-    this.emitEvent('theme:after-change', this.resolvedThemeId, currentTheme, currentTheme);
-    import('@/infrastructure/services/infra/SettingsSyncService').then(({ settingsSyncService }) => {
-      settingsSyncService.broadcast('accent-hue:changed', -1);
-    });
-  }
-
-  private applyOklchHue(hue: number): void {
-    const root = document.documentElement;
-    const themeType = root.getAttribute('data-theme-type');
-    const chroma = themeType === 'dark' ? 0.20 : 0.12;
-    root.style.setProperty('--hue', String(Math.max(0, hue)));
-    if (hue < 0) {
-      const grayLevel = Math.abs(hue) / 90;
-      root.style.setProperty('--chroma', '0');
-      root.style.setProperty('--gray-level', String(Math.min(1, grayLevel)));
-    } else {
-      root.style.setProperty('--chroma', String(chroma));
-      root.style.setProperty('--gray-level', '0');
+  /** 一次性清理已移除的自定义调色残留（themes.accentHue）。 */
+  private async resetLegacyAccentHue(): Promise<void> {
+    try {
+      const raw = await configAPI.getConfig('themes.accentHue', {
+        skipRetryOnNotFound: true,
+      }) as number | undefined;
+      if (typeof raw === 'number' && raw >= 0) {
+        await configAPI.setConfig('themes.accentHue', -1);
+        log.info('Reset legacy accent hue override', { from: raw });
+      }
+    } catch (_error) {
+      // 配置键不存在或后端已删字段 — 无需处理
     }
   }
-  
-   
+
   getThemeList(): ThemeMetadata[] {
     return Array.from(this.themes.values()).map(theme => ({
       id: theme.id,
@@ -320,13 +269,6 @@ export class ThemeService {
       this.resolvedThemeId = resolvedId;
 
       this.injectCSSVariables(theme);
-
-      if (this._accentOverride) {
-        this.applyOklchHue(this._accentHue);
-      } else {
-        this._accentHue = hueFromAccentColor(theme.colors.accent[500]);
-        this.applyOklchHue(this._accentHue);
-      }
 
       try {
         monacoThemeSync.syncTheme(theme);
@@ -555,26 +497,6 @@ export class ThemeService {
       await configAPI.setConfig('themes.current', selection);
     } catch (error) {
       log.warn('Failed to save current theme ID', error);
-    }
-  }
-
-  private async saveAccentHue(hue: number): Promise<void> {
-    try {
-      await configAPI.setConfig('themes.accentHue', hue);
-    } catch (error) {
-      log.warn('Failed to save accent hue', error);
-    }
-  }
-
-  private async loadAccentHue(): Promise<number> {
-    try {
-      const raw = await configAPI.getConfig('themes.accentHue', {
-        skipRetryOnNotFound: true,
-      }) as number | undefined;
-      if (typeof raw === 'number') return raw;
-      return -1;
-    } catch (_error) {
-      return -1;
     }
   }
 

@@ -113,14 +113,14 @@ export function AvatarCustomizer({ value, onChange, previewOnly, panelOnly, t, r
   if (previewOnly) {
     if (configError) {
       return (
-        <div className="text-xs" style={{ color: 'var(--destructive)' }}>
+        <div className="text-xs" style={{ color: 'var(--color-error)' }}>
           {t('avatar.loading')}: {configError}
         </div>
       );
     }
     if (!config) {
       return (
-        <div className="text-xs" style={{ color: 'var(--text-50)' }}>
+        <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
           {t('avatar.loading')}
         </div>
       );
@@ -128,7 +128,7 @@ export function AvatarCustomizer({ value, onChange, previewOnly, panelOnly, t, r
     return (
       <Suspense
         fallback={
-          <div style={{ color: 'var(--text-50)', fontSize: '12px' }}>
+          <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>
             {t('avatar.loading')}
           </div>
         }
@@ -146,7 +146,7 @@ export function AvatarCustomizer({ value, onChange, previewOnly, panelOnly, t, r
   // ===== panelOnly 模式：只显示换装面板（标签页式） =====
   if (configError) {
     return (
-      <div className="p-4 text-xs" style={{ color: 'var(--destructive)' }}>
+      <div className="p-4 text-xs" style={{ color: 'var(--color-error)' }}>
         {t('avatar.loading')}: {configError}
       </div>
     );
@@ -154,7 +154,7 @@ export function AvatarCustomizer({ value, onChange, previewOnly, panelOnly, t, r
 
   if (!config) {
     return (
-      <div className="p-4 text-xs" style={{ color: 'var(--text-50)' }}>
+      <div className="p-4 text-xs" style={{ color: 'var(--color-text-muted)' }}>
         {t('avatar.loading')}
       </div>
     );
@@ -168,13 +168,13 @@ export function AvatarCustomizer({ value, onChange, previewOnly, panelOnly, t, r
   const selectedVariant = activePart ? (value.parts[activePart.partId] || 'default') : '';
 
   return (
-    <div className="h-full flex flex-col" style={{ color: 'var(--text-90)' }}>
+    <div className="h-full flex flex-col" style={{ color: 'var(--color-text-primary)' }}>
       {/* ===== 标签栏（横向滚动，emoji 图标 + 多语言 tooltip） ===== */}
       <div
         ref={tabScrollRef}
         className="flex gap-1 px-3 py-2 overflow-x-auto overflow-y-hidden border-b"
         style={{
-          borderColor: 'var(--border)',
+          borderColor: 'var(--border-subtle)',
           scrollbarWidth: 'thin',
         }}
       >
@@ -194,19 +194,18 @@ export function AvatarCustomizer({ value, onChange, previewOnly, panelOnly, t, r
               className="flex-shrink-0 flex flex-col items-center justify-center px-4 py-2 rounded-lg text-base transition-all relative min-w-[56px]"
               style={{
                 background: isActive
-                  ? 'rgba(var(--primary), 0.18)'
-                  : 'var(--secondary)',
+                  ? 'color-mix(in srgb, var(--color-accent-500) 18%, transparent)'
+                  : 'var(--element-bg-base)',
                 border: isActive
-                  ? '1px solid rgba(var(--primary), 0.5)'
-                  : '1px solid var(--border)',
-                boxShadow: isActive ? '0 2px 8px rgba(var(--primary), 0.2)' : 'none',
+                  ? '1px solid color-mix(in srgb, var(--color-accent-500) 50%, transparent)'
+                  : '1px solid var(--border-base)',
               }}
             >
-              <span style={{ fontSize: '22px', lineHeight: 1 }}>{emoji}</span>
+              <span style={{ fontSize: 'var(--font-size-3xl)', lineHeight: 1 }}>{emoji}</span>
               <span
-                className="text-[11px] mt-1"
+                className="text-[length:var(--font-size-2xs)] mt-1"
                 style={{
-                  color: isActive ? 'var(--text-90)' : 'var(--text-50)',
+                  color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
                 }}
               >
                 {label}
@@ -214,7 +213,7 @@ export function AvatarCustomizer({ value, onChange, previewOnly, panelOnly, t, r
               {isSet && !isActive && (
                 <span
                   className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full"
-                  style={{ background: 'rgb(var(--primary))' }}
+                  style={{ background: 'var(--color-accent-500)' }}
                 />
               )}
             </button>
@@ -315,12 +314,12 @@ function VariantCard({ label, selected, onClick, isNone, variantId, resourcePath
       style={{
         aspectRatio: '1',
         border: selected
-          ? '2px solid rgb(var(--primary))'
-          : '1px solid var(--border)',
+          ? '2px solid var(--color-accent-500)'
+          : '1px solid var(--border-base)',
         background: isNone
-          ? 'var(--secondary)'
+          ? 'var(--element-bg-base)'
           : 'var(--card-bg)',
-        boxShadow: selected ? '0 0 12px rgba(var(--primary), 0.4)' : 'none',
+        boxShadow: 'none',
         cursor: 'pointer',
       }}
     >
@@ -345,9 +344,9 @@ function VariantCard({ label, selected, onClick, isNone, variantId, resourcePath
       {selected && (
         <div
           className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center z-10"
-          style={{ background: 'rgb(var(--primary))' }}
+          style={{ background: 'var(--color-accent-500)' }}
         >
-          <span style={{ color: 'white', fontSize: '9px', fontWeight: 'bold' }}>✓</span>
+          <span style={{ color: 'var(--color-accent-foreground)', fontSize: 'var(--font-size-2xs)', fontWeight: 'bold' }}>✓</span>
         </div>
       )}
 
@@ -357,19 +356,19 @@ function VariantCard({ label, selected, onClick, isNone, variantId, resourcePath
           className="absolute inset-0 flex items-center justify-center"
           style={{
             backgroundImage:
-              'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(var(--primary), 0.08) 4px, rgba(var(--primary), 0.08) 8px)',
+              'repeating-linear-gradient(45deg, transparent, transparent 4px, color-mix(in srgb, var(--color-accent-500) 8%, transparent) 4px, color-mix(in srgb, var(--color-accent-500) 8%, transparent) 8px)',
           }}
         >
-          <span style={{ color: 'var(--text-50)', fontSize: '10px' }}>∅</span>
+          <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xxs)' }}>∅</span>
         </div>
       )}
 
       {/* 标签 */}
       <div
-        className="absolute bottom-0 left-0 right-0 text-center py-0.5 text-[10px] font-medium truncate z-[5]"
+        className="absolute bottom-0 left-0 right-0 text-center py-0.5 text-[length:var(--font-size-xxs)] font-medium truncate z-[5]"
         style={{
-          backgroundColor: 'rgba(0, 0, 0, 0.55)',
-          color: selected ? 'white' : 'rgba(255,255,255,0.85)',
+          backgroundColor: 'var(--element-bg-medium)',
+          color: selected ? 'var(--color-accent-foreground)' : 'var(--color-text-secondary)',
         }}
       >
         {label}
@@ -421,12 +420,12 @@ function ColorPicker({ t, slots, colors, onChange }: ColorPickerProps) {
     <div
       className="mb-3 p-2.5 rounded-lg border"
       style={{
-        borderColor: 'var(--border)',
-        backgroundColor: 'var(--secondary)',
+        borderColor: 'var(--border-base)',
+        backgroundColor: 'var(--element-bg-base)',
       }}
     >
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-[11px] font-medium" style={{ color: 'var(--text-50)' }}>
+        <span className="text-[length:var(--font-size-2xs)] font-medium" style={{ color: 'var(--color-text-muted)' }}>
           {t('avatar.coloring')}
         </span>
         {/* 当前颜色色块 */}
@@ -436,18 +435,20 @@ function ColorPicker({ t, slots, colors, onChange }: ColorPickerProps) {
             height: '18px',
             borderRadius: '50%',
             backgroundColor: currentColor || 'transparent',
-            border: '1px solid var(--border)',
-            boxShadow: currentColor ? '0 0 6px rgba(var(--primary), 0.3)' : 'none',
+            border: '1px solid var(--border-base)',
+            boxShadow: currentColor
+              ? '0 0 0 1px color-mix(in srgb, var(--color-accent-500) 40%, transparent)'
+              : 'none',
           }}
         />
         {currentColor && (
           <button
             type="button"
             onClick={() => onChange(slotNames, null)}
-            className="text-[10px] px-1.5 py-0.5 rounded transition-opacity hover:opacity-80 ml-auto"
+            className="text-[length:var(--font-size-xxs)] px-1.5 py-0.5 rounded transition-opacity hover:opacity-80 ml-auto"
             style={{
-              color: 'var(--text-50)',
-              border: '1px solid var(--border)',
+              color: 'var(--color-text-muted)',
+              border: '1px solid var(--border-base)',
               backgroundColor: 'var(--card-bg)',
             }}
           >
@@ -493,9 +494,11 @@ function ColorPicker({ t, slots, colors, onChange }: ColorPickerProps) {
                 height: '20px',
                 backgroundColor: color,
                 border: isSelected
-                  ? '2px solid rgb(var(--primary))'
-                  : '1px solid var(--border)',
-                boxShadow: isSelected ? '0 0 6px rgba(var(--primary), 0.4)' : 'none',
+                  ? '2px solid var(--color-accent-500)'
+                  : '1px solid var(--border-base)',
+                boxShadow: isSelected
+                  ? '0 0 0 1px color-mix(in srgb, var(--color-accent-500) 40%, transparent)'
+                  : 'none',
                 cursor: 'pointer',
                 padding: 0,
               }}
