@@ -1,0 +1,130 @@
+/**
+ * ModelSelector —— AI 模型选择器样式（v0.16 AI 系）
+ * Trigger 胶囊常驻输入框 footer（黛青唯一交互色）；列表浮层走 Popover（浮层档）。
+ */
+.ai-model-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-gap-1);
+  max-width: 100%;
+  border: none;
+  border-radius: var(--size-radius-full);
+  padding: var(--size-gap-0-5) var(--size-gap-2);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-sans);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--easing-standard),
+    color var(--motion-fast) var(--easing-standard);
+
+  &:hover:not(:disabled),
+  &.is-open {
+    background: color-mix(in srgb, var(--color-accent-500) 10%, transparent);
+    color: var(--color-accent-600);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: var(--opacity-disabled);
+  }
+
+  &__name {
+    max-width: 14em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+  }
+
+  &__chevron {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    opacity: 0.7;
+    transition: transform var(--motion-fast) var(--easing-standard);
+  }
+
+  // 尺寸档：sm=输入框 footer 内嵌 / md=独立场景
+  &--md &__name {
+    font-size: var(--font-size-base);
+  }
+
+  // ---- Popover 列表（浮层由 Popover 组件承载，此处只管内容）----
+  // z-index：chrome-popup 档（50030）——标准件常驻 chrome 浮层（策面板 z≈50020、
+  // 岛层 50010）内部使用，弹层必须压过宿主面板；ds-popover 默认 z-dropdown(60)
+  // 会被 chrome 层宿主整体遮挡（Portal 同为 body 子级，z 低于面板即不可见）
+  &__popover {
+    z-index: var(--z-chrome-popup, 50030);
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1);
+    min-width: 220px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5);
+  }
+
+  &__group-name {
+    padding: 0 var(--size-gap-1-5);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    letter-spacing: 0.04em;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1-5);
+    width: 100%;
+    border: none;
+    border-radius: var(--size-radius-sm);
+    padding: var(--size-gap-1) var(--size-gap-1-5);
+    background: transparent;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--motion-fast) var(--easing-standard);
+
+    &:hover:not(.is-disabled) {
+      background: color-mix(in srgb, var(--color-accent-500) 8%, transparent);
+    }
+
+    &.is-active {
+      color: var(--color-accent-600);
+    }
+
+    &.is-disabled {
+      cursor: default;
+      opacity: var(--opacity-disabled);
+    }
+  }
+
+  &__item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__item-badge {
+    flex-shrink: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__check {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    color: var(--color-accent-600);
+  }
+}

@@ -123,6 +123,12 @@ export { Tree, type TreeNodeData, type TreeProps } from './components/tree';
 export { ChatMessage, type ChatMessageProps } from './components/web/ai/ChatMessage';
 export { PromptInput, type PromptInputProps } from './components/web/ai/PromptInput';
 export {
+  ModelSelector,
+  type ModelSelectorProps,
+  type ModelGroup,
+  type ModelOption,
+} from './components/web/ai/ModelSelector';
+export {
   Conversations,
   type ConversationsProps,
   type ConversationItem,

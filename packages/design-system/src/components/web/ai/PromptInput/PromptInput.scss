@@ -1,5 +1,7 @@
 /**
- * PromptInput —— 聊天输入框样式（v0.15 AI 系）
+ * PromptInput —— 聊天输入框样式（v0.16 AI 系）
+ * 发送/停止 = 圆形图标按钮（发送黛青实底 / 停止描边呼吸）；
+ * footer 左右分区（footerLeft=模型选择等 / footerRight=辅助信息）。
  */
 .ai-prompt-input {
   display: flex;
@@ -23,7 +25,7 @@
     display: flex;
     align-items: flex-end;
     gap: var(--size-gap-2);
-    padding: var(--size-gap-1-5) var(--size-gap-2) var(--size-gap-1-5) var(--size-gap-3-5);
+    padding: var(--size-gap-1-5) var(--size-gap-1-5) var(--size-gap-1-5) var(--size-gap-3-5);
   }
 
   &__textarea {
@@ -49,23 +51,29 @@
     }
   }
 
+  // ---- 圆形图标按钮（发送 / 停止）----
   &__send,
   &__stop {
     flex-shrink: 0;
     appearance: none;
+    width: 30px;
+    height: 30px;
+    padding: 0;
     border: none;
-    border-radius: var(--size-radius-sm);
-    padding: var(--size-gap-1-5) var(--size-gap-3-5);
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
+    border-radius: var(--size-radius-full);
     display: inline-flex;
     align-items: center;
-    gap: var(--size-gap-1);
+    justify-content: center;
+    cursor: pointer;
     transition: background-color var(--motion-fast) var(--easing-standard),
       color var(--motion-fast) var(--easing-standard),
+      border-color var(--motion-fast) var(--easing-standard),
       opacity var(--motion-fast) var(--easing-standard);
+
+    svg {
+      width: 15px;
+      height: 15px;
+    }
   }
 
   &__send {
@@ -77,33 +85,64 @@
     }
 
     &:disabled {
-      opacity: 0.45;
+      opacity: 0.4;
       cursor: default;
     }
   }
 
   &__stop {
-    background: var(--element-bg-medium);
+    background: transparent;
     color: var(--color-text-secondary);
     border: 1px solid var(--border-base);
+    animation: ai-prompt-input-breath 1.6s ease-in-out infinite;
 
     svg {
-      width: 10px;
-      height: 10px;
+      width: 11px;
+      height: 11px;
     }
 
     &:hover {
       color: var(--color-error);
       border-color: var(--color-error-border);
+      animation-play-state: paused;
     }
   }
 
+  // ---- footer：左（模型选择/工具）右（辅助信息）分区 ----
   &__footer {
     border-top: 1px solid var(--border-subtle);
-    padding: var(--size-gap-1-5) var(--size-gap-3);
+    padding: var(--size-gap-1) var(--size-gap-2);
     display: flex;
     align-items: center;
     gap: var(--size-gap-2);
-    min-height: 40px;
+    min-height: 38px;
+  }
+
+  &__footer-left {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1-5);
+    min-width: 0;
+    flex: 1;
+  }
+
+  &__footer-right {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1-5);
+    flex-shrink: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+}
+
+// 停止按钮呼吸（生成中可打断的视觉暗示）
+@keyframes ai-prompt-input-breath {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent-500) 24%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent-500) 8%, transparent);
   }
 }

@@ -1,7 +1,9 @@
 /**
- * PromptInput —— AI 聊天输入框（v0.15 AI 系，antd X Sender 对位）
+ * PromptInput —— AI 聊天输入框（v0.16 AI 系，antd X Sender 对位）
  * ChatInput 降耦重制：自增高 + Enter 发送（IME 合成中不触发）+
- * loading→停止按钮；footer slot 供业务扩展（slash 命令等留消费方）。
+ * loading→停止按钮；footer slot 供业务扩展（模型选择走配套 ModelSelector）。
+ * v0.16：发送/停止改圆形图标按钮（ArrowUp / 方点呼吸）；footer 左右分区
+ * （footerLeft=模型选择等 / footerRight=辅助信息），footer 兜底整行。
  */
 import React, { forwardRef, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { label } from '../../../../lib/labels';
@@ -19,14 +21,52 @@ export interface PromptInputProps {
   disabled?: boolean;
   /** px，默认 200；超出内滚 */
   maxHeight?: number;
-  /** 底部扩展条（命令按钮/模型选择等） */
+  /** 底部扩展条（旧整行 slot；与 footerLeft/footerRight 互斥优先） */
   footer?: React.ReactNode;
+  /** 底部左侧（模型选择/工具入口等） */
+  footerLeft?: React.ReactNode;
+  /** 底部右侧（辅助信息：字数/快捷键提示等） */
+  footerRight?: React.ReactNode;
   className?: string;
 }
 
+/** 圆形发送按钮（ArrowUp）。 */
+const SendIcon = () => (
+  <svg viewBox="0 0 16 16" aria-hidden="true">
+    <path
+      d="M8 13V3.5M8 3.5L3.5 8M8 3.5L12.5 8"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+/** 停止图标（方点）。 */
+const StopIcon = () => (
+  <svg viewBox="0 0 12 12" aria-hidden="true">
+    <rect x="2.5" y="2.5" width="7" height="7" rx="1.5" fill="currentColor" />
+  </svg>
+);
+
 export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
   (
-    { value, onChange, onSubmit, onStop, loading = false, placeholder, disabled = false, maxHeight = 200, footer, className = '' },
+    {
+      value,
+      onChange,
+      onSubmit,
+      onStop,
+      loading = false,
+      placeholder,
+      disabled = false,
+      maxHeight = 200,
+      footer,
+      footerLeft,
+      footerRight,
+      className = '',
+    },
     ref,
   ) => {
     const innerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -62,6 +102,8 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
       if (canSend && onSubmit) onSubmit();
     };
 
+    const hasFooter = footer != null || footerLeft != null || footerRight != null;
+
     return (
       <div className={['ai-prompt-input', disabled && 'is-disabled', className].filter(Boolean).join(' ')}>
         <div className="ai-prompt-input__row">
@@ -89,11 +131,9 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
               className="ai-prompt-input__stop"
               onClick={onStop}
               aria-label={label('components.ai.stop', '停止')}
+              title={label('components.ai.stop', '停止')}
             >
-              <svg viewBox="0 0 12 12" aria-hidden="true">
-                <rect x="2.5" y="2.5" width="7" height="7" rx="1.5" fill="currentColor" />
-              </svg>
-              {label('components.ai.stop', '停止')}
+              <StopIcon />
             </button>
           ) : (
             <button
@@ -101,12 +141,23 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
               className="ai-prompt-input__send"
               disabled={!canSend}
               onClick={() => onSubmit?.()}
+              aria-label={label('components.ai.send', '发送')}
+              title={label('components.ai.send', '发送')}
             >
-              {label('components.ai.send', '发送')}
+              <SendIcon />
             </button>
           )}
         </div>
-        {footer != null && <div className="ai-prompt-input__footer">{footer}</div>}
+        {hasFooter && (
+          <div className="ai-prompt-input__footer">
+            {footer ?? (
+              <>
+                <div className="ai-prompt-input__footer-left">{footerLeft}</div>
+                <div className="ai-prompt-input__footer-right">{footerRight}</div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     );
   },

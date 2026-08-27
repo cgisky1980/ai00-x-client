@@ -63,11 +63,12 @@ Collapse           复合: Collapse(defaultActiveKeys?/activeKeys?/onChange?/acc
 Steps              props: steps: {title, description?}[]/current（横向；finish 勾/process 实心呼吸/wait 墨阶；≤640px 纵排）
 ```
 
-## AI 系组件（v0.15 · ./web 出口；源 src/components/web/ai/；类前缀 `.ai-`；纯 UI / props 数据注入 / 零 store 依赖）
+## AI 系组件（v0.16 · ./web 出口；源 src/components/web/ai/；类前缀 `.ai-`；纯 UI / props 数据注入 / 零 store 依赖）
 
 ```
 ChatMessage        props: role: 'user'|'assistant'/avatar?/children（Markdown 由消费方渲染后传入）/time?/actions?/streaming?（antd X Bubble 对位；user=右侧浅青气泡，暗色自动反转黛青透底）
-PromptInput        props: value/onChange/onSubmit?/onStop?/loading?/placeholder?/disabled?/maxHeight?=200/footer?（antd X Sender 对位；Enter 发送+IME 守卫+Shift+Enter 换行；loading→停止按钮；footer=业务扩展条）
+PromptInput        props: value/onChange/onSubmit?/onStop?/loading?/placeholder?/disabled?/maxHeight?=200/footer?/footerLeft?/footerRight?（antd X Sender 对位；Enter 发送+IME 守卫+Shift+Enter 换行；圆形图标发送/停止按钮（停止呼吸可打断）；footer=整行扩展 或 footerLeft（模型选择/工具）+footerRight（辅助信息）分区）
+ModelSelector      props: groups: {id, name?, models: {id, name, description?, badge?, disabled?, disabledReason?}[]}[]/currentId?/onSelect(groupId, modelId)/loading?/size?: 'sm'|'md'/side?/align?（标准模型选择器：胶囊 Trigger+Popover 分组列表；当前项 Check 高亮/disabled 置灰；数据注入零 store——与 PromptInput footerLeft 搭配成标准对话输入框）
 Conversations      props: items: {id, label, icon?, group?, timestamp?}[]/activeId?/onSelect?/itemActions?(id)（antd X Conversations 对位；分组+激活左缘指示条；时间 mono+tabular）
 ThinkingPanel      props: children/phase: 'thinking'|'done'/duration?/defaultOpen?=false/open?/onToggle?/label?/cursor?=true（antd X ThoughtChain 对位；thinking→done 自动折叠仅非受控；open 提供时受控；折叠头呼吸三点+用时；展开/折叠 grid 动画）
 AIToolCard         props: icon?/title/status: 'running'|'success'|'error'|'confirm'|'cancelled'/meta?/expandable?/defaultExpanded?/confirm?: {onConfirm, onReject, confirmText?, rejectText?}/error?/children（antd X Tool 对位；确认态强制展开显示按钮组）
