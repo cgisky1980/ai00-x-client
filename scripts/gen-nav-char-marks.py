@@ -20,13 +20,13 @@ OUT = os.path.join(
     ROOT, "src", "web-ui", "src", "tools", "todo", "components", "NavCharMarks.tsx"
 )
 
-# 导航单字（即=即刻去做 / 恒=恒常之事 / 志=目标方略 / 修=修行成长 / 迹=已成之迹）
-CHARS = ["即", "恒", "志", "修", "迹"]
+# 导航单字（行=笃行之事（看板：谋→计划→执行→成） / 恒=恒常之事 / 志=目标方略 / 修=修行成长 / 迹=已成之迹）
+CHARS = ["行", "恒", "志", "修", "迹"]
 WEIGHT = 700  # 印记观感：重一档在小尺寸下立得住
 VIEWBOX = 1000  # 与字体 upem 一致（思源宋体 1000）
 
 # 组件命名（语义命名，与 CHARS 一一对应；i18n 换字不改代码名）
-NAMES = ["Now", "Habit", "Goal", "Grow", "Trail"]
+NAMES = ["Action", "Habit", "Goal", "Grow", "Trail"]
 
 font = TTFont(FONT)
 instantiateVariableFont(font, {"wght": WEIGHT}, inplace=True)

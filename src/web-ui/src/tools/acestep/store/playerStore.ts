@@ -15,7 +15,7 @@
  */
 
 import { create } from 'zustand';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { aceStepService } from '../services/AceStepService';
 import { shareService } from '../services/ShareService';
 import { p2pClient } from '../services/P2PClient';
@@ -23,6 +23,8 @@ import { audioPlaybackApi } from '../../vrm/lib/audioPlaybackApi';
 import type { P2PStatus, P2pProgress } from '../services/P2PClient';
 import type { SharedSongListItem, ShareMeta } from '../services/ShareService';
 import type { SongEntry, SongMeta } from '../types';
+import type { OnlineSong } from '../../music-source/types';
+import { songKey } from '../../music-source/types';
 import { recordPlaySignal, parseSongTags } from './profileStore';
 
 /** 播放模式 */
@@ -47,10 +49,11 @@ export type PlayMode = 'sequential' | 'repeat-one' | 'repeat-all' | 'shuffle';
  */
 export type PlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'ended';
 
-/** 播放列表条目：本地 SongEntry 或远端 shareId */
+/** 播放列表条目：本地 SongEntry、远端 shareId 或在线音源（musicdl）歌曲 */
 export type PlaylistItem =
   | { kind: 'local'; entry: SongEntry }
-  | { kind: 'share'; shareId: string; meta?: SharedSongListItem };
+  | { kind: 'share'; shareId: string; meta?: SharedSongListItem }
+  | { kind: 'online'; song: OnlineSong };
 
 /**
  * Derive the cache directory for a .a00m file.
@@ -97,6 +100,38 @@ function buildSongMetaFromShare(shareId: string, meta: ShareMeta): SongMeta {
       channels: 2,
       bitsPerSample: 16,
       durationSeconds: meta.durationSeconds,
+    },
+    creation: {
+      mode: 'text2music',
+      hasPlan: false,
+      hasLegoState: false,
+      hasChat: false,
+    },
+  };
+}
+
+/**
+ * Build a SongMeta from an online song (musicdl) for player display.
+ *
+ * 在线音源没有 .a00m 元数据，用搜索结果的字段合成一个最小可用的
+ * SongMeta（时长缺失时置 0，实际时长由 PlayerEngine 轮询 channel 取回）。
+ */
+function buildSongMetaFromOnline(song: OnlineSong): SongMeta {
+  return {
+    title: song.name,
+    artist: song.singers,
+    album: song.album,
+    genre: '',
+    durationSeconds: song.durationS,
+    createdAt: Date.now(),
+    formatVersion: 'v5.1',
+    audio: {
+      filename: `online-${songKey(song)}`,
+      format: song.ext || 'mp3',
+      sampleRate: 44100,
+      channels: 2,
+      bitsPerSample: 16,
+      durationSeconds: song.durationS,
     },
     creation: {
       mode: 'text2music',
@@ -166,6 +201,12 @@ export interface PlayerStoreState {
    * "本地 .a00m 作品播放"，避免列表高亮误判。
    */
   currentShareId: string | null;
+  /**
+   * 当前正在播放的在线音源歌曲 ID（`{platform}:{id}`）。在线音源播放
+   * （playOnline）时设置；其他来源播放或关闭时为 null。用于 MusicPopup
+   * 搜索结果高亮与 PlayerBridge 的 source 序列化。
+   */
+  currentOnlineId: string | null;
 
   // ---- Playlist state ----
   /** 当前播放列表（空表示无列表，仅单首播放） */
@@ -202,6 +243,11 @@ export interface PlayerStoreState {
    * @param songTags 歌曲标签数组（可选，用于画像信号采集；从 SharedSongListItem.tags 解析）
    */
   playShare: (shareId: string, songTags?: string[]) => Promise<void>;
+  /**
+   * 播放在线音源（musicdl sidecar）歌曲：搜索结果自带直链/下载头/歌词 →
+   * Rust 代理下载落盘（{songs_dir}/.cache/musicfree/）→ AudioMixer 播放。
+   */
+  playOnline: (song: OnlineSong) => Promise<void>;
   /** Toggle play/pause. The audio element calls `setPlaying` on actual state
    * changes; this method triggers the element via a store-side flag. */
   togglePlay: () => void;
@@ -233,6 +279,8 @@ export interface PlayerStoreState {
   appendToPlaylist: (items: PlaylistItem[]) => void;
   /** 清空播放列表（不停止当前播放） */
   clearPlaylist: () => void;
+  /** 从播放列表移除指定索引条目（修正 currentIndex；不影响正在播的歌） */
+  removeFromPlaylist: (index: number) => void;
   /**
    * Destroy the P2P service instance (cleans up WebTorrent client, revokes
    * blob URL, clears p2p* state). Called on song switch and closePlayer.
@@ -305,6 +353,15 @@ function flushPlaySignal(forceCompleted = false): void {
   currentPlaybackTrack = null;
 }
 
+// ----------------------------------------------------------------------------
+// 在线音频预取（智能缓冲）
+// ----------------------------------------------------------------------------
+
+/** 预取深度：当前曲之后最多预下载几首 */
+const ONLINE_PREFETCH_COUNT = 2;
+/** 预取链互斥（一次只跑一条后台链，避免并发下载抢占带宽） */
+let onlinePrefetchRunning = false;
+
 export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   currentEntry: null,
   currentSong: null,
@@ -324,6 +381,7 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   error: null,
   currentP2PShareId: null,
   currentShareId: null,
+  currentOnlineId: null,
 
   playlist: [],
   currentIndex: -1,
@@ -512,6 +570,7 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
       unpackingPath: null,
       error: null,
       currentShareId: shareId,
+      currentOnlineId: null,
     });
 
     // v1.3.0+: Set up profile signal tracking for this share playback.
@@ -528,6 +587,76 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
     shareService
       .recordPlay(shareId, 'desktop')
       .catch((e) => console.warn('[player] recordPlay failed:', e));
+  },
+
+  playOnline: async (song) => {
+    flushPlaySignal();
+    get().destroyP2P();
+
+    const onlineId = songKey(song);
+    // 复用 unpackingPath 作为 loading 信号（MusicPopup 卡片转圈）
+    set({ unpackingPath: onlineId, error: null, playbackState: 'loading' });
+
+    try {
+      // 1. 取音频：收藏歌优先本地持久文件（免下载、直链过期仍可播）
+      //    → 否则在线下载落盘（缓存命中直接复用）
+      let audioPath: string;
+      const cacheKey = onlineId.replace(/[^a-zA-Z0-9_-]/g, '_');
+      if (song.localPath) {
+        audioPath = song.localPath;
+      } else {
+        audioPath = await invoke<string>('musicfree_download_media', {
+          url: song.downloadUrl,
+          key: cacheKey,
+          headers: song.dlHeaders ?? {},
+        });
+      }
+
+      // 2. 停旧 channel，播放下载文件（歌词直接来自搜索结果，无需二次请求）
+      const prevChannelId = get().channelId;
+      if (prevChannelId !== null) {
+        try { await audioPlaybackApi.audioStopChannel(prevChannelId, 0); } catch { /* ignore */ }
+      }
+      const channelId = await audioPlaybackApi.audioPlayBgm(
+        audioPath, get().volume, 0, false,
+      );
+
+      const meta = buildSongMetaFromOnline(song);
+      set({
+        currentEntry: {
+          path: audioPath,
+          filename: `${cacheKey}.${song.ext}`,
+          fileSize: song.fileSizeBytes,
+          modifiedAt: Date.now(),
+          isEncrypted: false,
+          meta,
+        },
+        currentSong: meta,
+        audioPath,
+        channelId,
+        coverPath: null,
+        lrcText: song.lyric,
+        showLyricsPanel: song.lyric ? true : false,
+        isPlaying: true,
+        playbackState: 'playing',
+        currentTime: 0,
+        duration: song.durationS,
+        unpackingPath: null,
+        error: null,
+        currentShareId: null,
+        currentOnlineId: onlineId,
+      });
+      // 播放成功后后台预取队列中接下来几首在线歌的音频（不抢当前曲带宽）
+      void prefetchOnlineAudio();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      set({
+        unpackingPath: null,
+        error: `在线播放失败: ${msg}（收藏歌曲的直链可能已过期，可删除后重新搜索）`,
+        currentOnlineId: null,
+        ...(get().playbackState === 'loading' ? { playbackState: 'idle' as PlaybackState } : {}),
+      });
+    }
   },
 
   togglePlay: () => {
@@ -614,6 +743,16 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   },
 
   playNext: async (auto = false) => {
+    // 歌曲电台接管：电台模式列表恒单曲（逐首推送），ended 自动连播由
+    // 电台层（MusicPopup useEffect → radioNext）统一推进——此处跳过，
+    // 避免 repeat-one/repeat-all/shuffle 把电台当前曲重播或空转。
+    if (auto) {
+      try {
+        const { useMusicSourceStore } = await import('../../music-source/musicSourceStore');
+        if (useMusicSourceStore.getState().radioActive && get().currentOnlineId) return;
+      } catch { /* 动态加载失败按原逻辑走 */ }
+    }
+
     // v1.3.0+: Flush current share's play signal before switching.
     // If auto=true (onEnded), setEnded already flushed; flushPlaySignal
     // is a no-op when currentPlaybackTrack is null.
@@ -704,6 +843,22 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
 
   clearPlaylist: () => set({ playlist: [], currentIndex: -1, shuffleHistory: [] }),
 
+  removeFromPlaylist: (index) => {
+    const { playlist, currentIndex } = get();
+    if (index < 0 || index >= playlist.length) return;
+    const next = playlist.filter((_, i) => i !== index);
+    // 索引修正：删当前曲 → 指向同位置的下一首（不自动切歌，正在播的
+    // 歌不受影响，播完后 playNext 从新索引续）；删末尾当前曲 → 前移一位；
+    // 列表删空 → 复位。删当前曲之后的条目不影响 currentIndex。
+    let nextIndex = currentIndex;
+    if (index === currentIndex) {
+      nextIndex = index < next.length ? index : next.length - 1;
+    } else if (index < currentIndex) {
+      nextIndex = currentIndex - 1;
+    }
+    set({ playlist: next, currentIndex: nextIndex, shuffleHistory: [] });
+  },
+
   destroyP2P: () => {
     // Stage 5.13 + 长期做种（遇则弃）：切歌时仅清理瞬态 p2p* UI 状态，
     // **不调用 cancelDownload**——已下载的 .a00m 文件与 torrent 长期留存并
@@ -745,6 +900,7 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
       p2pProgress: 0,
       p2pDownloadingShareId: null,
       currentShareId: null,
+      currentOnlineId: null,
     });
   },
 
@@ -767,6 +923,40 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
 
 let p2pPollTimer: ReturnType<typeof setInterval> | null = null;
 let p2pPollingShareId: string | null = null;
+
+/**
+ * 后台预取播放队列中接下来几首在线歌的音频。
+ *
+ * 播放成功后调用（不与当前曲下载抢带宽）：从 currentIndex+1 向后扫描，
+ * 跳过已有 localPath 的收藏歌，把接下来的在线歌依次下载到临时缓存
+ * （Rust 端缓存命中即复用）→ 轮到它播放时秒开。fire-and-forget，
+ * 失败静默（播放时会按正常链路重下）。
+ * 定义在 store 之后（引用 usePlayerStore，避免 use-before-define）。
+ */
+async function prefetchOnlineAudio(): Promise<void> {
+  if (onlinePrefetchRunning) return;
+  onlinePrefetchRunning = true;
+  try {
+    const { playlist, currentIndex } = usePlayerStore.getState();
+    const upcoming = playlist
+      .slice(currentIndex + 1)
+      .filter((it): it is Extract<PlaylistItem, { kind: 'online' }> => it.kind === 'online')
+      .filter((it) => !it.song.localPath)
+      .slice(0, ONLINE_PREFETCH_COUNT);
+    for (const item of upcoming) {
+      const key = songKey(item.song).replace(/[^a-zA-Z0-9_-]/g, '_');
+      await invoke<string>('musicfree_download_media', {
+        url: item.song.downloadUrl,
+        key,
+        headers: item.song.dlHeaders ?? {},
+      });
+    }
+  } catch {
+    // 静默：预取失败不影响播放（播放时走正常下载链路）
+  } finally {
+    onlinePrefetchRunning = false;
+  }
+}
 
 /** 停止当前 P2P 进度轮询并复位（幂等）。 */
 function stopP2pPoll(): void {
@@ -861,6 +1051,8 @@ async function playItem(
 
   if (item.kind === 'local') {
     await get().playSong(item.entry);
+  } else if (item.kind === 'online') {
+    await get().playOnline(item.song);
   } else {
     // Pass tags from SharedSongListItem.meta to playShare for profile
     // signal collection. Direct playShare callers (PlayerBridge) don't
@@ -933,6 +1125,7 @@ async function loadAndPlay(
       unpackingPath: null,
       error: null,
       currentShareId: null,
+      currentOnlineId: null,
     });
   } catch (e) {
     set({ unpackingPath: null });

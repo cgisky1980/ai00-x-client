@@ -107,3 +107,13 @@ config/jwt.toml
 !.env.example
 # Tauri updater signing key (NEVER commit)
 .tauri/
+
+# Local generated artifacts (keep on disk, not tracked)
+0.3/
+__pycache__/
+build-log.txt
+scan-out.txt
+tmp_batch.txt
+graphify-out/
+musicdl_outputs/
+scripts/router_head/

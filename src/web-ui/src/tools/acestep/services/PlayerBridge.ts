@@ -14,8 +14,10 @@
 
 import { emit, listen } from '@tauri-apps/api/event';
 import { usePlayerStore } from '../store/playerStore';
+import { useMusicSourceStore } from '../../music-source/musicSourceStore';
 import type { PlayMode } from '../store/playerStore';
 import type { SongEntry } from '../types';
+import type { OnlineSong } from '../../music-source/types';
 
 // ---- Event names ----
 const EVENT_PLAYER_STATE = 'acestep://player-state';
@@ -44,12 +46,19 @@ export interface AceStepPlayerState {
   p2pDownloadingShareId: string | null;
   /** P2P 下载进度（0-1）。无下载任务时为 null。 */
   p2pDownloadPercent: number | null;
-  source: 'local' | 'share';
+  source: 'local' | 'share' | 'online';
+  /** 播放状态机（idle/loading/playing/paused/ended）——电台模式区分「播完推下一首」与「用户暂停」的依据。 */
+  playbackState: 'idle' | 'loading' | 'playing' | 'paused' | 'ended';
   showLyrics: boolean;
   /** Absolute path to the unpacked cover image (null when no cover). */
   coverPath: string | null;
   /** 当前正在播放的分享 ID（source === 'share' 时有效，否则 null）。 */
   currentShareId: string | null;
+  /**
+   * 当前正在播放的在线音源歌曲 ID（`{platform}:{id}`，
+   * source === 'online' 时有效，否则 null）。用于搜索结果高亮。
+   */
+  currentOnlineId: string | null;
   /** 当前正在播放的歌曲绝对路径（null 表示无播放）。用于本地作品组高亮。 */
   currentEntryPath: string | null;
 }
@@ -65,8 +74,15 @@ export interface AceStepPlayerCommand {
     | 'togglePlayMode'
     | 'toggleLyrics'
     | 'playSong'
-    | 'playShare';
-  payload?: { time?: number; volume?: number; entry?: SongEntry; shareId?: string };
+    | 'playShare'
+    | 'playOnline';
+  payload?: {
+    time?: number;
+    volume?: number;
+    entry?: SongEntry;
+    shareId?: string;
+    song?: OnlineSong;
+  };
 }
 
 // ---- Lyrics state schema (AceStep → Main) ----
@@ -112,10 +128,12 @@ function serializeState(): AceStepPlayerState {
     error: s.error,
     p2pDownloadingShareId: s.p2pDownloadingShareId,
     p2pDownloadPercent: s.p2pDownloadingShareId ? s.p2pProgress : null,
-    source: s.currentShareId ? 'share' : 'local',
+    source: s.currentShareId ? 'share' : s.currentOnlineId ? 'online' : 'local',
+    playbackState: s.playbackState,
     showLyrics: s.showLyricsPanel,
     coverPath: s.coverPath,
     currentShareId: s.currentShareId,
+    currentOnlineId: s.currentOnlineId,
     currentEntryPath: s.currentEntry?.path ?? null,
   };
 }
@@ -165,6 +183,18 @@ function handleCommand(cmd: AceStepPlayerCommand): void {
       store.togglePlay();
       break;
     case 'next':
+      // 歌曲电台播放中：下一首由电台层推进（radioNext），统一所有
+      // 控制入口（footer / 歌词浮层 / MusicActivity）的行为——电台恒
+      // 单曲挂列表，playNext 只会重播或空转。
+      if (useMusicSourceStore.getState().radioActive && store.currentOnlineId) {
+        void useMusicSourceStore
+          .getState()
+          .radioNext()
+          .then(async (song) => {
+            if (song) await usePlayerStore.getState().playOnline(song);
+          });
+        break;
+      }
       void store.playNext(false);
       break;
     case 'prev':
@@ -196,6 +226,11 @@ function handleCommand(cmd: AceStepPlayerCommand): void {
         void store.playShare(cmd.payload.shareId);
       }
       break;
+    case 'playOnline':
+      if (cmd.payload?.song) {
+        void store.playOnline(cmd.payload.song);
+      }
+      break;
   }
 }
 
@@ -218,13 +253,15 @@ export function startPlayerBridge(): () => void {
       state.duration !== prevState.duration ||
       state.volume !== prevState.volume ||
       state.playMode !== prevState.playMode ||
-      state.playlist.length !== prevState.playlist.length ||
+      state.playlist !== prevState.playlist ||
       state.currentIndex !== prevState.currentIndex ||
+      state.playbackState !== prevState.playbackState ||
       state.p2pStatus !== prevState.p2pStatus ||
       state.p2pPeerCount !== prevState.p2pPeerCount ||
       state.error !== prevState.error ||
       state.p2pDownloadingShareId !== prevState.p2pDownloadingShareId ||
       state.p2pProgress !== prevState.p2pProgress ||
+      state.currentOnlineId !== prevState.currentOnlineId ||
       state.showLyricsPanel !== prevState.showLyricsPanel;
 
     if (meaningfulChange) {
