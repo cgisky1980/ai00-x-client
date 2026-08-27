@@ -287,6 +287,7 @@ export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResul
   useEffect(() => {
     let unlistenFn: (() => void) | null = null;
     let unlistenAceStepFn: (() => void) | null = null;
+    let unlistenDshFn: (() => void) | null = null;
     void (async () => {
       try {
         const { listen } = await import('@tauri-apps/api/event');
@@ -299,11 +300,16 @@ export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResul
           useModeStore.getState().setActiveMode('music');
           useSceneStore.getState().openScene('acestep');
         });
+        // dsh Agent 场景唤起（策窗口委托交付链路）
+        unlistenDshFn = await listen('open-dsh-scene', () => {
+          useSceneStore.getState().openScene('dsh');
+        });
       } catch {}
     })();
     return () => {
       if (unlistenFn) unlistenFn();
       if (unlistenAceStepFn) unlistenAceStepFn();
+      if (unlistenDshFn) unlistenDshFn();
     };
   }, []);
 

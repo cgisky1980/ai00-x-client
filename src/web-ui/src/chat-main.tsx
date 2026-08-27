@@ -41,6 +41,7 @@ async function startChatWindow(): Promise<void> {
   const sessionId = params.get('sessionId') || undefined;
   const openSettings = params.get('openSettings') === '1';
   const openMusic = params.get('openMusic') === '1';
+  const openDsh = params.get('openDsh') === '1';
 
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <AppErrorBoundary>
@@ -49,7 +50,7 @@ async function startChatWindow(): Promise<void> {
           <ChatProvider>
             <ViewModeProvider defaultMode="coder">
               <SSHRemoteProvider>
-                <ChatWindowApp sessionId={sessionId} openSettings={openSettings} openMusic={openMusic} />
+                <ChatWindowApp sessionId={sessionId} openSettings={openSettings} openMusic={openMusic} openDsh={openDsh} />
               </SSHRemoteProvider>
             </ViewModeProvider>
           </ChatProvider>

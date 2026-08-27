@@ -13,9 +13,10 @@ interface ChatWindowAppProps {
   sessionId?: string;
   openSettings?: boolean;
   openMusic?: boolean;
+  openDsh?: boolean;
 }
 
-const ChatWindowApp: React.FC<ChatWindowAppProps> = ({ sessionId, openSettings, openMusic }) => {
+const ChatWindowApp: React.FC<ChatWindowAppProps> = ({ sessionId, openSettings, openMusic, openDsh }) => {
   const { activeWorkspace } = useWorkspaceContext();
   const openScene = useSceneStore((s) => s.openScene);
   const init = useCoreLayoutInit(false);
@@ -50,6 +51,15 @@ const ChatWindowApp: React.FC<ChatWindowAppProps> = ({ sessionId, openSettings, 
       manager.switchChatSession(sessionId);
     }
   }, [sessionId]);
+
+  // dsh Agent 场景直开（策窗口委托交付唤起）
+  useEffect(() => {
+    if (!openDsh) return;
+    const timer = setTimeout(() => {
+      openScene('dsh');
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [openDsh, openScene]);
 
   return (
     <div className="ai00-x-chat-window-app">
