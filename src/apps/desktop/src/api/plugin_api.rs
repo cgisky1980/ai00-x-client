@@ -1062,6 +1062,9 @@ pub struct PluginAiCompleteRequest {
     pub temperature: Option<f64>,
     #[serde(default)]
     pub top_p: Option<f64>,
+    /// 业务 tag（调用方透传，如 todo:assess:{goalId}；用于用量统计按业务归属聚合）
+    #[serde(default)]
+    pub tag: Option<String>,
 }
 
 /// Response DTO for `plugin_ai_complete`.
@@ -1070,6 +1073,10 @@ pub struct PluginAiCompleteRequest {
 pub struct PluginAiCompleteResponse {
     pub text: String,
     pub usage: Option<PluginAiUsage>,
+    /// 实际命中的模型名（含回退 primary 后的值）
+    pub model: String,
+    /// 是否本地推理（rwkv-local）
+    pub local: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -1197,9 +1204,10 @@ pub async fn plugin_ai_complete(
     }
     messages.push(Message::user(request.prompt.clone()));
 
+    let started = std::time::Instant::now();
     let run = plugin_ai_run(&ai_client, messages.clone()).await;
-    let (full_text, usage) = match run {
-        Ok(r) => r,
+    let (full_text, usage, used_client) = match run {
+        Ok(r) => (r.0, r.1, ai_client.clone()),
         Err(e) => {
             if has_explicit_model {
                 return Err(e);
@@ -1219,13 +1227,36 @@ pub async fn plugin_ai_complete(
                 request.top_p,
                 request.max_tokens,
             );
-            plugin_ai_run(&fallback, messages).await?
+            let r = plugin_ai_run(&fallback, messages).await?;
+            (r.0, r.1, fallback)
         }
     };
+
+    // 实际命中的模型与本地判定（config.name/model 任一为 rwkv-local 即本地）
+    let used_model = used_client.config.model.clone();
+    let is_local = used_client.config.name == "rwkv-local" || used_model == "rwkv-local";
+
+    // 用量记账（失败不阻塞主链路）
+    crate::api::ai_usage_api::record_usage(crate::api::ai_usage_api::AiUsageRecord {
+        at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0),
+        plugin_id: request.plugin_id.clone(),
+        tag: request.tag.clone(),
+        model: used_model.clone(),
+        local: is_local,
+        prompt_tokens: usage.as_ref().map(|u| u.prompt_tokens).unwrap_or(0),
+        completion_tokens: usage.as_ref().map(|u| u.completion_tokens).unwrap_or(0),
+        latency_ms: started.elapsed().as_millis() as u64,
+    })
+    .await;
 
     Ok(PluginAiCompleteResponse {
         text: full_text,
         usage,
+        model: used_model,
+        local: is_local,
     })
 }
 

@@ -15,6 +15,7 @@ pub mod download_manager;
 pub mod dsh_manager;
 pub mod dsh_proxy;
 pub mod embedding;
+pub mod internal_api;
 pub mod kv_store;
 pub mod logging;
 pub mod machine_id;
@@ -23,6 +24,7 @@ pub mod member_chat_window;
 pub mod mirror_hosts;
 pub mod model_checker;
 pub mod model_init;
+pub mod music_source_manager;
 pub mod overlay;
 pub mod resource_manager;
 pub mod resource_p2p;
@@ -526,6 +528,10 @@ pub async fn run() {
             dsh_manager::dsh_status,
             dsh_manager::dsh_ensure_ready,
             dsh_manager::dsh_stop,
+            dsh_manager::dsh_plugins_list,
+            dsh_manager::dsh_plugin_set_enabled,
+            dsh_manager::dsh_plugin_remove,
+            dsh_manager::dsh_plugin_install,
             theme::open_overlay_force,
             theme::show_main_window,
             theme::hide_loader_window,
@@ -814,11 +820,14 @@ pub async fn run() {
             api::plugin_api::plugin_data_keys,
             api::plugin_api::plugin_data_clear,
             api::plugin_api::plugin_ai_complete,
+            api::ai_usage_api::ai_usage_query,
             api::plugin_api::plugin_emit_event,
             api::plugin_api::plugin_data_dir,
             api::todo_api::todo_store_get,
             api::todo_api::todo_store_set,
             api::todo_api::todo_focus_append,
+            api::todo_api::todo_plan_get,
+            api::todo_api::todo_plan_set,
             git_is_repository,
             git_get_repository,
             git_get_status,
@@ -846,6 +855,7 @@ pub async fn run() {
             git_merge_branch,
             git_has_conflicts,
             git_abort_merge,
+            git_snapshot,
             generate_commit_message,
             quick_commit_message,
             save_git_repo_history,
@@ -1189,6 +1199,19 @@ pub async fn run() {
             api::p2p_api::p2p_remove,
             api::p2p_api::p2p_cache_stats,
             api::p2p_api::p2p_clear_cache,
+            // 在线音源媒体下载（musicdl sidecar 配套）
+            api::musicfree_api::musicfree_download_media,
+            api::musicfree_api::musicfree_clear_cache,
+            // musicdl 在线音源 sidecar（uv venv + Python 进程守护）
+            music_source_manager::music_source_status,
+            music_source_manager::music_source_ensure_ready,
+            music_source_manager::music_source_search,
+            music_source_manager::music_source_charts,
+            music_source_manager::music_source_chart_tracks,
+            music_source_manager::music_source_radio_pool,
+            music_source_manager::music_source_parse_playlist,
+            music_source_manager::music_source_resolve,
+            music_source_manager::music_source_stop,
         ])
         .run(tauri::generate_context!())
         .ok();
