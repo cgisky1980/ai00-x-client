@@ -720,3 +720,37 @@ pub async fn load_git_repo_history(
         None => Ok(Vec::new()),
     }
 }
+
+// ---------------------------------------------------------------------------
+// 工作区快照（志目录/默认工作区：auto-init 静默 + 任务粒度 commit）
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitSnapshotRequest {
+    pub dir: String,
+    pub message: Option<String>,
+}
+
+/// 工作区 git 快照：非 repo 自动 init → add_all → commit。
+/// 纯 libgit2——不依赖系统安装 git / 用户 git 配置。
+/// 委托前（基线）/ 任务完成时（快照）调用；失败返回错误但不该阻塞业务主流程。
+#[tauri::command]
+pub async fn git_snapshot(
+    _state: State<'_, AppState>,
+    request: GitSnapshotRequest,
+) -> Result<ai00_x_git::SnapshotResult, String> {
+    let path = std::path::PathBuf::from(&request.dir);
+    if !path.is_dir() {
+        return Err(format!("dir not found: {}", request.dir));
+    }
+    // 纯 libgit2 同步快照（spawn 到阻塞线程池避免卡 async 运行时）
+    tokio::task::spawn_blocking(move || {
+        ai00_x_git::snapshot(
+            &path,
+            request.message.as_deref().unwrap_or("task: agent snapshot"),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

@@ -62,8 +62,10 @@ fn router() -> Router {
         .hoop(Compression::new())
         .hoop(cors_allow_all)
         .push(
-            // Ai00-X AI 网关：dsh @ai00-x/ai-bridge 插件的统一 LLM 入口
-            Router::with_path("ai00-internal").push(crate::ai_gateway::router()),
+            // Ai00-X 内部 API：AI 网关（ai-bridge 插件 LLM 入口）+ 业务回呼（@ai00-x/tools 插件）
+            Router::with_path("ai00-internal")
+                .push(crate::ai_gateway::router())
+                .push(crate::internal_api::router()),
         )
         .push(crate::dsh_proxy::router())
         .push(
