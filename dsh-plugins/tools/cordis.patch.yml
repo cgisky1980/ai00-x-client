@@ -1,0 +1,5 @@
+# @ai00-x/dsh-tools bundle patch:
+# 注册 Ai00-X 业务工具（系统通知 / 壁纸 / 知行待办，经桌面客户端内部 API 回呼宿主）。
+- insert:
+    - id: ai00-x-tools
+      name: '@ai00-x/dsh-tools'

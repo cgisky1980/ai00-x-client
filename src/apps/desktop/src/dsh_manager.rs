@@ -128,36 +128,47 @@ fn install_marker() -> PathBuf {
     dsh_home().join("install-marker.json")
 }
 
-/// 随客户端分发的 @ai00-x/dsh-ai-bridge 插件目录。
+/// 随客户端分发的 dsh 插件目录（按子目录名解析）。
 ///
-/// 解析顺序：env 覆盖 → exe 旁 `dsh-plugins/ai-bridge`（release 布局）
-/// → dev 布局 `client/dsh-plugins/ai-bridge`（从 target/release 反推）。
-fn ai_bridge_plugin_dir() -> Option<PathBuf> {
+/// 解析顺序：env 覆盖 → exe 旁 `dsh-plugins/<name>`（release 布局）
+/// → dev 布局 `client/dsh-plugins/<name>`（从 target/release 反推）。
+fn bundled_plugin_dir(name: &str) -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("AI00X_DSH_PLUGINS_DIR") {
-        let p = PathBuf::from(dir).join("ai-bridge");
+        let p = PathBuf::from(dir).join(name);
         if p.join("package.json").exists() {
             return Some(p);
         }
     }
     let exe = std::env::current_exe().ok()?;
     let exe_dir = exe.parent()?;
-    // release：exe 旁 dsh-plugins/ai-bridge
-    let bundled = exe_dir.join("dsh-plugins").join("ai-bridge");
+    // release：exe 旁 dsh-plugins/<name>
+    let bundled = exe_dir.join("dsh-plugins").join(name);
     if bundled.join("package.json").exists() {
         return Some(bundled);
     }
-    // dev：client/target/release/../../dsh-plugins/ai-bridge
-    let dev = exe_dir.join("../../dsh-plugins/ai-bridge");
+    // dev：client/target/release/../../dsh-plugins/<name>
+    let dev = exe_dir.join("../../dsh-plugins").join(name);
     if dev.join("package.json").exists() {
         return Some(dev);
     }
     // dev（测试二进制在 target/release/deps/，深一层）
-    let dev_deep = exe_dir.join("../../../dsh-plugins/ai-bridge");
+    let dev_deep = exe_dir.join("../../../dsh-plugins").join(name);
     if dev_deep.join("package.json").exists() {
         return Some(dev_deep);
     }
     None
 }
+
+/// 随客户端分发的 @ai00-x/dsh-ai-bridge 插件目录。
+fn ai_bridge_plugin_dir() -> Option<PathBuf> {
+    bundled_plugin_dir("ai-bridge")
+}
+
+/// 随客户端分发的 dsh 插件清单：(子目录, npm 包名)。
+const BUNDLED_PLUGINS: &[(&str, &str)] = &[
+    ("ai-bridge", "@ai00-x/dsh-ai-bridge"),
+    ("tools", "@ai00-x/dsh-tools"),
+];
 
 // ---------------------------------------------------------------------------
 // 单例访问
@@ -211,7 +222,7 @@ pub fn set_app_handle(app: tauri::AppHandle) {
     *APP_HANDLE.lock().unwrap_or_else(|e| e.into_inner()) = Some(app);
 }
 
-fn app_handle() -> Option<tauri::AppHandle> {
+pub(crate) fn app_handle() -> Option<tauri::AppHandle> {
     APP_HANDLE.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
@@ -444,34 +455,37 @@ async fn ensure_profile() -> Result<(), String> {
         );
     }
 
-    // c：预装 ai-bridge（link 本地分发的插件目录）
-    let plugin_dir = ai_bridge_plugin_dir()
-        .ok_or_else(|| "ai-bridge plugin directory not found (bundled or dev)".to_string())?;
-    let deps_declared = manifest
-        .get("dependencies")
-        .and_then(|d| d.as_object())
-        .is_some_and(|d| d.contains_key("@ai00-x/dsh-ai-bridge"));
-    if !deps_declared {
-        let dsh = dsh_cmd();
-        let mut cmd = process_manager::create_tokio_command(&dsh);
-        cmd.args([
-            "plugin",
-            "--profile",
-            DSH_PROFILE,
-            "add",
-            &plugin_dir.to_string_lossy(),
-        ])
-        .env("DSH_HOME", dsh_home())
-        .env("PATH", prepend_path(node_dir()));
-        let output = cmd
-            .output()
-            .await
-            .map_err(|e| format!("dsh spawn failed: {e}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "dsh plugin add failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
+    // c：预装随客户端分发的插件（link 本地插件目录；ensure_profile 每次启动
+    // 幂等跑，未声明的插件会自动补装——存量安装升级后无需重装环境）
+    for (sub_dir, pkg_name) in BUNDLED_PLUGINS {
+        let plugin_dir = bundled_plugin_dir(sub_dir)
+            .ok_or_else(|| format!("{sub_dir} plugin directory not found (bundled or dev)"))?;
+        let deps_declared = manifest
+            .get("dependencies")
+            .and_then(|d| d.as_object())
+            .is_some_and(|d| d.contains_key(*pkg_name));
+        if !deps_declared {
+            let dsh = dsh_cmd();
+            let mut cmd = process_manager::create_tokio_command(&dsh);
+            cmd.args([
+                "plugin",
+                "--profile",
+                DSH_PROFILE,
+                "add",
+                &plugin_dir.to_string_lossy(),
+            ])
+            .env("DSH_HOME", dsh_home())
+            .env("PATH", prepend_path(node_dir()));
+            let output = cmd
+                .output()
+                .await
+                .map_err(|e| format!("dsh spawn failed: {e}"))?;
+            if !output.status.success() {
+                return Err(format!(
+                    "dsh plugin add ({pkg_name}) failed: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                ));
+            }
         }
     }
 
@@ -479,6 +493,49 @@ async fn ensure_profile() -> Result<(), String> {
         "[DshManager] profile {DSH_PROFILE} ready at {}",
         dir.display()
     );
+    ensure_agent_presets()?;
+    Ok(())
+}
+
+/// 预置 Ai00-X 自定义 agent preset（策窗口模块用）。
+///
+/// preset = `{DSH_HOME}/.agent-presets/<id>/agent.cordis.yml`（写入即时生效，
+/// roster 无需重启）。code 模块直接用 system preset "standard"，无需预置；
+/// 此处只预置壁纸工坊（ai00_wallpaper_* 工具由 @ai00-x/dsh-tools 全局注册，
+/// preset 仅定制 persona + ask-user）。
+fn ensure_agent_presets() -> Result<(), String> {
+    const WALLPAPER_PRESET: &str = r#"# Ai00-X 壁纸工坊 agent preset（策窗口「壁纸」模块）
+# 最小行集：定制 persona + ask-user（需求确认）；ai00_wallpaper_* 工具由
+# @ai00-x/dsh-tools 插件全局注册，无需在此声明。
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      You are a wallpaper studio agent powered by the {{model}} model, running inside the Ai00-X desktop client. Your working directory is {{cwd}}.
+
+      你的职责：帮用户制作并应用 HTML 动态壁纸。工作流程：
+      1. 用 ask_user_question 工具与用户确认风格/元素/动效偏好（一次问清，不反复打扰）
+      2. 生成完整自包含的 HTML 壁纸（内联 CSS/JS，无外部依赖，适配桌面全屏，性能友好）
+      3. 调用 ai00_wallpaper_create 工具创建壁纸项目（name + html 参数），需要应用桌面时用 apply: true
+      4. 用户要换现有壁纸时可用 ai00_set_wallpaper；查看已有项目用 ai00_wallpaper_projects
+
+      注意：不要用文件工具写 HTML 到磁盘（沙箱限制），必须通过 ai00_wallpaper_create 交付。
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+"#;
+    let dir = dsh_home().join(".agent-presets").join("ai00x-wallpaper");
+    let file = dir.join("agent.cordis.yml");
+    let need_write = match std::fs::read_to_string(&file) {
+        Ok(existing) => existing != WALLPAPER_PRESET,
+        Err(_) => true,
+    };
+    if need_write {
+        std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir preset dir: {e}"))?;
+        std::fs::write(&file, WALLPAPER_PRESET)
+            .map_err(|e| format!("write wallpaper preset: {e}"))?;
+        log::info!("[DshManager] preset ai00x-wallpaper written/updated");
+    }
     Ok(())
 }
 
@@ -637,21 +694,60 @@ async fn spawn_sidecar() -> Result<(), String> {
         child.id()
     );
 
-    // 日志泵（stderr → log）
+    // 日志泵（stderr → log + 插件错误事件；stdout 排水防管道阻塞）
     if let Some(stderr) = child.stderr.take() {
         tokio::spawn(async move {
             use tokio::io::AsyncReadExt;
             let mut reader = tokio::io::BufReader::new(stderr);
             let mut buf = [0u8; 4096];
             loop {
-                match reader.read(&mut buf).await {
+                match reader.read(&mut buf[..]).await {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        let line = String::from_utf8_lossy(&buf[..n]);
-                        for l in line.lines().filter(|l| !l.trim().is_empty()) {
+                        let text = String::from_utf8_lossy(&buf[..n]);
+                        for l in text.lines().filter(|l| !l.trim().is_empty()) {
                             log::info!("[dsh] {l}");
+                            // 插件树/插件行加载失败：显性化到前端（否则静默白屏，
+                            // 真实原因只在 app.log 的 [dsh] 行里）。
+                            // 归因升级：`failed to apply loader entry <module>` 提取模块名，
+                            // 前端据此提示「疑似插件 X 导致」+ 一键停用。
+                            if l.contains("plugin tree failed to load")
+                                || l.contains("failed to apply loader entry")
+                            {
+                                let module = l
+                                    .split("failed to apply loader entry")
+                                    .nth(1)
+                                    .map(|rest| {
+                                        rest.split_whitespace().next().unwrap_or("").to_string()
+                                    })
+                                    .filter(|m| !m.is_empty());
+                                if let Some(app) = app_handle() {
+                                    let _ = tauri::Emitter::emit(
+                                        &app,
+                                        "dsh://plugin-error",
+                                        serde_json::json!({
+                                            "module": module,
+                                            "raw": l.trim(),
+                                        }),
+                                    );
+                                }
+                            }
                         }
                     }
+                }
+            }
+        });
+    }
+    // stdout 排水泵（piped 但不读会在缓冲写满后阻塞子进程）
+    if let Some(stdout) = child.stdout.take() {
+        tokio::spawn(async move {
+            use tokio::io::AsyncReadExt;
+            let mut reader = tokio::io::BufReader::new(stdout);
+            let mut buf = [0u8; 4096];
+            loop {
+                match reader.read(&mut buf[..]).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {} // 丢弃（dsh 正常日志走 stderr）
                 }
             }
         });
@@ -751,8 +847,192 @@ fn monitor_restart() {
 }
 
 // ---------------------------------------------------------------------------
-// Tauri 命令
+// 插件管理（Phase 4.3：profile manifest 层 + 装卸）
 // ---------------------------------------------------------------------------
+
+/// 已安装插件（profile dependencies 层，可装卸的 bundle 级插件）。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DshPluginEntry {
+    pub name: String,
+    /// 依赖声明（版本号或 link: 路径）。
+    pub spec: String,
+    /// 是否在 profile bundles 里（dsh 会实际加载）。
+    pub in_bundles: bool,
+    /// 随客户端分发（不可卸载）。
+    pub bundled: bool,
+}
+
+/// 读 profile manifest → 已装插件列表。
+fn read_profile_plugins() -> Result<(Vec<DshPluginEntry>, serde_json::Value), String> {
+    let manifest_path = profile_dir().join("package.json");
+    let raw = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("read profile manifest: {e}"))?;
+    let manifest: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| format!("parse profile manifest: {e}"))?;
+    let bundles: Vec<String> = manifest
+        .get("dsh")
+        .and_then(|d| d.get("profile"))
+        .and_then(|p| p.get("bundles"))
+        .and_then(|b| b.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut entries: Vec<DshPluginEntry> = manifest
+        .get("dependencies")
+        .and_then(|d| d.as_object())
+        .map(|deps| {
+            deps.iter()
+                .map(|(name, spec)| DshPluginEntry {
+                    name: name.clone(),
+                    spec: spec.as_str().unwrap_or("").to_string(),
+                    in_bundles: bundles.contains(name),
+                    bundled: BUNDLED_PLUGINS.iter().any(|(_, pkg)| pkg == name),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok((entries, manifest))
+}
+
+/// manifest 写回（原子）。
+fn write_profile_manifest(manifest: &serde_json::Value) -> Result<(), String> {
+    let path = profile_dir().join("package.json");
+    let content =
+        serde_json::to_string_pretty(manifest).map_err(|e| format!("serialize manifest: {e}"))?;
+    std::fs::write(&path, content).map_err(|e| format!("write manifest: {e}"))
+}
+
+/// 执行 `dsh plugin --profile ai00x <args...>`。
+async fn dsh_plugin_cmd(args: &[&str]) -> Result<String, String> {
+    let dsh = dsh_cmd();
+    let mut cmd = process_manager::create_tokio_command(&dsh);
+    cmd.args(["plugin", "--profile", DSH_PROFILE])
+        .args(args)
+        .env("DSH_HOME", dsh_home())
+        .env("PATH", prepend_path(node_dir()))
+        .current_dir(profile_dir());
+    let output = cmd
+        .output()
+        .await
+        .map_err(|e| format!("dsh spawn failed: {e}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !output.status.success() {
+        return Err(format!(
+            "dsh plugin {} failed: {stderr}",
+            args.first().unwrap_or(&"")
+        ));
+    }
+    Ok(stdout)
+}
+
+/// 装卸后重启引擎（插件树只在 boot 时装载）。
+async fn restart_engine_for_plugins() {
+    let _ = stop().await;
+    tokio::spawn(async {
+        if let Err(e) = start().await {
+            log::error!("[DshManager] restart after plugin change failed: {e}");
+        }
+    });
+}
+
+#[tauri::command]
+pub async fn dsh_plugins_list() -> Result<Vec<DshPluginEntry>, String> {
+    let (entries, _) = read_profile_plugins()?;
+    Ok(entries)
+}
+
+/// 卸载插件（内置拒绝；pnpm remove + bundles 同步清理 + 引擎重启）。
+#[tauri::command]
+pub async fn dsh_plugin_remove(name: String) -> Result<(), String> {
+    let (entries, mut manifest) = read_profile_plugins()?;
+    let entry = entries
+        .iter()
+        .find(|e| e.name == name)
+        .ok_or_else(|| format!("plugin not installed: {name}"))?;
+    if entry.bundled {
+        return Err("bundled plugins cannot be removed".into());
+    }
+    // bundles 数组同步清理（否则 pnpm remove 后 manifest 仍引用 → 树加载失败）
+    if let Some(arr) = manifest
+        .get_mut("dsh")
+        .and_then(|d| d.get_mut("profile"))
+        .and_then(|p| p.get_mut("bundles"))
+        .and_then(|b| b.as_array_mut())
+    {
+        arr.retain(|v| v.as_str() != Some(name.as_str()));
+    }
+    write_profile_manifest(&manifest)?;
+    dsh_plugin_cmd(&["remove", &name]).await?;
+    restart_engine_for_plugins().await;
+    Ok(())
+}
+
+/// 停用/启用插件（编辑 bundles 数组；依赖保留在 dependencies，装过的包不卸）。
+/// 引擎只在 boot 时装载插件树，改完必须重启。
+#[tauri::command]
+pub async fn dsh_plugin_set_enabled(name: String, enabled: bool) -> Result<(), String> {
+    let (entries, mut manifest) = read_profile_plugins()?;
+    if !entries.iter().any(|e| e.name == name) {
+        return Err(format!("plugin not installed: {name}"));
+    }
+    let bundles = manifest
+        .get_mut("dsh")
+        .and_then(|d| d.get_mut("profile"))
+        .and_then(|p| p.get_mut("bundles"))
+        .and_then(|b| b.as_array_mut())
+        .ok_or("profile manifest has no dsh.profile.bundles")?;
+    if enabled {
+        if !bundles.iter().any(|v| v.as_str() == Some(name.as_str())) {
+            bundles.push(serde_json::json!(name));
+        }
+    } else {
+        bundles.retain(|v| v.as_str() != Some(name.as_str()));
+    }
+    write_profile_manifest(&manifest)?;
+    restart_engine_for_plugins().await;
+    Ok(())
+}
+
+/// 安装插件（npm spec；装完加入 bundles + 引擎重启）。
+#[tauri::command]
+pub async fn dsh_plugin_install(spec: String) -> Result<(), String> {
+    if spec.trim().is_empty() {
+        return Err("empty package spec".into());
+    }
+    dsh_plugin_cmd(&["add", &spec]).await?;
+    // add 后 reconcile 已把带 dsh.bundle 声明的包加入 bundles（ai-bridge 同机制）；
+    // manifest 重读校验，未加入则补（防御非 bundle 声明包）
+    let (_, mut manifest) = read_profile_plugins()?;
+    if let Some(deps) = manifest.get("dependencies").and_then(|d| d.as_object()) {
+        // spec 形态可能是 pkg / pkg@ver / @scope/pkg@ver——精确匹配优先，退化 endsWith
+        let hit = deps
+            .keys()
+            .find(|k| k.as_str() == spec.trim())
+            .or_else(|| deps.keys().find(|k| spec.trim().starts_with(k.as_str())));
+        if let Some(name) = hit {
+            let name = name.clone();
+            if let Some(arr) = manifest
+                .get_mut("dsh")
+                .and_then(|d| d.get_mut("profile"))
+                .and_then(|p| p.get_mut("bundles"))
+                .and_then(|b| b.as_array_mut())
+            {
+                if !arr.iter().any(|v| v.as_str() == Some(name.as_str())) {
+                    arr.push(serde_json::json!(name));
+                }
+            }
+            write_profile_manifest(&manifest)?;
+        }
+    }
+    restart_engine_for_plugins().await;
+    Ok(())
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

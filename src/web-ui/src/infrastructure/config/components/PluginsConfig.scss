@@ -1,0 +1,23 @@
+// Plugins settings page — local + GitHub install row.
+.ai00-x-plugins-config {
+  &__install-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
+  }
+
+  &__github-input {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    flex: 1;
+    min-width: 320px;
+  }
+
+  &__install-hint {
+    margin-top: var(--spacing-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+}

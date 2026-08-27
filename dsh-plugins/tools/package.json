@@ -1,0 +1,14 @@
+{
+  "name": "@ai00-x/dsh-tools",
+  "version": "0.1.0",
+  "description": "Ai00-X business tools: dsh tools bridging host capabilities (notify / wallpaper / zhixing todo) via the Ai00-X internal API",
+  "type": "module",
+  "main": "src/index.js",
+  "keywords": ["dsh-plugin", "cordis-plugin"],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
