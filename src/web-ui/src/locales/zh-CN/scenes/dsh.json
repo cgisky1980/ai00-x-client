@@ -16,6 +16,20 @@
     "thinking": "思考中…",
     "reasoning": "推理过程"
   },
+  "approval": {
+    "pending": "请求确认",
+    "allow": "允许一次",
+    "reject": "拒绝"
+  },
+  "models": {
+    "loading": "模型加载中…"
+  },
+  "question": {
+    "pending": "等待回答",
+    "customPlaceholder": "其他（自定义回答）",
+    "submit": "提交回答",
+    "cancel": "取消"
+  },
   "status": {
     "starting": "引擎启动中…",
     "installing": "安装中：{{stage}}",
@@ -24,5 +38,11 @@
     "failed": "引擎故障：{{error}}",
     "wsOn": "事件流已连接",
     "wsOff": "事件流未连接"
-  }
+  },
+  "pluginError": "引擎插件加载失败",
+  "pluginErrorAttributed": "疑似插件 {{module}} 导致",
+  "pluginErrorDisable": "一键停用 {{module}}",
+  "pluginErrorGoSettings": "前往插件设置",
+  "pluginErrorClose": "关闭提示",
+  "pluginErrorDisabled": "{{module}} 已停用，引擎正在重启"
 }

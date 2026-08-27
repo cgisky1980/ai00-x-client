@@ -16,6 +16,20 @@
     "thinking": "Thinking…",
     "reasoning": "Reasoning"
   },
+  "approval": {
+    "pending": "Confirmation needed",
+    "allow": "Allow once",
+    "reject": "Reject"
+  },
+  "models": {
+    "loading": "Loading models…"
+  },
+  "question": {
+    "pending": "Awaiting your answer",
+    "customPlaceholder": "Other (custom answer)",
+    "submit": "Submit",
+    "cancel": "Cancel"
+  },
   "status": {
     "starting": "Starting engine…",
     "installing": "Installing: {{stage}}",
@@ -24,5 +38,11 @@
     "failed": "Engine failed: {{error}}",
     "wsOn": "Event stream connected",
     "wsOff": "Event stream disconnected"
-  }
+  },
+  "pluginError": "Engine plugin failed to load",
+  "pluginErrorAttributed": "Likely caused by plugin {{module}}",
+  "pluginErrorDisable": "Disable {{module}}",
+  "pluginErrorGoSettings": "Open plugin settings",
+  "pluginErrorClose": "Dismiss",
+  "pluginErrorDisabled": "{{module}} disabled, engine restarting"
 }

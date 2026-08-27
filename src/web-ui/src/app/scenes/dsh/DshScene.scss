@@ -4,6 +4,72 @@
   height: 100%;
   background: var(--color-bg-primary);
 
+  // ---- 插件加载错误横幅（引擎 stderr 检出 + 模块归因） ----
+  &__plugin-error {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--z-toast, 100);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-4);
+    background: var(--color-error-bg);
+    border-bottom: 1px solid var(--color-error);
+    color: var(--color-error);
+    font-size: var(--font-size-xs);
+
+    &-main {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-2);
+      min-width: 0;
+      flex: 1;
+
+      span {
+        flex-shrink: 0;
+        font-weight: 500;
+      }
+    }
+
+    &-module {
+      color: var(--color-text-secondary);
+      flex-shrink: 0;
+    }
+
+    code {
+      font-family: var(--font-family-mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      opacity: 0.85;
+    }
+
+    &-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-2);
+      flex-shrink: 0;
+    }
+
+    &-close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--spacing-1);
+      border: none;
+      border-radius: var(--radius-full);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+
+      &:hover {
+        background: var(--color-bg-tertiary);
+      }
+    }
+  }
+
   // ---- 左侧会话列表 ----
   &__sidebar {
     display: flex;
@@ -301,26 +367,164 @@
     color: var(--color-error);
   }
 
-  // ---- 输入区 ----
-  &__composer {
-    padding: var(--spacing-3) var(--spacing-4) var(--spacing-4);
-    border-top: 1px solid var(--border-subtle);
+  // ---- 审批卡（工具执行确认） ----
+  &__approvals {
+    padding: 0 var(--spacing-4);
     display: flex;
     flex-direction: column;
     gap: var(--spacing-2);
   }
 
-  &__input {
-    width: 100%;
-    resize: none;
-    border: 1px solid var(--border-base);
+  &__approval {
+    border: 1px solid var(--color-accent-500);
     border-radius: var(--radius-base);
     background: var(--color-bg-secondary);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-sm);
-    font-family: inherit;
-    line-height: 1.5;
     padding: var(--spacing-2) var(--spacing-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+
+  &__approval-head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    color: var(--color-accent-500);
+  }
+
+  &__approval-tool {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    word-break: break-all;
+  }
+
+  &__approval-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  &__approval-reason {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__approval-actions {
+    display: flex;
+    gap: var(--spacing-2);
+    justify-content: flex-end;
+  }
+
+  // ---- 问题卡（ask_user_question 应答） ----
+  &__question {
+    border: 1px solid var(--color-accent-500);
+    border-radius: var(--radius-base);
+    background: var(--color-bg-secondary);
+    padding: var(--spacing-2) var(--spacing-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+  }
+
+  &__q-head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    color: var(--color-accent-500);
+  }
+
+  &__q-head-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__q-cancel {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--easing-standard),
+      color var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      background: var(--element-bg-subtle);
+      color: var(--color-text-primary);
+    }
+  }
+
+  &__q-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+  }
+
+  &__q-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    font-weight: 500;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__q-detail {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__q-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-1);
+    margin-top: var(--spacing-1);
+  }
+
+  &__q-option {
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    padding: var(--spacing-1) var(--spacing-2);
+    cursor: pointer;
+    transition: border-color var(--motion-fast) var(--easing-standard),
+      background var(--motion-fast) var(--easing-standard),
+      color var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      border-color: var(--color-accent-500);
+      color: var(--color-text-primary);
+    }
+
+    &.is-active {
+      border-color: var(--color-accent-500);
+      background: var(--element-bg-subtle);
+      color: var(--color-accent-500);
+    }
+  }
+
+  &__q-custom {
+    width: 100%;
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    padding: var(--spacing-1) var(--spacing-2);
     outline: none;
     transition: border-color var(--motion-fast) var(--easing-standard);
 
@@ -333,9 +537,15 @@
     }
   }
 
-  &__composer-actions {
+  &__q-actions {
     display: flex;
     justify-content: flex-end;
+  }
+
+  // ---- 输入区（标准件：design-system PromptInput + ModelSelector）----
+  &__composer {
+    padding: var(--spacing-3) var(--spacing-4) var(--spacing-4);
+    border-top: 1px solid var(--border-subtle);
   }
 }
 

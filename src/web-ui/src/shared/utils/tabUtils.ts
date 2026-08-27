@@ -259,7 +259,7 @@ export function createMarkdownEditorTab(
 
  
 export function createConfigCenterTab(
-  initialTab: 'models' | 'ai-context' | 'agents' = 'models',
+  initialTab: 'models' | 'ai-context' | 'agents' | 'dsh-plugins' = 'models',
   _mode: 'agent' | 'project' = 'agent'
 ): void {
   import('@/app/scenes/settings/settingsConfig').then(({ normalizeSettingsTab }) => {

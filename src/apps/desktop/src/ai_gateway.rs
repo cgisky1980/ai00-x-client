@@ -107,9 +107,26 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
         .map(|s| s.to_string());
 
     // 分流决策
+    let has_tools = body
+        .get("tools")
+        .and_then(|v| v.as_array())
+        .is_some_and(|t| !t.is_empty());
     let use_local = match model.as_str() {
         MODEL_RWKV => true,
         MODEL_REMOTE => false,
+        _ if has_tools => {
+            // 带 tools 的请求（agent 会话）强制远程：本地 RWKV 无法可靠输出
+            // 结构化 tool-call（会把调用 JSON 当纯文本续写），会话会卡死在
+            // 无工具调用的文本回复上
+            log::info!(
+                "[ai-gateway] tools present ({} tools) -> forced remote",
+                body.get("tools")
+                    .and_then(|v| v.as_array())
+                    .map(|t| t.len())
+                    .unwrap_or(0)
+            );
+            false
+        }
         _ => {
             // ai00-auto：SmartRouter 分类
             let user_input = last_user_text(&body);
@@ -243,8 +260,11 @@ async fn local_rwkv_sse(body: Value, session_id: Option<String>, res: &mut Respo
     };
 
     // 流式桥接：InferenceEvent → OpenAI SSE chunks
+    // 带工具时输出全缓冲（结束才判定 tool-call / 纯文本）：边流 text-delta 边
+    // 补发 tool_call_delta 会让 text 块和 tool-call 块并存，污染 dsh 上下文。
     let (tx, rx_body) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
     let model_name = MODEL_RWKV.to_string();
+    let has_tools = tools.as_deref().is_some_and(|t| !t.is_empty());
 
     tokio::spawn(async move {
         let mut full_text = String::new();
@@ -254,9 +274,11 @@ async fn local_rwkv_sse(body: Value, session_id: Option<String>, res: &mut Respo
             match event {
                 InferenceEvent::Token(t) => {
                     full_text.push_str(&t);
-                    let chunk = sse_text_delta(&model_name, &t);
-                    if tx.send(Ok(Bytes::from(chunk))).is_err() {
-                        break;
+                    if !has_tools {
+                        let chunk = sse_text_delta(&model_name, &t);
+                        if tx.send(Ok(Bytes::from(chunk))).is_err() {
+                            break;
+                        }
                     }
                 }
                 InferenceEvent::Done {
@@ -292,6 +314,11 @@ async fn local_rwkv_sse(body: Value, session_id: Option<String>, res: &mut Respo
             let chunk = sse_finish(&model_name, "tool_calls");
             let _ = tx.send(Ok(Bytes::from(chunk)));
         } else {
+            // 带工具但没解析出调用：整段作为文本补发（缓冲模式下还没发过）
+            if has_tools && !text.is_empty() {
+                let chunk = sse_text_delta(&model_name, &text);
+                let _ = tx.send(Ok(Bytes::from(chunk)));
+            }
             let chunk = sse_usage(&model_name, input_tokens, output_tokens);
             let _ = tx.send(Ok(Bytes::from(chunk)));
             let chunk = sse_finish(&model_name, "stop");
@@ -322,7 +349,7 @@ async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response) {
     // 恢复登录态：dsh 侧请求可能先于任何前端登录流程到达，
     // AI00S_AUTH_TOKEN 是内存态——从 vault 兜底恢复（幂等，已有则秒回）。
     let _ = crate::auth::ensure_auth_synced().await;
-    let client = match AIClientFactory::get_global() {
+    let mut client = match AIClientFactory::get_global() {
         Ok(f) => match f.get_client_resolved("primary").await {
             Ok(c) => c,
             Err(e) => {
@@ -350,33 +377,55 @@ async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response) {
         obj.insert("stream".to_string(), json!(true));
     }
 
-    let mut request = client
-        .http_client()
-        .post(&client.config.request_url)
-        .json(&body);
-    if !client.config.api_key.is_empty() {
-        request = request.bearer_auth(&client.config.api_key);
-    }
-    if let Some(headers) = &client.config.custom_headers {
-        for (k, v) in headers {
-            if let (Ok(name), Ok(value)) = (
-                salvo::http::header::HeaderName::from_bytes(k.as_bytes()),
-                salvo::http::header::HeaderValue::from_str(v),
-            ) {
-                request = request.header(name, value);
+    // 发送（401 时刷新 member token 重试一次——dsh 会话是长驻的，
+    // access token 过期后不刷新会让所有 agent 请求永久 502）
+    let mut upstream = None;
+    for attempt in 0..2 {
+        let mut request = client
+            .http_client()
+            .post(&client.config.request_url)
+            .json(&body);
+        if !client.config.api_key.is_empty() {
+            request = request.bearer_auth(&client.config.api_key);
+        }
+        if let Some(headers) = &client.config.custom_headers {
+            for (k, v) in headers {
+                if let (Ok(name), Ok(value)) = (
+                    salvo::http::header::HeaderName::from_bytes(k.as_bytes()),
+                    salvo::http::header::HeaderValue::from_str(v),
+                ) {
+                    request = request.header(name, value);
+                }
+            }
+        }
+        match request.send().await {
+            Ok(r) => {
+                if r.status() == reqwest::StatusCode::UNAUTHORIZED && attempt == 0 {
+                    // token 过期：刷新后重建 client 重试
+                    if crate::auth::refresh_auth_token_impl().await.is_ok() {
+                        if let Ok(f) = AIClientFactory::get_global() {
+                            if let Ok(c) = f.get_client_resolved("primary").await {
+                                client = c;
+                                continue;
+                            }
+                        }
+                    }
+                }
+                upstream = Some(r);
+                break;
+            }
+            Err(e) => {
+                res.status_code(StatusCode::BAD_GATEWAY);
+                res.body(
+                    json!({"error": {"message": format!("upstream request failed: {e}")}})
+                        .to_string(),
+                );
+                return;
             }
         }
     }
-
-    let upstream = match request.send().await {
-        Ok(r) => r,
-        Err(e) => {
-            res.status_code(StatusCode::BAD_GATEWAY);
-            res.body(
-                json!({"error": {"message": format!("upstream request failed: {e}")}}).to_string(),
-            );
-            return;
-        }
+    let Some(upstream) = upstream else {
+        return;
     };
 
     if !upstream.status().is_success() {
@@ -503,7 +552,8 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
     }
 
     if has_tools {
-        prompt.push_str("Assistant: {\"name\":\"");
+        // 官方 G1x 模板：续写起点给 ```json 围栏开头，模型输出 {"name":...} 后闭合
+        prompt.push_str("Assistant: ```json\n");
     } else {
         prompt.push_str("Assistant: ");
     }
@@ -537,33 +587,32 @@ fn message_text(msg: &Value) -> Option<String> {
     }
 }
 
+/// 工具定义注入（官方 RWKV-7 G1x function call 模板）。
+///
+/// <https://www.rwkv.cn/docs/RWKV-Prompts/Prompt-Format#function-call>：
+/// JSON 数组格式，每项带 name / description / arguments（参数名 → schema），
+/// 后跟 "Return only a JSON function call."。description 必须保留——
+/// 模型靠它判断何时调用哪个工具（丢失会导致模型把调用当纯文本续写）。
 fn inject_tools(prompt: &mut String, tools: &[Value]) {
+    let defs: Vec<Value> = tools
+        .iter()
+        .filter_map(|tool| {
+            let f = tool.get("function")?;
+            let arguments = f
+                .get("parameters")
+                .and_then(|p| p.get("properties"))
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            Some(json!({
+                "name": f.get("name").cloned().unwrap_or(Value::Null),
+                "description": f.get("description").cloned().unwrap_or(json!("")),
+                "arguments": arguments,
+            }))
+        })
+        .collect();
     prompt.push_str("System: Tools:\n");
-    for tool in tools {
-        let name = tool
-            .get("function")
-            .and_then(|f| f.get("name"))
-            .and_then(|n| n.as_str())
-            .unwrap_or("unknown");
-        let params = tool
-            .get("function")
-            .and_then(|f| f.get("parameters"))
-            .and_then(|p| p.get("properties"))
-            .and_then(|p| p.as_object())
-            .map(|props| {
-                props
-                    .iter()
-                    .map(|(k, v)| {
-                        let ty = v.get("type").and_then(|t| t.as_str()).unwrap_or("any");
-                        format!("{k}: {ty}")
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            })
-            .unwrap_or_default();
-        prompt.push_str(&format!("- {name}({params})\n"));
-    }
-    prompt.push_str("Return only a JSON function call.\n\n");
+    prompt.push_str(&serde_json::to_string_pretty(&defs).unwrap_or_default());
+    prompt.push_str("\nReturn only a JSON function call.\n\n");
 }
 
 fn sanitize(content: &str) -> String {
@@ -597,23 +646,52 @@ fn truncate_at_role_marker(text: &str) -> String {
 }
 
 /// 从 RWKV 输出中提取 ```json 工具调用（返回 (name, arguments_json)）。
+///
+/// 三种形态（按优先级）：
+/// 1. `​```json {...} ``` ` 完整围栏（历史回放格式）
+/// 2. 裸 `{"name":...}` 前缀 + 尾部围栏/续写残余（续写起点给 ```json 时
+///    模型输出 {"name":...} 后闭合围栏，stop 截断后尾部可能残留 ` 痕迹）
+/// 3. 裸 JSON 前缀流式解析：serde 流式反序列化取第一个完整值，容忍尾部垃圾
 fn try_extract_tool_call(text: &str) -> Option<(String, String)> {
     let text = text.trim();
-    let json_str = if let Some(rest) = text.strip_prefix("```json") {
-        rest.strip_suffix("```")?.trim()
-    } else if let Some(start) = text.find("```json") {
-        let rest = &text[start + 7..];
-        let end = rest.find("```")?;
-        rest[..end].trim()
-    } else if text.starts_with('{') {
-        text
-    } else {
-        return None;
-    };
 
-    let parsed: Value = serde_json::from_str(json_str).ok()?;
-    let name = parsed.get("name")?.as_str()?.to_string();
-    let arguments = parsed
+    // 1) ```json 围栏（strip_prefix / 中部出现两种位置）
+    if let Some(rest) = text.strip_prefix("```json") {
+        let inner = rest.trim_end_matches('`').trim();
+        if let Some(call) = parse_call_value(serde_json::from_str(inner).ok()?) {
+            return Some(call);
+        }
+    }
+    if let Some(start) = text.find("```json") {
+        let rest = &text[start + 7..];
+        let inner = rest.split("```").next().unwrap_or("").trim();
+        if let Ok(v) = serde_json::from_str::<Value>(inner) {
+            if let Some(call) = parse_call_value(v) {
+                return Some(call);
+            }
+        }
+    }
+
+    // 2/3) 裸 JSON：剥围栏残余后整体解析；失败则流式取第一个完整值
+    if text.starts_with('{') {
+        let stripped = text.trim_end_matches('`').trim();
+        if let Ok(v) = serde_json::from_str::<Value>(stripped) {
+            if let Some(call) = parse_call_value(v) {
+                return Some(call);
+            }
+        }
+        let mut stream = serde_json::Deserializer::from_str(text).into_iter::<Value>();
+        if let Some(Ok(v)) = stream.next() {
+            return parse_call_value(v);
+        }
+    }
+    None
+}
+
+/// 解析后的 JSON 值 → (name, arguments_json)。无 name 字段视为非工具调用。
+fn parse_call_value(v: Value) -> Option<(String, String)> {
+    let name = v.get("name")?.as_str()?.to_string();
+    let arguments = v
         .get("arguments")
         .cloned()
         .map(|a| a.to_string())
@@ -716,12 +794,19 @@ mod tests {
         ];
         let tools = vec![json!({
             "type": "function",
-            "function": {"name": "Read", "parameters": {"properties": {"file_path": {"type": "string"}}}}
+            "function": {
+                "name": "Read",
+                "description": "Read a UTF-8 text file",
+                "parameters": {"properties": {"file_path": {"type": "string"}}}
+            }
         })];
         let prompt = openai_messages_to_rwkv_prompt(&messages, Some(&tools));
+        // 官方 G1x 模板：JSON 数组工具定义（含 description）+ ```json 续写起点
         assert!(prompt.contains("System: Tools:"));
-        assert!(prompt.contains("- Read(file_path: string)"));
-        assert!(prompt.ends_with("Assistant: {\"name\":\""));
+        assert!(prompt.contains("\"name\": \"Read\""));
+        assert!(prompt.contains("\"description\": \"Read a UTF-8 text file\""));
+        assert!(prompt.contains("Return only a JSON function call."));
+        assert!(prompt.ends_with("Assistant: ```json\n"));
     }
 
     #[test]
@@ -730,6 +815,23 @@ mod tests {
         let (name, args) = try_extract_tool_call(text).unwrap();
         assert_eq!(name, "Read");
         assert!(args.contains("src/main.rs"));
+    }
+
+    #[test]
+    fn extracts_bare_json_with_fence_remnant() {
+        // 续写起点 ```json 模式：模型输出 {"name":...} + 闭合围栏残余
+        let text = "{\"name\":\"ai00_notify\",\"arguments\":{\"title\":\"hi\"}}\n```";
+        let (name, args) = try_extract_tool_call(text).unwrap();
+        assert_eq!(name, "ai00_notify");
+        assert!(args.contains("hi"));
+    }
+
+    #[test]
+    fn extracts_bare_json_with_trailing_garbage() {
+        // 模型闭合围栏后继续续写：流式解析取第一个完整 JSON 值
+        let text = "{\"name\":\"Read\",\"arguments\":{}}\n```\n\nUser: 下一轮";
+        let (name, _) = try_extract_tool_call(text).unwrap();
+        assert_eq!(name, "Read");
     }
 
     #[test]
