@@ -1,0 +1,80 @@
+{
+  "title": "Agent Engine Plugins",
+  "subtitle": "Manage dsh engine plugins: installed extensions, runtime state and component health",
+  "market": {
+    "title": "Plugin Marketplace",
+    "description": "Plugins that passed static pre-checks, live engine testing and manual review. Host permissions are confirmed before install.",
+    "searchPlaceholder": "Search title / summary / package",
+    "sort": {
+      "installs": "Sort by installs",
+      "updated": "Sort by updated"
+    },
+    "allTags": "All",
+    "loading": "Loading marketplace…",
+    "loadFailed": "Marketplace unavailable (server not connected)",
+    "empty": "No plugins published yet",
+    "install": "Install",
+    "installThisVersion": "Install this version",
+    "installed": "Installed",
+    "installs": "{{count}} installs",
+    "failReports": "{{count}} failure reports",
+    "noDescription": "No description yet",
+    "homepage": "Homepage",
+    "repo": "Source repository",
+    "confirmTitle": "Install Plugin",
+    "confirmInstall": "Install",
+    "cancel": "Cancel",
+    "confirmIntro": "\"{{title}}\" will receive the following Ai00-X host capabilities:",
+    "permissions": {
+      "notify": "Send system notifications",
+      "wallpaper": "Read and write wallpaper",
+      "todo": "Read and write actionable todos",
+      "xp": "Read and write gamification ledger (XP/badges)",
+      "tools": "Invoke built-in tools"
+    }
+  },
+  "extensions": {
+    "title": "Installed Extensions",
+    "description": "Bundle-level plugins loaded via the profile. Bundled plugins ship with the client and cannot be removed.",
+    "empty": "No extension plugins installed",
+    "bundled": "Bundled",
+    "state": {
+      "active": "Running",
+      "failed": "Failed",
+      "disabled": "Disabled",
+      "unknown": "Not running",
+      "notLoaded": "Not loaded"
+    }
+  },
+  "install": {
+    "title": "Install Plugin",
+    "description": "Enter an npm package spec (e.g. @scope/dsh-plugin or plugin@1.0.0). Only install plugins from trusted sources.",
+    "placeholder": "npm package spec",
+    "install": "Install",
+    "installing": "Installing…",
+    "restartHint": "The engine restarts automatically after install or removal to reload the plugin tree."
+  },
+  "components": {
+    "title": "Engine Components",
+    "description": "Runtime state of internal dsh engine components (read-only).",
+    "toggle": "{{total}} components, {{failed}} failed",
+    "failedBanner": "{{count}} engine components failed to load:"
+  },
+  "actions": {
+    "refresh": "Refresh",
+    "remove": "Remove",
+    "disable": "Disable",
+    "enable": "Enable"
+  },
+  "messages": {
+    "installSuccess": "Installed {{spec}}, engine restarting",
+    "installFailed": "Install failed: {{error}}",
+    "removeSuccess": "Removed {{name}}, engine restarting",
+    "removeFailed": "Remove failed: {{error}}",
+    "disableSuccess": "Disabled {{name}}, engine restarting",
+    "enableSuccess": "Enabled {{name}}, engine restarting",
+    "toggleFailed": "Operation failed: {{error}}",
+    "marketInstallSuccess": "\"{{title}}\" installed, engine restarting",
+    "noApprovedVersion": "No server-approved version found"
+  }
+}

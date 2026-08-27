@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  Bot,
   Cpu,
   Mic,
   Hand,
@@ -21,6 +22,7 @@ export type ConfigTab =
   | 'voice-settings'
   | 'models'
   | 'voice'
+  | 'dsh-plugins'
   | 'gesture'
   | 'gesture-config'
   | 'gesture-templates'
@@ -90,6 +92,23 @@ export const SETTINGS_CATEGORIES: ConfigCategoryDef[] = [
           'sound',
           'mnn',
           'generation',
+        ],
+      },
+      {
+        id: 'dsh-plugins',
+        labelKey: 'configCenter.tabs.dshPlugins',
+        descriptionKey: 'configCenter.tabDescriptions.dshPlugins',
+        icon: Bot,
+        keywords: [
+          'agent',
+          'dsh',
+          'harness',
+          'engine',
+          'plugin',
+          'extension',
+          'cordis',
+          'npm',
+          'tool',
         ],
       },
     ],

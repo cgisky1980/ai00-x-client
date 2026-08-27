@@ -56,6 +56,15 @@ export const SETTINGS_TAB_SEARCH_CONTENT: Record<ConfigTab, readonly SettingsTab
     { ns: 'settings/voice', key: 'engineStatus.description' },
   ],
 
+  'dsh-plugins': [
+    { ns: 'settings', key: 'configCenter.tabs.dshPlugins' },
+    { ns: 'settings', key: 'configCenter.tabDescriptions.dshPlugins' },
+    { ns: 'settings/dsh-plugins', key: 'title' },
+    { ns: 'settings/dsh-plugins', key: 'subtitle' },
+    { ns: 'settings/dsh-plugins', key: 'extensions.title' },
+    { ns: 'settings/dsh-plugins', key: 'install.title' },
+  ],
+
   'voice-settings': [
     { ns: 'settings/voice', key: 'voiceSettings.title' },
     { ns: 'settings/voice', key: 'voiceSettings.subtitle' },

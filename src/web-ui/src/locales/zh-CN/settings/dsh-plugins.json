@@ -1,0 +1,80 @@
+{
+  "title": "Agent 引擎插件",
+  "subtitle": "管理 dsh 引擎的插件：已装扩展、运行状态与组件健康",
+  "market": {
+    "title": "插件市场",
+    "description": "经静态预检、引擎实测与人工审核上架的插件。声明宿主权限的插件安装前会明示确认。",
+    "searchPlaceholder": "搜索名称 / 描述 / 包名",
+    "sort": {
+      "installs": "按装机量排序",
+      "updated": "按更新时间排序"
+    },
+    "allTags": "全部",
+    "loading": "市场加载中…",
+    "loadFailed": "市场暂不可用（服务端未连接）",
+    "empty": "暂无已上架插件",
+    "install": "一键安装",
+    "installThisVersion": "安装此版本",
+    "installed": "已安装",
+    "installs": "{{count}} 次安装",
+    "failReports": "{{count}} 次失败反馈",
+    "noDescription": "暂无详细说明",
+    "homepage": "主页",
+    "repo": "源码仓库",
+    "confirmTitle": "安装插件",
+    "confirmInstall": "确认安装",
+    "cancel": "取消",
+    "confirmIntro": "「{{title}}」将获得以下 Ai00-X 宿主能力：",
+    "permissions": {
+      "notify": "发送系统通知",
+      "wallpaper": "读写壁纸",
+      "todo": "读写执行待办",
+      "xp": "读写游戏化账本（XP/勋章）",
+      "tools": "调用内置工具"
+    }
+  },
+  "extensions": {
+    "title": "已装扩展",
+    "description": "随 profile 装载的 bundle 级插件。内置插件随客户端分发，不可卸载。",
+    "empty": "暂无扩展插件",
+    "bundled": "内置",
+    "state": {
+      "active": "运行中",
+      "failed": "加载失败",
+      "disabled": "已停用",
+      "unknown": "未运行",
+      "notLoaded": "未加载"
+    }
+  },
+  "install": {
+    "title": "安装插件",
+    "description": "输入 npm 包名（如 @scope/dsh-plugin 或 plugin@1.0.0）。仅安装可信来源的插件。",
+    "placeholder": "npm 包名",
+    "install": "安装",
+    "installing": "安装中…",
+    "restartHint": "安装或卸载后引擎将自动重启以装载插件树。"
+  },
+  "components": {
+    "title": "引擎组件",
+    "description": "dsh 引擎内部组件的运行时状态（只读）。",
+    "toggle": "共 {{total}} 个组件，{{failed}} 个失败",
+    "failedBanner": "{{count}} 个引擎组件加载失败："
+  },
+  "actions": {
+    "refresh": "刷新",
+    "remove": "卸载",
+    "disable": "停用",
+    "enable": "启用"
+  },
+  "messages": {
+    "installSuccess": "已安装 {{spec}}，引擎重启中",
+    "installFailed": "安装失败：{{error}}",
+    "removeSuccess": "已卸载 {{name}}，引擎重启中",
+    "removeFailed": "卸载失败：{{error}}",
+    "disableSuccess": "已停用 {{name}}，引擎重启中",
+    "enableSuccess": "已启用 {{name}}，引擎重启中",
+    "toggleFailed": "操作失败：{{error}}",
+    "marketInstallSuccess": "「{{title}}」安装成功，引擎重启中",
+    "noApprovedVersion": "未找到服务端已审核的版本信息"
+  }
+}

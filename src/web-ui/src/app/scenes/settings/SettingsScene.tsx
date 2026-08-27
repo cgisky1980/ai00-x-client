@@ -17,6 +17,7 @@ import GestureActionSettings from './gesture/GestureActionSettings';
 import ClickEffectSettings from './gesture/ClickEffectSettings';
 import SmartDesktopConfig from '../../../infrastructure/config/components/SmartDesktopConfig';
 import PluginsConfig from '../../../infrastructure/config/components/PluginsConfig';
+import DshPluginsConfig from '../../../infrastructure/config/components/DshPluginsConfig';
 
 interface SettingsSceneProps {
   showNav?: boolean;
@@ -33,7 +34,8 @@ const SettingsScene: React.FC<SettingsSceneProps> = ({ showNav = true }) => {
     case 'voice-settings':   Content = VoiceSettingsConfig;    break;
     case 'basics':           Content = BasicsConfig;           break;
     case 'models':           Content = AIModelConfig;          break;
-    case 'voice':            Content = VoiceModelsConfig;      break;
+    case 'voice':            Content = VoiceModelsConfig;     break;
+    case 'dsh-plugins':      Content = DshPluginsConfig;      break;
     case 'gesture':          Content = GestureSettings;        break;
     case 'gesture-config':   Content = GestureConfigSettings;  break;
     case 'gesture-templates':Content = GestureTemplateSettings;break;

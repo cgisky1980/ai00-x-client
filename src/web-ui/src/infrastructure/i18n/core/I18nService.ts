@@ -55,6 +55,7 @@ import zhCNSettingsDebug from '../../../locales/zh-CN/settings/debug.json';
 import zhCNSettingsEditor from '../../../locales/zh-CN/settings/editor.json';
 import zhCNSettingsSkills from '../../../locales/zh-CN/settings/skills.json';
 import zhCNSettingsPlugins from '../../../locales/zh-CN/settings/plugins.json';
+import zhCNSettingsDshPlugins from '../../../locales/zh-CN/settings/dsh-plugins.json';
 import zhCNSettingsAiRules from '../../../locales/zh-CN/settings/ai-rules.json';
 import zhCNSettingsAiMemory from '../../../locales/zh-CN/settings/ai-memory.json';
 import zhCNSettingsAiContext from '../../../locales/zh-CN/settings/ai-context.json';
@@ -102,6 +103,7 @@ import enUSSettingsDebug from '../../../locales/en-US/settings/debug.json';
 import enUSSettingsEditor from '../../../locales/en-US/settings/editor.json';
 import enUSSettingsSkills from '../../../locales/en-US/settings/skills.json';
 import enUSSettingsPlugins from '../../../locales/en-US/settings/plugins.json';
+import enUSSettingsDshPlugins from '../../../locales/en-US/settings/dsh-plugins.json';
 import enUSSettingsAiRules from '../../../locales/en-US/settings/ai-rules.json';
 import enUSSettingsAiMemory from '../../../locales/en-US/settings/ai-memory.json';
 import enUSSettingsAiContext from '../../../locales/en-US/settings/ai-context.json';
@@ -156,6 +158,7 @@ const resources = {
     'settings/editor': zhCNSettingsEditor,
     'settings/skills': zhCNSettingsSkills,
     'settings/plugins': zhCNSettingsPlugins,
+    'settings/dsh-plugins': zhCNSettingsDshPlugins,
     'settings/ai-rules': zhCNSettingsAiRules,
     'settings/ai-memory': zhCNSettingsAiMemory,
     'settings/ai-context': zhCNSettingsAiContext,
@@ -204,6 +207,7 @@ const resources = {
     'settings/editor': enUSSettingsEditor,
     'settings/skills': enUSSettingsSkills,
     'settings/plugins': enUSSettingsPlugins,
+    'settings/dsh-plugins': enUSSettingsDshPlugins,
     'settings/ai-rules': enUSSettingsAiRules,
     'settings/ai-memory': enUSSettingsAiMemory,
     'settings/ai-context': enUSSettingsAiContext,
@@ -274,6 +278,7 @@ export class I18nService {
           'settings/editor',
           'settings/skills',
           'settings/plugins',
+          'settings/dsh-plugins',
           'settings/ai-rules',
           'settings/ai-memory',
           'settings/ai-context',
