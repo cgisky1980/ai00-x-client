@@ -1,36 +1,38 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
- * TodoPanel — overlay 核心待办面板「策」（React 重写版）。
+ * TodoPanel — overlay 核心待办面板「策」（React 重写版，v3 大窗）。
  *
- * 浮窗 chrome：useDraggable + usePopupResize（与 MusicPopup/SfxPopup 同套）；
- * 数据：todoStore（本地任务）+ growthStore（服务器 XP）；
- * 视图：即刻（当天到期+今日新增，立刻去做）/ 周期（重复之事）/ 志（目标→方案→任务三级）
- *      / 修行（成长中心）/ 已完成；
- * 创建：捕获行在列表底部（日期/! 语法）+ 细谈模态（ConsultModal）。
+ * 浮窗 chrome：useDraggable + usePopupResize（初始 ~900×640 屏幕居中）；
+ * 「行」= 三栏看板（想法池/计划中/进行中）+ 下半区（计划文档 MD + 讨论对话）；
+ * 恒（周期）/ 志（目标三级）/ 修行 / 足迹 视图维持原状。
  */
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, GripVertical, Sparkles } from 'lucide-react';
-import { NavMarkNow, NavMarkHabit, NavMarkGoal, NavMarkGrow, NavMarkTrail } from './NavCharMarks';
+import { X, GripVertical } from 'lucide-react';
+import { NavMarkAction, NavMarkHabit, NavMarkGoal, NavMarkGrow, NavMarkTrail } from './NavCharMarks';
 import { useDraggable } from '../../../infrastructure/overlay/useDraggable';
 import { usePopupResize } from '../../island/hooks/usePopupResize';
-import { useTodoStore, todayStr, parseCnDate, parseCaptureMeta, countOfView, tasksOfView, type TodoView } from '../store/todoStore';
+import { useTodoStore, countOfView, type TodoView } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
-import { XpKinds } from '../api/types';
-import { useConsult } from '../hooks/useConsult';
-import { ConsultModal } from './views/ConsultModal';
 import { GrowthView } from './views/GrowthView';
 import { GoalsView } from './views/GoalsView';
 import { RoutineView } from './views/RoutineView';
 import { RoutineComposer } from './views/RoutineComposer';
 import { GoalComposer } from './views/GoalComposer';
-import { TaskRow, TaskDetailPane } from './TaskRow';
+import { BoardView } from './views/BoardView';
+import { PlanChatPanel } from './views/PlanChatPanel';
+import { PlanDocPanel } from './views/PlanDocPanel';
+import { ExecutionPanel } from './views/ExecutionPanel';
+import { TaskCreateModal } from './views/TaskCreateModal';
+import { TraceView } from './views/TraceView';
 import './TodoPanel.scss';
 import './todo-theme.scss';
+import './board.scss';
 
-const PANEL_W = 340;
-const PANEL_H = 480;
-const PANEL_MIN_W = 300;
-const PANEL_MIN_H = 380;
+const PANEL_W = 900;
+const PANEL_H = 640;
+const PANEL_MIN_W = 640;
+const PANEL_MIN_H = 480;
 
 const GRIP_SVG = <GripVertical size={14} />;
 
@@ -46,19 +48,21 @@ const TodoPanelInner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const view = useTodoStore((s) => s.view);
   const setView = useTodoStore((s) => s.setView);
   const expandedId = useTodoStore((s) => s.expandedId);
-  const addTask = useTodoStore((s) => s.addTask);
 
   const toast = useGrowthStore((s) => s.toast);
-  const addXp = useGrowthStore((s) => s.addXp);
-  const markDayCheck = useGrowthStore((s) => s.markDayCheck);
-  const checkBadges = useGrowthStore((s) => s.checkBadges);
 
+  // 初始屏幕居中（尺寸不超过视口）
+  const initialW = Math.min(PANEL_W, window.innerWidth - 48);
+  const initialH = Math.min(PANEL_H, window.innerHeight - 48);
   const { position, setPosition, elementRef, handleMouseDown, isDragging } = useDraggable({
-    initialPosition: { x: Math.max(8, window.innerWidth - PANEL_W - 24), y: 72 },
+    initialPosition: {
+      x: Math.max(8, Math.round((window.innerWidth - initialW) / 2)),
+      y: Math.max(8, Math.round((window.innerHeight - initialH) / 2)),
+    },
     excludeSelector: 'button, input, textarea, select, .todo-panel__resize-handle, .td-check, [contenteditable]',
   });
   const { size, activeResize, handleResizeMouseDown } = usePopupResize({
-    initialSize: { width: PANEL_W, height: PANEL_H },
+    initialSize: { width: initialW, height: initialH },
     minWidth: PANEL_MIN_W,
     minHeight: PANEL_MIN_H,
     getPosition: useCallback(() => position, [position]),
@@ -66,126 +70,113 @@ const TodoPanelInner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     elementRef,
   });
 
-  const consult = useConsult();
-  const [xpFloat, setXpFloat] = useState<{ id: number; text: string } | null>(null);
-  const floatIdRef = useRef(0);
+  /** 创建类弹窗（需求卡/恒/志——弹窗化创建，支持完整字段与 agent 参与方式） */
+  const [createModal, setCreateModal] = useState<'task' | 'routine' | 'goal' | null>(null);
+  /** 志视图「加行」入口预挂的志（id + 标题，传给 TaskCreateModal） */
+  const [taskGoalSeed, setTaskGoalSeed] = useState<{ id: string; title: string } | null>(null);
+  /** 立志时预选分类（志树分类行尾加号传入） */
+  const [goalCategorySeed, setGoalCategorySeed] = useState<string | undefined>(undefined);
 
-  /** 任务完成：XP + 打卡 + 勋章（+XP 浮字由勾选处触发）。 */
-  const awardTask = useCallback(
-    (taskId: string, title: string, xp: number) => {
-      const id = ++floatIdRef.current;
-      setXpFloat({ id, text: `+${xp} XP` });
-      setTimeout(() => setXpFloat((f) => (f?.id === id ? null : f)), 900);
-      void addXp(XpKinds.taskDone, xp, { taskId, title });
-      void markDayCheck();
-      void checkBadges();
-    },
-    [addXp, markDayCheck, checkBadges]
+  // 看板选中卡片（下半区联动）；优先 expandedId 复用既有选中语义
+  const boardSelectedId = view === 'today' ? expandedId : null;
+  const selectedTask = useMemo(
+    () => (boardSelectedId ? data.tasks.find((t) => t.id === boardSelectedId) ?? null : null),
+    [data.tasks, boardSelectedId]
   );
 
-  // 导航：单字印记（印章式圆框）+ 现代语短标题（i18n 时标题走翻译、印记不变）。
-  // 用字：即=即刻 / 恒=恒常（避「周」与星期撞义）/ 志=志向 / 修=修行 / 迹=足迹。
+  // 导航：单字印记（印章式圆框）+ 现代语短标题。笃行→恒常→志向→修行（志归恒下）。
   const navItems = useMemo(() => {
     const items: { view: TodoView; mark: React.FC<{ size?: number }>; label: string; title: string; count: number }[] = [
-      { view: 'today', mark: NavMarkNow, label: '即刻', title: '即刻 · 立刻去做', count: countOfView(data, 'today') },
+      { view: 'today', mark: NavMarkAction, label: '笃行', title: '笃行 · 想法看板与计划', count: countOfView(data, 'today') },
       { view: 'routine', mark: NavMarkHabit, label: '恒常', title: '恒常 · 周而复始之事', count: countOfView(data, 'routine') },
-      { view: 'goal', mark: NavMarkGoal, label: '志向', title: '志向 · 目标与方略', count: countOfView(data, 'goal') },
+      { view: 'goal', mark: NavMarkGoal, label: '志向', title: '志向 · 远期方向与项目', count: countOfView(data, 'goal') },
       { view: 'growth', mark: NavMarkGrow, label: '修行', title: '修行 · 成长与回顾', count: 0 },
     ];
     return items;
   }, [data]);
-
-  const tasks = useMemo(() => tasksOfView(data, view), [data, view]);
-
-  const submitCapture = () => {
-    const input = document.querySelector<HTMLInputElement>('.todo-panel__capture input');
-    const text = input?.value.trim();
-    if (!text || !input) return;
-    input.value = '';
-    const meta = parseCaptureMeta(text);
-    const { due, rest } = parseCnDate(meta.rest);
-    addTask(rest || text, { due, flag: meta.flag });
-  };
 
   return (
     <PanelShell
       position={position} size={size} elementRef={elementRef}
       isDragging={isDragging} activeResize={activeResize}
       handleMouseDown={handleMouseDown} handleResizeMouseDown={handleResizeMouseDown}
-      onClose={onClose} toast={toast} xpFloat={xpFloat}
+      onClose={onClose} toast={toast}
     >
       <div className="todo-panel__body">
         <NavSidebar items={navItems} view={view} onSelect={setView} />
-        <div className="todo-panel__list">
+        <div className="todo-panel__main">
           {view === 'growth' && <GrowthView />}
-          {view === 'goal' && <GoalsView />}
-          {view === 'routine' && <RoutineView />}
-          {(view === 'today' || view === 'done') && (
-            <>
-              {/* 左栏：任务列表 */}
-              <div className="todo-panel__tasks">
-                {view === 'today' && <TodayOverview />}
-                {tasks.length === 0 ? (
-                  <div className="todo-panel__empty">
-                    {view === 'today' && '此刻无事——记一笔，或细谈立策'}
-                    {view === 'done' && '还没有完成之事'}
-                  </div>
-                ) : (
-                  tasks.map((task) => <TaskRow key={task.id} task={task} onAward={awardTask} />)
-                )}
-              </div>
-              {/* 右栏：选中任务的详情（点击任务行展开） */}
-              {(() => {
-                const sel = tasks.find((t) => t.id === expandedId);
-                return sel ? (
-                  <div className="todo-panel__detail">
-                    <TaskDetailPane task={sel} />
-                  </div>
-                ) : null;
-              })()}
-            </>
+          {view === 'goal' && (
+            <GoalsView
+              onOpenCreate={(categoryId?: string) => {
+                setGoalCategorySeed(categoryId);
+                setCreateModal('goal');
+              }}
+              onOpenCreateTask={(goalId, goalTitle) => {
+                setTaskGoalSeed({ id: goalId, title: goalTitle });
+                setCreateModal('task');
+              }}
+            />
           )}
+          {view === 'routine' && <RoutineView onOpenCreate={() => setCreateModal('routine')} />}
+
+          {/* 行 = 看板 + 细节区：想法池/计划中卡 = 讨论常驻+计划文档（讨论占
+              想法池+计划中宽，计划全高占右列）；进行中卡 = 执行视图（结果导向：
+              验收进度+计划+干预入口，过程不常驻——跨三列占下半） */}
+          {view === 'today' && (
+            <BoardView
+              selectedId={boardSelectedId}
+              onSelect={id => useTodoStore.getState().setExpanded(id)}
+              onOpenCreate={() => {
+                setTaskGoalSeed(null);
+                setCreateModal('task');
+              }}
+              detailMode={
+                selectedTask
+                  ? (selectedTask.status ?? 'requirement') === 'doing'
+                    ? 'exec'
+                    : 'plan'
+                  : null
+              }
+            >
+              {selectedTask &&
+                ((selectedTask.status ?? 'requirement') === 'doing' ? (
+                  <ExecutionPanel task={selectedTask} />
+                ) : (
+                  <>
+                    <PlanChatPanel task={selectedTask} />
+                    <PlanDocPanel task={selectedTask} />
+                  </>
+                ))}
+            </BoardView>
+          )}
+
+          {/* 迹 = 电脑使用足迹（usage_stats 同源；不展示完成任务列表） */}
+          {view === 'done' && <TraceView />}
         </div>
       </div>
 
-      {/* 底部固定创建区：所有视图的添加入口统一沉到面板最底（不随列表滚动） */}
-      {view === 'today' && (
-        <div className="todo-panel__footer">
-          <div className="todo-panel__capture" style={{ padding: 0, margin: 0, border: 'none' }}>
-            <input
-              placeholder="记一笔，回车即录 · 支持「明天」「周五」"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) submitCapture();
-              }}
-            />
-            <button
-              className="td-chip"
-              title="细谈式创建：AI 追问细节，生成任务草稿"
-              onClick={() => consult.open(document.querySelector<HTMLInputElement>('.todo-panel__footer input')?.value || '')}
-            >
-              <Sparkles size={11} /> 细谈
-            </button>
-          </div>
-        </div>
+      {/* 创建类弹窗 */}
+      {createModal === 'task' && (
+        <TaskCreateModal
+          close={() => {
+            setCreateModal(null);
+            setTaskGoalSeed(null);
+          }}
+          defaultGoalId={taskGoalSeed?.id}
+          goalTitle={taskGoalSeed?.title}
+        />
       )}
-      {view === 'routine' && (
-        <div className="todo-panel__footer">
-          <RoutineComposer />
-        </div>
+      {createModal === 'routine' && (
+        <RoutineComposer close={() => setCreateModal(null)} />
       )}
-      {view === 'goal' && (
-        <div className="todo-panel__footer">
-          <GoalComposer />
-        </div>
-      )}
-
-      {consult.state.open && (
-        <ConsultModal
-          state={consult.state}
-          answer={consult.answer}
-          skip={consult.skip}
-          close={consult.close}
-          adopt={consult.adopt}
+      {createModal === 'goal' && (
+        <GoalComposer
+          close={() => {
+            setCreateModal(null);
+            setGoalCategorySeed(undefined);
+          }}
+          defaultCategoryId={goalCategorySeed}
         />
       )}
     </PanelShell>
@@ -284,7 +275,6 @@ const NavSidebar: React.FC<{
   view: TodoView;
   onSelect: (v: TodoView) => void;
 }> = ({ items, view, onSelect }) => {
-  const doneCount = useTodoStore((s) => countOfView(s.data, 'done'));
   return (
     <div className="todo-panel__nav">
       {items.map((item) => {
@@ -308,36 +298,13 @@ const NavSidebar: React.FC<{
       <button
         className={`todo-panel__nav-item${view === 'done' ? ' is-active' : ''}`}
         onClick={() => onSelect('done')}
-        title="足迹 · 已成之事"
+        title="迹 · 电脑使用足迹"
       >
         <span className="todo-panel__nav-seal">
           <NavMarkTrail size={15} />
         </span>
         <span className="todo-panel__nav-label">足迹</span>
-        {doneCount > 0 && <span className="todo-panel__nav-count">{doneCount}</span>}
       </button>
-    </div>
-  );
-};
-
-// ===== 今日概览条 =====
-const TodayOverview: React.FC = () => {
-  const data = useTodoStore((s) => s.data);
-  const profile = useGrowthStore((s) => s.profile);
-  const today = todayStr();
-  const dueTasks = data.tasks.filter((t) => !t.completedAt && t.due && t.due <= today);
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const doneToday = data.tasks.filter((t) => t.completedAt && t.completedAt >= dayStart.getTime()).length;
-  const focusToday = data.focusSessions
-    .filter((s) => s.startedAt >= dayStart.getTime())
-    .reduce((a, s) => a + s.minutes, 0);
-
-  return (
-    <div className="todo-panel__overview">
-      <span style={{ color: 'var(--color-success)' }}>✓ {doneToday}/{doneToday + dueTasks.length}</span>
-      <span style={{ color: 'var(--color-accent)' }}>⏱ {focusToday}m</span>
-      <span style={{ color: 'var(--color-warning)' }}>🔥 {profile.streak}</span>
     </div>
   );
 };

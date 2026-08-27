@@ -11,12 +11,14 @@ import { useTodoStore } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
 import { useReminderTicker } from '../hooks/useReminderTicker';
 import { XpKinds, type FocusSession } from '../api/types';
+import { connectMux, dshSession, type DshMuxFrame } from '@/infrastructure/api/service-api/DshAPI';
 import { TodoPanel } from './TodoPanel';
 
 export const TodoOverlay: React.FC = () => {
   const loaded = useTodoStore((s) => s.loaded);
   const load = useTodoStore((s) => s.load);
   const initGrowth = useGrowthStore((s) => s.init);
+  const setAgentRunning = useTodoStore((s) => s.setAgentRunning);
 
   useEffect(() => {
     void load();
@@ -60,6 +62,54 @@ export const TodoOverlay: React.FC = () => {
       void addXp('todo.streak_bonus', profile.streak * 2, { streak: profile.streak });
     }
   }, [loaded]);
+
+  // agent 侧 todo 写入（ai00_task_complete / ai00_todo_write / ai00_task_create）
+  // → 宿主广播 → 重读盘同步内存态（load 内部 save 幂等无害）
+  useEffect(() => {
+    const un = listen('todo-agent-updated', () => {
+      void useTodoStore.getState().load();
+    });
+    return () => {
+      void un.then(f => f());
+    };
+  }, []);
+
+  // agent 提问订阅（ask_user_question → 策内嵌问题卡，一步应答不跳主窗）：
+  // 独立 mux WS 连接（与主窗 DshScene 并行；指数退避重连，引擎未起静默）
+  useEffect(() => {
+    const conn = connectMux((frame: DshMuxFrame, rpcId: string) => {
+      const store = useTodoStore.getState();
+      if (frame.type === 'question/requested') {
+        store.upsertAgentQuestion(frame.sessionId, { rpcId, questions: frame.questions });
+      } else if (frame.type === 'question/resolved') {
+        store.removeAgentQuestion(frame.sessionId, frame.questionRpcId);
+      }
+    });
+    return () => conn.close();
+  }, []);
+
+  // agent 会话运行态轮询（30s，非持久化；引擎未起时静默）
+  useEffect(() => {
+    if (!loaded) return;
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const { items } = await dshSession.list();
+        if (stopped) return;
+        const map: Record<string, boolean> = {};
+        for (const s of items) map[s.sessionId] = !!s.running;
+        setAgentRunning(map);
+      } catch {
+        // 引擎未启动/接口不可用 → 保留上次态
+      }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 30000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [loaded, setAgentRunning]);
 
   useReminderTicker();
 

@@ -514,19 +514,812 @@
     line-height: 1.4;
   }
 
-  &goal-bar {
-    height: 5px;
+  // ===== 志视图：左分类树（顶格铺满）+ 右详情 =====
+  &goals {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    // 左栏顶格：无外层留白（内容区 padding 由右栏自持）
+  }
+
+  &goals__side {
+    width: 200px;
+    flex-shrink: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: color-mix(in oklch, var(--color-bg-sunken), var(--color-bg-base) 25%);
+    // 顶格铺满：无圆角无右边距，右缘细分隔线分层
+    border-right: 1px solid var(--border-subtle);
+    overflow: hidden;
+  }
+
+  // 左栏标题栏（鸿鹄之志——不在树里；右缘两按钮：加分类/立志）
+  &goals__side-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-gap-1, 4px);
+    padding: var(--size-gap-2, 8px) var(--size-gap-1-5, 6px) var(--size-gap-1, 4px);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  // 根题名（标题栏内）
+  &goals__root-name {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    font-size: var(--font-size-base, 14px);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--color-text-primary);
+  }
+
+  &goals__side-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1, 4px);
+    padding: var(--size-gap-1, 4px);
+  }
+
+  &goals__side-empty {
+    padding: var(--size-gap-3, 12px) var(--size-gap-2, 8px);
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+
+  // 树形容器（ds Tree 适配志左栏密度；层级只靠缩进 + chevron，无竖线）
+  &goals__tree {
+    padding: var(--size-gap-1, 4px) var(--size-gap-1, 4px);
+
+    .ds-tree__item {
+      padding-top: calc(var(--size-gap-0-5, 2px) / 2);
+      padding-bottom: calc(var(--size-gap-0-5, 2px) / 2);
+    }
+
+    // 隐藏 ds-tree 行级断续小竖条
+    .ds-tree__indent {
+      display: none;
+    }
+  }
+
+  &goals__tree-label {
+    flex: 1;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+  }
+
+  // 分类节点 = 拖放目标（拖志入内换分类）
+  &goals__tree-cat {
+    border-radius: var(--size-radius-sm, 6px);
+    padding: var(--size-gap-0-5, 2px) var(--size-gap-1, 4px);
+    transition: background 0.15s ease;
+
+    &.is-over {
+      background: color-mix(in oklch, var(--color-accent) 10%, transparent);
+      outline: 1px dashed color-mix(in oklch, var(--color-accent) 45%, transparent);
+    }
+  }
+
+  // 节点行尾动作区（计数 + 加号 + 删除）
+  &goals__tree-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-0-5, 2px);
+  }
+
+  // 行尾小加号（分类=该分类下立志 / 根=新建分类；常显但低调）
+  &goals__tree-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: var(--size-radius-sm, 6px);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: color 0.1s ease, background 0.1s ease;
+
+    &:hover {
+      color: var(--color-accent);
+      background: color-mix(in oklch, var(--color-accent) 12%, transparent);
+    }
+  }
+
+  &goals__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, 2px);
+  }
+
+  &goals__group-head {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    padding: var(--size-gap-0-5, 2px) var(--size-gap-1, 4px);
+    border-radius: var(--size-radius-sm, 6px);
+    transition: background 0.15s ease;
+
+    // 拖放目标态（志拖入该分类）
+    &.is-over {
+      background: color-mix(in oklch, var(--color-accent) 10%, transparent);
+      outline: 1px dashed color-mix(in oklch, var(--color-accent) 45%, transparent);
+    }
+  }
+
+  &goals__group-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-xs, 12px);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+  }
+
+  &goals__group-count {
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-muted);
+  }
+
+  // 分类删除钮：树行 hover 才显示；隐藏时 visibility 收掉点击，防隐形占位误触
+  &goals__group-del {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: var(--size-radius-sm, 6px);
+    background: transparent;
+    color: var(--color-text-muted);
+    opacity: 0;
+    visibility: hidden;
+    cursor: pointer;
+
+    .td-goals__tree .ds-tree__item:hover & {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    &:hover {
+      color: var(--color-error);
+      background: color-mix(in oklch, var(--color-error) 12%, transparent);
+    }
+  }
+
+  &goals__item {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    padding: var(--size-gap-1, 4px) var(--size-gap-1-5, 6px);
+    border-radius: var(--size-radius-sm, 6px);
+    cursor: grab;
+    user-select: none;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-text-primary) 6%, transparent);
+    }
+
+    &.is-selected {
+      background: color-mix(in oklch, var(--color-accent) 10%, transparent);
+      outline: 1px solid color-mix(in oklch, var(--color-accent) 45%, transparent);
+    }
+
+    &.is-done &-title {
+      color: var(--color-text-muted);
+      text-decoration: line-through;
+    }
+  }
+
+  &goals__item-emoji {
+    flex-shrink: 0;
+    font-size: var(--font-size-sm, 13px);
+    line-height: 1;
+  }
+
+  &goals__item-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-sm, 13px);
+    color: var(--color-text-primary);
+
+    // 已达成（树版 label 内联）
+    &.is-done {
+      color: var(--color-text-muted);
+      text-decoration: line-through;
+    }
+  }
+
+  &goals__main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    // 内容区 padding 由详情页（goalpage）/空态自持
+    padding: 0;
+  }
+
+  // 首页空态（门面三件套：kicker 眉线 + 衬线大标 + 引导语）
+  &goals__main-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--size-gap-2-5, 10px);
+    text-align: center;
+    padding: var(--size-gap-5, 20px);
+  }
+
+  &goals__main-empty-kicker {
+    font-family: var(--font-family-mono, monospace);
+    font-size: var(--font-size-2xs, 11px);
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  &goals__main-empty-title {
+    font-family: var(--font-family-serif, serif);
+    font-size: clamp(1.5rem, 2.2vw, 2rem);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: var(--line-height-tight, 1.3);
+    color: var(--color-text-primary);
+  }
+
+  &goals__main-empty-text {
+    font-size: var(--font-size-sm, 13px);
+    color: var(--color-text-muted);
+    max-width: 30em;
+  }
+
+  // ===== 志详情门面（.td-goalpage：hero + toolbar + 分区 sections）=====
+  &goalpage {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-4, 16px);
+    padding: var(--size-gap-5, 20px) var(--size-gap-6, 24px) var(--size-gap-6, 24px);
+  }
+
+  // ① hero：切换志时淡入上移（普通微动效，非签名动效）
+  &goalpage__hero {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1-5, 6px);
+    animation: tdGoalReveal 0.2s ease;
+
+    @keyframes tdGoalReveal {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  }
+
+  &goalpage__kicker {
+    font-family: var(--font-family-mono, monospace);
+    font-size: var(--font-size-2xs, 11px);
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  &goalpage__title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2, 8px);
+  }
+
+  // hero 大 emoji（EmojiPicker 放大一档）
+  &goalpage__emoji .td-goals__emoji-btn {
+    font-size: var(--font-size-4xl, 26px);
+  }
+
+  &goalpage__title {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-family: var(--font-family-serif, serif);
+    font-size: clamp(1.6rem, 2.4vw, 2.2rem);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    line-height: var(--line-height-tight, 1.3);
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &goalpage__why {
+    font-size: var(--font-size-lg, 15px);
+    line-height: 1.8;
+    color: var(--color-text-secondary);
+    max-width: 40em;
+    user-select: text;
+  }
+
+  // 状态条：达成区 | 任务计数（mono 大数字档），细竖线分隔
+  &goalpage__status {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-3, 12px);
+    padding-top: var(--size-gap-0-5, 2px);
+
+    > * + * {
+      border-left: 1px solid var(--border-subtle);
+      padding-left: var(--size-gap-3, 12px);
+    }
+  }
+
+  &goalpage__done-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--size-gap-0-5, 2px) var(--size-gap-1-5, 6px);
+    border-radius: var(--size-radius-full, 9999px);
+    font-size: var(--font-size-xs, 12px);
+    background: color-mix(in oklch, var(--color-success) 16%, transparent);
+    color: var(--color-success);
+  }
+
+  &goalpage__count {
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-2xl, 18px);
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+
+  // 细进度带（4px accent）
+  &goalpage__bar {
+    height: 4px;
     border-radius: var(--size-radius-full, 9999px);
     background: color-mix(in oklch, var(--color-text-primary) 10%, transparent);
     overflow: hidden;
   }
 
-  &goal-fill {
+  &goalpage__bar-fill {
     display: block;
     height: 100%;
+    border-radius: var(--size-radius-full, 9999px);
     background: var(--color-accent);
-    border-radius: inherit;
-    transition: width 0.3s ease;
+    transition: width 0.2s ease;
+  }
+
+  // ② toolbar：chip 操作行（删右对齐）
+  &goalpage__toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+  }
+
+  &goalpage__toolbar-spacer {
+    flex: 1;
+  }
+
+  &goalpage__dir {
+    max-width: 22em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // ③④⑤ 分区：sunken 面 + 分区标题
+  &goalpage__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1-5, 6px);
+    padding: var(--size-gap-3, 12px) var(--size-gap-4, 16px);
+    border-radius: var(--size-radius-base, 8px);
+    background-color: var(--color-bg-sunken);
+  }
+
+  &goalpage__section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-gap-2, 8px);
+  }
+
+  &goalpage__section-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    border: none;
+    padding: 0;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-accent);
+    }
+  }
+
+  &goalpage__section-title {
+    font-size: var(--font-size-sm, 13px);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--color-text-secondary);
+  }
+
+  &goalpage__section-count {
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-muted);
+  }
+
+  &goalpage__section-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1, 4px);
+  }
+
+  // 评估报告：meta 行（时间 mono + 实况来源徽标）+ 固定四段结构
+  &goalpage__assess-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2, 8px);
+    padding-bottom: var(--size-gap-0-5, 2px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  &goalpage__assess-time {
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-muted);
+  }
+
+  &goalpage__assess-src {
+    padding: var(--size-gap-0-25, 1px) var(--size-gap-1-5, 6px);
+    border-radius: var(--size-radius-full, 9999px);
+    font-size: var(--font-size-xxs, 10px);
+    line-height: 14px;
+    background: color-mix(in oklch, var(--color-accent) 12%, transparent);
+    color: var(--color-accent);
+    white-space: nowrap;
+  }
+
+  // ① 阶段结论行
+  &goalpage__assess-stage {
+    margin: 0;
+    font-size: var(--font-size-sm, 13px);
+    line-height: 1.7;
+    color: var(--color-text-primary);
+    user-select: text;
+    word-break: break-word;
+  }
+
+  // ②③ 亮点/缺口列表块（小标 + 列表）
+  &goalpage__assess-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, 2px);
+  }
+
+  &goalpage__assess-label {
+    font-size: var(--font-size-2xs, 11px);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--color-text-secondary);
+  }
+
+  &goalpage__assess-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, 2px);
+
+    li {
+      position: relative;
+      padding-left: var(--size-gap-2-5, 10px);
+      font-size: var(--font-size-sm, 13px);
+      line-height: 1.6;
+      color: var(--color-text-primary);
+      user-select: text;
+      word-break: break-word;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0.62em;
+        width: 5px;
+        height: 5px;
+        border-radius: var(--size-radius-full, 9999px);
+      }
+    }
+
+    // 亮点 = success 圆点；缺口 = warning 圆点（语义色只表状态）
+    &.is-hi li::before {
+      background: var(--color-success);
+    }
+
+    &.is-gap li::before {
+      background: var(--color-warning);
+    }
+  }
+
+  // ④ 建议强调行（左 accent 竖线引导）
+  &goalpage__assess-advice {
+    margin: 0;
+    padding: var(--size-gap-0-5, 2px) 0 var(--size-gap-0-5, 2px) var(--size-gap-2-5, 10px);
+    border-left: 2px solid var(--color-accent);
+    font-size: var(--font-size-sm, 13px);
+    font-weight: 500;
+    line-height: 1.6;
+    color: var(--color-text-primary);
+    user-select: text;
+    word-break: break-word;
+  }
+
+  // ===== 用量统计共享（UsageCharts 消费：志详情 + 修行视图）=====
+  &usage {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-3, 12px);
+  }
+
+  &usage__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-gap-3, 12px) var(--size-gap-5, 20px);
+  }
+
+  &usage__stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, 2px);
+    min-width: 5em;
+  }
+
+  &usage__stat-label {
+    font-size: var(--font-size-2xs, 11px);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+  }
+
+  &usage__stat-value {
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-2xl, 18px);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-text-primary);
+  }
+
+  &usage__stat-sub {
+    font-size: var(--font-size-xxs, 10px);
+    color: var(--color-text-muted);
+  }
+
+  &usage__charts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-2-5, 10px);
+  }
+
+  &usage__chart-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, 2px);
+  }
+
+  &usage__chart-label {
+    font-size: var(--font-size-2xs, 11px);
+    color: var(--color-text-secondary);
+  }
+
+  // 图例（自绘：小方块 + label）
+  &usage__chart {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, 2px);
+  }
+
+  &usage__legend {
+    display: flex;
+    gap: var(--size-gap-3, 12px);
+  }
+
+  &usage__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    font-size: var(--font-size-2xs, 11px);
+    color: var(--color-text-secondary);
+  }
+
+  &usage__legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  // tooltip（sunken 面风格）
+  &usage__tip {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, 2px);
+    padding: var(--size-gap-1-5, 6px) var(--size-gap-2, 8px);
+    border-radius: var(--size-radius-sm, 6px);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-sm, none);
+  }
+
+  &usage__tip-date {
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xxs, 10px);
+    color: var(--color-text-muted);
+  }
+
+  &usage__tip-row {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-primary);
+  }
+
+  &usage__tip-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+  }
+
+  &usage__tip-val {
+    margin-left: auto;
+    padding-left: var(--size-gap-2, 8px);
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary);
+  }
+
+  // 修行视图变体：无 sunken 宿主，自带分区间距
+  &usage--growth {
+    gap: var(--size-gap-2-5, 10px);
+  }
+
+  &goalpage__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-gap-1, 4px);
+  }
+
+  // 任务行（原内联样式收编）
+  &goalpage__task {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1-5, 6px);
+    padding: var(--size-gap-0-5, 2px) 0;
+
+    &.is-done &-title {
+      color: var(--color-text-muted);
+      text-decoration: line-through;
+    }
+  }
+
+  &goalpage__task-dot {
+    flex-shrink: 0;
+    font-size: var(--font-size-2xs, 11px);
+    line-height: 13px;
+    color: var(--color-text-muted);
+  }
+
+  &goalpage__task.is-done .td-goalpage__task-dot {
+    color: var(--color-success);
+  }
+
+  &goalpage__task-title {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--font-size-sm, 13px);
+    line-height: 1.4;
+    color: var(--color-text-primary);
+  }
+
+  // 里程碑分组
+  &goalpage__task-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, 2px);
+    margin-top: var(--size-gap-0-5, 2px);
+  }
+
+  &goalpage__task-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-gap-2, 8px);
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-secondary);
+    opacity: 0.8;
+  }
+
+  &goalpage__task-group-count {
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+  }
+
+  // emoji 选择器
+  &goals__emoji-btn {
+    border: none;
+    border-radius: var(--size-radius-sm, 6px);
+    background: transparent;
+    padding: var(--size-gap-0-5, 2px);
+    font-size: var(--font-size-base, 14px);
+    line-height: 1.2;
+    cursor: pointer;
+    flex-shrink: 0;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-accent) 12%, transparent);
+    }
+  }
+
+  &goals__emoji-pop {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--size-gap-0-5, 2px);
+    padding: var(--size-gap-1, 4px);
+  }
+
+  &goals__emoji-item {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--size-radius-sm, 6px);
+    background: transparent;
+    font-size: calc(var(--font-size-lg, 15px) - var(--size-gap-0-5, 2px));
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-accent) 12%, transparent);
+    }
+
+    &.is-active {
+      background: color-mix(in oklch, var(--color-accent) 22%, transparent);
+    }
   }
 
   &goal-meta {
@@ -562,7 +1355,7 @@
     }
   }
 
-  // ===== 细谈模态 =====
+  // ===== 模态壳（创建/拟策弹窗复用）=====
   &consult {
     position: absolute;
     inset: 0;
@@ -580,7 +1373,8 @@
     max-height: calc(100% - 32px);
     display: flex;
     flex-direction: column;
-    background-color: var(--color-bg-overlay, var(--color-bg-elevated));
+    // 弹层走 modal 档（浮在策窗口 overlay 面板之上）
+    background-color: var(--color-bg-modal);
     color: var(--color-text-primary);
     border-radius: var(--size-radius-lg, 12px);
     box-shadow: var(--shadow-xl);
@@ -606,16 +1400,6 @@
     gap: var(--size-gap-1-5, 6px);
   }
 
-  &consult-q {
-    align-self: flex-start;
-    max-width: 85%;
-    padding: var(--size-gap-1-5, 6px) var(--size-gap-2, 8px);
-    border-radius: var(--size-radius-base, 8px);
-    background: color-mix(in oklch, var(--color-accent) 12%, transparent);
-    color: var(--color-text-secondary);
-    line-height: 1.5;
-  }
-
   &consult-a {
     align-self: flex-end;
     max-width: 85%;
@@ -624,31 +1408,6 @@
     background: color-mix(in oklch, var(--color-text-primary) 8%, transparent);
     color: var(--color-text-primary);
     line-height: 1.5;
-  }
-
-  &consult-input {
-    display: flex;
-    gap: var(--size-gap-2, 8px);
-    padding: var(--size-gap-2, 8px) var(--size-gap-4, 16px);
-    border-top: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
-
-    input {
-      flex: 1;
-      min-width: 0;
-      height: 30px;
-      padding: 0 var(--size-gap-2, 8px);
-      border: none;
-      border-radius: var(--size-radius-full, 9999px);
-      background: color-mix(in oklch, var(--color-text-primary) 7%, transparent);
-      color: var(--color-text-primary);
-      font-size: var(--font-size-sm, 13px);
-      font-family: inherit;
-      outline: none;
-
-      &:focus {
-        box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-accent) 55%, transparent);
-      }
-    }
   }
 
   &consult-foot {

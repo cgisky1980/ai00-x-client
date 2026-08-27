@@ -513,6 +513,15 @@ body > div[style*="z-index:999999"] {
   }
 }
 
+/* ========== Chrome-layer modal z promotion ==========
+ * ds Modal (Radix portal → body) 默认 z-modal=10000，会被 chrome 浮层
+ * （策面板等 z≈50013）盖住——浮层内触发的 ConfirmDialog/InputDialog 不可见。
+ * body 直挂的 modal overlay 提到 chrome-popup 档；容器内 portal 的 modal
+ * （如 settings 专用容器）不在 body 直挂，不受影响。 */
+body > .modal-overlay {
+  z-index: var(--z-chrome-popup);
+}
+
 /* ========== Monaco Editor theme integration ========== */
 .monaco-editor,
 .monaco-editor .margin,

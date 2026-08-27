@@ -48,7 +48,6 @@ function badgeStats(streak: number): BadgeStats {
     lists: data.lists.length,
     goals: data.goals.length,
     goalsDone: data.goals.filter((g) => g.doneAt).length,
-    consults: Number(localStorage.getItem('todo.consultCount') || 0),
   };
 }
 

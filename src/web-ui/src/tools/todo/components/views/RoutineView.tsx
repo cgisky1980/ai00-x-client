@@ -1,14 +1,16 @@
 /**
  * RoutineView — 周期之策（一级大项，卡片式）。
  * 任务卡片：标题 + 重复规则徽标 + 下次到期 + 完成统计。
- * 新建入口在面板底部固定区（RoutineComposer）。
+ * 新建入口在内容区标题行右端（RoutineComposer）。
  */
 import React, { useMemo } from 'react';
-import { Repeat as RepeatIcon } from 'lucide-react';
+import { Plus, Repeat as RepeatIcon } from 'lucide-react';
 import { useTodoStore, dueLabel } from '../../store/todoStore';
 import { REPEAT_LABELS } from '../../api/labels';
 
-export const RoutineView: React.FC = () => {
+export const RoutineView: React.FC<{
+  onOpenCreate: () => void;
+}> = ({ onOpenCreate }) => {
   const data = useTodoStore((s) => s.data);
 
   // 注意：不能在选择器里 .filter()（每次返回新数组引用 → useSyncExternalStore
@@ -19,8 +21,17 @@ export const RoutineView: React.FC = () => {
   );
 
   return (
-    <div style={{ paddingTop: 8 }}>
-      <div className="td-growth-section">周期之策（{routines.length}）</div>
+    <div className="td-view">
+      <div className="td-view-head">
+        <span className="td-growth-section" style={{ margin: 0 }}>周期之策（{routines.length}）</span>
+        <button
+          className="td-view-add"
+          onClick={onOpenCreate}
+          title="新立恒常（人做提醒 / AI 定时执行，周期自动滚动）"
+        >
+          <Plus size={11} />
+        </button>
+      </div>
 
       {routines.length === 0 && (
         <div className="todo-panel__empty">尚无周期之事——把日课立起来</div>

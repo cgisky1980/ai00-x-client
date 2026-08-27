@@ -1,13 +1,16 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * GrowthView — 修行：等级卡 / 今日统计 / 日终回顾 / 勋章墙 / 奖励兑换 / 服务器同步态。
  */
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Medal, Sparkles } from 'lucide-react';
 import { useTodoStore } from '../../store/todoStore';
 import { useGrowthStore } from '../../store/growthStore';
 import { BADGES } from '../../api/types';
 import { BADGE_TIER_LABELS } from '../../api/labels';
 import { dailyReview } from '../../ai/consult';
+import { queryLocalUsage, fetchServerUsage, fmtNum, type LocalUsage, type ServerUsage } from '../../ai/usageApi';
+import { StackedTokenChart, StatChip } from './UsageCharts';
 
 export const GrowthView: React.FC = () => {
   const data = useTodoStore((s) => s.data);
@@ -19,6 +22,28 @@ export const GrowthView: React.FC = () => {
   const [rewardCost, setRewardCost] = useState('');
   const [review, setReview] = useState<string | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
+
+  // ===== 消耗统计（全局：本地 ledger 全量 + 服务端真实账单）=====
+  const [localUsage, setLocalUsage] = useState<LocalUsage | null>(null);
+  const [serverUsage, setServerUsage] = useState<ServerUsage | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void queryLocalUsage(7)
+      .then(u => {
+        if (!cancelled) setLocalUsage(u);
+      })
+      .catch(() => undefined);
+    void fetchServerUsage(30).then(s => {
+      if (!cancelled) setServerUsage(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const tokenDays = useMemo(
+    () => (localUsage ? localUsage.days.map(d => ({ date: d.date, local: d.localTokens, remote: d.remoteTokens })) : []),
+    [localUsage]
+  );
 
   const dayStart = new Date();
   dayStart.setHours(0, 0, 0, 0);
@@ -56,7 +81,7 @@ export const GrowthView: React.FC = () => {
   };
 
   return (
-    <div style={{ paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 0, minHeight: '100%' }}>
+    <div className="td-view" style={{ display: 'flex', flexDirection: 'column' }}>
       {/* 等级卡 */}
       <div className="td-level-card">
         <span className="td-lv">Lv.{profile.level}</span>
@@ -83,6 +108,33 @@ export const GrowthView: React.FC = () => {
       </div>
       <div className="td-stat-label" style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
         近 7 日完成：{week.join(' · ')}
+      </div>
+
+      {/* 消耗 CONSUMPTION：AI 用量（本地 ledger 全量 + 服务端真实账单） */}
+      <div className="td-growth-section" style={{ marginTop: 10 }}>消耗</div>
+      <div className="td-usage td-usage--growth">
+        <div className="td-usage__stats">
+          <StatChip label="专注分钟" value={`${focusToday}`} sub="今日" />
+          <StatChip
+            label="本地 Token"
+            value={fmtNum(localUsage?.totals.localTokens ?? 0)}
+            sub="近 7 日 · RWKV 免费推理"
+          />
+          <StatChip
+            label="远程 Token"
+            value={fmtNum(localUsage?.totals.remoteTokens ?? 0)}
+            sub="近 7 日"
+          />
+          <StatChip
+            label="远程费用"
+            value={serverUsage ? fmtNum(serverUsage.totals.credits) : '—'}
+            sub={serverUsage ? 'credit · 近 30 日真实账单' : '登录后同步账单'}
+          />
+        </div>
+        <div className="td-usage__chart-block">
+          <span className="td-usage__chart-label">近 7 日 AI 消耗（token）</span>
+          <StackedTokenChart data={tokenDays} />
+        </div>
       </div>
 
       {/* 日终回顾 */}

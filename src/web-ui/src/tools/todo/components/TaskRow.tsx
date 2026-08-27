@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * TaskRow — 任务行（点击选中 → 详情在面板右侧栏 TaskDetailPane 展开）。
  * TaskDetailPane — 右侧详情面板：备注/目标·阶段/截止/提醒/重复/检查项/删除。

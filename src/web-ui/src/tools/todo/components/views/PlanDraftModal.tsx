@@ -130,7 +130,7 @@ export const PlanDraftModal: React.FC<{
               onAdopt({
                 plan,
                 milestones,
-                tasks: tasks.filter((t) => t.checked).map(({ checked, ...rest }) => rest),
+                tasks: tasks.filter((t) => t.checked).map(({ checked: _checked, ...rest }) => rest),
               });
               onClose();
             }}

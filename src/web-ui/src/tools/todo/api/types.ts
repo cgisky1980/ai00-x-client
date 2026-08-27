@@ -9,9 +9,34 @@
 
 export type RepeatType = 'daily' | 'weekly' | 'monthly' | 'weekdays';
 
+/** 看板状态：需求卡 → 计划中 → 进行中（完成走 completedAt → 足迹）。 */
+export type TaskStatus = 'requirement' | 'planning' | 'doing';
+
 export interface ChecklistItem {
   t: string;
   d: boolean;
+}
+
+/** 规划对话产出的计划契约（卡片级）：目标 + 步骤 + 验收（DoD）+ 交付物。 */
+export interface BoardPlan {
+  /** 一段话计划摘要 */
+  summary: string;
+  /** 一句话目标（人机共同确认的目的） */
+  goal: string;
+  /** 步骤/子任务 */
+  tasks: Array<{ title: string; notes?: string }>;
+  /** 验收标准 DoD checklist（可客观检验的完成判据；空=免验收） */
+  acceptance: string[];
+  /** AI 建议的执行模块 id（AGENT_MODULES 键；可缺省——插件时代用） */
+  suggestedModule?: string;
+  /** 交付物描述 */
+  deliverable?: string;
+}
+
+/** 卡片级规划对话消息（策内嵌规划对话历史）。 */
+export interface PlanChatMessage {
+  role: 'user' | 'ai';
+  text: string;
 }
 
 export interface TodoTask {
@@ -34,6 +59,18 @@ export interface TodoTask {
   remindAt: string | null;
   /** 已提醒时间戳（防重发；跨设备由本地文件保证） */
   remindedAt: number | null;
+  /** 看板状态（策 v3：需求卡/计划中/进行中；缺省=需求卡，旧数据兼容） */
+  status?: TaskStatus;
+  /** 规划对话历史（多轮需求讨论；持久化） */
+  chat?: PlanChatMessage[];
+  /** 计划草案（规划对话产出；确认交付后保留为参考） */
+  plan?: BoardPlan | null;
+  /** agent 委托：模块 id（AGENT_MODULES 键） */
+  agentModule?: string;
+  /** 关联 dsh 会话 id */
+  agentSessionId?: string;
+  /** 委托任务书（交付给 agent 的完整 prompt；定时任务为执行指令） */
+  agentPrompt?: string;
 }
 
 /** 里程碑（志的阶段划分，与 plan 方案层平行） */
@@ -41,6 +78,14 @@ export interface Milestone {
   id: string;
   title: string;
   done: boolean;
+}
+
+/** 志分类（志视图左栏分组）。 */
+export interface GoalCategory {
+  id: string;
+  name: string;
+  /** 分组图标（emoji） */
+  emoji: string;
 }
 
 export interface TodoGoal {
@@ -51,10 +96,28 @@ export interface TodoGoal {
   remindedAt: number | null;
   doneAt: number | null;
   createdAt: number;
-  /** 方案层：实施策略段落（AI 起草/用户编辑；空=未定方案） */
+  /** 方案层：实施策略段落（AI 起草/用户编辑；空=未定方案）——旧字段，评估上线后不再写入（历史数据兼容保留） */
   plan: string[];
+  /** AI 评估报告（最近一次；固定四段结构。绑定项目目录时结合目录结构/README/git 记录实况生成） */
+  assessment?: {
+    at: number;
+    /** 【阶段】当前阶段判断（一两句） */
+    stage: string;
+    /** 【亮点】1-3 条 */
+    highlights: string[];
+    /** 【缺口】1-3 条 */
+    gaps: string[];
+    /** 【建议】下一步最值得做的一件事 */
+    advice: string;
+  } | null;
   /** 里程碑层：阶段划分（任务挂 milestoneId 可选） */
   milestones: Milestone[];
+  /** 项目目录（可选）：关联行卡委托 agent 的工作区（cwd 解析链 卡→志→默认） */
+  workspaceDir?: string;
+  /** 志图标（emoji，可选） */
+  emoji?: string;
+  /** 所属分类（goalCategories.id；缺省 = 未分类） */
+  categoryId?: string;
 }
 
 export interface TodoList {
@@ -74,6 +137,8 @@ export interface TodoData {
   version: number;
   lists: TodoList[];
   goals: TodoGoal[];
+  /** 志分类（志视图左栏分组） */
+  goalCategories: GoalCategory[];
   tasks: TodoTask[];
   focusSessions: FocusSession[];
   /** 自定义奖励（本地） */
@@ -133,13 +198,11 @@ export interface BadgeStats {
   lists: number;
   goals: number;
   goalsDone: number;
-  consults: number;
 }
 
 export const BADGES: BadgeDef[] = [
   { id: 'first-task', name: '第一件事', desc: '完成第一个任务', tier: 'bronze', when: (s) => s.completed >= 1 },
   { id: 'first-focus', name: '初次专注', desc: '完成第一次专注', tier: 'bronze', when: (s) => s.focusSessions >= 1 },
-  { id: 'first-consult', name: '细谈成事', desc: '用细谈创建任务', tier: 'bronze', when: (s) => s.consults >= 1 },
   { id: 'tasks-10', name: '渐入佳境', desc: '累计完成 10 个任务', tier: 'bronze', when: (s) => s.completed >= 10 },
   { id: 'tasks-50', name: '轻车熟路', desc: '累计完成 50 个任务', tier: 'silver', when: (s) => s.completed >= 50 },
   { id: 'tasks-200', name: '百炼成钢', desc: '累计完成 200 个任务', tier: 'gold', when: (s) => s.completed >= 200 },

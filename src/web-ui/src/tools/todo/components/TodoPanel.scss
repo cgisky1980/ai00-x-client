@@ -6,13 +6,17 @@
   z-index: var(--z-chrome-overlay, 50013);
   display: flex;
   flex-direction: column;
-  background: color-mix(in oklch, var(--color-bg-overlay, var(--color-bg-elevated)) 94%, transparent);
-  backdrop-filter: blur(32px) saturate(1.6);
-  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  // 实体墨面（规范 4.7：面板不做玻璃）。暗色 = card 档浮起；
+  // 亮色特调 = 宣纸本纸 base（card 0.99 在大面板上过白，与宣纸底不搭——
+  // 浮层与页面同纸色，靠 subtle 边框 + 阴影分层）
+  background-color: var(--color-bg-card);
+  [data-theme-type='light'] & {
+    background-color: var(--color-bg-base);
+  }
   color: var(--color-text-primary);
   border-radius: var(--size-radius-lg, 12px);
-  border: 1px solid color-mix(in oklch, var(--color-text-primary) 12%, transparent);
-  box-shadow: 0 16px 48px var(--color-overlay, rgba(0, 0, 0, 0.5));
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-xl);
   overflow: hidden;
   font-family: var(--font-family-sans, sans-serif);
   font-size: var(--font-size-base, 14px);
@@ -46,6 +50,7 @@
   }
 
   // ===== Header（拖动把手 + 等级 + XP 条 + 成长 + 关闭）=====
+  // 层次靠墨阶：标题栏沉底一档（sunken），不加边框线
   &__header {
     flex-shrink: 0;
     display: flex;
@@ -53,7 +58,7 @@
     gap: var(--size-gap-2, 8px);
     padding: var(--size-gap-2-5, 10px) var(--size-gap-3-5, 14px);
     cursor: grab;
-    border-bottom: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+    background-color: var(--color-bg-sunken);
 
     .is-dragging & { cursor: grabbing; }
   }
@@ -124,49 +129,24 @@
     }
   }
 
-  // ===== Footer：底部固定创建区（所有视图的添加入口统一沉底，不随列表滚动）=====
-  &__footer {
-    flex-shrink: 0;
-    padding: var(--size-gap-2, 8px) var(--size-gap-3, 12px) var(--size-gap-2-5, 10px);
-    border-top: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
-    background: color-mix(in oklch, var(--color-bg-overlay, var(--color-bg-elevated)) 60%, transparent);
-  }
-
-  // ===== Capture（快速捕获 + 细谈，置于面板底部）=====
-  &__capture {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-2, 8px);
-
-    input {
-      flex: 1;
-      min-width: 0;
-      height: 30px;
-      padding: 0 var(--size-gap-3, 12px);
-      border: none;
-      border-radius: var(--size-radius-full, 9999px);
-      background: color-mix(in oklch, var(--color-text-primary) 7%, transparent);
-      color: var(--color-text-primary);
-      font-size: var(--font-size-sm, 13px);
-      font-family: inherit;
-      outline: none;
-
-      &:focus {
-        background: color-mix(in oklch, var(--color-text-primary) 10%, transparent);
-        box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-accent) 55%, transparent);
-      }
-
-      &::placeholder { color: var(--color-text-muted); }
-    }
-  }
-
-  // ===== Body：nav + list =====
+  // ===== Body：nav + main =====
   &__body {
     flex: 1;
     display: flex;
     min-height: 0;
   }
 
+  &__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  // 行 = 看板（含细节区）由 .td-board grid 承载（board.scss）
+
+  // ===== Nav 侧栏：沉底一档（sunken 工作区语义，色差分层不加右边框）=====
   &__nav {
     width: 64px;
     flex-shrink: 0;
@@ -175,13 +155,13 @@
     gap: var(--size-gap-1, 4px);
     padding: var(--size-gap-2, 8px) var(--size-gap-1, 4px);
     overflow-y: auto;
-    border-right: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+    background-color: var(--color-bg-sunken);
   }
 
   &__nav-sep {
     height: 1px;
     margin: var(--size-gap-1-5, 6px) var(--size-gap-1, 4px);
-    background: color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+    background-color: var(--border-subtle);
     flex-shrink: 0;
   }
 
@@ -273,7 +253,7 @@
     margin-left: var(--size-gap-2, 8px);
     overflow-y: auto;
     padding: var(--size-gap-1, 4px) 0 var(--size-gap-2, 8px) var(--size-gap-2, 8px);
-    border-left: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+    border-left: 1px solid var(--border-subtle);
   }
 
   &__empty {
@@ -312,7 +292,7 @@
     gap: var(--size-gap-0-5, 2px);
     padding: var(--size-gap-2-5, 10px) var(--size-gap-4, 16px);
     border-radius: var(--size-radius-lg, 12px);
-    background-color: var(--color-bg-overlay, var(--color-bg-elevated));
+    background-color: var(--color-bg-modal);
     box-shadow: var(--shadow-xl);
     z-index: 40;
     pointer-events: none;

@@ -1,7 +1,9 @@
 /**
- * todo 本地 AI 通道（细谈 / 拆解）——走 `plugin_ai_complete` 命令，
- * 核心 id `com.ai00x.core.todo` 豁免插件 gate（plugin_api.rs
+ * todo 本地 AI 通道（拆解 / 规划对话 / 拟策 / 日终回顾）——走 `plugin_ai_complete`
+ * 命令，核心 id `com.ai00x.core.todo` 豁免插件 gate（plugin_api.rs
  * CORE_FEATURE_IDS）。本地 RWKV 优先（Instruction 格式 + T≈1/P≈0.1）。
+ * model 引用可选透传（'auto' = 不传：本地 RWKV 优先 + primary 自动回退；
+ * 其余引用见 plugin_api.rs resolve_model_selection）。
  */
 import { invoke } from '@tauri-apps/api/core';
 
@@ -10,7 +12,7 @@ const CORE_ID = 'com.ai00x.core.todo';
 export async function aiComplete(
   prompt: string,
   systemPrompt: string,
-  opts?: { temperature?: number; topP?: number; maxTokens?: number }
+  opts?: { temperature?: number; topP?: number; maxTokens?: number; model?: string; tag?: string }
 ): Promise<string> {
   const res = await invoke<{ text?: string }>('plugin_ai_complete', {
     request: {
@@ -20,6 +22,8 @@ export async function aiComplete(
       temperature: opts?.temperature ?? 0.9,
       topP: opts?.topP ?? 0.1,
       maxTokens: opts?.maxTokens ?? 1024,
+      ...(opts?.model && opts.model !== 'auto' ? { model: opts.model } : {}),
+      ...(opts?.tag ? { tag: opts.tag } : {}),
     },
   });
   return typeof res?.text === 'string' ? res.text : '';
@@ -57,85 +61,6 @@ export function extractJson(text: string): unknown {
     }
   }
   return null;
-}
-
-// ===== 细谈式创建（对话澄清模式） =====
-
-export interface ConsultDraft {
-  title: string;
-  notes: string;
-  due: string | null; // 'YYYY-MM-DD'
-  remindTime: string | null; // 'HH:MM'
-  repeat: 'daily' | 'weekly' | 'monthly' | 'weekdays' | null;
-  checklist: string[];
-  goalTitle: string | null;
-}
-
-const QUESTION_SYSTEM =
-  '你是任务细谈助手。根据用户想做的事，每次只问一个最关键的问题（最多3轮）：' +
-  '先问清【做什么/交付物】，再问【何时/截止】，再问【怎么做/拆步骤】。' +
-  '每轮只输出一个问题，不超过40字。信息足够时不再提问，只输出"好了"。';
-
-const DRAFT_SYSTEM = (today: string) =>
-  '你是任务整理助手。根据细谈对话，为用户生成一个任务草稿。今天是 ' + today + '。' +
-  '输出严格 JSON：{"title":"简短任务名","notes":"补充说明","due":"YYYY-MM-DD 或 null",' +
-  '"remindTime":"HH:MM 或 null","repeat":"daily|weekly|monthly|weekdays 或 null",' +
-  '"checklist":["步骤1","步骤2"],"goalTitle":"关联目标名或 null"}。' +
-  '只输出 JSON，不要任何其他文字。';
-
-/** 拼接细谈对话历史为单轮输入（RWKV 无多轮状态，手工拼）。 */
-export function buildConsultInput(main: string, qa: { q: string; a: string }[]): string {
-  let s = `用户想做：${main}`;
-  for (const { q, a } of qa) s += `\n问：${q}\n答：${a}`;
-  return s;
-}
-
-/** 追问下一问；返回 null 表示信息已足够（模型答"好了"或达到轮次上限）。 */
-export async function nextQuestion(main: string, qa: { q: string; a: string }[]): Promise<string | null> {
-  if (qa.length >= 3) return null;
-  try {
-    const out = await aiComplete(buildConsultInput(main, qa), QUESTION_SYSTEM, {
-      temperature: 1.0,
-      topP: 0.3,
-      maxTokens: 80,
-    });
-    const line = out.trim().split('\n')[0].slice(0, 60).trim();
-    if (!line || /^好了|^好了。|^好了！/.test(line)) return null;
-    return line;
-  } catch {
-    return null;
-  }
-}
-
-/** 由细谈对话生成任务草稿。 */
-export async function generateDraft(main: string, qa: { q: string; a: string }[]): Promise<ConsultDraft | null> {
-  try {
-    const out = await aiComplete(buildConsultInput(main, qa), DRAFT_SYSTEM(todayStr()), {
-      temperature: 1.0,
-      topP: 0.1,
-      maxTokens: 700,
-    });
-    const parsed = extractJson(out) as Partial<ConsultDraft> | null;
-    if (!parsed || typeof parsed.title !== 'string' || !parsed.title.trim()) return null;
-    const dueOk = typeof parsed.due === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.due);
-    const timeOk = typeof parsed.remindTime === 'string' && /^\d{2}:\d{2}$/.test(parsed.remindTime);
-    return {
-      title: parsed.title.trim().slice(0, 80),
-      notes: typeof parsed.notes === 'string' ? parsed.notes.slice(0, 200) : '',
-      due: dueOk ? (parsed.due as string) : null,
-      remindTime: timeOk ? (parsed.remindTime as string) : null,
-      repeat:
-        parsed.repeat === 'daily' || parsed.repeat === 'weekly' || parsed.repeat === 'monthly' || parsed.repeat === 'weekdays'
-          ? parsed.repeat
-          : null,
-      checklist: Array.isArray(parsed.checklist)
-        ? parsed.checklist.filter((s) => typeof s === 'string' && s.trim()).slice(0, 7).map((s) => String(s).trim().slice(0, 40))
-        : [],
-      goalTitle: typeof parsed.goalTitle === 'string' && parsed.goalTitle.trim() ? parsed.goalTitle.trim().slice(0, 30) : null,
-    };
-  } catch {
-    return null;
-  }
 }
 
 /** 任务拆解（检查项）与目标拆解。 */
@@ -194,7 +119,12 @@ export interface PlanDraft {
   tasks: { title: string; due: string | null; milestone: number }[];
 }
 
-export async function draftPlan(title: string, why: string, deadline: string | null): Promise<PlanDraft | null> {
+export async function draftPlan(
+  title: string,
+  why: string,
+  deadline: string | null,
+  goalId?: string | null
+): Promise<PlanDraft | null> {
   const today = todayStr();
   try {
     const out = await aiComplete(
@@ -203,7 +133,7 @@ export async function draftPlan(title: string, why: string, deadline: string | n
         '再划 2-4 个阶段，最后给 3-7 个可执行任务（标注所属阶段序号，0=未分阶段，及日期）。今天是 ' + today + '。' +
         '输出严格 JSON：{"plan":["策略段1","策略段2"],"milestones":["阶段1","阶段2"],' +
         '"tasks":[{"title":"任务名","due":"YYYY-MM-DD","milestone":1}]}。只输出 JSON，不要任何其他文字。',
-      { temperature: 1.0, maxTokens: 1100 }
+      { temperature: 1.0, maxTokens: 1100, tag: `todo:draft:${goalId ?? 'none'}` }
     );
     const parsed = extractJson(out) as Partial<PlanDraft> | null;
     if (!parsed) return null;
@@ -238,6 +168,196 @@ function todayStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// ===== 策 v3 看板规划对话（需求卡 → 讨论计划） =====
+
+import type { BoardPlan, PlanChatMessage } from '../api/types';
+
+/** 拼接规划对话历史（RWKV 无多轮状态，手工拼）。 */
+function buildPlanChatInput(title: string, notes: string, chat: PlanChatMessage[]): string {
+  let s = `需求：${title}${notes ? `（${notes}）` : ''}`;
+  for (const m of chat) s += `\n${m.role === 'user' ? '用户' : '助手'}：${m.text}`;
+  return s;
+}
+
+const PLAN_CHAT_SYSTEM =
+  '你是规划助手。与用户讨论需求、澄清模糊点、建议拆解思路。' +
+  '每轮回复简洁（不超过120字），可以追问一个关键问题，也可以给建议。' +
+  '当需求已经清晰时，建议用户点击「生成计划」。直接输出正文，不要角色前缀。';
+
+/** 规划对话一轮 AI 回复（讨论模式）。tag = todo:chat:{goalId|none}（用量记账归志）。 */
+export async function planChatReply(
+  title: string,
+  notes: string,
+  chat: PlanChatMessage[],
+  model?: string,
+  goalId?: string | null
+): Promise<string | null> {
+  try {
+    const out = await aiComplete(buildPlanChatInput(title, notes, chat), PLAN_CHAT_SYSTEM, {
+      temperature: 1.0,
+      topP: 0.3,
+      maxTokens: 300,
+      model,
+      tag: `todo:chat:${goalId ?? 'none'}`,
+    });
+    const text = out
+      .split(/\n\s*\n|System:|User:|Assistant:|Instruction:|Response:/)[0]
+      .trim()
+      .slice(0, 300);
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
+const BOARD_PLAN_SYSTEM = (today: string, planHint?: string) =>
+  '你是规划助手。根据需求讨论，生成一份计划契约（人机共同签署：目标+步骤+验收）。今天是 ' + today + '。' +
+  '输出严格 JSON：{"summary":"一段话计划摘要","goal":"一句话目标","tasks":[{"title":"步骤名","notes":"补充"}],' +
+  '"acceptance":["验收标准1","验收标准2"],"deliverable":"交付物描述或 null"}。' +
+  'tasks 3-7 个；' + (planHint ?? 'acceptance 是可客观检验的完成判据（DoD），3-6 项。') +
+  '只输出 JSON，不要任何其他文字。';
+
+/** 由规划对话生成看板计划契约（目标+步骤+验收）。 */
+export async function generateBoardPlan(
+  title: string,
+  notes: string,
+  chat: PlanChatMessage[],
+  model?: string,
+  goalId?: string | null
+): Promise<BoardPlan | null> {
+  try {
+    // 通用 agent 的验收指引（插件模块可带各自 planHint）
+    const { AGENT_MODULES } = await import('../agent-modules');
+    const planHint = AGENT_MODULES.find(m => m.id === 'agent')?.planHint;
+    const out = await aiComplete(buildPlanChatInput(title, notes, chat), BOARD_PLAN_SYSTEM(todayStr(), planHint), {
+      temperature: 1.0,
+      topP: 0.1,
+      maxTokens: 900,
+      model,
+      tag: `todo:chat:${goalId ?? 'none'}`,
+    });
+    const parsed = extractJson(out) as Partial<BoardPlan> | null;
+    if (!parsed || typeof parsed.summary !== 'string' || !parsed.summary.trim()) return null;
+    const tasks = Array.isArray(parsed.tasks)
+      ? parsed.tasks
+          .filter((t) => t && typeof t === 'object' && typeof (t as { title?: unknown }).title === 'string' && (t as { title: string }).title.trim())
+          .slice(0, 7)
+          .map((t) => {
+            const obj = t as { title?: unknown; notes?: unknown };
+            return {
+              title: String(obj.title).trim().slice(0, 80),
+              notes: typeof obj.notes === 'string' ? obj.notes.slice(0, 200) : undefined,
+            };
+          })
+      : [];
+    const acceptance = Array.isArray(parsed.acceptance)
+      ? parsed.acceptance
+          .filter((s) => typeof s === 'string' && s.trim())
+          .slice(0, 6)
+          .map((s) => String(s).trim().slice(0, 80))
+      : [];
+    return {
+      summary: parsed.summary.trim().slice(0, 400),
+      goal: typeof parsed.goal === 'string' ? parsed.goal.trim().slice(0, 120) : title.slice(0, 120),
+      tasks,
+      acceptance,
+      ...(typeof parsed.deliverable === 'string' && parsed.deliverable.trim()
+        ? { deliverable: parsed.deliverable.trim().slice(0, 120) }
+        : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ===== 志·AI 评估（结合项目实况的阶段评估报告） =====
+
+/** 评估输入：志信息 + 志愿进度 + 项目实况摘要（绑定目录时采集；缺省纯愿景评估）。 */
+export interface AssessGoalInput {
+  title: string;
+  why: string;
+  deadline: string | null;
+  /** 阶段名与完成态 */
+  milestones: { title: string; done: boolean }[];
+  /** 关联行卡进度（已完成/总数 + 未完成标题样本） */
+  progress: { done: number; total: number; openTitles: string[] };
+  /** 项目实况摘要（目录树/README/git 记录拼好的文本；null=未绑定目录） */
+  workspaceSummary: string | null;
+}
+
+/** 结构化评估报告（固定四段）。 */
+export interface GoalAssessment {
+  /** 【阶段】当前阶段判断 */
+  stage: string;
+  /** 【亮点】列表 */
+  highlights: string[];
+  /** 【缺口】列表 */
+  gaps: string[];
+  /** 【建议】下一步最值得做的一件事 */
+  advice: string;
+}
+
+/** 从标记文本解析四段结构；无任何标记时全文兜底进 stage。 */
+function parseAssessment(text: string): GoalAssessment {
+  const grab = (mark: string): string => {
+    const m = text.match(new RegExp(`【${mark}】([\\s\\S]*?)(?=【|$)`));
+    return m ? m[1].trim() : '';
+  };
+  const stage = grab('阶段');
+  const highlights = grab('亮点').split('\n').map(s => s.trim()).filter(Boolean);
+  const gaps = grab('缺口').split('\n').map(s => s.trim()).filter(Boolean);
+  const advice = grab('建议');
+  if (!stage && !highlights.length && !gaps.length && !advice) {
+    return { stage: text, highlights: [], gaps: [], advice: '' };
+  }
+  return { stage, highlights: highlights.slice(0, 4), gaps: gaps.slice(0, 4), advice };
+}
+
+/**
+ * AI 评估：固定四段标记格式（本地 RWKV 生成 JSON 不可靠，走标记文本 + 客户端解析）。
+ * 解析兜底：模型未按格式输出时全文进 stage，保证有内容可渲染。
+ */
+export async function assessGoal(
+  input: AssessGoalInput,
+  model?: string,
+  tag?: string
+): Promise<GoalAssessment | null> {
+  const parts: string[] = [`志向：${input.title}${input.why ? `（${input.why}）` : ''}`];
+  if (input.deadline) parts.push(`截止：${input.deadline}`);
+  if (input.milestones.length) {
+    parts.push(
+      `阶段：${input.milestones.map(m => `${m.title}${m.done ? '（已完成）' : ''}`).join('、')}`
+    );
+  }
+  parts.push(
+    `任务进度：${input.progress.done}/${input.progress.total} 完成` +
+      (input.progress.openTitles.length ? `；未完成：${input.progress.openTitles.slice(0, 8).join('、')}` : '')
+  );
+  if (input.workspaceSummary) parts.push(`项目实况（目录/README/git 记录）：\n${input.workspaceSummary}`);
+
+  try {
+    const out = await aiComplete(
+      parts.join('\n'),
+      '你是项目评估师。基于志向与项目实况写评估报告，固定四段格式：' +
+        '第一段以【阶段】开头，判断项目当前阶段与推进程度（一两句）；' +
+        '第二段以【亮点】开头，列出实况中可见的进展或优势（1-3 条，每条一行）；' +
+        '第三段以【缺口】开头，列出最突出的风险或欠缺（1-3 条，每条一行，没有就写一条「暂无明显缺口」）；' +
+        '第四段以【建议】开头，给下一步最值得做的一件事（一句）。' +
+        '依据实据说话，不要空话套话，除这四段外不要输出任何其他文字。',
+      { temperature: 1.0, topP: 0.2, maxTokens: 600, model, tag }
+    );
+    // 截断模型幻觉的角色标记/续写（Instruction 格式单发常见）
+    const text = out
+      .split(/\n\s*\n(?=.)|System:|User:|Assistant:|Instruction:|Response:/)[0]
+      .trim()
+      .slice(0, 1500);
+    if (text.length < 20) return null;
+    return parseAssessment(text);
+  } catch {
+    return null;
+  }
+}
+
 /** 日终回顾（知己）：今日完成/新增/专注 → 一段温润小结（先肯定，再一句建议）。 */
 export async function dailyReview(input: {
   doneTitles: string[];
@@ -253,7 +373,7 @@ export async function dailyReview(input: {
       summary,
       '你是知己。根据今日完成情况写一段日终回顾：先真诚肯定亮点，再给一句具体的明日建议。' +
         '不超过 80 字，语气温润克制，不用列表，不用感叹号，直接输出正文。',
-      { temperature: 1.0, maxTokens: 200 }
+      { temperature: 1.0, maxTokens: 200, tag: 'todo:review' }
     );
     // 截断模型幻觉的角色标记/续写（Instruction 格式单发常见）
     const text = out
