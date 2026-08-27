@@ -1,101 +1,45 @@
-// === SfxActivity — DynamicIsland 中的环境音效快捷入口 ===
-// 仅显示当前正在播放的音效胶囊（一行水平排列，可左右拖动滚动）
+// === SfxActivity — 灵动岛第 2 行：环境音效货架（单行） ===
+// [icon + count] [chips 横滑区（拖动/滚轮）] [volume] [expand]
+// 两侧渐隐遮罩提示可滚（灵动岛 shelf 惯用细节）。
 
 .sfx-activity {
   width: 100%;
   height: 100%;
   display: flex;
-  flex-direction: column;
-  padding: var(--size-gap-2-5) var(--size-gap-3-5);
+  flex-direction: row;
+  align-items: center;
   gap: var(--size-gap-1-5);
   position: relative;
+  // 行已有 margin 0 16px（分隔线内缩），内容零水平 padding 保持三行对齐
 
-  &--empty {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--size-gap-2);
-  }
-
-  &__empty-text {
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
-    flex: 1;
-  }
-
-  // ===== Header =====
-  &__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  // ===== Row head: icon + count badge =====
+  &__icon {
     flex-shrink: 0;
-  }
-
-  &__title {
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    color: var(--color-text-primary);
-    display: inline-flex;
-    align-items: center;
-    gap: var(--size-gap-1-5);
+    color: var(--color-text-muted);
   }
 
   &__count {
+    font-family: var(--font-family-mono);
     font-size: var(--font-size-xxs);
     font-weight: 500;
     color: var(--color-accent-400);
     background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
-    padding: var(--size-gap-0-25) var(--size-gap-1-5);
-    border-radius: 8px;
+    padding: var(--size-gap-0-25) var(--size-gap-1);
+    border-radius: var(--size-radius-full);
     line-height: 1.4;
-  }
-
-  &__header-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--size-gap-0-5);
-  }
-
-  &__header-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: all 0.15s ease;
-
-    &:hover {
-      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
-      color: var(--color-text-primary);
-    }
-  }
-
-  &__expand-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: all 0.15s ease;
     flex-shrink: 0;
+  }
 
-    &:hover {
-      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
-      color: var(--color-text-primary);
+  // ===== Empty state (row keeps its height — fixed 3-row layout) =====
+  &--empty {
+    .sfx-activity__empty-text {
+      color: var(--color-text-muted);
+      font-size: var(--font-size-xs);
+      flex: 1;
     }
   }
 
-  // ===== Chips container (horizontal scroll + drag) =====
+  // ===== Chips container (horizontal scroll: drag + wheel) =====
   &__chips {
     flex: 1;
     display: flex;
@@ -107,7 +51,16 @@
     scrollbar-width: none;
     cursor: grab;
     user-select: none;
+    min-width: 0;
     min-height: 28px;
+    // 两侧渐隐遮罩：从面板底色到透明，提示可滚（不引入新色）
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black var(--size-gap-4),
+      black calc(100% - var(--size-gap-4)),
+      transparent 100%
+    );
 
     &::-webkit-scrollbar {
       display: none;
@@ -118,13 +71,34 @@
     }
   }
 
+  // ===== Row tail buttons =====
+  &__row-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: var(--size-radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+      color: var(--color-text-primary);
+    }
+  }
+
   // ===== Single chip (active sfx capsule) =====
   &__chip {
     display: inline-flex;
     align-items: center;
     gap: var(--size-gap-1-5);
     padding: var(--size-gap-1) var(--size-gap-2) var(--size-gap-1) var(--size-gap-2-5);
-    border-radius: 14px;
+    border-radius: var(--size-radius-full);
     background: color-mix(in oklch, var(--color-accent-400) 16%, transparent);
     border: 1px solid color-mix(in oklch, var(--color-accent-400) 30%, transparent);
     color: var(--color-accent-400);

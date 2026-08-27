@@ -1,52 +1,70 @@
-// Tools activity — island function dock (expanded 400x96).
-// Dock layout: ONE row, evenly spaced & centered, no wrap; buttons share
-// the same geometry (incl. plugin-injected ones). Tokens only (新东方极简);
-// the island pins its own dark ink tokens so this surface is theme-stable
-// while accent follows the global theme.
+// Tools activity — 灵动岛第 3 行：功能按钮 dock。
+// 单行 dock：内容不足时居中（inner min-width: max-content + margin auto），
+// 溢出时拖动/滚轮横滑；两侧渐隐遮罩提示可滚。
+// Tokens only (新东方极简)；岛内固定松烟墨 token（theme-stable），
+// accent 跟随全局主题。
 
 .tools-activity {
-  position: absolute;
-  inset: 0;
-  display: flex;
-
-  &--compact {
+  &--row {
+    width: 100%;
+    height: 100%;
+    display: flex;
     align-items: center;
-    justify-content: center;
   }
 
-  &__icon {
-    color: var(--color-text-secondary);
-  }
-
-  &--expanded {
-    align-items: stretch;
-    padding: 0 var(--spacing-5, 20px);
-  }
-
-  // The dock: host buttons + plugin slot all in ONE flex row, centered
-  // with a FIXED gap (macOS-dock rhythm). space-evenly treated the slot as
-  // one block, which squeezed plugin buttons together and broke spacing.
+  // Scroll viewport — hidden scrollbar, drag/wheel driven
   &__dock {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    cursor: grab;
+    user-select: none;
+    // 两侧渐隐遮罩（灵动岛 shelf 细节）
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black var(--size-gap-4),
+      black calc(100% - var(--size-gap-4)),
+      transparent 100%
+    );
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  // Inner row — centers when it fits, scrolls when it overflows
+  &__dock-inner {
     display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: var(--size-gap-6, 24px);
+    gap: var(--size-gap-4);
+    min-width: max-content;
+    margin: 0 auto;
     flex-wrap: nowrap;
-    min-width: 0;
   }
 
+  // Ghost 按钮：透明底 + hover 黛青 tint（macOS dock 语义，无盒子感）
   &__btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
     border: none;
-    border-radius: var(--radius-lg, 12px);
-    background: color-mix(in oklch, var(--color-text-primary) 10%, transparent);
-    color: var(--color-text-primary);
+    border-radius: var(--radius-base, 8px);
+    background: transparent;
+    color: var(--color-text-secondary);
     cursor: pointer;
     padding: 0;
     flex-shrink: 0;
@@ -56,10 +74,10 @@
       transform var(--motion-fast, 0.15s) var(--easing-bounce, ease);
 
     &:hover {
-      background: color-mix(in oklch, var(--color-accent) 24%, transparent);
+      background: color-mix(in oklch, var(--color-accent) 14%, transparent);
       color: var(--color-accent);
-      // Dock-style lift on hover.
-      transform: translateY(-3px) scale(1.06);
+      // Dock-style lift on hover (收敛幅度)
+      transform: translateY(-2px);
     }
 
     &:active {
@@ -71,13 +89,13 @@
   // Normalizes ANY plugin button (descendant — the plugin runtime wraps
   // each entry in an .ai00-plugin-container div, so buttons are NOT direct
   // children) so entries from different plugins share the dock's rhythm:
-  // same 44px geometry, same gap, same 18px icon size as host buttons.
+  // same 36px ghost geometry, same gap, same 18px icon size as host buttons.
   &__plugin-slot {
     display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: var(--size-gap-6, 24px);
+    gap: var(--size-gap-4);
     flex-wrap: nowrap;
     flex-shrink: 0;
     min-width: 0;
@@ -86,12 +104,12 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 44px;
-      height: 44px;
+      width: 36px;
+      height: 36px;
       border: none;
-      border-radius: var(--radius-lg, 12px);
-      background: color-mix(in oklch, var(--color-text-primary) 10%, transparent);
-      color: var(--color-text-primary);
+      border-radius: var(--radius-base, 8px);
+      background: transparent;
+      color: var(--color-text-secondary);
       cursor: pointer;
       padding: 0;
       transition:
@@ -101,9 +119,9 @@
     }
 
     button:hover {
-      background: color-mix(in oklch, var(--color-accent) 24%, transparent);
+      background: color-mix(in oklch, var(--color-accent) 14%, transparent);
       color: var(--color-accent);
-      transform: translateY(-3px) scale(1.06);
+      transform: translateY(-2px);
     }
 
     // Icons inside plugin buttons carry small hardcoded svg width/height

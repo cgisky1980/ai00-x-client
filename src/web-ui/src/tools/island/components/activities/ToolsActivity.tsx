@@ -1,27 +1,27 @@
 import React, { useState } from 'react'
 import {
   AppWindow,
-  LayoutGrid,
   ListTodo,
+  MessageCircle,
   MonitorSmartphone,
 } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { useTodoStore } from '../../../todo'
+import { useHorizontalScroll } from '../../hooks/useHorizontalScroll'
 import './ToolsActivity.scss'
 
 /**
- * Tools activity — the island's function dock (滚轮切换第三页).
+ * ToolsActivity — 灵动岛第 3 行：功能按钮 dock。
  *
- * A single dock row of evenly-spaced buttons: desktop pet toggle, task
- * window, plus anything injected by plugins via the `overlay:island` hook
- * (#ai00-island-slot renders inline in the SAME row — one dock, no second
- * line). The slot keeps the DOM id it had before, so the plugin runtime
- * picks it up with zero changes.
+ * 单行 dock：内置按钮（桌面宠物切换 / 任务窗口 / 待办）+ 插件槽
+ * `#ai00-island-slot`（overlay:island hook，与宿主按钮同行）。
+ * 按钮少时居中；溢出时可拖动或滚轮左右滑动。
  */
 export const ToolsActivity: React.FC = () => {
   // Desktop pet visibility (local toggle state; migrated from MusicActivity
   // where it crowded the playback controls).
   const [underlayVisible, setUnderlayVisible] = useState(false)
+  const scroll = useHorizontalScroll()
 
   const actions = [
     {
@@ -49,6 +49,14 @@ export const ToolsActivity: React.FC = () => {
       },
     },
     {
+      key: 'chat',
+      icon: MessageCircle,
+      label: '聊天',
+      onClick: () => {
+        invoke('open_member_chat_window').catch(() => {})
+      },
+    },
+    {
       key: 'todo',
       icon: ListTodo,
       label: '待办清单',
@@ -59,35 +67,37 @@ export const ToolsActivity: React.FC = () => {
   ]
 
   return (
-    <>
-      <div className="island-layer island-layer--compact">
-        <div className="tools-activity tools-activity--compact">
-          <LayoutGrid size={14} className="tools-activity__icon" />
+    <div className="tools-activity tools-activity--row">
+      {/* Dock scroll viewport: drag / wheel scrolls horizontally; content
+          centers itself when it fits (inner min-width: max-content). */}
+      <div
+        className="tools-activity__dock"
+        ref={scroll.ref}
+        onMouseDown={scroll.onMouseDown}
+        onMouseMove={scroll.onMouseMove}
+        onMouseUp={scroll.onMouseUp}
+        onMouseLeave={scroll.onMouseLeave}
+        onWheel={scroll.onWheel}
+      >
+        <div className="tools-activity__dock-inner">
+          {actions.map((a) => (
+            <button
+              key={a.key}
+              className="tools-activity__btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (scroll.didDrag.current) return
+                a.onClick()
+              }}
+              title={a.label}
+            >
+              <a.icon size={18} strokeWidth={1.5} />
+            </button>
+          ))}
+          {/* Plugin extension slot (overlay:island hook) */}
+          <div id="ai00-island-slot" className="tools-activity__plugin-slot" />
         </div>
       </div>
-      <div className="island-layer island-layer--expanded">
-        <div className="tools-activity tools-activity--expanded">
-          {/* Dock row: host buttons + plugin slot share ONE flex row —
-              evenly spaced, centered, no wrapping. */}
-          <div className="tools-activity__dock">
-            {actions.map((a) => (
-              <button
-                key={a.key}
-                className="tools-activity__btn"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  a.onClick()
-                }}
-                title={a.label}
-              >
-                <a.icon size={18} strokeWidth={1.5} />
-              </button>
-            ))}
-            {/* Plugin extension slot (overlay:island hook) */}
-            <div id="ai00-island-slot" className="tools-activity__plugin-slot" />
-          </div>
-        </div>
-      </div>
-    </>
+    </div>
   )
 }

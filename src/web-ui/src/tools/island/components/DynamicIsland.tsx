@@ -15,9 +15,6 @@ export const DynamicIsland: React.FC = () => {
   const setState = useIslandStore((s) => s.setState)
   const popups = useIslandStore((s) => s.popups)
   const openPopup = useIslandStore((s) => s.openPopup)
-  const activeActivityId = useIslandStore((s) => s.activeActivityId)
-  const activities = useIslandStore((s) => s.activities)
-  const setActiveActivity = useIslandStore((s) => s.setActiveActivity)
   const setOverlayExpanded = useAudioPlaybackStore(
     (s) => s.setOverlayExpanded
   )
@@ -58,21 +55,18 @@ export const DynamicIsland: React.FC = () => {
     // Only collapse if hover-expanded and not yet locked by a click
     if (hoverExpandedRef.current && !hoverLockedRef.current && state === 'expanded') {
       setState('compact')
-      setActiveActivity('music')
       hoverExpandedRef.current = false
     }
-  }, [state, setState, setActiveActivity])
+  }, [state, setState])
 
   // Click handler with hover-lock logic + collapse behavior
   // - compact → click → expanded
   // - expanded (hover, not locked) → click → lock (so user can interact
   //   with controls without the island collapsing on mouseleave)
   // - expanded (locked or click-expanded) → click → compact
-  // Opening popups is handled by each activity's own expand button
+  // Opening popups is handled by each row's own expand button
   // (Maximize2 icon) rather than by clicking the island body itself,
   // so the island can be collapsed by clicking anywhere on it.
-  // When collapsing, always return to the music activity so the compact
-  // pill only ever shows the music playback capsule.
   const onClick = useCallback(() => {
     if (state === 'compact') {
       hoverExpandedRef.current = false
@@ -86,44 +80,14 @@ export const DynamicIsland: React.FC = () => {
       }
       // Locked (or click-expanded) — collapse back to compact
       setState('compact')
-      setActiveActivity('music')
       hoverExpandedRef.current = false
       hoverLockedRef.current = false
     }
-  }, [state, setState, setActiveActivity])
+  }, [state, setState])
 
-  // Scroll — only in expanded state (switch activity)
-  const onWheel = useCallback(
-    (e: React.WheelEvent) => {
-      if (state !== 'expanded') return
-      const visible = activities.filter((a) => a.visible)
-      if (visible.length < 2) return
-      const currentIndex = visible.findIndex((a) => a.id === activeActivityId)
-      if (currentIndex === -1) return
-      const nextIndex =
-        e.deltaY > 0
-          ? (currentIndex + 1) % visible.length
-          : (currentIndex - 1 + visible.length) % visible.length
-      setActiveActivity(visible[nextIndex].id)
-    },
-    [state, activities, activeActivityId, setActiveActivity]
-  )
-
-  // Open popup handler for activity buttons
-  const handleOpenPopup = useCallback(() => {
-    if (activeActivityId === 'music') {
-      openPopup('music')
-    } else if (activeActivityId === 'sfx') {
-      openPopup('sfx')
-    }
-  }, [activeActivityId, openPopup])
-
-  const renderActivity = () => {
-    if (activeActivityId === 'sfx') {
-      return <SfxActivity onOpenPopup={handleOpenPopup} />
-    }
-    return <MusicActivity onOpenPopup={handleOpenPopup} />
-  }
+  // Per-row popup openers (each row owns its own expand target)
+  const openMusicPopup = useCallback(() => openPopup('music'), [openPopup])
+  const openSfxPopup = useCallback(() => openPopup('sfx'), [openPopup])
 
   const stateClass = `dynamic-island--${state}`
   const playingClass = isPlaying ? ' dynamic-island--playing' : ''
@@ -135,29 +99,21 @@ export const DynamicIsland: React.FC = () => {
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onClick={onClick}
-        onWheel={onWheel}
       >
-        {/* Activity content. The Tools pane stays MOUNTED at all times
-            (hidden via CSS) so the plugin extension slot #ai00-island-slot
-            it hosts remains in the DOM — the plugin runtime discovers it
-            once at startup and must not lose it on activity switches. */}
+        {/* Single-page three-row layout: music / sfx / tools dock all
+            rendered at once in the expanded panel. The Tools row hosts
+            the plugin extension slot #ai00-island-slot, which stays in
+            the DOM permanently — the plugin runtime discovers it once
+            at startup and must not lose it. */}
         <div className="dynamic-island__content">
-          <div className="dynamic-island__activity-wrapper">
-            {activeActivityId !== 'tools' && (
-              <div
-                key={activeActivityId}
-                className="dynamic-island__activity-pane"
-              >
-                {renderActivity()}
-              </div>
-            )}
-            <div
-              className={`dynamic-island__tools-pane${
-                activeActivityId === 'tools'
-                  ? ' dynamic-island__tools-pane--active'
-                  : ''
-              }`}
-            >
+          <div className="dynamic-island__rows">
+            <div className="dynamic-island__row dynamic-island__row--music">
+              <MusicActivity onOpenPopup={openMusicPopup} />
+            </div>
+            <div className="dynamic-island__row dynamic-island__row--sfx">
+              <SfxActivity onOpenPopup={openSfxPopup} />
+            </div>
+            <div className="dynamic-island__row dynamic-island__row--tools">
               <ToolsActivity />
             </div>
           </div>

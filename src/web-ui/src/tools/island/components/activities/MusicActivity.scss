@@ -1,6 +1,9 @@
-// === Music Activity — three stacked layers ===
-// Visibility is PARENT-driven: .dynamic-island--{state} .island-layer--{state} { opacity: 1 }
-// .island-layer base class is defined in DynamicIsland.scss (unified, do NOT redefine here)
+// === Music Activity — compact pill layer + expanded music row ===
+// Expanded row = 双线结构（新东方极简）：
+//   main: [圆形专辑位 40px] [标题/副标题] [prev | PLAY | next]
+//   sub : [cur time mono] [progress] [dur time mono] | [volume][lyrics][expand]
+// 可见性由父级 .dynamic-island--{state} .island-layer--{state} 驱动；
+// .island-layer 基类在 DynamicIsland.scss 统一定义（禁止重定义）。
 
 .music-activity {
   width: 100%;
@@ -34,10 +37,10 @@
     to { transform: rotate(360deg); }
   }
 
-  // === Spectrum background (compact + expanded) — mirrored two columns from center ===
+  // === Spectrum background — mirrored two columns from center ===
   &__spectrum-bg {
     position: absolute;
-    inset: 0; // fill entire pill
+    inset: 0; // fill entire pill/row
     display: flex;
     align-items: flex-end; // bars grow from bottom up
     justify-content: center;
@@ -73,6 +76,7 @@
   }
 
   &__mini-time {
+    font-family: var(--font-family-mono);
     font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
@@ -81,64 +85,51 @@
     z-index: 1;
   }
 
-  // === Expanded — column layout: top row (info+controls) + bottom progress bar ===
+  // ================================================================
+  // Expanded — music row (双线结构)
+  // ================================================================
   &--expanded {
     flex-direction: column;
-    gap: var(--size-gap-1);
-    padding: var(--size-gap-2-5) var(--size-gap-3-5) var(--size-gap-2);
+    justify-content: center;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-2) var(--size-gap-4);
     position: relative; // for spectrum-bg absolute positioning
     width: 100%;
     height: 100%;
+
+    // Spectrum dimmed to a background texture in the expanded row —
+    // must not fight the text layer (compact pill keeps full brightness).
+    .music-activity__spectrum-bg {
+      opacity: 0.4;
+    }
   }
 
-  // Top row inside expanded: info (left, flex:1) + controls (right)
-  &__expanded-row {
+  // ---- Main line: art + info + playback cluster ----
+  &__main {
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: var(--size-gap-2-5);
-    flex: 1;
-    min-height: 0;
+    gap: var(--size-gap-3);
+    min-width: 0;
     position: relative;
     z-index: 1;
   }
 
-  // === Page indicator dots (expanded, top center) ===
-  &__indicators {
-    position: absolute;
-    top: 4px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: var(--size-gap-0-5);
-    z-index: 2;
-    pointer-events: none;
-  }
-
-  &__indicator {
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: color-mix(in oklch, var(--color-text-muted) 40%, transparent);
-    transition: all 0.2s ease;
-
-    &--active {
-      background: var(--color-accent-400);
-      box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
-    }
-  }
-
-  // === Volume group (icon + slider) — used in universal bar ===
-  &__volume-group {
+  // 圆形专辑位——视觉锚点（黛青 tint，播放时呼吸光晕）
+  &__art {
     display: flex;
     align-items: center;
-    gap: var(--size-gap-1);
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--size-radius-full);
+    background: color-mix(in oklch, var(--color-accent-400) 14%, transparent);
+    color: var(--color-accent-400);
     flex-shrink: 0;
-  }
 
-  &__volume-slider {
-    width: 50px;
-    height: 3px;
+    &--playing {
+      animation: artBreathe 2.4s ease-in-out infinite;
+    }
   }
 
   &__info {
@@ -147,12 +138,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--size-gap-0-5);
-    position: relative;
-    z-index: 1;
   }
 
   &__name {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-base);
     font-weight: 600;
     color: var(--color-text-primary);
     white-space: nowrap;
@@ -168,50 +157,61 @@
     text-overflow: ellipsis;
   }
 
-  &__p2p-status {
-    display: inline-flex;
+  // 播放簇：prev / PLAY / next
+  &__playback {
+    display: flex;
     align-items: center;
-    font-size: var(--font-size-xxs);
-    white-space: nowrap;
+    gap: var(--size-gap-1);
+    flex-shrink: 0;
+  }
+
+  // ---- Sub line: times + progress + utility cluster ----
+  &__sub {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--size-gap-2);
+    min-width: 0;
+    position: relative;
+    z-index: 1;
   }
 
   &__time {
-    font-size: var(--font-size-2xs);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xxs);
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  // 工具簇：细竖线与进度区隔开
+  &__utils {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-0-5);
+    flex-shrink: 0;
+    padding-left: var(--size-gap-2);
+    border-left: 1px solid color-mix(in oklch, var(--color-text-primary) 10%, transparent);
   }
 
   // === Progress bar ===
-  // Three variants:
-  //   --bar     : expanded layer bottom (full-width, static flow)
-  //   --inline  : universal player bar (static flow, thinner)
-  //   (default) : legacy absolute — no longer used but kept for safety
   &__progress {
     border-radius: 2px;
     overflow: hidden;
     z-index: 1;
 
-    // ---- Bar variant: expanded layer bottom, full width, static flow ----
+    // ---- Bar variant: sub line track, fills between the two time labels ----
     &--bar {
-      position: static;
-      width: 100%;
+      position: relative;
+      flex: 1;
+      min-width: 0;
       height: 3px;
       background: color-mix(in oklch, var(--color-primary) 15%, transparent);
-      flex-shrink: 0;
     }
 
     &--clickable {
       cursor: pointer;
-    }
-
-    // ---- Inline variant: inside universal player bar ----
-    &--inline {
-      position: static;
-      width: 100%;
-      height: 3px;
-      margin: var(--size-gap-0-5) 0;
-      background: color-mix(in oklch, var(--color-primary) 15%, transparent);
-      flex-shrink: 0;
     }
   }
 
@@ -223,23 +223,14 @@
     box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
   }
 
-  &__controls {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-0-5);
-    flex-shrink: 0;
-    position: relative;
-    z-index: 1;
-  }
-
-  // === Buttons (shared across all layers) ===
+  // === Buttons ===
   &__btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 7px;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--size-radius-sm);
     border: none;
     background: transparent;
     color: var(--color-text-secondary);
@@ -248,12 +239,26 @@
     flex-shrink: 0;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary) 30%, transparent);
+      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
       color: var(--color-text-primary);
     }
 
     &:active {
       transform: scale(0.9);
+    }
+
+    // 主播放钮：30px 圆形，黛青 tint + glow
+    &--play {
+      width: 30px;
+      height: 30px;
+      border-radius: var(--size-radius-full);
+      color: var(--color-accent-400);
+      background: color-mix(in oklch, var(--color-accent-400) 16%, transparent);
+
+      &:hover {
+        background: color-mix(in oklch, var(--color-accent-400) 28%, transparent);
+        box-shadow: 0 0 10px color-mix(in oklch, var(--color-accent-400) 20%, transparent);
+      }
     }
 
     &--volume {
@@ -263,32 +268,7 @@
       }
     }
 
-    &--glow {
-      color: var(--color-accent-400);
-      &:hover {
-        background: color-mix(in oklch, var(--color-accent-400) 22%, transparent);
-        box-shadow: 0 0 10px color-mix(in oklch, var(--color-accent-400) 18%, transparent);
-      }
-    }
-
-    &--skip {
-      color: var(--color-accent-400);
-      &:hover {
-        background: color-mix(in oklch, var(--color-accent-400) 22%, transparent);
-      }
-    }
-
     &--expand {
-      margin-left: auto; // pin to the right edge of the controls row
-      color: var(--color-text-muted);
-      &:hover {
-        background: color-mix(in oklch, var(--color-primary) 25%, transparent);
-        color: var(--color-text-primary);
-      }
-    }
-
-    &--collapse {
-      margin-left: auto; // pin to the right edge of the sub-tab bar (visual top-right)
       color: var(--color-text-muted);
       &:hover {
         background: color-mix(in oklch, var(--color-primary) 25%, transparent);
@@ -308,5 +288,8 @@
   }
 }
 
-// Reuse AudioOverlay.scss styles for panels
-@import '../../../vrm/components/AudioOverlay';
+// 专辑位呼吸光晕（与岛呼吸动画同节奏）
+@keyframes artBreathe {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-accent-400) 20%, transparent); }
+  50% { box-shadow: 0 0 12px 2px color-mix(in oklch, var(--color-accent-400) 14%, transparent); }
+}

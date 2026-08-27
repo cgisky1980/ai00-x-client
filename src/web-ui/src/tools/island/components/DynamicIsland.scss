@@ -1,6 +1,6 @@
 // === Dynamic Island — iOS-style pill with two morphing states ===
-// States: compact (160×40) | expanded (380×96)
-// (Full state removed — full operations moved to standalone MusicPopup / SfxPopup)
+// States: compact (160×40) | expanded (400×188, single-page 3 rows)
+// Rows: music (main) / sfx chips (shelf) / tools dock — see 视觉设计定稿
 // Spring easing: cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s
 // KEY: All transitions use the SAME spring curve + duration for "liquid" continuity
 
@@ -24,7 +24,8 @@
   top: 8px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: var(--z-chrome-island);
+  // chrome 顶层：灵动岛永远在一切应用浮层（音乐/音效/策窗等）之上
+  z-index: var(--z-chrome-top);
   pointer-events: auto;
   display: flex;
   flex-direction: column;
@@ -59,19 +60,18 @@
     border-radius 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.3s ease;
 
-  // === Compact state: 160×40 full pill ===
+  // === Compact state: 160×40 full pill (music capsule only) ===
   &--compact {
     width: 160px;
     height: 40px;
     border-radius: var(--size-radius-full);
   }
 
-  // === Expanded state: 400×96 rounded ===
-  // Visual spec v0.15: floating surfaces use radius.lg (12px) — the big
-  // 20px corner is retired. Compact pill below stays the signature form.
+  // === Expanded state: 400×188 single-page 3 rows ===
+  // radius.lg per 视觉规范 4.2-4：compact 胶囊是唯一 pill 例外，展开态走 lg。
   &--expanded {
     width: 400px;
-    height: 96px;
+    height: 188px;
     border-radius: var(--size-radius-lg);
   }
 
@@ -105,105 +105,43 @@
   position: relative;
 }
 
-// === Activity wrapper (for slide animation on switch) ===
-.dynamic-island__activity-wrapper {
-  flex: 1;
-  display: flex;
-  position: relative;
-  overflow: hidden;
-}
-
-// The plugin extension slot (overlay:island hook, #ai00-island-slot) moved
-// into the Tools activity panel (ToolsActivity.scss).
-
-.dynamic-island__activity-pane {
+// === Rows — single-page 3-row stack (expanded) ===
+// compact 态整岛只是音乐胶囊：仅音乐行占位，sfx/tools 行隐藏。
+.dynamic-island__rows {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
-// Tools pane — always mounted (hosts the plugin slot), shown only when the
-// tools activity is active. `position:absolute; inset:0` keeps it out of the
-// flex flow when hidden would still occupy space otherwise.
-.dynamic-island__tools-pane {
+.dynamic-island__row {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+
+  // 细分隔线（非通栏：水平内缩 16px，对标 iOS 展开卡的细腻层次）
+  &--sfx,
+  &--tools {
+    border-top: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+    margin: 0 var(--size-gap-4);
+  }
+
+  // 音乐行 = main(44) + gap(6) + sub(24) + padding —— flex 占剩余高度
+  &--music {
+    flex: 1 1 auto;
+  }
+
+  &--sfx {
+    flex: 0 0 40px;
+  }
+
+  &--tools {
+    flex: 0 0 52px;
+  }
+}
+
+// compact 态：三行常驻 DOM（插件槽不能丢），但只有音乐行可见
+.dynamic-island--compact .dynamic-island__row--sfx,
+.dynamic-island--compact .dynamic-island__row--tools {
   display: none;
-}
-
-.dynamic-island__tools-pane--active {
-  display: block;
-  position: absolute;
-  inset: 0;
-}
-
-// === Slide animations for activity switching ===
-@keyframes slideInLeft {
-  from { transform: translateX(40px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes slideInRight {
-  from { transform: translateX(-40px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-// === Navigation bar (full state) ===
-.dynamic-island__nav {
-  display: flex;
-  gap: var(--size-gap-1);
-  padding: var(--size-gap-2) var(--size-gap-3);
-  border-bottom: 1px solid color-mix(in oklch, var(--color-primary) 20%, transparent);
-  flex-shrink: 0;
-  background: color-mix(in oklch, var(--color-bg-elevated) 85%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.dynamic-island__nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--size-radius-base);
-  border: none;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all 0.15s ease;
-
-  &:hover {
-    background: color-mix(in oklch, var(--color-primary) 25%, transparent);
-    color: var(--color-text-primary);
-  }
-
-  &--active {
-    background: color-mix(in oklch, var(--color-accent-400) 18%, transparent);
-    color: var(--color-accent-400);
-    box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent-400) 12%, transparent);
-  }
-}
-
-// === Compact indicator dots ===
-.dynamic-island__indicators {
-  position: absolute;
-  bottom: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: var(--size-gap-0-5);
-}
-
-.dynamic-island__indicator {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--color-text-muted);
-  opacity: 0.4;
-  transition: all 0.2s ease;
-
-  &--active {
-    background: var(--color-accent-400);
-    opacity: 1;
-    box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
-  }
 }

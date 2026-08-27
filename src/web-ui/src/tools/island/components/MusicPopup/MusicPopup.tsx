@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react'
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Music,
@@ -27,6 +27,8 @@ import {
   RefreshCw,
   Copy,
   HardDrive,
+  Square,
+  Plus,
 } from 'lucide-react'
 import { listen, emit } from '@tauri-apps/api/event'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
@@ -45,11 +47,16 @@ import { usePlayerStore } from '../../../acestep/store/playerStore'
 import { useP2pStore } from '../../../acestep/store/p2pStore'
 import { useProfileStore, parseSongTags } from '../../../acestep/store/profileStore'
 import { useRecommendStore } from '../../../acestep/store/recommendStore'
+import { useMusicSourceStore } from '../../../music-source/musicSourceStore'
+import { useFavoritesStore } from '../../../music-source/favoritesStore'
+import { songKey, sourceDisplayName, formatDuration } from '../../../music-source/types'
+import type { OnlineSong } from '../../../music-source/types'
+import type { PlaylistItem } from '../../../acestep/store/playerStore'
 import { confirmDanger } from '../../../../component-library'
 import { ArchiveShareDialog } from '../../../acestep/components/ArchiveShareDialog'
 import { SongMetaEditDialog } from '../../../acestep/components/SongMetaEditDialog'
 import type { SongEntry } from '../../../acestep/types'
-import type { SharedSongListItem } from '../../../acestep/services/ShareService'
+import type { SharedSongListItem, ShareMeta } from '../../../acestep/services/ShareService'
 import type { P2pProgress } from '../../../acestep/services/P2PClient'
 import './MusicPopup.scss'
 
@@ -72,9 +79,11 @@ interface AceStepPlayerState {
   error: string | null
   p2pDownloadingShareId: string | null
   p2pDownloadPercent: number | null
-  source: 'local' | 'share'
+  source: 'local' | 'share' | 'online'
+  playbackState: 'idle' | 'loading' | 'playing' | 'paused' | 'ended'
   showLyrics: boolean
   currentShareId: string | null
+  currentOnlineId: string | null
   currentEntryPath: string | null
 }
 
@@ -272,7 +281,7 @@ export const MusicPopup: React.FC = () => {
   const radioStyle = useAudioPlaybackStore((s) => s.radioStyle)
 
   // ---- Active sidebar section (left menu) ----
-  type Section = 'radio' | 'local' | 'community' | 'recommend' | 'seeding'
+  type Section = 'radio' | 'local' | 'community' | 'recommend' | 'seeding' | 'online' | 'favorites'
   const [activeSection, setActiveSection] = useState<Section>('radio')
 
   // ---- Open the task window and switch to the music creation (AceStep) scene ----
@@ -327,13 +336,75 @@ export const MusicPopup: React.FC = () => {
   const removeArchiveMapping = useShareStore((s) => s.removeArchiveMapping)
 
   const prevVolumeRef = useRef(0.8)
-  const pendingPlaySongRef = useRef<SongEntry | null>(null)
-  const pendingPlayShareRef = useRef<string | null>(null)
+
+  // ---- 在线音源（musicdl sidecar）----
+  const msPhase = useMusicSourceStore((s) => s.phase)
+  const msEnsureReady = useMusicSourceStore((s) => s.ensureReady)
+  const [loadingOnlineId, setLoadingOnlineId] = useState<string | null>(null)
+
+  // ---- 播放列表（队列）面板：同窗口直读 playerStore ----
+  const [queueOpen, setQueueOpen] = useState(false)
+  const queuePlaylist = usePlayerStore((s) => s.playlist)
+  const queueIndex = usePlayerStore((s) => s.currentIndex)
+  const queueJumpTo = usePlayerStore((s) => s.jumpTo)
+  const queueRemove = usePlayerStore((s) => s.removeFromPlaylist)
+  const queueClear = usePlayerStore((s) => s.clearPlaylist)
+  const queueAppend = usePlayerStore((s) => s.appendToPlaylist)
+
+  const msRadioActive = useMusicSourceStore((s) => s.radioActive)
+  const msRadioCurrent = useMusicSourceStore((s) => s.radioCurrent)
+  const msRadioCurrentSong = useMusicSourceStore((s) => s.radioCurrentSong)
+  const msStartRadio = useMusicSourceStore((s) => s.startRadio)
+  const msRadioNext = useMusicSourceStore((s) => s.radioNext)
+  const msStopRadio = useMusicSourceStore((s) => s.stopRadio)
+
+  // ---- 在线歌曲收藏 ----
+  const favorites = useFavoritesStore((s) => s.favorites)
+  const favoritesToggle = useFavoritesStore((s) => s.toggleFavorite)
+  const favoritesRemove = useFavoritesStore((s) => s.removeFavorite)
 
   // ---- v1.3.0+: Profile + Recommend stores ----
   const profile = useProfileStore((s) => s.profile)
   const profileToggleLike = useProfileStore((s) => s.toggleLike)
   const profileToggleDislike = useProfileStore((s) => s.toggleDislike)
+
+  // ---- 统一收藏：社区音乐（share）喜欢的元数据（按需逐个 getMeta） ----
+  const [likedShareMetas, setLikedShareMetas] = useState<Record<string, ShareMeta | null>>({})
+  const likedMetaInflight = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (activeSection !== 'favorites') return
+    const missing = profile.likedIds.filter(
+      (id) => !(id in likedShareMetas) && !likedMetaInflight.current.has(id),
+    )
+    if (missing.length === 0) return
+    missing.forEach((id) => likedMetaInflight.current.add(id))
+    void (async () => {
+      const CONCURRENCY = 4
+      let cursor = 0
+      const workers = Array.from({ length: Math.min(CONCURRENCY, missing.length) }, async () => {
+        while (cursor < missing.length) {
+          const id = missing[cursor++]
+          try {
+            const meta = await shareService.getMeta(id)
+            setLikedShareMetas((prev) => ({ ...prev, [id]: meta }))
+          } catch {
+            setLikedShareMetas((prev) => ({ ...prev, [id]: null })) // 失败占位，不再重试
+          } finally {
+            likedMetaInflight.current.delete(id)
+          }
+        }
+      })
+      await Promise.all(workers)
+    })()
+  }, [activeSection, profile.likedIds, likedShareMetas])
+  /** 社区喜欢（可展示的）：ShareMeta 补 authorName 适配列表项类型（tags 未知，播放采集退化为无标签） */
+  const likedShareItems = useMemo<SharedSongListItem[]>(
+    () => profile.likedIds
+      .map((id) => likedShareMetas[id])
+      .filter((m): m is ShareMeta => !!m)
+      .map((m) => ({ ...m, authorName: '' })),
+    [profile.likedIds, likedShareMetas],
+  )
   const recommendItems = useRecommendStore((s) => s.recommendations)
   const recommendLoading = useRecommendStore((s) => s.loading)
   const recommendError = useRecommendStore((s) => s.error)
@@ -424,13 +495,26 @@ export const MusicPopup: React.FC = () => {
     }
   }, [activeSection, recommendIsStale, recommendRefresh])
 
+  // ---- musicdl：切到在线音源 section 时确保 sidecar 就绪（幂等）----
+  useEffect(() => {
+    if (activeSection === 'online') {
+      void useMusicSourceStore.getState().ensureReady().catch(() => {})
+    }
+  }, [activeSection])
+
+  // ---- Clear loading state when online song starts playing ----
+  useEffect(() => {
+    if (acestepState?.source === 'online' && acestepState.currentSong && loadingOnlineId) {
+      setLoadingOnlineId(null)
+    }
+  }, [acestepState?.source, acestepState?.currentSong, loadingOnlineId])
+
   // ---- Auto source detection ----
   const bgmChannel = audio.bgmChannel
   // acestep 与 VRM 电台共用 Bgm 通道，需以 radioActive 判定电台，避免把
   // acestep 播放误判成电台导致灵动岛在电台/音乐间跳动。
   const vrmIsPlaying = radioActive && bgmChannel?.state === 'Playing'
   const acestepIsPlaying = acestepState?.isPlaying ?? false
-  const acestepAvailable = acestepState !== null
 
   // ---- Sync BgmPlayer.activeSource with AceStep state ----
   useEffect(() => {
@@ -575,23 +659,6 @@ export const MusicPopup: React.FC = () => {
     [],
   )
 
-  // ---- When AceStep window becomes available, play pending song / share ----
-  useEffect(() => {
-    if (!acestepAvailable) return
-    if (pendingPlaySongRef.current) {
-      const entry = pendingPlaySongRef.current
-      pendingPlaySongRef.current = null
-      sendAceStepCommand('playSong', { entry })
-    }
-    if (pendingPlayShareRef.current) {
-      const shareId = pendingPlayShareRef.current
-      pendingPlayShareRef.current = null
-      setLoadingShareId(shareId)
-      setCurrentShareId(shareId)
-      sendAceStepCommand('playShare', { shareId })
-    }
-  }, [acestepAvailable, sendAceStepCommand])
-
   const handleAceStepTogglePlay = useCallback(() => sendAceStepCommand('togglePlay'), [sendAceStepCommand])
   const handleAceStepNext = useCallback(() => sendAceStepCommand('next'), [sendAceStepCommand])
   const handleAceStepPrev = useCallback(() => sendAceStepCommand('prev'), [sendAceStepCommand])
@@ -603,16 +670,18 @@ export const MusicPopup: React.FC = () => {
   const handleAceStepPlaySong = useCallback(
     async (entry: SongEntry) => {
       await useBgmPlayerStore.getState().requestActive('acestep')
-      if (!acestepAvailable) {
-        // 播放引擎常驻于此窗口（App.tsx 挂载 PlayerEngine/PlayerBridge）。
-        // 若尚未就绪（首帧心跳未回），仅记录待播曲目，待状态同步后由上面的
-        // effect 自动补发 playSong —— 不需要也不应该打开任务窗口。
-        pendingPlaySongRef.current = entry
-        return
-      }
-      sendAceStepCommand('playSong', { entry })
+      lastPlayErrorRef.current = null
+      // 整页入列 + 从点击曲开始播（播放引擎与本弹窗同在主窗口，
+      // 直接调 store；setPlaylist 内部 playItem 分发播放）
+      const index = acestepSongs.findIndex((e) => e.path === entry.path)
+      await usePlayerStore
+        .getState()
+        .setPlaylist(
+          acestepSongs.map((e) => ({ kind: 'local' as const, entry: e })),
+          Math.max(0, index),
+        )
     },
-    [acestepAvailable, sendAceStepCommand],
+    [acestepSongs],
   )
 
   // ---- Delete a local song (moved from LibraryView) ----
@@ -653,7 +722,7 @@ export const MusicPopup: React.FC = () => {
   )
 
   const handlePlayShare = useCallback(
-    async (shareId: string) => {
+    async (shareId: string, sourceList?: SharedSongListItem[]) => {
       // 仅当点击的是当前正在播放的分享时才 toggle（暂停/继续）；
       // 点击其他分享应切换播放，而非暂停当前歌曲。
       if (
@@ -667,22 +736,218 @@ export const MusicPopup: React.FC = () => {
       await useBgmPlayerStore.getState().requestActive('acestep')
       lastPlayErrorRef.current = null
       setCurrentShareId(shareId)
-      // 播放引擎常驻于此窗口（App.tsx），AceStep 始终可用。若首帧心跳尚未
-      // 同步，仅记录待播 shareId，等状态就绪后由上面的 effect 自动补发
-      // playShare —— 不再打开任务窗口。
-      if (!acestepAvailable) {
-        pendingPlayShareRef.current = shareId
-        setLoadingShareId(shareId)
-        return
-      }
       setLoadingShareId(shareId)
-      sendAceStepCommand('playShare', { shareId })
+      // 整页入列（community/recommend 页传 sourceList）+ 从点击曲播；
+      // 引擎与本弹窗同窗口，直接调 store
+      if (sourceList && sourceList.length > 0) {
+        const index = Math.max(0, sourceList.findIndex((s) => s.shareId === shareId))
+        await usePlayerStore
+          .getState()
+          .setPlaylist(
+            sourceList.map((s) => ({ kind: 'share' as const, shareId: s.shareId, meta: s })),
+            index,
+          )
+      } else {
+        await usePlayerStore.getState().setPlaylist([
+          { kind: 'share', shareId, meta: undefined },
+        ])
+      }
       setTimeout(() => {
         setLoadingShareId((prev) => (prev === shareId ? null : prev))
       }, 12000)
     },
-    [sendAceStepCommand, acestepAvailable, acestepState?.source, acestepState?.isPlaying, acestepState?.currentShareId],
+    [sendAceStepCommand, acestepState?.source, acestepState?.isPlaying, acestepState?.currentShareId],
   )
+
+  // ---- musicdl：播放在线音源歌曲（songList 传当前页整页入列）----
+  const handlePlayOnline = useCallback(
+    async (song: OnlineSong, songList?: OnlineSong[]) => {
+      const onlineId = songKey(song)
+      // 点击当前正在播放的在线歌曲 → toggle 暂停/继续
+      if (
+        acestepState?.source === 'online' &&
+        acestepState.isPlaying &&
+        acestepState.currentOnlineId === onlineId
+      ) {
+        sendAceStepCommand('togglePlay')
+        return
+      }
+      await useBgmPlayerStore.getState().requestActive('acestep')
+      lastPlayErrorRef.current = null
+      setLoadingOnlineId(onlineId)
+      const list = songList && songList.length > 0 ? songList : [song]
+      const index = Math.max(0, list.findIndex((s) => songKey(s) === onlineId))
+      await usePlayerStore
+        .getState()
+        .setPlaylist(list.map((s) => ({ kind: 'online' as const, song: s })), index)
+      // flac 全曲下载可能较慢，loading 超时放宽到 60s
+      setTimeout(() => {
+        setLoadingOnlineId((prev) => (prev === onlineId ? null : prev))
+      }, 60000)
+    },
+    [sendAceStepCommand, acestepState?.source, acestepState?.isPlaying, acestepState?.currentOnlineId],
+  )
+
+  // ---- musicdl 电台：启动 / 下一首 / 停止 ----
+  const radioStartingRef = useRef(false)
+  const handleRadioToggle = useCallback(
+    async () => {
+      if (msRadioActive) {
+        msStopRadio()
+        return
+      }
+      if (radioStartingRef.current) return
+      radioStartingRef.current = true
+      try {
+        await useBgmPlayerStore.getState().requestActive('acestep')
+        const song = await msStartRadio()
+        if (song) await handlePlayOnline(song)
+      } catch (e) {
+        setToastMsg(t('audio.island.music.online.radioError', {
+          defaultValue: '电台启动失败：{{msg}}',
+          msg: e instanceof Error ? e.message : String(e),
+        }))
+      } finally {
+        radioStartingRef.current = false
+      }
+    },
+    [msRadioActive, msStopRadio, msStartRadio, handlePlayOnline, t],
+  )
+
+  const handleRadioSkip = useCallback(
+    async () => {
+      const song = await msRadioNext()
+      if (song) await handlePlayOnline(song)
+      else setToastMsg(t('audio.island.music.online.radioEnd', { defaultValue: '电台已停止（暂无可播曲目）' }))
+    },
+    [msRadioNext, handlePlayOnline, t],
+  )
+
+  // ---- 电台自动连播：在线源播放 ended（区别于用户 paused）→ 推下一首 ----
+  useEffect(() => {
+    if (
+      msRadioActive &&
+      acestepState?.source === 'online' &&
+      acestepState.playbackState === 'ended'
+    ) {
+      void handleRadioSkip()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msRadioActive, acestepState?.source, acestepState?.playbackState])
+
+  // ---- 电台播放中强制收起播放列表面板（电台不用列表） ----
+  useEffect(() => {
+    if (queueOpen && msRadioActive && acestepState?.source === 'online') {
+      setQueueOpen(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msRadioActive, acestepState?.source])
+
+  // ---- musicdl：加入播放列表（不切换播放）----
+  const handleAddToQueue = useCallback(
+    (song: OnlineSong) => {
+      queueAppend([{ kind: 'online', song }])
+      setToastMsg(t('audio.island.music.online.addedToQueue', { defaultValue: '已加入播放列表：{{name}}', name: song.name }))
+    },
+    [queueAppend, t],
+  )
+
+  // ---- musicdl：收藏切换（toast 反馈，含上限淘汰提示）----
+  const handleToggleFavorite = useCallback(
+    (song: OnlineSong) => {
+      const result = favoritesToggle(song)
+      if (result === 'added') {
+        setToastMsg(t('audio.island.music.online.favoriteAdded', { defaultValue: '已收藏「{{name}}」', name: song.name }))
+      } else if (result === 'evicted') {
+        setToastMsg(t('audio.island.music.online.favoriteFull', { defaultValue: '收藏已满（500），最早的收藏被移除' }))
+      } else {
+        setToastMsg(t('audio.island.music.online.favoriteRemoved', { defaultValue: '已取消收藏' }))
+      }
+    },
+    [favoritesToggle, t],
+  )
+
+  // ---- 播放列表（队列）行渲染 ----
+  const renderQueueRow = (item: PlaylistItem, index: number) => {
+    const isCurrent = index === queueIndex
+    // 三种 kind 提取显示字段
+    let title = ''
+    let artist = ''
+    let cover: string | null = null
+    if (item.kind === 'local') {
+      title = item.entry.meta?.title ?? item.entry.filename
+      artist = item.entry.meta?.artist ?? ''
+      cover = coverPaths[item.entry.path] ? convertFileSrc(coverPaths[item.entry.path]!) : null
+    } else if (item.kind === 'share') {
+      title = item.meta?.title ?? `分享 ${item.shareId}`
+      artist = item.meta?.artistName ?? item.meta?.authorName ?? ''
+    } else {
+      title = item.song.name
+      artist = item.song.singers
+      cover = item.song.coverUrl
+    }
+    return (
+      <div
+        key={`${item.kind}-${index}`}
+        className={`music-popup__queue-row${isCurrent ? ' is-current' : ''}`}
+      >
+        <button
+          type="button"
+          className="music-popup__queue-main"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (isCurrent) { handleAceStepTogglePlay() } else { void queueJumpTo(index) }
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          title={`${title} — ${artist}`}
+        >
+          <span className="music-popup__queue-cover">
+            {cover ? <img src={cover} alt="" loading="lazy" /> : <Music size={12} />}
+            {isCurrent && (
+              <span className="music-popup__cover-overlay">
+                {acestepState?.isPlaying ? <Pause size={9} /> : <Play size={9} />}
+              </span>
+            )}
+          </span>
+          <span className="music-popup__queue-meta">
+            <span className="music-popup__queue-title" title={title}>{title}</span>
+            <span className="music-popup__queue-artist" title={artist}>{artist}</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          className="music-popup__queue-remove"
+          onClick={(e) => { e.stopPropagation(); queueRemove(index) }}
+          onMouseDown={(e) => e.stopPropagation()}
+          title={t('audio.island.music.online.removeQueue', { defaultValue: '从列表移除' })}
+        >
+          <X size={11} />
+        </button>
+      </div>
+    )
+  }
+
+  // ---- 播放列表清空（确认）----
+  const handleClearQueue = useCallback(() => {
+    if (queuePlaylist.length === 0) return
+    void confirmDanger(
+      t('audio.island.music.online.clearQueue', { defaultValue: '清空播放列表' }),
+      t('audio.island.music.online.clearQueueConfirm', { defaultValue: '确定清空播放列表？（不影响正在播放的歌曲）' }),
+      { confirmText: t('confirmDelete', { defaultValue: '清空' }) },
+    ).then((ok) => {
+      if (ok) queueClear()
+    })
+  }, [queuePlaylist.length, queueClear, t])
+
+  // ---- musicdl：清空在线缓存（释放磁盘）----
+  const handleClearOnlineCache = useCallback(() => {
+    void invoke<number>('musicfree_clear_cache').then((freed) => {
+      setToastMsg(t('audio.island.music.online.cacheCleared', {
+        defaultValue: '已清理在线缓存（{{size}}）',
+        size: formatBytes(freed),
+      }))
+    })
+  }, [t, formatBytes])
 
   // ---- VRM radio handlers ----
   const handleRadioSelect = async (styleId: string) => {
@@ -781,6 +1046,18 @@ export const MusicPopup: React.FC = () => {
   const footerVolume = activeSource === 'acestep' ? (acestepState?.volume ?? 0.8) : masterVolume
   const hasSong = activeSource === 'acestep' ? !!acestepState?.currentSong : !!bgmChannel
 
+  // 当前在线播放歌曲的收藏状态（currentOnlineId 即 songKey 格式）：
+  // 优先从正在播的 playlist 条目取完整对象（收藏列表未含时仍可收藏）
+  const currentOnlineSong =
+    acestepState?.source === 'online' && queueIndex >= 0 && queuePlaylist[queueIndex]?.kind === 'online'
+      ? queuePlaylist[queueIndex].song
+      : null
+  const currentOnlineFavSong = currentOnlineSong
+    ?? (acestepState?.currentOnlineId ? useFavoritesStore.getState().findByKey(acestepState.currentOnlineId) : null)
+  const currentOnlineFavored = currentOnlineFavSong
+    ? favorites.some((s) => songKey(s) === songKey(currentOnlineFavSong))
+    : false
+
   // v1.3.0+: Current share's tags for footer like/dislike signal collection.
   // Look up from recommendItems or communityShares by currentShareId.
   const currentShareTags = currentShareId
@@ -806,6 +1083,11 @@ export const MusicPopup: React.FC = () => {
   }
 
   const handleFooterNext = () => {
+    // 歌曲电台播放中：下一首与电台统一（电台逐首推送，不走播放列表）
+    if (msRadioActive && acestepState?.source === 'online') {
+      void handleRadioSkip()
+      return
+    }
     if (activeSource === 'acestep') handleAceStepNext()
     else audio.skipToNext()
   }
@@ -884,6 +1166,21 @@ export const MusicPopup: React.FC = () => {
             </button>
             <button
               type="button"
+              className={`music-popup__nav-item${activeSection === 'online' ? ' is-active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setActiveSection('online') }}
+              onMouseDown={(e) => e.stopPropagation()}
+              title={t('audio.island.music.online.nav', { defaultValue: '歌曲电台（全球榜单随机播放）' })}
+            >
+              <Globe size={14} className="music-popup__nav-icon" />
+              <span className="music-popup__nav-label">
+                {t('audio.island.music.online.nav', { defaultValue: '歌曲电台' })}
+              </span>
+              {msRadioActive && (
+                <span className="music-popup__nav-indicator" />
+              )}
+            </button>
+            <button
+              type="button"
               className={`music-popup__nav-item${activeSection === 'local' ? ' is-active' : ''}`}
               onClick={(e) => { e.stopPropagation(); setActiveSection('local') }}
               onMouseDown={(e) => e.stopPropagation()}
@@ -920,17 +1217,19 @@ export const MusicPopup: React.FC = () => {
             </button>
             <button
               type="button"
-              className={`music-popup__nav-item${activeSection === 'seeding' ? ' is-active' : ''}`}
-              onClick={(e) => { e.stopPropagation(); void p2pRefreshCacheStats(); setActiveSection('seeding') }}
+              className={`music-popup__nav-item${activeSection === 'favorites' ? ' is-active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setActiveSection('favorites') }}
               onMouseDown={(e) => e.stopPropagation()}
-              title={t('acestep.p2p.seedingManage', { defaultValue: '做种 / 缓存管理' })}
+              title={t('audio.island.music.favSection.title', { defaultValue: '收藏（在线音乐 + 社区音乐）' })}
             >
-              <HardDrive size={14} className="music-popup__nav-icon" />
+              <Heart size={14} className="music-popup__nav-icon" />
               <span className="music-popup__nav-label">
-                {t('acestep.p2p.seedingManage', { defaultValue: '做种管理' })}
+                {t('audio.island.music.favSection.title', { defaultValue: '收藏' })}
               </span>
-              <span className="music-popup__nav-count">{p2pSeeding.length}</span>
+              <span className="music-popup__nav-count">{favorites.length + profile.likedIds.length}</span>
             </button>
+            {/* 做种管理：nav 隐藏（P2P 做种后台自动进行；seeding section
+                保留，activeSection 状态仍可达，仅无入口） */}
           </nav>
 
           {/* ---- Right content: section body ---- */}
@@ -1158,7 +1457,7 @@ export const MusicPopup: React.FC = () => {
                       isLoading={loadingShareId === share.shareId}
                       isLiked={profile.likedIds.includes(share.shareId)}
                       isDisliked={profile.dislikedIds.includes(share.shareId)}
-                      onPlay={handlePlayShare}
+                      onPlay={(id: string) => void handlePlayShare(id, recommendItems)}
                       onLike={() => profileToggleLike(share.shareId, parseSongTags(share.tags))}
                       onDislike={() => profileToggleDislike(share.shareId, parseSongTags(share.tags))}
                       formatPlays={formatPlays}
@@ -1200,10 +1499,310 @@ export const MusicPopup: React.FC = () => {
                       isPlaying={isCurrent && acestepState?.isPlaying === true}
                       isLoading={loadingShareId === share.shareId}
                       p2pProgress={p2pProgressMap[share.shareId]}
-                      onPlay={handlePlayShare}
+                      onPlay={(id: string) => void handlePlayShare(id, communityShares)}
                       formatPlays={formatPlays}
                       formatBytes={formatBytes}
                     />
+                  )
+                })
+              )}
+            </div>
+          </section>
+          )}
+
+          {/* ---- 在线音源组（musicdl sidecar）---- */}
+          {activeSection === 'online' && (
+          <section className="music-popup__section music-popup__section--online">
+            <h3 className="music-popup__section-title">
+              <Globe size={12} />
+              <span>{t('audio.island.music.online.title', { defaultValue: '在线音源' })}</span>
+              <span className="music-popup__section-actions">
+                <button
+                  type="button"
+                  className="music-popup__section-action"
+                  onClick={(e) => { e.stopPropagation(); void handleClearOnlineCache() }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  title={t('audio.island.music.online.clearCache', { defaultValue: '清空在线缓存' })}
+                >
+                  <Trash2 size={11} />
+                  <span>{t('audio.island.music.online.clearCache', { defaultValue: '清缓存' })}</span>
+                </button>
+              </span>
+            </h3>
+            {msPhase?.phase === 'installing' && (
+              <div className="music-popup__online-degraded" role="status">
+                <Loader2 size={12} className="is-spinning" style={{ marginRight: 6, flexShrink: 0 }} />
+                {t('audio.island.music.online.installing', { defaultValue: '首次使用正在安装音乐源环境（Python + musicdl，一次性，需数分钟）...' })}
+              </div>
+            )}
+            {msPhase?.phase === 'failed' && (
+              <div className="music-popup__online-degraded" role="status">
+                {t('audio.island.music.online.pluginError', { defaultValue: '音乐源服务启动失败' })}
+                {' · '}
+                {msPhase.error}
+                {' · '}
+                <button
+                  type="button"
+                  className="music-popup__online-retry"
+                  onClick={(e) => { e.stopPropagation(); void msEnsureReady() }}
+                >
+                  {t('audio.island.music.online.retry', { defaultValue: '重试' })}
+                </button>
+              </div>
+            )}
+            {/* ---- 电台视图（多榜单曲池随机播放，不显示榜单） ---- */}
+            <div className="music-popup__community-list music-popup__online-list">
+                {msRadioActive ? (
+                  <>
+                    <div className="music-popup__online-radio-nowplaying">
+                      <span className="music-popup__online-radio-cover">
+                        {msRadioCurrent?.coverUrl ? (
+                          <img src={msRadioCurrent.coverUrl} alt="" loading="lazy" />
+                        ) : (
+                          <Radio size={22} />
+                        )}
+                        <span className="music-popup__online-radio-wave" aria-hidden="true">
+                          <i /><i /><i /><i />
+                        </span>
+                      </span>
+                      <span className="music-popup__online-radio-meta">
+                        <span className="music-popup__online-radio-title" title={msRadioCurrent?.name || ''}>
+                          {msRadioCurrent?.name || t('audio.island.music.online.radioLoading', { defaultValue: '正在选曲...' })}
+                        </span>
+                        <span className="music-popup__online-radio-artist" title={msRadioCurrent?.singers || ''}>
+                          {msRadioCurrent?.singers || ''}
+                        </span>
+                      </span>
+                      {msRadioCurrentSong && (
+                        <button
+                          type="button"
+                          className={`music-popup__online-radio-fav${favorites.some((f) => songKey(f) === songKey(msRadioCurrentSong)) ? ' is-favored' : ''}`}
+                          onClick={(e) => { e.stopPropagation(); handleToggleFavorite(msRadioCurrentSong) }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          title={t('audio.island.music.online.favorite', { defaultValue: '收藏' })}
+                        >
+                          <Heart size={16} fill={favorites.some((f) => songKey(f) === songKey(msRadioCurrentSong)) ? 'currentColor' : 'none'} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="music-popup__online-radio-controls">
+                      <button
+                        type="button"
+                        className="music-popup__online-radio-btn"
+                        onClick={(e) => { e.stopPropagation(); void handleRadioSkip() }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        title={t('audio.island.music.online.radioSkip', { defaultValue: '下一首' })}
+                      >
+                        <SkipForward size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        className="music-popup__online-radio-btn music-popup__online-radio-btn--stop"
+                        onClick={(e) => { e.stopPropagation(); msStopRadio() }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        title={t('audio.island.music.online.radioStop', { defaultValue: '停止电台' })}
+                      >
+                        <Square size={14} />
+                      </button>
+                    </div>
+                    <p className="music-popup__online-radio-desc">
+                      {t('audio.island.music.online.radioDesc', { defaultValue: '随机播放全球榜单歌曲，喜欢的歌点 ♥ 收藏（含音频）' })}
+                    </p>
+                  </>
+                ) : (
+                  <div className="music-popup__online-radio-start">
+                    <button
+                      type="button"
+                      className="music-popup__online-radio-start-btn"
+                      onClick={(e) => { e.stopPropagation(); void handleRadioToggle() }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <Radio size={22} />
+                      <span>{t('audio.island.music.online.radioStart', { defaultValue: '启动全球电台' })}</span>
+                    </button>
+                    <p className="music-popup__online-radio-subtitle">
+                      {t('audio.island.music.online.radioSubtitle', { defaultValue: '随机播放多国榜单歌曲，喜欢的歌可收藏' })}
+                    </p>
+                  </div>
+                )}
+            </div>
+          </section>
+          )}
+
+          {/* ---- 统一收藏组：在线音乐收藏 + 社区音乐喜欢 ---- */}
+          {activeSection === 'favorites' && (
+          <section className="music-popup__section">
+            <h3 className="music-popup__section-title">
+              <Heart size={12} />
+              <span>{t('audio.island.music.favSection.title', { defaultValue: '收藏' })}</span>
+              <span className="music-popup__section-count">{favorites.length + profile.likedIds.length}</span>
+            </h3>
+
+            {/* ---- 分组：在线音乐（收藏含音频，整组入列连播） ---- */}
+            <div className="music-popup__favorites-group">
+              {t('audio.island.music.favSection.online', { defaultValue: '在线音乐' })}
+              <span className="music-popup__section-count">{favorites.length}</span>
+            </div>
+            <div className="music-popup__community-list music-popup__online-list">
+              {favorites.length === 0 ? (
+                <div className="music-popup__list-empty">
+                  {t('audio.island.music.online.favoritesEmpty', { defaultValue: '暂无收藏。点击歌曲行右侧的心形即可收藏' })}
+                </div>
+              ) : (
+                favorites.map((song) => {
+                  const onlineId = songKey(song)
+                  const isCurrent =
+                    acestepState?.source === 'online' &&
+                    loadingOnlineId === null &&
+                    acestepState.currentOnlineId === onlineId
+                  return (
+                    <div
+                      key={onlineId}
+                      className={`music-popup__community-card music-popup__online-card${isCurrent ? ' is-current' : ''}`}
+                      title={`${song.name} — ${song.singers} · ${sourceDisplayName(song.source)}${song.lyric ? ' · 有歌词' : ''}`}
+                    >
+                      <button
+                        type="button"
+                        className="music-popup__community-main"
+                        onClick={(e) => { e.stopPropagation(); void handlePlayOnline(song, favorites) }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <span className="music-popup__community-cover">
+                          {song.coverUrl ? (
+                            <img src={song.coverUrl} alt="" loading="lazy" />
+                          ) : (
+                            <Music size={14} />
+                          )}
+                          {isCurrent && (
+                            <span className="music-popup__cover-overlay">
+                              {acestepState?.isPlaying ? <Pause size={10} /> : <Play size={10} />}
+                            </span>
+                          )}
+                        </span>
+                        <span className="music-popup__community-meta">
+                          <span className="music-popup__community-title" title={song.name}>
+                            {song.name}
+                            {song.lyric && <span className="music-popup__online-lyric-badge" title="有歌词">词</span>}
+                          </span>
+                          <span className="music-popup__community-artist" title={song.singers}>
+                            {song.singers}{song.durationS ? ` · ${formatDuration(song.durationS)}` : ''}
+                          </span>
+                        </span>
+                        <span className="music-popup__online-platform">{sourceDisplayName(song.source)}</span>
+                        <span className="music-popup__community-action">
+                          {loadingOnlineId === onlineId ? (
+                            <Loader2 size={14} className="is-spinning" />
+                          ) : isCurrent ? (
+                            acestepState?.isPlaying ? <Pause size={14} /> : <Play size={14} />
+                          ) : (
+                            <Play size={14} />
+                          )}
+                        </span>
+                      </button>
+                      <span className="music-popup__online-fav-actions">
+                        <button
+                          type="button"
+                          className="music-popup__online-fav"
+                          onClick={(e) => { e.stopPropagation(); handleAddToQueue(song) }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          title={t('audio.island.music.online.addToQueue', { defaultValue: '加入播放列表' })}
+                        >
+                          <Plus size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`music-popup__online-fav is-favored`}
+                          onClick={(e) => { e.stopPropagation(); favoritesRemove(onlineId) }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          title={t('audio.island.music.online.favoriteRemove', { defaultValue: '取消收藏' })}
+                        >
+                          <Heart size={12} fill="currentColor" />
+                        </button>
+                      </span>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* ---- 分组：社区音乐（画像喜欢，getMeta 拉元数据） ---- */}
+            <div className="music-popup__favorites-group">
+              {t('audio.island.music.favSection.community', { defaultValue: '社区音乐' })}
+              <span className="music-popup__section-count">{profile.likedIds.length}</span>
+            </div>
+            <div className="music-popup__community-list music-popup__online-list">
+              {profile.likedIds.length === 0 ? (
+                <div className="music-popup__list-empty">
+                  {t('audio.island.music.favSection.likesEmpty', { defaultValue: '暂无喜欢的社区音乐。在「全网热门」点 ♥ 即可收藏' })}
+                </div>
+              ) : likedShareItems.length === 0 ? (
+                <div className="music-popup__list-loading">
+                  <Loader2 size={16} className="is-spinning" />
+                  <span style={{ marginLeft: 8 }}>
+                    {t('audio.island.music.favSection.loading', { defaultValue: '正在加载喜欢的音乐...' })}
+                  </span>
+                </div>
+              ) : (
+                likedShareItems.map((share) => {
+                  const isCurrent =
+                    acestepState?.source === 'share' &&
+                    loadingShareId === null &&
+                    acestepState.currentShareId === share.shareId
+                  return (
+                    <div
+                      key={share.shareId}
+                      className={`music-popup__community-card music-popup__online-card${isCurrent ? ' is-current' : ''}`}
+                      title={`${share.title}${share.artistName ? ` — ${share.artistName}` : ''}`}
+                    >
+                      <button
+                        type="button"
+                        className="music-popup__community-main"
+                        onClick={(e) => { e.stopPropagation(); void handlePlayShare(share.shareId, likedShareItems) }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <span className="music-popup__community-cover">
+                          {share.coverUrl ? (
+                            <img src={share.coverUrl} alt="" loading="lazy" />
+                          ) : (
+                            <Headphones size={14} />
+                          )}
+                          {isCurrent && (
+                            <span className="music-popup__cover-overlay">
+                              {acestepState?.isPlaying ? <Pause size={10} /> : <Play size={10} />}
+                            </span>
+                          )}
+                        </span>
+                        <span className="music-popup__community-meta">
+                          <span className="music-popup__community-title" title={share.title}>
+                            {share.title}
+                          </span>
+                          <span className="music-popup__community-artist" title={share.artistName || ''}>
+                            {share.artistName || t('audio.island.music.favSection.unknownArtist', { defaultValue: '未知歌手' })}
+                            {share.durationSeconds ? ` · ${formatDuration(share.durationSeconds)}` : ''}
+                          </span>
+                        </span>
+                        <span className="music-popup__community-action">
+                          {loadingShareId === share.shareId ? (
+                            <Loader2 size={14} className="is-spinning" />
+                          ) : isCurrent ? (
+                            acestepState?.isPlaying ? <Pause size={14} /> : <Play size={14} />
+                          ) : (
+                            <Play size={14} />
+                          )}
+                        </span>
+                      </button>
+                      <span className="music-popup__online-fav-actions">
+                        <button
+                          type="button"
+                          className="music-popup__online-fav is-favored"
+                          onClick={(e) => { e.stopPropagation(); profileToggleLike(share.shareId, []) }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          title={t('audio.island.music.online.favoriteRemove', { defaultValue: '取消收藏' })}
+                        >
+                          <Heart size={12} fill="currentColor" />
+                        </button>
+                      </span>
+                    </div>
                   )
                 })
               )}
@@ -1311,6 +1910,55 @@ export const MusicPopup: React.FC = () => {
           </div>
         </div>
 
+        {/* ===== 播放列表（队列）滑出面板：盖在 body 内容区右侧 ===== */}
+        {queueOpen && (
+          <>
+            <div
+              className="music-popup__queue-backdrop"
+              onClick={(e) => { e.stopPropagation(); setQueueOpen(false) }}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            <div className="music-popup__queue-panel no-penetrate" onClick={(e) => e.stopPropagation()}>
+              <div className="music-popup__queue-header">
+                <span className="music-popup__queue-title-text">
+                  {t('audio.island.music.online.queue', { defaultValue: '播放列表' })}
+                  <span className="music-popup__queue-count">{queuePlaylist.length}</span>
+                </span>
+                <span className="music-popup__queue-actions">
+                  <button
+                    type="button"
+                    className="music-popup__queue-action"
+                    onClick={(e) => { e.stopPropagation(); handleClearQueue() }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    disabled={queuePlaylist.length === 0}
+                    title={t('audio.island.music.online.clearQueue', { defaultValue: '清空列表' })}
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    className="music-popup__queue-action"
+                    onClick={(e) => { e.stopPropagation(); setQueueOpen(false) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    title={t('audio.island.music.online.closeQueue', { defaultValue: '关闭' })}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              </div>
+              <div className="music-popup__queue-list">
+                {queuePlaylist.length === 0 ? (
+                  <div className="music-popup__list-empty">
+                    {t('audio.island.music.online.queueEmpty', { defaultValue: '队列为空，去搜索或打开排行榜吧' })}
+                  </div>
+                ) : (
+                  queuePlaylist.map((item, index) => renderQueueRow(item, index))
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
         {/* ===== Footer: player controls (hidden when nothing is playing) ===== */}
         {hasSong && (
         <div className="music-popup__footer">
@@ -1337,7 +1985,8 @@ export const MusicPopup: React.FC = () => {
             </div>
           )}
           <div className="music-popup__footer-controls">
-            {activeSource === 'acestep' && (
+            {/* 播放模式按钮：歌曲电台播放中隐藏（电台不使用列表模式） */}
+            {activeSource === 'acestep' && !(msRadioActive && acestepState?.source === 'online') && (
               <button
                 className="music-popup__footer-btn"
                 onClick={(e) => { e.stopPropagation(); handleAceStepTogglePlayMode() }}
@@ -1345,6 +1994,17 @@ export const MusicPopup: React.FC = () => {
                 title={t(`acestep.playMode.${acestepState?.playMode}`, { defaultValue: acestepState?.playMode })}
               >
                 {acestepState && getPlayModeIcon(acestepState.playMode)}
+              </button>
+            )}
+            {/* 在线歌曲收藏（当前播放为在线源时） */}
+            {activeSource === 'acestep' && acestepState?.source === 'online' && currentOnlineFavSong && (
+              <button
+                className={`music-popup__footer-btn${currentOnlineFavored ? ' is-active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); handleToggleFavorite(currentOnlineFavSong) }}
+                onMouseDown={(e) => e.stopPropagation()}
+                title={t('audio.island.music.online.favorite', { defaultValue: '收藏' })}
+              >
+                <Heart size={14} fill={currentOnlineFavored ? 'currentColor' : 'none'} />
               </button>
             )}
             {/* v1.3.0+: Like/Dislike buttons (only for share playback) */}
@@ -1444,6 +2104,21 @@ export const MusicPopup: React.FC = () => {
                 title={t('acestep.toggleLyrics', { defaultValue: '桌面歌词' })}
               >
                 <ListMusic size={14} />
+              </button>
+            )}
+            {/* 播放列表（队列）面板开关：badge 显示队列长度。
+                歌曲电台播放中隐藏——电台逐首推送不使用列表 */}
+            {activeSource === 'acestep' && !(msRadioActive && acestepState?.source === 'online') && (
+              <button
+                className={`music-popup__footer-btn music-popup__footer-btn--queue${queueOpen ? ' is-active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setQueueOpen((v) => !v) }}
+                onMouseDown={(e) => e.stopPropagation()}
+                title={t('audio.island.music.online.queue', { defaultValue: '播放列表' })}
+              >
+                <ListOrdered size={14} />
+                {queuePlaylist.length > 0 && (
+                  <span className="music-popup__queue-badge">{queuePlaylist.length}</span>
+                )}
               </button>
             )}
             {renderP2PStatus()}
