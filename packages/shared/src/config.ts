@@ -11,17 +11,25 @@ import { DEFAULT_AI00_S_BASE_URL } from './serverEndpoints';
 
 const FALLBACK_BASE = DEFAULT_AI00_S_BASE_URL;
 
+/// 缓存有效期（毫秒）：设置页切换服务器后 loader-ui/underlay-ui 短暂延迟即读到新地址，
+/// 无需重启客户端（原先为模块级永久缓存，切换地址后必须重启才生效）
+const BASE_URL_CACHE_TTL_MS = 5_000;
+
 let cachedBaseUrl: string | null = null;
+let cachedBaseUrlAt = 0;
 
 /**
  * 获取 Ai00-S 服务器地址（异步，通过 Tauri invoke 从后端配置读取）。
- * 首次调用会 invoke 后端，后续返回缓存值。
+ * 首次调用会 invoke 后端，后续返回缓存值（TTL 5 秒，过期重新读取）。
  * invoke 失败时回退到 FALLBACK_BASE。
  */
 export async function getBaseUrl(): Promise<string> {
-  if (cachedBaseUrl) return cachedBaseUrl;
+  if (cachedBaseUrl && Date.now() - cachedBaseUrlAt < BASE_URL_CACHE_TTL_MS) {
+    return cachedBaseUrl;
+  }
   try {
     cachedBaseUrl = await invoke<string>('get_ai00_s_base_url');
+    cachedBaseUrlAt = Date.now();
     return cachedBaseUrl || FALLBACK_BASE;
   } catch {
     return FALLBACK_BASE;

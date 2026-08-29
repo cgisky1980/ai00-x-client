@@ -113,15 +113,18 @@ const XF_TIER_RANK: Record<string, number> = {
   expensive: 2,
 };
 
-/// 用户能否访问某模型（基于后端返回的 tier：free/cheap/expensive）
+/// 用户能否访问某模型
 ///
-/// 规则：模型 tier rank <= 用户 tier rank 时可访问
+/// 新体系：后端在 /ai00-s/api/ai/models 的每个模型上直接下发 locked
+/// （当前套餐不可用 = true），前端以 locked 语义为准。
+/// 旧体系兜底：后端未下发 locked 时，按 tier rank（free/cheap/expensive）判断：
 /// - free 用户只能用 free 模型
 /// - cheap 用户可用 free + cheap 模型
 /// - expensive 用户可用所有模型
-export const canAccessModel = (modelTier: string, userTier?: string | null): boolean => {
+export const canAccessModel = (model: Ai00sModelInfo, userTier?: string | null): boolean => {
+  if (model.locked !== undefined) return !model.locked;
   const userRank = XF_TIER_RANK[userTier ?? 'free'] ?? 0;
-  const modelRank = XF_TIER_RANK[modelTier] ?? 0;
+  const modelRank = XF_TIER_RANK[model.tier] ?? 0;
   return modelRank <= userRank;
 };
 
@@ -165,8 +168,12 @@ export interface FreeQuotaInfo {
 /// - isDefault: 是否为默认模型（服务器指定，客户端默认选中）
 /// - modality: LLM/LMM/Image/Video
 /// - producer: 机构（OpenAI/Anthropic/Google/GLM/...）
-/// - pricing: 模型定价
+/// - pricing: 模型定价（展示层不再突出，倍率优先）
 /// - freeQuota: 免费模型限流 + 当日用量（仅 isUpstreamFree=true 时有）
+/// - multiplier: 消耗倍率（基准模型=1.0，如 0.06 ~ 1.65），展示为 "0.77x"
+/// - memberDiscount: 当前用户套餐的模型折扣（1.0/0.8/0.6/0.5）
+/// - discountEligible: 该模型是否参与会员折扣
+/// - locked: 当前套餐是否不可用（免费用户看非免费模型 = true）
 export interface Ai00sModelInfo {
   id: string;          // 模型名（如 "GLM-4.7-Flash"），作为 model 字段发给后端
   displayName: string; // 显示名
@@ -183,6 +190,14 @@ export interface Ai00sModelInfo {
   pricing?: ModelPricingInfo | null;
   /** 免费模型限流 + 当日用量（仅 isUpstreamFree=true 时有） */
   freeQuota?: FreeQuotaInfo | null;
+  /** 消耗倍率（基准模型=1.0），展示为 "0.77x" */
+  multiplier?: number;
+  /** 当前用户套餐的模型折扣（1.0/0.8/0.6/0.5） */
+  memberDiscount?: number;
+  /** 该模型是否参与会员折扣 */
+  discountEligible?: boolean;
+  /** 当前套餐是否不可用（true=锁定，需升级套餐） */
+  locked?: boolean;
 }
 
 let cachedAi00sModels: Ai00sModelInfo[] | null = null;
@@ -204,6 +219,14 @@ interface RawAi00sModel {
   is_default?: boolean;
   modality?: string | null;
   producer?: string | null;
+  /** 消耗倍率（基准模型=1.0） */
+  multiplier?: number;
+  /** 当前用户套餐的模型折扣（1.0/0.8/0.6/0.5） */
+  member_discount?: number;
+  /** 该模型是否参与会员折扣 */
+  discount_eligible?: boolean;
+  /** 当前套餐是否不可用（true=锁定） */
+  locked?: boolean;
   pricing?: { input?: number; output?: number; cached?: number; currency?: string } | null;
   free_quota?: {
     daily_request_limit?: number;
@@ -243,6 +266,10 @@ export async function fetchAi00sModels(): Promise<Ai00sModelInfo[]> {
       if (m.is_default !== undefined) info.isDefault = m.is_default;
       if (m.modality !== undefined) info.modality = m.modality;
       if (m.producer !== undefined) info.producer = m.producer;
+      if (m.multiplier !== undefined) info.multiplier = m.multiplier;
+      if (m.member_discount !== undefined) info.memberDiscount = m.member_discount;
+      if (m.discount_eligible !== undefined) info.discountEligible = m.discount_eligible;
+      if (m.locked !== undefined) info.locked = m.locked;
       if (m.pricing) {
         info.pricing = {
           input: m.pricing.input ?? 0,
@@ -274,13 +301,23 @@ export async function fetchAi00sModels(): Promise<Ai00sModelInfo[]> {
 // ===== Phase 5.1: 模型分组 + 剩余额度 + 套餐判断 =====
 
 /**
- * 计算模型价格区间分组
+ * 计算模型价格区间分组（按消耗倍率 multiplier）
  *
- * - economy: 上游免费模型（isUpstreamFree=true），平台收低价 credit
+ * - economy: multiplier < 0.1x（经济）
+ * - standard: 0.1x ~ 0.5x（标准）
+ * - premium: multiplier > 0.5x（旗舰）
+ *
+ * 后端未下发 multiplier 时兜底旧逻辑：
+ * - economy: 上游免费模型（isUpstreamFree=true）或输入价 = 0
  * - standard: 输入价 <= 10 元/百万 tokens
  * - premium: 输入价 > 10 元/百万 tokens
  */
 export const getModelPriceGroup = (model: Ai00sModelInfo): ModelPriceGroup => {
+  if (model.multiplier !== undefined) {
+    if (model.multiplier < 0.1) return 'economy';
+    if (model.multiplier <= 0.5) return 'standard';
+    return 'premium';
+  }
   if (model.isUpstreamFree) return 'economy';
   const inputPrice = model.pricing?.input ?? 0;
   if (inputPrice <= 0) return 'economy';

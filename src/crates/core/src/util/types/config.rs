@@ -53,6 +53,8 @@ impl TryFrom<AIModelConfig> for AIConfig {
             custom_request_body,
             custom_request_body_mode: other.custom_request_body_mode,
             stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
         })
     }
 }

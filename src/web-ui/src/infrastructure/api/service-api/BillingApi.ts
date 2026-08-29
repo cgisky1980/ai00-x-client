@@ -100,6 +100,8 @@ export interface PlanDefinition {
   display_name: string;
   price_cents: number;
   monthly_credits: number;
+  /** 模型计费折扣（1 = 原价；<1 时展示"热门模型 X 折"） */
+  model_discount?: number;
   is_active: boolean;
   features_json: string | null;
   sort_order: number;
@@ -246,6 +248,145 @@ export async function listPublicPlans(): Promise<ListResponse<PlanDefinition>> {
   );
   if (resp.code !== 0) {
     throw new Error(resp.message || 'Failed to fetch plans');
+  }
+  return resp.data;
+}
+
+// ============================================================================
+// 积分经济体系（Credits Economy）
+// ============================================================================
+
+/** 即将过期的积分批次 */
+export interface CreditExpiringEntry {
+  id: number;
+  amount: number;
+  expires_at: string;
+}
+
+/** 积分总览（GET /me/credits/summary 返回） */
+export interface CreditsSummary {
+  total: number;
+  plan_remaining: number;
+  recharge_remaining: number;
+  reward_remaining: number;
+  expiring: CreditExpiringEntry[];
+  plan_tier: string;
+  plan_display_name: string;
+  /** 模型计费折扣（1 = 原价） */
+  model_discount: number;
+  next_reset_at: string | null;
+}
+
+/** 积分账本来源类型 */
+export type CreditLedgerSourceType =
+  | 'plan'
+  | 'recharge'
+  | 'reward'
+  | 'gift'
+  | 'gift_out'
+  | 'admin_grant'
+  | 'consume'
+  | 'refund'
+  | 'expire';
+
+/** 积分账本条目（GET /me/credits/ledger 返回） */
+export interface CreditLedgerEntry {
+  id: number;
+  direction: 'in' | 'out';
+  amount: number;
+  source_type: CreditLedgerSourceType;
+  remark: string | null;
+  balance_after: number;
+  created_at: string;
+}
+
+/** 充值档位（GET /recharge/specs 返回，公开） */
+export interface RechargeSpec {
+  id: number;
+  /** 标价，单位：分 */
+  price_cents: number;
+  credits: number;
+  /** 附赠积分 */
+  bonus_credits: number;
+  label: string;
+  sort_order: number;
+}
+
+/** 签到结果（POST /me/signin 返回） */
+export interface SigninResult {
+  /** 本次签到获得的积分（already_signed 时为 0） */
+  credits_granted: number;
+  already_signed: boolean;
+}
+
+/** 签到状态（GET /me/signin 返回） */
+export interface SigninStatus {
+  /** 已签到日期，格式由服务端定（YYYY-MM-DD） */
+  signed_dates: string[];
+  today_signed: boolean;
+}
+
+/**
+ * 获取积分总览：GET /api/v1/me/credits/summary
+ */
+export async function getCreditsSummary(): Promise<CreditsSummary> {
+  const resp = await fetchWithAuth<ApiResp<CreditsSummary>>('/api/v1/me/credits/summary');
+  if (resp.code !== 0) {
+    throw new Error(resp.message || 'Failed to fetch credits summary');
+  }
+  return resp.data;
+}
+
+/**
+ * 列出积分账本：GET /api/v1/me/credits/ledger
+ */
+export async function listCreditsLedger(
+  limit = 50,
+  offset = 0
+): Promise<ListResponse<CreditLedgerEntry>> {
+  const resp = await fetchWithAuth<ApiResp<ListResponse<CreditLedgerEntry>>>(
+    `/api/v1/me/credits/ledger?limit=${limit}&offset=${offset}`
+  );
+  if (resp.code !== 0) {
+    throw new Error(resp.message || 'Failed to fetch credits ledger');
+  }
+  return resp.data;
+}
+
+/**
+ * 获取公开充值档位列表：GET /api/v1/recharge/specs（无需登录）
+ */
+export async function listRechargeSpecs(): Promise<ListResponse<RechargeSpec>> {
+  const resp = await fetchWithAuth<ApiResp<ListResponse<RechargeSpec>>>(
+    '/api/v1/recharge/specs',
+    { noAuth: true }
+  );
+  if (resp.code !== 0) {
+    throw new Error(resp.message || 'Failed to fetch recharge specs');
+  }
+  return resp.data;
+}
+
+/**
+ * 每日签到：POST /api/v1/me/signin
+ */
+export async function dailySignin(): Promise<SigninResult> {
+  const resp = await fetchWithAuth<ApiResp<SigninResult>>('/api/v1/me/signin', {
+    method: 'POST',
+  });
+  if (resp.code !== 0) {
+    throw new Error(resp.message || 'Failed to signin');
+  }
+  return resp.data;
+}
+
+/**
+ * 查询签到状态：GET /api/v1/me/signin
+ */
+export async function getSigninStatus(): Promise<SigninStatus> {
+  const resp = await fetchWithAuth<ApiResp<SigninStatus>>('/api/v1/me/signin');
+  if (resp.code !== 0) {
+    throw new Error(resp.message || 'Failed to fetch signin status');
   }
   return resp.data;
 }

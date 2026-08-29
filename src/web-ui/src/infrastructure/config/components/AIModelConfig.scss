@@ -1655,6 +1655,12 @@
     align-self: flex-start;
   }
 
+  &__server-switch {
+    display: flex;
+    gap: $size-gap-2;
+    align-items: center;
+  }
+
   &__header-row {
     display: flex;
     gap: $size-gap-2;

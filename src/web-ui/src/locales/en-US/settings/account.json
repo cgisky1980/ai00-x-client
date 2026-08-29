@@ -7,6 +7,12 @@
   "username": "Username",
   "email": "Email",
   "plan": "Plan",
+  "credits": {
+    "entry": "Credits & Membership",
+    "entryDesc": "View credits balance, recharge and plan perks",
+    "recharge": "Recharge",
+    "membership": "Membership"
+  },
   "actions": {
     "title": "Actions"
   },

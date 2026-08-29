@@ -7,6 +7,12 @@
   "username": "用户名",
   "email": "邮箱",
   "plan": "套餐",
+  "credits": {
+    "entry": "积分与会员",
+    "entryDesc": "查看积分余额、充值与套餐权益",
+    "recharge": "积分充值",
+    "membership": "会员套餐"
+  },
   "actions": {
     "title": "操作"
   },

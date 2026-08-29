@@ -99,6 +99,33 @@ cargo test --release -p ai00-x-relay     # Run relay tests
 cargo test --release --all               # Run all tests
 ```
 
+### Desktop Dev Workflow（快速循环，必读）
+
+**改前端 ≠ 重编 Rust**：前端资产（main.zip / loader.zip / underlay.zip）是运行时从 exe 旁边读取的（`src/apps/desktop/src/zip_serve.rs`，优先 exe 同目录），不嵌入 exe。`desktop:build` 全量（重链 168MB exe + MSI/NSIS + 签名，5–10 分钟）只在**发布安装包**时需要。
+
+**前端改动快速循环（~1 分钟）**：
+
+```powershell
+pnpm --dir src/web-ui build                          # 构建前端（~40s）
+node scripts/zip-dir.mjs dist/main dist/main.zip     # 重打 zip
+copy dist\main.zip target\release\main.zip           # 替换 exe 旁资产
+# 重启客户端（zip 为 Lazy 缓存，必须重启才生效）
+```
+
+硬性注意：
+1. **编译/链接前必须先关闭客户端进程**（Windows exe 占用导致链接失败）。
+2. dev 运行若报 `llama.dll not found`（TTS/模型初始化失败）：把 `client\.llama-build\bin\Release\` 的 llama/llama-common/ggml*/qwen3_fa/mtmd dll 复制到 `target\release\runtime\llama\<版本>-cuda-12.4\`，ggml*/qwen3_fa 另复制到 `runtime\gguf\`。
+3. 进程"静默退出"（无崩溃日志/事件记录）= panic hook `process::exit(1)`；抓法：前台启动重定向 stderr + `RUST_BACKTRACE=1`，panic 会打 `[PANIC] file:line:col: message`。WER LocalDumps 对主动 exit 无效。约束：`rwkv_llm.rs` 推理池线程是 `std::thread::spawn`（无 tokio 上下文），禁止调用 `block_on`/`tokio::time::*`。
+
+### 服务器环境（2026-08-28 起）
+
+| 环境 | 地址 | 机器 |
+|------|------|------|
+| 正式 | https://app.ai00-x.com | 新机 103.143.231.160 |
+| 测试 | https://ai00-x.com | 老机 101.132.79.234 |
+
+客户端设置 → AI 模型 → 「服务器切换」一键切换（写 `app.ai00_s_base_url`，web-ui 即时生效）。默认兜底地址 = 正式，来源 `packages/shared/server-endpoints.json`（改后跑 `node scripts/generate-endpoints.cjs` 重新生成 TS + Rust）。发布流水线：先部署测试服（老机）验证，人工确认后发生产——见 `server/deploy/publish.ps1`。
+
 ### E2E Test Details
 
 E2E tests live in `tests/e2e/`, built on WebDriverIO + Tauri integration.

@@ -1162,6 +1162,20 @@ const AIModelConfig: React.FC = () => {
     }
   };
 
+  // 快捷切换远程服务器（正式/测试）：写同一配置项 app.ai00_s_base_url，
+  // web-ui 侧 TokenManager 监听该配置变更自动清缓存，即时生效
+  const handleQuickSwitchServer = async (url: string, label: string) => {
+    if (ai00sBaseUrl.trim() === url) return;
+    try {
+      await configManager.setConfig('app.ai00_s_base_url', url);
+      setAi00sBaseUrl(url);
+      notification.success(t('ai00s.switchSuccess', { label }));
+    } catch (error) {
+      log.error('Failed to switch server', { url, error });
+      notification.error(t('messages.saveFailed'));
+    }
+  };
+
   const closeEditingModal = () => {
     resetRemoteModelDiscovery();
     setSelectedModelDrafts([]);
@@ -2344,6 +2358,24 @@ const AIModelConfig: React.FC = () => {
               placeholder={DEFAULT_AI00_S_BASE_URL}
               inputSize="small"
             />
+          </ConfigPageRow>
+          <ConfigPageRow label={t('ai00s.quickSwitch')} description={t('ai00s.quickSwitchHint')} align="center">
+            <div className="ai00-x-ai-model-config__server-switch">
+              <Button
+                variant={ai00sBaseUrl.trim() === 'https://app.ai00-x.com' ? 'primary' : 'secondary'}
+                size="small"
+                onClick={() => handleQuickSwitchServer('https://app.ai00-x.com', t('ai00s.prodServer'))}
+              >
+                {t('ai00s.prodServer')}
+              </Button>
+              <Button
+                variant={ai00sBaseUrl.trim() === 'https://ai00-x.com' ? 'primary' : 'secondary'}
+                size="small"
+                onClick={() => handleQuickSwitchServer('https://ai00-x.com', t('ai00s.testServer'))}
+              >
+                {t('ai00s.testServer')}
+              </Button>
+            </div>
           </ConfigPageRow>
         </ConfigPageSection>
       </ConfigPageContent>

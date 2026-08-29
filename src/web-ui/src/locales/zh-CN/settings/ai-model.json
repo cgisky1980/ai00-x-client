@@ -197,7 +197,12 @@
     "baseUrl": "服务地址",
     "baseUrlHint": "Ai00-S 中转服务的完整地址（含协议和端口）",
     "save": "保存地址",
-    "saveSuccess": "Ai00-S 地址已更新，客户端缓存已刷新"
+    "saveSuccess": "Ai00-S 地址已更新，客户端缓存已刷新",
+    "quickSwitch": "服务器切换",
+    "quickSwitchHint": "在正式与测试服务器之间一键切换，立即生效（登录会话需重新登录目标站点）",
+    "prodServer": "正式 app.ai00-x.com",
+    "testServer": "测试 ai00-x.com",
+    "switchSuccess": "已切换到{{label}}"
   },
   "capabilities": {
     "text_chat": "对话",

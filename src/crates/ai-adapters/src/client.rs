@@ -96,6 +96,17 @@ impl AIClient {
         }
     }
 
+    /// RWKV 本地引擎的重复惩罚（remote 提供方忽略这两个值）。
+    pub fn with_penalties(&self, presence_penalty: f64, frequency_penalty: f64) -> Self {
+        let mut config = self.config.clone();
+        config.presence_penalty = Some(presence_penalty);
+        config.frequency_penalty = Some(frequency_penalty);
+        Self {
+            client: self.client.clone(),
+            config,
+        }
+    }
+
     pub async fn send_message_stream(
         &self,
         messages: Vec<Message>,
@@ -208,6 +219,8 @@ mod tests {
             custom_request_body,
             custom_request_body_mode: None,
             stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
         })
     }
 
@@ -240,6 +253,8 @@ mod tests {
             custom_request_body: None,
             custom_request_body_mode: None,
             stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
         });
 
         assert_eq!(
@@ -271,6 +286,8 @@ mod tests {
             custom_request_body: None,
             custom_request_body_mode: None,
             stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
         });
 
         assert_eq!(
@@ -303,6 +320,8 @@ mod tests {
             custom_request_body: None,
             custom_request_body_mode: None,
             stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
         });
 
         let request_body = gemini::request::build_request_body(
@@ -385,6 +404,8 @@ mod tests {
             custom_request_body: None,
             custom_request_body_mode: None,
             stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
         });
 
         let gemini_tools = GeminiMessageConverter::convert_tools(Some(vec![ToolDefinition {
@@ -436,6 +457,8 @@ mod tests {
             custom_request_body: None,
             custom_request_body_mode: None,
             stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
         });
 
         let request_body = openai::chat::build_request_body(
@@ -474,6 +497,8 @@ mod tests {
             custom_request_body: None,
             custom_request_body_mode: None,
             stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
         });
 
         let request_body = openai::chat::build_request_body(
@@ -511,6 +536,8 @@ mod tests {
             custom_request_body: None,
             custom_request_body_mode: None,
             stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
         });
 
         let request_body = openai::responses::build_request_body(
@@ -550,6 +577,8 @@ mod tests {
             custom_request_body: None,
             custom_request_body_mode: None,
             stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
         });
 
         let request_body = anthropic::request::build_request_body(

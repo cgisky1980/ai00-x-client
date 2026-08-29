@@ -32,6 +32,41 @@ pub fn get_default_rwkv_model_config() -> AIModelConfig {
     }
 }
 
+/// gguf-local 本地 GGUF 模型配置（llama-server 子进程，OpenAI 兼容）。
+///
+/// `model_ref` 形如 `gguf-local:<gguf绝对路径>`；llama-server 单模型服务，
+/// OpenAI 请求体中的 model 字段值不影响路由（服务端只跑已加载模型），
+/// 这里填 gguf 路径便于日志辨认。base_url 由桌面端按进程动态写入。
+pub fn get_default_gguf_local_model_config(
+    model_ref: &str,
+    gguf_path: &str,
+    base_url: &str,
+) -> AIModelConfig {
+    let display = std::path::Path::new(gguf_path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("gguf-local")
+        .to_string();
+    AIModelConfig {
+        id: model_ref.to_string(),
+        name: format!("GGUF Local ({display})"),
+        provider: "openai".to_string(),
+        model_name: gguf_path.to_string(),
+        base_url: base_url.to_string(),
+        request_url: None,
+        api_key: "local".to_string(),
+        context_window: Some(16384),
+        max_tokens: Some(4096),
+        temperature: Some(0.7),
+        top_p: Some(0.8),
+        enabled: true,
+        category: ModelCategory::GeneralChat,
+        capabilities: vec![ModelCapability::TextChat],
+        recommended_for: vec!["gguf-local".to_string()],
+        ..Default::default()
+    }
+}
+
 fn serialize_default_config(section: &str, value: impl serde::Serialize) -> serde_json::Value {
     match serde_json::to_value(value) {
         Ok(serialized) => serialized,

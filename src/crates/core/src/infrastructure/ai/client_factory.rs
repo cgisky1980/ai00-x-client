@@ -36,6 +36,27 @@ pub fn set_ai00s_auth_token(token: String) {
     *guard = token;
 }
 
+/// gguf-local llama-server base URL（如 http://127.0.0.1:PORT/v1）。
+///
+/// 由桌面端 `ensure_llama_server` 在每次模型引用解析前写入（懒启动 +
+/// 空闲自动退出 → URL 随进程生灭，不能持久化在配置里）。core 不依赖桌面端，
+/// 仅通过此全局槽位取值；未设置时 gguf-local 模型引用解析报错。
+static GGUF_LOCAL_BASE_URL: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
+
+pub fn set_gguf_local_base_url(url: Option<String>) {
+    let mut guard = GGUF_LOCAL_BASE_URL
+        .write()
+        .unwrap_or_else(|e| e.into_inner());
+    *guard = url;
+}
+
+pub fn get_gguf_local_base_url() -> Option<String> {
+    GGUF_LOCAL_BASE_URL
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
 pub struct AIClientFactory {
     config_service: Arc<ConfigService>,
 }
@@ -111,7 +132,18 @@ impl AIClientFactory {
                 .unwrap_or_else(|| model_id.to_string()),
         };
 
-        let model_config = if normalized_model_id == "rwkv-local" {
+        // gguf-local:<gguf_path> → llama-server 子进程（OpenAI 兼容）。
+        // base_url 由桌面端在解析模型引用前经 ensure_llama_server 写入。
+        let model_config = if let Some(gguf_path) = normalized_model_id.strip_prefix("gguf-local:")
+        {
+            let base_url = get_gguf_local_base_url()
+                .ok_or_else(|| anyhow!("gguf-local server not started (model not ensured)"))?;
+            crate::service::config::providers::get_default_gguf_local_model_config(
+                &normalized_model_id,
+                gguf_path,
+                &base_url,
+            )
+        } else if normalized_model_id == "rwkv-local" {
             global_config
                 .ai
                 .models

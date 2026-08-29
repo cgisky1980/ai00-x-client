@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LogOut, RefreshCw } from 'lucide-react';
+import { LogOut, RefreshCw, Coins, Crown } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import { Button } from '@/component-library';
+import { requestCreditsTab } from '@/app/scenes/credits/creditsSceneEvents';
 import { DEFAULT_AI00_S_BASE_URL } from '@/infrastructure/config/constants';
 import {
   ConfigPageLayout,
@@ -188,6 +190,22 @@ const AccountConfig: React.FC = () => {
             >
               {displayTier}
             </span>
+          </ConfigPageRow>
+          <ConfigPageRow
+            label={t('credits.entry', { defaultValue: '积分与会员' })}
+            description={t('credits.entryDesc', { defaultValue: '查看积分余额、充值与套餐权益' })}
+            align="center"
+          >
+            <div style={{ display: 'flex', gap: 'var(--size-gap-2)', flexWrap: 'wrap' }}>
+              <Button variant="secondary" size="small" onClick={() => requestCreditsTab('recharge')}>
+                <Coins size={14} />
+                {t('credits.recharge', { defaultValue: '积分充值' })}
+              </Button>
+              <Button variant="secondary" size="small" onClick={() => requestCreditsTab('membership')}>
+                <Crown size={14} />
+                {t('credits.membership', { defaultValue: '会员套餐' })}
+              </Button>
+            </div>
           </ConfigPageRow>
         </ConfigPageSection>
 

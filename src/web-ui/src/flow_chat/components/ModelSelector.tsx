@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Cpu, ChevronDown, Check, Sparkles, Lock, Zap, Crown, Rocket } from 'lucide-react';
+import { Cpu, ChevronDown, Check, Sparkles, Lock, Zap, Crown, Rocket, Coins } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
@@ -35,7 +35,7 @@ import {
 import { getEffectiveReasoningMode, isReasoningVisiblyEnabled } from '@/infrastructure/config/utils/reasoning';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import type { AIModelConfig } from '@/infrastructure/config/types';
-import { Tooltip, Popover, PopoverTrigger, PopoverContent } from '@/component-library';
+import { Tooltip, Popover, PopoverTrigger, PopoverContent, Switch } from '@/component-library';
 import { FlowChatStore } from '../store/FlowChatStore';
 import { createLogger } from '@/shared/utils/logger';
 import { UpgradeDialog } from './UpgradeDialog';
@@ -103,17 +103,13 @@ const buildAutoModelInfo = (
   provider: 'auto',
 });
 
-/// Phase 5.1: 格式化模型价格（元/百万 tokens）
-///
-/// 返回简短文本：如 "0.5/1.5" 表示输入 0.5 元、输出 1.5 元（均为每百万 tokens）
-const formatModelPrice = (model: Ai00sModelInfo): string => {
-  if (!model.pricing) return '';
-  const { input, output } = model.pricing;
-  if (input === 0 && output === 0) return '';
-  // 价格 < 1 时显示 2 位小数，>= 1 时显示 1 位
-  const fmt = (v: number) => (v < 1 ? v.toFixed(2) : v.toFixed(1));
-  return `${fmt(input)}/${fmt(output)}`;
-};
+/// 倍率视图：格式化消耗倍率（0.77 → "0.77x"，1 → "1x"）
+const formatMultiplier = (multiplier: number): string =>
+  `${parseFloat(multiplier.toFixed(2))}x`;
+
+/// 倍率视图：格式化积分余额（千分位，最多 2 位小数）
+const formatCredits = (n: number): string =>
+  n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 
 /// Phase 5.1: 格式化免费模型剩余额度文本
 ///
@@ -401,10 +397,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       return;
     }
 
-    // 兼容旧的 tier 检查（canAccessModel 仅对旧体系 free/cheap/expensive 有效）
-    // 新体系下后端已按 plan_tier 过滤可见模型，前端不再需要 tier 检查
-    // 但保留此检查以防后端未过滤的情况
-    if (xfModel.tier && xfModel.tier !== 'free' && !canAccessModel(xfModel.tier, userTier)) {
+    // locked：当前套餐不可用（新体系后端下发 locked；旧体系兜底按 tier rank）→ 弹升级提示
+    if (!canAccessModel(xfModel, userTier)) {
       setUpgradeDialog({
         modelName: xfModel.displayName,
         requiredTier: xfModel.tier,
@@ -473,9 +467,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     if (isValid) return;
 
     autoSelectedRef.current = true;
-    // 优先选服务器标注的默认模型，否则第一个可访问的模型
-    const defaultModel = xfModels.find(m => m.isDefault)
-      || xfModels.find(m => m.isUpstreamFree)
+    // 优先选服务器标注的默认模型，否则第一个可访问（未锁定）的模型
+    const defaultModel = xfModels.find(m => m.isDefault && !m.locked)
+      || xfModels.find(m => m.isUpstreamFree && !m.locked)
+      || xfModels.find(m => !m.locked)
       || xfModels[0];
     if (defaultModel) {
       log.info('Auto-selecting server default model', { modelId: defaultModel.id });
@@ -575,28 +570,19 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           sideOffset={6}
           className="ai00-x-model-selector__dropdown"
         >
-          <div className="ai00-x-model-selector__dropdown-header">
-            <span>{t('modelSelector.modelSelection')}</span>
-            <span className="ai00-x-model-selector__dropdown-hint">
-              {t('modelSelector.currentMode')}: {currentMode}
-            </span>
-          </div>
-
-          <Tooltip content={autoTooltip} placement="right">
-            <div
-              className={`ai00-x-model-selector__option ai00-x-model-selector__option--special ${isAutoMode ? 'ai00-x-model-selector__option--selected' : ''}`}
-              onClick={() => handleSelectModel('auto')}
-            >
-              <div className="ai00-x-model-selector__option-main">
-                <span className="ai00-x-model-selector__option-name">{t('modelSelector.autoModel')}</span>
-              </div>
-              {isAutoMode && (
-                <Check size={14} className="ai00-x-model-selector__option-check" />
-              )}
+          {/* Trae 风格头部：Auto Mode + 开关（整行可点 = 选中 auto 路由；开关仅作状态指示） */}
+          <div
+            className={`ai00-x-model-selector__auto-header${isAutoMode ? ' ai00-x-model-selector__auto-header--active' : ''}`}
+            onClick={() => handleSelectModel('auto')}
+          >
+            <div className="ai00-x-model-selector__auto-header-text">
+              <span className="ai00-x-model-selector__auto-title">{t('modelSelector.autoMode')}</span>
+              <span className="ai00-x-model-selector__auto-subtitle">
+                {t('modelSelector.currentMode')}: {currentMode}
+              </span>
             </div>
-          </Tooltip>
-
-          <div className="ai00-x-model-selector__divider" />
+            <Switch size="small" checked={isAutoMode} readOnly tabIndex={-1} className="ai00-x-model-selector__auto-switch" />
+          </div>
 
           {xfModels.length > 0 && (
             <>
@@ -621,57 +607,74 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     <div className="ai00-x-model-selector__list">
                       {groupModels.map(xfModel => {
                         const isSelected = currentXfModelId === xfModel.id;
-                        const canAccess = canAccessModel(xfModel.tier, userTier);
-                        const quotaText = formatFreeQuotaText(xfModel, t);
-                        const priceText = formatModelPrice(xfModel);
-                        const modalityLabel = formatModalityLabel(xfModel.modality);
+                        const isLocked = !canAccessModel(xfModel, userTier);
                         const isExhausted = xfModel.isUpstreamFree && getFreeQuotaStatus(xfModel.freeQuota) === 'exhausted';
+                        const multiplierText = xfModel.multiplier !== undefined ? formatMultiplier(xfModel.multiplier) : null;
+                        const quotaText = formatFreeQuotaText(xfModel, t);
+                        const modalityLabel = formatModalityLabel(xfModel.modality);
+                        const hasMemberDiscount = !!xfModel.discountEligible
+                          && xfModel.memberDiscount !== undefined
+                          && xfModel.memberDiscount < 1;
+                        const memberZhe = hasMemberDiscount
+                          ? String(parseFloat((xfModel.memberDiscount! * 10).toFixed(1)))
+                          : '';
+                        const memberPct = hasMemberDiscount
+                          ? Math.round((1 - (xfModel.memberDiscount ?? 1)) * 100)
+                          : 0;
 
-                        // tooltip: 显示名 + 模态 + 价格 + 剩余额度
+                        // tooltip: 显示名 + 模态 + 机构 + 剩余额度 + 锁定原因（元价格不再突出）
                         const tooltipParts: string[] = [xfModel.displayName];
                         if (modalityLabel) tooltipParts.push(modalityLabel);
                         if (xfModel.producer) tooltipParts.push(xfModel.producer);
-                        if (priceText) {
-                          tooltipParts.push(t('modelSelector.priceLabel', { price: priceText }));
-                        }
                         if (quotaText) tooltipParts.push(quotaText);
                         if (isExhausted) {
                           tooltipParts.push(t('modelSelector.freeQuota.exhausted'));
-                        } else if (!canAccess && xfModel.tier !== 'free') {
-                          tooltipParts.push(t('modelSelector.upgrade.required', { tier: xfModel.tier }));
+                        } else if (isLocked) {
+                          tooltipParts.push(t('modelSelector.upgrade.locked'));
                         }
                         const tooltipText = tooltipParts.join(' · ');
 
                         return (
                           <Tooltip key={xfModel.id} content={tooltipText} placement="right">
                             <div
-                              className={`ai00-x-model-selector__option ${isSelected ? 'ai00-x-model-selector__option--selected' : ''} ${isExhausted ? 'ai00-x-model-selector__option--disabled' : ''} ${!canAccess && xfModel.tier !== 'free' ? 'ai00-x-model-selector__option--locked' : ''}`}
+                              className={`ai00-x-model-selector__option ${isSelected ? 'ai00-x-model-selector__option--selected' : ''} ${isExhausted ? 'ai00-x-model-selector__option--disabled' : ''} ${isLocked ? 'ai00-x-model-selector__option--locked' : ''}`}
                               onClick={() => handleSelectXfModel(xfModel)}
                             >
+                              <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
+                                {xfModel.displayName.charAt(0).toUpperCase()}
+                              </span>
                               <div className="ai00-x-model-selector__option-main">
-                                <span className="ai00-x-model-selector__option-name">
-                                  {xfModel.displayName}
+                                <div className="ai00-x-model-selector__option-title">
+                                  <span className="ai00-x-model-selector__option-name">
+                                    {xfModel.displayName}
+                                  </span>
+                                  {xfModel.isDefault && (
+                                    <span
+                                      className="ai00-x-model-selector__option-dot"
+                                      title={t('modelSelector.defaultBadge')}
+                                    />
+                                  )}
+                                  {hasMemberDiscount && (
+                                    <span className="ai00-x-model-selector__option-tag ai00-x-model-selector__option-tag--discount">
+                                      {t('modelSelector.badges.memberDiscount', { zhe: memberZhe, pct: memberPct })}
+                                    </span>
+                                  )}
                                   {xfModel.isUpstreamFree && (
-                                    <span className="ai00-x-model-selector__price-badge ai00-x-model-selector__price-badge--economy">
-                                      {t('modelSelector.badges.economy')}
+                                    <span className="ai00-x-model-selector__option-tag ai00-x-model-selector__option-tag--subsidy">
+                                      {t('modelSelector.badges.subsidy')}
                                     </span>
                                   )}
-                                  {modalityLabel && (
-                                    <span className="ai00-x-model-selector__modality-badge">
-                                      {modalityLabel}
-                                    </span>
-                                  )}
-                                  {isExhausted && (
-                                    <Lock size={10} className="ai00-x-model-selector__option-lock" />
-                                  )}
-                                </span>
-                                <span className="ai00-x-model-selector__option-subdesc">
-                                  {quotaText || (priceText ? t('modelSelector.priceLabel', { price: priceText }) : '')}
-                                </span>
-                                {isSelected && (
-                                  <span className="ai00-x-model-selector__option-badge">{t('modelSelector.primaryBadge')}</span>
-                                )}
+                                </div>
                               </div>
+                              {isLocked ? (
+                                <Lock size={12} className="ai00-x-model-selector__option-lock" />
+                              ) : (
+                                multiplierText && (
+                                  <span className="ai00-x-model-selector__option-multiplier">
+                                    {multiplierText}
+                                  </span>
+                                )
+                              )}
                               {isSelected && (
                                 <Check size={14} className="ai00-x-model-selector__option-check" />
                               )}
@@ -696,9 +699,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
           {customModels.length > 0 && (
             <>
-              {xfModels.length > 0 && (
-                <div className="ai00-x-model-selector__divider" />
-              )}
               <div className="ai00-x-model-selector__section-title">
                 {t('modelSelector.customModels.sectionTitle')}
               </div>
@@ -712,16 +712,18 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         className={`ai00-x-model-selector__option ${isPrimary ? 'ai00-x-model-selector__option--selected' : ''}`}
                         onClick={() => handleSelectModel(model.id)}
                       >
+                        <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
+                          {model.modelName.charAt(0).toUpperCase()}
+                        </span>
                         <div className="ai00-x-model-selector__option-main">
-                          <span className="ai00-x-model-selector__option-name">
-                            {model.modelName}
+                          <div className="ai00-x-model-selector__option-title">
+                            <span className="ai00-x-model-selector__option-name">
+                              {model.modelName}
+                            </span>
                             {model.enableThinking && (
                               <Sparkles size={10} className="ai00-x-model-selector__option-thinking" />
                             )}
-                          </span>
-                          {isPrimary && (
-                            <span className="ai00-x-model-selector__option-badge">{t('modelSelector.primaryBadge')}</span>
-                          )}
+                          </div>
                         </div>
                         {isPrimary && (
                           <Check size={14} className="ai00-x-model-selector__option-check" />
@@ -733,6 +735,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               </div>
             </>
           )}
+
+          {/* 积分余额底栏（来自 /ai00-s/api/ai/me 的 total_remaining） */}
+          <div className="ai00-x-model-selector__dropdown-footer">
+            <Coins size={11} className="ai00-x-model-selector__footer-icon" />
+            <span className="ai00-x-model-selector__footer-label">{t('modelSelector.balance.label')}</span>
+            <span className="ai00-x-model-selector__footer-value">
+              {userPlan ? formatCredits(userPlan.totalRemaining) : '—'}
+            </span>
+          </div>
         </PopoverContent>
       </div>
 

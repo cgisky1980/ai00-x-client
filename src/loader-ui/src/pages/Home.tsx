@@ -15,7 +15,13 @@ import type { AvatarSelection } from "@/lib/avatar/config/avatar-config";
 // Dev builds skip the (slow) model check; release builds always check so
 // first-run users get ASR/TTS/RWKV models downloaded from the manifest
 // (hf-mirror / modelscope first, huggingface as fallback).
-const SKIP_MODEL_CHECK = import.meta.env.DEV;
+// dev 构建直接跳过模型检查/下载；release 可用 localStorage 开关手动跳过
+// （HF 在国内常不可达，模型更新下载动辄数 GB——控制台执行
+//   localStorage.setItem('ai00x.skipModelCheck', '1') 后重启即跳过，
+//   置 '0' 恢复）。跳过后本地缺失的模型走初始化失败兜底（非致命），
+// 远程模型（ai00s）不受影响。
+const SKIP_MODEL_CHECK =
+  import.meta.env.DEV || localStorage.getItem('ai00x.skipModelCheck') === '1';
 
 // 将 MemberProfileResponse.member 转换为 OnboardingPanel 所需的 ProfileUpdateFields
 function memberToProfileFields(m: MemberProfileResponse["member"]): ProfileUpdateFields {

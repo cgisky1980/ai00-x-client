@@ -961,6 +961,11 @@
     "currentMode": "Current Mode",
     "autoModel": "Auto",
     "autoModelDesc": "Automatically Routing",
+    "autoMode": "Auto Mode",
+    "defaultBadge": "Recommended",
+    "balance": {
+      "label": "Credits"
+    },
     "primaryModel": "Primary Model",
     "fastModel": "Fast Model",
     "modelNotConfigured": "Not Configured",
@@ -969,6 +974,7 @@
     "upgrade": {
       "title": "Upgrade Plan",
       "required": "This model requires {{tier}} plan",
+      "locked": "Not available on your current plan",
       "current": "Your current plan is {{tier}}",
       "comingSoon": "Upgrade feature coming soon",
       "close": "Got it"
@@ -977,20 +983,22 @@
       "freeTier": "Upgrade plan to unlock more premium models"
     },
     "badges": {
-      "economy": "Economy"
+      "economy": "Economy",
+      "memberDiscount": "Member {{pct}}% off",
+      "subsidy": "Subsidized"
     },
     "priceGroups": {
       "economy": {
         "title": "Economy Models",
-        "hint": "Free upstream"
+        "hint": "<0.1x"
       },
       "standard": {
         "title": "Standard Models",
-        "hint": "Cost-effective"
+        "hint": "0.1–0.5x"
       },
       "premium": {
-        "title": "Premium Models",
-        "hint": "High performance"
+        "title": "Flagship Models",
+        "hint": ">0.5x"
       }
     },
     "freeQuota": {

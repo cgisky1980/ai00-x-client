@@ -959,6 +959,11 @@
     "currentMode": "当前模式",
     "autoModel": "Auto",
     "autoModelDesc": "自动路由最优模型",
+    "autoMode": "自动模式",
+    "defaultBadge": "默认推荐",
+    "balance": {
+      "label": "积分余额"
+    },
     "primaryModel": "Primary 模型",
     "fastModel": "Fast 模型",
     "modelNotConfigured": "未配置",
@@ -967,6 +972,7 @@
     "upgrade": {
       "title": "升级套餐",
       "required": "该模型需要 {{tier}} 套餐",
+      "locked": "当前套餐不可用，升级后可用",
       "current": "您当前是 {{tier}} 套餐",
       "comingSoon": "升级功能即将开放，敬请期待",
       "close": "知道了"
@@ -975,20 +981,22 @@
       "freeTier": "升级套餐解锁更多高级模型"
     },
     "badges": {
-      "economy": "经济"
+      "economy": "经济",
+      "memberDiscount": "会员{{zhe}}折",
+      "subsidy": "专属补贴"
     },
     "priceGroups": {
       "economy": {
         "title": "经济模型",
-        "hint": "上游免费"
+        "hint": "<0.1x"
       },
       "standard": {
         "title": "标准模型",
-        "hint": "性价比"
+        "hint": "0.1–0.5x"
       },
       "premium": {
-        "title": "高级模型",
-        "hint": "高性能"
+        "title": "旗舰模型",
+        "hint": ">0.5x"
       }
     },
     "freeQuota": {

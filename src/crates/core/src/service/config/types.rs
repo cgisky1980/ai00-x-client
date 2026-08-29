@@ -600,9 +600,78 @@ pub struct GlobalConfig {
     /// ACE-Step music generation settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub acestep: Option<AcestepConfig>,
+    /// VRAM manager settings (model residency / eviction policies).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vram_manager: Option<VramManagerConfig>,
     pub version: String,
     #[serde(with = "chrono::serde::ts_milliseconds")]
     pub last_modified: chrono::DateTime<chrono::Utc>,
+}
+
+/// Per-engine policy override. Engines not listed here fall back to the
+/// built-in default policy table inside the VRAM manager (new engines need
+/// zero config changes).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EnginePolicy {
+    /// Idle residency: -1 = keep forever, 0 = unload after each use, >0 = seconds.
+    pub keep_alive_secs: i64,
+    /// Lower value = evicted later. `None` = use engine's built-in default.
+    pub priority: Option<i32>,
+    /// `None` = follow the global `enabled` switch.
+    pub enabled: Option<bool>,
+    /// `"vram"` = move out of VRAM but keep in RAM; `"full"` = drop entirely.
+    /// `None` = "full" (engines decide their own mmap optimizations).
+    pub unload_mode: Option<String>,
+}
+
+impl Default for EnginePolicy {
+    fn default() -> Self {
+        Self {
+            keep_alive_secs: 180,
+            priority: None,
+            enabled: None,
+            unload_mode: None,
+        }
+    }
+}
+
+/// VRAM manager configuration (registry based — extensible to plugin models).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct VramManagerConfig {
+    /// Master switch for eviction & budget checks (idle timers still honor
+    /// per-engine policies but eviction decisions are disabled when off).
+    pub enabled: bool,
+    /// Free VRAM headroom kept for the OS / compositor during budget checks.
+    pub vram_reserve_mb: u64,
+    /// Allow evicting other engines when a load does not fit (pressure eviction).
+    pub enable_pressure_eviction: bool,
+    /// An engine evicted within this window is protected from re-eviction
+    /// (anti-thrashing), unless no other candidate exists.
+    pub eviction_cooldown_secs: u64,
+    /// Adaptive tiers (High/Normal/Low) that scale keep_alive and reserve
+    /// watermark based on free VRAM ratio (inspired by ComfyUI VRAMState).
+    pub enable_vram_tiers: bool,
+    /// Warm up context-bound engines when the user opens a matching tool page
+    /// (only engines with keep_alive > 0; disabled by default).
+    pub enable_predictive_warmup: bool,
+    /// Per-engine overrides keyed by engine id ("rwkv-llm", "llama-gguf", ...).
+    pub engine_policies: std::collections::HashMap<String, EnginePolicy>,
+}
+
+impl Default for VramManagerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            vram_reserve_mb: 1024,
+            enable_pressure_eviction: true,
+            eviction_cooldown_secs: 60,
+            enable_vram_tiers: true,
+            enable_predictive_warmup: false,
+            engine_policies: std::collections::HashMap::new(),
+        }
+    }
 }
 
 /// App configuration.
@@ -1710,6 +1779,7 @@ impl Default for GlobalConfig {
             gesture: None,
             underlay: None,
             acestep: None,
+            vram_manager: None,
             version: "1.0.0".to_string(),
             last_modified: chrono::Utc::now(),
         }

@@ -197,7 +197,12 @@
     "baseUrl": "Service URL",
     "baseUrlHint": "Full URL of the Ai00-S proxy service (including protocol and port)",
     "save": "Save Address",
-    "saveSuccess": "Ai00-S address updated, client cache refreshed"
+    "saveSuccess": "Ai00-S address updated, client cache refreshed",
+    "quickSwitch": "Server Switch",
+    "quickSwitchHint": "One-click switch between production and test servers, effective immediately (re-login required on the target site)",
+    "prodServer": "Prod app.ai00-x.com",
+    "testServer": "Test ai00-x.com",
+    "switchSuccess": "Switched to {{label}}"
   },
   "capabilities": {
     "text_chat": "Chat",
