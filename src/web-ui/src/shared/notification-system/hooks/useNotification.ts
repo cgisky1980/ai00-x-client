@@ -1,6 +1,6 @@
  
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { notificationService } from '../services/NotificationService';
 import {
   ToastOptions,
@@ -69,7 +69,11 @@ export function useNotification(): UseNotificationReturn {
     notificationService.dismissAll();
   }, []);
 
-  return {
+  // Return a stable object reference: the object identity must not change across
+  // renders, otherwise consumers using it as a useCallback/useEffect dependency
+  // (e.g. DshPluginsConfig) will loop infinitely (re-render -> new object -> effect
+  // refires -> setState -> re-render).
+  return useMemo(() => ({
     success,
     error,
     warning,
@@ -79,6 +83,6 @@ export function useNotification(): UseNotificationReturn {
     silent,
     dismiss,
     dismissAll
-  };
+  }), [success, error, warning, info, progress, persistent, silent, dismiss, dismissAll]);
 }
 

@@ -1,0 +1,59 @@
+// Blessing-word click effect (global overlay layer).
+// The element is positioned at the click point via inline left/top in
+// ClickEffectRenderer; this stylesheet provides the fixed positioning context,
+// float-up fade-out animation, and typography. Animation duration matches the
+// 1200ms store-side removal (2 x --motion-slow).
+//
+// 描边方案（明暗背景通吃，CJK 笔画密集字不结块）：
+// -webkit-text-stroke 的居中描边会吃进字形内部，笔画交叠处堆积黑块
+// （吉祥话恰是笔画最密的汉字），故弃用；改用 8 向 1px 柔和 text-shadow
+// ——只向外绘制、边缘圆润，亮色字在宣纸浅底上勾勒墨晕轮廓，
+// 暗底上叠加深度投影，两种主题下均清晰且柔和。
+.click-effect {
+  position: fixed;
+  // 绝对顶层 token（999999）：高于一切 UI（含 chrome），转瞬即逝特效专用。
+  z-index: var(--z-absolute, 999999);
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  font-family: var(--font-family-serif, serif);
+  font-size: var(--font-size-3xl, 22px);
+  font-weight: 700;
+  white-space: nowrap;
+  text-shadow:
+    // 8 向墨晕描边（--modal-overlay 墨色半透，与歌词浮层同源）：
+    // 柔和圆润，向外不侵字形，明暗背景通吃
+    -1px -1px 1px var(--modal-overlay),
+    0 -1px 1px var(--modal-overlay),
+    1px -1px 1px var(--modal-overlay),
+    -1px 0 1px var(--modal-overlay),
+    1px 0 1px var(--modal-overlay),
+    -1px 1px 1px var(--modal-overlay),
+    0 1px 1px var(--modal-overlay),
+    1px 1px 1px var(--modal-overlay),
+    // 深度投影：上浮时悬空感
+    0 2px 8px var(--modal-overlay);
+  animation: click-effect-rise calc(var(--motion-slow, 0.6s) * 2) ease-out forwards;
+
+  // Numeric suffix "+ 42" rendered via <i> — machine output: mono + tabular.
+  i {
+    font-style: normal;
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xl, 16px);
+    opacity: 0.9;
+  }
+}
+
+@keyframes click-effect-rise {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 calc(var(--spacing-8, 32px) * -1);
+  }
+}

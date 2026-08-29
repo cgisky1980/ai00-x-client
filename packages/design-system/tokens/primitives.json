@@ -111,11 +111,12 @@
     },
     "extreme": { "$value": "999", "$type": "number" },
     "chrome": {
-      "$description": "应用级悬浮 chrome：高于一切弹层（含模态），全局常驻 UI——动态岛/音频悬浮球/歌词/音乐窗",
+      "$description": "应用级悬浮 chrome：高于一切弹层（含模态），全局常驻 UI——动态岛/全局悬浮球/歌词/音乐窗",
       "island": { "$value": "50010", "$type": "number", "$description": "chrome 主层：动态岛本体/全局悬浮球" },
       "overlay": { "$value": "50020", "$type": "number", "$description": "chrome 展开层：歌词/音效面板/音乐窗" },
       "popup": { "$value": "50030", "$type": "number", "$description": "chrome 弹窗：chrome 内的确认等模态" }
-    }
+    },
+    "absolute": { "$value": "999999", "$type": "number", "$description": "绝对顶层：高于一切 UI（含 chrome），仅用于转瞬即逝的全屏特效（吉祥话点击特效等），禁止常驻元素使用" }
   },
   "opacity": {
     "disabled": { "$value": "0.6", "$type": "number" },

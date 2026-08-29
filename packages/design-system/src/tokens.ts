@@ -82,6 +82,7 @@ export const tokens = {
   'z.chrome.island': "50010",
   'z.chrome.overlay': "50020",
   'z.chrome.popup': "50030",
+  'z.absolute': "999999",
   'opacity.disabled': "0.6",
   'opacity.hover': "0.8",
   'opacity.focus': "0.9",

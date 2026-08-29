@@ -61,6 +61,8 @@ export const GestureTrailRenderer: React.FC = () => {
   const paletteRef = useRef(ELEMENT_PALETTES[Math.floor(Math.random() * ELEMENT_PALETTES.length)])
   const overlaysRef = useRef<TrailOverlay[]>([])
   const animFrameRef = useRef<number>(0)
+  /** Idle-wake hook set by the draw-loop effect; gesture events call it. */
+  const wakeLoopRef = useRef<(() => void) | null>(null)
   const tRef = useRef(t)
   tRef.current = t
 
@@ -115,7 +117,10 @@ export const GestureTrailRenderer: React.FC = () => {
     }
   }
 
-  // Main animation loop - draws directly to canvas, no React re-render
+  // Main animation loop - draws directly to canvas, no React re-render.
+  // Idle discipline: the loop STOPS when there is nothing to draw (a fullscreen
+  // clearRect at display refresh rate costs heavy GPU compositing while idle).
+  // Event listeners call ensureLoop() to wake it when a gesture trail arrives.
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -127,6 +132,17 @@ export const GestureTrailRenderer: React.FC = () => {
     }
     resize()
     window.addEventListener('resize', resize)
+
+    let loopRunning = false
+
+    const ensureLoop = () => {
+      if (loopRunning) return
+      loopRunning = true
+      animFrameRef.current = requestAnimationFrame(draw)
+    }
+
+    // Expose wake-up for event handlers in the sibling effect
+    wakeLoopRef.current = ensureLoop
 
     const draw = () => {
       const now = Date.now()
@@ -141,7 +157,9 @@ export const GestureTrailRenderer: React.FC = () => {
       const hasContent = particles.length > 0 || livePoints.length >= 2 || overlays.length > 0
 
       if (!hasContent) {
-        animFrameRef.current = requestAnimationFrame(draw)
+        // Canvas is already cleared above; stop the loop until new content
+        // arrives (ensureLoop via gesture events).
+        loopRunning = false
         return
       }
 
@@ -290,11 +308,12 @@ export const GestureTrailRenderer: React.FC = () => {
       animFrameRef.current = requestAnimationFrame(draw)
     }
 
-    animFrameRef.current = requestAnimationFrame(draw)
+    // No initial loop: canvas is empty at mount; gesture events wake it up.
 
     return () => {
       window.removeEventListener('resize', resize)
       cancelAnimationFrame(animFrameRef.current)
+      wakeLoopRef.current = null
     }
   }, [])
 
@@ -317,6 +336,7 @@ export const GestureTrailRenderer: React.FC = () => {
         liveFadeStartRef.current = 0
         isActiveRef.current = true
         paletteRef.current = ELEMENT_PALETTES[Math.floor(Math.random() * ELEMENT_PALETTES.length)]
+        wakeLoopRef.current?.()
         refreshWinInfo()
       })
 
@@ -338,6 +358,7 @@ export const GestureTrailRenderer: React.FC = () => {
           livePointsRef.current = livePointsRef.current.slice(-300)
         }
         spawnParticles(local.x, local.y, 3 + Math.floor(Math.random() * 3))
+        wakeLoopRef.current?.()
       })
 
       // Final trail (after gesture recognized)
@@ -346,6 +367,7 @@ export const GestureTrailRenderer: React.FC = () => {
         isActiveRef.current = false
         // Start fading the live trail
         liveFadeStartRef.current = Date.now()
+        wakeLoopRef.current?.()
 
         const { points, gesture_type } = event.payload
         // For circle gestures, clear all particles immediately (PatternGrid is shown instead)

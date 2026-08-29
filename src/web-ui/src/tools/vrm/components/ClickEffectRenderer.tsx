@@ -1,5 +1,6 @@
 import React from 'react'
 import { useInteractionStore } from '../store/interactionStore'
+import './ClickEffectRenderer.scss'
 
 function ClickEffectText({ text }: { text: string }) {
   const plusIndex = text.indexOf(' + ')
