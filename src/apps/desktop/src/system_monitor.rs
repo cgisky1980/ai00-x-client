@@ -80,16 +80,36 @@ pub fn spawn_system_monitor(app: AppHandle) {
                 / elapsed_secs) as u64;
             prev_net = cur_net;
 
+            // GPU stats: DXGI/NVML/sysfs/Metal (vendor-agnostic); the
+            // nvidia-smi subprocess fallback can block, so run off-thread.
+            let gpu_hint = None;
+            let gpu_mem =
+                tokio::task::spawn_blocking(move || crate::vram_monitor::query_vram(gpu_hint))
+                    .await
+                    .ok()
+                    .flatten();
+            let gpu_util = tokio::task::spawn_blocking(move || {
+                crate::vram_monitor::query_gpu_utilization(gpu_hint)
+            })
+            .await
+            .ok()
+            .flatten();
+
             let stats = SystemStats {
                 cpu_usage,
                 mem_usage,
                 mem_total,
-                gpu_usage: None,
-                gpu_mem_usage: None,
-                gpu_mem_total: None,
+                gpu_usage: gpu_util,
+                gpu_mem_usage: gpu_mem.map(|m| m.used_bytes),
+                gpu_mem_total: gpu_mem.map(|m| m.total_bytes),
                 net_up,
                 net_down,
             };
+
+            // Feed the VRAM tier state machine (High/Normal/Low adaptation).
+            if let Some(m) = gpu_mem {
+                crate::vram_manager::update_vram_state(m.free_bytes, m.total_bytes);
+            }
 
             if let Err(e) = app.emit("system-stats", &stats) {
                 log::warn!("Failed to emit system-stats: {}", e);

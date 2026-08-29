@@ -3,9 +3,10 @@ use std::os::raw::{c_int, c_uint};
 use std::path::Path;
 use std::sync::Arc;
 
-/// llama.cpp b10369 的 llama_model_params ABI。
-/// 注意：`load_mode`（替代旧版 use_mmap/use_direct_io/use_mlock 三个 bool）与
-/// `load_mtp` 为新版新增；字段布局必须与 llama.h 严格一致，否则按值传参错位。
+/// llama.cpp b10665 的 llama_model_params ABI。
+/// 注意：b10665 相对 b10369 新增 `tensor_read_lazy`（位于 load_mode 与 main_gpu
+/// 之间）；更早的 `load_mode`（替代旧版 use_mmap/use_direct_io/use_mlock 三个 bool）
+/// 与 `load_mtp` 亦为新版字段；布局必须与 llama.h 严格一致，否则按值传参错位。
 #[repr(C)]
 pub struct llama_model_params {
     pub devices: *mut c_void,
@@ -14,6 +15,8 @@ pub struct llama_model_params {
     pub split_mode: c_int,
     /// enum llama_load_mode: -1=Auto 0=None 1=Mmap 2=Mlock 3=MmapMlock 4=DirectIO
     pub load_mode: c_int,
+    /// enum llama_tensor_read_lazy: 0=Off 1=Auto(>4GiB 且 mmap) 2=On
+    pub tensor_read_lazy: c_int,
     pub main_gpu: c_int,
     pub tensor_split: *mut c_float,
     pub progress_callback: *mut c_void,
@@ -27,7 +30,7 @@ pub struct llama_model_params {
     pub load_mtp: bool,
 }
 
-/// llama.cpp b10369 的 llama_context_params ABI。
+/// llama.cpp b10665 的 llama_context_params ABI。
 /// 注意：`n_outputs_max_per_seq` 为新版新增（位于 n_outputs_max 之后）；
 /// 缺失会导致 flash_attn_type / embeddings / offload_kqv 等字段全部错位，
 /// 曾引发 ASR/TTS 推理输出乱码。

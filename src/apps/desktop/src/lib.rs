@@ -17,6 +17,7 @@ pub mod dsh_proxy;
 pub mod embedding;
 pub mod internal_api;
 pub mod kv_store;
+pub mod llama_server_manager;
 pub mod logging;
 pub mod machine_id;
 pub mod macos_menubar;
@@ -42,6 +43,9 @@ pub mod theme;
 pub mod tts;
 pub mod underlay;
 pub mod usage_stats;
+pub mod vram_engines;
+pub mod vram_manager;
+pub mod vram_monitor;
 pub mod zip_serve;
 
 use ai00_x_core::agent::tools::computer_use_capability::set_computer_use_desktop_available;
@@ -343,6 +347,15 @@ pub async fn run() {
             }
             ai00_x_webdriver::maybe_start(app_handle.clone());
             system_monitor::spawn_system_monitor(app.handle().clone());
+
+            // VRAM manager: event sink + initial policy load + engine registry.
+            vram_manager::set_app_handle(app.handle().clone());
+            vram_engines::register_worker_engines();
+            llama_server_manager::register_with_vram_manager();
+            tauri::async_runtime::spawn(async {
+                vram_manager::refresh_config_from_service().await;
+                log::info!("[vram_manager] initialized");
+            });
 
             #[cfg(target_os = "macos")]
             {
@@ -646,6 +659,18 @@ pub async fn run() {
             crate::rwkv_llm::rwkv_chat_stream_cancel,
             crate::rwkv_llm::rwkv_clear_session_cache,
             crate::rwkv_llm::rwkv_get_default_paths,
+            crate::rwkv_llm::list_rwkv_models,
+            crate::llama_server_manager::list_gguf_models,
+            crate::llama_server_manager::gguf_add_custom_dir,
+            crate::llama_server_manager::gguf_remove_custom_dir,
+            crate::llama_server_manager::gguf_list_custom_dirs,
+            crate::llama_server_manager::gguf_local_stop,
+            crate::llama_server_manager::gguf_local_status,
+            crate::llama_server_manager::gguf_builtin_catalog,
+            crate::llama_server_manager::gguf_builtin_download,
+            crate::vram_manager::vram_list_engines,
+            crate::vram_manager::vram_evict_engine,
+            crate::vram_manager::vram_set_active_context,
             api::agent_api::create_session,
             api::agent_api::cancel_session_creation,
             api::agent_api::update_session_model,

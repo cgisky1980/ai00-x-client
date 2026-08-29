@@ -335,16 +335,20 @@ pub async fn init_all_runtimes_cmd() -> Result<(), String> {
     Ok(())
 }
 
-/// Idle timeout in seconds before releasing ASR models to free GPU VRAM.
-const ASR_IDLE_TIMEOUT_SECS: u64 = 180; // 3 minutes
-
+/// ASR worker: idle-unload deadline comes from VRAM manager policy
+/// (`vram_manager::resolve_policy("asr")`), evictable via command channel.
 fn start_asr_worker(model_path: std::path::PathBuf) -> Result<(), String> {
     let (tx, rx) = mpsc::channel::<(AsrTask, mpsc::Sender<Result<String, String>>)>();
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
+    let (evict_tx_arc, evict_rx) = crate::vram_engines::evict_channel();
 
     {
         let mut guard = ASR_REQUEST_TX.lock().unwrap();
         *guard = Some(tx);
+    }
+    {
+        let mut guard = crate::vram_engines::asr_control().evict_tx.lock().unwrap();
+        *guard = evict_tx_arc.lock().unwrap().take();
     }
 
     let model_path_clone = model_path.clone();
@@ -362,17 +366,33 @@ fn start_asr_worker(model_path: std::path::PathBuf) -> Result<(), String> {
                 let mut engine_opt = Some(engine);
 
                 loop {
-                    let timeout = if engine_opt.is_some() {
-                        std::time::Duration::from_secs(ASR_IDLE_TIMEOUT_SECS)
-                    } else {
-                        std::time::Duration::from_secs(3600)
-                    };
+                    // Poll eviction commands while waiting for tasks.
+                    if evict_rx.try_recv().is_ok() && engine_opt.is_some() {
+                        log::info!("[ASR Worker] Evicted by VRAM manager");
+                        engine_opt = None;
+                        ASR_ENGINE_INITIALIZED.store(false, Ordering::SeqCst);
+                        crate::vram_engines::notify_unloaded("asr", "语音识别", "evicted");
+                    }
 
-                    match rx.recv_timeout(timeout) {
+                    let last_used = crate::vram_engines::asr_control().last_used_ms();
+                    let idle_expired = engine_opt.is_some()
+                        && crate::vram_engines::idle_expired("asr", 1, last_used);
+
+                    match rx.recv_timeout(std::time::Duration::from_millis(
+                        crate::vram_engines::WORKER_POLL_MS,
+                    )) {
                         Ok((task, result_tx)) => {
+                            crate::vram_engines::asr_control().touch();
                             // Recreate engine if it was dropped due to idle timeout
                             if engine_opt.is_none() {
-                                log::info!("[ASR Worker] Recreating engine after idle timeout");
+                                log::info!("[ASR Worker] Recreating engine after idle unload");
+                                crate::vram_manager::ensure_capacity(
+                                    crate::vram_engines::asr_control()
+                                        .estimate_vram_bytes()
+                                        .unwrap_or(0),
+                                    None,
+                                )
+                                .ok();
                                 match create_engine(&model_path_clone) {
                                     Ok(new_engine) => {
                                         ASR_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
@@ -401,13 +421,15 @@ fn start_asr_worker(model_path: std::path::PathBuf) -> Result<(), String> {
                             }
                         }
                         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                            if engine_opt.is_some() {
-                                log::info!(
-                                    "[ASR Worker] Idle timeout ({}s), releasing GPU VRAM",
-                                    ASR_IDLE_TIMEOUT_SECS
-                                );
+                            if idle_expired {
+                                log::info!("[ASR Worker] Idle timeout, releasing GPU VRAM");
                                 engine_opt = None;
                                 ASR_ENGINE_INITIALIZED.store(false, Ordering::SeqCst);
+                                crate::vram_engines::notify_unloaded(
+                                    "asr",
+                                    "语音识别",
+                                    "idle-timeout",
+                                );
                             }
                         }
                         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
@@ -428,18 +450,19 @@ fn start_asr_worker(model_path: std::path::PathBuf) -> Result<(), String> {
         }
     });
 
+    // Governed by the VRAM manager.
+    crate::vram_engines::register_worker_engines();
+
     ready_rx
         .recv()
         .map_err(|_| "ASR worker init channel closed".to_string())?
 }
 
-/// Idle timeout in seconds before releasing TTS models to free GPU VRAM.
-const TTS_IDLE_TIMEOUT_SECS: u64 = 180; // 3 minutes
-
 /// Stored init params for TTS re-initialization after idle timeout
 static TTS_INIT_PARAMS: Lazy<Mutex<Option<(std::path::PathBuf, String)>>> =
     Lazy::new(|| Mutex::new(None));
 
+/// TTS worker: idle-unload policy from VRAM manager (`resolve_policy("tts")`).
 fn start_tts_worker(
     app: tauri::AppHandle,
     model_dir: std::path::PathBuf,
@@ -447,10 +470,15 @@ fn start_tts_worker(
 ) -> Result<(), String> {
     let (tx, rx) = mpsc::channel::<TtsRequest>();
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
+    let (evict_tx_arc, evict_rx) = crate::vram_engines::evict_channel();
 
     {
         let mut guard = TTS_REQUEST_TX.lock().unwrap();
         *guard = Some(tx);
+    }
+    {
+        let mut guard = crate::vram_engines::tts_control().evict_tx.lock().unwrap();
+        *guard = evict_tx_arc.lock().unwrap().take();
     }
 
     // Store init params for re-initialization after idle timeout
@@ -495,13 +523,27 @@ fn start_tts_worker(
                     let _ = ready_tx.send(Ok(()));
 
                     loop {
-                        let timeout = if TTS_ENGINE.lock().map(|g| g.is_some()).unwrap_or(false) {
-                            std::time::Duration::from_secs(TTS_IDLE_TIMEOUT_SECS)
-                        } else {
-                            std::time::Duration::from_secs(3600)
-                        };
+                        // Poll eviction commands while waiting for tasks.
+                        if evict_rx.try_recv().is_ok()
+                            && TTS_ENGINE.lock().map(|g| g.is_some()).unwrap_or(false)
+                        {
+                            log::info!("[TTS Worker] Evicted by VRAM manager");
+                            TTS_ENGINE.lock().unwrap().take();
+                            TTS_ENGINE_INITIALIZED.store(false, Ordering::SeqCst);
+                            crate::vram_engines::notify_unloaded("tts", "语音合成", "evicted");
+                        }
 
-                        match rx.recv_timeout(timeout) {
+                        let engine_loaded = TTS_ENGINE.lock().map(|g| g.is_some()).unwrap_or(false);
+                        let idle_expired = engine_loaded
+                            && crate::vram_engines::idle_expired(
+                                "tts",
+                                1,
+                                crate::vram_engines::tts_control().last_used_ms(),
+                            );
+
+                        match rx.recv_timeout(std::time::Duration::from_millis(
+                            crate::vram_engines::WORKER_POLL_MS,
+                        )) {
                             Ok(TtsRequest::Generate {
                                 text,
                                 speaker,
@@ -512,16 +554,24 @@ fn start_tts_worker(
                                 seed,
                                 result_tx,
                             }) => {
+                                crate::vram_engines::tts_control().touch();
                                 // Recreate engine if it was dropped due to idle timeout
                                 let engine_empty =
                                     TTS_ENGINE.lock().map(|g| g.is_none()).unwrap_or(true);
                                 if engine_empty {
-                                    log::info!("[TTS Worker] Recreating engine after idle timeout");
+                                    log::info!("[TTS Worker] Recreating engine after idle unload");
                                     // P: 避免 await_holding_lock — clone 出参数后立即 drop guard，
                                     // 否则 std::sync::MutexGuard 会跨 await 点持有，可能死锁。
                                     let init_params: Option<(std::path::PathBuf, String)> =
                                         TTS_INIT_PARAMS.lock().unwrap().clone();
                                     if let Some((md, q)) = init_params.as_ref() {
+                                        crate::vram_manager::ensure_capacity(
+                                            crate::vram_engines::tts_control()
+                                                .estimate_vram_bytes()
+                                                .unwrap_or(0),
+                                            None,
+                                        )
+                                        .ok();
                                         match crate::tts::TtsEngine::new(md, q, 4).await {
                                             Ok(new_engine) => {
                                                 let speakers_count = {
@@ -653,16 +703,15 @@ fn start_tts_worker(
                                 }
                             }
                             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                                let engine_loaded =
-                                    TTS_ENGINE.lock().map(|g| g.is_some()).unwrap_or(false);
-                                if engine_loaded {
-                                    log::info!(
-                                        "[TTS Worker] Idle timeout ({}s), releasing GPU VRAM",
-                                        TTS_IDLE_TIMEOUT_SECS
-                                    );
-                                    let mut guard = TTS_ENGINE.lock().unwrap();
-                                    *guard = None;
+                                if idle_expired {
+                                    log::info!("[TTS Worker] Idle timeout, releasing GPU VRAM");
+                                    TTS_ENGINE.lock().unwrap().take();
                                     TTS_ENGINE_INITIALIZED.store(false, Ordering::SeqCst);
+                                    crate::vram_engines::notify_unloaded(
+                                        "tts",
+                                        "语音合成",
+                                        "idle-timeout",
+                                    );
                                 }
                             }
                             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
@@ -678,6 +727,9 @@ fn start_tts_worker(
             }
         });
     });
+
+    // Governed by the VRAM manager.
+    crate::vram_engines::register_worker_engines();
 
     ready_rx
         .recv()
@@ -943,10 +995,8 @@ pub async fn init_llm_engine(
         model_path,
         vocab_path
     );
-    if LLM_ENGINE_INITIALIZED.load(Ordering::SeqCst) {
-        log::info!("[model_init] LLM engine already initialized");
-        return Ok(true);
-    }
+    // 路径感知 gate 在 rwkv_llm::init_engine_internal 内处理：
+    // 相同路径直接返回；不同路径触发热切换（推理中返回忙错误）。
     let result = crate::rwkv_llm::rwkv_init_webrwkv(app, model_path, vocab_path, None).await?;
     Ok(result)
 }
@@ -1201,12 +1251,8 @@ enum AudioGenRequest {
     },
 }
 
-/// Idle timeout in seconds before releasing MNN models to free CPU.
-/// After this period without generation requests, the engine is dropped
-/// and MNN internal thread pools are released. The engine is recreated
-/// on the next request (with model reload latency).
-const AUDIO_GEN_IDLE_TIMEOUT_SECS: u64 = 180; // 3 minutes
-
+/// AudioGen worker: idle-unload policy from VRAM manager (`resolve_policy`).
+/// MNN runs on CPU — governed for RAM release, not VRAM budget.
 static AUDIO_GEN_REQUEST_TX: Lazy<Mutex<Option<mpsc::Sender<AudioGenRequest>>>> =
     Lazy::new(|| Mutex::new(None));
 
@@ -1243,12 +1289,20 @@ fn start_audio_gen_worker(
 ) -> Result<(), String> {
     let (tx, rx) = mpsc::channel::<AudioGenRequest>();
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
+    let (evict_tx_arc, evict_rx) = crate::vram_engines::evict_channel();
 
     {
         let mut guard = AUDIO_GEN_REQUEST_TX
             .lock()
             .map_err(|e| format!("Audio gen channel lock failed: {}", e))?;
         *guard = Some(tx);
+    }
+    {
+        let mut guard = crate::vram_engines::audio_gen_control()
+            .evict_tx
+            .lock()
+            .unwrap();
+        *guard = evict_tx_arc.lock().unwrap().take();
     }
 
     // Store init params for engine recreation after idle timeout
@@ -1298,16 +1352,27 @@ fn start_audio_gen_worker(
                 let mut engine_opt = Some(engine);
 
                 loop {
-                    // Use idle timeout when engine is loaded; wait indefinitely when unloaded
-                    // (the thread will be killed by channel disconnect on reinit instead)
-                    let timeout = if engine_opt.is_some() {
-                        std::time::Duration::from_secs(AUDIO_GEN_IDLE_TIMEOUT_SECS)
-                    } else {
-                        std::time::Duration::from_secs(3600)
-                    };
+                    // Poll eviction commands while waiting for tasks.
+                    if evict_rx.try_recv().is_ok() && engine_opt.is_some() {
+                        log::info!("[AudioGen Worker] Evicted by VRAM manager");
+                        engine_opt = None;
+                        AUDIO_GEN_ENGINE_INITIALIZED.store(false, Ordering::SeqCst);
+                        AUDIO_GEN_CURRENT_BACKEND.store(-1, Ordering::SeqCst);
+                        crate::vram_engines::notify_unloaded("audio-gen", "音频生成", "evicted");
+                    }
 
-                    match rx.recv_timeout(timeout) {
+                    let idle_expired = engine_opt.is_some()
+                        && crate::vram_engines::idle_expired(
+                            "audio-gen",
+                            2,
+                            crate::vram_engines::audio_gen_control().last_used_ms(),
+                        );
+
+                    match rx.recv_timeout(std::time::Duration::from_millis(
+                        crate::vram_engines::WORKER_POLL_MS,
+                    )) {
                         Ok(req) => {
+                            crate::vram_engines::audio_gen_control().touch();
                             match req {
                                 AudioGenRequest::Generate {
                                     mut opts,
@@ -1386,14 +1451,18 @@ fn start_audio_gen_worker(
                             }
                         }
                         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                            if engine_opt.is_some() {
+                            if idle_expired {
                                 log::info!(
-                                    "[AudioGen Worker] Idle timeout ({}s), releasing MNN resources to free CPU",
-                                    AUDIO_GEN_IDLE_TIMEOUT_SECS
+                                    "[AudioGen Worker] Idle timeout, releasing MNN resources to free CPU"
                                 );
                                 engine_opt = None;
                                 AUDIO_GEN_ENGINE_INITIALIZED.store(false, Ordering::SeqCst);
                                 AUDIO_GEN_CURRENT_BACKEND.store(-1, Ordering::SeqCst);
+                                crate::vram_engines::notify_unloaded(
+                                    "audio-gen",
+                                    "音频生成",
+                                    "idle-timeout",
+                                );
                             }
                             // If engine is already None, just continue waiting
                         }
@@ -1415,6 +1484,9 @@ fn start_audio_gen_worker(
             }
         }
     });
+
+    // Governed by the VRAM manager.
+    crate::vram_engines::register_worker_engines();
 
     ready_rx
         .recv()

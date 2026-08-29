@@ -139,17 +139,20 @@ fn main() {
         false
     };
 
-    // Only build the shared llama library, not tests/tools/examples/server.
+    // Only build the shared llama library + llama-server (GGUF text LLM
+    // inference), not tests/examples.
+    // 注意：b10665 CMake 链 server 需要 COMMON+TOOLS 开启（tools/server 子目录
+    // 仅在 LLAMA_BUILD_COMMON AND LLAMA_BUILD_TOOLS 时注册）。
     configure.arg("-DBUILD_SHARED_LIBS=ON");
     configure.arg("-DLLAMA_BUILD_TESTS=OFF");
-    configure.arg("-DLLAMA_BUILD_TOOLS=OFF");
+    configure.arg("-DLLAMA_BUILD_TOOLS=ON");
     configure.arg("-DLLAMA_BUILD_EXAMPLES=OFF");
-    configure.arg("-DLLAMA_BUILD_SERVER=OFF");
+    configure.arg("-DLLAMA_BUILD_SERVER=ON");
     configure.arg("-DLLAMA_BUILD_APP=OFF");
-    configure.arg("-DLLAMA_BUILD_COMMON=OFF");
+    configure.arg("-DLLAMA_BUILD_COMMON=ON");
     configure.arg("-DLLAMA_BUILD_UI=OFF");
     configure.arg("-DLLAMA_CURL=OFF");
-    configure.arg("-DLLAMA_BUILD_MTMD=OFF");
+    configure.arg("-DLLAMA_BUILD_MTMD=ON");
 
     for b in &backends {
         match b.as_str() {
@@ -187,7 +190,8 @@ fn main() {
     // Visual Studio generator compiles files serially by default.
     let mut build = Command::new("cmake");
     build.arg("--build").arg(&build_dir);
-    build.arg("--target").arg("llama");
+    // llama-server (GGUF text LLM server) auto-builds its common/mtmd deps.
+    build.arg("--target").arg("llama;llama-server");
     // `--config` is only meaningful for multi-config generators (Visual
     // Studio). Ninja is single-config and ignores it, but passing it is
     // harmless.
