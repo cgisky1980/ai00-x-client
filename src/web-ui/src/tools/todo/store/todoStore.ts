@@ -7,7 +7,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import type { DshQuestionItem } from '@/infrastructure/api/service-api/DshAPI';
-import type { BoardPlan, ChecklistItem, FocusSession, GoalCategory, PlanChatMessage, RepeatType, TaskStatus, TodoData, TodoGoal, TodoList, TodoTask } from '../api/types';
+import type { BoardPlan, ChecklistItem, FocusSession, GoalCategory, PlanChatMessage, PlanChatQuestion, RepeatType, TaskStatus, TodoData, TodoGoal, TodoList, TodoTask } from '../api/types';
 
 /** agent 提问批次（ask_user_question 一次 ask 的全部问题；rpcId 即问题逻辑 id）。 */
 export interface AgentQuestionBatch {
@@ -193,7 +193,23 @@ function sanitize(raw: unknown): TodoData {
             ? (t.chat as PlanChatMessage[])
                 .filter((m) => m && typeof m === 'object' && typeof m.text === 'string' && (m.role === 'user' || m.role === 'ai'))
                 .slice(0, 200)
-                .map(m => ({ role: m.role as 'user' | 'ai', text: String(m.text).slice(0, 4000) }))
+                .map(m => {
+                  const msg: PlanChatMessage = { role: m.role as 'user' | 'ai', text: String(m.text).slice(0, 4000) };
+                  // ask-user 式结构化提问（可选；透传并消毒）
+                  if (Array.isArray(m.questions) && m.questions.length) {
+                    const qs = (m.questions as PlanChatQuestion[])
+                      .filter((q) => q && typeof q.q === 'string' && q.q.trim() && Array.isArray(q.options))
+                      .slice(0, 2)
+                      .map((q) => ({
+                        q: String(q.q).trim().slice(0, 60),
+                        options: (q.options as unknown[]).filter((o): o is string => typeof o === 'string' && o.trim().length > 0).slice(0, 4).map((o) => o.trim().slice(0, 20)),
+                        ...(q.allowInput === true ? { allowInput: true as const } : {}),
+                      }))
+                      .filter((q) => q.options.length >= 2);
+                    if (qs.length) msg.questions = qs;
+                  }
+                  return msg;
+                })
             : undefined,
           plan: t.plan && typeof t.plan === 'object' && typeof (t.plan as BoardPlan).summary === 'string'
             ? sanitizePlan(t.plan as BoardPlan)

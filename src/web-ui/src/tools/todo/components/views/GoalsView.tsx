@@ -7,18 +7,16 @@
  * 默认首页态（不自动选志），点树节点进详情。
  */
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Circle, CircleCheck, FolderOpen, FolderPlus, Plus, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Circle, CircleCheck, Coins, FolderOpen, FolderPlus, Plus, Timer, Trash2, X, Zap } from 'lucide-react';
 import { InputDialog, Popover, PopoverContent, PopoverTrigger, Tree, confirmDanger, type TreeNodeData } from '@/component-library';
 import { useTodoStore, goalProgress, dueLabel } from '../../store/todoStore';
 import { pickWorkspaceDir } from '../../ai/workspace';
 import { useGrowthStore } from '../../store/growthStore';
-import { draftPlan, assessGoal, type PlanDraft } from '../../ai/consult';
+import { assessGoal } from '../../ai/consult';
 import { collectProjectSummary } from '../../ai/projectSummary';
 import { queryLocalUsage, fetchServerUsage, fmtNum, type LocalUsage } from '../../ai/usageApi';
 import { MiniBarChart, StackedTokenChart, StatChip } from './UsageCharts';
 import { XpKinds, type TodoGoal } from '../../api/types';
-import { PlanDraftModal } from './PlanDraftModal';
-import { useAdoptPlan } from '../../hooks/useAdoptPlan';
 
 /** emoji 备选（志/分类图标）。 */
 const EMOJIS = ['🎯', '🚀', '📚', '💻', '🎨', '🌱', '💪', '🧠', '💰', '🏠', '✈️', '🎵', '🔬', '⚙️', '❤️', '⭐', '🔥', '🌊', '🧭', '🏆'];
@@ -73,12 +71,10 @@ export const GoalsView: React.FC<{
   const addGoalCategory = useTodoStore((s) => s.addGoalCategory);
   const updateGoalCategory = useTodoStore((s) => s.updateGoalCategory);
   const deleteGoalCategory = useTodoStore((s) => s.deleteGoalCategory);
-  const adoptPlan = useAdoptPlan();
   const addXp = useGrowthStore((s) => s.addXp);
   const checkBadges = useGrowthStore((s) => s.checkBadges);
   const showToast = useGrowthStore((s) => s.showToast);
 
-  const [planModal, setPlanModal] = useState<{ goalId: string; draft: PlanDraft } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [openTasks, setOpenTasks] = useState<string | null>(null);
   // 左栏：选中志 / 新建分类 / 拖放
@@ -198,27 +194,6 @@ export const GoalsView: React.FC<{
   const catKeyOfNode = (nodeId: string): string | null => {
     if (!nodeId.startsWith('cat:')) return null;
     return nodeId.slice(4);
-  };
-
-  const runDraftPlan = async (goalId: string) => {
-    const goal = data.goals.find(g => g.id === goalId);
-    if (!goal) return;
-    setBusyId(goalId);
-    try {
-      const draft = await draftPlan(goal.title, goal.why, null, goalId);
-      if (draft && (draft.plan.length || draft.tasks.length)) {
-        setPlanModal({ goalId, draft });
-      } else {
-        showToast('拟策失败', '可手动添加方案段');
-      }
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const onAdoptPlan = (goalId: string, d: PlanDraft) => {
-    const n = adoptPlan(goalId, d);
-    showToast('策已入志', `+${n} 任务已落想法池`);
   };
 
   /** AI 评估：绑定目录的志先采集项目实况（树/README/git），再生成结构化评估报告（四段）。 */
@@ -366,10 +341,8 @@ export const GoalsView: React.FC<{
               updateGoal,
               completeGoal: onDone,
               deleteGoal,
-              adoptPlan: onAdoptPlan,
               busyId,
               setBusyId,
-              runDraftPlan,
               runAssess,
               openTasks,
               setOpenTasks,
@@ -380,20 +353,12 @@ export const GoalsView: React.FC<{
             <div className="td-goals__main-empty-kicker">ZHIXING · GOALS</div>
             <div className="td-goals__main-empty-title">鸿鹄之志</div>
             <div className="td-goals__main-empty-text">
-              写下一个值得奔赴的方向，AI 帮你拟策分解成行
+              写下一个值得奔赴的方向，用行卡一步步抵达
             </div>
             <button className="td-chip is-on" onClick={() => onOpenCreate()}>
               <Plus size={11} /> 立志
             </button>
           </div>
-        )}
-        {planModal && (
-          <PlanDraftModal
-            goalTitle={data.goals.find(g => g.id === planModal.goalId)?.title || ''}
-            draft={planModal.draft}
-            onClose={() => setPlanModal(null)}
-            onAdopt={d => onAdoptPlan(planModal.goalId, d)}
-          />
         )}
       </div>
     </div>
@@ -413,10 +378,8 @@ type GoalDetailProps = {
   updateGoal: (id: string, patch: Partial<TodoGoal>) => void;
   completeGoal: (id: string) => void;
   deleteGoal: (id: string) => void;
-  adoptPlan: (goalId: string, d: PlanDraft) => void;
   busyId: string | null;
   setBusyId: (v: string | null) => void;
-  runDraftPlan: (goalId: string) => Promise<void>;
   /** AI 评估（绑定目录时基于项目实况） */
   runAssess: (goalId: string) => Promise<void>;
   openTasks: string | null;
@@ -432,7 +395,6 @@ const GoalDetail: React.FC<GoalDetailProps> = ({
   updateGoal,
   completeGoal,
   deleteGoal,
-  runDraftPlan,
   runAssess,
   busyId,
   openTasks,
@@ -585,15 +547,6 @@ const GoalDetail: React.FC<GoalDetailProps> = ({
             解绑
           </button>
         )}
-        {!goal.doneAt && (
-          <button
-            className="td-chip"
-            disabled={busyId === goal.id}
-            onClick={() => void runDraftPlan(goal.id)}
-          >
-            {busyId === goal.id ? '拟策中…' : 'AI 拟策'}
-          </button>
-        )}
         <span className="td-goalpage__toolbar-spacer" />
         <button
           className="td-chip is-danger"
@@ -612,6 +565,56 @@ const GoalDetail: React.FC<GoalDetailProps> = ({
           删志
         </button>
       </div>
+
+      {/* ② 统计 STATS：图标化指标卡置顶（专注/token/费用）+ 近 7 日趋势 */}
+      <section className="td-goalpage__section">
+        <div className="td-goalpage__section-head is-static">
+          <span className="td-goalpage__section-title">统计 STATS</span>
+        </div>
+        {hasStats ? (
+          <div className="td-goalpage__section-body td-usage">
+            <div className="td-usage__stats">
+              <StatChip
+                icon={<Timer size={11} />}
+                label="专注时间"
+                value={focus.totalMin >= 60 ? `${Math.floor(focus.totalMin / 60)}h${focus.totalMin % 60}m` : `${focus.totalMin}m`}
+              />
+              <StatChip
+                icon={<Zap size={11} />}
+                label="Token 消耗"
+                value={fmtNum(goalUsage.local + goalUsage.remote)}
+                sub={`本地 ${fmtNum(goalUsage.local)} · 远程 ${fmtNum(goalUsage.remote)}`}
+              />
+              <StatChip
+                icon={<Coins size={11} />}
+                label="费用"
+                value={
+                  goalUsage.remote > 0 && pricePerToken
+                    ? `≈${fmtNum(Math.round(goalUsage.remote * pricePerToken))}`
+                    : goalUsage.remote > 0
+                      ? '—'
+                      : '0'
+                }
+                sub={goalUsage.remote > 0 ? (pricePerToken ? 'credit · 按服务端均价估算' : '登录后可见费用估算') : '本地调用免费'}
+              />
+            </div>
+            <div className="td-usage__charts">
+              <div className="td-usage__chart-block">
+                <span className="td-usage__chart-label">近 7 日专注（分钟）</span>
+                <MiniBarChart data={focus.days} unit=" 分钟" />
+              </div>
+              <div className="td-usage__chart-block">
+                <span className="td-usage__chart-label">近 7 日 AI 消耗（token · 全部业务）</span>
+                <StackedTokenChart data={tokenDays} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="td-goalpage__section-body">
+            <div className="td-sync-hint">暂无统计——评估/讨论/专注后累积</div>
+          </div>
+        )}
+      </section>
 
       {/* ③ 评估 section：AI 结合项目实况（绑定目录时）的阶段评估报告 */}
       <section className="td-goalpage__section">
@@ -715,7 +718,7 @@ const GoalDetail: React.FC<GoalDetailProps> = ({
         </div>
         {tasksOpen && (
           <div className="td-goalpage__section-body">
-            {tasks.length === 0 && <div className="td-sync-hint">尚无关联行卡——点「加行」新建或由 AI 拟策生成</div>}
+            {tasks.length === 0 && <div className="td-sync-hint">尚无关联行卡——点「加行」新建</div>}
             {tasks
               .filter(t => !t.milestoneId)
               .map(t => (
@@ -743,52 +746,6 @@ const GoalDetail: React.FC<GoalDetailProps> = ({
         )}
       </section>
 
-      {/* ⑥ 统计 section：专注时间 / token 消耗（本地 vs 远程）/ 费用估算 */}
-      <section className="td-goalpage__section">
-        <div className="td-goalpage__section-head is-static">
-          <span className="td-goalpage__section-title">统计 STATS</span>
-        </div>
-        {hasStats ? (
-          <div className="td-goalpage__section-body td-usage">
-            <div className="td-usage__stats">
-              <StatChip
-                label="专注时间"
-                value={focus.totalMin >= 60 ? `${Math.floor(focus.totalMin / 60)}h${focus.totalMin % 60}m` : `${focus.totalMin}m`}
-              />
-              <StatChip
-                label="Token 消耗"
-                value={fmtNum(goalUsage.local + goalUsage.remote)}
-                sub={`本地 ${fmtNum(goalUsage.local)} · 远程 ${fmtNum(goalUsage.remote)}`}
-              />
-              <StatChip
-                label="费用"
-                value={
-                  goalUsage.remote > 0 && pricePerToken
-                    ? `≈${fmtNum(Math.round(goalUsage.remote * pricePerToken))}`
-                    : goalUsage.remote > 0
-                      ? '—'
-                      : '0'
-                }
-                sub={goalUsage.remote > 0 ? (pricePerToken ? 'credit · 按服务端均价估算' : '登录后可见费用估算') : '本地调用免费'}
-              />
-            </div>
-            <div className="td-usage__charts">
-              <div className="td-usage__chart-block">
-                <span className="td-usage__chart-label">近 7 日专注（分钟）</span>
-                <MiniBarChart data={focus.days} unit=" 分钟" />
-              </div>
-              <div className="td-usage__chart-block">
-                <span className="td-usage__chart-label">近 7 日 AI 消耗（token · 全部业务）</span>
-                <StackedTokenChart data={tokenDays} />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="td-goalpage__section-body">
-            <div className="td-sync-hint">暂无统计——评估/拟策/专注后累积</div>
-          </div>
-        )}
-      </section>
     </div>
   );
 };

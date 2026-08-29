@@ -1107,10 +1107,18 @@
   }
 
   &usage__stat-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-0-5, 2px);
     font-size: var(--font-size-2xs, 11px);
     font-weight: 600;
     letter-spacing: 0.06em;
     color: var(--color-text-muted);
+  }
+
+  &usage__stat-icon {
+    display: inline-flex;
+    color: var(--color-accent);
   }
 
   &usage__stat-value {
@@ -1417,16 +1425,6 @@
     padding: var(--size-gap-2, 8px) var(--size-gap-4, 16px) var(--size-gap-3, 12px);
     border-top: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
     flex-shrink: 0;
-  }
-
-  &consult-draft-row {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-2, 8px);
-    padding: var(--size-gap-1-5, 6px) var(--size-gap-2, 8px);
-    border-radius: var(--size-radius-sm, 6px);
-
-    &:hover { background: color-mix(in oklch, var(--color-text-primary) 6%, transparent); }
   }
 
   &consult-status {

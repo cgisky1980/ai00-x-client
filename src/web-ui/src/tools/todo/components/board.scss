@@ -442,6 +442,151 @@
     text-overflow: ellipsis;
   }
 
+  &__hint {
+    flex-shrink: 0;
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+
+  // ===== ask-user 问询卡（覆盖输入区；一次一问步进，全部答完才可提交）=====
+  &__qcard {
+    flex: 1;
+    min-width: 0;
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-2, 8px);
+    padding: var(--size-gap-2, 8px);
+    border-radius: var(--size-radius-base, 8px);
+    background-color: var(--color-bg-base);
+    border: 1px solid color-mix(in oklch, var(--color-accent) 24%, transparent);
+  }
+
+  &__qcard-head {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    font-size: var(--font-size-xs, 12px);
+    font-weight: 600;
+    color: var(--color-accent);
+  }
+
+  &__qstep {
+    margin-left: auto;
+    font-weight: 400;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__q {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1, 4px);
+  }
+
+  &__qlabel {
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-muted);
+  }
+
+  &__opts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+  }
+
+  &__opt {
+    padding: var(--size-gap-0-5, 2px) var(--size-gap-2, 8px);
+    border: none;
+    border-radius: var(--size-radius-full, 9999px);
+    background-color: color-mix(in oklch, var(--color-accent) 14%, transparent);
+    color: var(--color-accent);
+    font-size: var(--font-size-xs, 12px);
+    line-height: 1.5;
+    cursor: pointer;
+    transition: background-color var(--motion-instant, 0.1s) var(--easing-standard, ease);
+
+    &:hover {
+      background-color: color-mix(in oklch, var(--color-accent) 26%, transparent);
+    }
+
+    // 问询卡内已选中项（实底，对齐 ds-btn--primary 配对）
+    &.is-active {
+      background-color: var(--color-accent-500);
+      color: var(--color-accent-foreground);
+
+      &:hover {
+        background-color: var(--color-accent-600, var(--color-accent-500));
+      }
+    }
+  }
+
+  &__qinput {
+    align-self: stretch;
+    border: none;
+    border-bottom: 1px solid color-mix(in oklch, var(--color-text-primary) 18%, transparent);
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs, 12px);
+    padding: var(--size-gap-0-5, 2px) 0;
+    outline: none;
+    transition: border-color var(--motion-instant, 0.1s) var(--easing-standard, ease);
+
+    &::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    &:focus {
+      border-bottom-color: var(--color-accent);
+    }
+  }
+
+  &__qnav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__qback {
+    border: none;
+    background-color: transparent;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs, 12px);
+    cursor: pointer;
+    padding: var(--size-gap-0-5, 2px) 0;
+
+    &:hover {
+      color: var(--color-text-secondary);
+    }
+  }
+
+  &__qsubmit {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    border: none;
+    border-radius: var(--size-radius-full, 9999px);
+    padding: var(--size-gap-1, 4px) var(--size-gap-3, 12px);
+    background-color: var(--color-accent-500);
+    color: var(--color-accent-foreground);
+    font-size: var(--font-size-xs, 12px);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color var(--motion-instant, 0.1s) var(--easing-standard, ease);
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-accent-600, var(--color-accent-500));
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
+  }
+
   &__messages {
     flex: 1;
     min-height: 0;

@@ -33,10 +33,22 @@ export interface BoardPlan {
   deliverable?: string;
 }
 
+/** AI 结构化提问（ask-user 式：选项点选，也欢迎自由输入）。 */
+export interface PlanChatQuestion {
+  /** 问题本身（一句话） */
+  q: string;
+  /** 候选选项 2-4 个 */
+  options: string[];
+  /** 是否鼓励自由输入补充 */
+  allowInput?: boolean;
+}
+
 /** 卡片级规划对话消息（策内嵌规划对话历史）。 */
 export interface PlanChatMessage {
   role: 'user' | 'ai';
   text: string;
+  /** AI 消息附带的结构化提问（可选；仅最新一条渲染为可点选） */
+  questions?: PlanChatQuestion[];
 }
 
 export interface TodoTask {

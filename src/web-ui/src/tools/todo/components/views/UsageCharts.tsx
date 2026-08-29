@@ -24,9 +24,14 @@ export const StatChip: React.FC<{
   value: string;
   /** 右上小徽标（如「本地 n / 远程 n」） */
   sub?: string;
-}> = ({ label, value, sub }) => (
+  /** 可选图标（lucide；置于标签左侧） */
+  icon?: React.ReactNode;
+}> = ({ label, value, sub, icon }) => (
   <div className="td-usage__stat">
-    <span className="td-usage__stat-label">{label}</span>
+    <span className="td-usage__stat-label">
+      {icon && <span className="td-usage__stat-icon">{icon}</span>}
+      {label}
+    </span>
     <span className="td-usage__stat-value">{value}</span>
     {sub && <span className="td-usage__stat-sub">{sub}</span>}
   </div>
