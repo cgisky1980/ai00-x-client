@@ -45,6 +45,7 @@ const PanelViewScene  = lazy(() => import('./panel-view/PanelViewScene'));
 const UsageStatsScene = lazy(() => import('./usage-stats/UsageStatsScene'));
 const AceStepScene     = lazy(() => import('./acestep/AceStepScene'));
 const DshScene         = lazy(() => import('./dsh/DshScene'));
+const CreditsScene     = lazy(() => import('./credits/CreditsScene'));
 
 
 interface SceneViewportProps {
@@ -159,6 +160,8 @@ function renderScene(
       return <AceStepScene />;
     case 'dsh':
       return <DshScene />;
+    case 'credits':
+      return <CreditsScene />;
     case 'wallpaper':
       return <WallpaperDesignScene />;
     case 'task-welcome':

@@ -1062,9 +1062,30 @@ pub struct PluginAiCompleteRequest {
     pub temperature: Option<f64>,
     #[serde(default)]
     pub top_p: Option<f64>,
+    /// RWKV 本地引擎重复惩罚（抑制复读循环；remote 提供方忽略）。
+    #[serde(default)]
+    pub presence_penalty: Option<f64>,
+    #[serde(default)]
+    pub frequency_penalty: Option<f64>,
+    /// 覆盖引擎默认停止序列（围栏收尾截断等；None=用引擎默认）。
+    #[serde(default)]
+    pub stop: Option<Vec<String>>,
     /// 业务 tag（调用方透传，如 todo:assess:{goalId}；用于用量统计按业务归属聚合）
     #[serde(default)]
     pub tag: Option<String>,
+    /// 多轮消息直通（与 prompt/system_prompt 二选一）。todo 规划对话使用：
+    /// RWKV 的 JSON 协议遵循依赖「User/Assistant 对话形态的 few-shot 示范 +
+    /// <think></think> 快思考预填」，两条固定消息表达不了。
+    #[serde(default)]
+    pub messages: Option<Vec<PluginAiMessage>>,
+}
+
+/// Single message for `messages` passthrough.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginAiMessage {
+    pub role: String,
+    pub content: String,
 }
 
 /// Response DTO for `plugin_ai_complete`.
@@ -1139,12 +1160,16 @@ async fn plugin_ai_run(
     Ok((full_text, usage))
 }
 
-/// Apply per-request sampling overrides (plugin-provided temperature/topP/maxTokens).
+/// Apply per-request sampling overrides (plugin-provided temperature/topP/maxTokens/penalties/stop).
+#[allow(clippy::too_many_arguments)]
 fn plugin_ai_with_overrides(
     client: Arc<AIClient>,
     temperature: Option<f64>,
     top_p: Option<f64>,
     max_tokens: Option<u32>,
+    presence_penalty: Option<f64>,
+    frequency_penalty: Option<f64>,
+    stop: Option<Vec<String>>,
 ) -> Arc<AIClient> {
     let mut c = client;
     if let Some(t) = temperature {
@@ -1155,6 +1180,14 @@ fn plugin_ai_with_overrides(
     }
     if let Some(m) = max_tokens {
         c = Arc::new(c.with_max_tokens(m));
+    }
+    if let (Some(pp), Some(fp)) = (presence_penalty, frequency_penalty) {
+        c = Arc::new(c.with_penalties(pp, fp));
+    }
+    if let Some(s) = stop {
+        if !s.is_empty() {
+            c = Arc::new(c.with_stop(s));
+        }
     }
     c
 }
@@ -1169,17 +1202,41 @@ fn plugin_ai_with_overrides(
 /// 用时回退主模型).
 #[tauri::command]
 pub async fn plugin_ai_complete(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     request: PluginAiCompleteRequest,
 ) -> Result<PluginAiCompleteResponse, String> {
-    if request.prompt.trim().is_empty() {
+    if request.prompt.trim().is_empty() && request.messages.as_ref().is_none_or(|m| m.is_empty()) {
         return Err("prompt must not be empty".to_string());
     }
     plugin_ai_gate(&request.plugin_id).await?;
     plugin_ai_check_rate_limit(&request.plugin_id)?;
 
     let has_explicit_model = request.model.is_some();
-    let ai_client = if let Some(model_ref) = request.model.as_deref() {
+    // 本地模型引用预处理：
+    // - rwkv-local:<模型路径> → 路径感知引擎加载/热切换，引用改写为标准 rwkv-local
+    // - gguf-local:<GGUF 路径> → 懒启动/复用 llama-server（base URL 写入 core 全局槽）
+    let effective_model = match request.model.as_deref() {
+        Some(r) if r.starts_with("rwkv-local:") => {
+            let model_path = &r["rwkv-local:".len()..];
+            let vocab = std::path::Path::new(model_path)
+                .parent()
+                .map(|d| d.join("vocab.json"))
+                .filter(|v| v.exists())
+                .map(|v| v.to_string_lossy().into_owned());
+            crate::model_init::init_llm_engine(app.clone(), Some(model_path.to_string()), vocab)
+                .await?;
+            Some("rwkv-local".to_string())
+        }
+        Some(r) if r.starts_with("gguf-local:") => {
+            let gguf_path = &r["gguf-local:".len()..];
+            let url = crate::llama_server_manager::ensure_llama_server(gguf_path).await?;
+            ai00_x_core::infrastructure::ai::client_factory::set_gguf_local_base_url(Some(url));
+            Some(r.to_string())
+        }
+        other => other.map(|s| s.to_string()),
+    };
+    let ai_client = if let Some(model_ref) = effective_model.as_deref() {
         state.ai_client_factory.get_client_resolved(model_ref).await
     } else {
         state
@@ -1194,15 +1251,38 @@ pub async fn plugin_ai_complete(
         request.temperature,
         request.top_p,
         request.max_tokens,
+        request.presence_penalty,
+        request.frequency_penalty,
+        request.stop.clone(),
     );
 
-    let mut messages = Vec::new();
-    if let Some(sp) = request.system_prompt.as_deref() {
-        if !sp.is_empty() {
-            messages.push(Message::system(sp.to_string()));
+    let mut messages = match request.messages.as_deref() {
+        Some(msgs) if !msgs.is_empty() => msgs
+            .iter()
+            .filter(|m| !m.content.trim().is_empty())
+            .map(|m| match m.role.as_str() {
+                "system" => Message::system(m.content.clone()),
+                "assistant" => Message::assistant(m.content.clone()),
+                _ => Message::user(m.content.clone()),
+            })
+            .collect::<Vec<_>>(),
+        _ => {
+            let mut msgs = Vec::new();
+            if let Some(sp) = request.system_prompt.as_deref() {
+                if !sp.is_empty() {
+                    msgs.push(Message::system(sp.to_string()));
+                }
+            }
+            msgs.push(Message::user(request.prompt.clone()));
+            msgs
         }
+    };
+    if messages.is_empty() {
+        return Err("messages must not all be empty".to_string());
     }
-    messages.push(Message::user(request.prompt.clone()));
+    messages.shrink_to_fit();
+    // 空 prompt 且非 messages 模式的校验保留语义：prompt/messages 至少有一方有内容。
+    let _ = &request.prompt;
 
     let started = std::time::Instant::now();
     let run = plugin_ai_run(&ai_client, messages.clone()).await;
@@ -1226,15 +1306,28 @@ pub async fn plugin_ai_complete(
                 request.temperature,
                 request.top_p,
                 request.max_tokens,
+                request.presence_penalty,
+                request.frequency_penalty,
+                request.stop.clone(),
             );
             let r = plugin_ai_run(&fallback, messages).await?;
             (r.0, r.1, fallback)
         }
     };
 
-    // 实际命中的模型与本地判定（config.name/model 任一为 rwkv-local 即本地）
+    // 实际命中的模型与本地判定（config.name/model 任一为 rwkv-local / gguf-local* 即本地）
     let used_model = used_client.config.model.clone();
-    let is_local = used_client.config.name == "rwkv-local" || used_model == "rwkv-local";
+    let is_local = used_client.config.name.starts_with("rwkv-local")
+        || used_client.config.name.starts_with("gguf-local")
+        || used_model.starts_with("rwkv-local")
+        || used_model.starts_with("gguf-local");
+    // gguf-local 路径：刷新空闲计时（180s 无请求自动退出）
+    if is_local
+        && (used_model.starts_with("gguf-local")
+            || used_client.config.name.starts_with("gguf-local"))
+    {
+        crate::llama_server_manager::touch_llama_server();
+    }
 
     // 用量记账（失败不阻塞主链路）
     crate::api::ai_usage_api::record_usage(crate::api::ai_usage_api::AiUsageRecord {

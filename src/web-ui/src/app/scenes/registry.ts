@@ -31,6 +31,7 @@ import {
   Activity,
   Music,
   Bot,
+  Coins,
 } from 'lucide-react';
 import type { SceneTabDef, SceneTabId } from '../components/SceneBar/types';
 
@@ -266,6 +267,14 @@ export const SCENE_TAB_REGISTRY: SceneTabDef[] = [
     label: 'Agent',
     labelKey: 'scenes.dsh',
     Icon: Bot,
+    pinned: false,
+    singleton: true,
+    defaultOpen: false,
+  },
+  {
+    id: 'credits' as SceneTabId,
+    label: '积分中心',
+    Icon: Coins,
     pinned: false,
     singleton: true,
     defaultOpen: false,

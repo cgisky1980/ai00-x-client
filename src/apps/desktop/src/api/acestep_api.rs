@@ -512,12 +512,87 @@ pub async fn acestep_unload() -> Result<(), String> {
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// VRAM manager integration
+// ---------------------------------------------------------------------------
+
+/// Last generation request timestamp (ms since epoch).
+static ACESTEP_LAST_USED_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub(crate) fn touch_acestep() {
+    ACESTEP_LAST_USED_MS.store(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0),
+        std::sync::atomic::Ordering::Relaxed,
+    );
+}
+
+/// AceStep governed-engine adapter (priority 2, music context).
+/// 试点：第一个"非 LLM、未来插件化"注册者。
+struct AceStepGoverned;
+
+impl crate::vram_manager::ManagedEngine for AceStepGoverned {
+    fn id(&self) -> &str {
+        "acestep"
+    }
+    fn display_name(&self) -> String {
+        "音乐生成".to_string()
+    }
+    fn priority(&self) -> i32 {
+        2
+    }
+    fn contexts(&self) -> &[&str] {
+        &["music"]
+    }
+    fn is_resident(&self) -> bool {
+        // try_lock 失败 = 正在生成（同步上下文无法 await），保守视为驻留。
+        pipeline().try_lock().map(|g| g.is_some()).unwrap_or(true)
+    }
+    fn is_busy(&self) -> bool {
+        pipeline().try_lock().is_err()
+    }
+    fn estimate_vram_bytes(&self) -> Option<u64> {
+        // LM + synth + vocoder 管线，实测 4-6GB 档。
+        Some(5_000 * 1024 * 1024)
+    }
+    fn last_used_ms(&self) -> u64 {
+        ACESTEP_LAST_USED_MS.load(std::sync::atomic::Ordering::Relaxed)
+    }
+    fn evict(&self) -> Result<(), String> {
+        // 同步 trait：临时 runtime 执行异步 unload。
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| format!("evict runtime: {e}"))?;
+        rt.block_on(async {
+            let mut guard = pipeline().lock().await;
+            if guard.is_some() {
+                *guard = None;
+                log::info!("[AceStep] Evicted by VRAM manager");
+                crate::vram_manager::notify_state("acestep", "音乐生成", false, "evicted");
+            }
+            Ok(())
+        })
+    }
+}
+
+/// Register AceStep with the VRAM manager (idempotent).
+pub fn register_with_vram_manager() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        crate::vram_manager::register_engine(std::sync::Arc::new(AceStepGoverned));
+    });
+}
+
 /// Generate audio.
 #[tauri::command]
 pub async fn acestep_generate(
     app: AppHandle,
     request: AceStepGenerateRequest,
 ) -> Result<AceStepGenerateResult, String> {
+    touch_acestep();
     let AceStepGenerateRequest {
         request,
         src_audio_path,

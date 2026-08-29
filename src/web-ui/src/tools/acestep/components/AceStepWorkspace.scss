@@ -78,6 +78,14 @@
     flex-direction: column;
   }
 
+  &__vram {
+    width: 220px;
+    flex-shrink: 0;
+    padding: var(--spacing-3, 12px);
+    border-left: 1px solid var(--border-subtle);
+    overflow-y: auto;
+  }
+
   &__loading {
     display: flex;
     align-items: center;

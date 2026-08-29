@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useAceStepEvents } from '../hooks/useAceStep';
+import { VramStatusPanel, useVramContext } from '@/shared/vram';
 import './AceStepWorkspace.scss';
 import '../views/views.scss';
 
@@ -20,6 +21,11 @@ const AceStepWorkspace: React.FC = () => {
   // regardless of which view is mounted (chat streaming, generation progress).
   useAceStepEvents();
 
+  // VRAM manager: report the active context ('music') so context-bound
+  // engines (e.g. AceStep) are protected from eviction while the user is
+  // here, and show residency/VRAM status for this workspace.
+  useVramContext('music');
+
   return (
     <div className="ai00-x-acestep-workspace">
       <div className="ai00-x-acestep-workspace__main">
@@ -27,6 +33,9 @@ const AceStepWorkspace: React.FC = () => {
           <ChatCreateView />
         </Suspense>
       </div>
+      <aside className="ai00-x-acestep-workspace__vram">
+        <VramStatusPanel />
+      </aside>
     </div>
   );
 };
