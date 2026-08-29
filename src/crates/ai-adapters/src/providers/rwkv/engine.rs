@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 
 #[async_trait]
 pub trait RwkvInferenceEngine: Send + Sync {
+    #[allow(clippy::too_many_arguments)]
     async fn infer(
         &self,
         prompt: String,
@@ -11,6 +12,8 @@ pub trait RwkvInferenceEngine: Send + Sync {
         temperature: f32,
         top_p: f32,
         stop: Vec<String>,
+        presence_penalty: f32,
+        frequency_penalty: f32,
     ) -> Result<String, String>;
 
     /// Single-shot classification: classifies a raw user request into four

@@ -19,6 +19,8 @@ impl RwkvInferenceEngine for DesktopRwkvEngine {
         _temperature: f32,
         top_p: f32,
         stop: Vec<String>,
+        presence_penalty: f32,
+        frequency_penalty: f32,
     ) -> Result<String, String> {
         let mut rx = rwkv_llm::pool_infer(
             prompt,
@@ -28,8 +30,8 @@ impl RwkvInferenceEngine for DesktopRwkvEngine {
             // 硬编码 128 会落入 512 轮全词表归约的兜底慢路径（token 级秒级），
             // smart-router 的摘要生成因此实际不可用。
             50,
-            0.0,
-            0.0,
+            presence_penalty,
+            frequency_penalty,
             0.99654026_f32,
             Some(stop),
             None,

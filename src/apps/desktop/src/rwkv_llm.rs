@@ -10,6 +10,14 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock, RwLock};
 use std::time::Duration;
 
+/// Current time in ms since epoch (keep_alive accounting).
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 use serde::Serialize;
 use tauri::{Emitter, Manager};
 use tokio::sync::{mpsc, oneshot};
@@ -93,6 +101,8 @@ enum PoolRequest {
     Init {
         model_path: String,
         vocab_path: String,
+        /// 路径不同时热切换（卸载旧模型重建）；推理中返回忙错误。
+        force: bool,
         app: Option<tauri::AppHandle>,
         reply: oneshot::Sender<Result<(), String>>,
     },
@@ -112,19 +122,107 @@ enum PoolRequest {
     ReloadRouterHead {
         reply: oneshot::Sender<Result<(), String>>,
     },
+    /// VRAM manager eviction: unload the engine if idle (busy -> ignored).
+    Evict,
 }
 
 struct InferencePoolHandle {
     tx: mpsc::UnboundedSender<PoolRequest>,
 }
 
+/// Conservative VRAM estimate for a RWKV model: total on-disk weight bytes
+/// (file or directory) x 1.2 (weights + runtime states + buffers).
+fn estimate_rwkv_vram_bytes(model_path: &str) -> Option<u64> {
+    let path = Path::new(model_path);
+    let total = if path.is_file() {
+        std::fs::metadata(path).ok()?.len()
+    } else if path.is_dir() {
+        let mut sum = 0u64;
+        for entry in std::fs::read_dir(path).ok()? {
+            let Ok(entry) = entry else { continue };
+            if entry.file_type().ok()?.is_file() {
+                sum += entry.metadata().ok()?.len();
+            }
+        }
+        sum
+    } else {
+        return None;
+    };
+    if total == 0 {
+        return None;
+    }
+    Some(total + total / 5)
+}
+
 static INFERENCE_POOL: OnceLock<InferencePoolHandle> = OnceLock::new();
 static LLM_READY: AtomicBool = AtomicBool::new(false);
+/// Inference in progress (any active slot or pending task). Governed engines
+/// with busy=true are never evicted.
+static LLM_BUSY: AtomicBool = AtomicBool::new(false);
+/// Last submit/classify timestamp (ms since epoch) for keep_alive accounting.
+static LLM_LAST_USED_MS: AtomicU64 = AtomicU64::new(0);
 static CANCEL_EPOCH: OnceLock<AtomicU64> = OnceLock::new();
 static LLM_INITING: OnceLock<Mutex<bool>> = OnceLock::new();
+/// 当前已加载模型路径（路径感知切换 gate：相同路径直接返回，不同路径触发热切换）。
+static LLM_CURRENT_MODEL: RwLock<Option<String>> = RwLock::new(None);
 
 fn get_inference_pool() -> Option<&'static InferencePoolHandle> {
     INFERENCE_POOL.get()
+}
+
+// ---------------------------------------------------------------------------
+// VRAM manager integration
+// ---------------------------------------------------------------------------
+
+/// RWKV LLM governed-engine adapter (priority 0, default keep forever).
+struct RwkvLlmGoverned;
+
+impl crate::vram_manager::ManagedEngine for RwkvLlmGoverned {
+    fn id(&self) -> &str {
+        "rwkv-llm"
+    }
+    fn display_name(&self) -> String {
+        "RWKV 对话".to_string()
+    }
+    fn priority(&self) -> i32 {
+        0
+    }
+    fn is_resident(&self) -> bool {
+        LLM_READY.load(Ordering::SeqCst)
+    }
+    fn is_busy(&self) -> bool {
+        LLM_BUSY.load(Ordering::SeqCst)
+    }
+    fn estimate_vram_bytes(&self) -> Option<u64> {
+        let cur = LLM_CURRENT_MODEL.read().ok()?.clone()?;
+        estimate_rwkv_vram_bytes(&cur)
+    }
+    fn last_used_ms(&self) -> u64 {
+        LLM_LAST_USED_MS.load(Ordering::Relaxed)
+    }
+    fn evict(&self) -> Result<(), String> {
+        let pool = get_inference_pool().ok_or("pool not started")?;
+        pool.tx
+            .send(PoolRequest::Evict)
+            .map_err(|_| "pool gone".to_string())?;
+        // Block until confirmed unloaded (10s cap).
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while std::time::Instant::now() < deadline {
+            if !LLM_READY.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        Err("rwkv-llm evict timed out".to_string())
+    }
+}
+
+/// Register the RWKV engine with the VRAM manager (once).
+fn register_with_vram_manager() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        crate::vram_manager::register_engine(std::sync::Arc::new(RwkvLlmGoverned));
+    });
 }
 
 pub fn is_llm_initialized() -> bool {
@@ -238,6 +336,8 @@ struct PoolEngine {
     model: GpuModel,
     /// 每槽一个独立 RNN 状态，支持多任务并发交错推进。
     slot_states: Vec<State>,
+    /// 本模型实际启用的生成槽位数（按模型规模动态核减，≤ MAX_SLOTS）。
+    slot_count: usize,
     tokenizer: Tokenizer,
     /// 零初始状态缓存（新任务/无缓存任务重置槽位用）。
     initial_state: Vec<f32>,
@@ -259,18 +359,80 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
     loop {
         // 引擎未加载或完全空闲 → 阻塞等待消息；否则非阻塞抽干消息
         let idle = engine.is_some() && slots.iter().all(|s| s.is_none()) && pending.is_empty();
+        LLM_BUSY.store(!idle, Ordering::SeqCst);
         if idle {
-            match pool_rx.blocking_recv() {
-                Some(req) => {
-                    if !handle_request(req, &mut engine, &mut pending) {
-                        break;
+            if engine.is_some() {
+                // keep_alive 等待：到期空闲卸载（-1 常驻 → 短轮询仅响应 Evict）。
+                // 注意：池线程是普通 OS 线程（std::thread::spawn，无 tokio 上下文），
+                // 不能用 timer runtime block_on（release 下触发 "no reactor" panic），
+                // 这里用 std 轮询等待，语义等价：到点即查卸载，消息随到随处理。
+                let keep_alive = crate::vram_manager::resolve_policy("rwkv-llm", 0).keep_alive_secs;
+                let elapsed = now_ms().saturating_sub(LLM_LAST_USED_MS.load(Ordering::Relaxed));
+                let wait = if keep_alive < 0 {
+                    std::time::Duration::from_millis(500)
+                } else {
+                    let remaining_ms = (keep_alive as u64)
+                        .saturating_mul(1000)
+                        .saturating_sub(elapsed)
+                        .max(1);
+                    std::time::Duration::from_millis(remaining_ms.min(500))
+                };
+                let deadline = std::time::Instant::now() + wait;
+                let mut exit_pool = false;
+                'keep_alive_wait: loop {
+                    // 抽干已到达的消息
+                    while let Ok(req) = pool_rx.try_recv() {
+                        if !handle_request(req, &mut engine, &mut pending, false) {
+                            exit_pool = true;
+                            break 'keep_alive_wait;
+                        }
                     }
+                    if pool_rx.is_closed() {
+                        exit_pool = true;
+                        break 'keep_alive_wait;
+                    }
+                    if std::time::Instant::now() >= deadline {
+                        break 'keep_alive_wait;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
                 }
-                None => break,
+                // 等待结束：检查 keep_alive 是否到期（到期则卸载释放 VRAM）
+                let last_used = LLM_LAST_USED_MS.load(Ordering::Relaxed);
+                let keep_alive = crate::vram_manager::resolve_policy("rwkv-llm", 0).keep_alive_secs;
+                if keep_alive >= 0
+                    && now_ms().saturating_sub(last_used) >= (keep_alive as u64).saturating_mul(1000)
+                {
+                    log::info!(
+                        "[rwkv] idle {}s (keep_alive {}s), releasing VRAM",
+                        keep_alive,
+                        keep_alive
+                    );
+                    engine = None;
+                    LLM_READY.store(false, Ordering::SeqCst);
+                    crate::vram_manager::notify_state(
+                        "rwkv-llm",
+                        "RWKV 对话",
+                        false,
+                        "idle-timeout",
+                    );
+                }
+                if exit_pool {
+                    break;
+                }
+            } else {
+                match pool_rx.blocking_recv() {
+                    Some(req) => {
+                        if !handle_request(req, &mut engine, &mut pending, false) {
+                            break;
+                        }
+                    }
+                    None => break,
+                }
             }
         } else {
             while let Ok(req) = pool_rx.try_recv() {
-                if !handle_request(req, &mut engine, &mut pending) {
+                let busy = !pending.is_empty() || slots.iter().any(|s| s.is_some());
+                if !handle_request(req, &mut engine, &mut pending, busy) {
                     return;
                 }
             }
@@ -281,9 +443,13 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
             continue;
         };
 
-        // 调度 pending → 空闲槽位
+        // 调度 pending → 空闲槽位（大模型动态核减槽位数，只调度前 slot_count 个）
         while !pending.is_empty() {
-            let Some(slot_idx) = slots.iter().position(|s| s.is_none()) else {
+            let Some(slot_idx) = slots
+                .iter()
+                .take(engine.slot_count)
+                .position(|s| s.is_none())
+            else {
                 break;
             };
             let params = pending.remove(0);
@@ -319,25 +485,48 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
 }
 
 /// 处理一条请求。返回 false 表示线程应退出（channel 关闭或 Shutdown）。
+/// `busy`：调用时是否有活跃/待处理任务（热切换忙检查用；阻塞等待路径恒为 false）。
 fn handle_request(
     req: PoolRequest,
     engine: &mut Option<PoolEngine>,
     pending: &mut Vec<InferenceTaskParams>,
+    busy: bool,
 ) -> bool {
     match req {
         PoolRequest::Init {
             model_path,
             vocab_path,
+            force,
             app,
             reply,
         } => {
-            if engine.is_some() {
+            if engine.is_some() && !force {
                 LLM_READY.store(true, Ordering::SeqCst);
                 let _ = reply.send(Ok(()));
                 return true;
             }
+            if engine.is_some() && force {
+                if busy {
+                    let _ = reply.send(Err(
+                        "engine busy: inference in progress, switch later".to_string()
+                    ));
+                    return true;
+                }
+                // 热切换：卸载旧模型（drop 释放 GPU 资源）后重建
+                log::info!(
+                    "[rwkv] switching model: unloading previous engine ({} slots freed)",
+                    engine.as_ref().map(|e| e.slot_count).unwrap_or(0)
+                );
+                *engine = None;
+                LLM_READY.store(false, Ordering::SeqCst);
+            }
             if let Some(app) = &app {
                 let _ = app.emit("rwkv://debug", "llm loading model".to_string());
+            }
+            // VRAM budget check before (re)loading — may evict other engines.
+            let estimate = estimate_rwkv_vram_bytes(&model_path).unwrap_or(0);
+            if let Err(e) = crate::vram_manager::ensure_capacity(estimate, None) {
+                log::warn!("[rwkv] budget check failed, loading anyway: {e}");
             }
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 load_engine(&model_path, &vocab_path)
@@ -345,6 +534,9 @@ fn handle_request(
             match result {
                 Ok(Ok(e)) => {
                     *engine = Some(e);
+                    if let Ok(mut cur) = LLM_CURRENT_MODEL.write() {
+                        *cur = Some(model_path.clone());
+                    }
                     LLM_READY.store(true, Ordering::SeqCst);
                     if let Some(app) = &app {
                         let _ = app.emit("rwkv://debug", "llm initialized".to_string());
@@ -368,7 +560,18 @@ fn handle_request(
             }
             true
         }
+        PoolRequest::Evict => {
+            if engine.is_some() && !busy {
+                log::info!("[rwkv] evicted by VRAM manager, releasing VRAM");
+                *engine = None;
+                LLM_READY.store(false, Ordering::SeqCst);
+                crate::vram_manager::notify_state("rwkv-llm", "RWKV 对话", false, "evicted");
+            }
+            // busy: ignore — the manager never evicts busy engines.
+            true
+        }
         PoolRequest::Submit(params) => {
+            LLM_LAST_USED_MS.store(now_ms(), Ordering::Relaxed);
             if engine.is_none() {
                 let _ = params.tx.send(InferenceEvent::Error(
                     "LLM engine not initialized".to_string(),
@@ -390,6 +593,7 @@ fn handle_request(
             prev_tier,
             reply,
         } => {
+            LLM_LAST_USED_MS.store(now_ms(), Ordering::Relaxed);
             let result = match engine.as_mut() {
                 Some(engine) => classify_with_engine(engine, &request, prev_tier),
                 None => Err("LLM engine not initialized".to_string()),
@@ -470,7 +674,22 @@ fn classify_with_engine(
     Ok(probs.to_vec())
 }
 
-/// 加载模型并创建 16 槽推理状态。
+/// 按模型规模动态核减生成槽位数：RWKV state 显存随模型规模线性放大，
+/// 大模型少开槽位避免 OOM。int8 下参数量≈文件字节数：
+/// ≤6GB（3B 级）→ 16 槽；≤11GB（7B 级）→ 8 槽；更大（13B 级）→ 4 槽。
+fn slot_count_for_model(model_path: &Path) -> usize {
+    let size_gb = std::fs::metadata(model_path).map(|m| m.len()).unwrap_or(0) as f64
+        / (1024.0 * 1024.0 * 1024.0);
+    if size_gb <= 0.0 || size_gb < 6.0 {
+        MAX_SLOTS
+    } else if size_gb < 11.0 {
+        8
+    } else {
+        4
+    }
+}
+
+/// 加载模型并创建按规模核减后的推理状态槽。
 fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String> {
     log::info!("[rwkv] loading model: {}", model_path);
     let bundle: Bundle = ModelBuilder::new(model_path)
@@ -478,9 +697,10 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
         .map_err(|e| format!("failed to load model '{}': {}", model_path, e))?;
     let Bundle { mut model, state } = bundle;
 
-    let mut slot_states = Vec::with_capacity(MAX_SLOTS);
+    let slot_count = slot_count_for_model(Path::new(model_path));
+    let mut slot_states = Vec::with_capacity(slot_count);
     slot_states.push(state);
-    for _ in 1..MAX_SLOTS {
+    for _ in 1..slot_count {
         slot_states.push(
             model
                 .create_state()
@@ -510,12 +730,13 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
         info.num_layer,
         info.num_emb,
         info.num_vocab,
-        MAX_SLOTS
+        slot_count
     );
 
     Ok(PoolEngine {
         model,
         slot_states,
+        slot_count,
         tokenizer,
         initial_state,
         session_states: HashMap::new(),
@@ -1086,17 +1307,112 @@ pub fn rwkv_get_default_paths() -> RwkvPaths {
     RwkvPaths { llm_vocab_path }
 }
 
+/// 判断是否为 RWKV 模型文件（rwkv-rsv 仅支持 safetensors，.st 为惯用扩展名）。
+fn is_rwkv_model_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("st") || e.eq_ignore_ascii_case("safetensors"))
+        .unwrap_or(false)
+}
+
+/// 解析 safetensors 文件头（前 8 字节 u64 长度 + JSON），判断是否为 int8 量化
+/// （量化张量键含 ".int8_idx" 后缀，存储在 .st 文件内部）。
+fn is_int8_model(model_path: &Path) -> bool {
+    let Ok(mut f) = std::fs::File::open(model_path) else {
+        return false;
+    };
+    use std::io::Read;
+    let mut len_buf = [0u8; 8];
+    let Ok(()) = f.read_exact(&mut len_buf) else {
+        return false;
+    };
+    let header_len = u64::from_le_bytes(len_buf).min(1 << 20) as usize; // 头异常大则截断
+    let mut header = vec![0u8; header_len];
+    if f.read_exact(&mut header).is_err() {
+        return false;
+    }
+    // 免 serde：直接在头 JSON 文本中找键后缀（键名只会出现在此处）
+    let text = String::from_utf8_lossy(&header);
+    text.contains(".int8_idx\"")
+}
+
+#[derive(Debug, Serialize)]
+pub struct RwkvModelInfo {
+    /// 模型 id：子目录名或文件名（去扩展名）。
+    pub id: String,
+    pub model_path: String,
+    pub vocab_path: String,
+    pub size_bytes: u64,
+    pub int8: bool,
+    /// 来源：bundled=models/rwkv 内置目录。
+    pub source: String,
+}
+
+/// 枚举 models/rwkv/ 下全部可用模型：
+/// - 新子目录布局：models/rwkv/{id}/ 内的 .st（vocab 优先子目录内 vocab.json）
+/// - 旧平铺布局：目录内 .st/.safetensors 文件（vocab 用根目录 vocab.json）
+#[tauri::command]
+pub fn list_rwkv_models() -> Vec<RwkvModelInfo> {
+    let mut out: Vec<RwkvModelInfo> = Vec::new();
+    let models_dir = assets_models_dir();
+    let root_vocab = models_dir.join("vocab.json");
+    let Ok(entries) = std::fs::read_dir(&models_dir) else {
+        return out;
+    };
+    let mut flat_files: Vec<PathBuf> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let dir_vocab = path.join("vocab.json");
+            let vocab = if dir_vocab.exists() {
+                dir_vocab
+            } else {
+                root_vocab.clone()
+            };
+            if let Ok(sub) = std::fs::read_dir(&path) {
+                for e in sub.flatten() {
+                    let p = e.path();
+                    if p.is_file() && is_rwkv_model_file(&p) {
+                        if let Some(info) = build_model_info(&p, &vocab) {
+                            out.push(info);
+                        }
+                    }
+                }
+            }
+        } else if is_rwkv_model_file(&path) {
+            flat_files.push(path);
+        }
+    }
+    for p in flat_files {
+        if let Some(info) = build_model_info(&p, &root_vocab) {
+            out.push(info);
+        }
+    }
+    out.sort_by_key(|m| m.size_bytes);
+    out
+}
+
+fn build_model_info(model_path: &Path, vocab_path: &Path) -> Option<RwkvModelInfo> {
+    let size = std::fs::metadata(model_path).ok()?.len();
+    let id = model_path.file_stem()?.to_str()?.to_string();
+    Some(RwkvModelInfo {
+        model_path: model_path.to_string_lossy().into_owned(),
+        vocab_path: vocab_path.to_string_lossy().into_owned(),
+        size_bytes: size,
+        int8: is_int8_model(model_path),
+        id,
+        source: "bundled".to_string(),
+    })
+}
+
 /// 扫描模型目录，返回第一个 .st / .safetensors 模型文件。
 fn scan_model_file() -> Option<String> {
     let models_dir = assets_models_dir();
     let entries = std::fs::read_dir(&models_dir).ok()?;
     for entry in entries.flatten() {
         let path = entry.path();
-        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-            // rwkv-rsv 仅支持 safetensors 格式（.st 为 RWKV 惯用扩展名）
-            if ext.eq_ignore_ascii_case("st") || ext.eq_ignore_ascii_case("safetensors") {
-                return Some(path.to_string_lossy().into_owned());
-            }
+        if path.is_file() && is_rwkv_model_file(&path) {
+            return Some(path.to_string_lossy().into_owned());
         }
     }
     None
@@ -1119,13 +1435,41 @@ pub async fn init_engine_internal(
     model_path: Option<String>,
     vocab_path: Option<String>,
 ) -> Result<bool, String> {
-    if LLM_READY.load(Ordering::SeqCst) {
-        if let Some(app) = &app {
-            let _ = app.emit("rwkv://debug", "llm initialized".to_string());
+    // 先解析目标模型路径（供路径感知 gate 比对）
+    let (default_vocab, _) = resolve_default_paths();
+    let vp = vocab_path.unwrap_or(default_vocab);
+    let mp = match model_path {
+        Some(p) => {
+            if !Path::new(&p).exists() {
+                return Err(format!("Model file not found: {}", p));
+            }
+            p
         }
-        crate::model_init::LLM_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
-        return Ok(true);
-    }
+        None => match scan_model_file() {
+            Some(p) => p,
+            None => return Err("No model file found in models directory".to_string()),
+        },
+    };
+    debug_print!("rwkv_init: model_path={} vocab_path={}", mp, vp);
+
+    // 路径感知 gate：已就绪且目标模型相同 → 直接返回；不同 → 触发热切换
+    let force = if LLM_READY.load(Ordering::SeqCst) {
+        let same = LLM_CURRENT_MODEL
+            .read()
+            .map(|c| c.as_deref() == Some(mp.as_str()))
+            .unwrap_or(false);
+        if same {
+            if let Some(app) = &app {
+                let _ = app.emit("rwkv://debug", "llm initialized".to_string());
+            }
+            crate::model_init::LLM_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
+            return Ok(true);
+        }
+        true
+    } else {
+        false
+    };
+
     if LLM_INITING.get().is_none() {
         let _ = LLM_INITING.set(Mutex::new(false));
     }
@@ -1166,29 +1510,8 @@ pub async fn init_engine_internal(
     }
     let _reset = ResetFlagOnDrop(app.clone());
 
-    let (default_vocab, _) = resolve_default_paths();
-    let vp = vocab_path.unwrap_or(default_vocab);
-    let mp = match model_path {
-        Some(p) => {
-            if !Path::new(&p).exists() {
-                return Err(format!("Model file not found: {}", p));
-            }
-            p
-        }
-        None => match scan_model_file() {
-            Some(p) => p,
-            None => return Err("No model file found in models directory".to_string()),
-        },
-    };
     if let Some(app) = &app {
         let _ = app.emit("rwkv://debug", format!("init model={} vocab={}", mp, vp));
-    }
-    debug_print!("rwkv_init: model_path={} vocab_path={}", mp, vp);
-    if !Path::new(&mp).exists() {
-        if let Some(app) = &app {
-            let _ = app.emit("rwkv://debug", "model missing, skip init".to_string());
-        }
-        return Err("model file missing".to_string());
     }
     if let Some(app) = &app {
         let _ = app.emit("rwkv://debug", "llm initializing".to_string());
@@ -1203,12 +1526,14 @@ pub async fn init_engine_internal(
             .expect("failed to spawn rwkv inference pool thread");
         InferencePoolHandle { tx: pool_tx }
     });
+    register_with_vram_manager();
 
     let (reply_tx, reply_rx) = oneshot::channel::<Result<(), String>>();
     pool.tx
         .send(PoolRequest::Init {
             model_path: mp,
             vocab_path: vp,
+            force,
             app,
             reply: reply_tx,
         })
@@ -1247,6 +1572,19 @@ pub async fn preload_engine_for_router() {
         .unwrap_or_default();
     if !ai_config.router.enabled {
         return;
+    }
+    // 显存预算保护：预算不足时跳过预加载（预加载不驱逐其它引擎；
+    // 首个请求到达时 auto-start 仍会按需拉起并执行完整预算检查）。
+    if let Some(mem) = crate::vram_monitor::query_vram(None) {
+        let reserve = 1024u64 * 1024 * 1024;
+        let min_need = 2u64 * 1024 * 1024 * 1024;
+        if mem.free_bytes.saturating_sub(reserve) < min_need {
+            log::info!(
+                "[rwkv] insufficient VRAM headroom (free {} MB), skip router preload",
+                mem.free_bytes / (1024 * 1024)
+            );
+            return;
+        }
     }
     log::info!("[rwkv] smart router enabled, preloading RWKV engine");
     match init_engine_internal(None, None, None).await {

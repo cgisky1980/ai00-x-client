@@ -111,6 +111,11 @@ pub struct AIConfig {
     pub custom_request_body: Option<serde_json::Value>,
     pub custom_request_body_mode: Option<String>,
     pub stop: Option<Vec<String>>,
+    /// RWKV 本地引擎：重复惩罚（抑制复读循环，remote 提供方忽略）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub presence_penalty: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frequency_penalty: Option<f64>,
 }
 
 #[cfg(test)]

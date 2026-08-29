@@ -55,6 +55,11 @@ pub async fn send_stream(
     let temperature = client.config.temperature.unwrap_or(0.3) as f32;
     let top_p = client.config.top_p.unwrap_or(0.95) as f32;
     let max_tokens = client.config.max_tokens.unwrap_or(512) as usize;
+    // RWKV 本地引擎的重复惩罚：top_p≈0.1 的近贪心采样下长数组/长 JSON 极易
+    // 落入复读循环（rwkv-rsv 实验 pl-prod-*，2026-08-27）——调用方显式传
+    // presence/frequency penalty 才能压制（0.5 实测把协议遵循率拉满）。
+    let presence_penalty = client.config.presence_penalty.unwrap_or(0.0) as f32;
+    let frequency_penalty = client.config.frequency_penalty.unwrap_or(0.0) as f32;
     let mut stop = client.config.stop.clone().unwrap_or_else(|| {
         vec![
             "\n\nUser:".to_string(),
@@ -72,7 +77,15 @@ pub async fn send_stream(
     }
 
     let mut full_text = engine
-        .infer(prompt, max_tokens, temperature, top_p, stop)
+        .infer(
+            prompt,
+            max_tokens,
+            temperature,
+            top_p,
+            stop,
+            presence_penalty,
+            frequency_penalty,
+        )
         .await
         .map_err(|e| anyhow!("RWKV engine error: {}", e))?;
 
@@ -283,7 +296,13 @@ fn messages_to_prompt(messages: &[Message], tools: Option<&[ToolDefinition]>) ->
         .is_some_and(|m| m.role == "assistant" && m.content.is_some());
 
     if last_is_assistant {
-        // assistant prefill already appended in the loop, do not add another "Assistant: "
+        // assistant prefill already appended in the loop. Strip the loop's
+        // trailing "\n\n" so generation resumes EXACTLY at the prefill cue —
+        // e.g. "Assistant: <think>\n</think>" (official G1 fast-think) must be
+        // followed immediately by the answer, not a blank line.
+        while prompt.ends_with('\n') {
+            prompt.pop();
+        }
     } else if has_tools {
         prompt.push_str("Assistant: {\"name\":\"");
     } else {

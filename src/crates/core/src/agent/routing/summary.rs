@@ -238,6 +238,8 @@ async fn generate_summary(prompt: String) -> Option<String> {
             0.0, // deterministic (G1 recommendation)
             1.0,
             vec!["\n\nUser:".to_string(), "\n\nQuestion:".to_string()],
+            0.0,
+            0.0,
         )
         .await
         .ok()?;
