@@ -38,7 +38,7 @@ const RELEASE = join(TARGET, 'release');
 const RUNTIME = join(RELEASE, 'runtime');
 
 const VERSIONS = {
-  llama: 'b10369',
+  llama: 'v0.4.0',
   acestep: '0.0.1',
   onnx: '1.23.2',
   mnn: '1.0.0',
