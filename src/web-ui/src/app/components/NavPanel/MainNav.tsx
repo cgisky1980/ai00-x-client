@@ -18,16 +18,12 @@ import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { SceneTabId } from '../SceneBar/types';
 import SectionHeader from './components/SectionHeader';
 import WorkspaceListSection from './sections/workspaces/WorkspaceListSection';
-import SessionsSection from './sections/sessions/SessionsSection';
 import { useModeStore } from '../../stores/modeStore';
 import { useSceneStore } from '../../stores/sceneStore';
 import { globalAPI } from '@/infrastructure/api/service-api/GlobalAPI';
-import { FlowChatManager } from '@/flow_chat/services/FlowChatManager';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { createLogger } from '@/shared/utils/logger';
-import { WorkspaceKind } from '@/shared/types';
 import { getRecentWorkspaceLineParts } from '@/shared/utils/recentWorkspaceDisplay';
 import { useSSHRemoteContext, SSHConnectionDialog, RemoteFileBrowser } from '@/features/ssh-remote';
 
@@ -65,7 +61,6 @@ const MainNav: React.FC<MainNavProps> = ({
   const {
     currentWorkspace,
     recentWorkspaces: allRecentWorkspaces,
-    openedWorkspacesList,
     switchWorkspace,
   } = useWorkspaceContext();
 
@@ -111,20 +106,6 @@ const MainNav: React.FC<MainNavProps> = ({
     if (workspaceMenuOpen) { closeWorkspaceMenu(); return; }
     void openWorkspaceMenu();
   }, [closeWorkspaceMenu, openWorkspaceMenu, workspaceMenuOpen]);
-
-  useEffect(() => {
-    openedWorkspacesList.forEach(workspace => {
-      if (workspace.workspaceKind === WorkspaceKind.Remote) {
-        void flowChatStore.initializeFromDisk(
-          workspace.rootPath,
-          workspace.connectionId ?? undefined,
-          workspace.sshHost ?? undefined
-        );
-      } else {
-        void flowChatStore.initializeFromDisk(workspace.rootPath);
-      }
-    });
-  }, [openedWorkspacesList]);
 
   const handleOpenProject = useCallback(async () => {
     try {
@@ -269,20 +250,10 @@ const MainNav: React.FC<MainNavProps> = ({
 
   const openScene = useSceneStore(s => s.openScene);
 
-  const handleNewTask = useCallback(async () => {
-    try {
-      let wsPath = taskWorkspacePath;
-      if (!wsPath) {
-        wsPath = await globalAPI.getTaskWorkspacePath();
-        setTaskWorkspacePath(wsPath);
-      }
-      const manager = FlowChatManager.getInstance();
-      await manager.createChatSession({ workspacePath: wsPath, sessionDisplayMode: 'task' }, 'Task');
-      openScene('session');
-    } catch (e) {
-      log.error('Failed to create task session', e);
-    }
-  }, [taskWorkspacePath, openScene]);
+  const handleNewTask = useCallback(() => {
+    // dsh 场景自带会话创建（新栈）
+    openScene('dsh');
+  }, [openScene]);
 
   return (
     <>
@@ -308,14 +279,6 @@ const MainNav: React.FC<MainNavProps> = ({
                 </Tooltip>
               }
             />
-            <div className="ai00-x-nav-panel__items">
-              {taskWorkspacePath && (
-                <SessionsSection
-                  workspacePath={taskWorkspacePath}
-                  isActiveWorkspace
-                />
-              )}
-            </div>
           </div>
         ) : (
           <div className="ai00-x-nav-panel__section">

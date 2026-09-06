@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { useWorkspaceContext } from '../infrastructure/contexts/WorkspaceContext';
 import { useSceneStore } from './stores/sceneStore';
 import { useModeStore } from './stores/modeStore';
-import { FlowChatManager } from '../flow_chat';
 import { useCoreLayoutInit } from './hooks/useCoreLayoutInit';
 import WorkspaceBody from './layout/WorkspaceBody';
 import DialogOverlay from './layout/DialogOverlay';
@@ -16,14 +15,16 @@ interface ChatWindowAppProps {
   openDsh?: boolean;
 }
 
-const ChatWindowApp: React.FC<ChatWindowAppProps> = ({ sessionId, openSettings, openMusic, openDsh }) => {
+const ChatWindowApp: React.FC<ChatWindowAppProps> = (props) => {
+  const { openSettings, openMusic, openDsh } = props;
+  void props.sessionId; // 老会话路由已随 flow_chat 移除
   const { activeWorkspace } = useWorkspaceContext();
   const openScene = useSceneStore((s) => s.openScene);
   const init = useCoreLayoutInit(false);
 
   useEffect(() => {
     if (activeWorkspace) {
-      openScene('session');
+      openScene('dsh');
     }
   }, [activeWorkspace, openScene]);
 
@@ -43,14 +44,6 @@ const ChatWindowApp: React.FC<ChatWindowAppProps> = ({ sessionId, openSettings, 
     }, 300);
     return () => clearTimeout(timer);
   }, [openMusic, openScene]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    const manager = FlowChatManager.getInstance();
-    if (manager) {
-      manager.switchChatSession(sessionId);
-    }
-  }, [sessionId]);
 
   // dsh Agent 场景直开（策窗口委托交付唤起）
   useEffect(() => {

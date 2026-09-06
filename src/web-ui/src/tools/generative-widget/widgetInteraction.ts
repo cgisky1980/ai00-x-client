@@ -1,11 +1,28 @@
 import { globalEventBus } from '@/infrastructure/event-bus';
-import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { createLogger } from '@/shared/utils/logger';
 import path from 'path-browserify';
 import { fileTabManager } from '@/shared/services/FileTabManager';
 import { notificationService } from '@/shared/notification-system';
 
+/** 活跃会话快照（由交互触发时刷新，异步拉最近 dsh 会话） */
+const widgetState: { activeSessionId: string | null; activeWorkspacePath?: string } = {
+  activeSessionId: null,
+  activeWorkspacePath: undefined,
+};
+
+async function refreshWidgetState(): Promise<void> {
+  try {
+    const { dshSession } = await import('@/infrastructure/api/service-api/DshAPI');
+    const { items } = await dshSession.list();
+    const latest = [...items].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    widgetState.activeSessionId = latest?.sessionId ?? null;
+    widgetState.activeWorkspacePath = latest?.cwd ?? undefined;
+  } catch {
+    // 引擎未启动 → 保持
+  }
+}
+
+void refreshWidgetState();
 const log = createLogger('widgetInteraction');
 
 export type WidgetBridgeEvent =
@@ -39,12 +56,14 @@ export interface WidgetInteractionDetail {
 }
 
 function getActiveSessionId(): string | null {
-  return flowChatStore.getState().activeSessionId;
+  return widgetState.activeSessionId;
 }
 
 function getActiveWorkspacePath(): string | undefined {
-  return flowChatStore.getActiveSession()?.workspacePath;
+  return widgetState.activeWorkspacePath;
 }
+
+
 
 function stringifyPayload(payload: unknown): string {
   if (typeof payload === 'string') return payload;
@@ -88,14 +107,20 @@ export function handleWidgetBridgeEvent(
       text,
     });
 
-    void flowChatManager.sendMessage(text, sessionId ?? undefined).catch((error) => {
-      log.warn('Auto-send from widget prompt failed, falling back to chat input', {
-        sessionId,
-        widgetId: event.widgetId,
-        error,
-      });
-      globalEventBus.emit('fill-chat-input', { content: text }, 'widgetInteraction');
-    });
+    void (async () => {
+      try {
+        if (!sessionId) return;
+        const { dshSession } = await import('@/infrastructure/api/service-api/DshAPI');
+        await dshSession.prompt(sessionId, text);
+      } catch (error) {
+        log.warn('Auto-send from widget prompt failed, falling back to chat input', {
+          sessionId,
+          widgetId: event.widgetId,
+          error,
+        });
+        globalEventBus.emit('fill-chat-input', { content: text }, 'widgetInteraction');
+      }
+    })();
     return;
   }
 

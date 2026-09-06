@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useMemo, useState, useCallback, useRef, useEffec
 import { X } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
-import { MERMAID_INTERACTIVE_EXAMPLE } from '@/flow_chat/constants/mermaidExamples';
+import { MERMAID_INTERACTIVE_EXAMPLE } from '@/shared/constants/mermaidExamples';
 import type { MermaidPanelData, NodeMetadata } from '@/tools/mermaid-editor/types/MermaidPanelTypes';
 import { CodeEditor } from '@/tools/editor';
 import './MermaidEditorScene.scss';

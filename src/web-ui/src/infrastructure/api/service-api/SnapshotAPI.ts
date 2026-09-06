@@ -3,7 +3,6 @@
 import { api } from './ApiClient';
 import { createTauriCommandError } from '../errors/TauriCommandError';
 import { createLogger } from '@/shared/utils/logger';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 
 const log = createLogger('SnapshotAPI');
 
@@ -17,7 +16,8 @@ const requireWorkspacePath = (workspacePath?: string): string => {
 const requireSessionWorkspacePath = (sessionId: string, workspacePath?: string): string => {
   const resolved =
     workspacePath ||
-    flowChatStore.getState().sessions.get(sessionId)?.workspacePath;
+    // 老会话工作区映射已随 flow_chat 移除（快照按当前工作区上下文）
+    undefined;
   if (!resolved) {
     throw new Error(`workspacePath is required for snapshot session: ${sessionId}`);
   }

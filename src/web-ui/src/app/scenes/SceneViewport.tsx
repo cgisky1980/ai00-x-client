@@ -12,11 +12,9 @@ import React, { Suspense, lazy } from 'react';
 import type { SceneTabId } from '../components/SceneBar/types';
 import { useSceneManager } from '../hooks/useSceneManager';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
-import { useDialogCompletionNotify } from '../hooks/useDialogCompletionNotify';
-import { ProcessingIndicator } from '@/flow_chat/components/modern/ProcessingIndicator';
+import { ProcessingIndicator } from '@/shared/components/ProcessingIndicator/ProcessingIndicator';
 import SettingsScene from './settings/SettingsScene';
 import './settings/SettingsScene.scss';
-import SessionScene from './session/SessionScene';
 import SessionConfig from '@/infrastructure/config/components/SessionConfig';
 import AIRulesMemoryConfig from '@/infrastructure/config/components/AIRulesMemoryConfig';
 import McpToolsConfig from '@/infrastructure/config/components/McpToolsConfig';
@@ -40,7 +38,6 @@ const ShellScene      = lazy(() => import('./shell/ShellScene'));
 const WelcomeScene    = lazy(() => import('./welcome/WelcomeScene'));
 const MiniAppScene    = lazy(() => import('./miniapps/MiniAppScene'));
 const WallpaperDesignScene = lazy(() => import('./wallpaper/WallpaperDesignView'));
-const TaskWelcomeScene  = lazy(() => import('./task/TaskWelcomeScene'));
 const PanelViewScene  = lazy(() => import('./panel-view/PanelViewScene'));
 const UsageStatsScene = lazy(() => import('./usage-stats/UsageStatsScene'));
 const AceStepScene     = lazy(() => import('./acestep/AceStepScene'));
@@ -56,7 +53,6 @@ interface SceneViewportProps {
 const SceneViewport: React.FC<SceneViewportProps> = ({ workspacePath, isEntering = false }) => {
   const { openTabs, activeTabId } = useSceneManager();
   const { t } = useI18n('common');
-  useDialogCompletionNotify();
 
   // All tabs closed — show empty state
   if (openTabs.length === 0) {
@@ -115,9 +111,8 @@ function renderScene(
 ) {
   switch (id) {
     case 'welcome':
+      void isEntering; // 保留参数兼容调用方（session 场景已删）
       return <WelcomeScene />;
-    case 'session':
-      return <SessionScene workspacePath={workspacePath} isEntering={isEntering} isActive={isActive} />;
     case 'terminal':
       return <TerminalScene isActive={isActive} />;
     case 'git':
@@ -164,8 +159,6 @@ function renderScene(
       return <CreditsScene />;
     case 'wallpaper':
       return <WallpaperDesignScene />;
-    case 'task-welcome':
-      return <TaskWelcomeScene />;
     default:
       if (typeof id === 'string' && id.startsWith('miniapp:')) {
         return <MiniAppScene appId={id.slice('miniapp:'.length)} />;

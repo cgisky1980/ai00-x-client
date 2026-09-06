@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef, useContext } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useWorkspaceContext } from '../../infrastructure/contexts/WorkspaceContext';
-import { FlowChatManager } from '../../flow_chat/services/FlowChatManager';
 import { workspaceAPI } from '@/infrastructure/api';
 import { createLogger } from '@/shared/utils/logger';
 import { useI18n } from '@/infrastructure/i18n';
@@ -49,6 +48,7 @@ export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResul
   const { state, switchLeftPanelTab, toggleLeftPanel, toggleRightPanel } = useApp();
 
   const initializedWorkspacePathsRef = useRef<Set<string>>(new Set());
+  void initializedWorkspacePathsRef; // 老会话初始化退场后暂无消费者
 
   // No longer auto-open recent workspace on startup.
   // Each mode (Code/Task/Wallpaper) shows its own welcome page.
@@ -127,80 +127,10 @@ export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResul
   }, [isMacOS, openWorkspace, handleNewProject, handleShowAbout]);
 
   useEffect(() => {
+    // 老会话初始化已随 flow_chat 退场：dsh 场景自理会话
     const initializeFlowChat = async () => {
       if (!currentWorkspace?.rootPath) return;
-      try {
-        const explicitPreferredMode =
-          sessionStorage.getItem('ai00-x:flowchat:preferredMode') ||
-          undefined;
-        if (explicitPreferredMode) {
-          sessionStorage.removeItem('ai00-x:flowchat:preferredMode');
-        }
-
-        const flowChatManager = FlowChatManager.getInstance();
-        const hasHistoricalSessions = await flowChatManager.initialize(
-          currentWorkspace.rootPath,
-          explicitPreferredMode,
-          currentWorkspace.workspaceKind === WorkspaceKind.Remote
-            ? currentWorkspace.connectionId
-            : undefined,
-          currentWorkspace.workspaceKind === WorkspaceKind.Remote
-            ? currentWorkspace.sshHost
-            : undefined
-        );
-
-        let sessionId: string | undefined;
-        const { flowChatStore } = await import('@/flow_chat/store/FlowChatStore');
-        const workspacePath = currentWorkspace.rootPath;
-        const isFirstInit = !initializedWorkspacePathsRef.current.has(workspacePath);
-        if (!hasHistoricalSessions && isFirstInit && autoCreateSession) {
-          const initialSessionMode = explicitPreferredMode || 'Code';
-          sessionId = await flowChatManager.createChatSession({}, initialSessionMode);
-        }
-        initializedWorkspacePathsRef.current.add(workspacePath);
-
-        const pendingDescription = sessionStorage.getItem('pendingProjectDescription');
-        if (pendingDescription && pendingDescription.trim()) {
-          sessionStorage.removeItem('pendingProjectDescription');
-          setTimeout(async () => {
-            try {
-              const targetSessionId = sessionId || flowChatStore.getState().activeSessionId;
-              if (!targetSessionId) {
-                log.error('Cannot find active session ID');
-                return;
-              }
-              const fullMessage = t('appLayout.projectRequestMessage', { description: pendingDescription });
-              await flowChatManager.sendMessage(fullMessage, targetSessionId);
-              import('@/shared/notification-system').then(({ notificationService }) => {
-                notificationService.success(t('appLayout.projectRequestSent'), { duration: 3000 });
-              });
-            } catch (sendError) {
-              log.error('Failed to send project description', sendError);
-              import('@/shared/notification-system').then(({ notificationService }) => {
-                notificationService.error(t('appLayout.projectRequestSendFailed'), { duration: 5000 });
-              });
-            }
-          }, 500);
-        }
-
-        const pendingSettings = sessionStorage.getItem('pendingOpenSettings');
-        if (pendingSettings) {
-          sessionStorage.removeItem('pendingOpenSettings');
-          setTimeout(async () => {
-            try {
-              const { quickActions } = await import('@/shared/services/ide-control');
-              await quickActions.openSettings(pendingSettings);
-            } catch (settingsError) {
-              log.error('Failed to open pending settings', settingsError);
-            }
-          }, 500);
-        }
-      } catch (error) {
-        log.error('FlowChatManager initialization failed', error);
-        import('@/shared/notification-system').then(({ notificationService }) => {
-          notificationService.error(t('appLayout.flowChatInitFailed'), { duration: 5000 });
-        });
-      }
+      // no-op
     };
 
     initializeFlowChat();
@@ -225,12 +155,6 @@ export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResul
         unlistenFn = await currentWindow.onCloseRequested(async (event: { preventDefault: () => void }) => {
           if (saveCompleted) return;
           event.preventDefault();
-          try {
-            const flowChatManager = FlowChatManager.getInstance();
-            await flowChatManager.saveAllInProgressTurns();
-          } catch (error) {
-            log.error('Failed to save conversations, closing anyway', error);
-          }
           saveCompleted = true;
           await currentWindow.close();
         });
@@ -260,8 +184,8 @@ export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResul
       const { message, sessionId } = customEvent.detail;
       if (message && sessionId) {
         try {
-          const flowChatManager = FlowChatManager.getInstance();
-          await flowChatManager.sendMessage(message, sessionId);
+          const { dshSession } = await import('@/infrastructure/api/service-api/DshAPI');
+          await dshSession.prompt(sessionId, message);
         } catch (error) {
           log.error('Failed to send toolbar message', error);
         }
@@ -274,8 +198,11 @@ export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResul
   useEffect(() => {
     const handleToolbarCancelTask = async () => {
       try {
-        const flowChatManager = FlowChatManager.getInstance();
-        await flowChatManager.cancelCurrentTask();
+        const { dshSession } = await import('@/infrastructure/api/service-api/DshAPI');
+        // 取消当前活跃 dsh 会话（工具条只关心最近一个）
+        const { items } = await dshSession.list();
+        const running = items.find(it => it.running);
+        if (running) await dshSession.cancel(running.sessionId);
       } catch (error) {
         log.error('Failed to cancel toolbar task', error);
       }
@@ -314,12 +241,8 @@ export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResul
   }, []);
 
   const handleCreateFlowChatSession = useCallback(async () => {
-    try {
-      const flowChatManager = FlowChatManager.getInstance();
-      await flowChatManager.createChatSession({}, 'Code');
-    } catch (error) {
-      log.error('Failed to create FlowChat session', error);
-    }
+    // 会话创建收敛到 dsh 场景
+    window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'dsh' } }));
   }, []);
 
   useEffect(() => {

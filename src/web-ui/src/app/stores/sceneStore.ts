@@ -23,7 +23,7 @@ import { useNavSceneStore } from './navSceneStore';
 import { useModeStore } from './modeStore';
 import type { SceneTab, SceneTabId } from '../components/SceneBar/types';
 
-const AGENT_SCENE_ID: SceneTabId = 'session';
+const AGENT_SCENE_ID: SceneTabId = 'dsh';
 const WELCOME_SCENE_ID: SceneTabId = 'welcome';
 
 function getSceneDefOrMiniapp(id: SceneTabId) {

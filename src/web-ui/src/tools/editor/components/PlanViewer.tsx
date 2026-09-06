@@ -10,14 +10,11 @@ import { CubeLoading, Button, Tooltip } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n';
 import { useTheme } from '@/infrastructure/theme/hooks/useTheme';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
-import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { fileSystemService } from '@/tools/file-system/services/FileSystemService';
 import { planBuildStateService } from '@/shared/services/PlanBuildStateService';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { basenamePath, dirnameAbsolutePath } from '@/shared/utils/pathUtils';
-import { useActiveSession } from '@/flow_chat/store/modernFlowChatStore';
-import { FlowChatStore } from '@/flow_chat/store/FlowChatStore';
-import { syncSessionToModernStore } from '@/flow_chat/services/storeSync';
+import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
 import './PlanViewer.scss';
 
 const log = createLogger('PlanViewer');
@@ -241,9 +238,21 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
     return 'build';
   }, [planData, isBuildStarted]);
 
-  const activeSession = useActiveSession();
-  const sessionId = activeSession?.sessionId ?? '';
-  const workflowPhase = activeSession?.workflowPhase;
+  // dsh 会话：无 workflowPhase 概念（计划锁由构建状态驱动）
+  const [dshSessionId, setDshSessionId] = useState('');
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { items } = await dshSession.list();
+        const latest = [...items].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        setDshSessionId(latest?.sessionId ?? '');
+      } catch {
+        setDshSessionId('');
+      }
+    })();
+  }, []);
+  const sessionId = dshSessionId;
+  const workflowPhase: string | undefined = undefined;
 
   const isPlanLocked = buildStatus === 'built' || isBuildStarted || workflowPhase === 'executing' || workflowPhase === 'reviewing';
 
@@ -480,11 +489,8 @@ const PlanViewer: React.FC<PlanViewerProps> = ({
     if (!filePath || buildStatus !== 'build' || !planData || !sessionId) return;
 
     try {
-      const legacyStore = FlowChatStore.getInstance();
-      legacyStore.setPlanConfirmationNeeded(sessionId, filePath);
-      syncSessionToModernStore(sessionId);
+      await dshSession.prompt(sessionId, 'Plan confirmed — proceed with execution.');
 
-      await agentAPI.confirmPlan(sessionId);
 
       const content = await workspaceAPI.readFileContent(filePath);
       const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);

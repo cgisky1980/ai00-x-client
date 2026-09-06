@@ -227,9 +227,6 @@ async function initializeBeforeRender(): Promise<void> {
   const { registerDefaultContextTypes } = await import('./shared/context-system/core/registerDefaultTypes');
   registerDefaultContextTypes();
 
-  const { initRecommendationProviders } = await import('./flow_chat/components/smart-recommendations');
-  initRecommendationProviders();
-
   const { themeService } = await import('./infrastructure/theme');
   await themeService.initialize();
   log.info('Theme system initialized');

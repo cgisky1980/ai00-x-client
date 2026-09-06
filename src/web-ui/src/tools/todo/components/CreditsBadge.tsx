@@ -10,6 +10,7 @@
 import React, { useEffect } from 'react';
 import { Coins } from 'lucide-react';
 import { useCreditsStore } from '../../../app/scenes/credits/creditsStore';
+import { useTodoStore } from '../store/todoStore';
 import { requestCreditsTab } from '../../../app/scenes/credits/creditsSceneEvents';
 
 export const CreditsBadge: React.FC = () => {
@@ -31,6 +32,8 @@ export const CreditsBadge: React.FC = () => {
       onClick={(e) => {
         e.stopPropagation();
         requestCreditsTab('recharge');
+        // 策窗口浮层收起，露出主窗口刚打开的积分中心页签
+        useTodoStore.getState().togglePanel(false);
       }}
       onMouseDown={(e) => e.stopPropagation()}
       title="积分与会员"

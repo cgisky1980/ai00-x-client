@@ -20,19 +20,15 @@ import {
   DropdownMenuSeparator,
 } from '@/component-library';
 import { useSceneStore } from '../../stores/sceneStore';
+import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { wallpaperAPI, WallpaperProject } from '@/infrastructure/api/service-api/WallpaperAPI';
 import { configAPI } from '@/infrastructure/api';
-import { FlowChatManager } from '@/flow_chat/services/FlowChatManager';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
-import { useActiveSession } from '@/flow_chat/store/modernFlowChatStore';
-import { findWallpaperProjectSession, pathsEqual } from '@/app/utils/projectSessionWorkspace';
-import { openMainSession } from '@/flow_chat/services/sessionNavigation';
+import { pathsEqual } from '@/app/utils/projectSessionWorkspace';
 import { notificationService } from '@/shared/notification-system';
 import './WallpaperNav.scss';
 
 const WallpaperNav: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { t } = useI18n('scenes/wallpaper');
-  const activeSession = useActiveSession();
   const openScene = useSceneStore((s) => s.openScene);
   const [projects, setProjects] = useState<WallpaperProject[]>([]);
   const [publishingId, setPublishingId] = useState<string | null>(null);
@@ -42,19 +38,6 @@ const WallpaperNav: React.FC<{ className?: string }> = ({ className = '' }) => {
     try {
       const list = await wallpaperAPI.listWorkspaceProjects();
       setProjects(list);
-      // Load sessions for each wallpaper project so they can be found by findWallpaperProjectSession
-      for (const project of list) {
-        if (project.projectPath) {
-          const existing = flowChatStore.getSessionsByWorkspacePath(project.projectPath);
-          if (existing.length === 0) {
-            try {
-              await flowChatStore.initializeFromDisk(project.projectPath);
-            } catch {
-              // Silently fail — non-critical
-            }
-          }
-        }
-      }
     } catch {
       // Silently fail — project list is non-critical
     }
@@ -73,27 +56,8 @@ const WallpaperNav: React.FC<{ className?: string }> = ({ className = '' }) => {
     if (!projectPath) return;
 
     try {
-      const existing = flowChatStore.getSessionsByWorkspacePath(projectPath);
-      if (existing.length === 0) {
-        try {
-          await flowChatStore.initializeFromDisk(projectPath);
-        } catch {
-          // Non-critical — may already be loaded or no sessions exist
-        }
-      }
-
-      const existingSession = findWallpaperProjectSession(projectPath);
-
-      if (existingSession) {
-        await openMainSession(existingSession.sessionId);
-      } else {
-        const manager = FlowChatManager.getInstance();
-        const sessionId = await manager.createChatSession(
-          { workspacePath: projectPath },
-          'Wallpaper',
-        );
-        await openMainSession(sessionId);
-      }
+      // 打开 dsh 场景处理壁纸项目（新栈）
+      window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'dsh' } }));
     } catch (err) {
       notificationService.error(err instanceof Error ? err.message : String(err));
     }
@@ -148,13 +112,12 @@ const WallpaperNav: React.FC<{ className?: string }> = ({ className = '' }) => {
     }
   }, [t]);
 
-  // Determine which project is currently active (based on active session)
+  // Determine which project is currently active (based on current workspace)
+  const { currentWorkspace } = useWorkspaceContext();
   const activeProjectId = useMemo(() => {
-    if (!activeSession) return null;
-    const wp = activeSession.workspacePath || activeSession.config?.workspacePath;
-    if (!wp) return null;
-    return projects.find(p => pathsEqual(p.projectPath, wp))?.id ?? null;
-  }, [activeSession, projects]);
+    if (!currentWorkspace?.rootPath) return null;
+    return projects.find(p => pathsEqual(p.projectPath, currentWorkspace.rootPath))?.id ?? null;
+  }, [currentWorkspace, projects]);
 
   return (
     <nav className={`ai00-x-wallpaper-nav ${className}`}>

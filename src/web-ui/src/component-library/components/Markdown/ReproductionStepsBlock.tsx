@@ -47,15 +47,12 @@ export const ReproductionStepsBlock: React.FC<ReproductionStepsBlockProps> = ({
     setIsProceeding(true);
     
     try {
-      const { FlowChatManager } = await import('../../../flow_chat/services/FlowChatManager');
-      const flowChatManager = FlowChatManager.getInstance();
-      
-      // Log collection note: read .ai00-x/debug.log
-      await flowChatManager.sendMessage(
-        t('reproductionSteps.userCompleted'),
-        undefined,
-        t('reproductionSteps.userCompletedShort')
-      );
+      const { dshSession } = await import('@/infrastructure/api/service-api/DshAPI');
+      const { items } = await dshSession.list();
+      const latest = [...items].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+      if (latest) {
+        await dshSession.prompt(latest.sessionId, t('reproductionSteps.userCompleted'));
+      }
       
       log.info('Proceed instruction sent');
       

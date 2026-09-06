@@ -2,15 +2,10 @@ import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { FolderOpen, MoreHorizontal, FolderSearch, Plus, ChevronDown, Copy, FileText } from 'lucide-react';
 import { DotMatrixArrowRightIcon } from './DotMatrixArrowRightIcon';
 import { useI18n } from '@/infrastructure/i18n';
-import { i18nService } from '@/infrastructure/i18n';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
 import { workspaceAPI } from '@/infrastructure/api';
 import { globalAPI } from '@/infrastructure/api/service-api/GlobalAPI';
 import { notificationService } from '@/shared/notification-system';
-import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
-import { openMainSession } from '@/flow_chat/services/sessionNavigation';
-import { findReusableEmptySessionId } from '@/app/utils/projectSessionWorkspace';
-import SessionsSection from '../sessions/SessionsSection';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -115,74 +110,19 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     }
   }, [t, workspace.rootPath]);
 
-  const handleCreateSession = useCallback(async (mode?: 'Code') => {
-    try {
-      const reusableId = findReusableEmptySessionId(workspace, mode);
-      if (reusableId) {
-        await openMainSession(reusableId, {
-          workspaceId: workspace.id,
-          activateWorkspace: setActiveWorkspace,
-        });
-        return;
-      }
-      await flowChatManager.createChatSession(
-        {
-          workspacePath: workspace.rootPath,
-          ...(isRemoteWorkspace(workspace) && workspace.connectionId
-            ? { remoteConnectionId: workspace.connectionId }
-            : {}),
-        },
-        mode
-      );
-      await setActiveWorkspace(workspace.id);
-    } catch (error) {
-      notificationService.error(
-        error instanceof Error ? error.message : t('nav.workspaces.createSessionFailed'),
-        { duration: 4000 }
-      );
-    }
-  }, [
-    setActiveWorkspace,
-    t,
-    workspace,
-  ]);
+  const handleCreateSession = useCallback((_mode?: 'Code') => {
+    // 会话创建收敛到 dsh 场景（新栈）
+    window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'dsh' } }));
+  }, []);
 
   const handleCreateNewSession = useCallback(() => {
     void handleCreateSession('Code');
   }, [handleCreateSession]);
 
-  const handleCreateInitSession = useCallback(async () => {
-    try {
-      const sessionId = await flowChatManager.createChatSession(
-        {
-          workspacePath: workspace.rootPath,
-          ...(isRemoteWorkspace(workspace) && workspace.connectionId
-            ? { remoteConnectionId: workspace.connectionId }
-            : {}),
-          ...(isRemoteWorkspace(workspace) && workspace.sshHost
-            ? { remoteSshHost: workspace.sshHost }
-            : {}),
-        },
-        'Init'
-      );
-
-      await openMainSession(sessionId, {
-        workspaceId: workspace.id,
-        activateWorkspace: setActiveWorkspace,
-      });
-
-      const initPrompt = i18nService.t('flow-chat:chatInput.initPrompt', {
-        defaultValue: 'Please generate or update AGENTS.md so it matches the current project. Write it in English and keep the English version complete.',
-      });
-
-      await flowChatManager.sendMessage(initPrompt, sessionId, initPrompt, 'Init');
-    } catch (error) {
-      notificationService.error(
-        error instanceof Error ? error.message : t('nav.workspaces.initSessionFailed'),
-        { duration: 4000 }
-      );
-    }
-  }, [setActiveWorkspace, t, workspace]);
+  const handleCreateInitSession = useCallback(() => {
+    // INIT 会话收敛到 dsh 场景（在新会话里要求生成/更新 AGENTS.md）
+    window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'dsh' } }));
+  }, []);
 
   return (
     <div className={[
@@ -294,16 +234,6 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
-
-      <div className={`ai00-x-nav-panel__workspace-item-sessions${sessionsCollapsed ? ' is-collapsed' : ''}`}>
-        <SessionsSection
-          workspaceId={workspace.id}
-          workspacePath={workspace.rootPath}
-          remoteConnectionId={isRemoteWorkspace(workspace) ? workspace.connectionId : null}
-          remoteSshHost={isRemoteWorkspace(workspace) ? workspace.sshHost : null}
-          isActiveWorkspace={isActive}
-        />
       </div>
 
     </div>

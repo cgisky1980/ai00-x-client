@@ -4,7 +4,6 @@ import { AboutDialog } from '../components/AboutDialog';
 import { MCPInteractionDialog } from '../components/MCPInteractionDialog/MCPInteractionDialog';
 import { WorkspaceManager } from '../../tools/workspace';
 import { globalAPI } from '@/infrastructure/api/service-api/GlobalAPI';
-import { SandboxCreationModal } from '@/flow_chat/components/SandboxCreationModal/SandboxCreationModal';
 import type { WorkspaceInfo } from '@/shared/types';
 
 interface DialogOverlayProps {
@@ -54,7 +53,6 @@ const DialogOverlay: React.FC<DialogOverlayProps> = ({
         onWorkspaceSelect={() => {}}
       />
       {includeMCP && <MCPInteractionDialog />}
-      <SandboxCreationModal />
     </>
   );
 };

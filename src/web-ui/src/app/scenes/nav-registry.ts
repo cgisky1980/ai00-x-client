@@ -18,7 +18,6 @@ const SCENE_NAV_REGISTRY: Partial<Record<SceneTabId, LazyNavComponent>> = {
   'file-viewer': lazy(() => import('./file-viewer/FileViewerNav')),
   shell: lazy(() => import('./shell/ShellNav')),
   wallpaper: lazy(() => import('./wallpaper/WallpaperNavScene')),
-  'task-welcome': lazy(() => import('../components/TaskNav/TaskNav')),
 };
 
 /**

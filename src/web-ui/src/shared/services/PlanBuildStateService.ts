@@ -226,13 +226,10 @@ class PlanBuildStateService {
           planContent,
         });
 
-        const sid = this.planFilePathToSessionId.get(key);
-        if (sid) {
-          const { FlowChatStore } = await import('@/flow_chat/store/FlowChatStore');
-          FlowChatStore.getInstance().updateActivePlanTodos(sid, updatedTodos as Array<{ id: string; content: string; status: string; assignee?: string }>);
-        }
-      } catch (error) {
-        log.error('Failed to sync todo status', { filePath: entry.planFilePath, error });
+        const _sid = this.planFilePathToSessionId.get(key);
+        void _sid; // 老状态机同步已随 flow_chat 移除
+      } catch (err) {
+        log.warn('Plan build state sync failed', { error: String(err) });
       }
     }
   };

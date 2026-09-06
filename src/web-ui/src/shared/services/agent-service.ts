@@ -121,46 +121,6 @@ export class AgentService {
       const toolEvent = event.payload;
       
       
-      if (toolEvent.tool_name === 'TodoWrite' && toolEvent.type === 'tool_start') {
-        
-        Promise.all([
-          import('@/flow_chat/services/FlowChatManager'),
-          import('@/flow_chat/state-machine')
-        ]).then(([{ FlowChatManager }, { stateMachineManager }]) => {
-          const todos = toolEvent.input?.todos || [];
-          const merge = toolEvent.input?.merge || false;
-          
-          
-          const flowChatManager = FlowChatManager.getInstance();
-          const sessionId = flowChatManager.getSessionIdByTaskId(toolEvent.task_id);
-          
-          if (sessionId) {
-            const machine = stateMachineManager.get(sessionId);
-            if (machine) {
-              const context = machine.getContext();
-              
-              
-              if (merge && context.planner) {
-                
-                const existingTodos = context.planner.todos;
-                const todoMap = new Map(existingTodos.map(t => [t.id, t]));
-                todos.forEach((todo: any) => {
-                  todoMap.set(todo.id, todo);
-                });
-                context.planner.todos = Array.from(todoMap.values());
-              } else {
-                
-                context.planner = {
-                  todos,
-                  isActive: true
-                };
-              }
-            }
-          }
-        }).catch(err => {
-          log.error('Failed to update state machine Planner', err);
-        });
-      }
       
       if (toolEvent.task_id) {
         const listener = this.streamListeners.get(toolEvent.task_id);

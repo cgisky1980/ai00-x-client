@@ -13,10 +13,8 @@ import { Wand2, ArrowRight, Loader2, FolderOpen, Monitor } from 'lucide-react';
 import { Button } from '@/component-library';
 import { wallpaperAPI } from '@/infrastructure/api/service-api/WallpaperAPI';
 import { configAPI } from '@/infrastructure/api';
-import { FlowChatManager } from '@/flow_chat/services/FlowChatManager';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
-import { findWallpaperProjectSession } from '@/app/utils/projectSessionWorkspace';
-import { openMainSession } from '@/flow_chat/services/sessionNavigation';
+import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
+import { useTheaterStore } from '@/app/components/AgentTheater/theaterStore';
 import './WallpaperDesignView.scss';
 
 interface StyleCardData {
@@ -100,24 +98,12 @@ export const WallpaperDesignView: React.FC = () => {
       const projectName = name || (prompt.length > 30 ? prompt.slice(0, 30) + '...' : prompt);
       const result = await wallpaperAPI.createWorkspaceProject(projectName);
 
-      const existingSession = findWallpaperProjectSession(result.projectPath);
+      const { sessionId } = await dshSession.create({ cwd: result.projectPath });
+      const fullPrompt = `Project: ${projectName}
 
-      let sessionId: string;
-      if (existingSession) {
-        sessionId = existingSession.sessionId;
-      } else {
-        const manager = FlowChatManager.getInstance();
-        sessionId = await manager.createChatSession(
-          { workspacePath: result.projectPath },
-          'Wallpaper',
-        );
-      }
-
-      await openMainSession(sessionId);
-
-      const fullPrompt = `Project: ${projectName}\n\n${prompt}`;
-      const manager = FlowChatManager.getInstance();
-      await manager.sendMessage(fullPrompt, sessionId);
+${prompt}`;
+      await dshSession.prompt(sessionId, fullPrompt);
+      useTheaterStore.getState().openChatPanel(sessionId, projectName);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -145,27 +131,8 @@ export const WallpaperDesignView: React.FC = () => {
         return;
       }
 
-      const existing = flowChatStore.getSessionsByWorkspacePath(projectPath);
-      if (existing.length === 0) {
-        try {
-          await flowChatStore.initializeFromDisk(projectPath);
-        } catch {
-          // Non-critical
-        }
-      }
-
-      const existingSession = findWallpaperProjectSession(projectPath);
-
-      if (existingSession) {
-        await openMainSession(existingSession.sessionId);
-      } else {
-        const manager = FlowChatManager.getInstance();
-        const sessionId = await manager.createChatSession(
-          { workspacePath: projectPath },
-          'Wallpaper',
-        );
-        await openMainSession(sessionId);
-      }
+      const { sessionId } = await dshSession.create({ cwd: projectPath });
+      useTheaterStore.getState().openChatPanel(sessionId, project.name || project.projectPath || 'Wallpaper');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

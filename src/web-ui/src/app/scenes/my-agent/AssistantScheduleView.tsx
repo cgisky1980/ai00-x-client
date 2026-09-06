@@ -25,9 +25,14 @@ import {
   type UpdateCronJobRequest,
 } from '@/infrastructure/api';
 import { useI18n } from '@/infrastructure/i18n';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
-import type { FlowChatState, Session } from '@/flow_chat/types/flow-chat';
-import { compareSessionsForDisplay } from '@/flow_chat/utils/sessionOrdering';
+import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
+
+/** 轻量会话模型（替代老 flow_chat Session） */
+interface DshSessionItem {
+  sessionId: string;
+  title: string;
+  updatedAt: number;
+}
 import { notificationService } from '@/shared/notification-system/services/NotificationService';
 import { createLogger } from '@/shared/utils/logger';
 import './AssistantScheduleView.scss';
@@ -172,7 +177,7 @@ function formatTimestamp(
   }).format(timestampMs);
 }
 
-function resolveSessionLabel(session: Session): string {
+function resolveSessionLabel(session: DshSessionItem): string {
   return session.title?.trim() || session.sessionId.slice(0, 8);
 }
 
@@ -181,7 +186,7 @@ const AssistantScheduleView: React.FC<AssistantScheduleViewProps> = ({
   sessionId,
 }) => {
   const { t } = useI18n('common');
-  const [flowChatState, setFlowChatState] = useState<FlowChatState>(() => flowChatStore.getState());
+  const [dshSessions, setDshSessions] = useState<DshSessionItem[]>([]);
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -192,17 +197,21 @@ const AssistantScheduleView: React.FC<AssistantScheduleViewProps> = ({
   );
 
   useEffect(() => {
-    const unsubscribe = flowChatStore.subscribe((state) => setFlowChatState(state));
-    return unsubscribe;
+    void (async () => {
+      try {
+        const { items } = await dshSession.list();
+        setDshSessions(items.map(it => ({
+          sessionId: it.sessionId,
+          title: it.projections?.values?.title ?? it.sessionId.slice(8, 16),
+          updatedAt: it.updatedAt,
+        })));
+      } catch {
+        setDshSessions([]);
+      }
+    })();
   }, []);
 
-  const workspaceSessions = useMemo(() => {
-    const wp = workspacePath?.trim() ?? '';
-    if (!wp) return [] as Session[];
-    return Array.from(flowChatState.sessions.values())
-      .filter(s => (s.workspacePath || wp) === wp)
-      .sort(compareSessionsForDisplay);
-  }, [workspacePath, flowChatState.sessions]);
+  const workspaceSessions = useMemo((): DshSessionItem[] => dshSessions, [dshSessions]);
 
   const defaultSessionIdForWorkspace = useMemo(
     () => workspaceSessions[0]?.sessionId ?? '',

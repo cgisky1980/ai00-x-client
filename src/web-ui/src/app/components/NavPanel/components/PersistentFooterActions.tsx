@@ -37,7 +37,7 @@ import {
   getRemoteConnectDisclaimerAgreed,
   setRemoteConnectDisclaimerAgreed,
 } from '../../RemoteConnectDialog/remoteConnectDisclaimerStorage';
-import { MERMAID_INTERACTIVE_EXAMPLE } from '@/flow_chat/constants/mermaidExamples';
+import { MERMAID_INTERACTIVE_EXAMPLE } from '@/shared/constants/mermaidExamples';
 
 interface PersistentFooterActionsProps {
   /** Compact mode: hide browser, mermaid, and insights buttons (used in task window) */

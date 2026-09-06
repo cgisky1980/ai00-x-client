@@ -11,7 +11,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { HelpCircle, Send } from 'lucide-react';
 import { PromptInput } from '@/component-library';
-import ModelSelector from '@/flow_chat/components/ModelSelector';
+import ModelSelector from '@/shared/components/ModelSelector';
 import { useTodoStore } from '../../store/todoStore';
 import { planChatReply, generateBoardPlan, DELEGATION_RE } from '../../ai/consult';
 import type { PlanChatTurn } from '../../ai/consult';

@@ -66,12 +66,6 @@ const GenerativeWidgetPanel = React.lazy(() =>
   import('@/tools/generative-widget/GenerativeWidgetPanel')
 );
 
-const TaskDetailPanel = React.lazy(() => 
-  import('@/flow_chat/components/TaskDetailPanel').then(module => ({
-    default: module.TaskDetailPanel
-  }))
-);
-
 // CodePreview, ChartRenderer and CodeNode removed - visualization features disabled
 import {
   FlexiblePanelProps
@@ -327,43 +321,10 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
                         }
                       });
                     }
-                    // Write back updated mermaid code to flowChatStore and persist to disk.
+                    // Write-back of mermaid code to old session store removed with flow_chat.
                     const source = mermaidData._source;
                     if (source?.type === 'tool-call' && source.toolCallId && newData.mermaid_code) {
-                      import('@/flow_chat/store/FlowChatStore').then(({ flowChatStore }) => {
-                        import('@/flow_chat/services/FlowChatManager').then(({ flowChatManager }) => {
-                          const state = flowChatStore.getState();
-                          const activeSessionId = state.activeSessionId;
-                          if (!activeSessionId) return;
-
-                          const session = state.sessions.get(activeSessionId);
-                          if (!session) return;
-
-                          for (const turn of session.dialogTurns) {
-                            for (const round of turn.modelRounds) {
-                              const item = round.items.find(
-                                (it: any) =>
-                                  it.type === 'tool' &&
-                                  (it.toolCall?.id === source.toolCallId || it.id === source.toolItemId)
-                              );
-                              if (item) {
-                                const toolItem = item as any;
-                                flowChatStore.updateModelRoundItem(activeSessionId, turn.id, toolItem.id, {
-                                  toolCall: {
-                                    ...toolItem.toolCall,
-                                    input: {
-                                      ...toolItem.toolCall.input,
-                                      mermaid_code: newData.mermaid_code,
-                                    }
-                                  }
-                                } as any);
-                                flowChatManager.saveDialogTurn(activeSessionId, turn.id).catch(() => {});
-                                return;
-                              }
-                            }
-                          }
-                        });
-                      });
+                      // no-op: legacy session write-back no longer exists
                     }
                   }}
                   onInteraction={onInteraction}
@@ -688,14 +649,6 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
         );
 
 
-      case 'task-detail': {
-        const taskDetailData = content.data || {};
-        return (
-          <React.Suspense fallback={<div className="ai00-x-flexible-panel__loading">{t('flexiblePanel.loading.taskDetail')}</div>}>
-            <TaskDetailPanel data={taskDetailData} />
-          </React.Suspense>
-        );
-      }
 
       case 'plan-viewer': {
         const planViewerData = content.data || {};

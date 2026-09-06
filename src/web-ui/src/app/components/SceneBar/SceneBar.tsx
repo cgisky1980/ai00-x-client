@@ -9,7 +9,6 @@
 import React from 'react';
 import SceneTab from './SceneTab';
 import { useSceneManager } from '../../hooks/useSceneManager';
-import { useCurrentSessionTitle } from '../../hooks/useCurrentSessionTitle';
 import { useCurrentSettingsTabTitle } from '../../hooks/useCurrentSettingsTabTitle';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import './SceneBar.scss';
@@ -26,7 +25,6 @@ const SceneBar: React.FC<SceneBarProps> = ({
   onDrag: _onDrag,
 }) => {
   const { openTabs, activeTabId, tabDefs, activateScene, closeScene } = useSceneManager();
-  const sessionTitle = useCurrentSessionTitle();
   const settingsTabTitle = useCurrentSettingsTabTitle();
   const { t } = useI18n('common');
   const sceneBarClassName = `ai00-x-scene-bar ${className}`.trim();
@@ -47,8 +45,7 @@ const SceneBar: React.FC<SceneBarProps> = ({
           if (!def) return null;
           const translatedLabel = def.labelKey ? t(def.labelKey) : def.label;
           const subtitle =
-            (tab.id === 'session' && sessionTitle ? sessionTitle : undefined)
-            ?? (tab.id === 'settings' && settingsTabTitle ? settingsTabTitle : undefined);
+            tab.id === 'settings' && settingsTabTitle ? settingsTabTitle : undefined;
           return (
             <SceneTab
               key={tab.id}

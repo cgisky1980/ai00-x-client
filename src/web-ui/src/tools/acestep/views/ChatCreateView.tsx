@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useAceStepStore } from '../store/acestepStore';
-import { ModelSelector } from '@/flow_chat/components/ModelSelector';
+import { ModelSelector } from '@/shared/components/ModelSelector';
 import { SessionParamsPanel } from '../components/SessionParamsPanel';
 import { SessionAudioList } from '../components/SessionAudioList';
 import { LegoFlowPanel } from '../components/LegoFlowPanel';

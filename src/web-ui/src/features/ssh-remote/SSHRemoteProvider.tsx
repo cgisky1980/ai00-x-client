@@ -7,7 +7,6 @@ import { workspaceManager } from '@/infrastructure/services/business/workspaceMa
 import { WorkspaceKind } from '@/shared/types/global-state';
 import type { SSHConnectionConfig, RemoteWorkspace } from './types';
 import { sshApi } from './sshApi';
-import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 import { normalizeRemoteWorkspacePath } from '@/shared/utils/pathUtils';
 import {
   SSHContext,
@@ -17,20 +16,6 @@ import {
 
 const log = createLogger('SSHRemoteProvider');
 
-/** Match opened `WorkspaceInfo` so list_sessions maps to ~/.ai00-x/remote_ssh/... */
-function sshHostForRemoteWorkspace(connectionId: string, remotePath: string): string | undefined {
-  const norm = normalizeRemoteWorkspacePath(remotePath);
-  const cid = connectionId.trim();
-  for (const w of workspaceManager.getState().openedWorkspaces.values()) {
-    if (w.workspaceKind !== WorkspaceKind.Remote) continue;
-    if ((w.connectionId ?? '').trim() !== cid) continue;
-    if (normalizeRemoteWorkspacePath(w.rootPath) === norm) {
-      const h = w.sshHost?.trim();
-      if (h) return h;
-    }
-  }
-  return undefined;
-}
 
 /** After parallel reconnects: prefer the user's active remote workspace, else last in sidebar order (matches legacy serial last-write). */
 function pickGlobalRemoteAfterReconnect(
@@ -316,14 +301,7 @@ export const SSHRemoteProvider: React.FC<SSHRemoteProviderProps> = ({ children }
             if (!isAlreadyOpened) {
               await workspaceManager.openRemoteWorkspace(workspace).catch(() => {});
             }
-            void flowChatStore
-              .initializeFromDisk(
-                workspace.remotePath,
-                workspace.connectionId,
-                workspace.sshHost?.trim() ||
-                  sshHostForRemoteWorkspace(workspace.connectionId, workspace.remotePath)
-              )
-              .catch(() => {});
+
 
             return { ok: true as const, connected: { workspace, connectionId: workspace.connectionId } };
           }
@@ -348,17 +326,7 @@ export const SSHRemoteProvider: React.FC<SSHRemoteProviderProps> = ({ children }
             if (!isAlreadyOpened) {
               await workspaceManager.openRemoteWorkspace(result.workspace).catch(() => {});
             }
-            void flowChatStore
-              .initializeFromDisk(
-                result.workspace.remotePath,
-                result.workspace.connectionId,
-                result.workspace.sshHost?.trim() ||
-                  sshHostForRemoteWorkspace(
-                    result.workspace.connectionId,
-                    result.workspace.remotePath
-                  )
-              )
-              .catch(() => {});
+
 
             return {
               ok: true as const,

@@ -3,7 +3,7 @@
 import type { FileSystemNode } from '../../../tools/file-system/types';
 import type { FileContext, DirectoryContext, ImageContext, ContextItem } from '../../types/context';
 import type { IDragSource, DragPayload, PreviewData } from '../../types/drag';
-import { isImageFile, getMimeTypeFromFilename } from '../../../flow_chat/utils/imageUtils';
+import { isImageFile, getMimeTypeFromFilename } from '../../utils/imageUtils';
 import { i18nService } from '@/infrastructure/i18n';
 export class FileTreeDragSource implements IDragSource<FileSystemNode> {
   readonly sourceId = 'file-tree-primary';
