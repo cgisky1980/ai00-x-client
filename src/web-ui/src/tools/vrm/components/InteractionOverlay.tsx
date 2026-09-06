@@ -1,5 +1,4 @@
 import React, { useCallback } from 'react'
-import { invoke } from '@tauri-apps/api/core'
 import { VoiceIndicator } from './VoiceIndicator'
 import { ClickEffectRenderer } from './ClickEffectRenderer'
 import { SpellEffectRenderer } from './SpellEffectRenderer'
@@ -14,11 +13,11 @@ export const InteractionOverlay: React.FC = () => {
   useVoiceIndicator()
 
   const handleOpenSettings = useCallback(() => {
-    invoke('open_task_window', { sessionId: null, sessionTitle: null, openSettings: true }).catch(() => {})
+    window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'settings' } }))
   }, [])
 
   const handleOpenMain = useCallback(() => {
-    invoke('open_task_window', { sessionId: null, sessionTitle: null }).catch(() => {})
+    window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'dsh' } }))
   }, [])
 
   const {

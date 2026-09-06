@@ -17,16 +17,21 @@ import { GripHorizontal, X } from 'lucide-react';
 import { ModelSelector, PromptInput } from '@/component-library';
 import {
   connectMux,
+  dshApproval,
+  dshQuestion,
   dshSession,
   foldEvents,
-  type DshMuxFrame,
+  type DshApproval,
   type DshMessage,
+  type DshMuxFrame,
+  type DshQuestion,
+  type DshQuestionAnswerItem,
   type DshSessionEvent,
   type DshSessionModels,
 } from '@/infrastructure/api/service-api/DshAPI';
 import { useDraggable, refreshRegions, setDragging } from '../../../infrastructure/overlay';
 import { usePopupResize } from '../../../tools/island/hooks/usePopupResize';
-import { MessageBubble } from '../../scenes/dsh/DshChatPieces';
+import { ApprovalCard, MessageBubble, QuestionCard } from '../../scenes/dsh/DshChatPieces';
 // 消息/输入区样式类来自策场景（__msg* / __composer），必须引入该样式表
 import '../../scenes/dsh/DshScene.scss';
 import type { ChatPanelInfo } from './theaterStore';
@@ -53,6 +58,8 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [agentRunning, setAgentRunning] = useState(false);
+  const [approvals, setApprovals] = useState<DshApproval[]>([]);
+  const [questions, setQuestions] = useState<DshQuestion[]>([]);
   const [models, setModels] = useState<DshSessionModels | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   /** 基线 + 实时事件统一数组（foldEvents 的输入） */
@@ -151,7 +158,39 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
   // 实时流（浮层存在期间订阅）
   useEffect(() => {
     if (!sessionId) return undefined;
-    const conn = connectMux((frame: DshMuxFrame) => {
+    const conn = connectMux((frame: DshMuxFrame, frameRpcId: string) => {
+      // 审批/提问（mux 重连会重放 pending 帧 → 按 rpcId 去重）
+      if (frame.type === 'approval/requested' && frame.sessionId === sessionId) {
+        setApprovals(prev =>
+          prev.some(a => a.rpcId === frameRpcId)
+            ? prev
+            : [...prev, {
+                rpcId: frameRpcId,
+                sessionId,
+                approvalId: frame.approvalId,
+                toolName: frame.toolName,
+                callId: frame.callId,
+                reason: frame.reason,
+              }],
+        );
+        return;
+      }
+      if (frame.type === 'approval/resolved' && frame.sessionId === sessionId) {
+        setApprovals(prev => prev.filter(a => a.approvalId !== frame.approvalId));
+        return;
+      }
+      if (frame.type === 'question/requested' && frame.sessionId === sessionId) {
+        setQuestions(prev =>
+          prev.some(q => q.rpcId === frameRpcId)
+            ? prev
+            : [...prev, { rpcId: frameRpcId, sessionId, questions: frame.questions }],
+        );
+        return;
+      }
+      if (frame.type === 'question/resolved' && frame.sessionId === sessionId) {
+        setQuestions(prev => prev.filter(q => q.rpcId !== frame.questionRpcId));
+        return;
+      }
       if (frame.type !== 'session/event' || frame.sessionId !== sessionId) return;
       if (frame.event.type === 'turn/end') {
         // turn 结束后以引擎基线为权威重拉（含 usage 与完整折叠），并刷新运行态
@@ -192,6 +231,23 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
+  };
+
+  const respondApproval = async (rpcId: string, outcome: 'allowed-once' | 'rejected'): Promise<void> => {
+    const a = approvals.find(x => x.rpcId === rpcId);
+    if (!a) return;
+    const receipt = await dshApproval.respond(rpcId, sessionId, a.approvalId, outcome);
+    if (receipt.accepted) setApprovals(prev => prev.filter(x => x.rpcId !== rpcId));
+  };
+
+  const respondQuestion = async (rpcId: string, answers: DshQuestionAnswerItem[]): Promise<void> => {
+    const receipt = await dshQuestion.respond(rpcId, sessionId, answers);
+    if (receipt.accepted) setQuestions(prev => prev.filter(q => q.rpcId !== rpcId));
+  };
+
+  const cancelQuestion = (rpcId: string): void => {
+    void dshQuestion.cancel(rpcId);
+    setQuestions(prev => prev.filter(q => q.rpcId !== rpcId));
   };
 
   const handleSelectModel = async (groupId: string, modelId: string): Promise<void> => {
@@ -245,6 +301,25 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
           ))}
           {error && <div className="ai00-x-dsh-scene__error">{error}</div>}
         </div>
+
+        {approvals.length > 0 && (
+          <div className="ai00-x-dsh-scene__approvals">
+            {approvals.map(a => (
+              <ApprovalCard
+                key={a.rpcId}
+                approval={a}
+                onRespond={(rpcId, outcome) => void respondApproval(rpcId, outcome)}
+              />
+            ))}
+          </div>
+        )}
+        {questions.length > 0 && (
+          <div className="ai00-x-dsh-scene__approvals">
+            {questions.map(q => (
+              <QuestionCard key={q.rpcId} batch={q} onRespond={respondQuestion} onCancel={cancelQuestion} />
+            ))}
+          </div>
+        )}
 
         {/* 标准对话输入框（design-system PromptInput + ModelSelector，同 DshScene） */}
         <div className="ai00-x-dsh-scene__composer">

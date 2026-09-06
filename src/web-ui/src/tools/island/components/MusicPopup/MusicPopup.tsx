@@ -286,7 +286,7 @@ export const MusicPopup: React.FC = () => {
 
   // ---- Open the task window and switch to the music creation (AceStep) scene ----
   const handleOpenCreator = useCallback(() => {
-    invoke('open_task_window', { sessionId: null, sessionTitle: null, openMusic: true }).catch(() => {})
+    window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'acestep' } }))
   }, [])
 
   // ---- Draggable, non-modal popup ----

@@ -39,13 +39,9 @@ export const ToolsActivity: React.FC = () => {
     {
       key: 'task',
       icon: AppWindow,
-      label: '打开任务窗口',
+      label: '打开设置',
       onClick: () => {
-        invoke('open_task_window', {
-          sessionId: null,
-          sessionTitle: null,
-          openSettings: true,
-        }).catch(() => {})
+        window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'settings' } }))
       },
     },
     {

@@ -406,7 +406,7 @@
   // width/height 由 usePopupResize inline style 控制（可 resize）
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-elevated, #1e1e24);
+  background: var(--color-bg-primary); // 对齐 dsh 场景主底（对话区视觉一致）
   border: 1px solid var(--border-base);
   border-radius: var(--radius-lg, 12px);
   box-shadow: var(--shadow-xl, 0 12px 24px rgba(0, 0, 0, 0.5));

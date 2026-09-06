@@ -17,6 +17,7 @@ import { getAgentModule } from '../agent-modules';
 import type { TodoTask } from '../api/types';
 import { useTodoStore } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
+import { useTheaterStore } from '@/app/components/AgentTheater/theaterStore';
 import {
   getDefaultWorkspace,
   pickWorkspaceDir,
@@ -119,8 +120,8 @@ export function useAgentDelegate() {
         status: 'doing',
       });
 
-      // 6. 唤起主窗 Agent 场景
-      await invoke('open_task_window', { openDsh: true }).catch(() => undefined);
+      // 6. 打开会话对话浮层（webui 内，不再开老 taskWindow）
+      useTheaterStore.getState().openChatPanel(sessionId, task.title);
       return true;
     } catch (e) {
       useGrowthStore.getState().showToast('委托失败', e instanceof Error ? e.message : String(e));
