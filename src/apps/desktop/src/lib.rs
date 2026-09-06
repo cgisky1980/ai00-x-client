@@ -39,7 +39,6 @@ pub mod rwkv_llm;
 pub mod server;
 pub mod share;
 pub mod system_monitor;
-pub mod task_window;
 pub mod theme;
 pub mod tts;
 pub mod underlay;
@@ -492,7 +491,6 @@ pub async fn run() {
                             if let Some(win) = window.app_handle().get_webview_window("underlays") {
                                 let _ = win.close();
                             }
-                            task_window::close_all_task_windows(window.app_handle());
                             preview_window::close_all_preview_windows(window.app_handle());
                             ai00_x_core::util::process_manager::cleanup_all_processes();
                             api::remote_connect_api::cleanup_on_exit();
@@ -518,7 +516,6 @@ pub async fn run() {
                             if let Some(win) = window.app_handle().get_webview_window("underlays") {
                                 let _ = win.close();
                             }
-                            task_window::close_all_task_windows(window.app_handle());
                             preview_window::close_all_preview_windows(window.app_handle());
                             ai00_x_core::util::process_manager::cleanup_all_processes();
                             api::remote_connect_api::cleanup_on_exit();
@@ -553,10 +550,6 @@ pub async fn run() {
             theme::open_overlay_force,
             theme::show_main_window,
             theme::hide_loader_window,
-            task_window::open_task_window,
-            task_window::close_task_window,
-            task_window::focus_task_window,
-            task_window::is_task_window_open,
             member_chat_window::open_member_chat_window,
             member_chat_window::close_member_chat_window,
             member_chat_window::focus_member_chat_window,

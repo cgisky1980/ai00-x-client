@@ -143,7 +143,6 @@ export default defineConfig(({ mode, command }) => {
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
-        chat: path.resolve(__dirname, 'chat.html'),
         preview: path.resolve(__dirname, 'preview.html'),
         'member-chat': path.resolve(__dirname, 'member-chat.html'),
         design: path.resolve(__dirname, 'design.html'),
