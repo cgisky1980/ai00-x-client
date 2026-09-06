@@ -1,7 +1,7 @@
 /**
  * Reproduction steps block styles
  */
-@use '../../../flow_chat/tool-cards/_tool-card-common.scss';
+@use '../../../shared/components/tool-card-common' as tc;
 
 
 .reproduction-steps-block {
