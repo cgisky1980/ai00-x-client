@@ -11,7 +11,7 @@ import { GardenToolbar } from "@underlay/components/GardenToolbar";
 import { listen } from "@tauri-apps/api/event";
 import { BackgroundProvider, DynamicBackground } from "@underlay/components/DynamicBackground";
 import { useTodoGardenBridge } from "@underlay/lib/bridges/todoGardenBridge";
-
+import { useTheaterGardenBridge } from '@underlay/lib/bridges/theaterGardenBridge';
 /**
  * 派发鼠标事件到 window，触发 window 级 capture 监听器（如花盆拖动/点击）。
  * 用于 Tauri raw mouse 注入：当点击落在背景 iframe 或桌面空白区域时，
@@ -155,6 +155,7 @@ function useRawMouseInjection() {
 function UnderlayApp() {
   useRawMouseInjection();
   useTodoGardenBridge();
+  useTheaterGardenBridge();
   const pluginLayerRef = useRef<HTMLDivElement | null>(null);
 
   // Injected plugin runtime (underlay:mount hook), hot-pluggable

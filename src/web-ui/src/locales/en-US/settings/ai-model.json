@@ -191,19 +191,6 @@
     "save": "Save Proxy Configuration",
     "saveSuccess": "Proxy configuration saved, restart IDE to take effect"
   },
-  "ai00s": {
-    "title": "Ai00-S Service Address",
-    "description": "The base URL of the Ai00-S AI proxy service. All ai00s-free/ai00s-vip model requests will automatically use the new address after saving.",
-    "baseUrl": "Service URL",
-    "baseUrlHint": "Full URL of the Ai00-S proxy service (including protocol and port)",
-    "save": "Save Address",
-    "saveSuccess": "Ai00-S address updated, client cache refreshed",
-    "quickSwitch": "Server Switch",
-    "quickSwitchHint": "One-click switch between production and test servers, effective immediately (re-login required on the target site)",
-    "prodServer": "Prod app.ai00-x.com",
-    "testServer": "Test ai00-x.com",
-    "switchSuccess": "Switched to {{label}}"
-  },
   "capabilities": {
     "text_chat": "Chat",
     "image_understanding": "Vision",
@@ -232,13 +219,8 @@
     "noModels": "No model configurations",
     "noMatchingModels": "No matching models found"
   },
-  "defaultModels": {
-    "sectionTitle": "Default Models",
-    "builtin": "Built-in",
-    "baseUrlLabel": "Base URL"
-  },
   "customModels": {
-    "sectionTitle": "Custom Models"
+    "sectionTitle": "Custom Model APIs"
   },
   "search": {
     "placeholder": "Search model name, provider..."

@@ -2,67 +2,33 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Bot,
+  GitFork,
   HelpCircle,
+  Pencil,
   Plus,
   RefreshCw,
   ShieldQuestion,
-  User,
-  Wrench,
   X,
+  Zap,
 } from 'lucide-react';
 import { Button, ModelSelector, PromptInput } from '@/component-library';
 import { useNotification } from '@/shared/notification-system';
 import { createConfigCenterTab } from '@/shared/utils/tabUtils';
 import { dshPlugins } from '@/infrastructure/api/service-api/DshAPI';
 import { useDshChat } from './hooks/useDshChat';
+import { MessageBubble } from './DshChatPieces';
+import { ImpVisual } from '@/app/components/AgentTheater/ImpVisual';
+import { useTheaterStore } from '@/app/components/AgentTheater/theaterStore';
+import { consumePendingDshSession } from '@/app/components/AgentTheater/dshNav';
+import { Sparkles } from 'lucide-react';
 import type {
   DshApproval,
-  DshMessage,
+  DshPermissionRequest,
   DshQuestion,
   DshQuestionAnswerItem,
 } from '@/infrastructure/api/service-api/DshAPI';
 import './DshScene.scss';
 
-/** 消息气泡（用户/助手）。 */
-const MessageBubble: React.FC<{ message: DshMessage }> = ({ message }) => {
-  const { t } = useTranslation('scenes/dsh');
-  const isUser = message.role === 'user';
-  return (
-    <div className={`ai00-x-dsh-scene__msg ${isUser ? 'is-user' : 'is-assistant'}`}>
-      <div className="ai00-x-dsh-scene__msg-avatar">
-        {isUser ? <User size={13} /> : <Bot size={13} />}
-      </div>
-      <div className="ai00-x-dsh-scene__msg-body">
-        {message.reasoning && (
-          <details className="ai00-x-dsh-scene__msg-reasoning">
-            <summary>{t('chat.reasoning')}</summary>
-            <div>{message.reasoning}</div>
-          </details>
-        )}
-        {message.toolCalls.map(tc => (
-          <details key={tc.id} className="ai00-x-dsh-scene__msg-tool">
-            <summary>
-              <Wrench size={11} />
-              <span>{tc.name}</span>
-            </summary>
-            <pre>{tc.arguments}</pre>
-          </details>
-        ))}
-        {message.text && (
-          <div className={`ai00-x-dsh-scene__msg-text${message.streaming ? ' is-streaming' : ''}`}>
-            {message.text}
-          </div>
-        )}
-        {message.streaming && !message.text && (
-          <div className="ai00-x-dsh-scene__msg-pending">{t('chat.thinking')}</div>
-        )}
-        {message.error && (
-          <div className="ai00-x-dsh-scene__msg-error">{message.error}</div>
-        )}
-      </div>
-    </div>
-  );
-};
 
 /** 待处理审批卡片（工具执行确认）。 */
 const ApprovalCard: React.FC<{
@@ -94,6 +60,37 @@ const ApprovalCard: React.FC<{
           onClick={() => onRespond(approval.rpcId, 'rejected')}
         >
           {t('approval.reject')}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+/** 插件 scope 授权卡（per-plugin 权限模型 v1：403 归因 → 一键授予）。 */
+const PermissionCard: React.FC<{
+  request: DshPermissionRequest;
+  onGrant: (request: DshPermissionRequest) => void;
+  onDismiss: (request: DshPermissionRequest) => void;
+}> = ({ request, onGrant, onDismiss }) => {
+  const { t } = useTranslation('scenes/dsh');
+  return (
+    <div className="ai00-x-dsh-scene__approval">
+      <div className="ai00-x-dsh-scene__approval-head">
+        <ShieldQuestion size={14} />
+        <span className="ai00-x-dsh-scene__approval-tool">{request.pluginId}</span>
+        <span className="ai00-x-dsh-scene__approval-label">
+          {t('permission.pending', { scope: request.scope })}
+        </span>
+      </div>
+      <p className="ai00-x-dsh-scene__approval-reason">
+        {t('permission.reason', { scope: request.scope })}
+      </p>
+      <div className="ai00-x-dsh-scene__approval-actions">
+        <Button variant="primary" size="small" onClick={() => onGrant(request)}>
+          {t('permission.grant')}
+        </Button>
+        <Button variant="secondary" size="small" onClick={() => onDismiss(request)}>
+          {t('permission.deny')}
         </Button>
       </div>
     </div>
@@ -240,6 +237,8 @@ const DshScene: React.FC = () => {
     questions,
     models,
     pluginError,
+    permissionRequests,
+    usage,
     openSession,
     newSession,
     send,
@@ -249,11 +248,69 @@ const DshScene: React.FC = () => {
     respondQuestion,
     cancelQuestion,
     selectModel,
+    renameSession,
+    forkSession,
+    restartEngine,
+    grantPermission,
+    dismissPermission,
     clearPluginError,
   } = useDshChat();
 
+  // 工灵剧场（AgentTheater）：开关 + 会话卡片点击联动（设计 §3.5）
+  const theaterEnabled = useTheaterStore((st) => st.enabled);
+  const setTheaterEnabled = useTheaterStore((st) => st.setEnabled);
+  const openChatPanel = useTheaterStore((st) => st.openChatPanel);
+
+  // 外部唤起：AgentCard「打开会话」/ 其他入口 → 选中并打开会话
+  useEffect(() => {
+    const onOpenSession = (e: Event): void => {
+      const detail = (e as CustomEvent<{ sessionId?: string }>).detail;
+      const sid = detail?.sessionId;
+      if (sid) void openSession(sid);
+    };
+    window.addEventListener('dsh:open-session', onOpenSession);
+    // 跨懒加载边界：AgentCard 先记 pending 再开场景，此处挂载即取走
+    const pending = consumePendingDshSession();
+    if (pending) void openSession(pending);
+    return () => window.removeEventListener('dsh:open-session', onOpenSession);
+  }, [openSession]);
+
   /** 一键停用归因插件的进行中标记。 */
   const [disablingPlugin, setDisablingPlugin] = useState(false);
+  /** 会话重命名的行内编辑态。 */
+  const [renaming, setRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState('');
+  /** fork 进行中标记（当前会话）。 */
+  const [forking, setForking] = useState(false);
+
+  const submitRename = () => {
+    if (!currentSessionId) return;
+    const title = renameDraft.trim();
+    setRenaming(false);
+    if (title) void renameSession(currentSessionId, title);
+  };
+
+  const startRename = (currentTitle: string) => {
+    setRenameDraft(currentTitle);
+    setRenaming(true);
+  };
+
+  const handleFork = async () => {
+    if (!currentSessionId || forking) return;
+    try {
+      setForking(true);
+      await forkSession(currentSessionId);
+    } finally {
+      setForking(false);
+    }
+  };
+
+  /** 用量摘要（M2.2）：紧凑格式化 tokens。 */
+  const usageLabel: string | null = (() => {
+    if (!usage) return null;
+    const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+    return `↑${fmt(usage.inputTokens)} ↓${fmt(usage.outputTokens)} · ${usage.requests}`;
+  })();
 
   /** 一键停用：停掉归因插件（bundles 摘除 + 引擎重启），成功后清横幅。 */
   const handleDisablePlugin = async () => {
@@ -350,12 +407,36 @@ const DshScene: React.FC = () => {
           </div>
         </div>
       )}
+      {permissionRequests.length > 0 && (
+        <div className="ai00-x-dsh-scene__approvals">
+          {permissionRequests.map(request => (
+            <PermissionCard
+              key={`${request.pluginId}:${request.scope}`}
+              request={request}
+              onGrant={grantPermission}
+              onDismiss={dismissPermission}
+            />
+          ))}
+        </div>
+      )}
       <aside className="ai00-x-dsh-scene__sidebar">
         <div className="ai00-x-dsh-scene__sidebar-header">
           <span className="ai00-x-dsh-scene__sidebar-title">{t('sessions.title')}</span>
-          <Button variant="ghost" size="small" onClick={newSession} aria-label={t('sessions.new')}>
-            <Plus size={14} />
-          </Button>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Button
+              variant="ghost"
+              size="small"
+              onClick={() => setTheaterEnabled(!theaterEnabled)}
+              aria-label={theaterEnabled ? t('theater.disable') : t('theater.enable')}
+              title={theaterEnabled ? t('theater.disable') : t('theater.enable')}
+              className={theaterEnabled ? 'ai00-x-dsh-scene__theater-toggle is-on' : 'ai00-x-dsh-scene__theater-toggle'}
+            >
+              <Sparkles size={14} />
+            </Button>
+            <Button variant="ghost" size="small" onClick={newSession} aria-label={t('sessions.new')}>
+              <Plus size={14} />
+            </Button>
+          </span>
         </div>
         <div className="ai00-x-dsh-scene__session-list">
           {sessionsLoading && (
@@ -364,24 +445,100 @@ const DshScene: React.FC = () => {
           {!sessionsLoading && sessions.length === 0 && (
             <div className="ai00-x-dsh-scene__session-empty">{t('sessions.empty')}</div>
           )}
-          {sessions.map(s => (
-            <button
-              key={s.sessionId}
-              type="button"
-              className={`ai00-x-dsh-scene__session-item${
-                s.sessionId === currentSessionId ? ' is-active' : ''
-              }`}
-              onClick={() => openSession(s.sessionId)}
-            >
-              <span className="ai00-x-dsh-scene__session-name">
-                {s.projections?.values?.title ?? s.sessionId.slice(8, 16)}
-              </span>
-              <span className="ai00-x-dsh-scene__session-meta">
-                {s.running && <span className="ai00-x-dsh-scene__dot" />}
-                {new Date(s.updatedAt).toLocaleTimeString()}
-              </span>
-            </button>
-          ))}
+          {sessions.map(s => {
+            const title = s.projections?.values?.title ?? s.sessionId.slice(8, 16);
+            const isActive = s.sessionId === currentSessionId;
+            return (
+              <button
+                key={s.sessionId}
+                type="button"
+                className={`ai00-x-dsh-scene__session-item${isActive ? ' is-active' : ''}`}
+                onClick={() => openSession(s.sessionId)}
+              >
+                {isActive && renaming ? (
+                  <input
+                    type="text"
+                    className="ai00-x-dsh-scene__session-rename"
+                    value={renameDraft}
+                    autoFocus
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => setRenameDraft(e.target.value)}
+                    onBlur={submitRename}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') submitRename();
+                      if (e.key === 'Escape') setRenaming(false);
+                    }}
+                  />
+                ) : (
+                  <span className="ai00-x-dsh-scene__session-name">{title}</span>
+                )}
+                <span className="ai00-x-dsh-scene__session-meta">
+                  {s.running && theaterEnabled && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="ai00-x-dsh-scene__session-imp"
+                      title={t('theater.openCard')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openChatPanel(s.sessionId, title);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.stopPropagation();
+                          openChatPanel(s.sessionId, title);
+                        }
+                      }}
+                    >
+                      <ImpVisual sessionId={s.sessionId} category="general" size={16} />
+                    </span>
+                  )}
+                  {s.running && <span className="ai00-x-dsh-scene__dot" />}
+                  {new Date(s.updatedAt).toLocaleTimeString()}
+                </span>
+                {isActive && !renaming && (
+                  <span className="ai00-x-dsh-scene__session-actions">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="ai00-x-dsh-scene__session-action"
+                      title={t('sessions.rename')}
+                      onClick={e => {
+                        e.stopPropagation();
+                        startRename(title);
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.stopPropagation();
+                          startRename(title);
+                        }
+                      }}
+                    >
+                      <Pencil size={11} />
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="ai00-x-dsh-scene__session-action"
+                      title={t('sessions.fork')}
+                      onClick={e => {
+                        e.stopPropagation();
+                        void handleFork();
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.stopPropagation();
+                          void handleFork();
+                        }
+                      }}
+                    >
+                      <GitFork size={11} />
+                    </span>
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
         <div className="ai00-x-dsh-scene__sidebar-footer">
           <span
@@ -389,6 +546,23 @@ const DshScene: React.FC = () => {
             title={wsConnected ? t('status.wsOn') : t('status.wsOff')}
           />
           <span className="ai00-x-dsh-scene__phase">{phaseLabel}</span>
+          {usageLabel && (
+            <span className="ai00-x-dsh-scene__usage" title={t('sessions.usage')}>
+              <Zap size={10} />
+              {usageLabel}
+            </span>
+          )}
+          {phase?.phase === 'failed' && (
+            <Button
+              variant="ghost"
+              size="small"
+              onClick={() => void restartEngine()}
+              aria-label={t('status.restart')}
+              title={t('status.restart')}
+            >
+              <RefreshCw size={12} />
+            </Button>
+          )}
           <Button variant="ghost" size="small" onClick={refreshSessions} aria-label={t('sessions.refresh')}>
             <RefreshCw size={12} />
           </Button>

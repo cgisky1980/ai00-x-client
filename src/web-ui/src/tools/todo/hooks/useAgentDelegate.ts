@@ -1,10 +1,11 @@
 /**
  * useAgentDelegate — 策卡片 → dsh agent 委托交付（人机对等计划体）。
  *
- * 本轮只有普通 agent（无 preset/cwd 特化——特化模块后置为 agent 系统插件）。
- * 流程：session.create（默认 preset）→ prompt（模块职责 + 计划契约任务书 +
- * 完成自标指示）→ 回写卡片（agentModule/agentSessionId/status: doing）→
- * 唤起主窗 Agent 场景。
+ * 模块化（M1.3/M4.1）：delegate(task, moduleId?) 按 agent-modules 注册表
+ * 解析模块；module.preset 非空时作为 agentPreset 传给 session.create
+ * （dsh 引擎原生参数，Rust 侧 .agent-presets 预置同名 preset）。
+ * 流程：session.create → prompt（模块职责 + 计划契约任务书 + 完成自标指示）
+ * → 回写卡片（agentModule/agentSessionId/status: doing）→ 唤起主窗 Agent 场景。
  */
 import { useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -26,28 +27,35 @@ import {
 export function useAgentDelegate() {
   const busyRef = useRef(false);
 
-  const delegate = useCallback(async (task: TodoTask) => {
+  const delegate = useCallback(async (task: TodoTask, moduleId?: string) => {
     if (busyRef.current) return false;
-    // 恒为普通 agent（preset: '' 用默认）
-    const module = getAgentModule('agent');
+    // 模块解析：显式 moduleId 优先，缺省普通 agent（preset: '' 用默认）
+    const module = getAgentModule(moduleId) ?? getAgentModule('agent');
     if (!module) return false;
     busyRef.current = true;
     try {
       // 1. 引擎就绪
       await dshEngine.ensureReady().catch(() => undefined);
 
-      // 2. cwd 解析链：志目录 > 默认工作区；两者皆无且未设置过默认 → 首次引导
+      // 2. cwd 解析链（cwd 策略 none 的模块跳过——壁纸等无需工作目录）：
+      //    志目录 > 默认工作区；两者皆无且未设置过默认 → 首次引导
       //    选一次（挑过持久化不再问；取消则本次不带 cwd，行为同旧版）
-      let cwd = resolveDelegateCwd(useTodoStore.getState().data, task.goalId);
-      if (!cwd && !getDefaultWorkspace()) {
-        cwd = await pickWorkspaceDir();
-        if (cwd) setDefaultWorkspace(cwd);
+      let cwd: string | null = null;
+      if (module.cwd === 'ask') {
+        cwd = resolveDelegateCwd(useTodoStore.getState().data, task.goalId);
+        if (!cwd && !getDefaultWorkspace()) {
+          cwd = await pickWorkspaceDir();
+          if (cwd) setDefaultWorkspace(cwd);
+        }
       }
 
-      // 3. 创建会话（cwd 缺省必须省略字段——引擎对 '' 做 mkdir 报 ENOENT）
+      // 3. 创建会话（cwd/agentPreset 缺省必须省略字段——引擎对 '' 做 mkdir 报 ENOENT）
       const { sessionId } = await dshSession.create({
         ...(cwd ? { cwd } : {}),
+        ...(module.preset ? { agentPreset: module.preset } : {}),
       });
+      // M1.4 VRAM 联动：会话创建即上报 agent 活动上下文 → 预测 warmup 本地 RWKV
+      await invoke('vram_set_active_context', { context: 'agent' }).catch(() => undefined);
 
       // 3.5 委托前基线快照（auto-init 静默；失败不阻塞委托）
       if (cwd) {

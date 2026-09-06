@@ -15,16 +15,9 @@
 }
 
 .ai00-x-create-branch-dialog {
-  background: $color-bg-primary;
-  border: 1px solid $border-base;
-  border-radius: $size-radius-base;
-  padding: $size-gap-5;
-  min-width: 520px;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 8px 16px var(--color-overlay);
-  animation: ai00-x-create-branch-dialog-scale-in 0.2s ease-out;
+  /* 弹窗面板（背景/边框/圆角/阴影/padding）由 DS Modal 基件承担，此处只做纵向流 */
+  display: flex;
+  flex-direction: column;
 
   &__header {
     display: flex;
@@ -253,17 +246,6 @@
   }
   to {
     opacity: 1;
-  }
-}
-
-@keyframes ai00-x-create-branch-dialog-scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
   }
 }
 

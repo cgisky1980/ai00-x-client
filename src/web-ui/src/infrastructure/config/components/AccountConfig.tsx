@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LogOut, RefreshCw, Coins, Crown } from 'lucide-react';
+import { LogOut, RefreshCw, Coins, Crown, Gift } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@/component-library';
 import { requestCreditsTab } from '@/app/scenes/credits/creditsSceneEvents';
@@ -204,6 +204,10 @@ const AccountConfig: React.FC = () => {
               <Button variant="secondary" size="small" onClick={() => requestCreditsTab('membership')}>
                 <Crown size={14} />
                 {t('credits.membership', { defaultValue: '会员套餐' })}
+              </Button>
+              <Button variant="secondary" size="small" onClick={() => requestCreditsTab('invite')}>
+                <Gift size={14} />
+                {t('credits.invite', { defaultValue: '邀请好友' })}
               </Button>
             </div>
           </ConfigPageRow>

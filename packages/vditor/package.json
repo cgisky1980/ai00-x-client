@@ -1,0 +1,38 @@
+{
+    "name": "@ai00-x/vditor",
+    "version": "4.0.0",
+    "private": true,
+    "description": "Ai00-X fork of Vditor v4.0.0 (upstream Vanessa219/vditor, MIT)。基线取自上游 4.0.0，自维护自构建",
+    "author": "Vanessa <v@b3log.org> (http://vanessa.b3log.org)",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "license": "MIT",
+    "dependencies": {
+        "diff-match-patch": "^1.0.5"
+    },
+    "devDependencies": {
+        "@babel/core": "^7.26.0",
+        "@babel/preset-env": "^7.26.0",
+        "@types/diff-match-patch": "1.0.32",
+        "@types/node": "^17.0.19",
+        "autoprefixer": "^10.4.2",
+        "babel-loader": "^9.2.1",
+        "clean-webpack-plugin": "^4.0.0-alpha.0",
+        "copy-webpack-plugin": "^6.4.1",
+        "css-loader": "^5.2.4",
+        "file-loader": "^6.2.0",
+        "less": "^4.2.0",
+        "less-loader": "^10.2.0",
+        "mini-css-extract-plugin": "^2.6.0",
+        "postcss": "^8.4.12",
+        "postcss-loader": "^5.2.0",
+        "terser-webpack-plugin": "^5.3.0",
+        "ts-loader": "^9.5.1",
+        "typescript": "^4.9.5",
+        "webpack": "^5.66.0",
+        "webpack-cli": "^5.1.4"
+    },
+    "scripts": {
+        "build": "webpack"
+    }
+}

@@ -236,6 +236,11 @@ async function initializeBeforeRender(): Promise<void> {
 
   const { settingsSyncService } = await import('./infrastructure/services/infra/SettingsSyncService');
   settingsSyncService.start();
+
+  // Ai00-API 模型目录：启动即预热（持久化缓存 + 30 分钟定期后台刷新），
+  // 避免第一次打开模型选择器有明显网络延迟
+  const { startAi00sModelsAutoRefresh } = await import('./infrastructure/config/services/ai00sTier');
+  startAi00sModelsAutoRefresh();
 }
 
 /** Rest of startup runs after the shell is visible so refresh latency stays reasonable. */

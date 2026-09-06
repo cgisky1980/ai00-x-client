@@ -19,12 +19,15 @@ export interface ChatChannel {
   name: string;
   description: string;
   is_dm: boolean;
+  /** 'official'（顶层频道=分类容器，不可发言，有频道主页）| 'room'（房间=频道子级，可发言且落库） */
   kind: string;
   parent_id: number | null;
   owner_id: number | null;
   created_at: string;
   invite_only?: boolean;
   post_policy?: string;
+  /** 频道通告（迁移 018，仅 owner/admin 可编辑） */
+  announcement?: string;
 }
 
 export interface ChatMessage {
@@ -39,25 +42,24 @@ export interface ChatMessage {
   created_at: string;
   edited_at: string | null;
   deleted_at: string | null;
+  /** 客户端幂等 id：DM 补发/去重/送达对齐用（服务端仅透传不存储） */
+  client_msg_id?: string;
+  /** 本地状态（仅发送方本机 IndexedDB 维护）：pending=等待送达回执 */
+  status?: 'pending' | 'sent';
+  /** 发送者头像（data URL；历史本地 DM 消息可能无此字段） */
+  sender_avatar?: string | null;
 }
 
 export interface Member {
   channel_id: number;
   member_id: number;
   member_name: string;
+  /** 成员头像（data URL；未设置时无） */
+  member_avatar?: string | null;
   role: string;
   group_id?: number | null;
   group_name?: string | null;
   permissions?: string[];
-}
-
-export interface ChatTopic {
-  id: number;
-  channel_id: number;
-  name: string;
-  created_by: number | null;
-  created_at: string;
-  updated_at: string | null;
 }
 
 export interface ChatReaction {
@@ -74,6 +76,8 @@ export interface ChatDm {
   created_at: string;
   /** 参与者用户名列表（不含自己） */
   members: string[];
+  /** 对方头像（data URL；未设置时无） */
+  peer_avatar?: string | null;
 }
 
 export interface ChatGroup {
@@ -114,6 +118,8 @@ export interface Friend {
   member_id: number;
   username: string;
   nickname: string;
+  /** 好友头像（data URL；未设置时无） */
+  avatar?: string | null;
   since: string;
   /** 在线快照（listFriends 时由服务端附带） */
   online?: boolean;
@@ -155,21 +161,15 @@ export const chatApi = {
     return unwrap('/api/v1/chat/channels');
   },
 
-  /** 列出频道消息（可选按话题过滤 / before_id 向上翻页） */
+  /** 列出频道消息（before_id 向上翻页） */
   listMessages(
     channelId: number,
-    opts: { topicId?: number | null; beforeId?: number; limit?: number } = {},
+    opts: { beforeId?: number; limit?: number } = {},
   ): Promise<{ messages: ChatMessage[] }> {
     const params = new URLSearchParams();
-    if (opts.topicId != null) params.set('topic_id', String(opts.topicId));
     if (opts.beforeId != null) params.set('before_id', String(opts.beforeId));
     params.set('limit', String(opts.limit ?? 100));
     return unwrap(`/api/v1/chat/channels/${channelId}/messages?${params.toString()}`);
-  },
-
-  /** room 频道离线补拉（服务端内存暂存的最近消息） */
-  roomRecent(channelId: number): Promise<{ messages: ChatMessage[] }> {
-    return unwrap(`/api/v1/chat/channels/${channelId}/recent`);
   },
 
   /** 列出频道成员 */
@@ -177,11 +177,15 @@ export const chatApi = {
     return unwrap(`/api/v1/chat/channels/${channelId}/members`);
   },
 
-  /** 发送消息 */
-  sendMessage(channelId: number, content: string): Promise<{ message: ChatMessage }> {
+  /** 发送消息（clientMsgId：DM 幂等 id，重发/去重/送达对齐用） */
+  sendMessage(
+    channelId: number,
+    content: string,
+    clientMsgId?: string,
+  ): Promise<{ message: ChatMessage }> {
     return unwrap(`/api/v1/chat/channels/${channelId}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, client_msg_id: clientMsgId }),
     });
   },
 
@@ -206,21 +210,6 @@ export const chatApi = {
   /** 删除消息（作者/频道 owner） */
   deleteMessage(messageId: number): Promise<unknown> {
     return unwrap(`/api/v1/chat/messages/${messageId}`, { method: 'DELETE' });
-  },
-
-  // ---- 话题 ----
-
-  /** 列出频道话题 */
-  listTopics(channelId: number): Promise<{ topics: ChatTopic[] }> {
-    return unwrap(`/api/v1/chat/channels/${channelId}/topics`);
-  },
-
-  /** 创建话题 */
-  createTopic(channelId: number, name: string): Promise<{ topic_id: number }> {
-    return unwrap(`/api/v1/chat/channels/${channelId}/topics`, {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    });
   },
 
   // ---- 表情回应 ----
@@ -249,14 +238,10 @@ export const chatApi = {
   // ---- 已读 / 未读 ----
 
   /** 更新已读游标 */
-  updateRead(
-    channelId: number,
-    topicId: number | null,
-    lastReadMessageId: number,
-  ): Promise<unknown> {
+  updateRead(channelId: number, lastReadMessageId: number): Promise<unknown> {
     return unwrap(`/api/v1/chat/channels/${channelId}/read`, {
       method: 'PUT',
-      body: JSON.stringify({ topic_id: topicId, last_read_message_id: lastReadMessageId }),
+      body: JSON.stringify({ topic_id: null, last_read_message_id: lastReadMessageId }),
     });
   },
 
@@ -305,6 +290,7 @@ export const chatApi = {
       description?: string;
       invite_only?: boolean;
       post_policy?: string;
+      announcement?: string;
     },
   ): Promise<unknown> {
     return unwrap(`/api/v1/chat/channels/${channelId}`, {
@@ -469,7 +455,77 @@ export const chatApi = {
     const params = new URLSearchParams({ q, limit: String(limit) });
     return unwrap(`/api/v1/members/search?${params.toString()}`);
   },
+
+  // ---- 个人资料（/api/v1/me/profile）----
+
+  /** 读取我的资料（账号只读字段 + 可编辑 nickname/bio/avatarData） */
+  getMyProfile(): Promise<MyProfile> {
+    return unwrap('/api/v1/me/profile');
+  },
+
+  /** 更新我的资料（全量提交可编辑字段；null/空串 = 清空该字段；profileTheme 不传 = 保留原值） */
+  updateMyProfile(input: UpdateMyProfileInput): Promise<PickedProfile> {
+    return unwrap('/api/v1/me/profile', {
+      method: 'PUT',
+      body: JSON.stringify({
+        nickname: input.nickname ?? null,
+        bio: input.bio ?? null,
+        avatar_data: input.avatarData ?? null,
+        profile_theme: input.profileTheme ?? null,
+      }),
+    });
+  },
 };
+
+// ---- 个人资料类型（/api/v1/me/profile）----
+
+export interface MyProfile {
+  memberId: number;
+  username: string;
+  email: string;
+  planTier: string;
+  createdAt: string;
+  nickname: string | null;
+  bio: string | null;
+  avatarData: string | null;
+  /** 主页主题模板（xuanzhi/juan/yinzhang） */
+  profileTheme: string;
+}
+
+export interface UpdateMyProfileInput {
+  nickname?: string | null;
+  bio?: string | null;
+  avatarData?: string | null;
+  profileTheme?: string | null;
+}
+
+type PickedProfile = Pick<MyProfile, 'nickname' | 'bio' | 'avatarData' | 'profileTheme'>;
+
+/** 修改密码（成功后服务端吊销当前 access token，需重新登录） */
+export async function changeMemberPassword(
+  oldPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await fetchWithAuth<{ code: number; message?: string }>('/api/v1/auth/member/password', {
+    method: 'PUT',
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+  });
+}
+
+/** 会员登出：吊销 refresh token + 清理本机会话（之后聊天窗口回到未登录引导态） */
+export async function memberLogout(): Promise<void> {
+  try {
+    const refreshToken = await tokenManager.getRefreshToken();
+    if (refreshToken) {
+      await fetchWithAuth<{ code: number; message?: string }>('/api/v1/auth/member/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+    }
+  } finally {
+    await tokenManager.clearTokens();
+  }
+}
 
 // ---- 会话信息（免登陆：直接取桌面端已有会话）----
 
@@ -491,7 +547,7 @@ export async function getMemberSession(): Promise<MemberSession> {
   };
 }
 
-// ---- WebSocket 客户端 ----
+// ---- WebSocket 事件类型（客户端实现在 chatWsClient.ts，带自动重连） ----
 
 export interface ChatWsEvent {
   op: string;
@@ -516,65 +572,11 @@ export interface ChatWsEvent {
   friend?: { member_id: number; username: string };
   /** friend_removed：被删除的关系中对方的 member id */
   other_member_id?: number;
-}
-
-/**
- * 建立聊天 WebSocket。
- * @param onEvent 收到事件回调
- * @param onStatus 连接状态回调（用于 UI 显示连接状态）
- * @returns 一个控制对象：send / subscribe / sendTyping / close
- */
-export async function createChatWs(
-  onEvent: (ev: ChatWsEvent) => void,
-  onStatus?: (connected: boolean) => void
-) {
-  const token = await tokenManager.getAccessToken();
-  const baseUrl = await tokenManager.getBaseUrl();
-  // baseUrl 形如 http(s)://host[:port]，转成 ws(s)
-  const wsUrl = baseUrl.replace(/^http/, 'ws') + '/api/v1/chat/ws?token=' + encodeURIComponent(token || '');
-
-  const ws = new WebSocket(wsUrl);
-
-  let subscribeChannels: number[] = [];
-
-  ws.onopen = () => {
-    onStatus?.(true);
-    if (subscribeChannels.length > 0) {
-      ws.send(JSON.stringify({ op: 'subscribe', channels: subscribeChannels }));
-    }
-  };
-
-  ws.onmessage = (ev) => {
-    try {
-      const data = JSON.parse(ev.data) as ChatWsEvent;
-      onEvent(data);
-    } catch {
-      /* ignore malformed */
-    }
-  };
-
-  ws.onclose = () => onStatus?.(false);
-  ws.onerror = () => onStatus?.(false);
-
-  return {
-    /** 订阅一个或多个频道（切换频道时调用） */
-    subscribe(channels: number[]) {
-      subscribeChannels = channels;
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ op: 'subscribe', channels }));
-      }
-    },
-    /** 发送 typing 状态（UI 层负责节流） */
-    sendTyping(channelId: number, topicId?: number | null) {
-      if (ws.readyState !== WebSocket.OPEN) return;
-      ws.send(
-        JSON.stringify({ op: 'typing', channel_id: channelId, topic_id: topicId ?? null }),
-      );
-    },
-    /** 关闭连接 */
-    close() {
-      subscribeChannels = [];
-      ws.close();
-    },
-  };
+  /** dm_ack 回执：发送方 member_id */
+  from?: number;
+  /** dm_ack 回执：已送达的客户端消息 id 列表 */
+  client_msg_ids?: string[];
+  // ---- 社区事件 ----
+  /** community_notice：轻量通知载荷（id/kind/post_id/comment_id/actor_id），完整内容拉通知列表渲染 */
+  notice?: Record<string, unknown>;
 }

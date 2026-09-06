@@ -977,7 +977,8 @@
       "locked": "Not available on your current plan",
       "current": "Your current plan is {{tier}}",
       "comingSoon": "Upgrade feature coming soon",
-      "close": "Got it"
+      "close": "Got it",
+      "inviteHint": "Or invite friends to earn credits for membership coupons"
     },
     "upgradeHint": {
       "freeTier": "Upgrade plan to unlock more premium models"
@@ -987,19 +988,16 @@
       "memberDiscount": "Member {{pct}}% off",
       "subsidy": "Subsidized"
     },
-    "priceGroups": {
-      "economy": {
-        "title": "Economy Models",
-        "hint": "<0.1x"
-      },
-      "standard": {
-        "title": "Standard Models",
-        "hint": "0.1–0.5x"
-      },
-      "premium": {
-        "title": "Flagship Models",
-        "hint": ">0.5x"
-      }
+    "autoRoute": {
+      "sectionTitle": "Auto Routing",
+      "localModel": "Local model",
+      "r0": "R0 Trivial",
+      "r1": "R1 Simple",
+      "r2": "R2 Complex",
+      "r3": "R3 Hard",
+      "followPrimary": "Follow primary",
+      "followFast": "Follow mid-tier",
+      "disabledHint": "Smart routing is off — auto mode always uses the primary model"
     },
     "freeQuota": {
       "remainingCount": "{{count}} requests left today",
@@ -1007,16 +1005,20 @@
       "exhausted": "Today's quota exhausted"
     },
     "xfModels": {
-      "sectionTitle": "Xunfei Models",
-      "empty": "No Xunfei models available",
+      "sectionTitle": "Ai00-API",
+      "empty": "No Ai00-API models available",
       "loadFailed": "Load failed, please retry later"
     },
-    "defaultModels": {
-      "sectionTitle": "Default Models",
-      "empty": "No default models available"
+    "localModels": {
+      "sectionTitle": "Local Models",
+      "empty": "No local models available",
+      "notReady": "Model not downloaded, click to start downloading",
+      "notReadyShort": "Not ready",
+      "downloadNow": "Download",
+      "downloading": "Downloading"
     },
     "customModels": {
-      "sectionTitle": "Custom Models",
+      "sectionTitle": "Custom Model APIs",
       "empty": "No custom models"
     }
   },

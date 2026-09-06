@@ -46,6 +46,32 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
   }
+
+  // ── 新人权益卡片（被邀请注册用户可见） ──────────────────────────────────
+
+  &__newcomer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--size-gap-2) var(--size-gap-3);
+    padding: var(--size-gap-3) var(--size-gap-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-base);
+    background-color: var(--element-bg-subtle);
+  }
+
+  &__newcomer-badge {
+    padding: 2px var(--size-gap-2);
+    border-radius: var(--size-radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-primary);
+    background-color: var(--color-brand-seal);
+  }
+
+  &__newcomer-text {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+  }
 }
 
 // ── 充值页 ────────────────────────────────────────────────────────────────

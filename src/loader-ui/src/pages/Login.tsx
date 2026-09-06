@@ -464,6 +464,12 @@ export function LoginPage() {
                         onChange={(e) => setInviteCode(e.target.value)}
                         required
                       />
+                      <p
+                        className="text-xs"
+                        style={{ margin: "4px 0 0", color: "var(--color-text-muted)" }}
+                      >
+                        好友邀请 · 凭邀请码注册，邀请制内测中
+                      </p>
                     </div>
                     {error && (
                       <p className="text-sm" style={{ color: "var(--color-error)" }}>

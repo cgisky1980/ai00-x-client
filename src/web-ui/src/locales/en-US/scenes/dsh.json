@@ -5,7 +5,21 @@
     "new": "New session",
     "refresh": "Refresh list",
     "loading": "Loading…",
-    "empty": "No sessions yet"
+    "empty": "No sessions yet",
+    "rename": "Rename session",
+    "fork": "Fork session (copy history into a new one)",
+    "usage": "Session cumulative usage (↑input ↓output · requests)"
+  },
+  "tool": {
+    "result": "Result",
+    "resultError": "Error output",
+    "resultEmpty": "(no output)"
+  },
+  "permission": {
+    "pending": "Permission requested: {{scope}}",
+    "reason": "Plugin {{pluginId}} is calling a host capability that requires the \"{{scope}}\" scope. Grant it to allow future calls of this kind; revocable in plugin settings.",
+    "grant": "Grant",
+    "deny": "Deny"
   },
   "chat": {
     "placeholder": "Ai00-X Agent powered by the dsh engine",
@@ -37,12 +51,18 @@
     "running": "Engine running",
     "failed": "Engine failed: {{error}}",
     "wsOn": "Event stream connected",
-    "wsOff": "Event stream disconnected"
+    "wsOff": "Event stream disconnected",
+    "restart": "Restart engine"
   },
   "pluginError": "Engine plugin failed to load",
   "pluginErrorAttributed": "Likely caused by plugin {{module}}",
   "pluginErrorDisable": "Disable {{module}}",
   "pluginErrorGoSettings": "Open plugin settings",
   "pluginErrorClose": "Dismiss",
-  "pluginErrorDisabled": "{{module}} disabled, engine restarting"
+  "pluginErrorDisabled": "{{module}} disabled, engine restarting",
+  "theater": {
+    "enable": "Enable work theater",
+    "disable": "Disable work theater",
+    "openCard": "View agent status"
+  }
 }

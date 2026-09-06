@@ -20,8 +20,13 @@
  * ToolDefinition 形状注册——参数校验自行完成，输出声明仍由注册表强制校验。
  */
 
+import { exec } from "node:child_process";
+
 const name = "ai00-x-tools";
 const inject = ["tools"];
+
+/** 插件标识（npm 包名；宿主内部 API 按此头做 per-plugin scope 授权）。 */
+const PLUGIN_ID = "@ai00-x/dsh-tools";
 
 /** 默认宿主地址（Ai00-X 桌面客户端内嵌 Salvo，仅本机监听）。 */
 const DEFAULT_BASE_URL = "http://127.0.0.1:2100";
@@ -39,6 +44,9 @@ function makeClient(baseURL, token) {
       headers: {
         "content-type": "application/json",
         "x-ai00-internal-token": token,
+        // per-plugin scope 授权：bundled 插件全量放行；缺失时写 scope 只放
+        // BASIC（只读+通知）——显式声明来源是 scope 模型的前提
+        "x-ai00-plugin-id": PLUGIN_ID,
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       signal,
@@ -121,6 +129,62 @@ function parseAcceptance(markdown) {
     }
   }
   return result;
+}
+
+/**
+ * 从验收条目提取 `{cmd: ...}` 验证命令（evals 进环）。
+ * 形如 `- [ ] 测试全绿 {cmd: npm test}`；无 cmd 标记返回 null（纯人工判据）。
+ */
+function extractCmd(item) {
+  const m = /\{cmd:\s*(.+?)\}\s*$/.exec(item);
+  if (!m) return null;
+  const cmd = m[1].trim();
+  // 基本护栏：长度上限 + 拒绝嵌套 shell 展开（防计划文档被注入任意复合命令）
+  if (!cmd || cmd.length > 500) return null;
+  if (/`|\$\(|&&\s*rm|;\s*rm/.test(cmd)) return null;
+  return cmd;
+}
+
+/**
+ * 执行一条验收验证命令（child_process.exec，任务工作目录内，2 分钟超时）。
+ * 返回 {ok, output}；output 截断到 2000 字符（错误信息可承载，不撑爆上下文）。
+ */
+function runVerification(cmd, cwd, signal) {
+  return new Promise((resolve) => {
+    const child = exec(
+      cmd,
+      {
+        cwd: cwd || undefined,
+        timeout: 120_000,
+        maxBuffer: 1024 * 1024,
+        windowsHide: true,
+        signal,
+      },
+      (error, stdout, stderr) => {
+        const output = `${stdout ?? ""}${stderr ?? ""}`.trim();
+        if (error && error.killed) {
+          resolve({ ok: false, output: `verification timed out after 120s: ${cmd}` });
+          return;
+        }
+        resolve({
+          ok: !error,
+          output: (error ? output || error.message : output).slice(0, 2000),
+        });
+      },
+    );
+    // signal 在 exec options 里对新版 node 支持不稳，这里显式桥接一次
+    if (signal) {
+      const onAbort = () => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          /* already dead */
+        }
+      };
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
+    }
+  });
 }
 
 /**
@@ -464,7 +528,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_complete",
     description:
-      "Mark a Zhixing task as completed by id. Acceptance gate: if the task's plan document has an unchecked '## 验收' (acceptance) section, the call FAILS — verify each criterion, check them off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'), then call this. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot commit of all changes is taken automatically — do NOT commit manually. Handles recurring-task cloning and awards server-side XP (10 base + due-today 5 + checklist 3, cap 20).",
+      "Mark a Zhixing task as completed by id. Acceptance gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot commit of all changes is taken automatically — do NOT commit manually. Handles recurring-task cloning and awards server-side XP (10 base + due-today 5 + checklist 3, cap 20).",
     parameters: {
       type: "object",
       properties: {
@@ -501,27 +565,61 @@ function defineTools(ctx, api) {
     async execute(args, exec) {
       const taskId = String(args?.taskId ?? "").trim();
       if (!taskId) throw new Error("taskId is required");
+      const snapshotDir = String(args?.snapshotDir ?? "").trim();
 
-      // DoD 对等校验（与策窗口人侧「标记完成」同口径）：验收未全勾 → 报错驱动自纠
+      // DoD 对等校验（与策窗口人侧「标记完成」同口径）：验收未全勾 → 报错驱动自纠。
+      // evals 进环（M2.3）：带 {cmd: ...} 标记的条目由插件实际执行命令判定——
+      // 命令通过视同通过（无需人工勾选），失败则把输出回灌给 agent 自纠。
       const plan = await api
         .get(`/plan?taskId=${encodeURIComponent(taskId)}`, exec.signal)
         .catch(() => null);
       const acceptance = parseAcceptance(plan?.markdown);
-      if (acceptance.total > 0 && acceptance.done < acceptance.total) {
-        const items = acceptance.unchecked
-          .slice(0, 6)
-          .map((s, i) => `  ${i + 1}. ${s}`)
-          .join("\n");
-        throw new Error(
-          `验收标准未全勾（${acceptance.done}/${acceptance.total}，还有 ${acceptance.total - acceptance.done} 项未通过）。请先逐项自检，用 ai00_plan_read + ai00_plan_write 把计划文档「## 验收」段的对应项改为 "- [x]"，再调用 ai00_task_complete。未通过项：\n${items}`
-        );
+      if (acceptance.total > 0) {
+        const cmdFailures = [];
+        let manualUnchecked = 0;
+        for (const item of acceptance.unchecked) {
+          const cmd = extractCmd(item);
+          if (!cmd) {
+            manualUnchecked += 1;
+            continue;
+          }
+          const verdict = await runVerification(cmd, snapshotDir || undefined, exec.signal);
+          if (verdict.ok) continue;
+          cmdFailures.push({ item, cmd, output: verdict.output });
+        }
+        if (manualUnchecked > 0 || cmdFailures.length > 0) {
+          const lines = [
+            `验收标准未通过（共 ${acceptance.total} 项，通过 ${acceptance.done} 项，验证命令失败 ${cmdFailures.length} 项，人工判据未勾 ${manualUnchecked} 项）。`,
+          ];
+          if (cmdFailures.length > 0) {
+            lines.push(
+              ...cmdFailures.flatMap((f) => [
+                `✗ ${f.item}`,
+                `  command: ${f.cmd}`,
+                `  output: ${f.output || "(no output)"}`,
+              ]),
+            );
+            lines.push("请根据命令输出修复问题后重试。");
+          }
+          if (manualUnchecked > 0) {
+            const items = acceptance.unchecked
+              .filter((s) => !extractCmd(s))
+              .slice(0, 6)
+              .map((s, i) => `  ${i + 1}. ${s}`)
+              .join("\n");
+            lines.push(
+              "请先逐项自检，用 ai00_plan_read + ai00_plan_write 把计划文档「## 验收」段的对应项改为 \"- [x]\"。未通过项：",
+              items,
+            );
+          }
+          throw new Error(lines.join("\n"));
+        }
       }
 
       const data = await api.get("/todo", exec.signal);
       const { data: next, task, xp } = completeTaskInData(data, taskId);
 
       // 完成快照（任务粒度 commit；失败静默——不阻塞完成主流程）
-      const snapshotDir = String(args?.snapshotDir ?? "").trim();
       if (snapshotDir) {
         try {
           await api.post(

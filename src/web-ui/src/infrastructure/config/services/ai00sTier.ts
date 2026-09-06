@@ -8,8 +8,9 @@ export type PlanTier = 'free' | 'basic' | 'pro' | 'flagship';
 /** 模型价格区间分组（用于 UI 分组展示） */
 export type ModelPriceGroup = 'economy' | 'standard' | 'premium';
 
+/** Ai00-API 系引用：入口 'ai00s'、旧套餐条目 'ai00s-*'、复合引用 'ai00s:<sub>' */
 export const isAi00sModel = (id: string): boolean =>
-  id === 'ai00s' || id.startsWith('ai00s-');
+  id === 'ai00s' || id.startsWith('ai00s-') || id.startsWith('ai00s:');
 
 export const mapPlanTierToDisplay = (planTier?: string | null): Ai00sTier => {
   switch (planTier) {
@@ -104,10 +105,10 @@ export async function fetchUserTier(): Promise<string | null> {
   return null;
 }
 
-// ===== 讯飞模型 tier 访问控制 =====
+// ===== Ai00-API 模型 tier 访问控制 =====
 
 /// tier 排序：free < cheap < expensive（值越小越基础）
-const XF_TIER_RANK: Record<string, number> = {
+const MODEL_TIER_RANK: Record<string, number> = {
   free: 0,
   cheap: 1,
   expensive: 2,
@@ -123,8 +124,8 @@ const XF_TIER_RANK: Record<string, number> = {
 /// - expensive 用户可用所有模型
 export const canAccessModel = (model: Ai00sModelInfo, userTier?: string | null): boolean => {
   if (model.locked !== undefined) return !model.locked;
-  const userRank = XF_TIER_RANK[userTier ?? 'free'] ?? 0;
-  const modelRank = XF_TIER_RANK[model.tier] ?? 0;
+  const userRank = MODEL_TIER_RANK[userTier ?? 'free'] ?? 0;
+  const modelRank = MODEL_TIER_RANK[model.tier] ?? 0;
   return modelRank <= userRank;
 };
 
@@ -158,7 +159,7 @@ export interface FreeQuotaInfo {
   remaining_tokens?: number;
 }
 
-/// 后端返回的讯飞模型信息
+/// 后端返回的 Ai00-API 模型信息
 ///
 /// Phase 3.4 改造后字段：
 /// - id: 模型 ID（如 "GLM-4.7-Flash"）
@@ -202,6 +203,80 @@ export interface Ai00sModelInfo {
 
 let cachedAi00sModels: Ai00sModelInfo[] | null = null;
 
+// ===== Ai00-API 模型目录持久化 + 预取 + 定期更新 =====
+// 目录含账号相关字段（locked / freeQuota），登出/切账号时由 clearAi00sModelsCache 失效。
+
+const AI00_API_MODELS_PERSIST_KEY = 'ai00x.ai00api.models.v1';
+const AI00_API_MODELS_TTL_MS = 30 * 60 * 1000;
+
+let ai00ApiFetchedAt = 0;
+let ai00ApiRevalidating = false;
+
+// 模块加载即恢复上次持久化的目录——重启后第一次打开选择器零网络延迟
+(function restorePersistedAi00ApiModels() {
+  try {
+    const raw = localStorage.getItem(AI00_API_MODELS_PERSIST_KEY);
+    if (raw && !cachedAi00sModels) {
+      const parsed = JSON.parse(raw) as Ai00sModelInfo[];
+      if (Array.isArray(parsed)) cachedAi00sModels = parsed;
+    }
+  } catch {
+    // 缓存损坏即弃，走网络重拉
+  }
+})();
+
+function persistAi00ApiModels(models: Ai00sModelInfo[]): void {
+  try {
+    localStorage.setItem(AI00_API_MODELS_PERSIST_KEY, JSON.stringify(models));
+  } catch {
+    // 存储不可用——仅内存缓存生效
+  }
+}
+
+/** 清空 Ai00-API 模型目录缓存（登出 / 切换服务器时调用：目录含账号相关 locked/配额）。 */
+export function clearAi00sModelsCache(): void {
+  cachedAi00sModels = null;
+  ai00ApiFetchedAt = 0;
+  try {
+    localStorage.removeItem(AI00_API_MODELS_PERSIST_KEY);
+  } catch {
+    // 忽略
+  }
+}
+
+/** 后台静默刷新模型目录并持久化（失败静默——保留旧缓存）。 */
+function revalidateAi00ApiModels(): void {
+  if (ai00ApiRevalidating) return;
+  ai00ApiRevalidating = true;
+  fetchAi00sModelsRemote()
+    .then((models) => {
+      // 空结果不覆盖（未登录/瞬时失败时保留旧目录）
+      if (models.length > 0) {
+        cachedAi00sModels = models;
+        ai00ApiFetchedAt = Date.now();
+        persistAi00ApiModels(models);
+      }
+    })
+    .catch(() => {})
+    .finally(() => {
+      ai00ApiRevalidating = false;
+    });
+}
+
+/** 登录后 / 启动时主动预热：立即后台拉取并持久化（不阻塞 UI）。 */
+export function prefetchAi00sModels(): void {
+  revalidateAi00ApiModels();
+}
+
+/** 定期更新（App 启动时调用一次：立即预热 + 每 30 分钟后台刷新）。 */
+export function startAi00sModelsAutoRefresh(intervalMs = AI00_API_MODELS_TTL_MS): void {
+  prefetchAi00sModels();
+  setInterval(() => {
+    if (ai00ApiRevalidating) return;
+    revalidateAi00ApiModels();
+  }, intervalMs);
+}
+
 export function getCachedAi00sModels(): Ai00sModelInfo[] | null {
   return cachedAi00sModels;
 }
@@ -239,15 +314,10 @@ interface RawAi00sModel {
   } | null;
 }
 
-/// 从后端 /ai00-s/api/ai/models 拉取所有讯飞模型（带 tier + 定价 + 限流）
-///
+/// 从服务器拉取 Ai00-API 模型列表（带定价倍率 + 限流）。
 /// 后端返回格式：{code, data: {object: "list", data: [{id, tier, display_name, is_upstream_free, pricing, free_quota, ...}]}}
-/// 失败时返回空数组（不抛错，降级为不显示讯飞子模型）
-export async function fetchAi00sModels(): Promise<Ai00sModelInfo[]> {
-  // 用局部变量保存缓存，避免 async 函数中模块级变量无法 narrow 的问题
-  const cached = cachedAi00sModels;
-  if (cached) return cached;
-
+/// 失败时返回空数组（不抛错）。
+async function fetchAi00sModelsRemote(): Promise<Ai00sModelInfo[]> {
   try {
     // 用 GET（简单请求，不触发 CORS 预检）；models.ais 脚本标注 @method GET
     // noAuth: 公开端点,无需 token
@@ -256,7 +326,7 @@ export async function fetchAi00sModels(): Promise<Ai00sModelInfo[]> {
       noAuth: true,
     });
     const models = data?.data?.data || [];
-    const result: Ai00sModelInfo[] = models.map((m) => {
+    return models.map((m) => {
       const info: Ai00sModelInfo = {
         id: m.id,
         displayName: m.display_name || m.id,
@@ -291,11 +361,29 @@ export async function fetchAi00sModels(): Promise<Ai00sModelInfo[]> {
       }
       return info;
     });
-    cachedAi00sModels = result;
-    return result;
   } catch {
     return [];
   }
+}
+
+/// 对外入口：内存缓存 →（超 TTL 后台刷新）→ 网络拉取并持久化。
+/// 启动时 restorePersisted 已从 localStorage 恢复，首次打开选择器零网络延迟。
+export async function fetchAi00sModels(): Promise<Ai00sModelInfo[]> {
+  if (cachedAi00sModels) {
+    // stale-while-revalidate：缓存命中立即返回；超过 TTL 后台刷新一次（下次生效）
+    if (!ai00ApiRevalidating && Date.now() - ai00ApiFetchedAt > AI00_API_MODELS_TTL_MS) {
+      revalidateAi00ApiModels();
+    }
+    return cachedAi00sModels;
+  }
+  const result = await fetchAi00sModelsRemote();
+  if (result.length > 0) {
+    // 空结果不缓存（未登录/瞬时失败时下次重试）
+    cachedAi00sModels = result;
+    ai00ApiFetchedAt = Date.now();
+    persistAi00ApiModels(result);
+  }
+  return result;
 }
 
 // ===== Phase 5.1: 模型分组 + 剩余额度 + 套餐判断 =====

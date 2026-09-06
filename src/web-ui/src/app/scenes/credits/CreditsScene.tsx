@@ -1,23 +1,40 @@
 /**
  * CreditsScene — 积分中心场景。
  *
- * 内含两个页面（Tabs 切换）：
+ * 内含三个页面（Tabs 切换）：
  * - 积分充值（RechargeView）：手游九宫格风格档位卡片
- * - 会员套餐（MembershipView）：五档对比 + 每日签到
+ * - 会员套餐（MembershipView）：套餐对比 + 每日签到
+ * - 邀请有礼（InviteView）：领取制邀请码 + 分红 + 会员打折券
  */
 
 import React, { useEffect, useState } from 'react';
 import { Tabs, TabPane } from '@/component-library';
+import { getMemberProfile } from '@/infrastructure/account/api';
 import RechargeView from './RechargeView';
 import MembershipView from './MembershipView';
+import InviteView from './InviteView';
 import { onCreditsTabRequest, type CreditsTabKey } from './creditsSceneEvents';
 import './CreditsScene.scss';
 
 const CreditsScene: React.FC = () => {
   const [activeKey, setActiveKey] = useState<CreditsTabKey>('recharge');
+  /** 被邀请注册的用户展示新人权益卡片（invite_by 非空；接口失败静默跳过） */
+  const [isNewcomer, setIsNewcomer] = useState(false);
 
   // 响应外部入口的页签定位请求（如账户设置页的"会员套餐"按钮）
   useEffect(() => onCreditsTabRequest(setActiveKey), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMemberProfile()
+      .then(profile => {
+        if (!cancelled && profile.member.invite_by != null) setIsNewcomer(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="ai00-x-credits-scene">
@@ -26,6 +43,12 @@ const CreditsScene: React.FC = () => {
           <h1 className="ai00-x-credits-scene__title">积分中心</h1>
           <p className="ai00-x-credits-scene__subtitle">充值与会员，积分一目了然</p>
         </header>
+        {isNewcomer && (
+          <section className="ai00-x-credits-scene__newcomer" aria-label="新人权益">
+            <span className="ai00-x-credits-scene__newcomer-badge">邀请制专属</span>
+            <span className="ai00-x-credits-scene__newcomer-text">新人铭牌 + 新功能优先体验，已在你的账户生效</span>
+          </section>
+        )}
         <Tabs
           type="pill"
           activeKey={activeKey}
@@ -36,6 +59,9 @@ const CreditsScene: React.FC = () => {
           </TabPane>
           <TabPane tabKey="membership" label="会员套餐">
             <MembershipView />
+          </TabPane>
+          <TabPane tabKey="invite" label="邀请有礼">
+            <InviteView />
           </TabPane>
         </Tabs>
       </div>

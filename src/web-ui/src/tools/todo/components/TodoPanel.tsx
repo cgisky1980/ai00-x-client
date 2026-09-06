@@ -8,10 +8,11 @@
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, GripVertical } from 'lucide-react';
+import { X, GripVertical, Settings, Palette } from 'lucide-react';
 import { NavMarkAction, NavMarkHabit, NavMarkGoal, NavMarkGrow, NavMarkTrail } from './NavCharMarks';
 import { useDraggable } from '../../../infrastructure/overlay/useDraggable';
 import { usePopupResize } from '../../island/hooks/usePopupResize';
+import { CreditsBadge } from './CreditsBadge';
 import { useTodoStore, countOfView, type TodoView } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
 import { GrowthView } from './views/GrowthView';
@@ -25,6 +26,8 @@ import { PlanDocPanel } from './views/PlanDocPanel';
 import { ExecutionPanel } from './views/ExecutionPanel';
 import { TaskCreateModal } from './views/TaskCreateModal';
 import { TraceView } from './views/TraceView';
+import { SettingsView } from './views/SettingsView';
+import { BeautyView } from './views/BeautyView';
 import './TodoPanel.scss';
 import './todo-theme.scss';
 import './board.scss';
@@ -153,6 +156,12 @@ const TodoPanelInner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
           {/* 迹 = 电脑使用足迹（usage_stats 同源；不展示完成任务列表） */}
           {view === 'done' && <TraceView />}
+
+          {/* 设 = 系统设置（自 task 窗口迁移；竖列二级导航复用设置内容组件） */}
+          {view === 'settings' && <SettingsView />}
+
+          {/* 美 = 界面美化（主题外观/点击特效/智能桌面/桌面插件） */}
+          {view === 'beauty' && <BeautyView />}
         </div>
       </div>
 
@@ -224,6 +233,7 @@ const PanelShell: React.FC<{
             style={{ width: `${Math.min(100, Math.round((profile.into / Math.max(1, profile.need)) * 100))}%` }}
           />
         </span>
+        <CreditsBadge />
         <button
           className="todo-panel__close"
           onClick={(e) => {
@@ -294,6 +304,17 @@ const NavSidebar: React.FC<{
           </button>
         );
       })}
+      {/* 美：界面美化（修行正下方，功能组末位；常规图标） */}
+      <button
+        className={`todo-panel__nav-item${view === 'beauty' ? ' is-active' : ''}`}
+        onClick={() => onSelect('beauty')}
+        title="美化 · 界面外观"
+      >
+        <span className="todo-panel__nav-seal">
+          <Palette size={15} />
+        </span>
+        <span className="todo-panel__nav-label">美化</span>
+      </button>
       <div className="todo-panel__nav-sep" />
       <button
         className={`todo-panel__nav-item${view === 'done' ? ' is-active' : ''}`}
@@ -304,6 +325,18 @@ const NavSidebar: React.FC<{
           <NavMarkTrail size={15} />
         </span>
         <span className="todo-panel__nav-label">足迹</span>
+      </button>
+      {/* 设：沉底固定在导航最下方（常规图标） */}
+      <div className="todo-panel__nav-sep todo-panel__nav-sep--bottom" />
+      <button
+        className={`todo-panel__nav-item${view === 'settings' ? ' is-active' : ''}`}
+        onClick={() => onSelect('settings')}
+        title="设置 · 系统与模型"
+      >
+        <span className="todo-panel__nav-seal">
+          <Settings size={15} />
+        </span>
+        <span className="todo-panel__nav-label">设置</span>
       </button>
     </div>
   );

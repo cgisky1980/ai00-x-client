@@ -274,6 +274,20 @@ fn low_tier_pending(ratio: f64) -> u8 {
     }
 }
 
+/// Free VRAM after subtracting the configured reserve (tier-scaled), no eviction.
+/// 供部分卸载决策使用：当前可用、且未来仍要留给系统的显存预算。
+pub fn free_after_reserve(gpu_hint: Option<usize>) -> Option<u64> {
+    let cfg = config();
+    let mem = crate::vram_monitor::query_vram(gpu_hint)?;
+    let base = cfg.vram_reserve_mb as f64 * 1024.0 * 1024.0;
+    let scaled = match current_tier() {
+        1 => base * 0.5,
+        2 => base * 2.0,
+        _ => base,
+    };
+    Some(mem.free_bytes.saturating_sub(scaled as u64))
+}
+
 // ---------------------------------------------------------------------------
 // Budget check & eviction
 // ---------------------------------------------------------------------------
@@ -311,13 +325,13 @@ fn mark_cooldown(id: &str) {
 /// 1. context-mismatched engines first (current-activity engines protected)
 /// 2. higher priority value first (lower priority value = protected)
 /// 3. LRU (oldest last_used first)
-fn pick_victim(exclude_id: Option<&str>) -> Option<Arc<dyn ManagedEngine>> {
+fn pick_victim(exclude_ids: &[String]) -> Option<Arc<dyn ManagedEngine>> {
     let active = ACTIVE_CONTEXT.read().ok().and_then(|g| g.clone());
     let reg = registry().lock().ok()?;
     let mut candidates: Vec<Arc<dyn ManagedEngine>> = reg
         .values()
         .filter(|e| e.is_resident() && !e.is_busy() && !in_cooldown(e.id()))
-        .filter(|e| exclude_id.map(|x| e.id() != x).unwrap_or(true))
+        .filter(|e| !exclude_ids.iter().any(|x| x == e.id()))
         .cloned()
         .collect();
     drop(reg);
@@ -335,20 +349,29 @@ fn pick_victim(exclude_id: Option<&str>) -> Option<Arc<dyn ManagedEngine>> {
 
 /// Evict the LRU/context-mismatched engine (excluding `exclude_id`).
 /// Returns the evicted engine id, or None when no candidate exists.
+/// 单个候选驱逐失败时继续尝试下一个（此前首个失败即整体放弃，
+/// 一个不可驱逐的注册引擎会阻塞整个预算腾退链路）。
 pub fn evict_lru(exclude_id: Option<&str>) -> Option<String> {
-    let victim = pick_victim(exclude_id)?;
-    let id = victim.id().to_string();
-    let display = victim.display_name();
-    log::info!("[vram_manager] evicting {id} ({display}) to free VRAM");
-    match victim.evict() {
-        Ok(()) => {
-            mark_cooldown(&id);
-            emit_state(&id, &display, false, "evicted-pressure");
-            Some(id)
+    let mut tried: Vec<String> = Vec::new();
+    loop {
+        let mut exclude: Vec<String> = tried.clone();
+        if let Some(x) = exclude_id {
+            exclude.push(x.to_string());
         }
-        Err(e) => {
-            log::warn!("[vram_manager] evict {id} failed: {e}");
-            None
+        let victim = pick_victim(&exclude)?;
+        let id = victim.id().to_string();
+        let display = victim.display_name();
+        log::info!("[vram_manager] evicting {id} ({display}) to free VRAM");
+        match victim.evict() {
+            Ok(()) => {
+                mark_cooldown(&id);
+                emit_state(&id, &display, false, "evicted-pressure");
+                return Some(id);
+            }
+            Err(e) => {
+                log::warn!("[vram_manager] evict {id} failed: {e}");
+                tried.push(id);
+            }
         }
     }
 }
@@ -406,8 +429,9 @@ pub fn ensure_capacity(need_bytes: u64, gpu_hint: Option<usize>) -> Result<(), S
     }
 
     Err(format!(
-        "insufficient VRAM even after eviction: need {:.0} MB",
-        need_bytes as f64 / 1048576.0
+        "insufficient VRAM even after eviction: need {:.0} MB, free {:.0} MB",
+        need_bytes as f64 / 1048576.0,
+        mem.free_bytes as f64 / 1048576.0
     ))
 }
 
@@ -616,8 +640,10 @@ mod tests {
     #[test]
     fn tier_scaling_financial_timeout_only() {
         // -1 (keep forever) must never be scaled.
-        let mut cfg = ai00_x_core::service::config::types::VramManagerConfig::default();
-        cfg.enable_vram_tiers = true;
+        let cfg = ai00_x_core::service::config::types::VramManagerConfig {
+            enable_vram_tiers: true,
+            ..ai00_x_core::service::config::types::VramManagerConfig::default()
+        };
         *CONFIG.write().unwrap() = Some(cfg);
         VRAM_TIER.store(2, Ordering::Relaxed);
         assert_eq!(resolve_policy("rwkv-llm", 0).keep_alive_secs, -1);

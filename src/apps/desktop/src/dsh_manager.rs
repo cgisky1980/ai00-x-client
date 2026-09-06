@@ -6,7 +6,7 @@
 //! sidecar 运行，界面用我们自己的前端。
 //!
 //! 自动安装链（幂等，全部后台执行）：
-//! 1. node：ai00-run NodeInstaller → `~/.ai00-run/node/v22.23.2/`
+//! 1. node：ai00-run NodeInstaller → `~/.ai00-run/node/v<NODE_VERSION>/`
 //! 2. dsh：托管 npm 全局安装 `@deepseek-ai/dsh@<pinned>`（npmmirror 镜像）
 //! 3. profile `ai00x`：程序化建目录（bundles = base + web-app），
 //!    `dsh plugin add` 预装随客户端分发的 `@ai00-x/dsh-ai-bridge`
@@ -24,12 +24,13 @@ use tokio::process::Child;
 
 use ai00_x_core::util::process_manager;
 
-/// 钉死的 node 版本（dsh 0.1.x 要求 node >= 22.19）。
-const NODE_VERSION: &str = "22.23.2";
-/// 钉死的 dsh npm 版本（锁版本升级走 D5 受控机制）。
-const DSH_NPM_SPEC: &str = "@deepseek-ai/dsh@0.1.1-rc.2";
-/// dsh NPM 镜像（国内加速；与 resource_manager 多主机测速体系后续对齐）。
-const NPM_REGISTRY: &str = "https://registry.npmmirror.com";
+/// 版本常量（node/dsh/npm 镜像/内置插件清单）——生成自 packages/shared/agent-versions.json
+/// （`pnpm run generate-agent-versions`），与 scripts/dsh-plugin-check.mjs 同源，禁止手改。
+#[path = "dsh_versions.gen.rs"]
+pub(crate) mod dsh_versions_gen;
+
+use dsh_versions_gen::{BUNDLED_PLUGINS, DSH_NPM_SPEC, NODE_VERSION, NPM_REGISTRY};
+
 /// sidecar 专用 profile 名（bundles: base + web-app + ai-bridge）。
 const DSH_PROFILE: &str = "ai00x";
 /// sidecar 端口（避开用户手跑 dsh web 的默认 3080）。
@@ -64,6 +65,9 @@ pub struct DshManager {
     child: tokio::sync::Mutex<Option<Child>>,
     /// 用户主动停止标记（停止时不自动重启）。
     stopped_by_user: std::sync::atomic::AtomicBool,
+    /// 插件装卸重启串行化：并发装卸各自触发重启时，start 在锁内串行执行，
+    /// 后到者发现 Running 直接幂等返回——杜绝 stop/start 竞态双杀双启。
+    restart_lock: tokio::sync::Mutex<()>,
     /// sidecar 专属 Job（kill-on-close）：主进程无论正常退出还是被强杀，
     /// 内核关闭 Job 句柄都会连带终止 node——防止残留 sidecar 抢占 2100
     /// 端口导致下次启动 loader 白屏。保活在此（句柄随主进程回收）。
@@ -112,8 +116,9 @@ fn dsh_cmd() -> PathBuf {
     }
 }
 
-/// DSH_HOME：独立于用户 `~/.dsh`，隔离在 app data 下。
-fn dsh_home() -> PathBuf {
+/// DSH_HOME：独立于用户 `~/.dsh`，隔离在 app data 下（internal_api 的 grants
+/// 文件也放这里，pub(crate) 供跨模块取同一路径，避免路径逻辑双写漂移）。
+pub(crate) fn dsh_home() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("Ai00-X")
@@ -164,11 +169,7 @@ fn ai_bridge_plugin_dir() -> Option<PathBuf> {
     bundled_plugin_dir("ai-bridge")
 }
 
-/// 随客户端分发的 dsh 插件清单：(子目录, npm 包名)。
-const BUNDLED_PLUGINS: &[(&str, &str)] = &[
-    ("ai-bridge", "@ai00-x/dsh-ai-bridge"),
-    ("tools", "@ai00-x/dsh-tools"),
-];
+// 随客户端分发的 dsh 插件清单见 dsh_versions_gen::BUNDLED_PLUGINS（生成常量）。
 
 // ---------------------------------------------------------------------------
 // 单例访问
@@ -191,6 +192,7 @@ impl DshManager {
             phase: std::sync::Mutex::new(DshPhase::NotReady),
             child: tokio::sync::Mutex::new(None),
             stopped_by_user: std::sync::atomic::AtomicBool::new(false),
+            restart_lock: tokio::sync::Mutex::new(()),
             #[cfg(windows)]
             sidecar_job: std::sync::Mutex::new(None),
         }
@@ -932,9 +934,20 @@ async fn dsh_plugin_cmd(args: &[&str]) -> Result<String, String> {
 }
 
 /// 装卸后重启引擎（插件树只在 boot 时装载）。
+///
+/// 串行化：stop 立即执行；start 在 restart_lock 内的后台任务里跑——
+/// 并发装卸各自触发的重启被合并（后到者见 Running 幂等返回），
+/// 全程经 `dsh://phase` 广播 restarting 阶段给前端横幅。
 async fn restart_engine_for_plugins() {
-    let _ = stop().await;
+    let mgr = get();
+    mgr.set_phase(DshPhase::Installing {
+        stage: "restarting engine".into(),
+    });
+    if let Err(e) = stop().await {
+        log::warn!("[DshManager] stop before plugin restart failed: {e}");
+    }
     tokio::spawn(async {
+        let _guard = get().restart_lock.lock().await;
         if let Err(e) = start().await {
             log::error!("[DshManager] restart after plugin change failed: {e}");
         }
@@ -1034,6 +1047,54 @@ pub async fn dsh_plugin_install(spec: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 插件 scope 授权条目（grants 文件 + bundled 全量视图）。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DshPluginGrants {
+    pub plugin_id: String,
+    pub scopes: Vec<String>,
+    /// bundled 插件全量放行（grants 文件不存储）。
+    pub bundled: bool,
+}
+
+/// 列出插件 scope 授权视图：bundled 插件 = 全 scope；其余来自 grants 文件。
+#[tauri::command]
+pub async fn dsh_plugin_grants_list() -> Result<Vec<DshPluginGrants>, String> {
+    use crate::internal_api::ALL_SCOPES;
+    let mut out: Vec<DshPluginGrants> = BUNDLED_PLUGINS
+        .iter()
+        .map(|(_, pkg)| DshPluginGrants {
+            plugin_id: pkg.to_string(),
+            scopes: ALL_SCOPES.iter().map(|s| s.to_string()).collect(),
+            bundled: true,
+        })
+        .collect();
+    for (plugin_id, scopes) in crate::internal_api::read_grants() {
+        if scopes.is_empty() {
+            continue;
+        }
+        out.push(DshPluginGrants {
+            plugin_id,
+            scopes,
+            bundled: false,
+        });
+    }
+    out.sort_by(|a, b| a.plugin_id.cmp(&b.plugin_id));
+    Ok(out)
+}
+
+/// 授予第三方插件一个 scope（授权卡 / 插件设置页）。
+#[tauri::command]
+pub async fn dsh_plugin_grant(plugin_id: String, scope: String) -> Result<(), String> {
+    crate::internal_api::mutate_grant(&plugin_id, &scope, true)
+}
+
+/// 回收第三方插件的一个 scope。
+#[tauri::command]
+pub async fn dsh_plugin_revoke(plugin_id: String, scope: String) -> Result<(), String> {
+    crate::internal_api::mutate_grant(&plugin_id, &scope, false)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DshStatus {
@@ -1071,6 +1132,15 @@ pub async fn dsh_ensure_ready() -> Result<DshStatus, String> {
 #[tauri::command]
 pub async fn dsh_stop() -> Result<DshStatus, String> {
     stop().await?;
+    dsh_status().await
+}
+
+/// 用户手动重启引擎（Failed 态恢复入口：崩溃重试耗尽后 monitor 已退出，
+/// 重新走一遍 start 会重建监控循环）。Running 态调用 = 幂等秒回。
+#[tauri::command]
+pub async fn dsh_restart() -> Result<DshStatus, String> {
+    let _guard = get().restart_lock.lock().await;
+    start().await?;
     dsh_status().await
 }
 

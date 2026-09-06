@@ -120,9 +120,10 @@ export const SmartRouterConfig: React.FC = () => {
   }, [loadData, refreshStatus]);
 
   const buildOptions = useCallback((): SelectOption[] => {
+    // 「primary」= 当前模型（模型选择器里选中的那个）；「fast」中档概念已废除，
+    // 不再产生新的 fast 引用（旧配置中的 fast 引用运行时回落当前模型）。
     const logicalOptions: SelectOption[] = [
       { label: t('smartRouter.options.primary'), value: 'primary' },
-      { label: t('smartRouter.options.fast'), value: 'fast' },
       { label: t('smartRouter.options.rwkvLocal'), value: 'rwkv-local' },
     ];
     // Enabled user models (rwkv-local excluded to avoid a duplicate option).

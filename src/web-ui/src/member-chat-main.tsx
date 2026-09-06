@@ -18,13 +18,16 @@ async function startMemberChatWindow(): Promise<void> {
   log.info('Theme system initialized');
 
   const { I18nProvider } = await import('./infrastructure/i18n');
+  const { ToastProvider, ConfirmDialogRenderer } = await import('@/component-library');
   const AppErrorBoundary = (await import('./app/components/AppErrorBoundary')).default;
   const MemberChatApp = (await import('./app/MemberChatApp')).default;
 
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <AppErrorBoundary>
       <I18nProvider>
+        <ToastProvider />
         <MemberChatApp />
+        <ConfirmDialogRenderer />
       </I18nProvider>
     </AppErrorBoundary>
   );

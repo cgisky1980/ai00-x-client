@@ -3,7 +3,7 @@
  */
 
 .ssh-auth-prompt-dialog {
-  padding: var(--size-gap-2) 0 var(--size-gap-4);
+  /* 内容 padding 由 DS Modal 基件默认接管（16px） */
 
   &__description {
     display: flex;

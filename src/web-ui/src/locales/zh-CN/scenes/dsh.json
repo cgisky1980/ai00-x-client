@@ -5,7 +5,21 @@
     "new": "新建会话",
     "refresh": "刷新列表",
     "loading": "正在加载…",
-    "empty": "暂无会话"
+    "empty": "暂无会话",
+    "rename": "重命名会话",
+    "fork": "派生会话（复制历史到新会话）",
+    "usage": "本会话累计用量（↑输入 ↓输出 · 请求数）"
+  },
+  "tool": {
+    "result": "结果",
+    "resultError": "错误输出",
+    "resultEmpty": "（无输出）"
+  },
+  "permission": {
+    "pending": "请求权限：{{scope}}",
+    "reason": "插件 {{pluginId}} 正在调用需要「{{scope}}」权限的宿主能力。授予以允许该插件后续调用同类能力；可在插件设置中收回。",
+    "grant": "授予",
+    "deny": "拒绝"
   },
   "chat": {
     "placeholder": "dsh 引擎驱动的 Ai00-X Agent",
@@ -37,12 +51,18 @@
     "running": "引擎运行中",
     "failed": "引擎故障：{{error}}",
     "wsOn": "事件流已连接",
-    "wsOff": "事件流未连接"
+    "wsOff": "事件流未连接",
+    "restart": "重启引擎"
   },
   "pluginError": "引擎插件加载失败",
   "pluginErrorAttributed": "疑似插件 {{module}} 导致",
   "pluginErrorDisable": "一键停用 {{module}}",
   "pluginErrorGoSettings": "前往插件设置",
   "pluginErrorClose": "关闭提示",
-  "pluginErrorDisabled": "{{module}} 已停用，引擎正在重启"
+  "pluginErrorDisabled": "{{module}} 已停用，引擎正在重启",
+  "theater": {
+    "enable": "开启工作剧场",
+    "disable": "关闭工作剧场",
+    "openCard": "查看 Agent 状态"
+  }
 }

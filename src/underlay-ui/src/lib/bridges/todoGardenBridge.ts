@@ -28,7 +28,7 @@ interface BadgeUnlockedPayload {
 
 /** 找一株最值得浇水的活植物：优先枯萎临界(最久未浇)，其次任意未枯萎。 */
 function pickThirstyPlant(plants: Plant[]): Plant | null {
-    const alive = plants.filter((p) => !p.harvested && p.stage !== 'withered' && p.stage !== 'seed');
+    const alive = plants.filter((p) => !p.harvested && p.stage !== 'wilting' && p.stage !== 'seed');
     if (!alive.length) return null;
     return [...alive].sort((a, b) => (a.lastWateredAt || 0) - (b.lastWateredAt || 0))[0];
 }
@@ -41,7 +41,7 @@ export function useTodoGardenBridge(): void {
             try {
                 // 专注完成 → 浇水（花园懒初始化，幂等）。
                 offs.push(
-                    await listen<FocusCompletedPayload>(`${TODO_EVENT_PREFIX}focus-completed`, async (e) => {
+                    await listen<FocusCompletedPayload>(`${TODO_EVENT_PREFIX}focus-completed`, async () => {
                         try {
                             const mgr = getGardenManager();
                             await mgr.init();

@@ -7,7 +7,8 @@
  * hover 卡片右上角「×」删除（有内容时确认防误删）。
  */
 import React, { useMemo, useState } from 'react';
-import { Bot, FileText, LoaderCircle, MessageSquare, Plus, X } from 'lucide-react';
+import { Bot, FileText, LoaderCircle, MessageSquare, Plus, Sparkles, X } from 'lucide-react';
+import { useTheaterStore } from '@/app/components/AgentTheater/theaterStore';
 import { useTodoStore, boardLane, boardLaneCount } from '../../store/todoStore';
 import { getAgentModule } from '../../agent-modules';
 import type { TaskStatus, TodoTask } from '../../api/types';
@@ -38,6 +39,10 @@ const Card: React.FC<{
   // agent 提问待处理（内嵌问题卡入口提示——accent 呼吸）
   const hasQuestion = useTodoStore(
     s => !!task.agentSessionId && (s.agentQuestions[task.agentSessionId]?.length ?? 0) > 0
+  );
+  // 最后一轮执行出错（TodoOverlay 轮询回填）
+  const failed = useTodoStore(
+    s => !!task.agentSessionId && (s.agentFailed[task.agentSessionId] ?? false)
   );
   // 有实质内容（计划/讨论/委托）时确认删除，防误删
   const handleDelete = () => {
@@ -97,10 +102,12 @@ const Card: React.FC<{
         )}
         {(task.status ?? 'requirement') === 'doing' && task.agentSessionId && !running && (
           <span
-            className="td-card__badge is-verify"
-            title="agent 执行已结束——点开卡片验收（勾 DoD / 标记完成 / 重新规划）"
+            className={`td-card__badge ${failed ? 'is-failed' : 'is-verify'}`}
+            title={failed
+              ? 'agent 最后一轮执行出错——点开卡片查看错误 / 重新规划'
+              : 'agent 执行已结束——点开卡片验收（勾 DoD / 标记完成 / 重新规划）'}
           >
-            待验收
+            {failed ? '执行出错' : '待验收'}
           </span>
         )}
         {(task.status ?? 'requirement') === 'doing' && accTotal > 0 && (
@@ -131,6 +138,10 @@ export const BoardView: React.FC<{
   const deleteTask = useTodoStore((s) => s.deleteTask);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<TaskStatus | null>(null);
+  // 工作剧场开关（进行中栏头 ✨——与灵岛 Dock / dsh 场景侧栏同一状态）
+  const theaterEnabled = useTheaterStore((st) => st.enabled);
+  const setTheaterEnabled = useTheaterStore((st) => st.setEnabled);
+  const toggleTheater = () => setTheaterEnabled(!theaterEnabled);
 
   const lanes = useMemo(
     () => LANES.map(l => ({ ...l, tasks: boardLane(data, l.status), count: boardLaneCount(data, l.status) })),
@@ -168,6 +179,15 @@ export const BoardView: React.FC<{
           <div className="td-board__lane-head">
             <span className="td-board__lane-title">{lane.label}</span>
             <span className="td-board__lane-count">{lane.count}</span>
+            {lane.status === 'doing' && (
+              <button
+                className={`td-board__lane-theater${theaterEnabled ? ' is-on' : ''}`}
+                onClick={toggleTheater}
+                title={theaterEnabled ? '工作剧场 · 开（工灵悬浮窗）' : '工作剧场 · 关'}
+              >
+                <Sparkles size={11} />
+              </button>
+            )}
             {lane.status === 'requirement' && (
               <button
                 className="td-board__lane-add"

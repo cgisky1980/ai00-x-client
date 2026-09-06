@@ -15,6 +15,7 @@ pub mod download_manager;
 pub mod dsh_manager;
 pub mod dsh_proxy;
 pub mod embedding;
+pub mod gguf_meta;
 pub mod internal_api;
 pub mod kv_store;
 pub mod llama_server_manager;
@@ -541,10 +542,14 @@ pub async fn run() {
             dsh_manager::dsh_status,
             dsh_manager::dsh_ensure_ready,
             dsh_manager::dsh_stop,
+            dsh_manager::dsh_restart,
             dsh_manager::dsh_plugins_list,
             dsh_manager::dsh_plugin_set_enabled,
             dsh_manager::dsh_plugin_remove,
             dsh_manager::dsh_plugin_install,
+            dsh_manager::dsh_plugin_grants_list,
+            dsh_manager::dsh_plugin_grant,
+            dsh_manager::dsh_plugin_revoke,
             theme::open_overlay_force,
             theme::show_main_window,
             theme::hide_loader_window,
@@ -668,6 +673,9 @@ pub async fn run() {
             crate::llama_server_manager::gguf_local_status,
             crate::llama_server_manager::gguf_builtin_catalog,
             crate::llama_server_manager::gguf_builtin_download,
+            crate::llama_server_manager::gguf_ensure_server,
+            crate::rwkv_llm::rwkv_builtin_catalog,
+            crate::rwkv_llm::rwkv_builtin_download,
             crate::vram_manager::vram_list_engines,
             crate::vram_manager::vram_evict_engine,
             crate::vram_manager::vram_set_active_context,

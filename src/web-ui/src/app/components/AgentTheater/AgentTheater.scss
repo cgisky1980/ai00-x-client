@@ -1,0 +1,526 @@
+// ========================================================================
+// Agent 剧场样式（工灵悬浮窗 / AgentCard / 形象部件）
+// ========================================================================
+// 规范：颜色/间距/圆角/层级一律走 design token（AGENTS.md 视觉规范）。
+// 悬浮窗 z-index 与 DynamicIsland 同域（50010+）。
+
+// ── 悬浮窗壳 ─────────────────────────────────────────────────────────
+
+.ai00-agent-theater {
+  position: fixed;
+  // left/top 由 useDraggable inline style 控制（位置记忆），CSS 不再设 top/right
+  z-index: var(--z-chrome-top); // 与 DynamicIsland 同域（DOM 顺序靠后自然置顶）
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-2, 8px);
+  pointer-events: auto;
+  user-select: none;
+}
+
+// ── 单个工灵 ─────────────────────────────────────────────────────────
+
+.ai00-agent-imp {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  background: var(--color-bg-elevated, #1e1e24);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full, 9999px);
+  box-shadow: var(--shadow-base, 0 4px 8px rgba(0, 0, 0, 0.7));
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast, 0.15s) var(--easing-standard),
+    box-shadow var(--motion-fast, 0.15s) var(--easing-standard);
+
+  &:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-lg, 0 8px 16px rgba(0, 0, 0, 0.6));
+  }
+
+  &.is-focused {
+    border-color: var(--color-accent-500);
+    animation: ai00-imp-pulse 0.6s var(--easing-standard) 3;
+  }
+
+  &--appear .ai00-imp-visual {
+    animation: ai00-imp-bounce 0.4s var(--easing-standard);
+  }
+
+  &--working .ai00-imp-visual {
+    animation: ai00-imp-work 1.2s steps(2) infinite;
+    // 强度档位：工具越密节奏越快
+    &.ai00-agent-imp--i1 .ai00-imp-visual { animation-duration: 0.8s; }
+    &.ai00-agent-imp--i2 .ai00-imp-visual { animation-duration: 0.5s; }
+  }
+
+  &--thinking .ai00-imp-visual {
+    animation: ai00-imp-sway 2.4s ease-in-out infinite;
+  }
+
+  &--trouble .ai00-imp-visual {
+    animation: ai00-imp-shake 0.3s linear 3;
+  }
+
+  &--milestone .ai00-imp-visual {
+    animation: ai00-imp-bounce 0.4s var(--easing-standard);
+  }
+
+  // 执行出错警示：语义 error + 呼吸提醒，驻留至验收/处理完成
+  &--alert {
+    border-color: var(--color-error);
+    animation: ai00-imp-alert-pulse 1.4s var(--easing-standard) infinite;
+  }
+
+  // 待验收驻留：语义 warning 提示验收
+  &--acceptance {
+    border-color: var(--color-warning);
+  }
+
+  &__dismiss {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--size-gap-1, 4px);
+    border-radius: var(--radius-sm, 6px);
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--element-bg-subtle);
+    }
+  }
+
+  &--leaving .ai00-imp-visual {
+    opacity: 0.5;
+    transition: opacity var(--motion-base, 0.3s) var(--easing-standard);
+  }
+
+  &__label {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-secondary);
+
+    // 实时工具标签：mono（机器输出签名）
+    &--mono {
+      font-family: var(--font-family-mono);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  &__bubble {
+    font-size: var(--font-size-lg, 15px);
+    line-height: 1;
+    animation: ai00-imp-bubble-in 0.25s var(--easing-standard);
+  }
+}
+
+@keyframes ai00-imp-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+@keyframes ai00-imp-bounce {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(-6px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes ai00-imp-work {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-2px) rotate(-4deg); }
+}
+
+@keyframes ai00-imp-sway {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(6deg); }
+}
+
+@keyframes ai00-imp-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+@keyframes ai00-imp-alert-pulse {
+  0%, 100% { box-shadow: var(--shadow-base, 0 4px 8px rgba(0, 0, 0, 0.7)); }
+  50% { box-shadow: 0 0 0 4px color-mix(in oklch, var(--color-error) 30%, transparent); }
+}
+
+@keyframes ai00-imp-bubble-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.8); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+// ── 形象（ImpVisual）：底座 SVG 感的 CSS 组合件 ─────────────────────
+
+.ai00-imp-visual {
+  position: relative;
+  display: inline-block;
+  flex: none;
+
+  &__body {
+    position: absolute;
+    inset: 8%;
+    border-radius: 46% 46% 42% 42%;
+    background: var(--imp-accent, var(--color-accent-500));
+    box-shadow: var(--shadow-xs);
+  }
+
+  &__eyes {
+    position: absolute;
+    top: 34%;
+    left: 26%;
+    width: 48%;
+    height: 18%;
+    // 随机样式 1：单眼（独眼）
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      width: 22%;
+      height: 100%;
+      border-radius: 50%;
+      background: var(--color-text-primary, #f8f8fa);
+    }
+    &::before { left: 0; }
+    &::after { right: 0; }
+    // eyeStyle 1 → 独眼；2 → 眯眼
+    [style*='--imp-eye:1'] & {
+      &::before { left: 39%; width: 22%; }
+      &::after { display: none; }
+    }
+    [style*='--imp-eye:2'] & {
+      &::before, &::after { height: 40%; top: 30%; }
+    }
+  }
+
+  &__antenna {
+    position: absolute;
+    top: -6%;
+    left: 50%;
+    width: 2px;
+    height: 22%;
+    transform: translateX(-50%);
+    background: var(--imp-accent, var(--color-accent-500));
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: -4px;
+      left: 50%;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      transform: translateX(-50%);
+      background: var(--imp-accent, var(--color-accent-500));
+    }
+    // antennaStyle 2 → 双天线
+    [style*='--imp-antenna:2'] & {
+      left: 35%;
+      &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 14px;
+        width: 2px;
+        height: 100%;
+        background: var(--imp-accent, var(--color-accent-500));
+      }
+    }
+  }
+
+  &__pattern {
+    position: absolute;
+    bottom: 14%;
+    left: 20%;
+    width: 60%;
+    height: 16%;
+    border-radius: 2px;
+    // patternStyle 1 → 条纹；2 → 圆点
+    [style*='--imp-pattern:1'] & {
+      background: repeating-linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0.25) 0 2px,
+        transparent 2px 5px
+      );
+    }
+    [style*='--imp-pattern:2'] & {
+      background: radial-gradient(circle, rgba(0, 0, 0, 0.25) 1.5px, transparent 2px);
+      background-size: 6px 6px;
+    }
+  }
+
+  &__gadget {
+    position: absolute;
+    right: -12%;
+    bottom: 10%;
+    width: 30%;
+    height: 30%;
+    border-radius: 3px;
+    background: var(--element-bg-medium);
+    border: 1px solid var(--border-base);
+    // gadget 0 → 无工具
+    [style*='--imp-gadget:0'] & { display: none; }
+  }
+
+  // ── 模板专属轮廓 ──
+  &--tpl-bee &__pattern {
+    background: repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.35) 0 3px,
+      transparent 3px 7px
+    );
+  }
+
+  &--tpl-woodpecker &__antenna {
+    display: none;
+    & + .ai00-imp-visual__eyes { top: 28%; }
+  }
+
+  &--tpl-owl &__eyes {
+    &::before, &::after {
+      width: 34%;
+      height: 60%;
+      border: 2px solid var(--border-strong);
+      background: transparent;
+    }
+  }
+
+  &--tpl-snail &__antenna {
+    height: 30%;
+    &::before { width: 8px; height: 8px; }
+  }
+
+  &--tpl-worker &__body {
+    &::before {
+      content: '';
+      position: absolute;
+      top: -3px;
+      left: 20%;
+      width: 60%;
+      height: 30%;
+      border-radius: 4px 4px 0 0;
+      background: var(--color-warning, #f59e0b); // 小黄帽
+    }
+  }
+}
+
+// ── AgentCard ────────────────────────────────────────────────────────
+
+.ai00-agent-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2, 8px);
+  width: 260px;
+  padding: var(--spacing-3, 12px);
+  background: var(--color-bg-elevated, #1e1e24);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-xl, 0 12px 24px rgba(0, 0, 0, 0.5));
+  backdrop-filter: blur(8px); // 浮层允许
+  pointer-events: auto;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2, 8px);
+  }
+
+  &__task {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-sm, 13px);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  &__close {
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--spacing-1, 4px);
+    line-height: 1;
+
+    &:hover { color: var(--color-text-primary); }
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1, 4px);
+  }
+
+  &__row {
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-secondary);
+    display: flex;
+    gap: var(--size-gap-1, 4px);
+    align-items: center;
+    font-variant-numeric: tabular-nums; // 数据签名排版
+
+    code {
+      font-family: var(--font-family-mono);
+      font-size: var(--font-size-xs, 12px);
+      color: var(--color-accent-400);
+    }
+
+    &--scene { color: var(--color-warning); }
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-2, 8px);
+    padding-top: var(--spacing-2, 8px);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  &__open {
+    border: none;
+    border-radius: var(--radius-sm, 6px);
+    padding: var(--spacing-1, 4px) var(--spacing-3, 12px);
+    background: var(--color-accent-500);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs, 12px);
+    cursor: pointer;
+
+    &:hover { filter: brightness(1.1); }
+  }
+}
+
+// ── 待命芯片 ─────────────────────────────────────────────────────────
+
+// ── 会话对话浮层（可拖动、可多开；层叠序号经 inline z-index 微调）────
+
+.ai00-session-float {
+  position: fixed;
+  // width/height 由 usePopupResize inline style 控制（可 resize）
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-elevated, #1e1e24);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-xl, 0 12px 24px rgba(0, 0, 0, 0.5));
+  backdrop-filter: blur(8px); // 浮层允许（规范白名单）
+  overflow: hidden;
+
+  &.is-dragging {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-2xl, 0 16px 32px rgba(0, 0, 0, 0.4));
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2, 8px);
+    padding: var(--size-gap-2, 8px) var(--size-gap-3, 12px);
+    // 沉一档标题带（MusicPopup/策窗同配方：sunken 深于内容面）
+    background-color: var(--color-bg-sunken);
+    border-bottom: 1px solid var(--element-bg-subtle);
+    cursor: grab;
+    user-select: none;
+
+    .is-dragging & { cursor: grabbing; }
+  }
+
+  &__grip {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    opacity: 0.4;
+    transition: color var(--motion-fast, 0.15s) ease, opacity var(--motion-fast, 0.15s) ease;
+
+    &:hover { opacity: 1; }
+  }
+
+  &__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full, 9999px);
+    background: var(--color-text-disabled);
+    flex: none;
+
+    &.is-running {
+      background: var(--color-success);
+      animation: ai00-float-pulse 1.6s var(--easing-standard) infinite;
+    }
+  }
+
+  &__title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-base, 14px);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  &__close {
+    display: inline-flex;
+    align-items: center;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--spacing-1, 4px);
+    border-radius: var(--radius-sm, 6px);
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--element-bg-subtle);
+    }
+  }
+
+  // 内嵌对话区（消息/输入样式复用 ai00-x-dsh-scene__messages/__composer）
+  &__chat {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    .ai00-x-dsh-scene__messages {
+      flex: 1;
+      min-height: 0;
+    }
+  }
+
+  // 8 向 resize 手柄（4 边 + 4 角，MusicPopup 配方）
+  &__resize {
+    position: absolute;
+    z-index: 1;
+    pointer-events: auto;
+    transition: background var(--motion-fast, 0.15s) ease;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-accent-400) 35%, transparent);
+    }
+
+    &--n  { top: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+    &--s  { bottom: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+    &--e  { right: -3px; top: 8px; bottom: 8px; width: 6px; cursor: ew-resize; }
+    &--w  { left: -3px; top: 8px; bottom: 8px; width: 6px; cursor: ew-resize; }
+    &--ne { top: -3px; right: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+    &--nw { top: -3px; left: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+    &--se { bottom: -3px; right: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+    &--sw { bottom: -3px; left: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+  }
+
+  &.is-resizing {
+    border-color: var(--border-strong);
+    user-select: none;
+  }
+}
+
+@keyframes ai00-float-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

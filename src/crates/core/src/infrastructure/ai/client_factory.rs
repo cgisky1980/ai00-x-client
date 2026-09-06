@@ -156,6 +156,23 @@ impl AIClientFactory {
                     info!("rwkv-local not in user models list, using built-in default config");
                     get_default_rwkv_model_config()
                 })
+        } else if let Some(sub_model) = normalized_model_id.strip_prefix("ai00s:") {
+            // Ai00-API 复合引用 ai00s:<sub_model>：以 ai00s 条目为基底、覆写 model_name，
+            // 让 primary/fast（及会话）各自独立绑定 Ai00-API 子模型，不共享 ai00s.model_name。
+            let mut base = global_config
+                .ai
+                .models
+                .iter()
+                .find(|m| m.provider == "ai00s")
+                .cloned()
+                .unwrap_or_else(|| {
+                    info!("ai00s entry not in user models list, using built-in default config");
+                    crate::service::config::providers::get_default_ai00s_model_config(
+                        &global_config.app.ai00_s_base_url,
+                    )
+                });
+            base.model_name = sub_model.to_string();
+            base
         } else {
             global_config
                 .ai

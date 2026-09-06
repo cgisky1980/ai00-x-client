@@ -16,6 +16,7 @@
 import React, { useEffect, useRef } from 'react';
 import { audioPlaybackApi } from '../../vrm/lib/audioPlaybackApi';
 import { usePlayerStore } from '../store/playerStore';
+import { useMusicSourceStore } from '../../music-source/musicSourceStore';
 import type { ChannelInfo } from '../../vrm/lib/audioPlaybackApi';
 
 const POLL_INTERVAL_MS = 100; // 10fps position polling
@@ -65,7 +66,16 @@ export const PlayerEngine: React.FC = () => {
           // Mark the song as ended in the state machine.
           // If playNext loads a new song, it will override this to 'playing'.
           setEnded();
-          if (playlist.length > 0) {
+          // 歌曲电台自动连播：必须在常驻层推进（本组件随 App 根常驻）。
+          // 不能挂在 MusicPopup——弹窗关闭即卸载，ended 就无人响应，
+          // 电台会停在当前曲（2026-09-05 实录 bug）。
+          const ms = useMusicSourceStore.getState();
+          const ps = usePlayerStore.getState();
+          if (ms.radioActive && ps.currentOnlineId) {
+            void ms.radioNext().then(async (song) => {
+              if (song) await usePlayerStore.getState().playOnline(song);
+            });
+          } else if (playlist.length > 0) {
             void playNext(true);
           }
         }

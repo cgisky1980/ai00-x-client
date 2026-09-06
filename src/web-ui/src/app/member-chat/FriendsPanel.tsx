@@ -1,29 +1,12 @@
 /**
- * FriendsPanel — 好友体系弹窗集合：
+ * FriendsPanel — 好友体系弹窗集合（ds web 系 Modal + 表单件）：
  * - AddFriendModal       添加好友（用户名搜索 → 发送申请）
  * - FriendRequestsModal  待处理好友申请（接受/拒绝）
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { useI18n } from '@/infrastructure/i18n';
+import { Button, Empty, Modal, Search } from '@/component-library';
 import { chatApi, type FriendReq, type MemberHit } from './chatApi';
-
-/** 通用弹窗外壳（与 ChatModals 同款类名） */
-const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({
-  title,
-  onClose,
-  children,
-}) => (
-  <div className="member-chat__modal-mask" onClick={onClose}>
-    <div className="member-chat__modal" onClick={(e) => e.stopPropagation()}>
-      <div className="member-chat__modal-header">
-        <span>{title}</span>
-        <button className="member-chat__modal-close" onClick={onClose}>
-          ✕
-        </button>
-      </div>
-      <div className="member-chat__modal-body">{children}</div>
-    </div>
-  </div>
-);
 
 // ---- 添加好友 ----
 
@@ -31,6 +14,7 @@ export const AddFriendModal: React.FC<{
   onClose: () => void;
   onNotice: (msg: string) => void;
 }> = ({ onClose, onNotice }) => {
+  const { t } = useI18n();
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<MemberHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -69,9 +53,9 @@ export const AddFriendModal: React.FC<{
       const fr = await chatApi.sendFriendRequest(hit.id);
       setSentMap((prev) => ({
         ...prev,
-        [hit.id]: fr.status === 'accepted' ? '已成为好友' : '已发送申请',
+        [hit.id]: fr.status === 'accepted' ? t('memberChat.alreadyFriends', { defaultValue: '已成为好友' }) : t('memberChat.requestSent', { defaultValue: '已发送申请' }),
       }));
-      onNotice(fr.status === 'accepted' ? `已与 ${hit.username} 成为好友` : '好友申请已发送');
+      onNotice(fr.status === 'accepted' ? t('memberChat.friendAdded', { defaultValue: '已与 {{name}} 成为好友', name: hit.username }) : t('memberChat.friendRequestSent', { defaultValue: '好友申请已发送' }));
     } catch (e) {
       const msg = (e as Error).message;
       // 幂等重放 / 已是好友时不打断用户
@@ -80,21 +64,26 @@ export const AddFriendModal: React.FC<{
   };
 
   return (
-    <Modal title="添加好友" onClose={onClose}>
-      <label className="member-chat__field">
-        <span>用户名</span>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="输入对方用户名搜索"
-          autoFocus
-        />
-      </label>
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={t('memberChat.addFriendTitle', { defaultValue: '添加好友' })}
+      size="small"
+      contentClassName="member-chat__modal-form"
+    >
+      <Search
+        value={q}
+        onChange={setQ}
+        placeholder={t('memberChat.searchUsername', { defaultValue: '输入对方用户名搜索' })}
+        loading={searching}
+        autoFocus
+      />
       {err && <div className="member-chat__modal-error">{err}</div>}
       <div className="member-chat__friend-hits">
-        {searching && <div className="member-chat__empty">搜索中…</div>}
         {!searching && q.trim() && hits.length === 0 && (
-          <div className="member-chat__empty">未找到匹配的用户</div>
+          <Empty
+            title={t('memberChat.noUserFound', { defaultValue: '未找到匹配的用户' })}
+          />
         )}
         {hits.map((h) => (
           <div key={h.id} className="member-chat__friend-hit">
@@ -104,13 +93,14 @@ export const AddFriendModal: React.FC<{
                 <span className="member-chat__group">{h.nickname}</span>
               )}
             </span>
-            <button
-              className="member-chat__btn-primary member-chat__btn-small"
+            <Button
+              variant="primary"
+              size="small"
               disabled={!!sentMap[h.id]}
               onClick={() => doSend(h)}
             >
-              {sentMap[h.id] || '加好友'}
-            </button>
+              {sentMap[h.id] || t('memberChat.addFriendAction', { defaultValue: '加好友' })}
+            </Button>
           </div>
         ))}
       </div>
@@ -125,6 +115,7 @@ export const FriendRequestsModal: React.FC<{
   onClose: () => void;
   onRespond: (id: number, accept: boolean) => Promise<void>;
 }> = ({ requests, onClose, onRespond }) => {
+  const { t } = useI18n();
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const respond = async (id: number, accept: boolean) => {
@@ -137,26 +128,36 @@ export const FriendRequestsModal: React.FC<{
   };
 
   return (
-    <Modal title={`好友申请（${requests.length}）`} onClose={onClose}>
-      {requests.length === 0 && <div className="member-chat__empty">暂无待处理的申请</div>}
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={`${t('memberChat.friendRequestsTitle', { defaultValue: '好友申请' })}（${requests.length}）`}
+      size="small"
+      contentClassName="member-chat__modal-form"
+    >
+      {requests.length === 0 && (
+        <Empty title={t('memberChat.noRequests', { defaultValue: '暂无待处理的申请' })} />
+      )}
       {requests.map((r) => (
         <div key={r.id} className="member-chat__friend-hit">
           <span className="member-chat__friend-hit-name">{r.requester_name}</span>
           <span className="member-chat__friend-hit-actions">
-            <button
-              className="member-chat__btn-primary member-chat__btn-small"
-              disabled={busyId === r.id}
+            <Button
+              variant="primary"
+              size="small"
+              isLoading={busyId === r.id}
               onClick={() => respond(r.id, true)}
             >
-              接受
-            </button>
-            <button
-              className="member-chat__btn-ghost member-chat__btn-small"
-              disabled={busyId === r.id}
+              {t('memberChat.accept', { defaultValue: '接受' })}
+            </Button>
+            <Button
+              variant="secondary"
+              size="small"
+              isLoading={busyId === r.id}
               onClick={() => respond(r.id, false)}
             >
-              拒绝
-            </button>
+              {t('memberChat.reject', { defaultValue: '拒绝' })}
+            </Button>
           </span>
         </div>
       ))}

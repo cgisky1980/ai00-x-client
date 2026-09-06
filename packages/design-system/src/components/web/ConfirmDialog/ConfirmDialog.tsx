@@ -97,6 +97,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       onClose={handleCancel}
       size="medium"
       showCloseButton={false}
+      contentBare
     >
       <div className={`confirm-dialog confirm-dialog--${type}`}>
         <div className="confirm-dialog__icon" aria-hidden>

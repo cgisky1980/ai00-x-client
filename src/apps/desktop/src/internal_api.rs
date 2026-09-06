@@ -9,10 +9,25 @@
 //! - `POST /ai00-internal/todo/focus`      — 追加专注记录（RMW + `todo-focus-appended` 事件）
 //! - `GET  /ai00-internal/plan?taskId=`    — 读卡片计划文档 MD（?taskId=）
 //! - `PUT  /ai00-internal/plan`            — 写卡片计划文档 `{taskId, markdown}`（广播 `todo-plan-updated`）
+//! - `POST /ai00-internal/git/snapshot`    — 工作区 git 快照（libgit2）
 //! - `POST /ai00-internal/xp`              — XP 事件转发远端（member JWT；服务端按 kind 幂等去重）
 //!
-//! 鉴权：`X-Ai00-Internal-Token` 头匹配 `AI00_S_INTERNAL_TOKEN`（回退默认值），
-//! 与 ai_gateway 同策略。业务逻辑留在既有 Rust 实现（D7：插件是薄壳）。
+//! 鉴权分两层：
+//! 1. `X-Ai00-Internal-Token` 头匹配 `AI00_S_INTERNAL_TOKEN`（回退默认值），
+//!    与 ai_gateway 同策略。该 token 同时承担远端转发的 CSRF 豁免（fetchWithAuth
+//!    / TokenManager / xp 转发），是全局共享密钥，不做插件区分。
+//! 2. **插件 scope 层（v1）**：回呼带 `X-Ai00-Plugin-Id` 头标识来源插件。
+//!    bundled 插件（dsh_versions_gen::BUNDLED_PLUGINS）→ 全 scope 放行；
+//!    已标识的第三方插件 → 按 grants 文件（DSH_HOME/plugin-grants.json）逐 scope 放行，
+//!    未授权 403 + `X-Ai00-Required-Scope` 头 + 广播 `dsh://permission-requested`（前端授权卡一键授予）；
+//!    未标识请求（历史第三方插件/直连）→ 只放行 BASIC_SCOPES（只读 + 通知），写操作 403 并日志提示接入 Plugin-Id 头。
+//!    已知边界：引擎侧插件同进程，恶意插件可省略 Plugin-Id 头拿 BASIC 之外的能力——不能，未标识只拿 BASIC；
+//!    伪造 bundled id 可拿全量，这是进程内插件的固有边界（v1 诚实降级，真隔离 = P4 microVM 立项）。
+//!
+//! 业务逻辑留在既有 Rust 实现（D7：插件是薄壳）。
+
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use salvo::http::StatusCode;
 use salvo::prelude::*;
@@ -21,7 +36,155 @@ use tauri::{Emitter, Manager};
 
 use ai00_x_core::infrastructure::ai00_s_internal_token;
 
+use crate::dsh_manager::dsh_versions_gen::BUNDLED_PLUGINS;
+
 const INTERNAL_TOKEN_HEADER: &str = "x-ai00-internal-token";
+const PLUGIN_ID_HEADER: &str = "x-ai00-plugin-id";
+
+/// scope 常量（grants 文件与前端授权卡共用同一词表）。
+pub const SCOPE_NOTIFY: &str = "notify";
+pub const SCOPE_WALLPAPER: &str = "wallpaper";
+pub const SCOPE_TODO_READ: &str = "todo:read";
+pub const SCOPE_TODO_WRITE: &str = "todo:write";
+pub const SCOPE_PLAN_READ: &str = "plan:read";
+pub const SCOPE_PLAN_WRITE: &str = "plan:write";
+pub const SCOPE_GIT: &str = "git";
+pub const SCOPE_XP: &str = "xp";
+
+/// 全部 scope（dsh_plugin_grants_list / 授权 UI 的词表）。
+pub const ALL_SCOPES: &[&str] = &[
+    SCOPE_NOTIFY,
+    SCOPE_WALLPAPER,
+    SCOPE_TODO_READ,
+    SCOPE_TODO_WRITE,
+    SCOPE_PLAN_READ,
+    SCOPE_PLAN_WRITE,
+    SCOPE_GIT,
+    SCOPE_XP,
+];
+
+/// 未标识请求（无 Plugin-Id 头）的兜底 scope：只读 + 通知。
+/// 写操作（知行写/计划写/git/XP/壁纸）一律 403——历史第三方插件接入
+/// Plugin-Id 头 + 授权后恢复。
+pub const BASIC_SCOPES: &[&str] = &[SCOPE_NOTIFY, SCOPE_TODO_READ, SCOPE_PLAN_READ];
+
+/// grants 文件：DSH_HOME/plugin-grants.json，形如 `{ "<pluginId>": ["scope", ...] }`。
+fn grants_path() -> PathBuf {
+    crate::dsh_manager::dsh_home().join("plugin-grants.json")
+}
+
+/// 读 grants 文件（不存在/损坏按空表处理）。
+pub(crate) fn read_grants() -> BTreeMap<String, Vec<String>> {
+    std::fs::read_to_string(grants_path())
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+/// 写 grants 文件（原子替换）。
+pub(crate) fn write_grants(grants: &BTreeMap<String, Vec<String>>) -> Result<(), String> {
+    let path = grants_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir grants dir: {e}"))?;
+    }
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(grants).unwrap_or_default(),
+    )
+    .map_err(|e| format!("write grants: {e}"))
+}
+
+/// 授权/回收一个插件的 scope（dsh_plugin_grant / dsh_plugin_revoke 命令实现）。
+pub(crate) fn mutate_grant(plugin_id: &str, scope: &str, grant: bool) -> Result<(), String> {
+    if !ALL_SCOPES.contains(&scope) {
+        return Err(format!("unknown scope: {scope}"));
+    }
+    if plugin_id.trim().is_empty() {
+        return Err("empty plugin id".into());
+    }
+    let mut grants = read_grants();
+    let entry = grants.entry(plugin_id.to_string()).or_default();
+    if grant {
+        if !entry.iter().any(|s| s == scope) {
+            entry.push(scope.to_string());
+        }
+    } else {
+        entry.retain(|s| s != scope);
+    }
+    write_grants(&grants)
+}
+
+/// bundled 插件 id 集合（放行全 scope）。
+fn is_bundled_plugin(plugin_id: &str) -> bool {
+    BUNDLED_PLUGINS.iter().any(|(_, pkg)| *pkg == plugin_id)
+}
+
+/// 内部 token 鉴权 + 插件 scope 授权；失败时写好错误响应并返回 false。
+fn authorize(req: &Request, res: &mut Response, scope: &str) -> bool {
+    // 第 1 层：共享 token
+    let expected = ai00_s_internal_token();
+    let provided = req
+        .headers()
+        .get(INTERNAL_TOKEN_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if provided != expected {
+        res.status_code(StatusCode::UNAUTHORIZED);
+        res.body(json!({"error": {"message": "invalid internal token"}}).to_string());
+        return false;
+    }
+    // 第 2 层：插件 scope
+    let plugin_id = req
+        .headers()
+        .get(PLUGIN_ID_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let allowed = if plugin_id.is_empty() {
+        BASIC_SCOPES.contains(&scope)
+    } else if is_bundled_plugin(plugin_id) {
+        true
+    } else {
+        read_grants()
+            .get(plugin_id)
+            .is_some_and(|scopes| scopes.iter().any(|s| s == scope))
+    };
+    if !allowed {
+        log::warn!(
+            "[internal-api] scope denied: plugin={:?} scope={scope}",
+            if plugin_id.is_empty() {
+                "<unidentified>"
+            } else {
+                plugin_id
+            }
+        );
+        if let Ok(v) = salvo::http::HeaderValue::from_str(scope) {
+            res.headers_mut().insert("x-ai00-required-scope", v);
+        }
+        res.status_code(StatusCode::FORBIDDEN);
+        res.body(
+            json!({
+                "error": {
+                    "message": format!("plugin scope not granted: {scope}"),
+                    "requiredScope": scope,
+                }
+            })
+            .to_string(),
+        );
+        // 授权卡：把 (pluginId, scope) 推给前端（unidentified 无法授权——
+        // 插件必须先声明 Plugin-Id 头，此处不发事件）
+        if !plugin_id.is_empty() {
+            if let Some(app) = crate::dsh_manager::app_handle() {
+                let _ = Emitter::emit(
+                    &app,
+                    "dsh://permission-requested",
+                    json!({"pluginId": plugin_id, "scope": scope}),
+                );
+            }
+        }
+        return false;
+    }
+    true
+}
 
 /// 网关响应禁止缓存。
 #[handler]
@@ -82,22 +245,6 @@ pub fn router() -> Router {
         .push(Router::with_path("xp").hoop(no_cache).post(xp_report))
 }
 
-/// 内部 token 鉴权；失败时写好 401 响应并返回 false。
-fn authed(req: &Request, res: &mut Response) -> bool {
-    let expected = ai00_s_internal_token();
-    let provided = req
-        .headers()
-        .get(INTERNAL_TOKEN_HEADER)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    if provided != expected {
-        res.status_code(StatusCode::UNAUTHORIZED);
-        res.body(json!({"error": {"message": "invalid internal token"}}).to_string());
-        return false;
-    }
-    true
-}
-
 /// 解析 JSON body；失败时写好 400 响应并返回 None。
 async fn parse_body(req: &mut Request, res: &mut Response) -> Option<Value> {
     match req.parse_json().await {
@@ -122,7 +269,7 @@ fn err(res: &mut Response, status: StatusCode, message: String) {
 
 #[handler]
 async fn notify(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_NOTIFY) {
         return;
     }
     let Some(body) = parse_body(req, res).await else {
@@ -157,7 +304,7 @@ async fn notify(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn wallpaper_apply(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_WALLPAPER) {
         return;
     }
     let Some(body) = parse_body(req, res).await else {
@@ -195,7 +342,7 @@ async fn wallpaper_apply(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn wallpaper_projects(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_WALLPAPER) {
         return;
     }
     let Some(app) = crate::dsh_manager::app_handle() else {
@@ -224,7 +371,7 @@ async fn wallpaper_projects(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn wallpaper_create(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_WALLPAPER) {
         return;
     }
     let Some(body) = parse_body(req, res).await else {
@@ -347,7 +494,7 @@ async fn wallpaper_create(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn todo_get(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_TODO_READ) {
         return;
     }
     match crate::api::todo_api::todo_store_get().await {
@@ -364,7 +511,7 @@ async fn todo_get(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn todo_set(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_TODO_WRITE) {
         return;
     }
     let Some(body) = parse_body(req, res).await else {
@@ -386,7 +533,7 @@ async fn todo_set(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn todo_task_create(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_TODO_WRITE) {
         return;
     }
     let Some(body) = parse_body(req, res).await else {
@@ -406,7 +553,7 @@ async fn todo_task_create(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn todo_focus(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_TODO_WRITE) {
         return;
     }
     let Some(body) = parse_body(req, res).await else {
@@ -452,7 +599,7 @@ async fn todo_focus(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn plan_get(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_PLAN_READ) {
         return;
     }
     let Some(task_id) = req.query::<String>("taskId").filter(|s| !s.is_empty()) else {
@@ -472,7 +619,7 @@ async fn plan_get(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn plan_set(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_PLAN_WRITE) {
         return;
     }
     let Some(body) = parse_body(req, res).await else {
@@ -513,7 +660,7 @@ async fn plan_set(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn git_snapshot(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_GIT) {
         return;
     }
     let Some(body) = parse_body(req, res).await else {
@@ -562,7 +709,7 @@ async fn git_snapshot(req: &mut Request, res: &mut Response) {
 
 #[handler]
 async fn xp_report(req: &mut Request, res: &mut Response) {
-    if !authed(req, res) {
+    if !authorize(req, res, SCOPE_XP) {
         return;
     }
     let Some(body) = parse_body(req, res).await else {

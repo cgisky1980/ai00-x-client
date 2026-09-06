@@ -169,6 +169,12 @@ function aiMsgToProtocolJson(m: PlanChatMessage): string {
   return '```json\n' + JSON.stringify(payload) + '\n```';
 }
 
+/** 用户交权话术：命中说明用户已放弃「被追问」，可提示模型调用工具。 */
+export const DELEGATION_RE = /不用问|别问了|直接安排|你安排|你来安排|你决定|直接拟|开始吧|可以了|就这样/;
+
+/** 快思考预填（官方 G1 格式：<think> + 换行 + </think>）。生成从 </think> 后立即开始。 */
+const THINK_PREFILL: AiMsg = { role: 'assistant', content: '<think>\n</think>\n```json' };
+
 /**
  * 组装规划对话的多消息 few-shot 输入（rwkv-rsv 本地实验 2026-08-27 结论）：
  * G1 模型对 JSON 协议的服从度由「User/Assistant 对话形态的示范」决定，
@@ -330,12 +336,6 @@ function buildPlanChatMessages(
   msgs.push(THINK_PREFILL);
   return msgs;
 }
-
-/** 用户交权话术：命中说明用户已放弃「被追问」，可提示模型调用工具。 */
-export const DELEGATION_RE = /不用问|别问了|直接安排|你安排|你来安排|你决定|直接拟|开始吧|可以了|就这样/;
-
-/** 快思考预填（官方 G1 格式：<think> + 换行 + </think>）。生成从 </think> 后立即开始。 */
-const THINK_PREFILL: AiMsg = { role: 'assistant', content: '<think>\n</think>\n```json' };
 
 /**
  * 围栏收尾停止序列：替代引擎默认组。返回文本 = ```json 围栏内的一份 JSON，
@@ -540,8 +540,12 @@ export async function planChatReply(
       ...(questions.length && !readyFlag ? { questions } : {}),
       ...(readyFlag ? { ready: true as const } : {}),
     };
-  } catch {
-    return null;
+  } catch (e) {
+    // 通道级失败（模型懒启动失败/显存不足/后端拒绝等）上抛给调用方展示具体
+    // 原因——此前静默吞成 null，用户只见「AI 暂时没有回应」无法定位
+    // （2026-09-01 实测：Qwen3.8 27B 显存不足被吞成笼统报错）。
+    console.warn('[todo:chat] AI 通道失败：', e);
+    throw e instanceof Error ? e : new Error(String(e));
   }
 }
 
@@ -670,7 +674,9 @@ export async function generateBoardPlan(
       reportFail(`第${attempt}/${MAX_ATTEMPTS}次计划被拒收（占位内容/空步骤）`, out);
     }
     return null;
-  } catch {
+  } catch (e) {
+    // 通道级失败留痕（不改 null 契约——调用方已按「计划生成失败」处理）
+    console.warn('[todo:plan] AI 通道失败：', e);
     return null;
   }
 }

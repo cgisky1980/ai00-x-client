@@ -7,9 +7,10 @@
   "scripts": {
     "dev": "vite",
     "dev:force": "vite --force",
-    "build": "vite build",
-    "build:desktop": "vite build --mode desktop",
-    "build:web": "vite build --mode web",
+    "build:editor": "pnpm --filter @ai00-x/vditor build",
+    "build": "pnpm run build:editor && vite build",
+    "build:desktop": "pnpm run build:editor && vite build --mode desktop",
+    "build:web": "pnpm run build:editor && vite build --mode web",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -20,6 +21,7 @@
   "dependencies": {
     "@ai00-x/design-system": "workspace:*",
     "@ai00-x/shared": "workspace:*",
+    "@ai00-x/vditor": "workspace:*",
     "@esotericsoftware/spine-canvas": "4.3.7",
     "@esotericsoftware/spine-core": "4.3.7",
     "@monaco-editor/react": "^4.6.0",

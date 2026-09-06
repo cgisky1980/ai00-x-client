@@ -1,5 +1,6 @@
 use salvo::compression::Compression;
 use salvo::http::header::CACHE_CONTROL;
+use salvo::http::request::SecureMaxSize;
 use salvo::http::HeaderValue;
 use salvo::prelude::*;
 use salvo::serve_static::StaticDir;
@@ -63,7 +64,11 @@ fn router() -> Router {
         .hoop(cors_allow_all)
         .push(
             // Ai00-X 内部 API：AI 网关（ai-bridge 插件 LLM 入口）+ 业务回呼（@ai00-x/tools 插件）
+            // Salvo 默认 body 上限 64KB（GLOBAL_SECURE_MAX_SIZE），LLM 请求体
+            // （system + tools 定义 + 对话历史）轻松超过。与远端 Ai00-Salvo 的
+            // BodyLimit max_upload_size 对齐为 50MB（仅本机监听，无滥用风险）。
             Router::with_path("ai00-internal")
+                .hoop(SecureMaxSize::new(50 * 1024 * 1024))
                 .push(crate::ai_gateway::router())
                 .push(crate::internal_api::router()),
         )

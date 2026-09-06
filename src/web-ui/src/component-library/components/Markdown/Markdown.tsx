@@ -521,6 +521,8 @@ export interface MarkdownProps {
   className?: string;
   isStreaming?: boolean;
   expandDetailsByDefault?: boolean;
+  /** 不渲染图片节点（无图床场景：手写图片语法直接省略，不触发本地文件解析） */
+  stripImages?: boolean;
   onOpenVisualization?: (visualization: any) => void;
   onFileViewRequest?: (filePath: string, fileName: string, lineRange?: LineRange) => void;
   onTabOpen?: (tabInfo: any) => void;
@@ -533,6 +535,7 @@ export const Markdown = React.memo<MarkdownProps>(({
   className = '',
   isStreaming = false,
   expandDetailsByDefault = false,
+  stripImages = false,
   onOpenVisualization,
   onFileViewRequest,
   onTabOpen,
@@ -875,6 +878,7 @@ export const Markdown = React.memo<MarkdownProps>(({
     },
 
     img({ node: _node, ...props }: any) {
+      if (stripImages) return null;
       return <MarkdownImage {...props} basePath={basePath} />;
     },
     
@@ -908,6 +912,7 @@ export const Markdown = React.memo<MarkdownProps>(({
     basePath,
     expandDetailsByDefault,
     isStreaming,
+    stripImages,
     linkMap,
     handleFileViewRequest,
     handleRevealInExplorer,

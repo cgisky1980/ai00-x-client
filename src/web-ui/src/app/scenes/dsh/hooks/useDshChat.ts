@@ -9,7 +9,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import {
+  aggregateUsage,
   connectMux,
   dshApproval,
   dshEngine,
@@ -20,6 +22,7 @@ import {
   type DshMessage,
   type DshMuxConnection,
   type DshMuxFrame,
+  type DshPermissionRequest,
   type DshPhase,
   type DshPluginErrorPayload,
   type DshQuestion,
@@ -28,6 +31,7 @@ import {
   type DshSessionModels,
   type DshSessionSummary,
   type DshStatus,
+  type DshUsageSummary,
 } from '@/infrastructure/api/service-api/DshAPI';
 import { reportRuntimeFailure } from '@/infrastructure/api/service-api/DshMarketApi';
 
@@ -49,6 +53,10 @@ export interface DshChatState {
   models: DshSessionModels | null;
   /** 引擎插件加载错误（stderr 检出 + 模块归因；null = 无）。 */
   pluginError: DshPluginErrorPayload | null;
+  /** 待授权的插件 scope 请求（(pluginId, scope) 去重）。 */
+  permissionRequests: DshPermissionRequest[];
+  /** 当前会话累计用量（assistant/message usage 聚合；null = 无数据）。 */
+  usage: DshUsageSummary | null;
 }
 
 export function useDshChat() {
@@ -66,6 +74,8 @@ export function useDshChat() {
     questions: [],
     models: null,
     pluginError: null,
+    permissionRequests: [],
+    usage: null,
   });
   /** 当前会话的实时事件累积（含 history 拉取的基线）。 */
   const liveEventsRef = useRef<DshSessionEvent[]>([]);
@@ -79,9 +89,13 @@ export function useDshChat() {
     setState(prev => ({ ...prev, ...partial }));
   }, []);
 
-  // ---- 消息折叠（事件 → UI 消息） ----
+  // ---- 消息折叠（事件 → UI 消息 + 用量聚合） ----
   const recomputeMessages = useCallback(() => {
-    setState(prev => ({ ...prev, messages: foldEvents(liveEventsRef.current) }));
+    setState(prev => ({
+      ...prev,
+      messages: foldEvents(liveEventsRef.current),
+      usage: aggregateUsage(liveEventsRef.current),
+    }));
   }, []);
 
   // ---- 会话切换：拉取 history 基线 + 模型目录 ----
@@ -126,12 +140,53 @@ export function useDshChat() {
     try {
       // 不传 cwd：使用引擎侧 Host cwd（DSH_HOME，会话文件工具以此为工作区）
       const { sessionId } = await dshSession.create();
+      // M1.4 VRAM 联动：会话创建即上报 agent 活动上下文 → 预测 warmup 本地 RWKV
+      await invoke('vram_set_active_context', { context: 'agent' }).catch(() => undefined);
       await refreshSessions();
       await openSession(sessionId);
     } catch (err) {
       patch({ error: err instanceof Error ? err.message : String(err) });
     }
   }, [openSession, patch, refreshSessions]);
+
+  // ---- 会话重命名 ----
+  const renameSession = useCallback(
+    async (sessionId: string, title: string) => {
+      const trimmed = title.trim();
+      if (!trimmed) return;
+      try {
+        await dshSession.rename(sessionId, trimmed);
+        await refreshSessions();
+      } catch (err) {
+        patch({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+    [patch, refreshSessions],
+  );
+
+  // ---- 会话派生（fork：复制历史到新会话，长任务失败重试的兜底） ----
+  const forkSession = useCallback(
+    async (sessionId: string) => {
+      try {
+        const { sessionId: childId } = await dshSession.fork(sessionId);
+        await refreshSessions();
+        await openSession(childId);
+      } catch (err) {
+        patch({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+    [openSession, patch, refreshSessions],
+  );
+
+  // ---- 手动重启引擎（Failed 态恢复） ----
+  const restartEngine = useCallback(async () => {
+    try {
+      const status = await dshEngine.restart();
+      patch({ status, pluginError: null });
+    } catch (err) {
+      patch({ error: err instanceof Error ? err.message : String(err) });
+    }
+  }, [patch]);
 
   // ---- 发送 ----
   const send = useCallback(
@@ -234,6 +289,33 @@ export function useDshChat() {
     }
   }, []);
 
+  // ---- 插件 scope 授权（per-plugin 权限模型 v1） ----
+  const grantPermission = useCallback(
+    async (request: DshPermissionRequest) => {
+      setState(prev => ({
+        ...prev,
+        permissionRequests: prev.permissionRequests.filter(
+          r => !(r.pluginId === request.pluginId && r.scope === request.scope),
+        ),
+      }));
+      try {
+        await invoke('dsh_plugin_grant', { pluginId: request.pluginId, scope: request.scope });
+      } catch (err) {
+        patch({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+    [patch],
+  );
+
+  const dismissPermission = useCallback((request: DshPermissionRequest) => {
+    setState(prev => ({
+      ...prev,
+      permissionRequests: prev.permissionRequests.filter(
+        r => !(r.pluginId === request.pluginId && r.scope === request.scope),
+      ),
+    }));
+  }, []);
+
   // ---- 模型切换 ----
   const selectModel = useCallback(
     async (provider: string, model: string) => {
@@ -254,6 +336,7 @@ export function useDshChat() {
     let cancelled = false;
     let unlistenPhase: (() => void) | null = null;
     let unlistenPluginError: (() => void) | null = null;
+    let unlistenPermission: (() => void) | null = null;
 
     const boot = async () => {
       // 阶段事件（安装进度 → 前端状态卡）
@@ -275,6 +358,21 @@ export function useDshChat() {
       }).then(un => {
         if (cancelled) un();
         else unlistenPluginError = un;
+      }).catch(() => undefined);
+
+      // 插件 scope 授权请求（宿主 403 归因 → 授权卡；(pluginId, scope) 去重）
+      dshEngine.onPermissionRequest(request => {
+        if (cancelled) return;
+        setState(prev =>
+          prev.permissionRequests.some(
+            r => r.pluginId === request.pluginId && r.scope === request.scope,
+          )
+            ? prev
+            : { ...prev, permissionRequests: [...prev.permissionRequests, request] },
+        );
+      }).then(un => {
+        if (cancelled) un();
+        else unlistenPermission = un;
       }).catch(() => undefined);
 
       try {
@@ -347,7 +445,16 @@ export function useDshChat() {
           }
         },
         wsConnected => {
-          if (!cancelled) patch({ wsConnected });
+          if (!cancelled) {
+            patch({ wsConnected });
+            // M0.4：引擎重启（装卸插件/手动重启）后 mux 重连即恢复会话列表，
+            // 正在看的会话重拉 history（引擎重启后投影可能变化）
+            if (wsConnected) {
+              void refreshSessions();
+              const sid = currentSessionRef.current;
+              if (sid) void openSession(sid);
+            }
+          }
         },
       );
       wsRef.current = conn;
@@ -361,6 +468,7 @@ export function useDshChat() {
       wsRef.current?.close();
       unlistenPhase?.();
       unlistenPluginError?.();
+      unlistenPermission?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -376,6 +484,11 @@ export function useDshChat() {
     respondQuestion,
     cancelQuestion,
     selectModel,
+    renameSession,
+    forkSession,
+    restartEngine,
+    grantPermission,
+    dismissPermission,
     /** 清空插件错误横幅（用户处理完成后手动关闭）。 */
     clearPluginError: useCallback(() => patch({ pluginError: null }), [patch]),
   };

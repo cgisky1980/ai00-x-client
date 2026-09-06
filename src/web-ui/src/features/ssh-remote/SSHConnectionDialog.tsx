@@ -406,6 +406,7 @@ export const SSHConnectionDialog: React.FC<SSHConnectionDialogProps> = ({
         showCloseButton
         closeOnOverlayClick={false}
         overlayClassName="ssh-connection-dialog__modal-overlay"
+        contentBare
         contentClassName="modal__content--fill-flex"
       >
         <div className="ssh-connection-dialog">

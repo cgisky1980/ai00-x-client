@@ -32,8 +32,30 @@ pub fn get_default_rwkv_model_config() -> AIModelConfig {
     }
 }
 
-/// gguf-local 本地 GGUF 模型配置（llama-server 子进程，OpenAI 兼容）。
+/// Ai00-API（Ai00-S 中转）默认模型条目构造。
 ///
+/// 供 `ai00s:<sub_model>` 复合引用在配置中缺失 ai00s 条目时兜底。
+pub fn get_default_ai00s_model_config(base_url: &str) -> AIModelConfig {
+    AIModelConfig {
+        id: "ai00s".to_string(),
+        name: "Ai00-S".to_string(),
+        provider: "ai00s".to_string(),
+        model_name: "ai00s".to_string(),
+        base_url: base_url.to_string(),
+        request_url: None,
+        api_key: String::new(),
+        context_window: Some(65536),
+        max_tokens: Some(4096),
+        temperature: Some(0.7),
+        enabled: true,
+        category: ModelCategory::GeneralChat,
+        capabilities: vec![ModelCapability::TextChat],
+        metadata: Some(serde_json::json!({"source": "ai00-s"})),
+        ..Default::default()
+    }
+}
+
+/// gguf-local 本地 GGUF 模型配置（llama-server 子进程，OpenAI 兼容）。
 /// `model_ref` 形如 `gguf-local:<gguf绝对路径>`；llama-server 单模型服务，
 /// OpenAI 请求体中的 model 字段值不影响路由（服务端只跑已加载模型），
 /// 这里填 gguf 路径便于日志辨认。base_url 由桌面端按进程动态写入。
@@ -151,6 +173,7 @@ impl ConfigProvider for AIConfigProvider {
                     && model_id != "primary"
                     && model_id != "fast"
                     && model_id != RWKV_LOCAL_MODEL_ID
+                    && !model_id.starts_with("ai00s:")
                 {
                     return Err(Ai00XError::validation(format!(
                         "Primary Agent '{}' configured model '{}' does not exist",
@@ -163,6 +186,7 @@ impl ConfigProvider for AIConfigProvider {
                     && model_id != "primary"
                     && model_id != "fast"
                     && model_id != RWKV_LOCAL_MODEL_ID
+                    && !model_id.starts_with("ai00s:")
                 {
                     return Err(Ai00XError::validation(format!(
                         "Function Agent '{}' configured model '{}' does not exist",

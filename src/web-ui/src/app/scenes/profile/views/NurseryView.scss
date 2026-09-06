@@ -3461,28 +3461,4 @@ $acp-content-top: clamp(40px, 4.5vh, 52px);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-
-  &__tier-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--size-gap-0-25) var(--size-gap-1);
-    border-radius: 3px;
-    font-size: var(--font-size-xxs);
-    font-weight: 600;
-    letter-spacing: 0.3px;
-    line-height: 1;
-    text-transform: uppercase;
-    flex-shrink: 0;
-
-    &--free {
-      background: var(--color-success-bg);
-      color: var(--color-success);
-    }
-
-    &--vip {
-      background: var(--color-warning-bg);
-      color: var(--color-warning);
-    }
-  }
 }

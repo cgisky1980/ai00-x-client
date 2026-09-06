@@ -11,7 +11,7 @@ import { useTodoStore } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
 import { useReminderTicker } from '../hooks/useReminderTicker';
 import { XpKinds, type FocusSession } from '../api/types';
-import { connectMux, dshSession, type DshMuxFrame } from '@/infrastructure/api/service-api/DshAPI';
+import { connectMux, dshSession, foldEvents, type DshMuxFrame } from '@/infrastructure/api/service-api/DshAPI';
 import { TodoPanel } from './TodoPanel';
 
 export const TodoOverlay: React.FC = () => {
@@ -19,6 +19,8 @@ export const TodoOverlay: React.FC = () => {
   const load = useTodoStore((s) => s.load);
   const initGrowth = useGrowthStore((s) => s.init);
   const setAgentRunning = useTodoStore((s) => s.setAgentRunning);
+  const setAgentFailed = useTodoStore((s) => s.setAgentFailed);
+  const tasks = useTodoStore((st) => st.data.tasks);
 
   useEffect(() => {
     void load();
@@ -99,6 +101,27 @@ export const TodoOverlay: React.FC = () => {
         const map: Record<string, boolean> = {};
         for (const s of items) map[s.sessionId] = !!s.running;
         setAgentRunning(map);
+
+        // 失败态回填：doing 任务的会话已停止 → 拉历史尾判最后一轮成败
+        const doingSessions = tasks
+          .filter(t => (t.status ?? 'requirement') === 'doing' && t.agentSessionId)
+          .map(t => t.agentSessionId as string);
+        const failedMap: Record<string, boolean> = {};
+        for (const sid of doingSessions) {
+          if (map[sid]) continue; // 仍在跑，不判
+          try {
+            const { events } = await dshSession.history(sid);
+            const msgs = foldEvents(events.map(e => e.event));
+            const lastUserIdx = msgs.map(m => m.role).lastIndexOf('user');
+            const tail = msgs.slice(lastUserIdx + 1);
+            failedMap[sid] = tail.some(
+              m => Boolean(m.error) || m.toolCalls.some(tc => tc.isError),
+            );
+          } catch {
+            // 历史拉不到 → 不标
+          }
+        }
+        setAgentFailed(failedMap);
       } catch {
         // 引擎未启动/接口不可用 → 保留上次态
       }
@@ -109,7 +132,7 @@ export const TodoOverlay: React.FC = () => {
       stopped = true;
       clearInterval(timer);
     };
-  }, [loaded, setAgentRunning]);
+  }, [loaded, setAgentRunning, setAgentFailed, tasks]);
 
   useReminderTicker();
 

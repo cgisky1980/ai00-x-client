@@ -9,6 +9,7 @@ import React from 'react';
 import { Lock } from 'lucide-react';
 import { Modal } from '@/component-library';
 import { useTranslation } from 'react-i18next';
+import { requestCreditsTab } from '@/app/scenes/credits/creditsSceneEvents';
 
 /// 后端 tier → 套餐中文名（与 ai_channel_pools.xf_plan_name 对应）
 const TIER_NAME: Record<string, string> = {
@@ -48,7 +49,6 @@ export const UpgradeDialog: React.FC<UpgradeDialogProps> = ({
       <div
         style={{
           textAlign: 'center',
-          padding: '24px 16px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -104,6 +104,27 @@ export const UpgradeDialog: React.FC<UpgradeDialogProps> = ({
           }}
         >
           {t('modelSelector.upgrade.close')}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            requestCreditsTab('invite');
+          }}
+          style={{
+            marginTop: '4px',
+            padding: 0,
+            border: 'none',
+            background: 'none',
+            color: 'var(--color-accent-500)',
+            cursor: 'pointer',
+            fontSize: '12px',
+          }}
+        >
+          {t('modelSelector.upgrade.inviteHint', {
+            defaultValue: '或邀请好友得分红，兑换会员打折券',
+          })}
         </button>
       </div>
     </Modal>

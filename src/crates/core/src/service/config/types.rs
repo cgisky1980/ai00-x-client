@@ -1157,9 +1157,19 @@ pub struct AIConfig {
 
 impl AIConfig {
     /// Resolves a configured model reference by `id`, `name`, or `model_name`.
+    ///
+    /// Composite reference `ai00s:<sub_model>` resolves to the Ai00-API entry
+    /// with an independent sub-model binding, so `default_models.primary` and
+    /// `default_models.fast` can each pin a different Ai00-API sub-model
+    /// (the plain `ai00s` ref still follows the shared `ai00s.model_name`).
     pub fn resolve_model_reference(&self, model_ref: &str) -> Option<String> {
         if model_ref == "rwkv-local" {
             return Some("rwkv-local".to_string());
+        }
+        if let Some(sub_model) = model_ref.strip_prefix("ai00s:") {
+            if !sub_model.trim().is_empty() {
+                return Some(model_ref.to_string());
+            }
         }
         self.models
             .iter()
@@ -2287,7 +2297,35 @@ impl AIModelConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{AIModelConfig, ReasoningMode};
+    use super::{AIConfig, AIModelConfig, ReasoningMode};
+
+    #[test]
+    fn resolves_ai00s_composite_reference_independently() {
+        let config: AIConfig = serde_json::from_value(serde_json::json!({
+            "models": [
+                {"id": "ai00s", "name": "Ai00-S", "provider": "ai00s", "model_name": "GLM-4.7-Flash", "base_url": "https://example.com", "api_key": "", "enabled": true},
+                {"id": "custom-1", "name": "Custom", "provider": "openai", "model_name": "glm-4.7", "base_url": "https://example.com/v4", "api_key": "k", "enabled": true}
+            ],
+            "default_models": {"primary": "ai00s:GLM-4.7", "fast": "ai00s:GLM-4.7-Flash"}
+        }))
+        .expect("config should deserialize");
+
+        // 复合引用原样解析（独立于 ai00s.model_name，主力/中档可各自绑定）
+        assert_eq!(
+            config.resolve_model_reference("ai00s:GLM-4.7").as_deref(),
+            Some("ai00s:GLM-4.7")
+        );
+        assert_eq!(
+            config.resolve_model_selection("primary").as_deref(),
+            Some("ai00s:GLM-4.7")
+        );
+        assert_eq!(
+            config.resolve_model_selection("fast").as_deref(),
+            Some("ai00s:GLM-4.7-Flash")
+        );
+        // 空 sub-model 的复合引用不成立
+        assert_eq!(config.resolve_model_reference("ai00s:"), None);
+    }
 
     #[test]
     fn deserializes_compatibility_thinking_flag_into_reasoning_mode() {

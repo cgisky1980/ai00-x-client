@@ -101,34 +101,124 @@
     text-transform: uppercase;
   }
 
-  &__tier-badge {
-    display: inline-flex;
+  // ===== 自动路由（R0-R3 档位 ↔ 模型快捷配置）=====
+
+  &__auto-route {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5);
+    padding: var(--size-gap-1) var(--size-gap-2) var(--size-gap-1-5);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  &__auto-route-head {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    padding: var(--size-gap-0-25) var(--size-gap-1);
-    border-radius: 3px;
-    font-size: var(--font-size-xxs);
-    font-weight: 600;
-    letter-spacing: 0.3px;
-    line-height: 1;
-    text-transform: uppercase;
+    justify-content: space-between;
+    gap: var(--size-gap-2);
+
+    .ai00-x-model-selector__section-title {
+      padding: 0;
+    }
+  }
+
+  &__auto-route-hint {
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+    line-height: 1.4;
+  }
+
+  &__auto-route-tier {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__auto-route-tier-row {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-0-5) var(--size-gap-1);
+    border-radius: var(--size-radius-sm);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--element-bg-subtle);
+    }
+  }
+
+  &__auto-route-tier-label {
     flex-shrink: 0;
-    margin-left: var(--size-gap-1);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+  }
 
-    &--free {
-      background: var(--color-success-bg);
-      color: var(--color-success);
+  &__auto-route-tier-model {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-secondary);
+  }
+
+  &__auto-route-tier-chevron {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    transition: transform var(--motion-fast) var(--easing-standard);
+
+    &.is-open {
+      transform: rotate(90deg);
+    }
+  }
+
+  &__auto-route-option.is-disabled {
+    cursor: default;
+    opacity: 0.45;
+
+    &:hover {
+      background: transparent;
+    }
+  }
+
+  &__auto-route-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-25, 1px);
+    margin: 0 0 var(--size-gap-1) var(--size-gap-3);
+    padding: var(--size-gap-0-5);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-sm);
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  &__auto-route-option {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1-5);
+    padding: var(--size-gap-0-5) var(--size-gap-1);
+    border-radius: var(--size-radius-sm);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--element-bg-subtle);
     }
 
-    &--vip {
-      background: var(--color-warning-bg);
-      color: var(--color-warning);
+    &.is-selected {
+      background: var(--element-bg-base);
     }
+  }
 
-    &--svip {
-      background: var(--color-accent-500);
-      color: var(--color-accent-500);
-    }
+  &__auto-route-option-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-secondary);
   }
 
   // ===== 倍率视图：行内标签（会员折扣 / 专属补贴）=====
@@ -241,6 +331,10 @@
     max-width: 280px;
     padding: 0;
     overflow: hidden;
+    // z-index：chrome-popup 档（50030）——控件常驻 chrome 浮层（策面板 z≈50020、
+    // 岛层 50010）内部使用，弹层必须压过宿主面板；ds-popover 默认 z-dropdown(60)
+    // 会被 chrome 层宿主整体遮挡（Portal 同为 body 子级，z 低于面板即不可见）
+    z-index: var(--z-chrome-popup, 50030);
   }
   
   // ===== Trae 风格头部：Auto Mode + 开关（整行可点，开关仅状态指示）=====

@@ -20,6 +20,8 @@ export interface ModalProps {
   children: React.ReactNode;
   size?: 'small' | 'medium' | 'large' | 'xlarge';
   contentInset?: boolean;
+  /** true = 内容区去掉默认 16px padding（全出血/自管 padding 形态，如 ConfirmDialog、编辑器） */
+  contentBare?: boolean;
   contentClassName?: string;
   showCloseButton?: boolean;
   closeOnOverlayClick?: boolean;
@@ -38,6 +40,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   size = 'medium',
   contentInset = false,
+  contentBare = false,
   contentClassName,
   showCloseButton = true,
   closeOnOverlayClick = true,
@@ -323,6 +326,7 @@ export const Modal: React.FC<ModalProps> = ({
               className={[
                 'modal__content',
                 contentInset ? 'modal__content--inset' : '',
+                contentBare ? 'modal__content--bare' : '',
                 contentClassName ?? '',
               ]
                 .filter(Boolean)

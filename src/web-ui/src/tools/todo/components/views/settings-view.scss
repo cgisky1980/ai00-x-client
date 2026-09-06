@@ -1,0 +1,114 @@
+// SettingsView / BeautyView — 策窗口「设」「美」二级导航 + 内容区
+// BEM 前缀沿用 td- 主题词表；全 token（新东方极简）：黛青唯一交互色。
+// 与主导航同构：沉底一档 sunken 工作区语义（色差分层，不加边框）。
+.td-settings {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+
+  // ===== 竖列二级导航（内容区左侧第二栏，~132px）=====
+  // 色差分层同「志」左栏配方：sunken 混 base 25%（浅一档）+ 右缘细分隔线
+  &__nav {
+    width: 132px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: var(--size-gap-2, 8px) var(--size-gap-1, 4px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1-5, 6px);
+    background-color: color-mix(in oklch, var(--color-bg-sunken), var(--color-bg-base) 25%);
+    border-right: 1px solid var(--border-subtle);
+  }
+
+  &__nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, 2px);
+  }
+
+  &__nav-group-label {
+    padding: var(--size-gap-1, 4px) var(--size-gap-2, 8px) var(--size-gap-0-5, 2px);
+    font-size: var(--font-size-xs, 12px);
+    line-height: 1.2;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1-5, 6px);
+    width: 100%;
+    padding: var(--size-gap-1, 4px) var(--size-gap-2, 8px);
+    min-height: 28px;
+    border: none;
+    border-radius: var(--size-radius-sm, 6px);
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--font-size-xs, 12px);
+    text-align: left;
+    transition: background 0.1s ease, color 0.1s ease;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-text-primary) 7%, transparent);
+      color: var(--color-text-primary);
+    }
+
+    &:focus-visible {
+      outline: 1px solid var(--color-accent);
+      outline-offset: -1px;
+    }
+
+    &.is-active {
+      background: color-mix(in oklch, var(--color-accent) 16%, transparent);
+      color: var(--color-accent);
+    }
+  }
+
+  &__nav-item-icon {
+    flex-shrink: 0;
+  }
+
+  &__nav-item-label {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // ===== 内容区（.td-view 同款留白 12/16 + 滚动）=====
+  &__content {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding: var(--size-gap-3, 12px) var(--size-gap-4, 16px) var(--size-gap-4, 16px);
+  }
+
+  &__content-inner {
+    max-width: 760px;
+    margin-inline: auto;
+  }
+
+  // 设置内容页（ConfigPageLayout 体系）融入策窗墨面：
+  // 去掉最外层场景底色卡片；留白统一由本内容区控制（归零内层 padding 变量，
+  // 免得 container-query 的 16px 与外层叠加成双重留白）。仅策窗口作用域，
+  // task 窗口设置页（SettingsScene）不受影响。
+  .ai00-x-config-page-layout {
+    background: transparent;
+    --config-page-content-inline-padding: 0;
+    --config-page-content-bottom-padding: 0;
+  }
+
+  // 小节浅框（隐形框）去掉：内容直接平铺，行间已有细分隔线归组
+  .ai00-x-config-page-section__body {
+    background: transparent;
+    border: none;
+  }
+}

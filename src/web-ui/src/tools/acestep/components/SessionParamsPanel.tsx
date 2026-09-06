@@ -483,6 +483,7 @@ export const SessionParamsPanel: React.FC<SessionParamsPanelProps> = ({ highligh
           onClose={() => setLyricsEditorOpen(false)}
           title={t('chatCreate.lyricsEditorTitle', { defaultValue: '歌词编辑器' })}
           size="large"
+          contentBare
           contentClassName="lyrics-editor-modal-content"
         >
           <LyricsEditor

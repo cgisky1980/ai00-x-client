@@ -1,0 +1,311 @@
+/**
+ * InviteView 样式 — 邀请有礼页。
+ *
+ * 新东方极简纪律（与 CreditsScene 同源）：
+ * - 颜色/间距/字号/z-index 全走 design-system token，零硬编码
+ * - 表面一律 background-color（保宣纸纹理），无 blur
+ * - 黛青 --color-accent-* 唯一交互色；朱砂 --color-brand-seal 仅限领码/复制 CTA（一屏一处）
+ * - 数字一律 .ds-data（mono + tabular-nums）
+ */
+
+.ai00-x-credits-invite {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-6);
+
+  // ── 邀请码卡片（领取制两态） ───────────────────────────────────────────
+
+  &__hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-gap-4) var(--size-gap-6);
+    padding: var(--size-gap-6);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-lg);
+    background-color: var(--color-bg-card);
+  }
+
+  &__hero-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1);
+  }
+
+  &__hero-title {
+    margin: 0;
+    font-family: var(--font-family-serif);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  &__hero-desc {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__claimed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--size-gap-4);
+  }
+
+  &__code-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5, var(--size-gap-1));
+  }
+
+  &__code-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__code {
+    font-size: var(--font-size-xl);
+    letter-spacing: 0.08em;
+    color: var(--color-text-primary);
+  }
+
+  // 朱砂 CTA：全页唯一（领取按钮与复制按钮共用位置，同屏只出现其一）
+  &__claim-cta,
+  &__claimed Button,
+  &__claimed button {
+    background-color: var(--color-brand-seal);
+    border-color: var(--color-brand-seal);
+    color: var(--color-text-primary);
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-brand-seal);
+      filter: brightness(1.08);
+    }
+  }
+
+  // ── 数据总览 ──────────────────────────────────────────────────────────
+
+  &__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-gap-4) var(--size-gap-8);
+    padding: var(--size-gap-5) var(--size-gap-6);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-lg);
+    background-color: var(--color-bg-card);
+  }
+
+  &__stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1);
+  }
+
+  &__stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__stat-value {
+    font-size: var(--font-size-2xl);
+    line-height: 1.1;
+    color: var(--color-text-primary);
+  }
+
+  &__stat-note {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__stat--accrued {
+    .ai00-x-credits-invite__stat-value {
+      color: var(--color-accent-500);
+    }
+  }
+
+  // ── 分区通用头 ────────────────────────────────────────────────────────
+
+  &__section-head {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+    margin-bottom: var(--size-gap-3);
+    color: var(--color-text-secondary);
+
+    h4 {
+      margin: 0;
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+  }
+
+  &__section-note {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  // ── 会员打折券 ────────────────────────────────────────────────────────
+
+  &__coupons {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__coupon-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--size-gap-4);
+
+    @media (max-width: 720px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 440px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  &__coupon-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-5) var(--size-gap-4);
+    border: 1px dashed var(--border-medium);
+    border-radius: var(--size-radius-lg);
+    background-color: var(--color-bg-card);
+    text-align: center;
+
+    &--locked {
+      opacity: 0.55;
+    }
+  }
+
+  &__coupon-tier {
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+  }
+
+  &__coupon-discount {
+    font-size: var(--font-size-3xl);
+    line-height: 1.1;
+    color: var(--color-text-primary);
+  }
+
+  &__coupon-cost {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+  }
+
+  &__coupon-lock {
+    margin: var(--size-gap-1) 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__wallet {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--size-gap-2) var(--size-gap-3);
+    margin-top: var(--size-gap-4);
+    padding: var(--size-gap-3) var(--size-gap-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-base);
+    background-color: var(--element-bg-subtle);
+  }
+
+  &__wallet-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__wallet-item {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-primary);
+  }
+
+  // ── 奖励规则 ──────────────────────────────────────────────────────────
+
+  &__rules-toggle {
+    align-self: flex-start;
+    padding: 0;
+    border: none;
+    background: none;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-accent-500);
+    }
+  }
+
+  &__rules-list {
+    margin: var(--size-gap-3) 0 0;
+    padding: var(--size-gap-4) var(--size-gap-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-2);
+    list-style: disc;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-base);
+    background-color: var(--element-bg-subtle);
+
+    li {
+      font-size: var(--font-size-xs);
+      line-height: 1.6;
+      color: var(--color-text-secondary);
+    }
+  }
+
+  // ── 邀请记录 ──────────────────────────────────────────────────────────
+
+  &__empty {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  &__record-list {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+  }
+
+  &__record {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--size-gap-3) var(--size-gap-4);
+    padding: var(--size-gap-3) var(--size-gap-2);
+    border-bottom: 1px solid var(--border-subtle);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  &__record-name {
+    min-width: 96px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+  }
+
+  &__record-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__record-reward {
+    margin-left: auto;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+  }
+}

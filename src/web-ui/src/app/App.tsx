@@ -11,6 +11,8 @@ import { DynamicIsland, LyricsOverlay } from '../tools/island';
 import { TodoOverlay } from '../tools/todo';
 import { PlayerEngine } from '@/tools/acestep/components/PlayerEngine';
 import { startPlayerBridge } from '@/tools/acestep/services/PlayerBridge';
+import { AgentTheaterWidget } from './components/AgentTheater/AgentTheaterWidget';
+import { SessionChatPanels } from './components/AgentTheater/SessionChatPanels';
 
 function App() {
   const mainWindowShownRef = useRef(false);
@@ -146,6 +148,8 @@ function App() {
           <TodoOverlay />
           <DynamicIsland />
           <LyricsOverlay />
+          <AgentTheaterWidget />
+          <SessionChatPanels />
           <PlayerEngine />
           <ContextMenuRenderer />
           <NotificationContainer />

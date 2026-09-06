@@ -6,3 +6,4 @@ packages:
   - "src/homepage"
   - "packages/shared"
   - "packages/design-system"
+  - "packages/vditor"

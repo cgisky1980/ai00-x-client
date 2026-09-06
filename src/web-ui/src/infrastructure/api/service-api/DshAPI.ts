@@ -298,16 +298,27 @@ export interface DshPluginErrorPayload {
   raw: string;
 }
 
+/** 插件 scope 授权请求事件 payload（宿主 internal API 403 归因）。 */
+export interface DshPermissionRequest {
+  pluginId: string;
+  scope: string;
+}
+
 export const dshEngine = {
   status: () => tauriInvoke<DshStatus>('dsh_status'),
   ensureReady: () => tauriInvoke<DshStatus>('dsh_ensure_ready'),
   stop: () => tauriInvoke<DshStatus>('dsh_stop'),
+  /** 手动重启（Failed 态恢复入口；Running 态幂等）。 */
+  restart: () => tauriInvoke<DshStatus>('dsh_restart'),
   /** 订阅安装/运行阶段事件（返回取消函数）。 */
   onPhase: (cb: (phase: DshPhase) => void): Promise<() => void> =>
     tauriListen<DshPhase>('dsh://phase', e => cb(e.payload)),
   /** 订阅插件加载错误事件（stderr 检出 + 模块归因）。 */
   onPluginError: (cb: (payload: DshPluginErrorPayload) => void): Promise<() => void> =>
     tauriListen<DshPluginErrorPayload>('dsh://plugin-error', e => cb(e.payload)),
+  /** 订阅插件 scope 授权请求（宿主 403 归因 → 授权卡）。 */
+  onPermissionRequest: (cb: (payload: DshPermissionRequest) => void): Promise<() => void> =>
+    tauriListen<DshPermissionRequest>('dsh://permission-requested', e => cb(e.payload)),
 };
 
 // ---------------------------------------------------------------------------
@@ -360,6 +371,12 @@ export const dshPlugins = {
   /** 停用/启用（bundles 数组编辑 + 引擎重启）。 */
   setEnabled: (name: string, enabled: boolean) =>
     tauriInvoke<void>('dsh_plugin_set_enabled', { name, enabled }),
+  /** 插件 scope 授权（宿主 /ai00-internal/* per-plugin 权限模型 v1）。 */
+  grantsList: () => tauriInvoke<Array<{ pluginId: string; scopes: string[]; bundled: boolean }>>('dsh_plugin_grants_list'),
+  grant: (pluginId: string, scope: string) =>
+    tauriInvoke<void>('dsh_plugin_grant', { pluginId, scope }),
+  revoke: (pluginId: string, scope: string) =>
+    tauriInvoke<void>('dsh_plugin_revoke', { pluginId, scope }),
 };
 
 // ---------------------------------------------------------------------------
@@ -412,6 +429,10 @@ export const dshSession = {
 
   rename: (sessionId: string, title: string) =>
     rpc<{ title: string; seq: number }>('session.rename', { sessionId, title }),
+
+  /** 派生会话（引擎原生 fork：复制历史到新会话；beforeSeq/maxMessages 可截断）。 */
+  fork: (sessionId: string) =>
+    rpc<{ sessionId: string }>('session.fork', { sessionId }),
 };
 
 // ---------------------------------------------------------------------------
@@ -483,6 +504,12 @@ export interface DshToolCallView {
   id: string;
   name: string;
   arguments: string;
+  /** tool/result 事件的模型侧结果文本（pending 时为空）。 */
+  result?: string;
+  /** 结果是否为错误（ToolResultBlock.isError 或事件级 error）。 */
+  isError?: boolean;
+  /** 尚未收到对应 tool/result。 */
+  pending?: boolean;
 }
 
 /** 折叠后的 UI 消息。 */
@@ -494,6 +521,14 @@ export interface DshMessage {
   toolCalls: DshToolCallView[];
   streaming: boolean;
   error?: string;
+}
+
+/** 会话累计用量（M2.2：assistant/message usage 聚合）。 */
+export interface DshUsageSummary {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
 }
 
 interface StreamChunkShape {
@@ -510,12 +545,16 @@ interface StreamChunkShape {
  * 处理的事件类型：
  * - user/message      → 用户消息（data.content 取 text 块）
  * - assistant/chunk   → StreamChunk 协议（text-delta 累积 / tool-call 块 / finish）
+ * - tool/call         → 模型请求的工具调用（callId 关联；去重合并 block-end 同名项）
+ * - tool/result       → 工具结果（按 callId 回填 result/isError）
  * - turn/start|end    → 流式状态
  */
 export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
   const messages: DshMessage[] = [];
   /** 当前流式 assistant 消息（跨 chunk 累积）。 */
   let current: DshMessage | null = null;
+  /** callId → 工具调用视图（tool/result 回填用）。 */
+  const callViews = new Map<string, DshToolCallView>();
   let seq = 0;
 
   const newText = (role: 'user' | 'assistant'): DshMessage => {
@@ -529,6 +568,21 @@ export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
     seq += 1;
     messages.push(msg);
     return msg;
+  };
+
+  /** 当前 assistant 消息里登记一个工具调用（block-end 与 tool/call 去重合并）。 */
+  const upsertToolCall = (callId: string, name: string, args: string): DshToolCallView => {
+    if (!current) {
+      current = newText('assistant');
+    }
+    const existing = callViews.get(callId);
+    if (existing && current.toolCalls.includes(existing)) {
+      return existing;
+    }
+    const view: DshToolCallView = { id: callId, name, arguments: args, pending: true };
+    current.toolCalls.push(view);
+    callViews.set(callId, view);
+    return view;
   };
 
   for (const event of events) {
@@ -573,11 +627,11 @@ export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
           }
           case 'block-end': {
             if (chunk.block?.type === 'tool-call') {
-              current.toolCalls.push({
-                id: chunk.block.id ?? 'call',
-                name: chunk.block.name ?? '',
-                arguments: chunk.block.arguments ?? '{}',
-              });
+              upsertToolCall(
+                chunk.block.id ?? 'call',
+                chunk.block.name ?? '',
+                chunk.block.arguments ?? '{}',
+              );
             }
             break;
           }
@@ -593,9 +647,68 @@ export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
         }
         break;
       }
+      case 'tool/call': {
+        // 模型请求的工具调用（引擎权威事件：callId 关联 tool/result）
+        const callId = String(data?.callId ?? '');
+        const name = String(data?.name ?? '');
+        if (callId) {
+          upsertToolCall(callId, name, String(data?.arguments ?? '{}'));
+        }
+        break;
+      }
+      case 'tool/result': {
+        // 工具结果：按 callId 回填（message.content 的 text 块拼接）
+        const message = data?.message as
+          | { content?: Array<{ type?: string; text?: string }> }
+          | undefined;
+        const callId = (message?.content?.[0] as { toolCallId?: string } | undefined)?.toolCallId;
+        const view = callId ? callViews.get(callId) : undefined;
+        if (!view) break;
+        const resultText = (message?.content ?? [])
+          .filter(b => b?.type === 'text')
+          .map(b => b.text ?? '')
+          .join('');
+        view.result = resultText;
+        view.pending = false;
+        const eventError = data?.error as { name?: string; code?: string } | undefined;
+        const blockError = (
+          message?.content?.[0] as { isError?: boolean } | undefined
+        )?.isError;
+        view.isError = Boolean(eventError) || blockError === true;
+        break;
+      }
       default:
         break;
     }
   }
   return messages;
+}
+
+interface UsageShape {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+}
+
+/**
+ * 聚合会话累计用量（M2.2 薄版）：assistant/message 事件自带的
+ * usage（TokenUsage{inputTokens, outputTokens, cacheReadTokens?...}）逐条累加。
+ * 无任何 usage 事件（如纯本地会话未带 usage）返回 null。
+ */
+export function aggregateUsage(events: DshSessionEvent[]): DshUsageSummary | null {
+  let requests = 0;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheReadTokens = 0;
+  for (const event of events) {
+    if (event.type !== 'assistant/message') continue;
+    const usage = (event.data as { usage?: UsageShape } | undefined)?.usage;
+    if (!usage) continue;
+    requests += 1;
+    inputTokens += usage.inputTokens ?? 0;
+    outputTokens += usage.outputTokens ?? 0;
+    cacheReadTokens += usage.cacheReadTokens ?? 0;
+  }
+  if (requests === 0) return null;
+  return { requests, inputTokens, outputTokens, cacheReadTokens };
 }

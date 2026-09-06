@@ -23,18 +23,6 @@ import { isMcpToolName, parseMcpToolName } from '@/infrastructure/mcp/toolName';
 import { useNurseryStore } from '../nurseryStore';
 import { formatTokenCount } from './useTokenEstimate';
 
-const isAi00sOption = (value: string | number): boolean => {
-  const id = String(value).replace(/^(preset:|model:)/, '');
-  return id.startsWith('ai00s-free') || id.startsWith('ai00s-vip');
-};
-
-const getAi00sOptionTier = (value: string | number): string | null => {
-  const id = String(value).replace(/^(preset:|model:)/, '');
-  if (id.startsWith('ai00s-free')) return 'free';
-  if (id.startsWith('ai00s-vip')) return 'vip';
-  return null;
-};
-
 const log = createLogger('TemplateConfigPage');
 
 interface ToolInfo { name: string; description: string; is_readonly: boolean; }
@@ -289,11 +277,6 @@ const TemplateConfigPage: React.FC = () => {
   const renderModelOption = useCallback((option: SelectOption) => (
     <div className="tc-template-model-select__option">
       <span className="tc-template-model-select__option-label">{option.label}</span>
-      {isAi00sOption(option.value) && (
-        <span className={`tc-template-model-select__tier-badge tc-template-model-select__tier-badge--${getAi00sOptionTier(option.value)}`}>
-          {getAi00sOptionTier(option.value)}
-        </span>
-      )}
     </div>
   ), []);
 
@@ -303,11 +286,6 @@ const TemplateConfigPage: React.FC = () => {
     return (
       <span className="tc-template-model-select__value">
         <span className="tc-template-model-select__value-label">{selected.label}</span>
-        {isAi00sOption(selected.value) && (
-          <span className={`tc-template-model-select__tier-badge tc-template-model-select__tier-badge--${getAi00sOptionTier(selected.value)}`}>
-            {getAi00sOptionTier(selected.value)}
-          </span>
-        )}
       </span>
     );
   }, []);

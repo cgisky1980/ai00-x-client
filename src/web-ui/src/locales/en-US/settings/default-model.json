@@ -3,26 +3,8 @@
   "subtitle": "Configure AI models for different scenarios",
   "loading": "Loading...",
   "tabs": {
-    "default": "Default Config",
     "models": "Model List",
     "proxy": "Proxy"
-  },
-  "core": {
-    "title": "Core Configuration",
-    "required": "Required",
-    "optional": "Optional",
-    "primary": {
-      "label": "Primary Model",
-      "description": "For complex reasoning, code generation, multi-step tasks",
-      "placeholder": "Select primary model"
-    },
-    "fast": {
-      "label": "Mid-tier Model",
-      "description": "Used for smart-router R2 complex tasks; falls back to primary when unset",
-      "hint": "When unset, R2 tasks use the primary model",
-      "placeholder": "Select mid-tier model",
-      "notSet": "Not set (use primary model)"
-    }
   },
   "optional": {
     "title": "Multimodal Model Configuration",
@@ -74,13 +56,20 @@
       }
     }
   },
+  "groups": {
+    "local": "Local Models",
+    "ai00Api": "Ai00-API",
+    "custom": "Custom Model APIs"
+  },
+  "ai00Api": {
+    "creditMultiplier": "Credits {{multiplier}}x"
+  },
   "selection": {
-    "primary": "Primary",
-    "fast": "Mid-tier",
+    "primary": "Current model",
     "local": "RWKV Local",
     "custom": "Custom",
     "selectModel": "Select model",
-    "notConfigured": "Not configured, will use primary model"
+    "notConfigured": "Not configured, will use the current model"
   },
   "empty": {
     "noModels": "No models available. Please add models in the \"Model List\" tab first."
@@ -91,8 +80,7 @@
     "title": "Enable smart routing",
     "description": "When the session model is \"Auto\", a local RWKV model classifies request complexity and routes to the matching tier model",
     "options": {
-      "primary": "Primary model",
-      "fast": "Fast model",
+      "primary": "Current model",
       "rwkvLocal": "RWKV Local"
     },
     "tiers": {
@@ -152,7 +140,7 @@
         "description": "Max wait for local-model classification before falling back"
       }
     },
-    "hint": "Three tiers: R0/R1 → RWKV local, R2 → mid-tier, R3 → primary; classification extracts features with the local RWKV model and scores them with the trained head (router_head.json), falling back automatically when unavailable"
+    "hint": "Three tiers: R0/R1 → RWKV local, R2 → complex-task model, R3 → hard-task model; classification extracts features with the local RWKV model and scores them with the trained head (router_head.json), falling back automatically when unavailable"
   },
   "messages": {
     "loadFailed": "Failed to load configuration",

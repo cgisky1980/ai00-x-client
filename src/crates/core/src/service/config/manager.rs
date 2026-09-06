@@ -88,10 +88,65 @@ impl ConfigManager {
             Self::add_default_func_agent_models_config(&mut self.config.ai.func_agent_models);
             self.config.version = env!("CARGO_PKG_VERSION").to_string();
             self.save_config().await?;
+            // CLI 覆盖放 save 之后：仅改进程内存，绝不落盘
+            Self::apply_cli_server_override(&mut self.config);
             debug!("Created default config file");
         }
 
         Ok(())
+    }
+
+    /// 启动参数服务器覆盖：`--server=test|prod`（同时支持 `--server test` 形式）。
+    ///
+    /// 默认编译指向正式服；调试/测试时带 `--server=test` 直连测试服务器。
+    /// 覆盖仅修改本次进程内存中的配置，**不写回配置文件**——用户在设置页
+    /// 「服务器切换」里保存的持久值不受影响。
+    fn apply_cli_server_override(config: &mut GlobalConfig) {
+        let args: Vec<String> = std::env::args().collect();
+        let mut target: Option<String> = None;
+        let mut iter = args.iter().peekable();
+        while let Some(a) = iter.next() {
+            if let Some(v) = a.strip_prefix("--server=") {
+                target = Some(v.to_string());
+                break;
+            }
+            if a == "--server" {
+                target = iter.next().cloned();
+                break;
+            }
+        }
+
+        let mode = match target
+            .as_deref()
+            .map(str::trim)
+            .map(str::to_ascii_lowercase)
+        {
+            Some(v) if v == "test" || v == "testing" => Some("test"),
+            Some(v) if v == "prod" || v == "production" => Some("prod"),
+            Some(other) => {
+                warn!("Unknown --server value `{other}`, ignoring (expected test|prod)");
+                None
+            }
+            None => None,
+        };
+        let Some(mode) = mode else { return };
+
+        match mode {
+            "test" => {
+                config.app.ai00_s_base_url = super::server_endpoints::ai00_s_base_url_test();
+                info!(
+                    "CLI override: server = TEST ({})",
+                    config.app.ai00_s_base_url
+                );
+            }
+            _ => {
+                config.app.ai00_s_base_url = super::server_endpoints::ai00_s_base_url();
+                info!(
+                    "CLI override: server = PROD ({})",
+                    config.app.ai00_s_base_url
+                );
+            }
+        }
     }
 
     /// Loads and migrates configuration.
@@ -158,6 +213,9 @@ impl ConfigManager {
                     debug!("Loaded config from file");
                 }
 
+                // CLI 覆盖放 save 之后：仅改进程内存，绝不落盘
+                Self::apply_cli_server_override(&mut self.config);
+
                 Ok(())
             }
             Err(e) => {
@@ -198,6 +256,9 @@ impl ConfigManager {
         self.config.version = env!("CARGO_PKG_VERSION").to_string();
         self.save_config().await?;
         info!("Config automatically fixed and saved");
+
+        // CLI 覆盖放 save 之后：仅改进程内存，绝不落盘
+        Self::apply_cli_server_override(&mut self.config);
 
         Ok(())
     }

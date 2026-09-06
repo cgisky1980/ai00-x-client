@@ -823,18 +823,6 @@ export const MusicPopup: React.FC = () => {
     [msRadioNext, handlePlayOnline, t],
   )
 
-  // ---- 电台自动连播：在线源播放 ended（区别于用户 paused）→ 推下一首 ----
-  useEffect(() => {
-    if (
-      msRadioActive &&
-      acestepState?.source === 'online' &&
-      acestepState.playbackState === 'ended'
-    ) {
-      void handleRadioSkip()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [msRadioActive, acestepState?.source, acestepState?.playbackState])
-
   // ---- 电台播放中强制收起播放列表面板（电台不用列表） ----
   useEffect(() => {
     if (queueOpen && msRadioActive && acestepState?.source === 'online') {

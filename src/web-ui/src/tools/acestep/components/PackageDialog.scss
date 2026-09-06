@@ -9,8 +9,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--size-gap-1);
-  // 左右留白避免内容顶格；上方紧接标题栏，下方留出呼吸空间
-  padding: var(--size-gap-1) var(--size-gap-5) var(--size-gap-4);
+  /* 内容 padding 由 DS Modal 基件默认接管（16px） */
 
   // ---- Section (visual grouping) ----
   &__section {

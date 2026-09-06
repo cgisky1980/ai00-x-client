@@ -191,19 +191,6 @@
     "save": "保存代理配置",
     "saveSuccess": "代理配置已保存，重启IDE后生效"
   },
-  "ai00s": {
-    "title": "Ai00-S 服务地址",
-    "description": "Ai00-S AI 中转服务的地址。修改后所有 ai00s-free/ai00s-vip 模型的请求将自动使用新地址。",
-    "baseUrl": "服务地址",
-    "baseUrlHint": "Ai00-S 中转服务的完整地址（含协议和端口）",
-    "save": "保存地址",
-    "saveSuccess": "Ai00-S 地址已更新，客户端缓存已刷新",
-    "quickSwitch": "服务器切换",
-    "quickSwitchHint": "在正式与测试服务器之间一键切换，立即生效（登录会话需重新登录目标站点）",
-    "prodServer": "正式 app.ai00-x.com",
-    "testServer": "测试 ai00-x.com",
-    "switchSuccess": "已切换到{{label}}"
-  },
   "capabilities": {
     "text_chat": "对话",
     "image_understanding": "多模态",
@@ -232,13 +219,8 @@
     "noModels": "暂无模型配置",
     "noMatchingModels": "没有找到匹配的模型"
   },
-  "defaultModels": {
-    "sectionTitle": "默认模型",
-    "builtin": "系统内置",
-    "baseUrlLabel": "Base URL"
-  },
   "customModels": {
-    "sectionTitle": "自定义模型"
+    "sectionTitle": "自定义模型API"
   },
   "search": {
     "placeholder": "搜索模型名称、提供商..."

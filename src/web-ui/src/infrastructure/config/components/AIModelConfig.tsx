@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, SquarePen, Trash2, Wifi, Loader, AlertTriangle, X, Settings, ExternalLink, Eye, EyeOff, ChevronDown, ChevronRight, Info } from 'lucide-react';
 import { Button, Switch, Select, IconButton, NumberInput, Card, Modal, Input, Textarea, Tooltip, type SelectOption } from '@/component-library';
-import { DEFAULT_AI00_S_BASE_URL } from '@/infrastructure/config/constants';
-import { 
+import {
   AIModelConfig as AIModelConfigType, 
   ProxyConfig, 
   ModelCategory,
@@ -12,11 +11,11 @@ import {
 } from '../types';
 import { configManager } from '../services/ConfigManager';
 import { PROVIDER_TEMPLATES, getModelDisplayName, getProviderDisplayName, getProviderTemplateId } from '../services/modelConfigs';
+import { isAi00ApiEntry, isLocalModelConfig } from '../services/modelClass';
 import { DEFAULT_REASONING_MODE, getEffectiveReasoningMode, supportsAnthropicAdaptive, supportsAnthropicReasoning, supportsAnthropicThinkingBudget, supportsResponsesReasoning } from '../utils/reasoning';
 import { aiApi, systemAPI } from '@/infrastructure/api';
 import { useNotification } from '@/shared/notification-system';
 import { ConfigPageHeader, ConfigPageLayout, ConfigPageContent, ConfigPageSection, ConfigPageRow, ConfigCollectionItem } from './common';
-import DefaultModelConfig from './DefaultModelConfig';
 import SmartRouterConfig from './SmartRouterConfig';
 import { createLogger } from '@/shared/utils/logger';
 import { translateConnectionTestMessage } from '@/shared/utils/aiConnectionTestMessages';
@@ -45,6 +44,16 @@ interface ProviderGroup {
   providerName: string;
   providerId?: string;
   models: AIModelConfigType[];
+}
+
+/**
+ * 内置/本地模型不在「自定义模型API」列表中显示，也不在此页管理：
+ * - ai00s：Ai00-API 官方服务入口（子模型列表由远程服务器下发，在对话选择器中呈现）
+ * - 本地模型：RWKV 本地推理 + llama.cpp GGUF 本地
+ * 配置仍完整保留，写回时合并，避免被误删。
+ */
+function isBuiltinModel(model: AIModelConfigType): boolean {
+  return isAi00ApiEntry(model) || isLocalModelConfig(model);
 }
 
 function isResponsesProvider(provider?: string): boolean {
@@ -249,7 +258,7 @@ const AIModelConfig: React.FC = () => {
   const { t: tDefault } = useTranslation('settings/default-model');
   const { t: tComponents } = useTranslation('components');
   const [aiModels, setAiModels] = useState<AIModelConfigType[]>([]);
-  const [defaultAiModel, setDefaultAiModel] = useState<AIModelConfigType | null>(null);
+  const builtinModelsRef = React.useRef<AIModelConfigType[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editingConfig, setEditingConfig] = useState<Partial<AIModelConfigType> | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -270,8 +279,6 @@ const AIModelConfig: React.FC = () => {
     password: ''
   });
   const [isProxySaving, setIsProxySaving] = useState(false);
-  const [ai00sBaseUrl, setAi00sBaseUrl] = useState('');
-  const [isAi00sUrlSaving, setIsAi00sUrlSaving] = useState(false);
   const [remoteModelOptions, setRemoteModelOptions] = useState<RemoteModelOption[]>([]);
   const [isFetchingRemoteModels, setIsFetchingRemoteModels] = useState(false);
   const [remoteModelsError, setRemoteModelsError] = useState<string | null>(null);
@@ -378,14 +385,11 @@ const AIModelConfig: React.FC = () => {
     try {
       const models = await configManager.getConfig<AIModelConfigType[]>('ai.models') || [];
       const proxy = await configManager.getConfig<ProxyConfig>('ai.proxy');
-      const ai00sUrl = await configManager.getConfig<string>('app.ai00_s_base_url');
-      setDefaultAiModel(models.find(m => m.provider === 'ai00s') || null);
-      setAiModels(models.filter(m => m.provider !== 'ai00s'));
+      // 内置/本地模型（ai00s、RWKV Local、GGUF Local）不在此页展示与管理，但保留在配置里
+      builtinModelsRef.current = models.filter(isBuiltinModel);
+      setAiModels(models.filter(m => !isBuiltinModel(m)));
       if (proxy) {
         setProxyConfig(proxy);
-      }
-      if (ai00sUrl != null) {
-        setAi00sBaseUrl(ai00sUrl);
       }
     } catch (error) {
       log.error('Failed to load AI config', error);
@@ -964,15 +968,16 @@ const AIModelConfig: React.FC = () => {
         ];
       }
 
-      
-      await configManager.setConfig('ai.models', updatedModels);
+      // 写回时合并保留内置/本地模型（ai00s、RWKV Local、GGUF Local），避免被抹掉
+      const fullModels = [...builtinModelsRef.current, ...updatedModels];
+      await configManager.setConfig('ai.models', fullModels);
       setAiModels(updatedModels);
 
       // Auto-set as primary model if no primary model is configured and this is a new model
       if (!editingConfig.id) {
         try {
           const currentDefaultModels = await configManager.getConfig<Record<string, unknown>>('ai.default_models') || {};
-          const primaryModelExists = currentDefaultModels.primary && updatedModels.some(m => m.id === currentDefaultModels.primary);
+          const primaryModelExists = currentDefaultModels.primary && fullModels.some(m => m.id === currentDefaultModels.primary);
           if (!primaryModelExists) {
             await configManager.setConfig('ai.default_models', {
               ...currentDefaultModels,
@@ -1059,7 +1064,7 @@ const AIModelConfig: React.FC = () => {
   const handleDelete = async (id: string) => {
     try {
       const updatedModels = aiModels.filter(m => m.id !== id);
-      await configManager.setConfig('ai.models', updatedModels);
+      await configManager.setConfig('ai.models', [...builtinModelsRef.current, ...updatedModels]);
       setAiModels(updatedModels);
     } catch (error) {
       log.error('Failed to delete config', { configId: id, error });
@@ -1127,7 +1132,7 @@ const AIModelConfig: React.FC = () => {
       const updatedModels = aiModels.map(model =>
         model.id === config.id ? { ...model, enabled } : model
       );
-      await configManager.setConfig('ai.models', updatedModels);
+      await configManager.setConfig('ai.models', [...builtinModelsRef.current, ...updatedModels]);
       setAiModels(updatedModels);
     } catch (error) {
       log.error('Failed to toggle model status', { configId: config.id, enabled, error });
@@ -1146,33 +1151,6 @@ const AIModelConfig: React.FC = () => {
       notification.error(t('messages.saveFailed'));
     } finally {
       setIsProxySaving(false);
-    }
-  };
-
-  const handleSaveAi00sUrl = async () => {
-    setIsAi00sUrlSaving(true);
-    try {
-      await configManager.setConfig('app.ai00_s_base_url', ai00sBaseUrl.trim());
-      notification.success(t('ai00s.saveSuccess'));
-    } catch (error) {
-      log.error('Failed to save Ai00-S base URL', error);
-      notification.error(t('messages.saveFailed'));
-    } finally {
-      setIsAi00sUrlSaving(false);
-    }
-  };
-
-  // 快捷切换远程服务器（正式/测试）：写同一配置项 app.ai00_s_base_url，
-  // web-ui 侧 TokenManager 监听该配置变更自动清缓存，即时生效
-  const handleQuickSwitchServer = async (url: string, label: string) => {
-    if (ai00sBaseUrl.trim() === url) return;
-    try {
-      await configManager.setConfig('app.ai00_s_base_url', url);
-      setAi00sBaseUrl(url);
-      notification.success(t('ai00s.switchSuccess', { label }));
-    } catch (error) {
-      log.error('Failed to switch server', { url, error });
-      notification.error(t('messages.saveFailed'));
     }
   };
 
@@ -2188,12 +2166,7 @@ const AIModelConfig: React.FC = () => {
       />
 
       <ConfigPageContent className="ai00-x-ai-model-config__content">
-        <ConfigPageSection
-          title={tDefault('tabs.default')}
-          description={tDefault('subtitle')}
-        >
-          <DefaultModelConfig />
-        </ConfigPageSection>
+        {/* 主力/中档设置已废除：当前模型由模型选择器（task 窗口/策窗口）直接选定 */}
 
         <ConfigPageSection
           title={tDefault('smartRouter.sectionTitle')}
@@ -2216,32 +2189,6 @@ const AIModelConfig: React.FC = () => {
             </IconButton>
           )}
         >
-          {defaultAiModel && (
-            <div className="ai00-x-ai-model-config__default-section">
-              <div className="ai00-x-ai-model-config__section-label">
-                {t('defaultModels.sectionTitle')}
-              </div>
-              <div className="ai00-x-ai-model-config__default-card">
-                <div className="ai00-x-ai-model-config__default-card-info">
-                  <span className="ai00-x-ai-model-config__default-card-name">
-                    {defaultAiModel.name || 'Ai00-S'}
-                  </span>
-                  <span className="ai00-x-ai-model-config__meta-tag ai00-x-ai-model-config__meta-tag--builtin">
-                    {t('defaultModels.builtin')}
-                  </span>
-                </div>
-                <div className="ai00-x-ai-model-config__default-card-url">
-                  <span className="ai00-x-ai-model-config__default-card-url-label">
-                    {t('defaultModels.baseUrlLabel')}:
-                  </span>
-                  <span className="ai00-x-ai-model-config__default-card-url-value">
-                    {ai00sBaseUrl || DEFAULT_AI00_S_BASE_URL}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="ai00-x-ai-model-config__section-label">
             {t('customModels.sectionTitle')}
           </div>
@@ -2336,48 +2283,6 @@ const AIModelConfig: React.FC = () => {
             />
           </ConfigPageRow>
         </ConfigPageSection>
-
-        <ConfigPageSection
-          title={t('ai00s.title')}
-          description={t('ai00s.description')}
-          extra={(
-            <Button
-              variant="primary"
-              size="small"
-              onClick={handleSaveAi00sUrl}
-              disabled={isAi00sUrlSaving || !ai00sBaseUrl.trim()}
-            >
-              {isAi00sUrlSaving ? <Loader size={16} className="spinning" /> : t('ai00s.save')}
-            </Button>
-          )}
-        >
-          <ConfigPageRow label={t('ai00s.baseUrl')} description={t('ai00s.baseUrlHint')} align="center">
-            <Input
-              value={ai00sBaseUrl}
-              onChange={(e) => setAi00sBaseUrl(e.target.value)}
-              placeholder={DEFAULT_AI00_S_BASE_URL}
-              inputSize="small"
-            />
-          </ConfigPageRow>
-          <ConfigPageRow label={t('ai00s.quickSwitch')} description={t('ai00s.quickSwitchHint')} align="center">
-            <div className="ai00-x-ai-model-config__server-switch">
-              <Button
-                variant={ai00sBaseUrl.trim() === 'https://app.ai00-x.com' ? 'primary' : 'secondary'}
-                size="small"
-                onClick={() => handleQuickSwitchServer('https://app.ai00-x.com', t('ai00s.prodServer'))}
-              >
-                {t('ai00s.prodServer')}
-              </Button>
-              <Button
-                variant={ai00sBaseUrl.trim() === 'https://ai00-x.com' ? 'primary' : 'secondary'}
-                size="small"
-                onClick={() => handleQuickSwitchServer('https://ai00-x.com', t('ai00s.testServer'))}
-              >
-                {t('ai00s.testServer')}
-              </Button>
-            </div>
-          </ConfigPageRow>
-        </ConfigPageSection>
       </ConfigPageContent>
 
       <Modal
@@ -2389,6 +2294,7 @@ const AIModelConfig: React.FC = () => {
             ? t('editProvider')
             : (currentTemplate ? `${t('newProvider')} - ${currentTemplate.name}` : t('newProvider')))}
         size="xlarge"
+        contentBare
         contentClassName="modal__content--fill-flex ai00-x-ai-model-config__form--modal"
       >
         {renderEditingForm()}

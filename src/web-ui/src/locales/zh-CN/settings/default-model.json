@@ -3,26 +3,8 @@
   "subtitle": "配置各场景使用的 AI 模型",
   "loading": "加载中...",
   "tabs": {
-    "default": "默认配置",
     "models": "模型列表",
     "proxy": "网络代理"
-  },
-  "core": {
-    "title": "核心配置",
-    "required": "必填",
-    "optional": "可选",
-    "primary": {
-      "label": "主力模型",
-      "description": "用于复杂推理、代码生成、多步骤任务",
-      "placeholder": "请选择主力模型"
-    },
-    "fast": {
-      "label": "中档模型",
-      "description": "智能路由 R2 档复杂任务使用；未配置时使用主力模型",
-      "hint": "未配置时，R2 档任务使用主力模型",
-      "placeholder": "请选择中档模型",
-      "notSet": "不设置（使用主力模型）"
-    }
   },
   "optional": {
     "title": "扩展能力模型配置",
@@ -74,13 +56,20 @@
       }
     }
   },
+  "groups": {
+    "local": "本地模型",
+    "ai00Api": "Ai00-API",
+    "custom": "自定义模型API"
+  },
+  "ai00Api": {
+    "creditMultiplier": "积分 {{multiplier}}x"
+  },
   "selection": {
-    "primary": "主力模型",
-    "fast": "中档模型",
+    "primary": "当前模型",
     "local": "RWKV 本地模型",
     "custom": "其他",
     "selectModel": "选择模型",
-    "notConfigured": "未配置，将使用主力模型"
+    "notConfigured": "未配置，将使用当前模型"
   },
   "empty": {
     "noModels": "暂无可用模型，请先在「模型列表」中添加模型"
@@ -91,8 +80,7 @@
     "title": "启用智能路由",
     "description": "会话模型选择「自动」时，由本地 RWKV 模型判定请求复杂度并路由到对应档位模型",
     "options": {
-      "primary": "主力模型",
-      "fast": "快速模型",
+      "primary": "当前模型",
       "rwkvLocal": "RWKV 本地模型"
     },
     "tiers": {
@@ -152,7 +140,7 @@
         "description": "本地模型分类的最长等待时间，超时自动回落"
       }
     },
-    "hint": "三级体系：R0/R1 → RWKV 本地模型，R2 → 中档模型，R3 → 主力模型；分类由本地 RWKV 模型提取特征并经已训练的分类头（router_head.json）判定，模型或分类头未就绪时自动回落"
+    "hint": "三级体系：R0/R1 → RWKV 本地模型，R2 → 复杂任务模型，R3 → 高难任务模型；分类由本地 RWKV 模型提取特征并经已训练的分类头（router_head.json）判定，模型或分类头未就绪时自动回落"
   },
   "messages": {
     "loadFailed": "加载配置失败",

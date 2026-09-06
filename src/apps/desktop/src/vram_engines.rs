@@ -170,7 +170,13 @@ impl ManagedEngine for AudioGenEngine {
 }
 
 // ---------------------------------------------------------------------------
-// qwen3_fa (forced aligner — status reporting only, DLL is process-lifetime)
+// qwen3_fa (forced aligner — status reporting only)
+//
+// 模型本身每次对齐 fa_create → 用完 drop(fa_destroy)，显存即用即释；
+// 进程生命周期常驻的只有 DLL 代码（系统内存，非显存）。
+// 因此 is_resident=false：不作为常驻显存引擎上报，也不参与驱逐候选
+// （此前 resident=true 使它成为必然失败的驱逐候选，还会中断
+// ensure_capacity 的驱逐循环——2026-09-01 Qwen3.8 27B 显存不足实测）。
 // ---------------------------------------------------------------------------
 
 struct Qwen3FaEngine;
@@ -185,8 +191,7 @@ impl ManagedEngine for Qwen3FaEngine {
         3
     }
     fn is_resident(&self) -> bool {
-        // DLL 符号进程生命周期缓存，加载后常驻（显存占用小）。
-        true
+        false
     }
     fn estimate_vram_bytes(&self) -> Option<u64> {
         Some(300 * 1024 * 1024)

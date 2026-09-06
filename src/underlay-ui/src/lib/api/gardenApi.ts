@@ -3,20 +3,24 @@
 // ========================================================================
 
 import type { Neighbor, VisitRequest } from './types';
-import { storage } from '../storage';
 import { getBaseUrl } from '../config';
-import { LOCAL_HOST, EMBEDDED_SERVER_PORT, isApiError, unwrapApiResponse, type ApiResponse } from '@ai00-x/shared';
+import { tokenManager } from '../tokenManager';
+import {
+    getAi00sInternalToken,
+    getAssetsBaseUrl,
+    isApiError,
+    unwrapApiResponse,
+    type ApiResponse,
+} from '@ai00-x/shared';
 
-// Pet 头像资源基础路径。
-// - Tauri 桌面端：从本地 pet.zip 读取（Tauri 内嵌服务器 2100，零网络开销）
-// - 浏览器开发模式：通过 vite proxy 代理到 Ai00-Salvo(8081)
-// 判断依据：Tauri 2.0 webview 的 hostname 是 tauri.localhost
-// （不能依赖 __TAURI_INTERNALS__，浏览器引入 @tauri-apps/api 后也会注入）
-const isTauriWebview =
-    typeof window !== 'undefined' && window.location.hostname === 'tauri.localhost';
-export const PET_RESOURCE_BASE = isTauriWebview
-    ? `http://${LOCAL_HOST}:${EMBEDDED_SERVER_PORT}/pet`
-    : '/pet';
+/**
+ * Pet 头像资源根路径（异步解析）。
+ * 优先 app.assets_base_url 配置；未配置则沿用 Ai00-S 服务器静态资源（`${ai00_s_base_url}/pet`）。
+ * 旧实现硬编码本地内嵌服务器 2100，但内嵌服务器从未提供 /pet 路由 → 404 → 头像降级 emoji。
+ */
+export async function getPetResourceBase(): Promise<string> {
+    return getAssetsBaseUrl();
+}
 
 export class GardenApi {
     private baseUrl: string | null;
@@ -28,7 +32,7 @@ export class GardenApi {
      */
     constructor(baseUrl?: string, tokenGetter?: () => Promise<string | null>) {
         this.baseUrl = baseUrl ?? null;
-        this.tokenGetter = tokenGetter ?? (() => storage.get('ai00-s-token'));
+        this.tokenGetter = tokenGetter ?? (() => tokenManager.getAccessToken());
     }
 
     /** 获取 baseUrl（优先使用构造时传入的，否则从统一配置读取） */
@@ -51,6 +55,8 @@ export class GardenApi {
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
+        // CSRF 豁免：POST 直达远程服务器，WebView origin 不在其白名单（与 web-ui fetchWithAuth 一致）
+        headers['X-Ai00-Internal-Token'] = await getAi00sInternalToken();
 
         const resp = await fetch(`${base}${path}`, {
             ...options,

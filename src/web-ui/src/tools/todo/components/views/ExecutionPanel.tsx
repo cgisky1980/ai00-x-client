@@ -23,6 +23,7 @@ import type { TodoTask } from '../../api/types';
 import { useTodoStore, type AgentQuestionBatch } from '../../store/todoStore';
 import { useGrowthStore } from '../../store/growthStore';
 import { parseAcceptance, toggleAcceptanceLine } from '../../utils/planAcceptance';
+import { useTheaterStore } from '@/app/components/AgentTheater/theaterStore';
 
 export const ExecutionPanel: React.FC<{
   task: TodoTask;
@@ -36,6 +37,8 @@ export const ExecutionPanel: React.FC<{
   const [histMsgs, setHistMsgs] = useState<DshMessage[] | null>(null);
   const [histLoading, setHistLoading] = useState(false);
   const agentRunning = useTodoStore((s) => s.agentRunning[task.agentSessionId ?? ''] ?? false);
+  /** 最后一轮执行是否出错（agent 停止后从历史尾判定；驱动状态文案） */
+  const [lastFailed, setLastFailed] = useState(false);
   const questionBatches =
     useTodoStore((s) => (task.agentSessionId ? s.agentQuestions[task.agentSessionId] : undefined)) ?? [];
   const setPlanAcceptance = useTodoStore((s) => s.setPlanAcceptance);
@@ -103,13 +106,11 @@ export const ExecutionPanel: React.FC<{
     }
   };
 
-  /** 打开传统对话窗口干预执行（dsh 会话——完整对话能力）。 */
-  const openConversation = async () => {
-    try {
-      await invoke('open_task_window', { openDsh: true });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
+  /** webui 内会话对话浮层干预执行（可多开；不再开老 taskWindow）。 */
+  const openChatPanel = useTheaterStore((st) => st.openChatPanel);
+  const openConversation = () => {
+    if (!task.agentSessionId) return;
+    openChatPanel(task.agentSessionId, task.title);
   };
 
   /** 执行过程抽屉开关：每次展开拉最新 history（只读折叠渲染）。 */
@@ -141,20 +142,50 @@ export const ExecutionPanel: React.FC<{
 
   const allPassed = total === 0 || done === total;
 
-  // 执行三态：执行中 / 已结束·待验收（含失败——人验收 DoD 时自然发现）/ 等待中
+  // 执行四态：执行中 / 已结束·待验收 / 执行出错（最后有 error 信号）/ 等待中
   const hasSession = !!task.agentSessionId;
   const stateText = agentRunning
     ? 'agent 执行中'
     : hasSession && !task.completedAt
-      ? '已结束 · 待验收'
+      ? lastFailed
+        ? '执行出错 · 待处理'
+        : '已结束 · 待验收'
       : '等待中';
+
+  // agent 停止后拉一次历史尾判定成败（turn 结束信号：finish reason=error / 工具错误）
+  useEffect(() => {
+    if (agentRunning || !task.agentSessionId || task.completedAt) {
+      setLastFailed(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { events } = await dshSession.history(task.agentSessionId as string);
+        if (cancelled) return;
+        const msgs = foldEvents(events.map(e => e.event));
+        // 只看最后一轮（最后一条用户消息之后）：assistant 带 error 或工具结果错误
+        const lastUserIdx = msgs.map(m => m.role).lastIndexOf('user');
+        const tail = msgs.slice(lastUserIdx + 1);
+        const failed = tail.some(
+          m => Boolean(m.error) || m.toolCalls.some(tc => tc.isError),
+        );
+        setLastFailed(failed);
+      } catch {
+        // 历史拉不到 → 不标失败
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [agentRunning, task.agentSessionId, task.completedAt]);
 
   return (
     <div className="td-exec">
       <div className="td-exec__head">
         <span className="td-exec__title">执行 · {task.title}</span>
         <span
-          className={`td-exec__state${agentRunning ? ' is-running' : ''}${!agentRunning && hasSession && !task.completedAt ? ' is-ended' : ''}`}
+          className={`td-exec__state${agentRunning ? ' is-running' : ''}${lastFailed ? ' is-failed' : ''}${!agentRunning && hasSession && !task.completedAt ? ' is-ended' : ''}`}
         >
           {stateText}
         </span>
@@ -163,11 +194,12 @@ export const ExecutionPanel: React.FC<{
           <button
             className="td-chip"
             onClick={openConversation}
-            title="打开传统对话窗口：发消息、回答 agent 提问、纠正方向"
+            title="在 webui 内打开本会话对话：发消息、纠正方向"
           >
             <MessageSquareText size={11} /> 打开对话 · 干预
           </button>
         )}
+
         <button
           className="td-chip"
           onClick={() => updateTask(task.id, { status: 'planning' })}

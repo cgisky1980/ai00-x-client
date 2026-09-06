@@ -290,7 +290,7 @@
 }
 
 .ds-show-modal-body {
-  padding: var(--size-gap-1) 0;
+  /* 内容 padding 由 DS Modal 基件默认接管（16px） */
   color: var(--color-text-secondary);
 }
 

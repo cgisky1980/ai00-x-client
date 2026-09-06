@@ -975,7 +975,8 @@
       "locked": "当前套餐不可用，升级后可用",
       "current": "您当前是 {{tier}} 套餐",
       "comingSoon": "升级功能即将开放，敬请期待",
-      "close": "知道了"
+      "close": "知道了",
+      "inviteHint": "或邀请好友得分红，兑换会员打折券"
     },
     "upgradeHint": {
       "freeTier": "升级套餐解锁更多高级模型"
@@ -985,19 +986,16 @@
       "memberDiscount": "会员{{zhe}}折",
       "subsidy": "专属补贴"
     },
-    "priceGroups": {
-      "economy": {
-        "title": "经济模型",
-        "hint": "<0.1x"
-      },
-      "standard": {
-        "title": "标准模型",
-        "hint": "0.1–0.5x"
-      },
-      "premium": {
-        "title": "旗舰模型",
-        "hint": ">0.5x"
-      }
+    "autoRoute": {
+      "sectionTitle": "自动路由",
+      "localModel": "本地模型",
+      "r0": "R0 闲聊",
+      "r1": "R1 简单",
+      "r2": "R2 复杂",
+      "r3": "R3 高难",
+      "followPrimary": "跟随主力",
+      "followFast": "跟随中档",
+      "disabledHint": "智能路由未启用，自动模式将始终使用主力模型"
     },
     "freeQuota": {
       "remainingCount": "今日剩余 {{count}} 次",
@@ -1005,16 +1003,20 @@
       "exhausted": "今日额度已用完"
     },
     "xfModels": {
-      "sectionTitle": "讯飞模型",
-      "empty": "暂无可用讯飞模型",
+      "sectionTitle": "Ai00-API",
+      "empty": "暂无可用 Ai00-API 模型",
       "loadFailed": "加载失败，请稍后重试"
     },
-    "defaultModels": {
-      "sectionTitle": "默认模型",
-      "empty": "暂无可用默认模型"
+    "localModels": {
+      "sectionTitle": "本地模型",
+      "empty": "暂无可用本地模型",
+      "notReady": "模型未下载，点击开始下载",
+      "notReadyShort": "未就绪",
+      "downloadNow": "下载",
+      "downloading": "下载中"
     },
     "customModels": {
-      "sectionTitle": "自定义模型",
+      "sectionTitle": "自定义模型API",
       "empty": "暂无自定义模型"
     }
   },

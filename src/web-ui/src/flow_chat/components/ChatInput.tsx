@@ -272,19 +272,29 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         if (cancelled) return;
         const configuredModelId = agentModelsData[currentMode] || 'auto';
         let model: AIModelConfig | undefined;
+        // Ai00-API 复合引用 'ai00s:<sub>'：模型条目为 ai00s，子模型 id 独立提取
+        let ai00ApiSubModelId: string | null = null;
+        const resolveRef = (ref: string) => {
+          if (ref.startsWith('ai00s:')) {
+            ai00ApiSubModelId = ref.slice('ai00s:'.length);
+            return models.find(m => m.id === 'ai00s');
+          }
+          return models.find(m => m.id === ref);
+        };
         if (configuredModelId === 'auto') {
-          model = models.find(m => m.id === defaultModelsData.primary);
+          model = defaultModelsData.primary ? resolveRef(defaultModelsData.primary) : undefined;
         } else {
-          model = models.find(m => m.id === configuredModelId);
+          model = resolveRef(configuredModelId);
         }
         // Default to false (block images) if model info is unavailable.
         let result = false;
         if (model) {
           if (isAi00sModel(model.id || '')) {
-            // For ai00s models, check the selected sub-model's modality (LLM/LMM)
-            const xfModels = getCachedAi00sModels() || await fetchAi00sModels().catch(() => []);
-            const xfModel = xfModels.find(m => m.id === model!.model_name);
-            result = xfModel?.modality?.toUpperCase() === 'LMM';
+            // For Ai00-API models, check the selected sub-model's modality (LLM/LMM)
+            const apiModels = getCachedAi00sModels() || await fetchAi00sModels().catch(() => []);
+            const subModelId = ai00ApiSubModelId || model!.model_name;
+            const apiModel = apiModels.find(m => m.id === subModelId);
+            result = apiModel?.modality?.toUpperCase() === 'LMM';
           } else {
             // For local models, check the category field
             result = model.category === 'multimodal';

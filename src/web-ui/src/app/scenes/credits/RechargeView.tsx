@@ -43,7 +43,8 @@ const RechargeView: React.FC = () => {
     const bonusNote = spec.bonus_credits > 0 ? `（含赠送 ${spec.bonus_credits} 积分）` : '';
     await confirmDialog({
       title: '确认充值',
-      message: `将购买「${spec.label}」：${totalCredits} 积分${bonusNote}，售价 ¥${fmtYuan(spec.price_cents)}。支付渠道接入后即可完成购买。`,
+      message: `将购买「${spec.label}」：${totalCredits} 积分${bonusNote}，售价 ¥${fmtYuan(spec.price_cents)}。支付渠道接入后即可完成购买。
+把 Ai00-X 分享给好友，TA 每次充值你都拿分红——首年 10%，之后年年有。`,
       type: 'info',
       confirmText: '知道了',
       showCancel: false,

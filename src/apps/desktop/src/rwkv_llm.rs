@@ -400,7 +400,8 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
                 let last_used = LLM_LAST_USED_MS.load(Ordering::Relaxed);
                 let keep_alive = crate::vram_manager::resolve_policy("rwkv-llm", 0).keep_alive_secs;
                 if keep_alive >= 0
-                    && now_ms().saturating_sub(last_used) >= (keep_alive as u64).saturating_mul(1000)
+                    && now_ms().saturating_sub(last_used)
+                        >= (keep_alive as u64).saturating_mul(1000)
                 {
                     log::info!(
                         "[rwkv] idle {}s (keep_alive {}s), releasing VRAM",
@@ -1403,6 +1404,173 @@ fn build_model_info(model_path: &Path, vocab_path: &Path) -> Option<RwkvModelInf
         id,
         source: "bundled".to_string(),
     })
+}
+
+// ---------------------------------------------------------------------------
+// 本地 RWKV 模型下载目录（统一仓库 cgisky/ai00-x：hf-mirror 优先 + HF 回退）
+// ---------------------------------------------------------------------------
+
+/// 远端 UnifiedManifest 未收录 RWKV 档位前的内置下载目录。
+///
+/// 就绪判定基于实际扫描（list_rwkv_models）：本地模型统一使用 int8，
+/// 按文件大小区间匹配档位（int8 ≈ 每参数 1 字节；兼容 bundled bf16 大文件）。
+#[derive(Debug, Clone, Serialize)]
+pub struct BuiltinRwkvEntry {
+    pub key: String,
+    pub display: String,
+    /// models/ 下相对保存路径（download_model 的 url 字段语义）。
+    pub file_rel: String,
+    /// 近似大小（int8 量化体积）。
+    pub size_bytes: u64,
+    /// 就绪 = 扫描到匹配档位的本地模型（返回可用路径）。
+    pub downloaded: bool,
+    /// 就绪时可直接使用的模型路径（激活时传给 init_llm_engine 热切换）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_model_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_vocab_path: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct BuiltinRwkvModel {
+    key: &'static str,
+    display: &'static str,
+    /// models/ 下 .st 相对保存路径（与统一仓库布局一致，落盘即被 list_rwkv_models 扫描到）。
+    st_rel: &'static str,
+    /// models/ 下 vocab 相对保存路径（7.2B 有独立 vocab 子目录，其余共用顶层 vocab.json）。
+    vocab_rel: &'static str,
+    /// int8 量化近似字节数。
+    size_bytes: u64,
+    /// 就绪匹配区间（字节）：按 int8 实际体积紧凑匹配。
+    min_bytes: u64,
+    max_bytes: u64,
+}
+
+const BUILTIN_RWKV: &[BuiltinRwkvModel] = &[
+    BuiltinRwkvModel {
+        key: "rwkv-3b",
+        display: "RWKV 3B",
+        // g1j 2.9b（20260831，ctx16384）int8；档位统一命名 rwkv7-(3/7/13)B-int8.st
+        //（7B/13B 待 g1j 权重就绪后跟进统一；13B 文件尚未上传仓库）
+        st_rel: "rwkv/rwkv7-3B-int8.st",
+        vocab_rel: "rwkv/vocab.json",
+        size_bytes: 3_295_783_296,
+        min_bytes: 2_500_000_000,
+        max_bytes: 4_500_000_000,
+    },
+    BuiltinRwkvModel {
+        key: "rwkv-7b",
+        display: "RWKV 7B",
+        // g1j 7.2b（20260831，ctx16384）int8；统一命名后 vocab 与其他档共用顶层
+        // vocab.json（旧 g1i 7.2b 的独立子目录 vocab 内容与其完全一致）
+        st_rel: "rwkv/rwkv7-7B-int8.st",
+        vocab_rel: "rwkv/vocab.json",
+        size_bytes: 7_898_815_456,
+        min_bytes: 6_500_000_000,
+        max_bytes: 9_500_000_000,
+    },
+    BuiltinRwkvModel {
+        key: "rwkv-13b",
+        display: "RWKV 13B",
+        st_rel: "rwkv/rwkv7-world-13b-int8.st",
+        vocab_rel: "rwkv/vocab.json",
+        size_bytes: 13_600_000_000,
+        min_bytes: 11_500_000_000,
+        max_bytes: 15_500_000_000,
+    },
+];
+
+const RWKV_UNIFIED_REPO: &str = "cgisky/ai00-x";
+/// ModelScope 镜像仓库（同步脚本 sync-models.py 的 MS_REPO）。
+const RWKV_MS_REPO: &str = "cgisky/Ai00-X";
+
+/// 下载 URL：主源 hf-mirror + 回退 [(ModelScope, HuggingFace)]（国内直连最稳优先）。
+fn rwkv_builtin_urls(rel_path: &str) -> (String, Vec<(&'static str, String)>) {
+    (
+        format!("https://hf-mirror.com/{RWKV_UNIFIED_REPO}/resolve/main/{rel_path}"),
+        vec![
+            (
+                "ms",
+                format!("https://modelscope.cn/models/{RWKV_MS_REPO}/resolve/master/{rel_path}"),
+            ),
+            (
+                "hf",
+                format!("https://huggingface.co/{RWKV_UNIFIED_REPO}/resolve/main/{rel_path}"),
+            ),
+        ],
+    )
+}
+
+/// 内置 RWKV 下载目录（就绪判定 = 扫描到匹配档位大小的本地模型，返回可用路径）。
+#[tauri::command]
+pub fn rwkv_builtin_catalog() -> Vec<BuiltinRwkvEntry> {
+    let scanned = list_rwkv_models();
+    BUILTIN_RWKV
+        .iter()
+        .map(|m| {
+            let hit = scanned
+                .iter()
+                .find(|info| info.size_bytes >= m.min_bytes && info.size_bytes < m.max_bytes);
+            BuiltinRwkvEntry {
+                key: m.key.to_string(),
+                display: m.display.to_string(),
+                file_rel: m.st_rel.to_string(),
+                size_bytes: m.size_bytes,
+                downloaded: hit.is_some(),
+                resolved_model_path: hit.map(|h| h.model_path.clone()),
+                resolved_vocab_path: hit.map(|h| h.vocab_path.clone()),
+            }
+        })
+        .collect()
+}
+
+/// 触发 RWKV 模型下载（int8 .st + vocab 两个任务，vocab 已存在则跳过）。
+/// 复用通用下载链路（进度/断点/多源回退），返回任务 id 列表。
+#[tauri::command]
+pub async fn rwkv_builtin_download(key: String) -> Result<Vec<String>, String> {
+    let entry = BUILTIN_RWKV
+        .iter()
+        .find(|m| m.key == key)
+        .ok_or_else(|| format!("unknown builtin rwkv model: {key}"))?;
+    let models_dir = crate::runtime::get_models_dir();
+    let mut task_ids = Vec::new();
+
+    let (st_primary, st_hosts) = rwkv_builtin_urls(entry.st_rel);
+    let st_info = crate::model_checker::ModelUpdateInfo {
+        component: "llm-rwkv".to_string(),
+        name: entry.key.to_string(),
+        key: entry.key.to_string(),
+        url: entry.st_rel.to_string(),
+        download_url: st_primary,
+        available_hosts: st_hosts
+            .into_iter()
+            .map(|(k, u)| (k.to_string(), u))
+            .collect(),
+        local_hash: None,
+        remote_hash: "builtin-catalog".to_string(),
+        needs_update: true,
+    };
+    task_ids.push(crate::model_init::download_model(st_info).await?);
+
+    if !models_dir.join(entry.vocab_rel).exists() {
+        let (v_primary, v_hosts) = rwkv_builtin_urls(entry.vocab_rel);
+        let vocab_info = crate::model_checker::ModelUpdateInfo {
+            component: "llm-rwkv-vocab".to_string(),
+            name: format!("{key}-vocab"),
+            key: format!("{key}-vocab"),
+            url: entry.vocab_rel.to_string(),
+            download_url: v_primary,
+            available_hosts: v_hosts
+                .into_iter()
+                .map(|(k, u)| (k.to_string(), u))
+                .collect(),
+            local_hash: None,
+            remote_hash: "builtin-catalog".to_string(),
+            needs_update: true,
+        };
+        task_ids.push(crate::model_init::download_model(vocab_info).await?);
+    }
+    Ok(task_ids)
 }
 
 /// 扫描模型目录，返回第一个 .st / .safetensors 模型文件。

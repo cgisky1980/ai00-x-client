@@ -488,6 +488,44 @@ async fn wait_ready(port: u16) -> Result<(), String> {
     }
 }
 
+/// 部分卸载固定开销：compute buffer + CUDA context + 碎片余量。
+const PARTIAL_FIXED_OVERHEAD_BYTES: u64 = 1024 * 1024 * 1024;
+
+/// 按当前可用显存计算可行的 GPU 卸载层数（-ngl）。
+/// 每层显存 ≈ 权重均摊（文件字节/层数）+ KV cache（q8_0：K+V 每层每 token
+/// 2×kv_heads×head_dim 字节 × DEFAULT_CTX）。返回错误 = 连一层都放不下。
+fn compute_partial_ngl(gguf_path: &str, file_bytes: u64) -> Result<u32, String> {
+    let meta = crate::gguf_meta::read_llm_meta(std::path::Path::new(gguf_path))?;
+    if file_bytes == 0 {
+        return Err("GGUF file size unknown".into());
+    }
+    let avail = crate::vram_manager::free_after_reserve(None)
+        .ok_or_else(|| "VRAM monitor unavailable".to_string())?;
+    let kv_per_layer = 2u64 * meta.n_kv_heads as u64 * meta.head_dim as u64 * DEFAULT_CTX as u64;
+    let weights_per_layer = file_bytes / meta.n_layers as u64;
+    let per_layer = weights_per_layer + kv_per_layer;
+    let detail = format!(
+        "avail-after-reserve {} MB, per-layer {} MB (weights {} + kv {}), {} layers",
+        avail / 1048576,
+        per_layer / 1048576,
+        weights_per_layer / 1048576,
+        kv_per_layer / 1048576,
+        meta.n_layers
+    );
+    if per_layer == 0 || avail <= PARTIAL_FIXED_OVERHEAD_BYTES {
+        return Err(format!(
+            "insufficient VRAM even for partial offload: {detail}"
+        ));
+    }
+    let ngl = ((avail - PARTIAL_FIXED_OVERHEAD_BYTES) / per_layer).min(meta.n_layers as u64) as u32;
+    if ngl == 0 {
+        return Err(format!(
+            "insufficient VRAM even for partial offload: {detail}"
+        ));
+    }
+    Ok(ngl)
+}
+
 /// 确保 llama-server 已加载指定 GGUF 并就绪，返回 base url（含 /v1）。
 /// 先做 VRAM 预算检查（不足时协调器驱逐低优先级引擎腾空间）；
 /// 加载失败（OOM / 就绪超时）且无其他活跃推理时，驱逐 LRU 引擎后重试一次。
@@ -538,7 +576,10 @@ async fn ensure_once(gguf_path: &str) -> Result<String, String> {
     stop_internal(m).await;
 
     // VRAM 预算检查：-ngl 99 全量 offload，文件大小 ≈ 显存占用；
-    // ×1.15 余量 + KV cache 估 1GB。不足时协调器驱逐低优先级引擎腾空间。
+    // ×1.15 余量 + KV cache 估 1GB。不足时协调器驱逐低优先级引擎腾空间
+    // （驱逐候选逐个尝试，见 evict_lru）。驱逐后仍不足 → 不再直接报错，
+    // 而是按当前可用显存计算可行的部分卸载层数（-ngl < n_layers）降级加载：
+    // 有 GPU 加速但速度下降；连一层都放不下才向调用方报错。
     // ensure_capacity 可能阻塞（驱逐等待确认），放 blocking 线程。
     let file_bytes = std::fs::metadata(gguf_path).map(|md| md.len()).unwrap_or(0);
     let estimate = file_bytes + file_bytes / 7 + 1024 * 1024 * 1024;
@@ -546,9 +587,22 @@ async fn ensure_once(gguf_path: &str) -> Result<String, String> {
         tokio::task::spawn_blocking(move || crate::vram_manager::ensure_capacity(estimate, None))
             .await
             .map_err(|e| format!("budget check task failed: {e}"))?;
-    if let Err(e) = budget {
-        return Err(format!("insufficient VRAM for GGUF ({gguf_path}): {e}"));
-    }
+    let ngl: u32 = match budget {
+        Ok(()) => 99,
+        Err(e) => match compute_partial_ngl(gguf_path, file_bytes) {
+            Ok(ngl) => {
+                log::info!(
+                    "[LlamaServer] full offload infeasible ({e}); partial offload -ngl {ngl}"
+                );
+                ngl
+            }
+            Err(pe) => {
+                return Err(format!(
+                    "insufficient VRAM for GGUF ({gguf_path}): {e}; {pe}"
+                ))
+            }
+        },
+    };
 
     let port = pick_free_port()?;
     let mut cmd = process_manager::create_tokio_command(exe.to_string_lossy().as_ref());
@@ -558,9 +612,10 @@ async fn ensure_once(gguf_path: &str) -> Result<String, String> {
         .arg("127.0.0.1")
         .arg("--port")
         .arg(port.to_string())
-        // GPU 全量卸载；显存不足时 llama-server 自行报错退出（错误透出）
+        // GPU 卸载层数：全量 99；显存不足时为计算出的部分卸载层数，
+        // 仍放不下时 llama-server 自行报错退出（错误透出）
         .arg("-ngl")
-        .arg("99")
+        .arg(ngl.to_string())
         .arg("-c")
         .arg(DEFAULT_CTX.to_string())
         // MTP 投机解码：Qwen3.8 等 nextn 层模型内嵌 draft 权重。
@@ -784,6 +839,9 @@ pub struct BuiltinGgufEntry {
     /// 近似大小（精确 total 由下载响应 content-length 提供）。
     pub size_bytes: u64,
     pub downloaded: bool,
+    /// 就绪时可直接使用的 GGUF 绝对路径（优先 models/llm 落盘，其次 HF 缓存/unsloth 扫描）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_path: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -791,40 +849,69 @@ struct BuiltinCatalogModel {
     key: &'static str,
     display: &'static str,
     file_rel: &'static str,
-    /// 近似字节数（约 16.5GB）。
+    /// 近似字节数（实测 16.5GB）。
     size_bytes: u64,
     gguf_file: &'static str,
 }
 
-const UNSLOTH_QWEN38_REPO: &str = "unsloth/Qwen3.8-27B-GGUF";
-
 const BUILTIN_GGUF: &[BuiltinCatalogModel] = &[BuiltinCatalogModel {
     key: "Qwen3.8-27B-UD-Q4_K_M",
-    display: "Qwen3.8-27B (unsloth UD-Q4_K_M)",
+    display: "Qwen3.8 27B",
     file_rel: "llm/Qwen3.8-27B-UD-Q4_K_M.gguf",
-    size_bytes: 17_500_000_000,
+    size_bytes: 16_500_000_000,
     gguf_file: "Qwen3.8-27B-UD-Q4_K_M.gguf",
 }];
 
+/// GGUF 下载走统一仓库 cgisky/ai00-x（llm/ 目录，与 RWKV 同仓）。
+const BUILTIN_GGUF_REPO: &str = "cgisky/ai00-x";
+
 fn builtin_urls(gguf_file: &str) -> (String, String) {
     (
-        format!("https://hf-mirror.com/{UNSLOTH_QWEN38_REPO}/resolve/main/{gguf_file}"),
-        format!("https://huggingface.co/{UNSLOTH_QWEN38_REPO}/resolve/main/{gguf_file}"),
+        format!("https://hf-mirror.com/{BUILTIN_GGUF_REPO}/resolve/main/llm/{gguf_file}"),
+        format!("https://huggingface.co/{BUILTIN_GGUF_REPO}/resolve/main/llm/{gguf_file}"),
     )
 }
 
-/// 内置 GGUF 下载目录（含本地已下载判定）。
+/// GGUF 扫描只认 Qwen3.8-27B Q4_K_M 文件（兼容 unsloth UD-Q4_K_M 命名），
+/// 大小写不敏感；目的仅是避免重复下载已存在于 HF 缓存/unsloth 目录的同一文件。
+fn is_builtin_qwen38_q4km_file(path: &str) -> bool {
+    let name = path.replace('\\', "/");
+    let name = name.rsplit('/').next().unwrap_or(&name).to_lowercase();
+    name.contains("qwen3.8-27b") && name.contains("q4_k_m") && name.ends_with(".gguf")
+}
+
+/// 内置 GGUF 下载目录（含本地就绪判定）。
+///
+/// 就绪判定（避免重复下载，自有目录优先）：
+/// 1. models/llm 落盘文件存在 → 用自有目录路径；
+/// 2. 否则扫描 unsloth/HF 缓存命中 Qwen3.8-27B Q4_K_M → 直接复用缓存路径；
+/// 3. 都没有 → 未就绪（走内置下载：unsloth 直链 + hf-mirror 回退，落盘自有目录）。
 #[tauri::command]
 pub fn gguf_builtin_catalog() -> Vec<BuiltinGgufEntry> {
     let models_dir = crate::runtime::get_models_dir();
+    let scanned = list_gguf_models();
     BUILTIN_GGUF
         .iter()
-        .map(|m| BuiltinGgufEntry {
-            key: m.key.to_string(),
-            display: m.display.to_string(),
-            file_rel: m.file_rel.to_string(),
-            size_bytes: m.size_bytes,
-            downloaded: models_dir.join(m.file_rel).exists(),
+        .map(|m| {
+            let on_disk = models_dir.join(m.file_rel);
+            let on_disk_path = if on_disk.exists() {
+                Some(on_disk.to_string_lossy().into_owned())
+            } else {
+                None
+            };
+            let scanned_path = scanned
+                .iter()
+                .find(|g| is_builtin_qwen38_q4km_file(&g.gguf_path))
+                .map(|g| g.gguf_path.clone());
+            let resolved_path = on_disk_path.or(scanned_path);
+            BuiltinGgufEntry {
+                key: m.key.to_string(),
+                display: m.display.to_string(),
+                file_rel: m.file_rel.to_string(),
+                size_bytes: m.size_bytes,
+                downloaded: resolved_path.is_some(),
+                resolved_path,
+            }
         })
         .collect()
 }
@@ -849,4 +936,11 @@ pub async fn gguf_builtin_download(key: String) -> Result<String, String> {
         needs_update: true,
     };
     crate::model_init::download_model(info).await
+}
+
+/// 懒启动/复用 llama-server（base URL 写入 core 全局槽），
+/// 使 agent 通道的 `gguf-local:<path>` 引用可直接解析（无需先经 plugin 通道）。
+#[tauri::command]
+pub async fn gguf_ensure_server(gguf_path: String) -> Result<String, String> {
+    ensure_llama_server(&gguf_path).await
 }

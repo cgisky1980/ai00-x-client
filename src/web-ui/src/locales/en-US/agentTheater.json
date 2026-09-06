@@ -1,0 +1,62 @@
+{
+  "widget": {
+    "enable": "Enable work theater",
+    "disable": "Disable work theater"
+  },
+  "card": {
+    "title": "Agent status",
+    "close": "Close",
+    "openSession": "Open session",
+    "noTask": "(unknown task)",
+    "status": "Status: ",
+    "currentTool": "Current: ",
+    "stats": "{{tools}} tool calls · {{errors}} errors · {{minutes}} min",
+    "settledStats": "{{tools}} tool calls · {{errors}} errors · took {{duration}}",
+    "gone": "This session has ended"
+  },
+  "status": {
+    "appear": "🛠 Started",
+    "working": "⚙️ Working",
+    "thinking": "💭 Deep thinking",
+    "trouble": "😵 In trouble",
+    "milestone": "✨ Progress",
+    "deliver-big": "🎉 Delivered",
+    "deliver-quiet": "😮‍💨 Wrapped up",
+    "leaving": "👋 Leaving"
+  },
+  "outcome": {
+    "success": "✅ Turn delivered",
+    "failed": "⚠️ Turn ended (with errors)"
+  },
+  "scene": {
+    "reversal": "Reversal · Persisted through failures",
+    "grind": "Grind · A 10+ minute battle",
+    "ponderer": "Thinker · Delivered after deep thought",
+    "labor": "Laborer · 50+ tool calls in one turn",
+    "late-night": "Late night · Finished in the small hours",
+    "lightning": "Lightning · Quick and clean"
+  },
+  "category": {
+    "coding": "Coding",
+    "debugging": "Debugging",
+    "research": "Research",
+    "writing": "Writing",
+    "general": "General"
+  },
+  "chat": {
+    "title": "Session chat",
+    "loading": "Loading…",
+    "empty": "No conversation yet",
+    "roleUser": "You",
+    "roleAgent": "Agent",
+    "placeholder": "Message to intervene (Enter to send)",
+    "send": "Send",
+    "stop": "Stop"
+  },
+  "live": {
+    "thinking": "💭 Thinking",
+    "acceptance": "📋 To verify",
+    "alert": "❌ Failed",
+    "idle_tool": ""
+  }
+}

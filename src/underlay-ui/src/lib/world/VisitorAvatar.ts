@@ -12,7 +12,7 @@
 import * as PIXI from 'pixi.js';
 import type { Spine } from '@esotericsoftware/spine-pixi-v8';
 import { createSpineAvatar, AVATAR_SCALE } from '../avatar/UserAvatar';
-import { PET_RESOURCE_BASE } from '../api/gardenApi';
+import { getPetResourceBase } from '../api/gardenApi';
 import { NameTag, NAME_TAG_Y } from '../avatar/NameTag';
 import { SpeechBubbleSystem } from '../avatar/SpeechBubbleSystem';
 import type { AvatarSelection } from '../avatar/avatar-config';
@@ -99,7 +99,7 @@ export class VisitorAvatar {
     private async loadSpine(): Promise<void> {
         if (this.isDestroyed) return;
         try {
-            const baseUrl = PET_RESOURCE_BASE;
+            const baseUrl = await getPetResourceBase();
             // NPC.avatarData 是 AvatarSelection 格式；为空时用 config defaults
             const hasParts = this.visitor.avatarData && Object.keys(this.visitor.avatarData.parts ?? {}).length > 0;
             const hasColors = this.visitor.avatarData && Object.keys(this.visitor.avatarData.colors ?? {}).length > 0;

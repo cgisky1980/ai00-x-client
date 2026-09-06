@@ -124,6 +124,12 @@ export default defineConfig(({ mode, command }) => {
   build: {
     // Enable CSS code splitting
     cssCodeSplit: true,
+    // workspace 链接包（如 @ai00-x/vditor，UMD 产物在 packages/ 下、不在 node_modules）
+    // 默认不被 commonjs 插件转换 → rollup 按 ESM 解析 UMD 报 "default is not exported"。
+    // 显式纳入转换范围。
+    commonjsOptions: {
+      include: [/node_modules/, /packages[\/]+/],
+    },
     // release version disable sourcemap, dev/debug version enable
     sourcemap: !isProduction,
     // Output to the project root directory dist/main/

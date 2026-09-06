@@ -52,9 +52,9 @@ $modal-edge-gutter-sm: 10px;
   position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-primary);
+  background: var(--color-bg-modal);
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border-radius: var(--size-radius-lg);
   box-shadow: var(--shadow-xl);
   max-height: calc(100vh - 48px);
   overflow: hidden;
@@ -176,7 +176,7 @@ $modal-edge-gutter-sm: 10px;
     margin: auto 0;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: var(--size-radius-sm);
     color: var(--color-text-muted);
     cursor: pointer;
     transition: all 0.2s ease;
@@ -208,13 +208,19 @@ $modal-edge-gutter-sm: 10px;
   &__content {
     flex: 1;
     min-height: 0;
-    padding: 0;
+    /* 弹窗内容 padding 16px（规范 4.3）——基件默认接管，业务勿再自理（同特异性覆盖会赌 chunk 注入顺序） */
+    padding: var(--size-gap-4);
     overflow-y: auto;
     overflow-x: hidden;
     color: var(--color-text-secondary);
 
     &--inset {
       padding-inline: var(--size-gap-7);
+    }
+
+    /** 全出血/自管 padding 形态（ConfirmDialog、编辑器、banner 弹窗等） */
+    &--bare {
+      padding: 0;
     }
 
     /** Child owns internal scroll (e.g. fixed banner + scroll body + footer) */
@@ -333,7 +339,7 @@ $modal-edge-gutter-sm: 10px;
     }
 
     &__title {
-      font-size: var(--font-size-base);
+      font-size: var(--font-size-lg);
     }
 
     &__content {

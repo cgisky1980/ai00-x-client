@@ -316,6 +316,11 @@
     &.is-verify {
       color: var(--color-warning);
     }
+    &.is-failed {
+      color: var(--color-error);
+      background: var(--color-error-bg);
+      border-color: var(--color-error-border);
+    }
 
     // agent 提问待处理：黛青呼吸（交互色引导）
     &.is-question {
@@ -699,6 +704,10 @@
 
     &.is-ended {
       color: var(--color-warning);
+    }
+
+    &.is-failed {
+      color: var(--color-error);
     }
   }
 
@@ -1358,4 +1367,29 @@
   color: var(--color-text-muted);
   text-align: center;
   padding: var(--size-gap-0-5, 2px) 0;
+}
+
+// 工作剧场开关（进行中栏头 ✨）
+.td-board__lane-theater {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: auto; // 推到栏头最右（与想法池"＋"同位）
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: var(--size-radius-sm, 6px);
+
+  &:hover {
+    color: var(--color-text-primary);
+    background: var(--element-bg-subtle);
+  }
+
+  &.is-on {
+    color: var(--color-accent-500);
+  }
 }

@@ -10,16 +10,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { HelpCircle, Send } from 'lucide-react';
-import { ModelSelector, PromptInput } from '@/component-library';
-import type { ModelGroup } from '@/component-library';
+import { PromptInput } from '@/component-library';
+import ModelSelector from '@/flow_chat/components/ModelSelector';
 import { useTodoStore } from '../../store/todoStore';
 import { planChatReply, generateBoardPlan, DELEGATION_RE } from '../../ai/consult';
-import {
-  fetchDiscussModelGroups,
-  getDiscussModel,
-  setDiscussModel,
-} from '../../ai/modelCatalog';
+import type { PlanChatTurn } from '../../ai/consult';
+import { getDiscussModel, setDiscussModel, MODEL_AUTO } from '../../ai/modelCatalog';
 import type { BoardPlan, PlanChatMessage, TodoTask } from '../../api/types';
+
+/** 旧版讨论模型选择存过 'primary'/'fast' 内置引用——新概念下回落自动。 */
+function loadDiscussModel(): string {
+  const saved = getDiscussModel();
+  return saved === 'primary' || saved === 'fast' ? MODEL_AUTO : saved;
+}
 
 /** BoardPlan → 计划契约 MD（文件化存档，人与 agent 共享读写）。
  *  四段：目标 / 步骤 / 验收（DoD 可勾选）/ 交付物。 */
@@ -148,6 +151,18 @@ const PlanQuestionCard: React.FC<{
   );
 };
 
+/** 后端通道错误 → 用户可读文案（显存不足给可操作指引，其余原样透出）。 */
+function describeAiError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  const need = msg.match(/need (\d+) MB/i);
+  if (/insufficient VRAM/i.test(msg) && need) {
+    const free = msg.match(/free (\d+) MB/i);
+    const freeGb = free ? `，当前可用 ${Math.round(Number(free[1]) / 1024)}GB` : '';
+    return `显存不足以加载该模型（约需 ${Math.round(Number(need[1]) / 1024)}GB${freeGb}），请先释放显存（关闭占用显存的程序/引擎）或改用 RWKV / 云端模型`;
+  }
+  return `AI 暂时没有回应：${msg}`;
+}
+
 export const PlanChatPanel: React.FC<{
   task: TodoTask;
 }> = ({ task }) => {  const updateTask = useTodoStore((s) => s.updateTask);
@@ -157,21 +172,12 @@ export const PlanChatPanel: React.FC<{
   const [phase, setPhase] = useState<'chat' | 'plan'>('chat');
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // 模型目录 + 当前选择（'auto' = 本地 RWKV 优先 + primary 自动回退）
-  const [modelGroups, setModelGroups] = useState<ModelGroup[]>([]);
-  const [modelId, setModelId] = useState(getDiscussModel());
+  // 讨论模型选择（'auto' = 本地 RWKV 优先 + primary 自动回退）；
+  // 控件与 task 窗口同一个 ModelSelector（受控模式），选择只持久化到本面板
+  const [modelId, setModelId] = useState(loadDiscussModel);
 
-  const chat = task.chat ?? [];
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetchDiscussModelGroups().then(groups => {
-      if (!cancelled) setModelGroups(groups);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // 引用稳定：task.chat 缺省时固定空数组，避免每次渲染新引用扰动 useMemo 依赖
+  const chat = useMemo(() => task.chat ?? [], [task.chat]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -192,7 +198,14 @@ export const PlanChatPanel: React.FC<{
     setPhase('chat');
     const nextChat = [...chat, { role: 'user' as const, text }];
     updateTask(task.id, { chat: nextChat });
-    const turn = await planChatReply(task.title, task.notes, nextChat, modelId, task.goalId, task.plan ?? null);
+    let turn: PlanChatTurn | null = null;
+    try {
+      turn = await planChatReply(task.title, task.notes, nextChat, modelId, task.goalId, task.plan ?? null);
+    } catch (e) {
+      setBusy(false);
+      setError(describeAiError(e));
+      return;
+    }
     if (!turn) {
       setBusy(false);
       setError('AI 暂时没有回应，稍后再试');
@@ -307,13 +320,12 @@ export const PlanChatPanel: React.FC<{
             maxHeight={120}
             footerLeft={
               <ModelSelector
-                groups={modelGroups}
-                currentId={modelId}
-                onSelect={(_gid, mid) => {
-                  setModelId(mid);
-                  setDiscussModel(mid);
+                currentMode="plan-discuss"
+                controlledValue={modelId}
+                onControlledSelect={(ref) => {
+                  setModelId(ref);
+                  setDiscussModel(ref);
                 }}
-                loading={modelGroups.length === 0}
               />
             }
           />

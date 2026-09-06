@@ -115,20 +115,35 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
         MODEL_RWKV => true,
         MODEL_REMOTE => false,
         _ if has_tools => {
-            // 带 tools 的请求（agent 会话）强制远程：本地 RWKV 无法可靠输出
-            // 结构化 tool-call（会把调用 JSON 当纯文本续写），会话会卡死在
-            // 无工具调用的文本回复上
-            log::info!(
-                "[ai-gateway] tools present ({} tools) -> forced remote",
-                body.get("tools")
-                    .and_then(|v| v.as_array())
-                    .map(|t| t.len())
-                    .unwrap_or(0)
-            );
-            false
+            // M1.2 分层路由 v2：默认远程（本地 RWKV 结构化 tool-call 可靠性
+            // 待真机 G1x 验证）。AI00X_DSH_LOCAL_TOOLS=1 且工具全在本地白名单
+            // 且 SmartRouter 判 R0/R1 时尝试本地；本地分支失败自动降级远程。
+            if local_tools_enabled() && tools_all_local(&body) {
+                let decision = smart_route(&session_id, &last_user_text(&body)).await;
+                log::info!(
+                    "[ai-gateway] local-tools path: session={:?}, tier={}, whitelist tools={}",
+                    session_id,
+                    decision,
+                    body.get("tools")
+                        .and_then(|v| v.as_array())
+                        .map(|t| t.len())
+                        .unwrap_or(0)
+                );
+                matches!(decision, RouteClass::R0 | RouteClass::R1)
+            } else {
+                log::info!(
+                    "[ai-gateway] tools present ({} tools) -> forced remote",
+                    body.get("tools")
+                        .and_then(|v| v.as_array())
+                        .map(|t| t.len())
+                        .unwrap_or(0)
+                );
+                false
+            }
         }
         _ => {
-            // ai00-auto：SmartRouter 分类
+            // ai00-auto 无工具（含 dsh 标题/摘要类 aux 请求）：SmartRouter 分类，
+            // R0/R1 → 本地 RWKV（省远端 token 的主通路）
             let user_input = last_user_text(&body);
             let decision = smart_route(&session_id, &user_input).await;
             log::info!(
@@ -142,10 +157,53 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
     };
 
     if use_local {
-        local_rwkv_sse(body, session_id, res).await;
+        // 本地失败（引擎未就绪/推理错误，且发生在任何 SSE 字节写出之前）→
+        // 自动降级远程，请求不失败——aux 误路由无感
+        if local_rwkv_sse(body.clone(), session_id.clone(), res)
+            .await
+            .is_err()
+        {
+            log::warn!("[ai-gateway] local branch failed -> fallback to remote");
+            forward_to_ai00_salvo(body, res).await;
+        }
     } else {
         forward_to_ai00_salvo(body, res).await;
     }
+}
+
+/// 本地工具白名单（M1.2）：只放行只读 + 通知类 ai00_* 工具——本地分支即使
+/// 工具调用解析失败也不会产生破坏性副作用（写知行/换壁纸/XP 全部排除）。
+const LOCAL_TOOL_WHITELIST: &[&str] = &[
+    "ai00_notify",
+    "ai00_todo_read",
+    "ai00_plan_read",
+    "ai00_focus_log",
+    "ai00_wallpaper_projects",
+];
+
+/// 本地工具路径开关（env `AI00X_DSH_LOCAL_TOOLS=1`；默认关，M1.1 真机验证
+/// 通过后再默认放开）。
+fn local_tools_enabled() -> bool {
+    std::env::var("AI00X_DSH_LOCAL_TOOLS")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
+/// 请求的 tools 是否全部在本地白名单内。
+fn tools_all_local(body: &Value) -> bool {
+    body.get("tools")
+        .and_then(|v| v.as_array())
+        .map(|t| {
+            !t.is_empty()
+                && t.iter().all(|tool| {
+                    tool.get("function")
+                        .and_then(|f| f.get("name"))
+                        .and_then(|n| n.as_str())
+                        .map(|n| LOCAL_TOOL_WHITELIST.contains(&n))
+                        .unwrap_or(false)
+                })
+        })
+        .unwrap_or(false)
 }
 
 /// SmartRouter 分类（失败时降级 R2 → 远程，保守）。
@@ -187,7 +245,14 @@ fn last_user_text(body: &Value) -> String {
 // ---------------------------------------------------------------------------
 
 /// 本地 RWKV：OpenAI 请求 → RWKV prompt → pool_infer 流 → OpenAI SSE chunks。
-async fn local_rwkv_sse(body: Value, session_id: Option<String>, res: &mut Response) {
+///
+/// 返回 `Err` = 尚未写出任何 SSE 字节的失败（引擎未就绪/推理错误）——
+/// 调用方据此降级远程；一旦开始流式输出则只能走流内错误事件，返回 `Ok`。
+async fn local_rwkv_sse(
+    body: Value,
+    session_id: Option<String>,
+    res: &mut Response,
+) -> Result<(), String> {
     let messages = body
         .get("messages")
         .and_then(|v| v.as_array())
@@ -238,24 +303,17 @@ async fn local_rwkv_sse(body: Value, session_id: Option<String>, res: &mut Respo
         Ok(rx) => rx,
         Err(e) if e.contains("not initialized") => {
             // RWKV 引擎未初始化：后台触发 lazy-init（加载耗时且推理池串行，
-            // 阻塞等待会让并发请求全部积压挂死）。本请求立即 503，
-            // 由 dsh llm-retry 层重试直到引擎就绪。
+            // 阻塞等待会让并发请求全部积压挂死）。本请求降级远程，
+            // 引擎就绪后的后续请求自然回到本地。
             tokio::spawn(async move {
                 if let Err(e) = crate::rwkv_llm::init_engine_internal(None, None, None).await {
                     log::warn!("[ai-gateway] RWKV lazy-init failed: {e}");
                 }
             });
-            res.status_code(StatusCode::SERVICE_UNAVAILABLE);
-            res.body(
-                json!({"error": {"message": "RWKV engine not initialized; loading in background, retry shortly"}})
-                    .to_string(),
-            );
-            return;
+            return Err(format!("RWKV engine not initialized: {e}"));
         }
         Err(e) => {
-            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
-            res.body(json!({"error": {"message": format!("RWKV engine error: {e}")}}).to_string());
-            return;
+            return Err(format!("RWKV engine error: {e}"));
         }
     };
 
@@ -338,6 +396,7 @@ async fn local_rwkv_sse(body: Value, session_id: Option<String>, res: &mut Respo
     res.stream(tokio_stream::wrappers::UnboundedReceiverStream::new(
         rx_body,
     ));
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -848,5 +907,33 @@ mod tests {
         let parsed: Value =
             serde_json::from_str(chunk.trim_start_matches("data: ").trim()).unwrap();
         assert_eq!(parsed["choices"][0]["delta"]["content"], json!("hello"));
+    }
+
+    #[test]
+    fn local_tools_whitelist_accepts_only_whitelisted() {
+        let ok = json!({"tools": [
+            {"type": "function", "function": {"name": "ai00_notify", "parameters": {}}},
+            {"type": "function", "function": {"name": "ai00_todo_read", "parameters": {}}},
+        ]});
+        assert!(tools_all_local(&ok));
+
+        // 混入一个非白名单工具（ai00_todo_write 有破坏性）→ 整体拒绝
+        let mixed = json!({"tools": [
+            {"type": "function", "function": {"name": "ai00_notify", "parameters": {}}},
+            {"type": "function", "function": {"name": "ai00_todo_write", "parameters": {}}},
+        ]});
+        assert!(!tools_all_local(&mixed));
+
+        // 空数组与缺失 tools → false
+        assert!(!tools_all_local(&json!({"tools": []})));
+        assert!(!tools_all_local(&json!({})));
+    }
+
+    #[test]
+    fn local_tools_switch_defaults_off() {
+        // 未设 env 时默认关（M1.1 真机验证前的保守默认）
+        // 注：CI 环境不设 AI00X_DSH_LOCAL_TOOLS；若显式设为 0/false 也应关
+        std::env::remove_var("AI00X_DSH_LOCAL_TOOLS");
+        assert!(!local_tools_enabled());
     }
 }

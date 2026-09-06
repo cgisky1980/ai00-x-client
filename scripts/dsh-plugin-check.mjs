@@ -19,7 +19,8 @@
  *     targetAllActive, treeHadFailures, staticChecks[], stderrMarkers[] }
  *
  * 环境要求：本机已由 Ai00-X 桌面客户端装过一次运行环境
- * （~/.ai00-run/node/v22.23.2 + 全局 @deepseek-ai/dsh），或通过环境变量覆盖：
+ * （~/.ai00-run/node/v<agent-versions.json nodeVersion> + 全局 @deepseek-ai/dsh），
+ * 或通过环境变量覆盖：
  *   AI00X_CHECK_NODE_DIR   指定 node 目录（含 node.exe/npm.cmd/dsh.cmd）
  *   AI00X_CHECK_PORT       引擎端口（默认 3937，避开 sidecar 的 3210）
  */
@@ -28,6 +29,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // ---------------------------------------------------------------------------
 // 参数与环境
@@ -59,14 +61,26 @@ if (!localPkgDir) {
   }
 }
 
-/** 解析 node 运行目录（含 npm/dsh 的目录）。 */
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** 解析 node 运行目录（含 npm/dsh 的目录）。版本单一来源：packages/shared/agent-versions.json。 */
 function resolveNodeDir() {
   if (process.env.AI00X_CHECK_NODE_DIR) return process.env.AI00X_CHECK_NODE_DIR;
   const home = os.homedir();
+  let nodeVersion = null;
+  try {
+    const versions = JSON.parse(
+      fs.readFileSync(path.join(ROOT, 'packages', 'shared', 'agent-versions.json'), 'utf8'),
+    );
+    nodeVersion = versions.nodeVersion;
+  } catch {
+    console.error('error: cannot read packages/shared/agent-versions.json');
+    process.exit(2);
+  }
   const candidates =
     process.platform === 'win32'
-      ? [path.join(home, '.ai00-run', 'node', 'v22.23.2')]
-      : [path.join(home, '.ai00-run', 'node', 'v22.23.2', 'bin')];
+      ? [path.join(home, '.ai00-run', 'node', `v${nodeVersion}`)]
+      : [path.join(home, '.ai00-run', 'node', `v${nodeVersion}`, 'bin')];
   for (const c of candidates) {
     const exe = process.platform === 'win32' ? path.join(c, 'node.exe') : path.join(c, 'node');
     if (fs.existsSync(exe)) return c;

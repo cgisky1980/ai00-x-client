@@ -746,7 +746,7 @@ export const componentRegistry: ComponentCategory[] = [
                 onClose={() => setIsOpen(false)}
                 title="基础弹窗"
               >
-                <div style={{ padding: '16px' }}>
+                <div>
                   <p>Modal body content</p>
                 </div>
               </Modal>

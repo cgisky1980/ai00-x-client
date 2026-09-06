@@ -104,8 +104,8 @@ export interface CollectionItem {
     subType: string;
     /** 获得时间戳 */
     obtainedAt: number;
-    /** 来源描述 */
-    source: 'harvest' | 'visitor' | 'outing' | 'withered';
+    /** 来源（自己收获 / 访客带来 / 出门带回 / 枯萎掉落 / agent 剧场名场面） */
+    source: 'harvest' | 'visitor' | 'outing' | 'withered' | 'agent';
     /** 来源详情（访客用户名/旅行目的地） */
     sourceDetail?: string;
     /** 数量（仅种子/果实等可堆叠物品） */

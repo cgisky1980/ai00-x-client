@@ -137,6 +137,60 @@
     white-space: nowrap;
   }
 
+  // 行内重命名输入（M0.3）
+  &__session-rename {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--color-accent-500);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-1) var(--spacing-1);
+    outline: none;
+  }
+
+  // 会话行内操作（重命名/派生，仅激活项可见）
+  &__session-actions {
+    display: none;
+    align-items: center;
+    gap: var(--spacing-1);
+    flex-shrink: 0;
+  }
+
+  &__session-item.is-active &__session-actions {
+    display: inline-flex;
+  }
+
+  &__session-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-1);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--easing-standard),
+      color var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      background: var(--element-bg-subtle);
+      color: var(--color-text-primary);
+    }
+  }
+
+  // 用量摘要（M2.2 薄版）
+  &__usage {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+
   &__session-meta {
     display: flex;
     align-items: center;
@@ -352,6 +406,34 @@
     padding: var(--spacing-1) 0;
   }
 
+  // 工具卡状态（M0.3：pending 旋转 / 错误红色 / 结果块）
+  &__msg-tool-spin {
+    animation: ai00-x-dsh-spin 1.2s linear infinite;
+  }
+
+  &__msg-tool.is-error summary {
+    color: var(--color-error);
+  }
+
+  &__msg-tool.is-pending summary {
+    color: var(--color-accent-500);
+  }
+
+  &__msg-tool-result {
+    margin-top: var(--spacing-1);
+
+    pre {
+      max-height: 160px;
+    }
+  }
+
+  &__msg-tool-result-label {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-1);
+  }
+
   &__msg-error {
     margin-top: var(--spacing-1);
     font-size: var(--font-size-xs);
@@ -556,5 +638,31 @@
   }
   50% {
     opacity: 0;
+  }
+}
+
+@keyframes ai00-x-dsh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ── 工灵剧场（AgentTheater 联动）──
+.ai00-x-dsh-scene__theater-toggle.is-on {
+  color: var(--color-accent-500);
+}
+
+.ai00-x-dsh-scene__session-imp {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: var(--radius-full, 9999px);
+  padding: var(--spacing-1, 4px);
+
+  &:hover {
+    background: var(--element-bg-subtle);
   }
 }

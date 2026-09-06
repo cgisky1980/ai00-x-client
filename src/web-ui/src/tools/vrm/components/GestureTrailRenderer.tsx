@@ -135,15 +135,6 @@ export const GestureTrailRenderer: React.FC = () => {
 
     let loopRunning = false
 
-    const ensureLoop = () => {
-      if (loopRunning) return
-      loopRunning = true
-      animFrameRef.current = requestAnimationFrame(draw)
-    }
-
-    // Expose wake-up for event handlers in the sibling effect
-    wakeLoopRef.current = ensureLoop
-
     const draw = () => {
       const now = Date.now()
       const w = canvas.width
@@ -307,6 +298,15 @@ export const GestureTrailRenderer: React.FC = () => {
 
       animFrameRef.current = requestAnimationFrame(draw)
     }
+
+    const ensureLoop = () => {
+      if (loopRunning) return
+      loopRunning = true
+      animFrameRef.current = requestAnimationFrame(draw)
+    }
+
+    // Expose wake-up for event handlers in the sibling effect
+    wakeLoopRef.current = ensureLoop
 
     // No initial loop: canvas is empty at mount; gesture events wake it up.
 

@@ -26,6 +26,14 @@
   }
 }
 
+/* 全高链：桌面网格/花园层依赖 h-full / absolute inset-0 向上解析到视口。
+   缺失时 body 高度塌陷为内容高（实测 64px），GridDesktop 被压成 1 行。 */
+html,
+body,
+#root {
+  height: 100%;
+}
+
 /* 桌面层底色：走 token（默认深墨 + 宣纸颗粒） */
 body {
   background-color: var(--color-bg-base);

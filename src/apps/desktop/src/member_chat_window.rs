@@ -22,6 +22,7 @@ pub async fn open_member_chat_window(app: tauri::AppHandle) -> Result<(), String
     tauri::WebviewWindowBuilder::new(&app, MEMBER_CHAT_WINDOW_LABEL, webview_url)
         .title("Ai00-X 聊天")
         .inner_size(1100.0, 720.0)
+        .min_inner_size(860.0, 540.0)
         .center()
         .resizable(true)
         .build()

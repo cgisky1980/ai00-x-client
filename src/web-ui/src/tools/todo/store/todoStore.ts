@@ -18,7 +18,7 @@ export interface AgentQuestionBatch {
 const DATA_VERSION = 3;
 const SAVE_DEBOUNCE_MS = 400;
 
-export type TodoView = 'today' | 'routine' | 'goal' | 'done' | 'growth';
+export type TodoView = 'today' | 'routine' | 'goal' | 'done' | 'growth' | 'settings' | 'beauty';
 
 function emptyData(): TodoData {
   return {
@@ -370,6 +370,8 @@ interface TodoState {
   data: TodoData;
   /** agent 会话运行态映射（sessionId → running；30s 轮询，非持久化） */
   agentRunning: Record<string, boolean>;
+  /** 会话最后一轮是否出错（sessionId → failed；TodoOverlay 轮询回填） */
+  agentFailed: Record<string, boolean>;
   /** 验收进度缓存（taskId → {done,total}；唯一真源=计划 MD 的勾选态，加载 MD 时解析回填，非持久化） */
   planAcceptance: Record<string, { done: number; total: number }>;
   /** agent 提问缓存（sessionId → 待处理批次；TodoOverlay mux 订阅回填，非持久化） */
@@ -383,6 +385,7 @@ interface TodoState {
   setView: (v: TodoView) => void;
   setExpanded: (id: string | null) => void;
   setAgentRunning: (map: Record<string, boolean>) => void;
+  setAgentFailed: (map: Record<string, boolean>) => void;
   setPlanAcceptance: (taskId: string, done: number, total: number) => void;
   /** 问题批次 upsert（mux 重连重放同 rpcId → 去重）。 */
   upsertAgentQuestion: (sessionId: string, batch: AgentQuestionBatch) => void;
@@ -422,6 +425,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   expandedId: null,
   data: emptyData(),
   agentRunning: {},
+  agentFailed: {},
   planAcceptance: {},
   agentQuestions: {},
   planDocExpanded: true,
@@ -465,6 +469,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   setView: (v) => set({ view: v, expandedId: null }),
   setExpanded: (id) => set({ expandedId: id }),
   setAgentRunning: (map) => set({ agentRunning: map }),
+  setAgentFailed: (map) => set({ agentFailed: map }),
   setPlanAcceptance: (taskId, done, total) =>
     set((s) => ({ planAcceptance: { ...s.planAcceptance, [taskId]: { done, total } } })),
 

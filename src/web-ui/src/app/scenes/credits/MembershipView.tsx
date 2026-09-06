@@ -98,7 +98,9 @@ const MembershipView: React.FC = () => {
       if (result.already_signed) {
         toastWarning('今日已签到过啦');
       } else {
-        toastSuccess(`签到成功，获得 ${result.credits_granted} 积分`, { description: '余额已刷新' });
+        toastSuccess(`签到成功，获得 ${result.credits_granted} 积分`, {
+              description: '余额已刷新 · 邀请好友充值，你也拿分红',
+            });
       }
     } catch {
       toast('签到失败，请稍后重试', { variant: 'error' });

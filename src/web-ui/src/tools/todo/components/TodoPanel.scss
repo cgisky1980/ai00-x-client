@@ -90,6 +90,34 @@
     white-space: nowrap;
   }
 
+  &__credits {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-right: var(--size-gap-2, 8px);
+    padding: 2px var(--size-gap-2, 8px);
+    border: none;
+    border-radius: var(--size-radius-full, 9999px);
+    background: color-mix(in oklch, var(--color-text-primary) 8%, transparent);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: color-mix(in oklch, var(--color-text-primary) 14%, transparent);
+      color: var(--color-accent);
+    }
+  }
+
+  &__credits-value {
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs, 12px);
+    font-weight: 700;
+  }
+
   &__xpbar {
     width: 48px;
     height: 4px;
@@ -163,6 +191,11 @@
     margin: var(--size-gap-1-5, 6px) var(--size-gap-1, 4px);
     background-color: var(--border-subtle);
     flex-shrink: 0;
+
+    // 沉底分隔线（设置入口贴导航栏底部：auto margin 推到底）
+    &--bottom {
+      margin-top: auto;
+    }
   }
 
   &__nav-item {
