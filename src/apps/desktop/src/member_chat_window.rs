@@ -23,7 +23,9 @@ pub async fn open_member_chat_window(app: tauri::AppHandle) -> Result<(), String
     // 供 member-chat.html 的内联样式在 tokens.css 加载前就选对背景色。
     // system/未知主题不标注 → 页面回退到 OS media query（此时两者本就一致）。
     let theme_type = {
-        let config_service = &app.state::<crate::api::app_state::AppState>().config_service;
+        let config_service = &app
+            .state::<crate::api::app_state::AppState>()
+            .config_service;
         config_service
             .get_config::<serde_json::Value>(Some("themes.current"))
             .await
@@ -32,7 +34,11 @@ pub async fn open_member_chat_window(app: tauri::AppHandle) -> Result<(), String
     };
     let init_script = match theme_type.as_deref() {
         Some(id @ ("ai00-x-light" | "ai00-x-dark")) => {
-            let resolved = if id == "ai00-x-light" { "light" } else { "dark" };
+            let resolved = if id == "ai00-x-light" {
+                "light"
+            } else {
+                "dark"
+            };
             format!(
                 "document.documentElement.dataset.appThemeType='{}';",
                 resolved

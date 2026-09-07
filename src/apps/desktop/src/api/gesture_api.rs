@@ -728,8 +728,7 @@ pub async fn execute_custom_command(app: tauri::AppHandle, command: String) -> R
         }
         "open_settings" => {
             // 老任务窗口已退场：设置走主窗 overlay 场景
-            if let Err(e) = crate::theme::show_main_window(app.clone()).await
-            {
+            if let Err(e) = crate::theme::show_main_window(app.clone()).await {
                 log::warn!("open_settings: failed to show main window: {}", e);
             }
         }
