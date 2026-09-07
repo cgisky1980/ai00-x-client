@@ -2,13 +2,13 @@
  * SettingsPage — 个人设置页（rail settings 态整页替换聊天区）
  *
  * 左分类导航（账号资料/安全/外观/通知与隐私/关于）+ 右内容区。
- * - 资料 头像（本地上传→canvas 压方 256px→data URL ≤200KB）/昵称/签名，只读账号信息
+ * - 资料 头像（统一动画形象，AvatarCustomizer 编辑）/昵称/签名，只读账号信息
  * - 安全 修改密码（成功后吊销 token 强制重登）/退出登录
  * - 外观 主题三选：跟随系统 / 宣纸（亮）/ 墨（暗）
  * - 通知与隐私 桌面通知开关（非当前会话新消息触发）+ 隐私说明
  * - 关于 版本与服务器地址（只读）
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import {
   Button,
@@ -22,7 +22,6 @@ import {
 } from '@/component-library';
 import {
   Bell,
-  Camera,
   Info,
   LogOut,
   Palette,
@@ -48,42 +47,6 @@ import { NOTIFY_DESKTOP_KEY, useMemberChatStore } from '../store/memberChatStore
 
 type SettingsSection = 'profile' | 'security' | 'appearance' | 'notifications' | 'about';
 
-/** 头像 data URL 字符数上限（与后端 avatar_data 校验一致，≈200KB 二进制） */
-const AVATAR_MAX_CHARS = 280_000;
-const AVATAR_SIZE_PX = 256;
-
-/** 选图 → 居中裁方 → canvas 压缩为 JPEG data URL（超限逐级降质量） */
-async function fileToAvatarDataUrl(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const canvas = document.createElement('canvas');
-  canvas.width = AVATAR_SIZE_PX;
-  canvas.height = AVATAR_SIZE_PX;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('canvas 2d unavailable');
-  const side = Math.min(bitmap.width, bitmap.height);
-  ctx.drawImage(
-    bitmap,
-    (bitmap.width - side) / 2,
-    (bitmap.height - side) / 2,
-    side,
-    side,
-    0,
-    0,
-    AVATAR_SIZE_PX,
-    AVATAR_SIZE_PX,
-  );
-  let quality = 0.9;
-  let dataUrl = canvas.toDataURL('image/jpeg', quality);
-  while (dataUrl.length > AVATAR_MAX_CHARS && quality > 0.3) {
-    quality -= 0.15;
-    dataUrl = canvas.toDataURL('image/jpeg', quality);
-  }
-  if (dataUrl.length > AVATAR_MAX_CHARS) {
-    throw new Error('image too large after compression');
-  }
-  return dataUrl;
-}
-
 /* ===== 账号资料 ===== */
 const ProfileSection: React.FC = () => {
   const { t } = useI18n();
@@ -95,7 +58,6 @@ const ProfileSection: React.FC = () => {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [saving, setSaving] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   /** 动画形象编辑（AvatarSelection JSON，与 loader/主应用形象同一格式，落同一 avatarData 字段） */
   const [spineOpen, setSpineOpen] = useState(false);
   const [spineDraft, setSpineDraft] = useState<AvatarValue | null>(null);
@@ -119,15 +81,6 @@ const ProfileSection: React.FC = () => {
     );
   }, [myProfile, nickname, bio, avatar]);
 
-  const pickFile = async (file: File | undefined) => {
-    if (!file) return;
-    try {
-      setAvatar(await fileToAvatarDataUrl(file));
-    } catch (e) {
-      toastError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
   const save = async () => {
     setSaving(true);
     const ok = await saveMyProfile({
@@ -141,7 +94,6 @@ const ProfileSection: React.FC = () => {
 
   const removeAvatar = () => {
     setAvatar(null);
-    if (fileRef.current) fileRef.current.value = '';
   };
 
   /** 打开动画形象编辑器：当前头像已是 Spine JSON 则作为初值，否则从默认形象开始 */
@@ -176,10 +128,6 @@ const ProfileSection: React.FC = () => {
             animated
           />
           <div className="member-chat__avatar-actions">
-            <Button variant="secondary" size="small" onClick={() => fileRef.current?.click()}>
-              <Camera size={14} aria-hidden />
-              {t('memberChat.changeAvatar', { defaultValue: '更换头像' })}
-            </Button>
             <Button variant="secondary" size="small" onClick={openSpineEditor}>
               <Sparkles size={14} aria-hidden />
               {t('memberChat.editSpineAvatar', { defaultValue: '编辑动画形象' })}
@@ -191,19 +139,10 @@ const ProfileSection: React.FC = () => {
               </Button>
             )}
           </div>
-          {/* 隐藏文件选择：仅图片 */}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={(e) => void pickFile(e.target.files?.[0])}
-          />
         </div>
         <p className="member-chat__settings-hint">
           {t('memberChat.avatarHint', {
-            defaultValue:
-              '支持本地图（自动裁方压缩至 256×256、约 200KB 内），或编辑与桌宠一致的动画形象。',
+            defaultValue: '头像统一使用与桌宠一致的动画形象，点击「编辑动画形象」自定义。',
           })}
         </p>
       </div>
