@@ -13,7 +13,7 @@
  */
 import React from 'react';
 import { Avatar } from '@/component-library';
-import { resourceManager } from '@/infrastructure/account/ResourceManager';
+import { loadPartDefs, renderSpineSnapshot } from '@/infrastructure/account/spineSnapshot';
 import { createLogger } from '@/shared/utils/logger';
 import { parseAvatarData } from './avatarData';
 import type { AvatarSelection, PartDef } from '@ai00-x/shared';
@@ -25,59 +25,6 @@ type AvatarSize = 'sm' | 'base' | 'lg' | 'xl';
 /* ---------------- Spine 快照（离屏渲一帧，会话级缓存） ---------------- */
 
 const snapshotCache = new Map<string, Promise<string | null>>();
-let partDefsPromise: Promise<PartDef[]> | null = null;
-
-function loadPartDefs(): Promise<PartDef[]> {
-  if (!partDefsPromise) {
-    partDefsPromise = resourceManager
-      .init()
-      .then(() => fetch(resourceManager.getConfigUrl()))
-      .then((resp) => {
-        if (!resp.ok) throw new Error(`avatar config HTTP ${resp.status}`);
-        return resp.json() as Promise<{ parts: PartDef[] }>;
-      })
-      .then((config) => config.parts);
-  }
-  return partDefsPromise;
-}
-
-async function renderSpineSnapshot(selection: AvatarSelection): Promise<string | null> {
-  try {
-    const [{ SpineAvatarRenderer }, partDefs] = await Promise.all([
-      import('@ai00-x/shared'),
-      loadPartDefs(),
-    ]);
-    // 与 SpineAvatarCanvas 同规则：衣服固定隐藏（产品决定）
-    const effective: AvatarSelection = {
-      ...selection,
-      parts: { ...selection.parts, clothes: 'none' },
-    };
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
-    const renderer = new SpineAvatarRenderer(canvas);
-    try {
-      await renderer.loadSkeletonWithParts(
-        effective,
-        partDefs,
-        resourceManager.getSkeletonPath(),
-        resourceManager.getPartsPath(),
-        'default',
-        (p) => resourceManager.resolveResourcePath(p),
-      );
-      // 等两帧确保首帧绘制完成
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      );
-      return canvas.toDataURL('image/png');
-    } finally {
-      renderer.destroy();
-    }
-  } catch (error) {
-    log.warn('Spine avatar snapshot failed, fallback to initial', error);
-    return null;
-  }
-}
 
 function getSnapshot(data: string, selection: AvatarSelection): Promise<string | null> {
   let entry = snapshotCache.get(data);

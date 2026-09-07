@@ -42,6 +42,7 @@ import { tokenManager } from '@/infrastructure/auth/TokenManager';
 import { AvatarCustomizer, type AvatarValue } from '@/infrastructure/account/AvatarCustomizer';
 import { changeMemberPassword, memberLogout } from '../chatApi';
 import { MemberAvatar } from '../components/MemberAvatar';
+import { renderSpineSnapshot } from '@/infrastructure/account/spineSnapshot';
 import { parseAvatarData } from '../components/avatarData';
 import { NOTIFY_DESKTOP_KEY, useMemberChatStore } from '../store/memberChatStore';
 
@@ -56,6 +57,8 @@ const ProfileSection: React.FC = () => {
   const [nickname, setNickname] = useState('');
   const [bio, setBio] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
+  /** 头像快照（迁移 029）：与 avatarData 成对生成/提交，列表出参零渲染直显 */
+  const [avatarSnapshot, setAvatarSnapshot] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [saving, setSaving] = useState(false);
   /** 动画形象编辑（AvatarSelection JSON，与 loader/主应用形象同一格式，落同一 avatarData 字段） */
@@ -68,6 +71,7 @@ const ProfileSection: React.FC = () => {
       setNickname(myProfile.nickname || '');
       setBio(myProfile.bio || '');
       setAvatar(myProfile.avatarData);
+      setAvatarSnapshot(myProfile.avatarSnapshot);
       setHydrated(true);
     }
   }, [myProfile, hydrated]);
@@ -77,9 +81,10 @@ const ProfileSection: React.FC = () => {
     return (
       nickname !== (myProfile.nickname || '') ||
       bio !== (myProfile.bio || '') ||
-      avatar !== myProfile.avatarData
+      avatar !== myProfile.avatarData ||
+      avatarSnapshot !== myProfile.avatarSnapshot
     );
-  }, [myProfile, nickname, bio, avatar]);
+  }, [myProfile, nickname, bio, avatar, avatarSnapshot]);
 
   const save = async () => {
     setSaving(true);
@@ -87,6 +92,7 @@ const ProfileSection: React.FC = () => {
       nickname: nickname.trim() || null,
       bio: bio.trim() || null,
       avatarData: avatar,
+      avatarSnapshot,
     });
     setSaving(false);
     if (ok) toastSuccess(t('memberChat.profileSaved', { defaultValue: '资料已保存' }));
@@ -94,6 +100,7 @@ const ProfileSection: React.FC = () => {
 
   const removeAvatar = () => {
     setAvatar(null);
+    setAvatarSnapshot(null);
   };
 
   /** 打开动画形象编辑器：当前头像已是 Spine JSON 则作为初值，否则从默认形象开始 */
@@ -105,7 +112,13 @@ const ProfileSection: React.FC = () => {
 
   const applySpineSelection = () => {
     if (spineDraft) {
-      setAvatar(JSON.stringify(spineDraft));
+      const json = JSON.stringify(spineDraft);
+      setAvatar(json);
+      // 固化快照（迁移 029）：保存时成对提交，列表出参零渲染直显
+      setAvatarSnapshot(null);
+      void renderSpineSnapshot(spineDraft).then((snap) => {
+        if (snap) setAvatarSnapshot(snap);
+      });
     }
     setSpineOpen(false);
   };

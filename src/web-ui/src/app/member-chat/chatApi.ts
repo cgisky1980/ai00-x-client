@@ -471,6 +471,7 @@ export const chatApi = {
         nickname: input.nickname ?? null,
         bio: input.bio ?? null,
         avatar_data: input.avatarData ?? null,
+        avatar_snapshot: input.avatarSnapshot ?? null,
         profile_theme: input.profileTheme ?? null,
         location: input.location ?? null,
         website: input.website ?? null,
@@ -491,6 +492,8 @@ export interface MyProfile {
   nickname: string | null;
   bio: string | null;
   avatarData: string | null;
+  /** 头像快照（迁移 029）：保存形象时离屏渲一帧 PNG；列表/消息出参快照优先直显 */
+  avatarSnapshot: string | null;
   /** 主页主题 slug（P2A：profile_themes.slug） */
   profileTheme: string;
   /** 位置（P2B） */
@@ -505,6 +508,7 @@ export interface UpdateMyProfileInput {
   nickname?: string | null;
   bio?: string | null;
   avatarData?: string | null;
+  avatarSnapshot?: string | null;
   profileTheme?: string | null;
   location?: string | null;
   website?: string | null;
@@ -513,7 +517,14 @@ export interface UpdateMyProfileInput {
 
 type PickedProfile = Pick<
   MyProfile,
-  'nickname' | 'bio' | 'avatarData' | 'profileTheme' | 'location' | 'website' | 'coverPath'
+  | 'nickname'
+  | 'bio'
+  | 'avatarData'
+  | 'avatarSnapshot'
+  | 'profileTheme'
+  | 'location'
+  | 'website'
+  | 'coverPath'
 >;
 
 /** 修改密码（成功后服务端吊销当前 access token，需重新登录） */
