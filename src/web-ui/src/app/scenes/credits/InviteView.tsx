@@ -20,6 +20,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Gift, Link2, Ticket, Users } from 'lucide-react';
 import { Button, Tag, toast, toastSuccess, Skeleton } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
+import './InviteView.scss';
 import {
   claimInviteCode,
   exchangeCoupon,
@@ -116,10 +117,12 @@ const InviteView: React.FC = () => {
   const handleClaim = useCallback(async () => {
     setClaiming(true);
     try {
+      // 服务端只回 { code_status, invite_code, share_url }，先合并再重拉完整总览
       const next = await claimInviteCode();
-      setSummary(next);
+      setSummary(prev => ({ ...(prev as InviteSummary), ...next }));
       track('invite_claim_success');
       toastSuccess('邀请码已领取，终身专属');
+      void getInviteSummary().then(setSummary).catch(() => {});
     } catch (err) {
       track('invite_claim_failed');
       toast(err instanceof Error ? err.message : '领取失败，请稍后重试', { variant: 'error' });

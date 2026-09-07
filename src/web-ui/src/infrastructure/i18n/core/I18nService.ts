@@ -40,6 +40,7 @@ import zhCNScenesMiniapp from '../../../locales/zh-CN/scenes/miniapp.json';
 import zhCNScenesWallpaper from '../../../locales/zh-CN/scenes/wallpaper.json';
 import zhCNScenesDsh from '../../../locales/zh-CN/scenes/dsh.json';
 import zhCNAgentTheater from '../../../locales/zh-CN/agentTheater.json';
+import zhCNCommunity from '../../../locales/zh-CN/community.json';
 import zhCNPanelsFiles from '../../../locales/zh-CN/panels/files.json';
 import zhCNPanelsGit from '../../../locales/zh-CN/panels/git.json';
 import zhCNPanelsTerminal from '../../../locales/zh-CN/panels/terminal.json';
@@ -89,6 +90,7 @@ import enUSScenesMiniapp from '../../../locales/en-US/scenes/miniapp.json';
 import enUSScenesWallpaper from '../../../locales/en-US/scenes/wallpaper.json';
 import enUSScenesDsh from '../../../locales/en-US/scenes/dsh.json';
 import enUSAgentTheater from '../../../locales/en-US/agentTheater.json';
+import enUSCommunity from '../../../locales/en-US/community.json';
 import enUSPanelsFiles from '../../../locales/en-US/panels/files.json';
 import enUSPanelsGit from '../../../locales/en-US/panels/git.json';
 import enUSPanelsTerminal from '../../../locales/en-US/panels/terminal.json';
@@ -143,6 +145,7 @@ const resources = {
     'scenes/plugins': zhCNScenesPlugins,
     'scenes/dsh': zhCNScenesDsh,
     'agentTheater': zhCNAgentTheater,
+    community: zhCNCommunity,
     'scenes/miniapp': zhCNScenesMiniapp,
     'scenes/wallpaper': zhCNScenesWallpaper,
     'panels/files': zhCNPanelsFiles,
@@ -193,6 +196,7 @@ const resources = {
     'scenes/plugins': enUSScenesPlugins,
     'scenes/dsh': enUSScenesDsh,
     'agentTheater': enUSAgentTheater,
+    community: enUSCommunity,
     'scenes/miniapp': enUSScenesMiniapp,
     'scenes/wallpaper': enUSScenesWallpaper,
     'panels/files': enUSPanelsFiles,

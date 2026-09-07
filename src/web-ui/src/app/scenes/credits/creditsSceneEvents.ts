@@ -6,7 +6,7 @@
  * （sceneStore 内建监听 'scene:open'）。
  */
 
-export type CreditsTabKey = 'recharge' | 'membership' | 'invite';
+export type CreditsTabKey = 'usage' | 'recharge' | 'membership' | 'invite';
 
 const CREDITS_TAB_EVENT = 'credits:open-tab';
 
@@ -22,7 +22,7 @@ export function requestCreditsTab(tab: CreditsTabKey): void {
 export function onCreditsTabRequest(handler: (tab: CreditsTabKey) => void): () => void {
   const listener = (e: Event) => {
     const tab = (e as CustomEvent<{ tab?: CreditsTabKey }>).detail?.tab;
-    if (tab === 'recharge' || tab === 'membership' || tab === 'invite') handler(tab);
+    if (tab === 'usage' || tab === 'recharge' || tab === 'membership' || tab === 'invite') handler(tab);
   };
   window.addEventListener(CREDITS_TAB_EVENT, listener);
   return () => window.removeEventListener(CREDITS_TAB_EVENT, listener);

@@ -1,17 +1,19 @@
 /**
- * FeedView — 广场流（三 tab：最新/热门/关注）
+ * FeedView — 广场流（三 tab：最新/热门/关注 + 话题过滤 + 搜索）
  *
- * 顶栏：自绘文字 tab（沿用 member-chat 风格）+ 通知入口（badge）+ 发布按钮；
+ * 顶栏：自绘文字 tab（沿用 member-chat 风格）+ 搜索框 + 通知入口（badge）+ 发布按钮；
+ * 话题行：热门 tag 横滑条（P1.3，点击过滤 feed，激活态可再点取消）；
  * 列表：PostCard 流 + 首屏 Skeleton + 空态 Empty + 底部哨兵 IntersectionObserver
  * 触发 loadMore 游标分页。
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { Button, Empty, IconButton, Skeleton } from '@/component-library';
-import { Bell, PenLine } from 'lucide-react';
+import { Bell, Hash, PenLine, Search, X } from 'lucide-react';
 import { useCommunityStore, type FeedTab } from './communityStore';
 import { PostCard } from './PostCard';
 import { PostComposer } from './PostComposer';
+import { communityApi } from './communityApi';
 
 const TABS: { key: FeedTab; labelKey: string; label: string }[] = [
   { key: 'latest', labelKey: 'community.tabLatest', label: '最新' },
@@ -34,18 +36,63 @@ const FeedSkeleton: React.FC = () => (
   </div>
 );
 
+/** 热门话题横滑条（P1.3） */
+const HotTagsBar: React.FC = () => {
+  const { t } = useI18n('community');
+  const feedTag = useCommunityStore((s) => s.feedTag);
+  const setFeedTag = useCommunityStore((s) => s.setFeedTag);
+  const [tags, setTags] = useState<Array<{ tag: string; post_count: number }> | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void communityApi
+      .hotTags(10)
+      .then((r) => {
+        if (alive) setTags(r.tags);
+      })
+      .catch(() => {
+        if (alive) setTags([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!tags || tags.length === 0) return null;
+  return (
+    <div className="community-feed__tags" role="tablist" aria-label={t('hotTags', { defaultValue: '热门话题' })}>
+      {tags.map(({ tag, post_count }) => (
+        <button
+          key={tag}
+          type="button"
+          className={`community-feed__tag ${feedTag === tag ? 'is-active' : ''}`}
+          onClick={() => setFeedTag(feedTag === tag ? '' : tag)}
+        >
+          <Hash size={11} aria-hidden />
+          {tag}
+          <span className="ds-data">{post_count}</span>
+        </button>
+      ))}
+    </div>
+  );
+};
+
 export const FeedView: React.FC = () => {
-  const { t } = useI18n();
+  const { t } = useI18n('community');
   const feedTab = useCommunityStore((s) => s.feedTab);
+  const feedTag = useCommunityStore((s) => s.feedTag);
   const posts = useCommunityStore((s) => s.posts);
   const loading = useCommunityStore((s) => s.loading);
   const hasMore = useCommunityStore((s) => s.hasMore);
   const unreadNotices = useCommunityStore((s) => s.unreadNotices);
   const setFeedTab = useCommunityStore((s) => s.setFeedTab);
+  const setFeedTag = useCommunityStore((s) => s.setFeedTag);
+  const search = useCommunityStore((s) => s.search);
   const loadMore = useCommunityStore((s) => s.loadMore);
   const openNotifications = useCommunityStore((s) => s.openNotifications);
 
   const [composing, setComposing] = useState(false);
+  const [searchDraft, setSearchDraft] = useState('');
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // 底部哨兵 → 加载下一页
@@ -65,7 +112,7 @@ export const FeedView: React.FC = () => {
   return (
     <div className="community-feed">
       <header className="community-feed__topbar">
-        <nav className="community-tabs" role="tablist" aria-label={t('community.feedTabs', { defaultValue: '动态流' })}>
+        <nav className="community-tabs" role="tablist" aria-label={t('feedTabs', { defaultValue: '动态流' })}>
           {TABS.map((tab) => (
             <button
               key={tab.key}
@@ -80,11 +127,28 @@ export const FeedView: React.FC = () => {
           ))}
         </nav>
         <span className="community-feed__topbar-actions">
+          <form
+            className="community-feed__search"
+            role="search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              search(searchDraft);
+            }}
+          >
+            <Search size={13} aria-hidden />
+            <input
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
+              placeholder={t('searchPlaceholder', { defaultValue: '搜索动态…' })}
+              aria-label={t('searchPlaceholder', { defaultValue: '搜索动态…' })}
+              maxLength={100}
+            />
+          </form>
           <IconButton
             variant="ghost"
             shape="square"
-            tooltip={t('community.noticeTitle', { defaultValue: '通知' })}
-            aria-label={t('community.noticeTitle', { defaultValue: '通知' })}
+            tooltip={t('noticeTitle', { defaultValue: '通知' })}
+            aria-label={t('noticeTitle', { defaultValue: '通知' })}
             onClick={openNotifications}
           >
             <Bell size={18} strokeWidth={1.8} />
@@ -92,10 +156,29 @@ export const FeedView: React.FC = () => {
           </IconButton>
           <Button variant="primary" size="small" onClick={() => setComposing(true)}>
             <PenLine size={14} aria-hidden />
-            {t('community.compose', { defaultValue: '发布' })}
+            {t('compose', { defaultValue: '发布' })}
           </Button>
         </span>
       </header>
+
+      <HotTagsBar />
+
+      {feedTag && (
+        <div className="community-feed__tagbar">
+          <span>
+            <Hash size={12} aria-hidden />
+            {t('tagFilter', { defaultValue: '话题：{{tag}}', tag: feedTag })}
+          </span>
+          <button
+            type="button"
+            className="community-feed__tagbar-clear"
+            aria-label={t('common:cancel', { defaultValue: '取消' })}
+            onClick={() => setFeedTag('')}
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       <div className="community-feed__list">
         {posts.map((p) => (
@@ -104,11 +187,13 @@ export const FeedView: React.FC = () => {
         {loading && <FeedSkeleton />}
         {!loading && posts.length === 0 && (
           <Empty
-            title={t('community.feedEmptyTitle', { defaultValue: '还没有动态' })}
+            title={t('feedEmptyTitle', { defaultValue: '还没有动态' })}
             description={
-              feedTab === 'following'
-                ? t('community.feedEmptyFollowing', { defaultValue: '关注一些人，他们的动态会出现在这里' })
-                : t('community.feedEmptyHint', { defaultValue: '发布第一条动态，开始你的主页' })
+              feedTag
+                ? t('tagEmpty', { defaultValue: '这个话题下还没有动态' })
+                : feedTab === 'following'
+                  ? t('feedEmptyFollowing', { defaultValue: '关注一些人，他们的动态会出现在这里' })
+                  : t('feedEmptyHint', { defaultValue: '发布第一条动态，开始你的主页' })
             }
           />
         )}

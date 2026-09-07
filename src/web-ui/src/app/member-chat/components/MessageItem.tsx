@@ -9,7 +9,6 @@
 import React, { useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import {
-  Avatar,
   confirmDialog,
   IconButton,
   Popover,
@@ -17,6 +16,7 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/component-library';
+import { MemberAvatar } from './MemberAvatar';
 import type { ChatMessage, ChatReaction } from '../chatApi';
 import type { ConversationType } from '../store/memberChatStore';
 
@@ -154,7 +154,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
     >
       {isGroupStart && (
         <div className="member-chat__message-head">
-          <Avatar name={message.sender_name} size="sm" src={message.sender_avatar || undefined} />
+          <MemberAvatar name={message.sender_name} size="sm" data={message.sender_avatar} />
           <span className="member-chat__sender">{message.sender_name}</span>
           {isOnline && <span className="member-chat__online-dot" title="在线" />}
           {pinned && (

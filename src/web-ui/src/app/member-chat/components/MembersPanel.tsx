@@ -6,7 +6,8 @@
  */
 import React, { useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import { Avatar, confirmDialog, IconButton, Input } from '@/component-library';
+import { confirmDialog, IconButton, Input } from '@/component-library';
+import { MemberAvatar } from './MemberAvatar';
 import { ChevronRight } from 'lucide-react';
 import { computeMyPerms, conversationType, findChannelIn, useMemberChatStore } from '../store/memberChatStore';
 
@@ -66,7 +67,7 @@ export const MembersPanel: React.FC = () => {
         )}
         {members.map((m) => (
           <div key={m.member_id} className="member-chat__member">
-            <Avatar name={m.member_name} size="sm" src={m.member_avatar || undefined} />
+            <MemberAvatar name={m.member_name} size="sm" data={m.member_avatar} />
             <span className="member-chat__member-name">{m.member_name}</span>
             {m.role === 'owner' && (
               <span className="member-chat__tag member-chat__tag--owner">owner</span>

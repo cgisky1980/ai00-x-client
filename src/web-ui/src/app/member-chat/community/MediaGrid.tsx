@@ -56,7 +56,8 @@ function useMediaSrc(url: string): string {
 }
 
 const MediaImage: React.FC<{ item: CommunityMediaItem; className: string }> = ({ item, className }) => {
-  const src = useMediaSrc(item.url);
+  // 服务端上传会生成 480px WebP 缩略图（thumb）；九宫格优先用缩略图，详情大图回退原图
+  const src = useMediaSrc(item.thumb || item.url);
   return (
     <div className={className}>
       <img src={src} alt="" loading="lazy" draggable={false} />

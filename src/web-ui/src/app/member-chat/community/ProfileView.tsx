@@ -1,242 +1,489 @@
 /**
- * ProfileView — 个人主页（我的/他人通用）
+ * ProfileView — 个人主页（P2B 博客化重写 + P2A 主题引擎）
  *
- * 资料卡（头像/昵称/@username/bio/位置/网站 + 动态/关注/粉丝计数）+
- * 操作区（自己=编辑主页；他人=关注 toggle + 互关好友「发消息」）+ 动态墙。
- * 互关即好友：互关徽标展示，取关前 confirm 提示将解除好友。
+ * 主题：服务端 profile_themes（迁移 027）为 SSOT，store.themes 缓存；
+ *       ThemeResolver 把 payload 挂为容器级 --pt-* 变量，主页样式只消费这些变量。
+ * 布局三骨架：hero（banner+头像压边）/ minimal（纯排版）/ editorial（杂志规则线）。
+ * 页签：动态（博客卡流）/ 归档（按月，仅自己）/ 收藏（仅自己）。
+ * 博客卡：封面缩略 + 标题 + 摘要 + mono 日期 + 置顶标记；点击进详情。
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import {
-  Avatar,
-  Button,
-  confirmDialog,
-  Empty,
-  IconButton,
-  Modal,
-  Skeleton,
-  Tag,
-  toastError,
-  toastSuccess,
-} from '@/component-library';
-import { ArrowLeft, MessageCircle, Pencil } from 'lucide-react';
+import { Button, Empty, IconButton, Modal, Skeleton, toastSuccess } from '@/component-library';
+import { ArrowLeft, Globe, MapPin, MessageCircle, Pin, Settings2 } from 'lucide-react';
 import { useMemberChatStore } from '../store/memberChatStore';
 import { useCommunityStore } from './communityStore';
-import { PostCard } from './PostCard';
-import { ProfileEditModal } from './ProfileEditModal';
+import { MemberAvatar } from '../components/MemberAvatar';
 import { FollowListModal } from './FollowListModal';
+import { ProfileEditModal } from './ProfileEditModal';
+import { ThemeShop } from './ThemeShop';
+import {
+  resolveMediaUrl,
+  type CommunityPost,
+  type ProfileThemeDTO,
+} from './communityApi';
+import {
+  resolveAppliedTheme,
+  textureImage,
+  textureSize,
+  themeVars,
+  type ProfileTheme,
+} from './themes';
+import { mdToPlain } from './md';
+import { formatRelTime } from './time';
+
+type ProfileTab = 'posts' | 'archive' | 'bookmarks';
+
+/** DTO → 引擎主题（payload 缺省字段兜底） */
+function toEngineTheme(dto: ProfileThemeDTO): ProfileTheme {
+  return {
+    slug: dto.slug,
+    name: dto.name,
+    layout: dto.layout,
+    price_credits: dto.price_credits,
+    owned: dto.owned,
+    applied: dto.applied,
+    payload: {
+      bg: String(dto.payload.bg ?? '#242729'),
+      surface: String(dto.payload.surface ?? '#2b2f33'),
+      text: String(dto.payload.text ?? '#f0f2f4'),
+      textMuted: String(dto.payload.textMuted ?? '#9aa3ab'),
+      border: String(dto.payload.border ?? '#3a4046'),
+      borderStyle: String(dto.payload.borderStyle ?? 'solid'),
+      accent: String(dto.payload.accent ?? '#60a5fa'),
+      accentText: String(dto.payload.accentText ?? '#0b1220'),
+      bannerBg: String(dto.payload.bannerBg ?? '#1c2023'),
+      bannerOverlay: Number(dto.payload.bannerOverlay ?? 0.35),
+      fontDisplay: dto.payload.fontDisplay === 'sans' ? 'sans' : 'serif',
+      radius: String(dto.payload.radius ?? 'base'),
+      texture: String(dto.payload.texture ?? 'grain'),
+      decoration: String(dto.payload.decoration ?? 'none'),
+      monoData: dto.payload.monoData !== false,
+    },
+  };
+}
+
+/** 相对媒体 URL → 绝对（预览用） */
+function useMediaSrc(url: string | null | undefined): string {
+  const [src, setSrc] = useState('');
+  useEffect(() => {
+    if (!url) {
+      setSrc('');
+      return;
+    }
+    let alive = true;
+    void resolveMediaUrl(url)
+      .then((s) => {
+        if (alive) setSrc(s);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+  return src;
+}
+
+/** 主题化博客卡（主页墙/归档/收藏通用） */
+const BlogCard: React.FC<{
+  post: CommunityPost;
+  showPin?: boolean;
+  onOpen: (p: CommunityPost) => void;
+  onTag: (tag: string) => void;
+}> = ({ post, showPin, onOpen, onTag }) => {
+  const displayName = post.nickname || post.username;
+  const coverSrc = useMediaSrc(
+    post.cover_url || post.media?.find((m) => m.type === 'image')?.thumb || null,
+  );
+  const excerpt = useMemo(() => mdToPlain(post.content).slice(0, 120), [post.content]);
+  return (
+    <article className="community-blog-card" onClick={() => onOpen(post)}>
+      {showPin && post.pinned_at && (
+        <span className="community-blog-card__pin">
+          <Pin size={11} aria-hidden />
+          {formatRelTime(post.pinned_at) && ''}
+          置顶
+        </span>
+      )}
+      <header className="community-blog-card__head">
+        <span className="community-blog-card__author">{displayName}</span>
+        <span className="community-blog-card__time">@{post.username} · {formatRelTime(post.created_at)}</span>
+      </header>
+      {post.title && <h3 className="community-blog-card__title">{post.title}</h3>}
+      {coverSrc && (
+        <img className="community-blog-card__cover" src={coverSrc} alt="" loading="lazy" draggable={false} />
+      )}
+      {excerpt && <p className="community-blog-card__excerpt">{excerpt}{excerpt.length >= 120 ? '…' : ''}</p>}
+      {post.tags && post.tags.length > 0 && (
+        <div className="community-blog-card__tags">
+          {post.tags.map((tg) => (
+            <button
+              key={tg}
+              type="button"
+              className="community-blog-card__tag"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTag(tg);
+              }}
+            >
+              #{tg}
+            </button>
+          ))}
+        </div>
+      )}
+    </article>
+  );
+};
 
 export const ProfileView: React.FC = () => {
   const { t } = useI18n();
   const home = useCommunityStore((s) => s.home);
   const homePosts = useCommunityStore((s) => s.homePosts);
   const homeHasMore = useCommunityStore((s) => s.homeHasMore);
-  const loadHomePosts = useCommunityStore((s) => s.loadHomePosts);
-  const toggleFollow = useCommunityStore((s) => s.toggleFollow);
+  const themesDTO = useCommunityStore((s) => s.themes);
+  const archiveMonths = useCommunityStore((s) => s.archiveMonths);
+  const bookmarks = useCommunityStore((s) => s.bookmarks);
+  const bookmarksHasMore = useCommunityStore((s) => s.bookmarksHasMore);
   const back = useCommunityStore((s) => s.back);
-  const openProfile = useCommunityStore((s) => s.openProfile);
+  const loadHomePosts = useCommunityStore((s) => s.loadHomePosts);
+  const loadBookmarks = useCommunityStore((s) => s.loadBookmarks);
+  const loadMoreBookmarks = useCommunityStore((s) => s.loadMoreBookmarks);
+  const setFeedTag = useCommunityStore((s) => s.setFeedTag);
+  const openDetail = useCommunityStore((s) => s.openDetail);
+  const toggleFollow = useCommunityStore((s) => s.toggleFollow);
 
   const myMemberId = useMemberChatStore((s) => s.session?.memberId ?? null);
   const createDm = useMemberChatStore((s) => s.createDm);
   const setRailTab = useMemberChatStore((s) => s.setRailTab);
 
-  const [editing, setEditing] = useState(false);
-  const [listMode, setListMode] = useState<'followers' | 'following' | null>(null);
-  const [busy, setBusy] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [tab, setTab] = useState<ProfileTab>('posts');
+  const [archiveMonth, setArchiveMonth] = useState('');
+  const [listEnd, setListEnd] = useState<HTMLDivElement | null>(null);
+  const [followersOpen, setFollowersOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [coverSrc, setCoverSrc] = useState('');
+
+  const isSelf = home?.member_id === myMemberId;
+  const displayName = home ? home.nickname || home.username : '';
+  const applied: ProfileTheme = useMemo(
+    () => resolveAppliedTheme((themesDTO ?? []).map(toEngineTheme)),
+    [themesDTO],
+  );
 
   useEffect(() => {
-    const el = sentinelRef.current;
+    let alive = true;
+    void (home?.cover
+      ? resolveMediaUrl(home.cover)
+      : Promise.resolve('')
+    )
+      .then((s) => {
+        if (alive) setCoverSrc(s);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [home?.cover]);
+
+  useEffect(() => {
+    if (tab === 'bookmarks' && isSelf) void loadBookmarks(true);
+  }, [tab, isSelf, loadBookmarks]);
+
+  useEffect(() => {
+    const el = listEnd;
     if (!el) return;
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries.some((e) => e.isIntersecting)) void loadHomePosts(false);
+        if (entries.some((e) => e.isIntersecting)) {
+          if (tab === 'posts') void loadHomePosts(false);
+          if (tab === 'bookmarks') void loadMoreBookmarks();
+        }
       },
       { rootMargin: '240px 0px' },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [loadHomePosts, homeHasMore]);
+  }, [listEnd, tab, loadHomePosts, loadMoreBookmarks]);
 
   if (!home) {
     return (
-      <div className="community-profile community-profile--loading" aria-busy>
-        <Skeleton style={{ height: 120 }} />
-        <Skeleton style={{ height: 200 }} />
+      <div className="community-profile2" aria-busy>
+        <Skeleton style={{ height: 160 }} />
+        <Skeleton style={{ height: 44 }} />
       </div>
     );
   }
 
-  const isSelf = home.member_id === myMemberId;
-  const displayName = home.nickname || home.username;
-
-  /** 关注/取关：取关互关好友需 confirm（将解除好友） */
-  const onToggleFollow = async () => {
-    if (home.viewer_follows && home.is_friend) {
-      const ok = await confirmDialog({
-        title: t('community.unfollowTitle', { defaultValue: '取消关注' }),
-        message: t('community.unfollowFriendHint', {
-          defaultValue: '@' + home.username + ' 是你的好友，取关后将解除好友关系。确定吗？',
-        }),
-        confirmDanger: true,
-      });
-      if (!ok) return;
-    }
-    setBusy(true);
+  const onFollow = async () => {
     const r = await toggleFollow(home.member_id);
-    setBusy(false);
     if (r?.became_friend) {
-      toastSuccess(t('community.becameFriend', { defaultValue: '已互相关注，成为好友，可以私聊了' }));
+      toastSuccess(t('becameFriend', { defaultValue: '已互相关注，成为好友' }));
     }
   };
 
-  /** 互关好友 → 发起私聊并跳回消息 tab */
-  const onSendMessage = async () => {
-    try {
-      await createDm(home.member_id, displayName);
-      setRailTab('chats');
-    } catch (e) {
-      toastError(e instanceof Error ? e.message : String(e));
-    }
+  const onMessage = async () => {
+    await createDm(home.member_id, displayName);
+    setRailTab('chats');
   };
+
+  const onTag = (tag: string) => {
+    setFeedTag(tag);
+  };
+
+  const monthFiltered = archiveMonth
+    ? homePosts.filter((p) => p.created_at.startsWith(archiveMonth))
+    : homePosts;
+
+  const counts = (
+    <div className="community-profile2__counts">
+      <span className="ds-data">{t('postsCount', { defaultValue: '动态 {{n}}', n: home.post_count })}</span>
+      <button type="button" className="ds-data" onClick={() => setFollowersOpen(true)}>
+        {t('followersCount', { defaultValue: '粉丝 {{n}}', n: home.followers_count })}
+      </button>
+      <span className="ds-data">{t('followingCount', { defaultValue: '关注 {{n}}', n: home.following_count })}</span>
+    </div>
+  );
+
+  const metaRow = (
+    <div className="community-profile2__meta">
+      <span className="ds-data">@{home.username}</span>
+      {home.location && (
+        <span className="ds-data">
+          <MapPin size={11} aria-hidden /> {home.location}
+        </span>
+      )}
+      {home.website && (
+        <a className="ds-data" href={home.website} target="_blank" rel="noreferrer">
+          <Globe size={11} aria-hidden /> {home.website.replace(/^https?:\/\//, '')}
+        </a>
+      )}
+    </div>
+  );
+
+  const actions = (
+    <div className="community-profile2__actions">
+      {isSelf ? (
+        <Button variant="secondary" size="small" onClick={() => setEditOpen(true)}>
+          <Settings2 size={14} aria-hidden />
+          {t('editHome', { defaultValue: '编辑主页' })}
+        </Button>
+      ) : (
+        <>
+          <Button
+            variant={home.viewer_follows ? 'secondary' : 'primary'}
+            size="small"
+            onClick={() => void onFollow()}
+          >
+            {home.viewer_follows
+              ? home.follows_viewer
+                ? t('mutualFollow', { defaultValue: '互相关注' })
+                : t('following', { defaultValue: '已关注' })
+              : t('follow', { defaultValue: '关注' })}
+          </Button>
+          {home.is_friend && (
+            <Button variant="secondary" size="small" onClick={() => void onMessage()}>
+              <MessageCircle size={14} aria-hidden />
+              {t('message', { defaultValue: '发消息' })}
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  let header: React.ReactNode;
+  if (applied.layout === 'hero') {
+    header = (
+      <header className="community-profile2__hero">
+        <div className="community-profile2__banner">
+          {coverSrc && <img src={coverSrc} alt="" draggable={false} />}
+          <span
+            className="community-profile2__banner-overlay"
+            style={{ opacity: applied.payload.bannerOverlay }}
+          />
+        </div>
+        <div className="community-profile2__hero-body">
+          <MemberAvatar
+            name={displayName}
+            size="xl"
+            data={home.avatar}
+            animated
+            className="community-profile2__avatar"
+          />
+          <h1 className="community-profile2__name">{displayName}</h1>
+          {metaRow}
+          {home.bio && <p className="community-profile2__bio">{home.bio}</p>}
+          {counts}
+          {actions}
+        </div>
+      </header>
+    );
+  } else if (applied.layout === 'minimal') {
+    header = (
+      <header className="community-profile2__minimal">
+        <div className="community-profile2__minimal-top">
+          <MemberAvatar
+            name={displayName}
+            size="lg"
+            data={home.avatar}
+            animated
+            className="community-profile2__avatar-sm"
+          />
+          <h1 className="community-profile2__name">{displayName}</h1>
+          {actions}
+        </div>
+        {home.bio && <p className="community-profile2__bio">{home.bio}</p>}
+        {metaRow}
+        <div className="community-profile2__rule" />
+        {counts}
+      </header>
+    );
+  } else {
+    header = (
+      <header className="community-profile2__editorial">
+        <div className="community-profile2__kicker ds-data">PROFILE / 個人</div>
+        <h1 className="community-profile2__name community-profile2__name--display">{displayName}</h1>
+        <div className="community-profile2__byline">
+          {home.bio ? `${displayName} — ${home.bio}` : displayName}
+        </div>
+        <div className="community-profile2__meta-row">
+          {metaRow}
+          {counts}
+          {actions}
+        </div>
+      </header>
+    );
+  }
 
   return (
     <div
-      className="community-profile"
-      data-profile-theme={home.profile_theme || 'xuanzhi'}
+      className={`community-profile2 community-profile2--${applied.layout}${
+        applied.payload.decoration !== 'none' ? ` community-profile2--deco-${applied.payload.decoration}` : ''
+      }`}
+      data-profile-root
+      style={{
+        ...themeVars(applied),
+        backgroundImage: textureImage(applied.payload),
+        backgroundSize: textureSize(applied.payload),
+      }}
     >
-      <header className="community-profile__topbar">
+      <header className="community-profile2__topbar">
         <IconButton
           variant="ghost"
           shape="square"
-          tooltip={t('community.back', { defaultValue: '返回' })}
-          aria-label={t('community.back', { defaultValue: '返回' })}
+          tooltip={t('back', { defaultValue: '返回' })}
+          aria-label={t('back', { defaultValue: '返回' })}
           onClick={back}
         >
           <ArrowLeft size={18} />
         </IconButton>
-        <span className="community-profile__title">
-          {t('community.profileTitle', { defaultValue: '个人主页' })}
-        </span>
+        <span className="community-profile2__title ds-data">{applied.name}</span>
       </header>
 
-      <div className="community-profile__scroll">
-        <section className="community-profile__card">
-          <div className="community-profile__id">
-            <Avatar name={displayName} size="xl" src={home.avatar || undefined} />
-            <div className="community-profile__id-text">
-              <span className="community-profile__name">
-                {displayName}
-                {home.is_friend && (
-                  <Tag color="gray" size="small">
-                    {t('community.friendBadge', { defaultValue: '好友' })}
-                  </Tag>
-                )}
-              </span>
-              <span className="community-profile__username ds-data">@{home.username}</span>
-            </div>
-            <span className="community-profile__ops">
-              {isSelf ? (
-                <Button variant="secondary" size="small" onClick={() => setEditing(true)}>
-                  <Pencil size={13} aria-hidden />
-                  {t('community.editProfile', { defaultValue: '编辑主页' })}
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant={home.viewer_follows ? 'secondary' : 'primary'}
-                    size="small"
-                    isLoading={busy}
-                    onClick={() => void onToggleFollow()}
-                  >
-                    {home.viewer_follows
-                      ? t('community.unfollow', { defaultValue: '已关注' })
-                      : home.follows_viewer
-                        ? t('community.followBack', { defaultValue: '回关' })
-                        : t('community.follow', { defaultValue: '关注' })}
-                  </Button>
-                  {home.is_friend && (
-                    <Button variant="secondary" size="small" onClick={() => void onSendMessage()}>
-                      <MessageCircle size={13} aria-hidden />
-                      {t('community.sendMessage', { defaultValue: '发消息' })}
-                    </Button>
-                  )}
-                </>
-              )}
-            </span>
-          </div>
+      {header}
 
-          {home.bio && <p className="community-profile__bio">{home.bio}</p>}
-          {(home.location || home.website) && (
-            <p className="community-profile__meta ds-data">
-              {[home.location, home.website].filter(Boolean).join(' · ')}
-            </p>
-          )}
-
-          <nav className="community-profile__counts" aria-label={t('community.counts', { defaultValue: '计数' })}>
-            <span className="community-profile__count">
-              <b className="ds-data">{home.post_count}</b>
-              {t('community.countPosts', { defaultValue: '动态' })}
-            </span>
-            <button type="button" className="community-profile__count community-profile__count--link" onClick={() => setListMode('following')}>
-              <b className="ds-data">{home.following_count}</b>
-              {t('community.countFollowing', { defaultValue: '关注' })}
+      <nav className="community-profile2__tabs" role="tablist">
+        {(
+          [
+            ['posts', t('tabPosts', { defaultValue: '动态' }), true],
+            ['archive', t('tabArchive', { defaultValue: '归档' }), isSelf],
+            ['bookmarks', t('tabBookmarks', { defaultValue: '收藏' }), isSelf],
+          ] as const
+        )
+          .filter(([, , visible]) => visible)
+          .map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              className={`community-profile2__tab ${tab === key ? 'is-active' : ''}`}
+              onClick={() => setTab(key)}
+            >
+              {label}
             </button>
-            <button type="button" className="community-profile__count community-profile__count--link" onClick={() => setListMode('followers')}>
-              <b className="ds-data">{home.followers_count}</b>
-              {t('community.countFollowers', { defaultValue: '粉丝' })}
-            </button>
-          </nav>
-        </section>
-
-        <section className="community-profile__wall">
-          {homePosts.map((p) => (
-            <PostCard key={p.id} post={p} />
           ))}
-          {homeHasMore && <div ref={sentinelRef} aria-hidden />}
-          {!homeHasMore && homePosts.length === 0 && (
+      </nav>
+
+      {tab === 'posts' && (
+        <div className="community-profile2__list">
+          {monthFiltered.map((p) => (
+            <BlogCard key={p.id} post={p} showPin onOpen={openDetail} onTag={onTag} />
+          ))}
+          {homeHasMore && (
+            <Button variant="ghost" size="small" onClick={() => void loadHomePosts(false)}>
+              {t('loadMore', { defaultValue: '加载更多' })}
+            </Button>
+          )}
+          {monthFiltered.length === 0 && (
             <Empty
-              title={t('community.profileNoPosts', { defaultValue: '还没有动态' })}
-              description={
-                isSelf
-                  ? t('community.profileNoPostsSelf', { defaultValue: '去广场发布第一条动态吧' })
-                  : undefined
-              }
+              title={t('profileEmptyTitle', { defaultValue: '还没有动态' })}
+              description={isSelf ? t('profileEmptyHint', { defaultValue: '去广场发布第一条动态吧' }) : undefined}
             />
           )}
-        </section>
-      </div>
+          <div ref={setListEnd} aria-hidden />
+        </div>
+      )}
 
-      <ProfileEditModal
-        open={editing}
-        onClose={() => setEditing(false)}
-        onSaved={() => {
-          void useCommunityStore.getState().reloadHome();
-          toastSuccess(t('community.profileSaved', { defaultValue: '主页已更新' }));
-        }}
-      />
-      <Modal
-        isOpen={listMode != null}
-        onClose={() => setListMode(null)}
-        title={
-          listMode === 'following'
-            ? t('community.followingList', { defaultValue: '关注列表' })
-            : t('community.followersList', { defaultValue: '粉丝列表' })
-        }
-        size="small"
-        contentClassName="community-follow-modal"
-      >
-        {listMode && (
+      {tab === 'archive' && isSelf && (
+        <div className="community-profile2__archive">
+          {(archiveMonths ?? []).map(({ month, post_count }) => (
+            <button
+              key={month}
+              type="button"
+              className={`community-profile2__month ${archiveMonth === month ? 'is-active' : ''}`}
+              onClick={() => {
+                setArchiveMonth(archiveMonth === month ? '' : month);
+                setTab('posts');
+              }}
+            >
+              <span className="ds-data">{month}</span>
+              <span className="ds-data">{post_count}</span>
+            </button>
+          ))}
+          {(archiveMonths ?? []).length === 0 && <Empty title={t('archiveEmpty', { defaultValue: '暂无归档' })} />}
+        </div>
+      )}
+
+      {tab === 'bookmarks' && isSelf && (
+        <div className="community-profile2__list">
+          {bookmarks.map((p) => (
+            <BlogCard key={`bm-${p.id}`} post={p} onOpen={openDetail} onTag={onTag} />
+          ))}
+          {bookmarksHasMore && <div ref={setListEnd} aria-hidden />}
+          {bookmarks.length === 0 && <Empty title={t('bookmarksEmpty', { defaultValue: '还没有收藏' })} />}
+        </div>
+      )}
+
+      {followersOpen && (
+        <Modal
+          isOpen={followersOpen}
+          onClose={() => setFollowersOpen(false)}
+          title={t('followersTitle', { defaultValue: '粉丝' })}
+          size="small"
+        >
           <FollowListModal
             memberId={home.member_id}
-            mode={listMode}
-            onPick={(id) => {
-              if (id !== home.member_id) openProfile(id);
-              setListMode(null);
-            }}
+            mode="followers"
+            onPick={() => setFollowersOpen(false)}
           />
-        )}
-      </Modal>
+        </Modal>
+      )}
+
+      {editOpen && (
+        <ProfileEditModal
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          onSaved={undefined}
+          onShop={() => {
+            setEditOpen(false);
+            setShopOpen(true);
+          }}
+        />
+      )}
+
+      <ThemeShop open={shopOpen} onClose={() => setShopOpen(false)} />
     </div>
   );
 };

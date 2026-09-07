@@ -19,6 +19,20 @@ interface ApiResp<T> {
   data: T;
 }
 
+/**
+ * 老版本服务端（未部署邀请模块）会把 API 路径回落到 SPA index.html，
+ * 返回 200 + HTML：解析出的对象没有数字 code。识别并给出可读报错。
+ */
+function assertInviteResp<T>(resp: ApiResp<T>, fallback: string): T {
+  if (typeof resp.code !== 'number') {
+    throw new Error('当前服务器未开放邀请功能（版本过旧），请切换服务器后重试');
+  }
+  if (resp.code !== 0) {
+    throw new Error(resp.message || fallback);
+  }
+  return resp.data;
+}
+
 /** 邀请名额（基础 + 消费解锁 + 有效激活回补） */
 export interface InviteQuota {
   base: number;
@@ -101,10 +115,7 @@ export interface InviteCouponsPayload {
 /** 券包响应（契约中与兑换所需分红一并返回） */
 export async function getInviteSummary(): Promise<InviteSummary> {
   const resp = await fetchWithAuth<ApiResp<InviteSummary>>('/api/v1/me/invites/summary');
-  if (resp.code !== 0) {
-    throw new Error(resp.message || 'Failed to fetch invite summary');
-  }
-  return resp.data;
+  return assertInviteResp(resp, 'Failed to fetch invite summary');
 }
 
 /** 邀请记录 */
@@ -112,30 +123,24 @@ export async function listInvitees(limit = 50, offset = 0): Promise<ListResponse
   const resp = await fetchWithAuth<ApiResp<ListResponse<InviteeEntry>>>(
     `/api/v1/me/invites/list?limit=${limit}&offset=${offset}`
   );
-  if (resp.code !== 0) {
-    throw new Error(resp.message || 'Failed to fetch invite list');
-  }
-  return resp.data;
+  return assertInviteResp(resp, 'Failed to fetch invite list');
 }
 
-/** 领取邀请码：无码且名额 > 0 时发放终身唯一码，并预扣 1 个名额 */
-export async function claimInviteCode(): Promise<InviteSummary> {
-  const resp = await fetchWithAuth<ApiResp<InviteSummary>>('/api/v1/me/invites/claims', {
-    method: 'POST',
-  });
-  if (resp.code !== 0) {
-    throw new Error(resp.message || 'Failed to claim invite code');
-  }
-  return resp.data;
+/** 领取邀请码：无码且名额 > 0 时发放终身唯一码，并预扣 1 个名额。
+ * 注意：服务端只返回 { code_status, invite_code, share_url }，不是完整
+ * InviteSummary，调用方需自行合并/重拉总览。 */
+export async function claimInviteCode(): Promise<Partial<InviteSummary>> {
+  const resp = await fetchWithAuth<ApiResp<Partial<InviteSummary>>>(
+    '/api/v1/me/invites/claims',
+    { method: 'POST' }
+  );
+  return assertInviteResp(resp, '领取邀请码失败');
 }
 
 /** 券包：我的券 + 各档兑换所需分红/解锁状态 */
 export async function getInviteCoupons(): Promise<InviteCouponsPayload> {
   const resp = await fetchWithAuth<ApiResp<InviteCouponsPayload>>('/api/v1/me/invites/coupons');
-  if (resp.code !== 0) {
-    throw new Error(resp.message || 'Failed to fetch coupons');
-  }
-  return resp.data;
+  return assertInviteResp(resp, 'Failed to fetch coupons');
 }
 
 /** 用分红兑换一张会员打折券 */
@@ -144,8 +149,5 @@ export async function exchangeCoupon(tierKey: string): Promise<InviteCouponsPayl
     '/api/v1/me/invites/coupons/exchange',
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tier: tierKey }) }
   );
-  if (resp.code !== 0) {
-    throw new Error(resp.message || 'Failed to exchange coupon');
-  }
-  return resp.data;
+  return assertInviteResp(resp, '兑换失败');
 }

@@ -18,7 +18,7 @@ export interface AgentQuestionBatch {
 const DATA_VERSION = 3;
 const SAVE_DEBOUNCE_MS = 400;
 
-export type TodoView = 'today' | 'routine' | 'goal' | 'done' | 'growth' | 'settings' | 'beauty';
+export type TodoView = 'today' | 'routine' | 'goal' | 'done' | 'growth' | 'settings' | 'beauty' | 'credits';
 
 function emptyData(): TodoData {
   return {

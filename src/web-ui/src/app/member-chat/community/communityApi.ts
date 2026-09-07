@@ -43,6 +43,16 @@ export interface CommunityPost {
   edited_at?: string | null;
   /** 当前查看者是否已点赞 */
   liked_by_me: boolean;
+  /** 当前查看者是否已收藏（P1.6） */
+  bookmarked_by_me?: boolean;
+  /** 标题（P2B 可选长文） */
+  title?: string;
+  /** 博客卡封面（社区媒体相对 URL） */
+  cover_url?: string;
+  /** 置顶时间（作者主页置顶） */
+  pinned_at?: string | null;
+  /** 话题标签（P1.3；列表接口返回） */
+  tags: string[];
 }
 
 export interface CommunityComment {
@@ -58,6 +68,10 @@ export interface CommunityComment {
   reply_to_name?: string | null;
   created_at: string;
   deleted_at?: string | null;
+  /** 点赞数（P1.4） */
+  like_count: number;
+  /** 当前查看者是否已赞该评论 */
+  liked_by_me: boolean;
 }
 
 export interface CommunityMemberItem {
@@ -77,6 +91,8 @@ export interface CommunityHome {
   bio?: string | null;
   location?: string | null;
   website?: string | null;
+  /** 主页 banner 封面（P2B） */
+  cover?: string | null;
   following_count: number;
   followers_count: number;
   post_count: number;
@@ -98,7 +114,18 @@ export interface FollowToggleResult {
   became_friend: boolean;
 }
 
-export type NoticeKind = 'follow' | 'comment' | 'reply' | 'like';
+export type NoticeKind = 'follow' | 'comment' | 'reply' | 'like' | 'mention';
+
+/** 主题 DTO（服务端 profile_themes 行 + 查看者视角） */
+export interface ProfileThemeDTO {
+  slug: string;
+  name: string;
+  layout: 'hero' | 'minimal' | 'editorial';
+  payload: Record<string, unknown>;
+  price_credits: number;
+  owned: boolean;
+  applied: boolean;
+}
 
 export interface CommunityNotification {
   id: number;
@@ -167,10 +194,11 @@ export const communityApi = {
   /** 广场流（tab=latest|hot；before 游标分页） */
   feedSquare(
     tab: 'latest' | 'hot',
-    opts: { before?: number; limit?: number } = {},
+    opts: { before?: number; limit?: number; tag?: string } = {},
   ): Promise<{ posts: CommunityPost[] }> {
     const params = new URLSearchParams({ tab });
     if (opts.before != null) params.set('before', String(opts.before));
+    if (opts.tag) params.set('tag', opts.tag);
     params.set('limit', String(opts.limit ?? 20));
     return unwrap(`/api/v1/community/feed/square?${params.toString()}`);
   },
@@ -212,10 +240,78 @@ export const communityApi = {
   ): Promise<{ comments: CommunityComment[] }> {
     const params = new URLSearchParams();
     if (opts.after != null) params.set('after', String(opts.after));
-    params.set('limit', String(opts.limit ?? 50));
+    params.set('limit', String(opts.limit ?? 20));
     return unwrap(
       `/api/v1/community/posts/${postId}/comments?${params.toString()}`,
     );
+  },
+
+  /** 评论点赞 toggle（P1.4）→ { liked, like_count } */
+  toggleCommentLike(commentId: number): Promise<{ liked: boolean; like_count: number }> {
+    return unwrap(`/api/v1/community/comments/${commentId}/like`, { method: 'POST' });
+  },
+
+  /** 收藏 toggle（P1.6） */
+  toggleBookmark(postId: number): Promise<{ bookmarked: boolean }> {
+    return unwrap(`/api/v1/community/posts/${postId}/bookmark`, { method: 'POST' });
+  },
+
+  /** 我的收藏流（P1.6；id DESC 游标） */
+  listBookmarks(opts: { before?: number; limit?: number } = {}): Promise<{ posts: CommunityPost[] }> {
+    const params = new URLSearchParams();
+    if (opts.before != null) params.set('before', String(opts.before));
+    params.set('limit', String(opts.limit ?? 20));
+    return unwrap(`/api/v1/community/bookmarks?${params.toString()}`);
+  },
+
+  /** 帖子搜索（P1.5；public；q 必填） */
+  searchPosts(q: string, opts: { before?: number; limit?: number } = {}): Promise<{ posts: CommunityPost[] }> {
+    const params = new URLSearchParams({ q });
+    if (opts.before != null) params.set('before', String(opts.before));
+    params.set('limit', String(opts.limit ?? 20));
+    return unwrap(`/api/v1/community/search?${params.toString()}`);
+  },
+
+  /** 近 7 天热门话题（P1.3） */
+  hotTags(limit = 10): Promise<{ tags: Array<{ tag: string; post_count: number }> }> {
+    return unwrap(`/api/v1/community/tags/hot?limit=${limit}`);
+  },
+
+  // ---- 主题引擎（P2A/P2C）----
+
+  /** 官方主题列表（含查看者 owned/applied） */
+  listThemes(): Promise<{ themes: ProfileThemeDTO[] }> {
+    return unwrap('/api/v1/community/themes');
+  },
+
+  /** 获取主题（免费授予 / 积分购买） */
+  acquireTheme(slug: string): Promise<{ owned: boolean; spent: number }> {
+    return unwrap(`/api/v1/community/themes/${slug}/acquire`, { method: 'POST' });
+  },
+
+  /** 应用主题 */
+  applyTheme(slug: string): Promise<{ applied: string }> {
+    return unwrap(`/api/v1/community/themes/${slug}/apply`, { method: 'POST' });
+  },
+
+  /** 我的主题库存 */
+  myThemes(): Promise<{ slugs: string[] }> {
+    return unwrap('/api/v1/community/themes/mine');
+  },
+
+  // ---- 置顶 / 归档（P2B）----
+
+  /** 作者置顶/取消置顶 */
+  setPostPinned(postId: number, pinned: boolean): Promise<{ pinned: boolean }> {
+    return unwrap(`/api/v1/community/posts/${postId}/pin`, {
+      method: 'POST',
+      body: JSON.stringify({ pinned }),
+    });
+  },
+
+  /** 主页归档（按月聚合） */
+  memberArchive(memberId: number): Promise<{ months: Array<{ month: string; post_count: number }> }> {
+    return unwrap(`/api/v1/community/members/${memberId}/archive`);
   },
 
   /** 发表评论（replyTo 支持楼中楼） */
@@ -303,8 +399,12 @@ export const communityApi = {
 
   // ---- 媒体 ----
 
-  /** 上传图片（multipart；魔数校验 jpg/png/gif/webp；≤10MB）→ 相对 URL */
-  async uploadMedia(file: File): Promise<{ url: string }> {
+  /**
+   * 上传图片（multipart；魔数校验 jpg/png/gif/webp；≤10MB）。
+   * 服务端重编码（长边>2048 缩放重编，GIF 保留原图）并生成 480px WebP 缩略图。
+   * 返回相对 URL：url=原图，thumb_url=缩略图（GIF 时与 url 相同）。
+   */
+  async uploadMedia(file: File): Promise<{ url: string; thumb_url: string }> {
     const fd = new FormData();
     fd.append('file', file);
     return unwrap('/api/v1/community/media/upload', { method: 'POST', body: fd });

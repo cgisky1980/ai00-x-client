@@ -10,7 +10,8 @@
  */
 import React, { useMemo, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import { Avatar, confirmDialog, IconButton } from '@/component-library';
+import { confirmDialog, IconButton } from '@/component-library';
+import { MemberAvatar } from './MemberAvatar';
 import { Search } from 'lucide-react';
 import type { RailTab } from './RailNav';
 import {
@@ -142,7 +143,7 @@ export const Sidebar: React.FC<{
                         ◇
                       </span>
                     ) : (
-                      <Avatar name={c.name} size="base" src={c.avatar || undefined} />
+                      <MemberAvatar name={c.name} size="base" data={c.avatar} />
                     )}
                     <span className="member-chat__conv-body">
                       <span className="member-chat__conv-top">
@@ -278,7 +279,7 @@ export const Sidebar: React.FC<{
                       }
                     }}
                   >
-                    <Avatar name={f.nickname || f.username} size="base" src={f.avatar || undefined} />
+                    <MemberAvatar name={f.nickname || f.username} size="base" data={f.avatar} />
                     <span className="member-chat__conv-body">
                       <span className="member-chat__conv-top">
                         <span className="member-chat__conv-name">{f.nickname || f.username}</span>

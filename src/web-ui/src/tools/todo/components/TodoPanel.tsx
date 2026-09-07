@@ -13,6 +13,7 @@ import { NavMarkAction, NavMarkHabit, NavMarkGoal, NavMarkGrow, NavMarkTrail } f
 import { useDraggable } from '../../../infrastructure/overlay/useDraggable';
 import { usePopupResize } from '../../island/hooks/usePopupResize';
 import { CreditsBadge } from './CreditsBadge';
+import CreditsScene from '../../../app/scenes/credits/CreditsScene';
 import { useTodoStore, countOfView, type TodoView } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
 import { GrowthView } from './views/GrowthView';
@@ -162,6 +163,13 @@ const TodoPanelInner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
           {/* 美 = 界面美化（主题外观/点击特效/智能桌面/桌面插件） */}
           {view === 'beauty' && <BeautyView />}
+
+          {/* 积 = 积分中心（充值/会员/邀请有礼；标题栏积分徽标点击进入） */}
+          {view === 'credits' && (
+            <div className="todo-panel__credits-view">
+              <CreditsScene />
+            </div>
+          )}
         </div>
       </div>
 

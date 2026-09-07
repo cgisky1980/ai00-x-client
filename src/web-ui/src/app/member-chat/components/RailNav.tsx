@@ -7,7 +7,7 @@
  */
 import React from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import { Avatar } from '@/component-library';
+import { MemberAvatar } from './MemberAvatar';
 import { Globe, Hash, MessageCircle, Settings, Users } from 'lucide-react';
 
 export type RailTab = 'chats' | 'contacts' | 'channels' | 'community' | 'settings';
@@ -72,7 +72,7 @@ export const RailNav: React.FC<{
         title={username}
         aria-label={t('memberChat.railMyAccount', { defaultValue: '我的账号与设置' })}
       >
-        <Avatar name={username} size="base" src={avatarData || undefined} />
+        <MemberAvatar name={username} size="base" data={avatarData} />
         <span
           className={`member-chat__rail-presence ${connection === 'online' ? 'is-on' : ''}`}
           aria-hidden

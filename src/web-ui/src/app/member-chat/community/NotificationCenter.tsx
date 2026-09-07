@@ -7,8 +7,9 @@
  */
 import React from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import { Avatar, Button, Empty, IconButton } from '@/component-library';
-import { ArrowLeft, CheckCheck, Heart, MessageCircle, UserPlus, CornerUpLeft } from 'lucide-react';
+import { Button, Empty, IconButton } from '@/component-library';
+import { MemberAvatar } from '../components/MemberAvatar';
+import { ArrowLeft, AtSign, CheckCheck, Heart, MessageCircle, UserPlus, CornerUpLeft } from 'lucide-react';
 import { useCommunityStore } from './communityStore';
 import type { CommunityNotification } from './communityApi';
 import { formatRelTime } from './time';
@@ -18,11 +19,12 @@ function NoticeIcon({ kind }: { kind: CommunityNotification['kind'] }) {
   if (kind === 'like') return <Heart size={size} aria-hidden />;
   if (kind === 'comment') return <MessageCircle size={size} aria-hidden />;
   if (kind === 'reply') return <CornerUpLeft size={size} aria-hidden />;
+  if (kind === 'mention') return <AtSign size={size} aria-hidden />;
   return <UserPlus size={size} aria-hidden />;
 }
 
 export const NotificationCenter: React.FC = () => {
-  const { t } = useI18n();
+  const { t } = useI18n('community');
   const notifications = useCommunityStore((s) => s.notifications);
   const unreadNotices = useCommunityStore((s) => s.unreadNotices);
   const back = useCommunityStore((s) => s.back);
@@ -32,10 +34,11 @@ export const NotificationCenter: React.FC = () => {
 
   const label = (n: CommunityNotification): string => {
     const name = n.actor_nickname || n.actor_name;
-    if (n.kind === 'like') return t('community.noticeLike', { defaultValue: '{{name}} 赞了你的动态', name });
-    if (n.kind === 'comment') return t('community.noticeComment', { defaultValue: '{{name}} 留言了你的动态', name });
-    if (n.kind === 'reply') return t('community.noticeReply', { defaultValue: '{{name}} 回复了你', name });
-    return t('community.noticeFollow', { defaultValue: '{{name}} 关注了你', name });
+    if (n.kind === 'like') return t('noticeLike', { defaultValue: '{{name}} 赞了你的动态', name });
+    if (n.kind === 'comment') return t('noticeComment', { defaultValue: '{{name}} 留言了你的动态', name });
+    if (n.kind === 'reply') return t('noticeReply', { defaultValue: '{{name}} 回复了你', name });
+    if (n.kind === 'mention') return t('noticeMention', { defaultValue: '{{name}} 提到了你', name });
+    return t('noticeFollow', { defaultValue: '{{name}} 关注了你', name });
   };
 
   const onPick = (n: CommunityNotification) => {
@@ -52,19 +55,19 @@ export const NotificationCenter: React.FC = () => {
         <IconButton
           variant="ghost"
           shape="square"
-          tooltip={t('community.back', { defaultValue: '返回' })}
-          aria-label={t('community.back', { defaultValue: '返回' })}
+          tooltip={t('back', { defaultValue: '返回' })}
+          aria-label={t('back', { defaultValue: '返回' })}
           onClick={back}
         >
           <ArrowLeft size={18} />
         </IconButton>
         <span className="community-notice__title">
-          {t('community.noticeTitle', { defaultValue: '通知' })}
+          {t('noticeTitle', { defaultValue: '通知' })}
         </span>
         {unreadNotices > 0 && (
           <Button variant="ghost" size="small" onClick={() => void markAllRead()}>
             <CheckCheck size={14} aria-hidden />
-            {t('community.markAllRead', { defaultValue: '全部已读' })}
+            {t('markAllRead', { defaultValue: '全部已读' })}
           </Button>
         )}
       </header>
@@ -72,14 +75,14 @@ export const NotificationCenter: React.FC = () => {
       <div className="community-notice__list">
         {notifications.length === 0 && (
           <Empty
-            title={t('community.noticeEmpty', { defaultValue: '暂无通知' })}
-            description={t('community.noticeEmptyHint', { defaultValue: '有人赞你/留言/关注你时会出现在这里' })}
+            title={t('noticeEmpty', { defaultValue: '暂无通知' })}
+            description={t('noticeEmptyHint', { defaultValue: '有人赞你/留言/关注你时会出现在这里' })}
           />
         )}
         {notifications.map((n) => (
           <button key={n.id} type="button" className="community-notice__row" onClick={() => onPick(n)}>
             <span className="community-notice__avatar">
-              <Avatar name={n.actor_nickname || n.actor_name} size="sm" src={n.actor_avatar || undefined} />
+              <MemberAvatar name={n.actor_nickname || n.actor_name} size="sm" data={n.actor_avatar} />
               <span className="community-notice__kind" aria-hidden>
                 <NoticeIcon kind={n.kind} />
               </span>
@@ -91,7 +94,7 @@ export const NotificationCenter: React.FC = () => {
               )}
             </span>
             <span className="community-notice__time ds-data">{formatRelTime(n.created_at)}</span>
-            {!n.read_at && <span className="community-notice__unread" aria-label={t('community.unread', { defaultValue: '未读' })} />}
+            {!n.read_at && <span className="community-notice__unread" aria-label={t('unread', { defaultValue: '未读' })} />}
           </button>
         ))}
       </div>

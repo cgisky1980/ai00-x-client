@@ -11,10 +11,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import {
-  Avatar,
   Button,
   confirmDialog,
   Input,
+  Modal,
   Switch,
   Tag,
   toastError,
@@ -27,6 +27,7 @@ import {
   LogOut,
   Palette,
   ShieldCheck,
+  Sparkles,
   Trash2,
   User,
 } from 'lucide-react';
@@ -39,7 +40,10 @@ import {
 } from '@/infrastructure/theme';
 import { formatVersion, getVersionInfo } from '@/shared/utils/version';
 import { tokenManager } from '@/infrastructure/auth/TokenManager';
+import { AvatarCustomizer, type AvatarValue } from '@/infrastructure/account/AvatarCustomizer';
 import { changeMemberPassword, memberLogout } from '../chatApi';
+import { MemberAvatar } from '../components/MemberAvatar';
+import { parseAvatarData } from '../components/avatarData';
 import { NOTIFY_DESKTOP_KEY, useMemberChatStore } from '../store/memberChatStore';
 
 type SettingsSection = 'profile' | 'security' | 'appearance' | 'notifications' | 'about';
@@ -92,6 +96,9 @@ const ProfileSection: React.FC = () => {
   const [hydrated, setHydrated] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** 动画形象编辑（AvatarSelection JSON，与 loader/主应用形象同一格式，落同一 avatarData 字段） */
+  const [spineOpen, setSpineOpen] = useState(false);
+  const [spineDraft, setSpineDraft] = useState<AvatarValue | null>(null);
 
   // 服务端资料到达后水合一次（之后本地自由编辑）
   useEffect(() => {
@@ -137,6 +144,20 @@ const ProfileSection: React.FC = () => {
     if (fileRef.current) fileRef.current.value = '';
   };
 
+  /** 打开动画形象编辑器：当前头像已是 Spine JSON 则作为初值，否则从默认形象开始 */
+  const openSpineEditor = () => {
+    const parsed = parseAvatarData(avatar);
+    setSpineDraft(parsed.kind === 'spine' ? parsed.selection : null);
+    setSpineOpen(true);
+  };
+
+  const applySpineSelection = () => {
+    if (spineDraft) {
+      setAvatar(JSON.stringify(spineDraft));
+    }
+    setSpineOpen(false);
+  };
+
   return (
     <div className="member-chat__settings-content">
       <h2 className="member-chat__settings-title">
@@ -148,15 +169,20 @@ const ProfileSection: React.FC = () => {
           {t('memberChat.avatar', { defaultValue: '头像' })}
         </span>
         <div className="member-chat__avatar-row">
-          <Avatar
+          <MemberAvatar
             name={myProfile?.username || '?'}
             size="xl"
-            src={avatar || undefined}
+            data={avatar}
+            animated
           />
           <div className="member-chat__avatar-actions">
             <Button variant="secondary" size="small" onClick={() => fileRef.current?.click()}>
               <Camera size={14} aria-hidden />
               {t('memberChat.changeAvatar', { defaultValue: '更换头像' })}
+            </Button>
+            <Button variant="secondary" size="small" onClick={openSpineEditor}>
+              <Sparkles size={14} aria-hidden />
+              {t('memberChat.editSpineAvatar', { defaultValue: '编辑动画形象' })}
             </Button>
             {avatar && (
               <Button variant="ghost" size="small" onClick={removeAvatar}>
@@ -176,10 +202,34 @@ const ProfileSection: React.FC = () => {
         </div>
         <p className="member-chat__settings-hint">
           {t('memberChat.avatarHint', {
-            defaultValue: '支持本地图，自动裁方压缩至 256×256、约 200KB 内。',
+            defaultValue:
+              '支持本地图（自动裁方压缩至 256×256、约 200KB 内），或编辑与桌宠一致的动画形象。',
           })}
         </p>
       </div>
+
+      {/* 动画形象编辑器（Spine，与 loader/主应用形象同一套部件与存储格式） */}
+      <Modal
+        isOpen={spineOpen}
+        onClose={() => setSpineOpen(false)}
+        title={t('memberChat.editSpineAvatar', { defaultValue: '编辑动画形象' })}
+        size="large"
+      >
+        <div className="member-chat__spine-editor">
+          <AvatarCustomizer
+            value={spineDraft ?? { parts: {}, colors: {} }}
+            onChange={setSpineDraft}
+          />
+        </div>
+        <div className="member-chat__spine-editor-actions">
+          <Button variant="ghost" onClick={() => setSpineOpen(false)}>
+            {t('common.cancel', { defaultValue: '取消' })}
+          </Button>
+          <Button variant="primary" onClick={applySpineSelection}>
+            {t('memberChat.applySpineAvatar', { defaultValue: '使用此形象' })}
+          </Button>
+        </div>
+      </Modal>
 
       <div className="member-chat__settings-group">
         <label className="member-chat__settings-label" htmlFor="settings-nickname">

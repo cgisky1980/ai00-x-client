@@ -13,10 +13,11 @@ import { FeedView } from './FeedView';
 import { PostDetail } from './PostDetail';
 import { ProfileView } from './ProfileView';
 import { NotificationCenter } from './NotificationCenter';
+import { SearchResults } from './SearchResults';
 import './community.scss';
 
 export const CommunityView: React.FC = () => {
-  const { t } = useI18n();
+  const { t } = useI18n('community');
   const view = useCommunityStore((s) => s.view);
 
   // 进入广场：拉未读红点 + 首屏 feed（子组件挂载后各自续拉详情/主页/通知）
@@ -26,11 +27,12 @@ export const CommunityView: React.FC = () => {
   }, []);
 
   return (
-    <main className="community" aria-label={t('memberChat.tabCommunity', { defaultValue: '广场' })}>
+    <main className="community" aria-label={t('memberChat:tabCommunity', { defaultValue: '广场' })}>
       {view === 'feed' && <FeedView />}
       {view === 'postDetail' && <PostDetail />}
       {view === 'profile' && <ProfileView />}
       {view === 'notifications' && <NotificationCenter />}
+      {view === 'search' && <SearchResults />}
     </main>
   );
 };

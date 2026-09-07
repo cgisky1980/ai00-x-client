@@ -18,12 +18,22 @@
         overflow: hidden;
       }
 
+      /* 首帧背景（tokens.css 加载前）：默认暗色松烟墨，亮色宣纸。
+         Rust 建窗时若应用选了明/暗主题会注入 data-app-theme-type，优先于 OS 媒体查询；
+         未注入（跟随系统）时两者本就一致。色值与 design-system token 同源：
+         暗 oklch(0.27 0.006 240)、亮 oklch(0.96 0.008 90)。 */
       html {
         background-color: #242729;
       }
+      html[data-app-theme-type='light'] {
+        background-color: #f4f2ec;
+      }
+      html[data-app-theme-type='dark'] {
+        background-color: #242729;
+      }
       @media (prefers-color-scheme: light) {
-        html {
-          background-color: #f4f1e8;
+        html:not([data-app-theme-type]) {
+          background-color: #f4f2ec;
         }
       }
 

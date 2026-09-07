@@ -3,7 +3,8 @@
  *
  * 基于 fork Vditor（@ai00-x/vditor，上游 v4.0.0 自维护快照）的所见即所得模式（单模式精简版，
  * ir/sv 分屏模式已从 fork 移除）。
- * 不提供图片/文件上传（无图床；粘贴/拖入文件仅提示，不落内容），保留表格/任务列表/代码块。
+ * 媒体整合（P1.1）：工具栏图片按钮/拖拽/粘贴 → onImagesPicked 上抛（由 Composer 走
+ * /media/upload 上传进九宫格，不内插正文）；工具栏「插入视频」→ onInsertVideo 上抛弹窗。
  * 受控接口：value（MD 源文）/ onChange（MD 源文）；外部 value 重置时同步回编辑器。
  *
  * ⚠️ 初始化时序：Vditor 的 initUI 在 lute 脚本加载完成后的微任务里执行（fork 已内联
@@ -19,24 +20,55 @@ import '@ai00-x/vditor/dist/index.css';
 import luteUrl from '@ai00-x/vditor/dist/js/lute/lute.min.js?url';
 import { useI18n } from '@/infrastructure/i18n';
 import { useThemeStore } from '@/infrastructure/theme/store/themeStore';
+import { searchMentionMembers } from './mention';
+import type { MemberHit } from '../chatApi';
 
 export interface CommunityMDEditorProps {
   /** MD 源文（受控） */
   value: string;
   onChange: (md: string) => void;
   disabled?: boolean;
+  /** 图片上传：工具栏选择/拖拽/粘贴的图片上抛（Composer 统一上传进九宫格） */
+  onImagesPicked?: (files: File[]) => void;
+  /** 「插入视频」工具栏按钮点击（Composer 弹输入层） */
+  onInsertVideo?: () => void;
 }
 
 /** 应用语言 → Vditor 语言键 */
 const toVditorLang = (lang: string): 'zh_CN' | 'en_US' =>
   lang.toLowerCase().startsWith('zh') ? 'zh_CN' : 'en_US';
 
+/** 自定义「插入视频」按钮图标（16×16 线性，currentColor） */
+const VIDEO_ICON =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m10 9 5 3-5 3Z"/></svg>';
+
+/** HTML 转义（hint 下拉项以原始 HTML 注入） */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** @提及自动补全候选（Vditor hint.extend：输入 @ 触发，value 插回光标处替换 @query） */
+async function mentionHint(query: string) {
+  const hits: MemberHit[] = await searchMentionMembers(query);
+  return hits.map((h) => ({
+    html: `<span class="community-hint-mention">${escapeHtml(h.nickname || h.username)}<small>@${escapeHtml(h.username)}</small></span>`,
+    value: `@${h.username} `,
+  }));
+}
+
 /**
  * 工具栏（气泡统一朝下 se）。
  * 编辑器位于弹窗顶部，Vditor 默认气泡朝上（n/ne）会被弹窗上缘裁切；
  * 按名覆盖 tipPosition，其余属性由 fork 的 mergeToolbar 按默认值合并。
+ * upload/insert-video 为 P1.1 媒体整合项（行为上抛，不在编辑器内插内容）。
  */
-const TOOLBAR: Array<{ name: string; tipPosition: 'se' } | '|'> = [
+const TOOLBAR: Array<
+  string | { name: string; tipPosition?: 'se'; icon?: string; click?: () => void }
+> = [
   'headings',
   'bold',
   'italic',
@@ -53,16 +85,21 @@ const TOOLBAR: Array<{ name: string; tipPosition: 'se' } | '|'> = [
   'link',
   'table',
   '|',
+  'upload',
+  { name: 'insert-video', tipPosition: 'se', icon: VIDEO_ICON },
+  '|',
   'undo',
   'redo',
-].map((item) => (item === '|' ? item : { name: item, tipPosition: 'se' as const }));
+];
 
 export const CommunityMDEditor: React.FC<CommunityMDEditorProps> = ({
   value,
   onChange,
   disabled = false,
+  onImagesPicked,
+  onInsertVideo,
 }) => {
-  const { t, currentLanguage } = useI18n();
+  const { t, currentLanguage } = useI18n('community');
   const themeType = useThemeStore((s) => s.currentTheme?.type);
   const vditorTheme = themeType === 'dark' ? ('dark' as const) : ('classic' as const);
   const lang = toVditorLang(currentLanguage ?? 'zh');
@@ -78,6 +115,10 @@ export const CommunityMDEditor: React.FC<CommunityMDEditorProps> = ({
   tRef.current = t;
   const valueRef = React.useRef(value);
   valueRef.current = value;
+  const onImagesPickedRef = React.useRef(onImagesPicked);
+  onImagesPickedRef.current = onImagesPicked;
+  const onInsertVideoRef = React.useRef(onInsertVideo);
+  onInsertVideoRef.current = onInsertVideo;
   /** 编辑器最近一次向外发出的 MD（防 onChange → value → setValue 回环） */
   const lastEmitRef = React.useRef(value);
 
@@ -90,25 +131,44 @@ export const CommunityMDEditor: React.FC<CommunityMDEditorProps> = ({
     const md0 = valueRef.current;
     lastEmitRef.current = md0;
     const vditor = new Vditor(host, {
-      // wysiwyg 真所见即所得：加粗/标题等直接渲染，无 MD 源码噪声；存储仍为 MD
+      // wysiwyg 真所见即所得：加粗/标题等直接渲染，无 MD 噪声；存储仍为 MD
       mode: 'wysiwyg',
       theme: vditorTheme,
       lang,
       value: md0,
       height: 260,
-      placeholder: tRef.current('community.composePlaceholder', {
+      placeholder: tRef.current('composePlaceholder', {
         defaultValue: '分享点什么…（支持 Markdown）',
       }),
       cache: { enable: false },
       counter: { enable: true, max: 5000 },
+      // @提及自动补全（fork Hint 的 hint.extend 自定义钩子：@ 触发 → mentionHint 查询 →
+      // Enter/点击把 @username 插回 @ 起始位置；delay 200ms 内建防抖）
+      hint: {
+        delay: 200,
+        extend: [{ key: '@', hint: mentionHint }],
+      },
       // lute 本地资产：见文件头注释
       _lutePath: luteUrl,
-      // 不提供上传：handler 返回字符串 = 显示禁止提示（替代默认的 "please config upload.url"）
+      // 媒体整合：图片选择/拖拽/粘贴全部上抛 Composer 上传进九宫格；不在编辑器内插内容
       upload: {
-        handler: () =>
-          tRef.current('community.uploadDisabled', { defaultValue: '社区动态暂不支持插入图片或文件' }),
+        accept: 'image/*',
+        multiple: true,
+        handler: (files: File[] | null) => {
+          if (files && files.length > 0) {
+            onImagesPickedRef.current?.(Array.from(files));
+          }
+          // 返回空串 = 已处理，无需错误提示
+          return '';
+        },
       },
-      toolbar: TOOLBAR,
+      toolbar: TOOLBAR.map((item) => {
+        if (typeof item === 'string' || item.name !== 'insert-video') {
+          return item;
+        }
+        // 自定义项在 init 时绑定当前回调（ref 透传，重建实例时更新）
+        return { ...item, click: () => onInsertVideoRef.current?.() };
+      }),
       after: () => {
         if (cancelled) {
           // 卸载早于 initUI：就地销毁，避免在已脱离的 host 上继续挂载

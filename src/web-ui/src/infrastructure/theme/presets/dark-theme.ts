@@ -208,14 +208,14 @@ export const Ai00XDarkTheme: ThemeConfig = {
   typography: {
     font: {
       sans: "'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Pro Display', Roboto, sans-serif",
-      mono: "'FiraCode', 'JetBrains Mono', 'SF Mono', 'Consolas', 'Liberation Mono', monospace",
+      mono: "'Fira Code', 'JetBrains Mono', 'SF Mono', 'Consolas', 'Liberation Mono', monospace",
     },
     
     weight: {
       normal: 400,
       medium: 500,
       semibold: 600,
-      bold: 700,
+      bold: 600,
     },
     
     size: {

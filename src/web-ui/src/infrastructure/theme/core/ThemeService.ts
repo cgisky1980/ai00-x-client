@@ -32,6 +32,8 @@ export class ThemeService {
   private systemThemeCleanup: (() => void) | null = null;
   private listeners: Map<ThemeEventType, Set<ThemeEventListener>> = new Map();
   private hooks: ThemeHooks = {};
+  /** 首次 initialize 的在途 Promise：入口（main/member-chat-main）与 themeStore 引导都会调 initialize，重入会重复读配置并重放 applyTheme */
+  private initPromise: Promise<void> | null = null;
 
   constructor() {
     this.initializeBuiltinThemes();
@@ -49,6 +51,13 @@ export class ThemeService {
   
    
   async initialize(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this.doInitialize();
+    }
+    return this.initPromise;
+  }
+
+  private async doInitialize(): Promise<void> {
     try {
       const saved = await this.loadThemeSelection();
 

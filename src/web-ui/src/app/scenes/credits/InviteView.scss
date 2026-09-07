@@ -71,17 +71,18 @@
     color: var(--color-text-primary);
   }
 
-  // 朱砂 CTA：全页唯一（领取按钮与复制按钮共用位置，同屏只出现其一）
+  // 朱砂 CTA：全页唯一（领取按钮与复制按钮共用位置，同屏只出现其一）。
+  // 字色必须用 seal-foreground（亮色=纸白 5.7 / 暗色=暖深墨 6.67），
+  // 不可用 text-primary（正文墨色，浅色主题下成"朱砂黑字"）
   &__claim-cta,
   &__claimed Button,
   &__claimed button {
     background-color: var(--color-brand-seal);
     border-color: var(--color-brand-seal);
-    color: var(--color-text-primary);
+    color: var(--color-brand-seal-foreground);
 
     &:hover:not(:disabled) {
-      background-color: var(--color-brand-seal);
-      filter: brightness(1.08);
+      background-color: var(--color-brand-seal-hover);
     }
   }
 

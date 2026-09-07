@@ -472,6 +472,9 @@ export const chatApi = {
         bio: input.bio ?? null,
         avatar_data: input.avatarData ?? null,
         profile_theme: input.profileTheme ?? null,
+        location: input.location ?? null,
+        website: input.website ?? null,
+        cover: input.coverPath ?? null,
       }),
     });
   },
@@ -488,8 +491,14 @@ export interface MyProfile {
   nickname: string | null;
   bio: string | null;
   avatarData: string | null;
-  /** 主页主题模板（xuanzhi/juan/yinzhang） */
+  /** 主页主题 slug（P2A：profile_themes.slug） */
   profileTheme: string;
+  /** 位置（P2B） */
+  location: string | null;
+  /** 个人网站（P2B） */
+  website: string | null;
+  /** 主页 banner 封面（P2B；社区媒体相对 URL） */
+  coverPath: string | null;
 }
 
 export interface UpdateMyProfileInput {
@@ -497,9 +506,15 @@ export interface UpdateMyProfileInput {
   bio?: string | null;
   avatarData?: string | null;
   profileTheme?: string | null;
+  location?: string | null;
+  website?: string | null;
+  coverPath?: string | null;
 }
 
-type PickedProfile = Pick<MyProfile, 'nickname' | 'bio' | 'avatarData' | 'profileTheme'>;
+type PickedProfile = Pick<
+  MyProfile,
+  'nickname' | 'bio' | 'avatarData' | 'profileTheme' | 'location' | 'website' | 'coverPath'
+>;
 
 /** 修改密码（成功后服务端吊销当前 access token，需重新登录） */
 export async function changeMemberPassword(

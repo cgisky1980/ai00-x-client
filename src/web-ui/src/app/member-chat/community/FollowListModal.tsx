@@ -6,7 +6,8 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import { Avatar, Empty, Skeleton } from '@/component-library';
+import { Empty, Skeleton } from '@/component-library';
+import { MemberAvatar } from '../components/MemberAvatar';
 import { communityApi, type CommunityMemberItem } from './communityApi';
 
 export const FollowListModal: React.FC<{
@@ -14,7 +15,7 @@ export const FollowListModal: React.FC<{
   mode: 'followers' | 'following';
   onPick: (memberId: number) => void;
 }> = ({ memberId, mode, onPick }) => {
-  const { t } = useI18n();
+  const { t } = useI18n('community');
   const [items, setItems] = useState<CommunityMemberItem[] | null>(null);
 
   useEffect(() => {
@@ -51,8 +52,8 @@ export const FollowListModal: React.FC<{
       <Empty
         title={
           mode === 'followers'
-            ? t('community.followersEmpty', { defaultValue: '还没有粉丝' })
-            : t('community.followingEmpty', { defaultValue: '还没有关注任何人' })
+            ? t('followersEmpty', { defaultValue: '还没有粉丝' })
+            : t('followingEmpty', { defaultValue: '还没有关注任何人' })
         }
       />
     );
@@ -66,11 +67,11 @@ export const FollowListModal: React.FC<{
           className="community-follow-list__row"
           onClick={() => onPick(m.member_id)}
         >
-          <Avatar name={m.nickname || m.username} size="sm" src={m.avatar || undefined} />
+          <MemberAvatar name={m.nickname || m.username} size="sm" data={m.avatar} />
           <span className="community-follow-list__name">{m.nickname || m.username}</span>
           {m.followed_by_viewer && (
             <span className="community-follow-list__tag ds-data">
-              {t('community.followingState', { defaultValue: '已关注' })}
+              {t('followingState', { defaultValue: '已关注' })}
             </span>
           )}
         </button>

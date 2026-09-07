@@ -1,0 +1,441 @@
+/**
+ * UsageView 样式 — 积分消耗首页。
+ *
+ * 新东方极简纪律：
+ * - 表面一律 background-color（--color-bg-card / --element-bg-subtle），无 blur 无渐变
+ * - 黛青 --color-accent-* 唯一交互/数据色；图表充填走 accent 低透明度
+ * - 数字 .ds-data（mono + tabular-nums）；间距/圆角/字号全 token
+ */
+
+.ai00-x-credits-usage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-5);
+
+  // ── 每日签到（自会员页迁入） ─────────────────────────────────────────────
+
+  &__signin {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-gap-6);
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: var(--size-gap-5);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-lg);
+    background-color: var(--color-bg-card);
+  }
+
+  &__signin-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-2);
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__signin-title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1-5);
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  &__signin-desc {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  &__signin-calendar {
+    flex: 0 1 320px;
+    min-width: 0;
+  }
+
+  &__signin-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--size-gap-1);
+  }
+
+  &__signin-weekday {
+    font-size: var(--font-size-xxs);
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+
+  &__signin-day {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    border-radius: var(--size-radius-sm);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-secondary);
+
+    &--signed {
+      background-color: var(--color-accent-500);
+      color: var(--color-accent-foreground);
+    }
+
+    &--today {
+      box-shadow: inset 0 0 0 1px var(--color-accent-500);
+    }
+  }
+
+  // ── 当前积分余额（自充值页迁入） ────────────────────────────────────────
+
+  &__balance {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--size-gap-3) var(--size-gap-6);
+    padding: var(--size-gap-5);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-lg);
+    background-color: var(--color-bg-card);
+  }
+
+  &__balance-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1);
+  }
+
+  &__balance-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__balance-value {
+    font-size: var(--font-size-5xl);
+    line-height: 1.1;
+    color: var(--color-text-primary);
+  }
+
+  &__balance-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--size-gap-2) var(--size-gap-4);
+  }
+
+  &__meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+
+    &--warn {
+      color: var(--color-warning);
+    }
+  }
+
+  // ── 顶部统计条：单面卡 + 竖分隔线 ────────────────────────────────────────
+
+  &__stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: var(--size-gap-5) var(--size-gap-4);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-lg);
+    background-color: var(--color-bg-card);
+
+    @media (max-width: 640px) {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--size-gap-4);
+    }
+  }
+
+  &__stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--size-gap-1);
+    border-left: 1px solid var(--border-subtle);
+
+    &:first-child {
+      border-left: none;
+    }
+
+    @media (max-width: 640px) {
+      border-left: none;
+    }
+  }
+
+  &__stat-value {
+    font-size: var(--font-size-2xl);
+    line-height: 1.2;
+    color: var(--color-text-primary);
+  }
+
+  &__stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  // ── 通用卡片（趋势 / 模型用量 / 最近消耗） ───────────────────────────────
+
+  &__chart-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-3);
+    padding: var(--size-gap-5);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--size-radius-lg);
+    background-color: var(--color-bg-card);
+  }
+
+  &__card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-gap-3);
+  }
+
+  &__card-title {
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  &__card-note {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  // ── 时间范围分段切换（迷你版，墨阶表面） ────────────────────────────────
+
+  &__range {
+    display: inline-flex;
+    gap: var(--size-gap-0-5);
+    padding: var(--size-gap-0-5);
+    border-radius: var(--size-radius-full);
+    background-color: var(--element-bg-subtle);
+  }
+
+  &__range-btn {
+    padding: var(--size-gap-0-5) var(--size-gap-3);
+    border: none;
+    border-radius: var(--size-radius-full);
+    background: transparent;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background-color var(--motion-fast) var(--easing-standard),
+      color var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+
+    &--active {
+      background-color: var(--color-bg-elevated);
+      color: var(--color-text-primary);
+    }
+  }
+
+  // ── 趋势图（SVG 路径 + HTML 标签层） ─────────────────────────────────────
+
+  &__chart-wrap {
+    position: relative;
+  }
+
+  &__chart {
+    width: 100%;
+    height: 160px;
+    display: block;
+  }
+
+  &__chart-labels {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 4px;
+    height: var(--font-size-xs);
+    pointer-events: none;
+  }
+
+  &__chart-label {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+
+  &__chart-area {
+    fill: var(--color-accent-500);
+    opacity: 0.08;
+  }
+
+  &__chart-line {
+    fill: none;
+    stroke: var(--color-accent-500);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  // ── 模型用量占比条 ──────────────────────────────────────────────────────
+
+  &__models {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__model-row {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+    margin-bottom: var(--size-gap-1);
+  }
+
+  &__model-dot {
+    flex-shrink: 0;
+    width: var(--size-gap-2);
+    height: var(--size-gap-2);
+    border-radius: var(--size-radius-full);
+    background-color: var(--color-accent-500);
+
+    &[data-rank='1'] {
+      background-color: var(--color-accent-300);
+    }
+
+    &[data-rank='2'] {
+      background-color: var(--element-bg-medium);
+    }
+
+    &[data-rank='3'] {
+      background-color: var(--element-bg-base);
+    }
+  }
+
+  &__model-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+  }
+
+  &__model-cost {
+    flex-shrink: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+  }
+
+  &__model-bar {
+    height: var(--size-gap-1);
+    border-radius: var(--size-radius-full);
+    background-color: var(--element-bg-subtle);
+    overflow: hidden;
+  }
+
+  &__model-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: var(--size-radius-full);
+    background-color: var(--color-accent-500);
+
+    &[data-rank='1'] {
+      background-color: var(--color-accent-300);
+    }
+
+    &[data-rank='2'] {
+      background-color: var(--element-bg-medium);
+    }
+
+    &[data-rank='3'] {
+      background-color: var(--element-bg-base);
+    }
+  }
+
+  // ── 最近消耗记录 ────────────────────────────────────────────────────────
+
+  &__records {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__record {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-3);
+    padding: var(--size-gap-2) 0;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: var(--font-size-sm);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  &__record-model {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-primary);
+  }
+
+  &__record-tokens {
+    flex-shrink: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__record-time {
+    flex-shrink: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__record-cost {
+    flex-shrink: 0;
+    min-width: 4em;
+    text-align: right;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+  }
+
+  // ── 空态 / 失败态 ───────────────────────────────────────────────────────
+
+  &__empty {
+    margin: 0;
+    padding: var(--size-gap-6) 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+
+  &__failed {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--size-gap-3);
+    padding: var(--size-gap-6) 0;
+
+    p {
+      margin: 0;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+    }
+  }
+}

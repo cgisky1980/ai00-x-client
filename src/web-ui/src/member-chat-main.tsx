@@ -17,6 +17,15 @@ async function startMemberChatWindow(): Promise<void> {
   await themeService.initialize();
   log.info('Theme system initialized');
 
+  // 跨窗口设置同步：监听主窗口的 theme:changed / language:changed 广播（不 start 则本窗口不跟随主应用切主题）
+  const { settingsSyncService } = await import('./infrastructure/services/infra/SettingsSyncService');
+  settingsSyncService.start();
+
+  // 引导 themeStore（幂等）：否则 CommunityMDEditor 等直接读 store 的组件拿到 null 主题，
+  // Vditor 会一直用亮色皮肤，直到用户碰过设置页才自愈
+  const { useThemeStore } = await import('./infrastructure/theme/store/themeStore');
+  await useThemeStore.getState().initialize();
+
   const { I18nProvider } = await import('./infrastructure/i18n');
   const { ToastProvider, ConfirmDialogRenderer } = await import('@/component-library');
   const AppErrorBoundary = (await import('./app/components/AppErrorBoundary')).default;

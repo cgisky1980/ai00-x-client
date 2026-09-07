@@ -1,5 +1,5 @@
 /**
- * CreditsScene 样式 — 积分中心（充值九宫格 + 会员套餐 + 签到）。
+ * CreditsScene 样式 — 积分中心（消耗首页 + 充值九宫格 + 会员套餐 + 邀请有礼）。
  *
  * 新东方极简纪律：
  * - 颜色/间距/字号/z-index 全走 design-system token，零硬编码
@@ -7,6 +7,8 @@
  * - 黛青 --color-accent-* 唯一交互色；朱砂零使用
  * - 数字一律 .ds-data（mono + tabular-nums）
  */
+
+@use '../../../component-library/styles/tokens' as *;
 
 .ai00-x-credits-scene {
   flex: 1;
@@ -27,10 +29,63 @@
     padding: var(--size-gap-8) var(--size-gap-8) var(--size-gap-12);
   }
 
+  // 吸顶页签栏：实底背景（保宣纸纹理）+ 下缘细分隔线，滚动时固定在顶部
   &__header {
+    position: sticky;
+    top: 0;
+    z-index: $z-header;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--size-gap-3) var(--size-gap-5);
+    padding: var(--size-gap-5) 0 var(--size-gap-4);
+    margin-bottom: var(--size-gap-5);
+    background-color: var(--color-bg-primary);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  &__heading {
     display: flex;
     flex-direction: column;
     gap: var(--size-gap-1-5);
+  }
+
+  // Tabs 分段式重皮：墨阶表面 + 平色激活态（覆盖 design-system pill 的
+  // 渐变 + 蓝光晕，回归"表面走墨阶 token"纪律）。
+  // 选择器带 .ai00-x-tabs--pill 链以保证优先级压过组件库默认样式。
+  &__tabs.ai00-x-tabs--pill {
+    .ai00-x-tabs__nav {
+      background: transparent;
+      border: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .ai00-x-tabs__nav-list {
+      gap: var(--size-gap-0-5);
+      padding: var(--size-gap-0-5);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--size-radius-full);
+      background-color: var(--element-bg-subtle);
+    }
+
+    .ai00-x-tabs__tab {
+      border-radius: var(--size-radius-full);
+      color: var(--color-text-secondary);
+
+      &:hover:not(&--disabled):not(&--active) {
+        background-color: var(--element-bg-base);
+        color: var(--color-text-primary);
+      }
+
+      &--active,
+      &--active:hover:not(&--disabled) {
+        background: var(--color-text-primary);
+        color: var(--color-bg-primary);
+        box-shadow: var(--shadow-xs);
+      }
+    }
   }
 
   &__title {
@@ -64,7 +119,7 @@
     padding: 2px var(--size-gap-2);
     border-radius: var(--size-radius-sm);
     font-size: var(--font-size-xs);
-    color: var(--color-text-primary);
+    color: var(--color-brand-seal-foreground);
     background-color: var(--color-brand-seal);
   }
 
@@ -74,60 +129,12 @@
   }
 }
 
-// ── 充值页 ────────────────────────────────────────────────────────────────
+// ── 充值页（余额卡已迁至 UsageView） ─────────────────────────────────────
 
 .ai00-x-credits-recharge {
   display: flex;
   flex-direction: column;
   gap: var(--size-gap-6);
-
-  &__balance {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: var(--size-gap-3) var(--size-gap-6);
-    padding: var(--size-gap-6);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--size-radius-lg);
-    background-color: var(--color-bg-card);
-  }
-
-  &__balance-main {
-    display: flex;
-    flex-direction: column;
-    gap: var(--size-gap-1);
-  }
-
-  &__balance-label {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-  }
-
-  &__balance-value {
-    font-size: var(--font-size-5xl);
-    line-height: 1.1;
-    color: var(--color-text-primary);
-  }
-
-  &__balance-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--size-gap-2) var(--size-gap-4);
-  }
-
-  &__meta-item {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--size-gap-1);
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
-
-    &--warn {
-      color: var(--color-warning);
-    }
-  }
 
   &__grid {
     display: grid;
@@ -212,7 +219,7 @@
   }
 }
 
-// ── 会员页 ────────────────────────────────────────────────────────────────
+// ── 会员页（每日签到已迁至 UsageView） ───────────────────────────────────
 
 .ai00-x-credits-membership {
   display: flex;
@@ -220,145 +227,93 @@
   gap: var(--size-gap-6);
 }
 
-// 每日签到
+// 五档套餐：大卡片、内容居中、当前档位黛青描边高亮
 
-.ai00-x-credits-signin {
+.ai00-x-credits-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: var(--size-gap-5);
+  align-items: stretch;
+}
+
+.ai00-x-credits-plan-card {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--size-gap-6);
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: var(--size-gap-6);
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--size-gap-3);
+  padding: var(--size-gap-7) var(--size-gap-5) var(--size-gap-6);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--size-radius-lg);
+  border-radius: var(--size-radius-xl);
   background-color: var(--color-bg-card);
+  overflow: hidden;
+  transition:
+    border-color var(--motion-base) var(--easing-standard),
+    transform var(--motion-base) var(--easing-standard),
+    box-shadow var(--motion-base) var(--easing-standard);
 
-  &__info {
-    display: flex;
-    flex-direction: column;
-    gap: var(--size-gap-2);
-    flex: 1;
-    min-width: 0;
+  &:hover {
+    border-color: var(--border-strong);
+    transform: translateY(calc(var(--size-gap-0-5) * -1));
+    box-shadow: var(--shadow-base);
   }
 
-  &__title {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--size-gap-1-5);
+  &--current {
+    border-color: var(--color-accent-500);
+    box-shadow: var(--shadow-sm);
+
+    &:hover {
+      border-color: var(--color-accent-500);
+    }
+  }
+
+  // 当前套餐缎带：右上角斜带（墨色底纸色字，零朱砂零渐变）
+  &__ribbon {
+    position: absolute;
+    top: var(--size-gap-3);
+    right: calc(var(--size-gap-3) * -1);
+    transform: rotate(45deg);
+    padding: var(--size-gap-0-5) var(--size-gap-4);
+    background-color: var(--color-text-primary);
+    color: var(--color-bg-primary);
+    font-size: var(--font-size-xxs);
+    letter-spacing: 0.05em;
+  }
+
+  &__name {
     margin: 0;
     font-size: var(--font-size-xl);
     font-weight: 600;
     color: var(--color-text-primary);
   }
 
-  &__desc {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-  }
-
-  &__calendar {
-    flex: 0 1 320px;
-    min-width: 0;
-  }
-
-  &__calendar-grid {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: var(--size-gap-1);
-  }
-
-  &__calendar-weekday {
-    font-size: var(--font-size-xxs);
-    color: var(--color-text-muted);
-    text-align: center;
-  }
-
-  &__calendar-day {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    aspect-ratio: 1;
-    border-radius: var(--size-radius-sm);
-    font-size: var(--font-size-2xs);
-    color: var(--color-text-secondary);
-
-    &--signed {
-      background-color: var(--color-accent-500);
-      color: var(--color-accent-foreground);
-    }
-
-    &--today {
-      box-shadow: inset 0 0 0 1px var(--color-accent-500);
-    }
-  }
-}
-
-// 五档套餐
-
-.ai00-x-credits-plans {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--size-gap-4);
-
-  @media (max-width: 900px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  @media (max-width: 560px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.ai00-x-credits-plan-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--size-gap-2);
-  padding: var(--size-gap-5) var(--size-gap-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--size-radius-lg);
-  background-color: var(--color-bg-card);
-
-  &--current {
-    border-color: var(--color-accent-500);
-    background-color: var(--color-bg-sunken);
-  }
-
-  &__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--size-gap-1);
-  }
-
-  &__name {
-    margin: 0;
-    font-size: var(--font-size-base);
-    font-weight: 600;
-    color: var(--color-text-primary);
-  }
-
   &__price {
-    font-size: var(--font-size-2xl);
+    font-size: var(--font-size-4xl);
+    line-height: 1.1;
     color: var(--color-text-primary);
 
     .ai00-x-credits-plan-card__price-unit {
-      margin-left: var(--size-gap-0-5);
+      margin-left: var(--size-gap-1);
       font-size: var(--font-size-xs);
+      font-weight: 400;
       color: var(--color-text-muted);
     }
   }
 
   &__credits {
     display: flex;
-    align-items: baseline;
+    flex-direction: column;
+    align-items: center;
     gap: var(--size-gap-0-5);
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    padding: var(--size-gap-2) var(--size-gap-4);
+    border-radius: var(--size-radius-base);
+    background-color: var(--element-bg-subtle);
   }
 
   &__credits-value {
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-2xl);
+    line-height: 1.2;
     color: var(--color-text-primary);
   }
 
@@ -370,13 +325,15 @@
   &__perk {
     display: inline-flex;
     align-items: center;
-    gap: var(--size-gap-0-5);
-    font-size: var(--font-size-2xs);
+    gap: var(--size-gap-1);
+    font-size: var(--font-size-xs);
     color: var(--color-accent-600);
   }
 
   &__action {
-    margin-top: var(--size-gap-1);
+    margin-top: auto;
+    padding-top: var(--size-gap-2);
+    width: 100%;
 
     button {
       width: 100%;
