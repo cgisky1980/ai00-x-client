@@ -20,6 +20,7 @@ import '@ai00-x/vditor/dist/index.css';
 import luteUrl from '@ai00-x/vditor/dist/js/lute/lute.min.js?url';
 import { useI18n } from '@/infrastructure/i18n';
 import { useThemeStore } from '@/infrastructure/theme/store/themeStore';
+import { EMOJI_PACK } from './emojis';
 import { searchMentionMembers } from './mention';
 import type { MemberHit } from '../chatApi';
 
@@ -144,8 +145,11 @@ export const CommunityMDEditor: React.FC<CommunityMDEditorProps> = ({
       counter: { enable: true, max: 5000 },
       // @提及自动补全（fork Hint 的 hint.extend 自定义钩子：@ 触发 → mentionHint 查询 →
       // Enter/点击把 @username 插回 @ 起始位置；delay 200ms 内建防抖）
+      // 灵印表情包：hint.emoji 驱动面板（图片表情）与 Lute PutEmojis（`:key:` 正文渲染），
+      // value 为构建产物绝对 URL（含 "."，Lute 原样作 img src，不加 emojiSite 前缀）
       hint: {
         delay: 200,
+        emoji: EMOJI_PACK,
         extend: [{ key: '@', hint: mentionHint }],
       },
       // lute 本地资产：见文件头注释

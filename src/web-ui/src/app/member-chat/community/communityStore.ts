@@ -94,7 +94,12 @@ interface CommunityState {
     visibility: PostVisibility;
     title?: string;
     cover_url?: string;
+    repost_of?: number;
   }): Promise<boolean>;
+  /** 转发（P3）：空附言转发到我的动态，限一层 */
+  repostPost(post: CommunityPost): Promise<boolean>;
+  /** 举报（P3 治理）：提交后仅提示，不做其他动作 */
+  reportPost(postId: number, reason: string, detail: string): Promise<boolean>;
   deletePost(postId: number): Promise<void>;
   toggleLike(post: CommunityPost): Promise<void>;
   updatePostContent(postId: number, content: string): void;
@@ -313,6 +318,27 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       } catch {
         void get().loadFeed(true);
       }
+      return true;
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
+  },
+
+  /** 转发（P3）：空附言转发；成功后取回新帖插到流首 */
+  repostPost: async (post) => {
+    return get().createPost({
+      content: '',
+      media: [],
+      visibility: 'public',
+      repost_of: post.id,
+    });
+  },
+
+  /** 举报（P3 治理）：提交成功返回 true（UI 层负责提示） */
+  reportPost: async (postId, reason, detail) => {
+    try {
+      await communityApi.createReport('post', postId, reason, detail);
       return true;
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });

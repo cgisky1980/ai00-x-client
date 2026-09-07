@@ -51,6 +51,12 @@ export interface CommunityPost {
   cover_url?: string;
   /** 置顶时间（作者主页置顶） */
   pinned_at?: string | null;
+  /** 浏览量（P3；详情页 +1） */
+  view_count?: number;
+  /** 转发源帖 id（P3；null = 原创帖，限一层） */
+  repost_of?: number | null;
+  /** 转发源帖（P3；列表/详情接口回填） */
+  repost_source?: CommunityPost | null;
   /** 话题标签（P1.3；列表接口返回） */
   tags: string[];
 }
@@ -159,15 +165,37 @@ async function unwrap<T>(path: string, init?: RequestInit): Promise<T> {
 export const communityApi = {
   // ---- 动态 ----
 
-  /** 发布动态（content/media 至少一项非空；媒体 ≤9 项） */
+  /** 发布动态（content/media 至少一项非空；转发帖豁免；媒体 ≤9 项） */
   createPost(input: {
     content: string;
     media: CommunityMediaItem[];
     visibility: PostVisibility;
+    title?: string;
+    cover_url?: string;
+    /** 转发源帖 id（P3） */
+    repost_of?: number;
   }): Promise<{ post_id: number }> {
     return unwrap('/api/v1/community/posts', {
       method: 'POST',
       body: JSON.stringify(input),
+    });
+  },
+
+  /** 提交举报（P3 治理；target 仅 post/comment，目标需存在且未删） */
+  createReport(
+    targetType: 'post' | 'comment',
+    targetId: number,
+    reason: string,
+    detail?: string,
+  ): Promise<{ report_id: number }> {
+    return unwrap('/api/v1/community/reports', {
+      method: 'POST',
+      body: JSON.stringify({
+        target_type: targetType,
+        target_id: targetId,
+        reason,
+        detail: detail ?? '',
+      }),
     });
   },
 

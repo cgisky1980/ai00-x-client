@@ -18,17 +18,21 @@ import {
   IconButton,
   Markdown,
   Modal,
+  Select,
   Tag,
+  Textarea,
   toastError,
   toastSuccess,
 } from '@/component-library';
 import {
   Bookmark,
+  Flag,
   Heart,
   MessageCircle,
   MoreHorizontal,
   Pencil,
   Pin,
+  Repeat2,
   Trash2,
 } from 'lucide-react';
 import { useMemberChatStore } from '../store/memberChatStore';
@@ -68,10 +72,17 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
   const deletePost = useCommunityStore((s) => s.deletePost);
   const togglePin = useCommunityStore((s) => s.togglePin);
   const setFeedTag = useCommunityStore((s) => s.setFeedTag);
+  const repostPost = useCommunityStore((s) => s.repostPost);
+  const reportPost = useCommunityStore((s) => s.reportPost);
 
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const [saving, setSaving] = useState(false);
+  // 举报（P3）
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetail, setReportDetail] = useState('');
+  const [reporting, setReporting] = useState(false);
 
   const isMine = post.member_id === myMemberId;
   const displayName = post.nickname || post.username;
@@ -83,6 +94,32 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
       confirmDanger: true,
     });
     if (ok) void deletePost(post.id);
+  };
+
+  const onRepost = async () => {
+    const ok = await confirmDialog({
+      title: t('repostTitle', { defaultValue: '转发到我的动态？' }),
+      message: t('repostMessage', { defaultValue: '将这条动态转发到你的主页，关注你的人可以在动态流中看到它。' }),
+    });
+    if (!ok) return;
+    const done = await repostPost(post);
+    if (done) toastSuccess(t('repostDone', { defaultValue: '已转发到我的动态' }));
+  };
+
+  const onReportSubmit = async () => {
+    if (!reportReason) return;
+    setReporting(true);
+    try {
+      const ok = await reportPost(post.id, reportReason, reportDetail.trim());
+      if (ok) {
+        setReportOpen(false);
+        setReportReason('');
+        setReportDetail('');
+        toastSuccess(t('reportSubmitted', { defaultValue: '举报已提交，感谢反馈' }));
+      }
+    } finally {
+      setReporting(false);
+    }
   };
 
   const onEditSave = async () => {
@@ -114,6 +151,13 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
             <span className="community-post__name">{displayName}</span>
             <span className="community-post__sub ds-data">
               @{post.username} · {formatRelTime(post.created_at)}
+              {/* 浏览量（P3；仅详情页展示，feed 不渲染以减少噪音） */}
+              {rich && (post.view_count ?? 0) > 0 && (
+                <>
+                  {' · '}
+                  {t('views', { defaultValue: '{{n}} 次浏览', n: post.view_count ?? 0 })}
+                </>
+              )}
             </span>
           </span>
         </button>
@@ -128,42 +172,55 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
               {t('visibilityPrivate', { defaultValue: '仅自己' })}
             </Tag>
           )}
-          {isMine && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <IconButton
-                  variant="ghost"
-                  size="xs"
-                  shape="square"
-                  tooltip={t('postMenu', { defaultValue: '更多操作' })}
-                  aria-label={t('postMenu', { defaultValue: '更多操作' })}
-                >
-                  <MoreHorizontal size={16} />
-                </IconButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <IconButton
+                variant="ghost"
+                size="xs"
+                shape="square"
+                tooltip={t('postMenu', { defaultValue: '更多操作' })}
+                aria-label={t('postMenu', { defaultValue: '更多操作' })}
+              >
+                <MoreHorizontal size={16} />
+              </IconButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isMine ? (
+                <>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setEditText(post.content);
+                      setEditing(true);
+                    }}
+                  >
+                    <Pencil size={14} aria-hidden />
+                    {t('editPost', { defaultValue: '编辑' })}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void togglePin(post)}>
+                    <Pin size={14} aria-hidden />
+                    {post.pinned_at
+                      ? t('unpin', { defaultValue: '取消置顶' })
+                      : t('pin', { defaultValue: '置顶' })}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem destructive onSelect={() => void onDelete()}>
+                    <Trash2 size={14} aria-hidden />
+                    {t('deletePost', { defaultValue: '删除' })}
+                  </DropdownMenuItem>
+                </>
+              ) : (
                 <DropdownMenuItem
                   onSelect={() => {
-                    setEditText(post.content);
-                    setEditing(true);
+                    setReportReason('');
+                    setReportDetail('');
+                    setReportOpen(true);
                   }}
                 >
-                  <Pencil size={14} aria-hidden />
-                  {t('editPost', { defaultValue: '编辑' })}
+                  <Flag size={14} aria-hidden />
+                  {t('reportAction', { defaultValue: '举报' })}
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void togglePin(post)}>
-                  <Pin size={14} aria-hidden />
-                  {post.pinned_at
-                    ? t('unpin', { defaultValue: '取消置顶' })
-                    : t('pin', { defaultValue: '置顶' })}
-                </DropdownMenuItem>
-                <DropdownMenuItem destructive onSelect={() => void onDelete()}>
-                  <Trash2 size={14} aria-hidden />
-                  {t('deletePost', { defaultValue: '删除' })}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </span>
       </header>
 
@@ -213,6 +270,45 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
       {post.cover_url && <PostCover url={post.cover_url} />}
       <MediaGrid media={post.media} />
 
+      {/* 转发嵌套卡（P3；源帖已删/不可见时显示占位） */}
+      {post.repost_of != null && (
+        post.repost_source ? (
+          <button
+            type="button"
+            className="community-post__repost"
+            onClick={() => openDetail(post.repost_source!)}
+            aria-label={t('repostViewSource', { defaultValue: '查看源动态' })}
+          >
+            <span className="community-post__repost-head">
+              <MemberAvatar
+                name={post.repost_source.nickname || post.repost_source.username}
+                size="sm"
+                data={post.repost_source.avatar}
+              />
+              <span className="community-post__name">
+                {post.repost_source.nickname || post.repost_source.username}
+              </span>
+              <span className="ds-data">@{post.repost_source.username}</span>
+            </span>
+            {post.repost_source.title && (
+              <span className="community-post__repost-title">{post.repost_source.title}</span>
+            )}
+            {post.repost_source.content && (
+              <span className="community-post__repost-content">
+                {mdToPlain(post.repost_source.content)}
+              </span>
+            )}
+            {post.repost_source.cover_url && (
+              <PostCover url={post.repost_source.cover_url} />
+            )}
+          </button>
+        ) : (
+          <div className="community-post__repost community-post__repost--gone ds-data">
+            {t('repostSourceGone', { defaultValue: '源动态已删除或不可见' })}
+          </div>
+        )
+      )}
+
       <footer className="community-post__actions">
         <button
           type="button"
@@ -232,6 +328,14 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
         >
           <MessageCircle size={16} strokeWidth={1.8} />
           <span className="ds-data">{post.comment_count > 0 ? post.comment_count : ''}</span>
+        </button>
+        <button
+          type="button"
+          className="community-post__action"
+          onClick={() => void onRepost()}
+          aria-label={t('repostAction', { defaultValue: '转发' })}
+        >
+          <Repeat2 size={16} strokeWidth={1.8} />
         </button>
         <button
           type="button"
@@ -275,6 +379,55 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
             onClick={() => void onEditSave()}
           >
             {t('common:save', { defaultValue: '保存' })}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* 举报弹窗（P3 治理；原因必选 + 补充说明可选） */}
+      <Modal
+        isOpen={reportOpen}
+        onClose={() => setReportOpen(false)}
+        title={t('reportTitle', { defaultValue: '举报动态' })}
+        size="small"
+      >
+        <div className="community-report">
+          <label className="community-report__label">
+            {t('reportReason', { defaultValue: '举报原因' })}
+          </label>
+          <Select
+            value={reportReason}
+            onChange={(v) => setReportReason(String(v ?? ''))}
+            placeholder={t('reportReasonPlaceholder', { defaultValue: '请选择举报原因' })}
+            options={[
+              { value: 'spam', label: t('reportReasonSpam', { defaultValue: '垃圾广告' }) },
+              { value: 'abuse', label: t('reportReasonAbuse', { defaultValue: '辱骂攻击' }) },
+              { value: 'porn', label: t('reportReasonPorn', { defaultValue: '色情低俗' }) },
+              { value: 'fraud', label: t('reportReasonFraud', { defaultValue: '欺诈信息' }) },
+              { value: 'other', label: t('reportReasonOther', { defaultValue: '其他' }) },
+            ]}
+          />
+          <label className="community-report__label">
+            {t('reportDetail', { defaultValue: '补充说明' })}
+          </label>
+          <Textarea
+            value={reportDetail}
+            onChange={(e) => setReportDetail(e.target.value)}
+            placeholder={t('reportDetailPlaceholder', { defaultValue: '补充细节，帮助管理员更快处理（可选）' })}
+            rows={4}
+            maxLength={500}
+          />
+        </div>
+        <div className="community-composer__actions">
+          <Button variant="ghost" onClick={() => setReportOpen(false)}>
+            {t('common:cancel', { defaultValue: '取消' })}
+          </Button>
+          <Button
+            variant="primary"
+            isLoading={reporting}
+            disabled={!reportReason}
+            onClick={() => void onReportSubmit()}
+          >
+            {t('reportSubmit', { defaultValue: '提交举报' })}
           </Button>
         </div>
       </Modal>

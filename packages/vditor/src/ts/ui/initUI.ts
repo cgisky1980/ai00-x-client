@@ -40,6 +40,12 @@ export const initUI = (vditor: IVditor) => {
   contentElement.appendChild(vditor.wysiwyg.element.parentElement);
 
   contentElement.appendChild(vditor.preview.element);
+  // 分屏预览面板（Desktop/Tablet/Mobile 设备切换）默认隐藏：
+  // .vditor-preview 是 flex 子元素且无 display:none 默认样式，不做此处理会常驻编辑器右侧；
+  // 仅当调用方显式设置 preview.mode === "both"（配合 setPreviewMode）时显示
+  if (vditor.options.preview.mode !== "both") {
+    vditor.preview.element.style.display = "none";
+  }
 
   if (vditor.toolbar.elements.devtools) {
     contentElement.appendChild(vditor.devtools.element);

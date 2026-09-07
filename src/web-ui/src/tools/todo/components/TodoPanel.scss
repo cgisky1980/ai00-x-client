@@ -117,9 +117,9 @@
   &__credits {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: var(--size-gap-1);
     margin-right: var(--size-gap-2, 8px);
-    padding: 2px var(--size-gap-2, 8px);
+    padding: var(--size-gap-0-5) var(--size-gap-2, 8px);
     border: none;
     border-radius: var(--size-radius-full, 9999px);
     background: color-mix(in oklch, var(--color-text-primary) 8%, transparent);

@@ -116,7 +116,7 @@
   }
 
   &__newcomer-badge {
-    padding: 2px var(--size-gap-2);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     border-radius: var(--size-radius-sm);
     font-size: var(--font-size-xs);
     color: var(--color-brand-seal-foreground);

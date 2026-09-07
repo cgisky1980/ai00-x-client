@@ -57,7 +57,7 @@ export class Options {
             markdown: Constants.MARKDOWN_OPTIONS,
             math: Constants.MATH_OPTIONS,
             maxWidth: 800,
-            mode: "both",
+            mode: "editor",
             theme: Constants.THEME_OPTIONS,
             render: {
                 media: {

@@ -1314,7 +1314,7 @@
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
-  padding: 2px;
+  padding: var(--size-gap-0-5);
 
   &:hover {
     color: var(--color-text-primary);
@@ -1420,7 +1420,7 @@
     flex-direction: column;
     gap: var(--size-gap-2);
     padding: 0 var(--size-gap-8) var(--size-gap-5);
-    margin-top: -32px;
+    margin-top: calc(var(--size-gap-8) * -1);
   }
 
   &__avatar {
@@ -1649,7 +1649,7 @@
     border-radius: 8px;
     color: var(--pt-accent);
     font-family: var(--pt-font-display);
-    font-size: 28px;
+    font-size: var(--font-size-4xl);
     font-weight: 600;
     background-color: var(--pt-bg);
     transform: rotate(-6deg);
@@ -1697,8 +1697,8 @@
     right: var(--size-gap-2);
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px var(--size-gap-2);
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     border-radius: 9999px;
     background-color: color-mix(in srgb, var(--pt-accent) 16%, transparent);
     color: var(--pt-accent);
@@ -1814,7 +1814,7 @@
   &__card-price {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--size-gap-1);
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
   }
@@ -2009,7 +2009,7 @@
 .community-post__pinflag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--size-gap-1);
   color: var(--color-accent-600);
   font-size: var(--font-size-xs);
 }
@@ -2047,4 +2047,67 @@
   max-height: 260px;
   object-fit: cover;
   border-radius: var(--radius-base);
+}
+
+// ===== 转发嵌套卡（P3） =====
+
+.community-post__repost {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-base);
+  background-color: var(--color-bg-sunken);
+  padding: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+
+  &:hover {
+    border-color: var(--color-accent-600);
+  }
+
+  &--gone {
+    cursor: default;
+    padding: var(--space-2) var(--space-3);
+
+    &:hover {
+      border-color: var(--border-subtle);
+    }
+  }
+}
+
+.community-post__repost-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.community-post__repost-title {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-1);
+}
+
+.community-post__repost-content {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.community-report {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.community-report__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
