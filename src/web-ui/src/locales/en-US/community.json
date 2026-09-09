@@ -1,4 +1,5 @@
 {
+  "aiTitling": "AI is generating a title for this post…",
   "back": "Back",
   "becameFriend": "已互相关注，成为好友，可以私聊了",
   "bookmark": "Bookmark",
@@ -112,5 +113,6 @@
   "reportDetail": "Details",
   "reportDetailPlaceholder": "Add details to help moderators review faster (optional)",
   "reportSubmit": "Submit report",
-  "reportSubmitted": "Report submitted, thank you"
+  "reportSubmitted": "Report submitted, thank you",
+  "myProfile": "My profile"
 }

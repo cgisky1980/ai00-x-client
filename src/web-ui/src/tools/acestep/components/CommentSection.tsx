@@ -404,7 +404,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ shareId }) => {
   // ---- 删除评论 ----
   const handleDelete = useCallback(
     async (commentId: number) => {
-      const confirmed = window.confirm(
+      const confirmed = await window.confirm(
         t('share.comment.confirmDelete', { defaultValue: 'Delete this comment?' }),
       );
       if (!confirmed) return;

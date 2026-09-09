@@ -9,7 +9,7 @@
  * - ai00_set_wallpaper — 应用壁纸项目到桌面
  * - ai00_todo_read     — 读取知行（待办/目标/专注）全量数据
  * - ai00_todo_write    — 全量写知行数据（先 read 后改再写）
- * - ai00_task_complete — 完成任务（DoD 验收前置校验；周期任务自动克隆下一次 + 服务器 XP 入账）
+ * - ai00_task_complete — 提交模型自检（DoD 验收前置校验 + 快照）；完成/XP 由人类验收触发
  * - ai00_task_create   — agent 自主建卡（想法池落卡，人机对等的想法收集）
  * - ai00_focus_log     — 记录专注会话（宿主广播事件，web-ui 发放 XP）
  * - ai00_plan_read     — 读卡片计划文档 MD（与策窗口共享同一文件）
@@ -74,38 +74,6 @@ function makeClient(baseURL, token) {
 
 /** 文本块快捷构造。 */
 const text = (s) => [{ type: "text", text: String(s) }];
-
-// ---------------------------------------------------------------------------
-// 知行数据辅助（todoStore.completeTask / TaskRow.onCheck 的 JS 移植）
-// ---------------------------------------------------------------------------
-
-/** 本地日期 'YYYY-MM-DD'。 */
-function todayStr() {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
-/** 'YYYY-MM-DD' → Date（当日 12:00，与 todoStore.parseDue 一致）。 */
-function parseDue(due) {
-  const [y, m, d] = due.split("-").map(Number);
-  return new Date(y, m - 1, d, 12);
-}
-
-/** Date → 'YYYY-MM-DD'。 */
-function fmtDue(d) {
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
-function addMonths(date, n) {
-  return new Date(date.getFullYear(), date.getMonth() + n, date.getDate(), 12);
-}
-
-/** 简短 id（与 todoStore.genId 同风格）。 */
-function genId() {
-  return `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-}
 
 /**
  * 解析计划 MD「## 验收」段的 `- [ ]`/`- [x]` 勾选态（与策窗口
@@ -191,7 +159,7 @@ function runVerification(cmd, cwd, signal) {
  * 完成任务：completedAt 置当前时间；周期任务克隆下一次（due 推进、
  * remindAt 同时刻映射、状态复位）。返回 {data, task, xp}。
  */
-function completeTaskInData(data, taskId) {
+function submitSelfCheckInData(data, taskId) {
   const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
   const index = tasks.findIndex((t) => t?.id === taskId);
   if (index < 0) {
@@ -199,64 +167,18 @@ function completeTaskInData(data, taskId) {
   }
   const task = tasks[index];
   if (task.completedAt) {
-    throw new Error(`task already completed: ${task.title}`);
+    throw new Error(`task already completed (human-accepted): ${task.title}`);
+  }
+  // 幂等：已提交过自检 → 再次调用直接成功（不重复写时间戳）
+  if (task.agentCompletedAt) {
+    return { data, task, already: true };
   }
   const now = Date.now();
   const nextTasks = [...tasks];
-  nextTasks[index] = { ...task, completedAt: now };
-
-  // 周期任务：克隆下一次（移植 todoStore.completeTask）
-  if (task.repeat) {
-    const base =
-      task.repeat.afterCompletion || !task.due ? new Date(now) : parseDue(task.due);
-    let next;
-    switch (task.repeat.type) {
-      case "daily":
-        next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1, 12);
-        break;
-      case "weekly":
-        next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 7, 12);
-        break;
-      case "monthly":
-        next = addMonths(base, 1);
-        break;
-      case "weekdays": {
-        next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1, 12);
-        while (next.getDay() === 0 || next.getDay() === 6) next.setDate(next.getDate() + 1);
-        break;
-      }
-      default:
-        next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1, 12);
-    }
-    const nextDue = fmtDue(next);
-    const nextRemind = task.remindAt ? nextDue + task.remindAt.slice(10) : null;
-    nextTasks.push({
-      ...task,
-      id: genId(),
-      completedAt: null,
-      createdAt: now,
-      remindedAt: null,
-      checklist: (task.checklist ?? []).map((c) => ({ ...c, d: false })),
-      focus: { pomodoros: 0, minutes: 0 },
-      due: nextDue,
-      remindAt: nextRemind,
-    });
-  }
-
-  // XP 公式（移植 TaskRow.onCheck）：10 基础 + 今日到期 5 + 检查项全勾 3（上限 20）
-  const today = todayStr();
-  let xp = 10;
-  if (task.due && task.due <= today) xp += 5;
-  if (
-    Array.isArray(task.checklist) &&
-    task.checklist.length > 0 &&
-    task.checklist.every((c) => c.d)
-  ) {
-    xp += 3;
-  }
-  xp = Math.min(xp, 20);
-
-  return { data: { ...data, tasks: nextTasks }, task, xp };
+  // 双段验收：这里只提交「模型自检通过」——完成（completedAt）/XP/周期克隆
+  // 全部挪到人类验收（策窗口「验收通过」），agent 不得替人拍板
+  nextTasks[index] = { ...task, agentCompletedAt: now };
+  return { data: { ...data, tasks: nextTasks }, task, already: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -524,11 +446,11 @@ function defineTools(ctx, api) {
     },
   });
 
-  // ---- ai00_task_complete：完成任务 + XP（DoD 验收前置校验 + 完成快照）----
+  // ---- ai00_task_complete：提交模型自检（双段验收第一段）----
   ctx.tools.register({
     name: "ai00_task_complete",
     description:
-      "Mark a Zhixing task as completed by id. Acceptance gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot commit of all changes is taken automatically — do NOT commit manually. Handles recurring-task cloning and awards server-side XP (10 base + due-today 5 + checklist 3, cap 20).",
+      "Submit a Zhixing task's SELF-CHECK for HUMAN acceptance by id (dual-stage acceptance — this does NOT complete the task; the human reviews and accepts in the Zhixing board). Self-check gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot of all changes is taken automatically — do NOT commit manually. After submitting, tell the user it is awaiting their acceptance; XP and completion are granted by the human, not by this tool.",
     parameters: {
       type: "object",
       properties: {
@@ -536,7 +458,7 @@ function defineTools(ctx, api) {
         snapshotDir: {
           type: "string",
           description:
-            "Working directory from the task brief (if any). A git snapshot of your changes is committed on completion.",
+            "Working directory from the task brief (if any). A git snapshot of your changes is committed on submission.",
         },
       },
       required: ["taskId"],
@@ -549,18 +471,12 @@ function defineTools(ctx, api) {
           ok: { type: "boolean" },
           title: { type: "string" },
           xp: { type: "integer" },
-          // 周期任务下一次 due；非周期任务为 null（dsh schema 不支持 type 数组）
-          recurringNext: { type: "string" },
         },
         required: ["ok", "title", "xp"],
         additionalProperties: false,
       },
       render: (_args, value) =>
-        text(
-          `task completed: ${value.title} (+${value.xp} XP)${
-            value.recurringNext ? `; next occurrence due ${value.recurringNext}` : ""
-          }`
-        ),
+        text(`self-check submitted for human acceptance: ${value.title} (awaiting user review in the Zhixing board)`),
     },
     async execute(args, exec) {
       const taskId = String(args?.taskId ?? "").trim();
@@ -617,44 +533,38 @@ function defineTools(ctx, api) {
       }
 
       const data = await api.get("/todo", exec.signal);
-      const { data: next, task, xp } = completeTaskInData(data, taskId);
+      const { data: next, task, already } = submitSelfCheckInData(data, taskId);
+      if (already) {
+        return { ok: true, title: task.title ?? "", xp: 0 };
+      }
 
-      // 完成快照（任务粒度 commit；失败静默——不阻塞完成主流程）
+      // 自检快照（执行产物定格；commit 回写任务卡——验收 diff/回滚用；失败静默）
+      let snapshotCommit = null;
       if (snapshotDir) {
         try {
-          await api.post(
+          const snap = await api.post(
             "/git/snapshot",
-            { dir: snapshotDir, message: `task: ${task.title} · agent 执行` },
+            { dir: snapshotDir, message: `task: ${task.title} · agent 自检` },
             exec.signal
           );
+          snapshotCommit = snap?.commit ?? null;
         } catch (error) {
-          ctx.logger.warn(`ai00-x-tools: completion snapshot skipped: ${error.message}`);
+          ctx.logger.warn(`ai00-x-tools: self-check snapshot skipped: ${error.message}`);
         }
       }
-
+      if (snapshotCommit) {
+        next.tasks = next.tasks.map(t =>
+          t?.id === taskId ? { ...t, agentCommit: snapshotCommit } : t
+        );
+      }
       await api.put("/todo", next, exec.signal);
 
-      // XP 入账（服务器按 taskId 幂等去重；未登录时静默跳过）
-      try {
-        await api.post(
-          "/xp",
-          { kind: "todo.task_done", amount: xp, meta: { taskId, title: task.title } },
-          exec.signal
-        );
-      } catch (error) {
-        ctx.logger.warn(`ai00-x-tools: xp report skipped: ${error.message}`);
-      }
-
-      const recurringNext =
-        task.repeat && Array.isArray(next.tasks)
-          ? (next.tasks[next.tasks.length - 1]?.due ?? null)
-          : null;
-      // schema 是 string（dsh 不支持 type 数组）：非周期任务省略该字段
+      // 双段验收到此为止：completedAt / XP / 周期克隆全部由人类在策窗口
+      // 「验收通过」触发——agent 提交后只等人类，不自行宣告完成
       return {
         ok: true,
         title: task.title ?? "",
-        xp,
-        ...(recurringNext ? { recurringNext } : {}),
+        xp: 0,
       };
     },
   });

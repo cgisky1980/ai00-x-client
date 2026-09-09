@@ -341,20 +341,43 @@ class Ai00XAdapter {
   }
 
   async listModels() {
-    return MODELS.map((model) => ({
+    const base = MODELS.map((model) => ({
       provider: PROVIDER,
       id: model.id,
       name: model.name,
       inputModalities: ["text"],
     }));
+    // 合并网关下发的具体模型目录（ai00s:/gguf-local:/自定义 id——讨论
+    // 通道同源），dsh 模型选择器可见可选；拉不到时静态三模型兜底
+    try {
+      const res = await fetch(`${this.options.baseURL}/ai00-internal/llm/v1/models`);
+      if (res.ok) {
+        const data = await res.json();
+        const extra = (data.data ?? [])
+          .filter((m) => m.id && !base.some((b) => b.id === m.id))
+          .map((m) => ({
+            provider: PROVIDER,
+            id: m.id,
+            name: m.name || m.id,
+            inputModalities: ["text"],
+          }));
+        return [...base, ...extra];
+      }
+    } catch {
+      // 网关目录不可达 → 静态兜底
+    }
+    return base;
   }
 
   async resolveModel(provider, model) {
-    const known = MODELS.find((m) => m.id === model) ?? MODELS[0];
+    // 未知引用（ai00s:<子模型>/gguf-local:<路径>/自定义 id）原样透传——
+    // 网关按 client_factory 同源解析；此前未知 id 静默回落 ai00-auto，
+    // 导致执行会话总是走智能路由（与讨论选型不一致）
+    const known = MODELS.find((m) => m.id === model);
     return {
       provider,
-      id: known.id,
-      name: known.name,
+      id: known ? known.id : model,
+      name: known ? known.name : String(model ?? ""),
       inputModalities: ["text"],
     };
   }

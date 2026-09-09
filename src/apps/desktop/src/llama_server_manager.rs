@@ -1,10 +1,9 @@
 //! llama-server 子进程管理器 + GGUF 模型目录扫描。
 //!
 //! 职责：
-//! 1. **GGUF 模型枚举**（`list_gguf_models`）：扫描 models/llm/（自有下载）、
-//!    unsloth Studio 目录（`UNSLOTH_STUDIO_HOME` / `~/.unsloth`）、HF 缓存
-//!    （`%USERPROFILE%\.cache\huggingface\hub`，unsloth/CLI 下载默认落点）与
-//!    用户手动注册目录，已下载模型直接复用，不重复下载。
+//! 1. **GGUF 模型枚举**（`list_gguf_models`）：只扫 models/llm/（自有下载）
+//!    与用户手动注册目录。unsloth / HF 缓存遍历已移除（模型列表卡顿根源）；
+//!    内置目录就绪判定为对 models/llm 指定文件直接 stat（`gguf_builtin_catalog`）。
 //! 2. **llama-server 子进程**：懒启动（首次 GGUF 请求时 spawn），OpenAI 兼容
 //!    HTTP 服务（/v1），ai-adapters 的 openai provider 直接对接。
 //!
@@ -83,24 +82,15 @@ fn save_custom_dirs(dirs: &[PathBuf]) -> Result<(), String> {
 }
 
 /// 待扫描目录清单（dir, source 标签），按优先级排列。
+///
+/// 只扫自有模型目录 + 用户手动注册目录。unsloth / HF 缓存遍历已移除：
+/// 那是模型列表打开卡顿的根源（大量目录 walk + 大文件头解析），
+/// 内置目录的就绪判定改为对 models/llm 指定文件直接 stat。
 fn scan_targets() -> Vec<(PathBuf, &'static str)> {
     let mut out = Vec::new();
     // 1. 自有下载目录
     out.push((crate::runtime::get_models_dir().join("llm"), "bundled"));
-    // 2. UNSLOTH_STUDIO_HOME 环境变量（Unsloth Studio 自定义安装位置）
-    if let Ok(home) = std::env::var("UNSLOTH_STUDIO_HOME") {
-        out.push((PathBuf::from(home), "unsloth"));
-    }
-    // 3. unsloth 默认 home
-    if let Some(home) = dirs::home_dir() {
-        out.push((home.join(".unsloth"), "unsloth"));
-        // 4. HF 缓存（unsloth CLI / huggingface-cli 下载默认落点）
-        out.push((
-            home.join(".cache").join("huggingface").join("hub"),
-            "hf-cache",
-        ));
-    }
-    // 5. 用户手动注册目录
+    // 2. 用户手动注册目录
     for d in load_custom_dirs() {
         out.push((d, "custom"));
     }
@@ -185,6 +175,18 @@ fn read_gguf_meta(path: &Path) -> (String, u64) {
         }
         Err(_) => ("unknown".to_string(), 0),
     }
+}
+
+/// GGUF 是否含 MTP（nextn）投机解码层。b10837 起 llama-server 带
+/// `--spec-type draft-mtp` 加载非 MTP 模型会直接报错退出（b10665 及之前
+/// 为静默忽略），spawn 前按元数据 `<arch>.nextn_predict_layers` 判定。
+fn model_has_mtp_layers(path: &Path) -> bool {
+    let Ok(r) = crate::asr::gguf::GgufReader::open(path) else {
+        return false;
+    };
+    let arch = r.architecture().unwrap_or("unknown");
+    r.meta_u32(&format!("{arch}.nextn_predict_layers"))
+        .is_some_and(|n| n > 0)
 }
 
 fn build_gguf_model_info(
@@ -618,19 +620,23 @@ async fn ensure_once(gguf_path: &str) -> Result<String, String> {
         .arg(ngl.to_string())
         .arg("-c")
         .arg(DEFAULT_CTX.to_string())
-        // MTP 投机解码：Qwen3.8 等 nextn 层模型内嵌 draft 权重。
-        // n_max=8 + KV q8_0 为 2080 Ti 22GB 实测甜点（23.3 tok/s @ IQ4_XS）；
-        // 默认 n_max=3 仅 8.4，n_max=12 接受率崩塌（2.3）。非 MTP 模型自动忽略。
-        .arg("--spec-type")
-        .arg("draft-mtp")
-        .arg("--spec-draft-n-max")
-        .arg("8")
         .arg("-ctk")
         .arg("q8_0")
         .arg("-ctv")
         .arg("q8_0")
         // 看门狗需要 /metrics（MTP 接受率崩塌检测）
         .arg("--metrics");
+    // MTP 投机解码：Qwen3.8 等 nextn 层模型内嵌 draft 权重。
+    // n_max=8 + KV q8_0 为 2080 Ti 22GB 实测甜点（23.3 tok/s @ IQ4_XS）；
+    // 默认 n_max=3 仅 8.4，n_max=12 接受率崩塌（2.3）。
+    // 仅对含 nextn 层的模型启用：b10837 起非 MTP 模型带 draft-mtp
+    // 会加载失败退出（Spark-X2.5 等）。
+    if model_has_mtp_layers(Path::new(gguf_path)) {
+        cmd.arg("--spec-type")
+            .arg("draft-mtp")
+            .arg("--spec-draft-n-max")
+            .arg("8");
+    }
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
     cmd.kill_on_drop(true);
@@ -839,7 +845,7 @@ pub struct BuiltinGgufEntry {
     /// 近似大小（精确 total 由下载响应 content-length 提供）。
     pub size_bytes: u64,
     pub downloaded: bool,
-    /// 就绪时可直接使用的 GGUF 绝对路径（优先 models/llm 落盘，其次 HF 缓存/unsloth 扫描）。
+    /// 就绪时可直接使用的 GGUF 绝对路径（models/llm 落盘即就绪）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolved_path: Option<String>,
 }
@@ -849,61 +855,76 @@ struct BuiltinCatalogModel {
     key: &'static str,
     display: &'static str,
     file_rel: &'static str,
-    /// 近似字节数（实测 16.5GB）。
+    /// 近似字节数（精确 total 由下载响应 content-length 提供）。
     size_bytes: u64,
     gguf_file: &'static str,
+    /// 下载源 HF 仓库 id 与仓库内子目录（空串 = 仓库根）。
+    download_repo: &'static str,
+    download_dir: &'static str,
 }
 
-const BUILTIN_GGUF: &[BuiltinCatalogModel] = &[BuiltinCatalogModel {
-    key: "Qwen3.8-27B-UD-Q4_K_M",
-    display: "Qwen3.8 27B",
-    file_rel: "llm/Qwen3.8-27B-UD-Q4_K_M.gguf",
-    size_bytes: 16_500_000_000,
-    gguf_file: "Qwen3.8-27B-UD-Q4_K_M.gguf",
-}];
+const BUILTIN_GGUF: &[BuiltinCatalogModel] = &[
+    BuiltinCatalogModel {
+        key: "Qwen3.8-27B-UD-Q4_K_M",
+        display: "Qwen3.8 27B",
+        file_rel: "llm/Qwen3.8-27B-UD-Q4_K_M.gguf",
+        size_bytes: 16_500_000_000,
+        gguf_file: "Qwen3.8-27B-UD-Q4_K_M.gguf",
+        download_repo: "cgisky/ai00-x",
+        download_dir: "llm",
+    },
+    BuiltinCatalogModel {
+        key: "Spark-X2.5-4B-Q8_0",
+        display: "Spark-X2.5 4B",
+        file_rel: "llm/Spark-X2.5-4B-Q8_0.gguf",
+        size_bytes: 4_370_000_000,
+        gguf_file: "Spark-X2.5-4B-Q8_0.gguf",
+        // 本地 llama-quantize 产物（BF16 官方源量化），统一走自有模型仓
+        download_repo: "cgisky/ai00-x",
+        download_dir: "llm",
+    },
+];
 
-/// GGUF 下载走统一仓库 cgisky/ai00-x（llm/ 目录，与 RWKV 同仓）。
-const BUILTIN_GGUF_REPO: &str = "cgisky/ai00-x";
+/// 仓库内相对路径（空 download_dir = 仓库根）。
+fn builtin_repo_path(entry: &BuiltinCatalogModel) -> String {
+    if entry.download_dir.is_empty() {
+        entry.gguf_file.to_string()
+    } else {
+        format!("{}/{}", entry.download_dir, entry.gguf_file)
+    }
+}
 
-fn builtin_urls(gguf_file: &str) -> (String, String) {
+/// 内置 GGUF 下载直链（primary = hf-mirror 国内优先，fallback = huggingface）。
+fn builtin_urls(entry: &BuiltinCatalogModel) -> (String, String) {
+    let path = builtin_repo_path(entry);
     (
-        format!("https://hf-mirror.com/{BUILTIN_GGUF_REPO}/resolve/main/llm/{gguf_file}"),
-        format!("https://huggingface.co/{BUILTIN_GGUF_REPO}/resolve/main/llm/{gguf_file}"),
+        format!(
+            "https://hf-mirror.com/{}/resolve/main/{path}",
+            entry.download_repo
+        ),
+        format!(
+            "https://huggingface.co/{}/resolve/main/{path}",
+            entry.download_repo
+        ),
     )
-}
-
-/// GGUF 扫描只认 Qwen3.8-27B Q4_K_M 文件（兼容 unsloth UD-Q4_K_M 命名），
-/// 大小写不敏感；目的仅是避免重复下载已存在于 HF 缓存/unsloth 目录的同一文件。
-fn is_builtin_qwen38_q4km_file(path: &str) -> bool {
-    let name = path.replace('\\', "/");
-    let name = name.rsplit('/').next().unwrap_or(&name).to_lowercase();
-    name.contains("qwen3.8-27b") && name.contains("q4_k_m") && name.ends_with(".gguf")
 }
 
 /// 内置 GGUF 下载目录（含本地就绪判定）。
 ///
-/// 就绪判定（避免重复下载，自有目录优先）：
-/// 1. models/llm 落盘文件存在 → 用自有目录路径；
-/// 2. 否则扫描 unsloth/HF 缓存命中 Qwen3.8-27B Q4_K_M → 直接复用缓存路径；
-/// 3. 都没有 → 未就绪（走内置下载：unsloth 直链 + hf-mirror 回退，落盘自有目录）。
+/// 就绪判定：models/llm/<file_rel> 落盘即就绪——纯 stat，零扫描开销。
+/// unsloth / HF 缓存目录遍历已移除（曾为模型列表打开卡顿的根源）。
 #[tauri::command]
 pub fn gguf_builtin_catalog() -> Vec<BuiltinGgufEntry> {
     let models_dir = crate::runtime::get_models_dir();
-    let scanned = list_gguf_models();
     BUILTIN_GGUF
         .iter()
         .map(|m| {
             let on_disk = models_dir.join(m.file_rel);
-            let on_disk_path = if on_disk.exists() {
+            let resolved_path = if on_disk.exists() {
                 Some(on_disk.to_string_lossy().into_owned())
             } else {
                 None
             };
-            let scanned_path = scanned
-                .iter()
-                .find(|g| is_builtin_qwen38_q4km_file(&g.gguf_path))
-                .map(|g| g.gguf_path.clone());
-            let resolved_path = on_disk_path.or(scanned_path);
             BuiltinGgufEntry {
                 key: m.key.to_string(),
                 display: m.display.to_string(),
@@ -923,14 +944,21 @@ pub async fn gguf_builtin_download(key: String) -> Result<String, String> {
         .iter()
         .find(|m| m.key == key)
         .ok_or_else(|| format!("unknown builtin gguf model: {key}"))?;
-    let (primary, fallback) = builtin_urls(entry.gguf_file);
+    let (primary, fallback) = builtin_urls(entry);
+    // ModelScope 与 HF 同仓镜像（sync-models.py 双推），国内直连最稳
+    let ms_url = format!(
+        "https://modelscope.cn/models/cgisky/Ai00-X/resolve/master/{}",
+        builtin_repo_path(entry)
+    );
     let info = super::model_checker::ModelUpdateInfo {
         component: "llm-gguf".to_string(),
         name: entry.key.to_string(),
         key: entry.key.to_string(),
         url: entry.file_rel.to_string(),
         download_url: primary,
-        available_hosts: [("hf".to_string(), fallback)].into_iter().collect(),
+        available_hosts: [("hf".to_string(), fallback), ("ms".to_string(), ms_url)]
+            .into_iter()
+            .collect(),
         local_hash: None,
         remote_hash: "builtin-catalog".to_string(),
         needs_update: true,
@@ -943,4 +971,54 @@ pub async fn gguf_builtin_download(key: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn gguf_ensure_server(gguf_path: String) -> Result<String, String> {
     ensure_llama_server(&gguf_path).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::model_has_mtp_layers;
+
+    /// 构造最小 GGUF 头（tensor_count=0）验证 MTP 判定，不依赖真实模型文件。
+    fn write_minimal_gguf(path: &std::path::Path, arch: &str, nextn: Option<u32>) {
+        use std::io::Write;
+        let mut b = Vec::new();
+        b.extend_from_slice(b"GGUF");
+        b.extend_from_slice(&3u32.to_le_bytes());
+        b.extend_from_slice(&0u64.to_le_bytes()); // tensor_count
+        let kv_count = if nextn.is_some() { 2u64 } else { 1 };
+        b.extend_from_slice(&kv_count.to_le_bytes());
+        let put_str = |b: &mut Vec<u8>, s: &str| {
+            b.extend_from_slice(&(s.len() as u64).to_le_bytes());
+            b.extend_from_slice(s.as_bytes());
+        };
+        // general.architecture = <arch>（string）
+        put_str(&mut b, "general.architecture");
+        b.extend_from_slice(&8u32.to_le_bytes());
+        put_str(&mut b, arch);
+        if let Some(n) = nextn {
+            put_str(&mut b, &format!("{arch}.nextn_predict_layers"));
+            b.extend_from_slice(&4u32.to_le_bytes()); // UINT32
+            b.extend_from_slice(&n.to_le_bytes());
+        }
+        std::fs::File::create(path).unwrap().write_all(&b).unwrap();
+    }
+
+    #[test]
+    fn mtp_detection_by_nextn_metadata() {
+        let dir = std::env::temp_dir();
+        let with_mtp = dir.join("ai00x-test-mtp-qwen.gguf");
+        write_minimal_gguf(&with_mtp, "qwen3", Some(1));
+        assert!(model_has_mtp_layers(&with_mtp));
+
+        let zero_mtp = dir.join("ai00x-test-mtp-spark.gguf");
+        write_minimal_gguf(&zero_mtp, "spark2_5", Some(0));
+        assert!(!model_has_mtp_layers(&zero_mtp));
+
+        let no_key = dir.join("ai00x-test-mtp-nokey.gguf");
+        write_minimal_gguf(&no_key, "spark2_5", None);
+        assert!(!model_has_mtp_layers(&no_key));
+
+        let _ = std::fs::remove_file(&with_mtp);
+        let _ = std::fs::remove_file(&zero_mtp);
+        let _ = std::fs::remove_file(&no_key);
+    }
 }

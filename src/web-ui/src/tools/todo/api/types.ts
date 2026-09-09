@@ -83,6 +83,16 @@ export interface TodoTask {
   agentSessionId?: string;
   /** 委托任务书（交付给 agent 的完整 prompt；定时任务为执行指令） */
   agentPrompt?: string;
+  /** 模型自检通过时刻（双段验收第一段；ai00_task_complete 写入）。
+   *  completedAt=人类验收通过——完成的唯一判据。 */
+  agentCompletedAt?: number | null;
+  /** 委托基线快照 commit（agent 动工前拍；diff 起点/回滚目标） */
+  agentBaseCommit?: string | null;
+  /** agent 自检快照 commit（执行产物定格；与基线 diff 即 agent 改动） */
+  agentCommit?: string | null;
+  /** 卡片级模型选择（讨论 + 委托执行同源；null=未选过，回落全局默认）。
+   *  按卡存储——并行多任务可各用各的模型。 */
+  discussModel?: string | null;
 }
 
 /** 里程碑（志的阶段划分，与 plan 方案层平行） */

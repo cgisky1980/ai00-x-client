@@ -8,7 +8,10 @@
 //! - `ai00-auto`（默认）→ SmartRouter（本地 RWKV classify R0-R3）：
 //!   R0/R1 → 本地 RWKV；R2/R3 → ai00-salvo（primary 模型转发）
 //! - `rwkv-local`  → 强制本地 RWKV
-//! - `ai00-salvo`  → 强制远程转发
+//! - `ai00-salvo`  → 强制远程转发（primary 模型）
+//! - 其他引用（`ai00s:<子模型>` / `gguf-local:<路径>` / 自定义 id）→ 按引用
+//!   经 client_factory 解析转发——与讨论通道（plugin_ai_complete）同一解析链，
+//!   dsh 执行会话可以和策讨论选到完全相同的模型，不再静默并入智能路由。
 //!
 //! 鉴权：`X-Ai00-Internal-Token` 头匹配 `AI00_S_INTERNAL_TOKEN`（回退默认值）。
 
@@ -58,17 +61,32 @@ pub fn router() -> Router {
 
 #[handler]
 async fn list_models(res: &mut Response) {
-    res.body(
-        json!({
-            "object": "list",
-            "data": [
-                { "id": MODEL_AUTO,   "object": "model", "owned_by": "ai00-x" },
-                { "id": MODEL_RWKV,   "object": "model", "owned_by": "ai00-x" },
-                { "id": MODEL_REMOTE, "object": "model", "owned_by": "ai00-x" },
-            ],
-        })
-        .to_string(),
-    );
+    // 静态三逻辑模型 + 用户已配置的具体模型引用（讨论通道同源，dsh 侧
+    // 模型选择器可见可选；桥按 id 透传回网关按引用解析）
+    let mut data = vec![
+        json!({"id": MODEL_AUTO,   "object": "model", "name": "Ai00-X Auto (smart routing)", "owned_by": "ai00-x"}),
+        json!({"id": MODEL_RWKV,   "object": "model", "name": "Ai00-X Local RWKV", "owned_by": "ai00-x"}),
+        json!({"id": MODEL_REMOTE, "object": "model", "name": "Ai00-X Salvo (ai00-x.com)", "owned_by": "ai00-x"}),
+    ];
+    if let Ok(service) = get_global_config_service() {
+        if let Ok(config) = service
+            .get_config::<ai00_x_core::service::config::GlobalConfig>(None)
+            .await
+        {
+            for m in &config.ai.models {
+                if m.id.is_empty() || m.id == MODEL_RWKV {
+                    continue;
+                }
+                data.push(json!({
+                    "id": m.id,
+                    "object": "model",
+                    "name": if m.name.is_empty() { m.id.clone() } else { m.name.clone() },
+                    "owned_by": "ai00-x",
+                }));
+            }
+        }
+    }
+    res.body(json!({"object": "list", "data": data}).to_string());
 }
 
 #[handler]
@@ -111,9 +129,12 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
         .get("tools")
         .and_then(|v| v.as_array())
         .is_some_and(|t| !t.is_empty());
+    // 具体模型引用（非三个保留逻辑 id）→ 按引用解析转发，不参与智能路由
+    let is_specific_ref = !model.is_empty() && model != MODEL_AUTO;
     let use_local = match model.as_str() {
         MODEL_RWKV => true,
         MODEL_REMOTE => false,
+        _ if is_specific_ref => false,
         _ if has_tools => {
             // M1.2 分层路由 v2：默认远程（本地 RWKV 结构化 tool-call 可靠性
             // 待真机 G1x 验证）。AI00X_DSH_LOCAL_TOOLS=1 且工具全在本地白名单
@@ -164,10 +185,10 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
             .is_err()
         {
             log::warn!("[ai-gateway] local branch failed -> fallback to remote");
-            forward_to_ai00_salvo(body, res).await;
+            forward_to_ai00_salvo(body, res, &model).await;
         }
     } else {
-        forward_to_ai00_salvo(body, res).await;
+        forward_to_ai00_salvo(body, res, &model).await;
     }
 }
 
@@ -400,21 +421,23 @@ async fn local_rwkv_sse(
 }
 
 // ---------------------------------------------------------------------------
-// 远程转发分支（ai00-salvo primary 模型）
+// 远程转发分支（ai00-salvo primary / 具体模型引用解析转发）
 // ---------------------------------------------------------------------------
 
-/// 转发到 primary 模型（OpenAI 兼容 SSE 透传）。
-async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response) {
+/// 转发到指定模型引用（OpenAI 兼容 SSE 透传）：`ai00-salvo` → primary 槽；
+/// 其他引用（ai00s:/gguf-local:/自定义 id）按 client_factory 同一解析链直达。
+async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response, model_ref: &str) {
+    let resolve_key = if model_ref == MODEL_REMOTE { "primary" } else { model_ref };
     // 恢复登录态：dsh 侧请求可能先于任何前端登录流程到达，
     // AI00S_AUTH_TOKEN 是内存态——从 vault 兜底恢复（幂等，已有则秒回）。
     let _ = crate::auth::ensure_auth_synced().await;
     let mut client = match AIClientFactory::get_global() {
-        Ok(f) => match f.get_client_resolved("primary").await {
+        Ok(f) => match f.get_client_resolved(resolve_key).await {
             Ok(c) => c,
             Err(e) => {
                 res.status_code(StatusCode::BAD_GATEWAY);
                 res.body(
-                    json!({"error": {"message": format!("primary model unavailable: {e}")}})
+                    json!({"error": {"message": format!("model `{resolve_key}` unavailable: {e}")}})
                         .to_string(),
                 );
                 return;
@@ -463,7 +486,7 @@ async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response) {
                     // token 过期：刷新后重建 client 重试
                     if crate::auth::refresh_auth_token_impl().await.is_ok() {
                         if let Ok(f) = AIClientFactory::get_global() {
-                            if let Ok(c) = f.get_client_resolved("primary").await {
+                            if let Ok(c) = f.get_client_resolved(resolve_key).await {
                                 client = c;
                                 continue;
                             }

@@ -55,7 +55,7 @@ export class DeleteFileCommand extends BaseCommand {
       ? t('common:contextMenu.confirmDeleteFolder', { name: context.fileName })
       : t('common:contextMenu.confirmDeleteFile', { name: context.fileName });
 
-    return window.confirm(message);
+    return (await window.confirm(message)) as boolean;
   }
 }
 

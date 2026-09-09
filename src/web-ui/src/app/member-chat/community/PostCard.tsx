@@ -2,7 +2,9 @@
  * PostCard — 帖子卡（feed/主页墙共用；详情页 rich 模式渲染完整 MD）
  *
  * 结构：作者行（头像/昵称/@username/可见性 Tag/相对时间/本人菜单）→
- * 正文（默认 stripMd 纯文本摘要；rich 时 Markdown 渲染 + stripImages）→ MediaGrid → 互动行。
+ * 标题（feed：显式 title 或正文首行 ATX 标题；rich 仅显式 title）→
+ * 正文（feed：剥格式纯文本摘要 line-clamp；rich 时 Markdown 渲染 + stripImages）→
+ * 封面（cover_url，feed 无封面时兜底正文首图）→ MediaGrid → 互动行。
  * 点赞 accent 心形（禁红）；删帖 confirmDanger；编辑 Modal 用 CommunityMDEditor。
  */
 import React, { useState } from 'react';
@@ -39,7 +41,7 @@ import { useMemberChatStore } from '../store/memberChatStore';
 import { communityApi, resolveMediaUrl, type CommunityPost } from './communityApi';
 import { useCommunityStore } from './communityStore';
 import { formatRelTime } from './time';
-import { mdToPlain } from './md';
+import { mdPreview } from './md';
 import { linkifyMentions, parseMentionHref, resolveMentionId } from './mention';
 import { CommunityMDEditor } from './CommunityMDEditor';
 import { MediaGrid } from './MediaGrid';
@@ -86,6 +88,14 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
 
   const isMine = post.member_id === myMemberId;
   const displayName = post.nickname || post.username;
+
+  // feed 预览：显式标题优先，正文首行 ATX 标题兜底；摘要为剥格式纯文本
+  const preview = React.useMemo(() => mdPreview(post.content), [post.content]);
+  const feedTitle = post.title ?? preview.title;
+  const repostPreview = React.useMemo(
+    () => (post.repost_source ? mdPreview(post.repost_source.content) : null),
+    [post.repost_source],
+  );
 
   const onDelete = async () => {
     const ok = await confirmDialog({
@@ -230,6 +240,7 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
         </span>
       )}
       {rich && post.title && <h2 className="community-post__title">{post.title}</h2>}
+      {!rich && feedTitle && <h3 className="community-post__title">{feedTitle}</h3>}
       {post.tags && post.tags.length > 0 && (
         <div className="community-post__tags">
           {post.tags.map((tg) => (
@@ -264,10 +275,13 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
             <Markdown className="community-post__md" content={linkifyMentions(post.content)} stripImages />
           </div>
         ) : (
-          <p className="community-post__content">{mdToPlain(post.content)}</p>
+          preview.body && (
+            <p className="community-post__content community-post__content--excerpt">{preview.body}</p>
+          )
         )
       )}
       {post.cover_url && <PostCover url={post.cover_url} />}
+      {!rich && !post.cover_url && preview.firstImage && <PostCover url={preview.firstImage} />}
       <MediaGrid media={post.media} />
 
       {/* 转发嵌套卡（P3；源帖已删/不可见时显示占位） */}
@@ -290,16 +304,18 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
               </span>
               <span className="ds-data">@{post.repost_source.username}</span>
             </span>
-            {post.repost_source.title && (
-              <span className="community-post__repost-title">{post.repost_source.title}</span>
-            )}
-            {post.repost_source.content && (
-              <span className="community-post__repost-content">
-                {mdToPlain(post.repost_source.content)}
+            {(post.repost_source.title ?? repostPreview?.title) && (
+              <span className="community-post__repost-title">
+                {post.repost_source.title ?? repostPreview?.title}
               </span>
             )}
-            {post.repost_source.cover_url && (
-              <PostCover url={post.repost_source.cover_url} />
+            {repostPreview?.body && (
+              <span className="community-post__repost-content">
+                {repostPreview.body}
+              </span>
+            )}
+            {(post.repost_source.cover_url ?? repostPreview?.firstImage) && (
+              <PostCover url={post.repost_source.cover_url ?? repostPreview!.firstImage!} />
             )}
           </button>
         ) : (

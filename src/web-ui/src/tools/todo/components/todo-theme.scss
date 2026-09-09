@@ -188,6 +188,13 @@
       background: color-mix(in oklch, var(--color-error) 15%, transparent);
       color: var(--color-error);
     }
+
+    // 禁用态（验收未全勾的「标记完成」等）：压暗并去交互
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
+      pointer-events: none;
+    }
   }
 
   &label {

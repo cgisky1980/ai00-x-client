@@ -14,6 +14,7 @@ import 'monaco-editor/min/vs/editor/editor.main.css';
 
 import { initializeAllTools } from "./tools";
 import { initContextMenuSystem } from "./shared/context-menu-system";
+import { installDialogShim } from "./infrastructure/dialog-shim";
 import { loader } from '@monaco-editor/react';
 import { getMonacoPath, getMonacoWorkerPath, logMonacoResourceCheck } from './tools/editor/utils/monacoPathHelper';
 import { bootstrapLogger, createLogger, initLogger } from './shared/utils/logger';
@@ -24,6 +25,9 @@ import {
 
 // Install console forwarding before app startup so early console output is persisted too.
 bootstrapLogger();
+
+// 原生弹窗接管：window.confirm/prompt/alert → 应用内 ConfirmDialog（禁原生弹窗）
+installDialogShim();
 
 const log = createLogger('App');
 

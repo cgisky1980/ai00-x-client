@@ -40,6 +40,17 @@ import './ModelSelector.scss';
 
 const log = createLogger('ModelSelector');
 
+/// Rust 内置 GGUF 目录 key ↔ 前端本地槽位 key（ai.local_active 持久化用槽位 key）。
+/// Rust 侧就绪判定为对 models/llm 指定文件直接 stat（零扫描）。
+/// Spark 只放 Q8_0 单档，对外统一叫 Spark-X2.5 4B（不带量化后缀）。
+const GGUF_SLOT_KEY_BY_CATALOG: Record<string, string> = {
+  'Qwen3.8-27B-UD-Q4_K_M': 'qwen3.8-27b',
+  'Spark-X2.5-4B-Q8_0': 'spark-x2.5-4b',
+};
+const GGUF_CATALOG_KEY_BY_SLOT: Record<string, string> = Object.fromEntries(
+  Object.entries(GGUF_SLOT_KEY_BY_CATALOG).map(([catalogKey, slotKey]) => [slotKey, catalogKey]),
+);
+
 interface ModelSelectorProps {
   currentMode: string;
   className?: string;
@@ -211,11 +222,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             resolvedVocabPath: e.resolved_vocab_path,
           };
         }
-        // 内置 GGUF 目录当前仅 Qwen3.8-27B 一项，映射到本地槽位 key
+        // 内置 GGUF 目录（Rust 侧 stat models/llm 指定文件，零扫描）映射到本地槽位 key
         for (const e of ggufCat) {
-          next['qwen3.8-27b'] = {
+          const slotKey = GGUF_SLOT_KEY_BY_CATALOG[e.key];
+          if (!slotKey) continue;
+          next[slotKey] = {
             ready: e.downloaded,
-            progress: e.downloaded ? null : (prev['qwen3.8-27b']?.progress ?? null),
+            progress: e.downloaded ? null : (prev[slotKey]?.progress ?? null),
             resolvedGgufPath: e.resolved_path,
           };
         }
@@ -233,7 +246,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       if (slotKey.startsWith('rwkv')) {
         taskIds = await invoke<string[]>('rwkv_builtin_download', { key: slotKey });
       } else {
-        taskIds = [await invoke<string>('gguf_builtin_download', { key: 'Qwen3.8-27B-UD-Q4_K_M' })];
+        const catalogKey = GGUF_CATALOG_KEY_BY_SLOT[slotKey];
+        if (!catalogKey) {
+          log.warn('No builtin catalog key for local slot', { slotKey });
+          return;
+        }
+        taskIds = [await invoke<string>('gguf_builtin_download', { key: catalogKey })];
       }
       setLocalCatalog(prev => ({
         ...prev,
@@ -522,27 +540,34 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return null;
   }, [primaryModelId, allModels]);
 
-  /// 本地模型固定槽位（RWKV 3B / 7B / 13B / Qwen3.8 27B）。
+  /// 本地模型固定槽位（RWKV 3B / 7B / 13B / Qwen3.8 27B / Spark-X2.5 4B×2）。
   /// 就绪/进度来自 Rust 内置下载目录（未下载可触发下载）；本地引擎同时只加载一个，
   /// RWKV 系就绪槽统一指向 'rwkv-local'（激活由 ai.local_active 决定），
-  /// Qwen 就绪指向 'gguf-local:<路径>'（执行前由 gguf_ensure_server 懒启动）。
+  /// GGUF 就绪槽指向 'gguf-local:<路径>'（执行前由 gguf_ensure_server 懒启动）。
   const localSlots = useMemo(() => {
     const cat = (key: string) => localCatalog[key] ?? { ready: false, progress: null as number | null };
     const rwkvSlot = (key: string, label: string) => {
       const { ready, progress } = cat(key);
       return { key, label, ready, progress, ref: ready ? 'rwkv-local' : null };
     };
-    const qwen = cat('qwen3.8-27b');
     // 路径由 Rust 侧 gguf_builtin_catalog 解析返回，前端不再自行拼接
-    const qwenRef = qwen.ready && qwen.resolvedGgufPath
-      ? `gguf-local:${qwen.resolvedGgufPath}`
-      : null;
+    const ggufSlot = (key: string, label: string) => {
+      const e = cat(key);
+      return {
+        key,
+        label,
+        ready: e.ready,
+        progress: e.progress,
+        ref: e.ready && e.resolvedGgufPath ? `gguf-local:${e.resolvedGgufPath}` : null,
+      };
+    };
 
     return [
       { ...rwkvSlot('rwkv-3b', 'RWKV 3B') },
       { ...rwkvSlot('rwkv-7b', 'RWKV 7B') },
       { ...rwkvSlot('rwkv-13b', 'RWKV 13B') },
-      { key: 'qwen3.8-27b', label: 'Qwen3.8 27B', ready: qwen.ready, progress: qwen.progress, ref: qwenRef },
+      ggufSlot('qwen3.8-27b', 'Qwen3.8 27B'),
+      ggufSlot('spark-x2.5-4b', 'Spark-X2.5 4B'),
     ];
   }, [localCatalog]);
 

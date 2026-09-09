@@ -38,33 +38,35 @@
   }
 }
 
-// ===== 三栏看板（grid：想法池/计划中/进行中 + 下方细节区）=====
-// 三栏固定上半；下半：未选中 = 使用说明（留白呼吸），选中想法池/计划中卡片 =
-// 讨论占想法池+计划中下方（跨列 1-2）；计划全高占右列顶替「进行中」
-//（进行中的任务不改计划，选中时让位隐藏）。
+// ===== 三栏看板（grid：想法·计划（合并，颜色区分）/ 进行中 / 已完成 + 下方细节区）=====
+// 三栏恒占窗口 1/3；下半 2/3：未选中 = 使用说明（留白呼吸），选中卡 =
+// 讨论/执行对话跨列 1-2 + 计划文档右列——计划窗口不再顶替看板，
+// agent 提问/执行产出也在细节区内流转。
 .td-board {
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); // 上半看板 : 下半细节/说明
+  grid-template-rows: minmax(0, 1fr) minmax(0, 2fr); // 三栏 1/3 : 细节区 2/3
   gap: var(--size-gap-2, 8px);
   padding: var(--size-gap-3, 12px) var(--size-gap-4, 16px) var(--size-gap-4, 16px);
 
-  // 三栏：始终上半
+  // 三栏：恒上半
   &__lane {
     grid-row: 1;
   }
 
-  // 选中时「进行中」让位给计划（真覆盖——栏隐藏，计划顶替其位全高；
-  // 执行视图模式三栏保留；计划半高模式（is-plandoc-half）进行中栏也保留）
-  &.has-detail:not(.is-exec):not(.is-plandoc-half) &__lane:nth-child(3) {
-    display: none;
+  // 细节区：讨论/执行对话跨列 1-2（想法池+计划中宽）占下半；计划占右列
+  // 下半（三栏恒可见）。进行中卡（已委托）左列 = 执行过程对话
+  &.has-detail > .td-planchat {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    min-width: 0;
+    min-height: 0;
   }
 
-  // 细节区：讨论跨列 1-2（想法池+计划中宽）占下半；计划全高占右列
-  &.has-detail > .td-planchat {
+  &.has-detail > .td-execchat {
     grid-column: 1 / 3;
     grid-row: 2;
     min-width: 0;
@@ -73,19 +75,6 @@
 
   &.has-detail > .td-plandoc {
     grid-column: 3;
-    grid-row: 1 / span 2;
-    min-width: 0;
-    min-height: 0;
-  }
-
-  // 计划半高模式：进行中栏恢复上半，计划只占右列下半（不挡看板）
-  &.has-detail.is-plandoc-half > .td-plandoc {
-    grid-row: 2;
-  }
-
-  // 执行视图：三栏保留在上半，执行视图跨全宽占下半（结果导向，过程不常驻）
-  &.is-exec > .td-exec {
-    grid-column: 1 / -1;
     grid-row: 2;
     min-width: 0;
     min-height: 0;
@@ -212,7 +201,8 @@
 
 // ===== 看板卡片 =====
 // 卡片面（overlay 档）浮在 sunken 槽上——层次靠墨阶，常态无边框（hover/选中黛青描边）；
-// 明暗双档：暗 0.40 浮于 0.31 槽 / 亮 1.00 浮于 0.93 槽（亮色卡片比背景亮）
+// 明暗双档：暗 0.40 浮于 0.31 槽 / 亮 1.00 浮于 0.93 槽（亮色卡片比背景亮）。
+// 状态色点：想法=灰点 / 计划中=黛青点 / 已完成=success 点 + 卡面压暗（合并栏与完成栏用）
 .td-card {
   display: flex;
   flex-direction: column;
@@ -227,6 +217,41 @@
   cursor: grab;
   user-select: none;
   position: relative;
+
+  // 已完成（右栏收集）：压暗 + 非拖拽态
+  &.is-done {
+    opacity: 0.78;
+    cursor: default;
+
+    .td-card__title {
+      color: var(--color-text-secondary);
+    }
+  }
+
+  &__titlerow {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--size-gap-1, 4px);
+    min-width: 0;
+  }
+
+  // 状态色点（合并栏区分想法/计划中；完成栏 success）
+  &__dot {
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+    margin-top: 5px;
+    border-radius: var(--size-radius-full, 9999px);
+    background-color: var(--color-text-muted);
+
+    &.is-planning {
+      background-color: var(--color-accent);
+    }
+
+    &.is-done {
+      background-color: var(--color-success);
+    }
+  }
 
   // hover 出现的删除角标（右上，error 色仅 hover 时显现——语义色只表破坏性操作）
   &__del {
@@ -376,12 +401,182 @@
     text-overflow: ellipsis;
   }
 
-  &__body {
+  // 抽屉容器（步骤/验收/原文——分段可折叠，整体滚动）
+  &__drawers {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    // 顶部留白：内容（h1 标题等）不贴头部下边缘
-    padding: var(--size-gap-1, 4px) var(--size-gap-2, 8px) var(--size-gap-2, 8px);
+    user-select: text;
+  }
+
+  &__drawer {
+    border-top: 1px solid var(--border-subtle);
+
+    &:first-child {
+      border-top: none;
+    }
+  }
+
+  &__drawer-head {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    padding: var(--size-gap-1, 4px) var(--size-gap-2, 8px);
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background: var(--element-bg-subtle);
+    }
+  }
+
+  &__drawer-caret {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+
+  &__drawer-label {
+    flex-shrink: 0;
+    font-size: var(--font-size-xs, 12px);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    letter-spacing: 0.05em;
+  }
+
+  &__drawer-summary {
+    min-width: 0;
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // 抽屉头右侧动作区（阻止冒泡由 JSX 处理）
+  &__drawer-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    flex-shrink: 0;
+  }
+
+  &__drawer-body {
+    padding: 0 var(--size-gap-2, 8px) var(--size-gap-2, 8px);
+  }
+
+  // 步骤行（✓ 完成 / ▶ 当前 / □ 未开始）
+  &__step {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--size-gap-1-5, 6px);
+    padding: var(--size-gap-0-5, 2px) var(--size-gap-1, 4px);
+    border-radius: var(--size-radius-sm, 6px);
+    font-size: var(--font-size-sm, 13px);
+    line-height: 1.45;
+    color: var(--color-text-primary);
+    word-break: break-word;
+
+    &.is-done {
+      color: var(--color-text-muted);
+
+      .td-plandoc__step-mark {
+        color: var(--color-success);
+      }
+    }
+
+    &.is-current {
+      background: color-mix(in oklch, var(--color-accent) 10%, transparent);
+
+      .td-plandoc__step-mark {
+        color: var(--color-accent);
+      }
+    }
+  }
+
+  &__step-mark {
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+    font-family: var(--font-family-mono, monospace);
+    font-size: var(--font-size-xs, 12px);
+  }
+
+  &__step-text {
+    min-width: 0;
+  }
+
+  // 验收清单行（可点击代勾——与 agent 对等读写同一 MD）
+  &__acc {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--size-gap-1-5, 6px);
+    width: 100%;
+    padding: var(--size-gap-1, 4px) var(--size-gap-1, 4px);
+    border: none;
+    border-radius: var(--size-radius-sm, 6px);
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background 0.1s ease;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in oklch, var(--color-accent) 10%, transparent);
+    }
+
+    &:disabled {
+      cursor: default;
+    }
+
+    &.is-done .td-plandoc__acctext {
+      color: var(--color-text-muted);
+    }
+  }
+
+  &__accbox {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    border: 1px solid color-mix(in oklch, var(--color-text-primary) 30%, transparent);
+    border-radius: var(--size-radius-xs, 4px);
+    font-size: var(--font-size-2xs, 10px);
+    line-height: 1;
+    color: transparent;
+
+    .is-done & {
+      background-color: var(--color-success);
+      border-color: var(--color-success);
+      color: var(--color-bg-canvas);
+    }
+  }
+
+  &__acctext {
+    font-size: var(--font-size-sm, 13px);
+    line-height: 1.45;
+    color: var(--color-text-primary);
+    word-break: break-word;
+  }
+
+  // 验收 diff（应用内 Modal 里查看 agent 基线→自检的完整改动）
+  &__diff {
+    max-height: 60vh;
+    overflow: auto;
+    margin: 0;
+    padding: var(--size-gap-2, 8px);
+    border-radius: var(--size-radius-sm, 6px);
+    background-color: var(--color-bg-sunken);
+    font-family: var(--font-family-mono, monospace);
+    font-size: var(--font-size-xs, 12px);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
     user-select: text;
   }
 
@@ -663,10 +858,12 @@
   }
 }
 
-// ===== 执行视图（进行中卡片——结果导向：验收进度 + 计划文档 + 干预入口）=====
-// 布局：头部（标题/运行态/干预/完成）+ 验收进度条 + 主体（左验收 checklist，
-// 右计划文档实时渲染）。执行过程不常驻——过程对话走「打开对话·干预」唤起主窗。
-.td-exec {
+// ===== 执行过程对话（进行中卡——会话本体即讨论；实时流+干预，按卡隔离）=====
+// 消息/输入区复用策场景样式类（ai00-x-dsh-scene__messages / __composer），
+// 此处只承载面板壳（头部运行态 + 布局）。
+.td-execchat {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   border-radius: var(--size-radius-base, 8px);
@@ -681,6 +878,28 @@
     flex-shrink: 0;
   }
 
+  // 运行态圆点（执行中黛青呼吸；出错 error 色；待人类验收 warning）
+  &__dot {
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+    border-radius: var(--size-radius-full, 9999px);
+    background-color: var(--color-text-muted);
+
+    &.is-running {
+      background-color: var(--color-accent);
+      animation: td-execchat-pulse 1.6s ease-in-out infinite;
+    }
+
+    &.is-failed {
+      background-color: var(--color-error);
+    }
+
+    &.is-await {
+      background-color: var(--color-warning);
+    }
+  }
+
   &__title {
     flex: 1;
     min-width: 0;
@@ -692,349 +911,41 @@
     text-overflow: ellipsis;
   }
 
-  // 运行态（agent 执行中 = 黛青；已结束待验收 = warning 语义引导；等待中 = 墨阶静默）
   &__state {
     flex-shrink: 0;
     font-size: var(--font-size-xs, 12px);
     color: var(--color-text-muted);
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
 
     &.is-running {
       color: var(--color-accent);
     }
 
-    &.is-ended {
-      color: var(--color-warning);
-    }
-
     &.is-failed {
       color: var(--color-error);
     }
+
+    &.is-await {
+      color: var(--color-warning);
+    }
   }
 
-  // 头部按钮禁用态（DoD 未全勾时「标记完成」不可点）
-  .td-chip:disabled {
-    opacity: 0.45;
-    cursor: default;
-    pointer-events: none;
-  }
-
-  // 验收进度条（DoD 契约的目标态）
-  &__progress {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-1-5, 6px);
-    padding: 0 var(--size-gap-2, 8px) var(--size-gap-1, 4px);
-    flex-shrink: 0;
-  }
-
-  &__track {
-    flex: 1;
-    height: 3px;
-    border-radius: var(--size-radius-full, 9999px);
-    background-color: color-mix(in oklch, var(--color-text-primary) 10%, transparent);
-    overflow: hidden;
-  }
-
-  &__fill {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background-color: var(--color-accent);
-    transition: width 0.15s ease;
-  }
-
-  &__progress-num {
-    flex-shrink: 0;
-    font-family: var(--font-family-mono, monospace);
-    font-variant-numeric: tabular-nums;
-    font-size: var(--font-size-xs, 12px);
-    color: var(--color-text-muted);
-  }
-
-  // 主体：左验收 checklist（固定宽）+ 右计划文档
-  &__body {
+  &__chat {
     flex: 1;
     min-height: 0;
     display: flex;
-    gap: var(--size-gap-2, 8px);
-    padding: var(--size-gap-1, 4px) var(--size-gap-2, 8px) var(--size-gap-2, 8px);
-  }
-
-  &__acceptance {
-    width: 240px;
-    flex-shrink: 0;
-    min-height: 0;
-    overflow-y: auto;
-    display: flex;
     flex-direction: column;
-    gap: var(--size-gap-1, 4px);
-    padding-right: var(--size-gap-2, 8px);
-    border-right: 1px solid var(--border-subtle);
   }
+}
 
-  &__check {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--size-gap-1-5, 6px);
-    padding: var(--size-gap-1, 4px) var(--size-gap-1-5, 6px);
-    border: none;
-    border-radius: var(--size-radius-sm, 6px);
-    background: transparent;
-    cursor: pointer;
-    text-align: left;
-    font-family: inherit;
-    transition: background 0.1s ease;
-
-    &:hover {
-      background: color-mix(in oklch, var(--color-accent) 10%, transparent);
-    }
-
-    &.is-done {
-      .td-exec__checkbox {
-        background-color: var(--color-success);
-        border-color: var(--color-success);
-        color: var(--color-bg-canvas);
-      }
-
-      .td-exec__check-text {
-        color: var(--color-text-muted);
-      }
-    }
+@keyframes td-execchat-pulse {
+  0%,
+  100% {
+    opacity: 1;
   }
-
-  &__checkbox {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 14px;
-    height: 14px;
-    flex-shrink: 0;
-    margin-top: calc(var(--size-gap-0-5, 2px) / 2);
-    border: 1px solid color-mix(in oklch, var(--color-text-primary) 30%, transparent);
-    border-radius: var(--size-radius-xs, 4px);
-    font-size: var(--font-size-2xs, 10px);
-    line-height: 1;
-    color: transparent;
-    transition: background 0.1s ease, border-color 0.1s ease;
-  }
-
-  &__check-text {
-    font-size: var(--font-size-sm, 13px);
-    line-height: 1.45;
-    color: var(--color-text-primary);
-    word-break: break-word;
-  }
-
-  // 计划文档（agent 实时回写的产出落点）
-  &__doc {
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    overflow-y: auto;
-    user-select: text;
-  }
-
-  // ---- 内嵌问题卡（agent ask_user_question）----
-  &__question {
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--size-gap-1-5, 6px);
-    margin: 0 var(--size-gap-2, 8px) var(--size-gap-1, 4px);
-    padding: var(--size-gap-1-5, 6px) var(--size-gap-2, 8px);
-    border-radius: var(--size-radius-base, 8px);
-    background-color: color-mix(in oklch, var(--color-accent) 7%, var(--color-bg-card));
-  }
-
-  &__q-head {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-1, 4px);
-    color: var(--color-accent);
-  }
-
-  &__q-label {
-    font-size: var(--font-size-xs, 12px);
-    font-weight: 600;
-    color: var(--color-accent);
-  }
-
-  &__q-cancel {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    padding: 0;
-    border: none;
-    border-radius: var(--size-radius-sm, 6px);
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-
-    &:hover {
-      color: var(--color-error);
-      background: color-mix(in oklch, var(--color-error) 12%, transparent);
-    }
-  }
-
-  &__q-item {
-    display: flex;
-    flex-direction: column;
-    gap: var(--size-gap-1, 4px);
-  }
-
-  &__q-text {
-    font-size: var(--font-size-sm, 13px);
-    font-weight: 600;
-    color: var(--color-text-primary);
-    line-height: 1.4;
-  }
-
-  &__q-detail {
-    font-size: var(--font-size-xs, 12px);
-    color: var(--color-text-muted);
-    line-height: 1.4;
-  }
-
-  &__q-options {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--size-gap-1, 4px);
-
-    &.is-multi .td-exec__q-option::after {
-      content: '＋';
-      margin-left: var(--size-gap-0-5, 2px);
-      font-size: var(--font-size-2xs, 10px);
-      opacity: 0.6;
-    }
-  }
-
-  &__q-option {
-    padding: var(--size-gap-0-5, 2px) var(--size-gap-2, 8px);
-    border: none;
-    border-radius: var(--size-radius-full, 9999px);
-    background: color-mix(in oklch, var(--color-text-primary) 8%, transparent);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-xs, 12px);
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.1s ease, color 0.1s ease;
-
-    &:hover {
-      background: color-mix(in oklch, var(--color-accent) 16%, transparent);
-      color: var(--color-accent);
-    }
-
-    &.is-active {
-      background: color-mix(in oklch, var(--color-accent) 22%, transparent);
-      color: var(--color-accent);
-    }
-  }
-
-  &__q-custom {
-    border: none;
-    border-radius: var(--size-radius-sm, 6px);
-    background-color: var(--input-bg);
-    color: var(--color-text-primary);
-    font-family: inherit;
-    font-size: var(--font-size-xs, 12px);
-    padding: var(--size-gap-0-5, 2px) var(--size-gap-1-5, 6px);
-    outline: none;
-
-    &::placeholder { color: var(--color-text-muted); }
-
-    &:focus {
-      outline: 1px solid color-mix(in oklch, var(--color-accent) 55%, transparent);
-    }
-  }
-
-  &__q-actions {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  // ---- 执行过程抽屉（只读，默认收起）----
-  &__hist {
-    flex-shrink: 0;
-    border-top: 1px solid var(--border-subtle);
-    margin: 0 var(--size-gap-2, 8px) var(--size-gap-1, 4px);
-  }
-
-  &__hist-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--size-gap-1, 4px);
-    padding: var(--size-gap-1, 4px) 0;
-    border: none;
-    background: transparent;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xs, 12px);
-    font-family: inherit;
-    cursor: pointer;
-
-    &:hover { color: var(--color-accent); }
-  }
-
-  &__hist-body {
-    max-height: 160px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--size-gap-1, 4px);
-    // 左右留白：过程记录不贴抽屉边线
-    padding: 0 var(--size-gap-1, 4px) var(--size-gap-1, 4px);
-  }
-
-  &__hist-msg {
-    display: flex;
-    flex-direction: column;
-    gap: var(--size-gap-0-5, 2px);
-    font-size: var(--font-size-xs, 12px);
-    line-height: 1.45;
-
-    &.is-user .td-exec__hist-text {
-      color: var(--color-text-secondary);
-    }
-  }
-
-  &__hist-text {
-    color: var(--color-text-muted);
-    word-break: break-word;
-    user-select: text;
-    white-space: pre-wrap;
-  }
-
-  &__hist-tool {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--size-gap-0-5, 2px);
-    align-self: flex-start;
-    color: var(--color-text-muted);
-    font-family: var(--font-family-mono, monospace);
-    font-size: var(--font-size-2xs, 10px);
-  }
-
-  &__hist-err {
-    color: var(--color-error);
-  }
-
-  &__doc-view {
-    font-size: var(--font-size-sm, 13px);
-
-    // Markdown 内嵌适配面板密度（与 td-plandoc__view 同构）
-    h1 { font-size: var(--font-size-lg, 15px); margin: 0.4em 0 0.3em; }
-    h2 { font-size: var(--font-size-base, 14px); margin: 0.6em 0 0.3em; }
-    p { margin: 0.3em 0; }
-    ol, ul { margin: 0.3em 0; padding-left: 1.4em; }
-    hr { border: none; border-top: 1px solid color-mix(in oklch, var(--color-text-primary) 10%, transparent); margin: 0.6em 0; }
-  }
-
-  &__empty {
-    padding: var(--size-gap-5, 20px) var(--size-gap-2, 8px);
-    text-align: center;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-sm, 13px);
+  50% {
+    opacity: 0.35;
   }
 }
 

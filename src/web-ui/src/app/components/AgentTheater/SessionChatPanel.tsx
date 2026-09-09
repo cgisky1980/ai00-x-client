@@ -14,7 +14,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { GripHorizontal, X } from 'lucide-react';
-import { ModelSelector, PromptInput } from '@/component-library';
+import { PromptInput } from '@/component-library';
 import {
   connectMux,
   dshApproval,
@@ -27,7 +27,6 @@ import {
   type DshQuestion,
   type DshQuestionAnswerItem,
   type DshSessionEvent,
-  type DshSessionModels,
 } from '@/infrastructure/api/service-api/DshAPI';
 import { useDraggable, refreshRegions, setDragging } from '../../../infrastructure/overlay';
 import { usePopupResize } from '../../../tools/island/hooks/usePopupResize';
@@ -60,7 +59,6 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
   const [agentRunning, setAgentRunning] = useState(false);
   const [approvals, setApprovals] = useState<DshApproval[]>([]);
   const [questions, setQuestions] = useState<DshQuestion[]>([]);
-  const [models, setModels] = useState<DshSessionModels | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   /** 基线 + 实时事件统一数组（foldEvents 的输入） */
   const eventsRef = useRef<DshSessionEvent[]>([]);
@@ -118,15 +116,6 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
     }
   }, [sessionId]);
 
-  const loadModels = useCallback(async (): Promise<void> => {
-    try {
-      const res = await dshSession.models(sessionId);
-      setModels(res);
-    } catch {
-      setModels(null); // 模型目录拉不到 → ModelSelector 走 loading 态
-    }
-  }, [sessionId]);
-
   const reloadBaseline = useCallback(async (): Promise<void> => {
     try {
       const { events } = await dshSession.history(sessionId);
@@ -147,13 +136,12 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
     void (async () => {
       await reloadBaseline();
       await refreshRunning();
-      await loadModels();
       if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [sessionId, reloadBaseline, refreshRunning, loadModels]);
+  }, [sessionId, reloadBaseline, refreshRunning]);
 
   // 实时流（浮层存在期间订阅）
   useEffect(() => {
@@ -202,7 +190,7 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
       setMessages(foldEvents(eventsRef.current));
     });
     return () => conn.close();
-  }, [sessionId, reloadBaseline, refreshRunning, loadModels]);
+  }, [sessionId, reloadBaseline, refreshRunning]);
 
   // 自动滚底
   useEffect(() => {
@@ -248,15 +236,6 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
   const cancelQuestion = (rpcId: string): void => {
     void dshQuestion.cancel(rpcId);
     setQuestions(prev => prev.filter(q => q.rpcId !== rpcId));
-  };
-
-  const handleSelectModel = async (groupId: string, modelId: string): Promise<void> => {
-    try {
-      const { selected } = await dshSession.selectModel(sessionId, groupId, modelId);
-      setModels(prev => (prev ? { ...prev, current: selected } : prev));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
   };
 
   return createPortal(
@@ -321,7 +300,7 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
           </div>
         )}
 
-        {/* 标准对话输入框（design-system PromptInput + ModelSelector，同 DshScene） */}
+        {/* 标准对话输入框（design-system PromptInput；模型选择以策窗口 DshScene 为准，此处不放选择器） */}
         <div className="ai00-x-dsh-scene__composer">
           <PromptInput
             value={draft}
@@ -330,22 +309,6 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
             onStop={() => void handleStop()}
             loading={sending}
             placeholder={tDsh('chat.inputPlaceholder')}
-            footerLeft={
-              <ModelSelector
-                groups={(models?.groups ?? []).map(g => ({
-                  id: g.id,
-                  name: g.name,
-                  models: g.models.map(m => ({
-                    id: m.id,
-                    name: m.name,
-                    description: m.description,
-                  })),
-                }))}
-                currentId={models?.current.model ?? null}
-                onSelect={(groupId, modelId) => void handleSelectModel(groupId, modelId)}
-                loading={!models}
-              />
-            }
           />
         </div>
       </div>

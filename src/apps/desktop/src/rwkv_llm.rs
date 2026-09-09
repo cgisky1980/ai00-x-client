@@ -986,12 +986,28 @@ fn advance_task(
 
             if task.is_streaming {
                 if let Ok(decoded) = engine.tokenizer.decode(&task.acc_ids) {
-                    let s = String::from_utf8_lossy(&decoded);
-                    let new = &s[task.last_decoded_len..];
-                    if !new.is_empty() {
-                        let _ = task.tx.send(InferenceEvent::Token(new.to_string()));
+                    // 增量发射：以原始字节为基准切新增段；末尾不完整的 UTF-8 序列
+                    // 留到下轮补全。不能对 lossy 串按字节切片——增量解码在多字节
+                    // 字符（如 📋）中途时替换符会使索引漂移，直接切会 panic
+                    //（真实案例：990 行 start byte index not a char boundary 杀进程）。
+                    if decoded.len() >= task.last_decoded_len {
+                        let fresh = &decoded[task.last_decoded_len..];
+                        // 末尾可能是被截断的多字节序列：trim 到 UTF-8 安全边界
+                        let valid = match std::str::from_utf8(fresh) {
+                            Ok(_) => fresh.len(),
+                            Err(e) => e.valid_up_to(),
+                        };
+                        if valid > 0 {
+                            let chunk = String::from_utf8_lossy(&fresh[..valid]);
+                            if !chunk.is_empty() {
+                                let _ = task.tx.send(InferenceEvent::Token(chunk.to_string()));
+                            }
+                        }
+                        task.last_decoded_len += valid;
+                    } else {
+                        // 解码字节数回退（异常情形）：重置基线防 panic，宁丢增量
+                        task.last_decoded_len = decoded.len();
                     }
-                    task.last_decoded_len = s.len();
                 }
             }
 

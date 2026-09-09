@@ -1,4 +1,5 @@
 {
+  "aiTitling": "AI 正在为这篇长文起标题…",
   "back": "返回",
   "becameFriend": "已互相关注，成为好友，可以私聊了",
   "bookmark": "收藏",
@@ -112,5 +113,6 @@
   "reportDetail": "补充说明",
   "reportDetailPlaceholder": "补充细节，帮助管理员更快处理（可选）",
   "reportSubmit": "提交举报",
-  "reportSubmitted": "举报已提交，感谢反馈"
+  "reportSubmitted": "举报已提交，感谢反馈",
+  "myProfile": "我的主页"
 }

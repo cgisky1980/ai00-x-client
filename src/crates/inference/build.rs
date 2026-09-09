@@ -141,7 +141,7 @@ fn main() {
 
     // Only build the shared llama library + llama-server (GGUF text LLM
     // inference), not tests/examples.
-    // 注意：b10665 CMake 链 server 需要 COMMON+TOOLS 开启（tools/server 子目录
+    // 注意：llama.cpp CMake 链 server 需要 COMMON+TOOLS 开启（tools/server 子目录
     // 仅在 LLAMA_BUILD_COMMON AND LLAMA_BUILD_TOOLS 时注册）。
     configure.arg("-DBUILD_SHARED_LIBS=ON");
     configure.arg("-DLLAMA_BUILD_TESTS=OFF");

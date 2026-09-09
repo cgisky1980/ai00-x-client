@@ -7,10 +7,13 @@
  * - 视频：工具栏「插入视频」弹输入层（白名单外链，≤1）；正文里直接贴的视频裸链
  *   发布时自动抽取进 media 数组（正文保持干净文本）
  * - 可见性三选（分段自绘）。发布走 store.createPost（成功后乐观插入流首）。
+ * - AI 起标题：未写标题且无首行 MD 标题的长文，发布前经 ai_complete_once 通用接口
+ *   （当前选用主模型）单次生成标题；失败/超时按无标题发布，不打断流程。
  */
 import React, { useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { Button, Input, Modal, toastError } from '@/component-library';
+import { aiApi } from '@/infrastructure/api/service-api/AIApi';
 import { Film, X } from 'lucide-react';
 import {
   communityApi,
@@ -21,9 +24,45 @@ import {
 import { useCommunityStore } from './communityStore';
 import { CommunityMDEditor } from './CommunityMDEditor';
 import { buildVideoItem, extractVideoLinks } from './media';
+import { mdPreview } from './md';
 
 /** 图片九宫格上限（与后端 MAX_MEDIA_ITEMS 一致） */
 const MAX_IMAGES = 9;
+
+/** AI 起标题阈值：压平正文 ≥ 此长度才值得起标题（短动态不打扰模型） */
+const AI_TITLE_MIN_CHARS = 48;
+
+/**
+ * aiGenerateTitle — 单次 AI 起标题（ai_complete_once 通用接口：无会话、无事件、
+ * 直接返回文本；模型默认 primary = 用户当前选用的主模型）。失败/超时返回 null。
+ */
+const aiGenerateTitle = async (bodyText: string): Promise<string | null> => {
+  let raw: string;
+  try {
+    const res = await aiApi.completeOnce({
+      userPrompt: [
+        '为下面的社区帖子正文拟一个标题。',
+        '要求：只输出标题本身，不要引号、句号或任何解释；不超过 20 字；使用正文的主要语言。',
+        '',
+        '正文：',
+        bodyText,
+      ].join('\n'),
+      modelId: 'fast',
+      timeoutSecs: 12,
+    });
+    raw = res.text;
+  } catch {
+    return null;
+  }
+  let s = raw.trim().split('\n')[0].trim();
+  s = s.replace(/^(?:标题|题目|Title)\s*[:：]\s*/i, '');
+  s = s
+    .replace(/^["'“”「『《[(【]+/, '')
+    .replace(/["'”」』》\])】。,，!！?？;；]+$/, '')
+    .trim();
+  if (s.length < 2 || s.length > 40) return null;
+  return s;
+};
 
 /** 上传跟踪项 */
 interface PendingImage {
@@ -92,6 +131,7 @@ export const PostComposer: React.FC<{ open: boolean; onClose: () => void }> = ({
   const [videoUrl, setVideoUrl] = useState('');
   const [visibility, setVisibility] = useState<PostVisibility>('public');
   const [submitting, setSubmitting] = useState(false);
+  const [titling, setTitling] = useState(false);
 
   const uploading = images.some((i) => i.status === 'uploading');
   const hasMedia = videoItem !== null || images.some((i) => i.status === 'done');
@@ -197,11 +237,21 @@ export const PostComposer: React.FC<{ open: boolean; onClose: () => void }> = ({
     if (clean.trim().length === 0 && media.length === 0) return;
 
     setSubmitting(true);
+    // AI 起标题：无显式标题、正文也没写首行 MD 标题、且够长时，先让 AI 拟一个再发布
+    let finalTitle = title.trim();
+    if (!finalTitle) {
+      const preview = mdPreview(clean);
+      if (!preview.title && preview.body.length >= AI_TITLE_MIN_CHARS) {
+        setTitling(true);
+        finalTitle = (await aiGenerateTitle(preview.body.slice(0, 1500))) ?? '';
+        setTitling(false);
+      }
+    }
     const ok = await useCommunityStore.getState().createPost({
       content: clean,
       media,
       visibility,
-      title: title.trim() || undefined,
+      title: finalTitle || undefined,
       cover_url: coverPath || undefined,
     });
     setSubmitting(false);
@@ -229,6 +279,11 @@ export const PostComposer: React.FC<{ open: boolean; onClose: () => void }> = ({
         placeholder={t('titlePlaceholder', { defaultValue: '标题（可选，写个标题更像一篇博客）' })}
         aria-label={t('titleLabel', { defaultValue: '标题' })}
       />
+      {titling && (
+        <span className="community-composer__aititle" role="status">
+          {t('aiTitling', { defaultValue: 'AI 正在为这篇长文起标题…' })}
+        </span>
+      )}
       <CommunityMDEditor
         value={content}
         onChange={setContent}

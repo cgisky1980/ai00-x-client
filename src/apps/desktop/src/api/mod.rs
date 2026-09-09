@@ -3,6 +3,7 @@
 pub mod acestep_api;
 pub mod agent_api;
 pub mod ai_memory_api;
+pub mod ai_once_api;
 pub mod ai_rules_api;
 pub mod ai_usage_api;
 pub mod app_state;

@@ -217,6 +217,13 @@ function sanitize(raw: unknown): TodoData {
           agentModule: typeof t.agentModule === 'string' ? t.agentModule : undefined,
           agentSessionId: typeof t.agentSessionId === 'string' ? t.agentSessionId : undefined,
           agentPrompt: typeof t.agentPrompt === 'string' ? t.agentPrompt : undefined,
+          // 双段验收：模型自检时刻（ai00_task_complete 写入；缺失=未提交）
+          agentCompletedAt: typeof t.agentCompletedAt === 'number' ? t.agentCompletedAt : null,
+          // 快照 commit（基线/自检——验收 diff 与回滚用；缺失=null）
+          agentBaseCommit: typeof t.agentBaseCommit === 'string' ? t.agentBaseCommit : null,
+          agentCommit: typeof t.agentCommit === 'string' ? t.agentCommit : null,
+          // 卡片级模型选择（讨论/委托执行同源；按卡存储——并行任务各用各的模型）
+          discussModel: typeof t.discussModel === 'string' && t.discussModel.trim() ? t.discussModel.trim() : null,
         }))
     : [];
 
@@ -374,11 +381,10 @@ interface TodoState {
   agentFailed: Record<string, boolean>;
   /** 验收进度缓存（taskId → {done,total}；唯一真源=计划 MD 的勾选态，加载 MD 时解析回填，非持久化） */
   planAcceptance: Record<string, { done: number; total: number }>;
+  /** 步骤进度缓存（taskId → {done,total,current=首个未勾标题}；真源=计划 MD「## 步骤」勾选态，非持久化） */
+  planSteps: Record<string, { done: number; total: number; current: string | null }>;
   /** agent 提问缓存（sessionId → 待处理批次；TodoOverlay mux 订阅回填，非持久化） */
   agentQuestions: Record<string, AgentQuestionBatch[]>;
-  /** 计划文档面板全高（true=顶替进行中栏到底部；false=半高只占下半，进行中栏可见；非持久化） */
-  planDocExpanded: boolean;
-  togglePlanDocExpanded: () => void;
   load: () => Promise<void>;
   save: () => void;
   togglePanel: (force?: boolean) => void;
@@ -387,6 +393,7 @@ interface TodoState {
   setAgentRunning: (map: Record<string, boolean>) => void;
   setAgentFailed: (map: Record<string, boolean>) => void;
   setPlanAcceptance: (taskId: string, done: number, total: number) => void;
+  setPlanSteps: (taskId: string, done: number, total: number, current: string | null) => void;
   /** 问题批次 upsert（mux 重连重放同 rpcId → 去重）。 */
   upsertAgentQuestion: (sessionId: string, batch: AgentQuestionBatch) => void;
   removeAgentQuestion: (sessionId: string, rpcId: string) => void;
@@ -427,8 +434,8 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   agentRunning: {},
   agentFailed: {},
   planAcceptance: {},
+  planSteps: {},
   agentQuestions: {},
-  planDocExpanded: true,
 
   load: async () => {
     // 一次性迁移：旧插件数据 → 核心存储（schema 同构，直搬 + 标记）。
@@ -472,6 +479,8 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   setAgentFailed: (map) => set({ agentFailed: map }),
   setPlanAcceptance: (taskId, done, total) =>
     set((s) => ({ planAcceptance: { ...s.planAcceptance, [taskId]: { done, total } } })),
+  setPlanSteps: (taskId, done, total, current) =>
+    set((s) => ({ planSteps: { ...s.planSteps, [taskId]: { done, total, current } } })),
 
   upsertAgentQuestion: (sessionId, batch) =>
     set((s) => {
@@ -488,8 +497,6 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         agentQuestions: { ...s.agentQuestions, [sessionId]: list.filter(b => b.rpcId !== rpcId) },
       };
     }),
-
-  togglePlanDocExpanded: () => set((s) => ({ planDocExpanded: !s.planDocExpanded })),
 
   addTask: (title, opts = {}) => {
     const task: TodoTask = {
@@ -562,6 +569,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
                 ...task,
                 id: genId('t'),
                 completedAt: null,
+                agentCompletedAt: null,
                 createdAt: Date.now(),
                 order: Date.now(),
                 checklist: task.checklist.map((c) => ({ ...c, d: false })),

@@ -11,6 +11,8 @@ import { useI18n } from '@/infrastructure/i18n';
 import { Button, Empty, IconButton, Skeleton } from '@/component-library';
 import { Bell, Hash, PenLine, Search, X } from 'lucide-react';
 import { useCommunityStore, type FeedTab } from './communityStore';
+import { useMemberChatStore } from '../store/memberChatStore';
+import { MemberAvatar } from '../components/MemberAvatar';
 import { PostCard } from './PostCard';
 import { PostComposer } from './PostComposer';
 import { communityApi } from './communityApi';
@@ -90,6 +92,12 @@ export const FeedView: React.FC = () => {
   const search = useCommunityStore((s) => s.search);
   const loadMore = useCommunityStore((s) => s.loadMore);
   const openNotifications = useCommunityStore((s) => s.openNotifications);
+  const openProfile = useCommunityStore((s) => s.openProfile);
+  const myMemberId = useMemberChatStore((s) => s.session?.memberId ?? null);
+  const myName = useMemberChatStore(
+    (s) => s.myProfile?.nickname || s.myProfile?.username || s.session?.username || '?',
+  );
+  const myAvatar = useMemberChatStore((s) => s.myProfile?.avatarData ?? null);
 
   const [composing, setComposing] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
@@ -144,6 +152,17 @@ export const FeedView: React.FC = () => {
               maxLength={100}
             />
           </form>
+          <button
+            type="button"
+            className="community-feed__me"
+            onClick={() => {
+              if (myMemberId != null) openProfile(myMemberId);
+            }}
+            title={t('myProfile', { defaultValue: '我的主页' })}
+            aria-label={t('myProfile', { defaultValue: '我的主页' })}
+          >
+            <MemberAvatar name={myName} size="sm" data={myAvatar} />
+          </button>
           <IconButton
             variant="ghost"
             shape="square"

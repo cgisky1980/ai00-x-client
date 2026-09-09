@@ -467,17 +467,33 @@ function normalizePlan(parsed: Partial<BoardPlan> | null | undefined, title: str
  * JSON 解析失败时降级为纯文本 reply（本地 RWKV 偶发不守格式）。
  * tag = todo:chat:{goalId|none}（用量记账归志）。
  */
+/** 计划接地：把工作区概况注入首条 user 材料（代码类任务的计划必须与真实目录一致）。 */
+function injectWorkspaceSummary(messages: AiMsg[], workspaceSummary?: string | null): void {
+  const s = workspaceSummary?.trim();
+  if (!s) return;
+  const first = messages[0];
+  if (first && first.role === 'user' && typeof first.content === 'string') {
+    messages[0] = {
+      ...first,
+      content: `【工作区概况（真实目录/README/近期提交——计划必须与之匹配）】\n${s.slice(0, 2500)}\n\n${first.content}`,
+    };
+  }
+}
+
 export async function planChatReply(
   title: string,
   notes: string,
   chat: PlanChatMessage[],
   model?: string,
   goalId?: string | null,
-  currentPlan?: BoardPlan | null
+  currentPlan?: BoardPlan | null,
+  workspaceSummary?: string | null
 ): Promise<PlanChatTurn | null> {
   try {
+    const messages = buildPlanChatMessages(title, notes, chat, currentPlan, 'chat');
+    injectWorkspaceSummary(messages, workspaceSummary);
     const out = await aiComplete('', '', {
-      messages: buildPlanChatMessages(title, notes, chat, currentPlan, 'chat'),
+      messages,
       temperature: 0.6,
       topP: 0.1,
       // 模型在讨论轮直接带完整计划 arguments 时也要写得下（900 会截断 JSON）
@@ -617,7 +633,8 @@ export async function generateBoardPlan(
   chat: PlanChatMessage[],
   model?: string,
   goalId?: string | null,
-  currentPlan?: BoardPlan | null
+  currentPlan?: BoardPlan | null,
+  workspaceSummary?: string | null
 ): Promise<BoardPlan | null> {
   try {
     // 通用 agent 的验收指引（插件模块可带各自 planHint）
@@ -642,8 +659,10 @@ export async function generateBoardPlan(
     // 重试通常即成功（用户手动重试的实证）；两次都失败才报"计划生成失败"
     const MAX_ATTEMPTS = 2;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const messages = buildPlanChatMessages(title, notes, chat, currentPlan, 'plan', planHint);
+      injectWorkspaceSummary(messages, workspaceSummary);
       const out = await aiComplete('', '', {
-        messages: buildPlanChatMessages(title, notes, chat, currentPlan, 'plan', planHint),
+        messages,
         temperature: 0.6,
         topP: 0.1,
         // 完整计划 JSON（summary/goal/tasks/acceptance/deliverable）较长，

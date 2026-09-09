@@ -39,6 +39,12 @@ export const RailNav: React.FC<{
 
   const items: { key: RailTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     {
+      key: 'community',
+      label: t('memberChat.tabCommunity', { defaultValue: '广场' }),
+      icon: <Globe size={20} strokeWidth={1.8} />,
+      badge: communityUnread,
+    },
+    {
       key: 'chats',
       label: t('memberChat.tabChats', { defaultValue: '消息' }),
       icon: <MessageCircle size={20} strokeWidth={1.8} />,
@@ -54,12 +60,6 @@ export const RailNav: React.FC<{
       key: 'channels',
       label: t('memberChat.tabChannels', { defaultValue: '频道' }),
       icon: <Hash size={20} strokeWidth={1.8} />,
-    },
-    {
-      key: 'community',
-      label: t('memberChat.tabCommunity', { defaultValue: '广场' }),
-      icon: <Globe size={20} strokeWidth={1.8} />,
-      badge: communityUnread,
     },
   ];
 

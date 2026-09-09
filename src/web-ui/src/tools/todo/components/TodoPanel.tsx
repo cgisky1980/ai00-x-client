@@ -24,7 +24,7 @@ import { GoalComposer } from './views/GoalComposer';
 import { BoardView } from './views/BoardView';
 import { PlanChatPanel } from './views/PlanChatPanel';
 import { PlanDocPanel } from './views/PlanDocPanel';
-import { ExecutionPanel } from './views/ExecutionPanel';
+import { ExecChatPanel } from './views/ExecChatPanel';
 import { TaskCreateModal } from './views/TaskCreateModal';
 import { TraceView } from './views/TraceView';
 import { SettingsView } from './views/SettingsView';
@@ -124,9 +124,10 @@ const TodoPanelInner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           )}
           {view === 'routine' && <RoutineView onOpenCreate={() => setCreateModal('routine')} />}
 
-          {/* 行 = 看板 + 细节区：想法池/计划中卡 = 讨论常驻+计划文档（讨论占
-              想法池+计划中宽，计划全高占右列）；进行中卡 = 执行视图（结果导向：
-              验收进度+计划+干预入口，过程不常驻——跨三列占下半） */}
+          {/* 行 = 看板 + 细节区：选中卡联动下半区（讨论占想法池+计划中宽，
+              计划文档占右列）。进行中卡（已委托）左列 = 执行过程对话（会话
+              本体即讨论：实时流+干预+审批/提问应答）；其余卡 = 规划讨论。
+              Fragment key 按卡重挂——模型/会话流等面板状态不跨卡串扰 */}
           {view === 'today' && (
             <BoardView
               selectedId={boardSelectedId}
@@ -135,23 +136,22 @@ const TodoPanelInner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 setTaskGoalSeed(null);
                 setCreateModal('task');
               }}
-              detailMode={
-                selectedTask
-                  ? (selectedTask.status ?? 'requirement') === 'doing'
-                    ? 'exec'
-                    : 'plan'
-                  : null
-              }
             >
-              {selectedTask &&
-                ((selectedTask.status ?? 'requirement') === 'doing' ? (
-                  <ExecutionPanel task={selectedTask} />
-                ) : (
-                  <>
-                    <PlanChatPanel task={selectedTask} />
-                    <PlanDocPanel task={selectedTask} />
-                  </>
-                ))}
+              {selectedTask && (
+                <React.Fragment key={selectedTask.id}>
+                  {(selectedTask.status ?? 'requirement') === 'doing' && selectedTask.agentSessionId ? (
+                    <>
+                      <ExecChatPanel task={selectedTask} />
+                      <PlanDocPanel task={selectedTask} />
+                    </>
+                  ) : (
+                    <>
+                      <PlanChatPanel task={selectedTask} />
+                      <PlanDocPanel task={selectedTask} />
+                    </>
+                  )}
+                </React.Fragment>
+              )}
             </BoardView>
           )}
 

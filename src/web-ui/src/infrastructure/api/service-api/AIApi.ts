@@ -24,6 +24,19 @@ export interface ConnectionTestResult {
   error_details?: string;
 }
 
+export interface AiCompleteOnceRequest {
+  userPrompt: string;
+  systemPrompt?: string;
+  /** Supports "fast"/"primary" aliases; "fast" falls back to primary */
+  modelId?: string;
+  /** Whole-call timeout in seconds (Rust-side enforced) */
+  timeoutSecs?: number;
+}
+
+export interface AiCompleteOnceResponse {
+  text: string;
+}
+
 export interface RemoteModelInfo {
   id: string;
   display_name?: string;
@@ -141,14 +154,28 @@ export class AIApi {
     }
   }
 
-   
   async fixMermaidCode(request: { sourceCode: string; errorMessage: string }): Promise<string> {
     try {
-      return await api.invoke('fix_mermaid_code', { 
-        request 
+      return await api.invoke('fix_mermaid_code', {
+        request
       });
     } catch (error) {
       throw createTauriCommandError('fix_mermaid_code', error, request);
+    }
+  }
+
+  /**
+   * One-shot completion that returns text directly (no session, no event
+   * stream). Works from any window — unlike editor_ai events it needs no
+   * event-capability grants. Use for lightweight inline AI features.
+   */
+  async completeOnce(request: AiCompleteOnceRequest): Promise<AiCompleteOnceResponse> {
+    try {
+      return await api.invoke<AiCompleteOnceResponse>('ai_complete_once', {
+        request
+      });
+    } catch (error) {
+      throw createTauriCommandError('ai_complete_once', error, request);
     }
   }
 }

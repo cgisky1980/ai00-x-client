@@ -14,8 +14,10 @@ import { PromptInput } from '@/component-library';
 import ModelSelector from '@/shared/components/ModelSelector';
 import { useTodoStore } from '../../store/todoStore';
 import { planChatReply, generateBoardPlan, DELEGATION_RE } from '../../ai/consult';
+import { collectProjectSummary } from '../../ai/projectSummary';
+import { resolveDelegateCwd } from '../../ai/workspace';
 import type { PlanChatTurn } from '../../ai/consult';
-import { getDiscussModel, setDiscussModel, MODEL_AUTO } from '../../ai/modelCatalog';
+import { getDiscussModel, MODEL_AUTO } from '../../ai/modelCatalog';
 import type { BoardPlan, PlanChatMessage, TodoTask } from '../../api/types';
 
 /** 旧版讨论模型选择存过 'primary'/'fast' 内置引用——新概念下回落自动。 */
@@ -25,14 +27,15 @@ function loadDiscussModel(): string {
 }
 
 /** BoardPlan → 计划契约 MD（文件化存档，人与 agent 共享读写）。
- *  四段：目标 / 步骤 / 验收（DoD 可勾选）/ 交付物。 */
+ *  四段：目标 / 步骤（checkbox——agent 执行中逐步勾，驱动进度显示）/
+ *  验收（DoD 可勾选）/ 交付物。 */
 function planToMarkdown(task: TodoTask, plan: BoardPlan): string {
   const lines: string[] = [`# ${task.title}`, ''];
   lines.push(`## 目标`, '', plan.goal || plan.summary, '');
   if (plan.tasks.length) {
     lines.push('## 步骤', '');
     plan.tasks.forEach((t, i) => {
-      lines.push(`${i + 1}. ${t.title}${t.notes ? ` — ${t.notes}` : ''}`);
+      lines.push(`- [ ] ${i + 1}. ${t.title}${t.notes ? ` — ${t.notes}` : ''}`);
     });
     lines.push('');
   }
@@ -48,7 +51,7 @@ function planToMarkdown(task: TodoTask, plan: BoardPlan): string {
   return lines.join('\n');
 }
 
-/** 问询卡草稿：单选 chip 与内联自定义输入互斥（对齐 ExecQuestionCard 契约）。 */
+/** 问询卡草稿：单选 chip 与内联自定义输入互斥（ask-user 式应答契约）。 */
 interface QDraft {
   selected: string | null;
   custom: string;
@@ -166,6 +169,7 @@ function describeAiError(e: unknown): string {
 export const PlanChatPanel: React.FC<{
   task: TodoTask;
 }> = ({ task }) => {  const updateTask = useTodoStore((s) => s.updateTask);
+  const isDoing = (task.status ?? 'requirement') === 'doing';
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   /** 当前忙什么：chat=讨论一轮；plan=AI 判定就绪后第二段独立单发出计划 */
@@ -173,8 +177,30 @@ export const PlanChatPanel: React.FC<{
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // 讨论模型选择（'auto' = 本地 RWKV 优先 + primary 自动回退）；
-  // 控件与 task 窗口同一个 ModelSelector（受控模式），选择只持久化到本面板
-  const [modelId, setModelId] = useState(loadDiscussModel);
+  // 按卡片存储（task.discussModel，未选过回落全局默认）——并行任务可各用
+  // 各的模型，委托执行时同一引用应用到会话（与执行模型一致）
+  const [modelId, setModelId] = useState(() => task.discussModel ?? loadDiscussModel());
+
+  // 计划接地：按交付同款 cwd 解析链取工作区，采集项目概况（目录树/README/近期提交）
+  // 注入规划材料——代码类任务的计划与真实目录一致，不再盲猜（每卡取一次）
+  const [wsSummary, setWsSummary] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const dir = resolveDelegateCwd(useTodoStore.getState().data, task.goalId);
+    if (!dir) {
+      setWsSummary(null);
+      return;
+    }
+    setWsSummary(null);
+    collectProjectSummary(dir)
+      .then(s => {
+        if (!cancelled) setWsSummary(s);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [task.goalId]);
 
   // 引用稳定：task.chat 缺省时固定空数组，避免每次渲染新引用扰动 useMemo 依赖
   const chat = useMemo(() => task.chat ?? [], [task.chat]);
@@ -200,7 +226,7 @@ export const PlanChatPanel: React.FC<{
     updateTask(task.id, { chat: nextChat });
     let turn: PlanChatTurn | null = null;
     try {
-      turn = await planChatReply(task.title, task.notes, nextChat, modelId, task.goalId, task.plan ?? null);
+      turn = await planChatReply(task.title, task.notes, nextChat, modelId, task.goalId, task.plan ?? null, wsSummary);
     } catch (e) {
       setBusy(false);
       setError(describeAiError(e));
@@ -222,7 +248,7 @@ export const PlanChatPanel: React.FC<{
       const fullChat = [...nextChat, aiMsg];
       updateTask(task.id, { chat: fullChat });
       setPhase('plan');
-      const plan = turn.plan ?? (await generateBoardPlan(task.title, task.notes, fullChat, modelId, task.goalId, task.plan ?? null));
+      const plan = turn.plan ?? (await generateBoardPlan(task.title, task.notes, fullChat, modelId, task.goalId, task.plan ?? null, wsSummary));
       setBusy(false);
       if (!plan) {
         setError('计划生成失败，请再发一条消息让我重新拟（或补充点细节）');
@@ -230,7 +256,8 @@ export const PlanChatPanel: React.FC<{
       }
       try {
         await invoke('todo_plan_set', { taskId: task.id, markdown: planToMarkdown(task, plan) });
-        updateTask(task.id, { plan, status: 'planning' });
+        // 进行中卡的讨论改计划：卡片留在进行中（agent 会话仍在跑），只更新计划
+        updateTask(task.id, { plan, status: isDoing ? 'doing' : 'planning' });
       } catch (e) {
         setError(`计划保存失败：${e instanceof Error ? e.message : String(e)}`);
       }
@@ -252,7 +279,7 @@ export const PlanChatPanel: React.FC<{
     if (ready) {
       // 第二段：独立单发，专注出计划契约
       setPhase('plan');
-      const plan = await generateBoardPlan(task.title, task.notes, fullChat, modelId, task.goalId, task.plan ?? null);
+      const plan = await generateBoardPlan(task.title, task.notes, fullChat, modelId, task.goalId, task.plan ?? null, wsSummary);
       setBusy(false);
       if (!plan) {
         setError('计划生成失败，请再发一条消息让我重新拟（或补充点细节）');
@@ -260,7 +287,7 @@ export const PlanChatPanel: React.FC<{
       }
       try {
         await invoke('todo_plan_set', { taskId: task.id, markdown: planToMarkdown(task, plan) });
-        updateTask(task.id, { plan, status: 'planning' });
+        updateTask(task.id, { plan, status: isDoing ? 'doing' : 'planning' });
       } catch (e) {
         setError(`计划保存失败：${e instanceof Error ? e.message : String(e)}`);
       }
@@ -316,7 +343,7 @@ export const PlanChatPanel: React.FC<{
             onChange={setInput}
             onSubmit={() => void send(input)}
             loading={busy}
-            placeholder={task.status === 'planning' ? '对计划提出修改意见，或自由讨论…' : '补充需求、点选上面的选项，或自由回答…'}
+            placeholder={task.status === 'planning' || isDoing ? '对计划提出修改意见，或自由讨论…' : '补充需求、点选上面的选项，或自由回答…'}
             maxHeight={120}
             footerLeft={
               <ModelSelector
@@ -324,7 +351,8 @@ export const PlanChatPanel: React.FC<{
                 controlledValue={modelId}
                 onControlledSelect={(ref) => {
                   setModelId(ref);
-                  setDiscussModel(ref);
+                  // 模型按卡片存储（并行任务各用各的模型）
+                  updateTask(task.id, { discussModel: ref });
                 }}
               />
             }

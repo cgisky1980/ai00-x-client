@@ -1,8 +1,11 @@
 import ReactDOM from "react-dom/client";
 import { createLogger, initLogger, bootstrapLogger } from './shared/utils/logger';
+import { installDialogShim } from './infrastructure/dialog-shim';
 import "./app/styles/index.scss";
 
 bootstrapLogger();
+// 原生弹窗接管（禁原生弹窗——overlay/浮层体系一致性）
+installDialogShim();
 const log = createLogger('MemberChatWindow');
 
 async function startMemberChatWindow(): Promise<void> {

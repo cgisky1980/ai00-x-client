@@ -4,13 +4,14 @@
  * 主题：服务端 profile_themes（迁移 027）为 SSOT，store.themes 缓存；
  *       ThemeResolver 把 payload 挂为容器级 --pt-* 变量，主页样式只消费这些变量。
  * 布局三骨架：hero（banner+头像压边）/ minimal（纯排版）/ editorial（杂志规则线）。
- * 页签：动态（博客卡流）/ 归档（按月，仅自己）/ 收藏（仅自己）。
- * 博客卡：封面缩略 + 标题 + 摘要 + mono 日期 + 置顶标记；点击进详情。
+ * 页签：动态（网格卡流）/ 归档（按月，仅自己）/ 收藏（仅自己）。
+ * 流卡片：bento 响应式网格，首卡 featured 头版横幅；卡片 = 首图压顶 +
+ * 衬线标题 + 两行摘要 + mono 日期 + 标签，无作者行（同人流），点击进详情。
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { Button, Empty, IconButton, Modal, Skeleton, toastSuccess } from '@/component-library';
-import { ArrowLeft, Globe, MapPin, MessageCircle, Pin, Settings2 } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Eye, Globe, Heart, MapPin, MessageCircle, Pin, Settings2 } from 'lucide-react';
 import { useMemberChatStore } from '../store/memberChatStore';
 import { useCommunityStore } from './communityStore';
 import { MemberAvatar } from '../components/MemberAvatar';
@@ -29,10 +30,25 @@ import {
   themeVars,
   type ProfileTheme,
 } from './themes';
-import { mdToPlain } from './md';
+import { mdPreview } from './md';
 import { formatRelTime } from './time';
 
 type ProfileTab = 'posts' | 'archive' | 'bookmarks';
+
+/**
+ * 无图卡片的程序化渐变封面（Notion/Linear 式 cover art）：
+ * 深浅双色 duotone，按帖子 id 稳定取色，避免外链图床依赖。
+ */
+const CARD_ART: Array<[string, string]> = [
+  ['#1f2f52', '#3b6fd4'],
+  ['#2b1f52', '#7c5cd4'],
+  ['#123f3a', '#1fa88a'],
+  ['#52301f', '#d4893b'],
+  ['#521f3d', '#d43b6f'],
+  ['#1f3d52', '#3bc2d4'],
+  ['#3d521f', '#a8c23b'],
+  ['#3b2140', '#b052c7'],
+];
 
 /** DTO → 引擎主题（payload 缺省字段兜底） */
 function toEngineTheme(dto: ProfileThemeDTO): ProfileTheme {
@@ -84,53 +100,108 @@ function useMediaSrc(url: string | null | undefined): string {
   return src;
 }
 
-/** 主题化博客卡（主页墙/归档/收藏通用） */
-const BlogCard: React.FC<{
+/**
+ * ProfilePostCard — 主页流卡片（bento 网格用）。
+ *
+ * 同一个人的一片天：不放作者行/头像；有图用首图，无图生成程序化渐变封面；
+ * 衬线标题 + 两行摘要 + 标签 chip + 数据行（赞/回复/浏览 + mono 日期）。
+ * hover 卡片上浮、标题与箭头染主题 accent。featured 首卡横幅排版。
+ */
+const ProfilePostCard: React.FC<{
   post: CommunityPost;
+  featured?: boolean;
   showPin?: boolean;
   onOpen: (p: CommunityPost) => void;
   onTag: (tag: string) => void;
-}> = ({ post, showPin, onOpen, onTag }) => {
-  const displayName = post.nickname || post.username;
+}> = ({ post, featured = false, showPin, onOpen, onTag }) => {
+  const { t } = useI18n('community');
+  const preview = useMemo(() => mdPreview(post.content), [post.content]);
   const coverSrc = useMediaSrc(
-    post.cover_url || post.media?.find((m) => m.type === 'image')?.thumb || null,
+    post.cover_url
+      || post.media?.find((m) => m.type === 'image')?.thumb
+      || preview.firstImage
+      || null,
   );
-  const excerpt = useMemo(() => mdToPlain(post.content).slice(0, 120), [post.content]);
+  const excerpt = preview.body.slice(0, 120);
+  const title = post.title ?? preview.title;
+  const art = CARD_ART[post.id % CARD_ART.length];
+  const artLetter = (title ?? preview.body).trim().charAt(0).toUpperCase();
   return (
-    <article className="community-blog-card" onClick={() => onOpen(post)}>
+    <article
+      className={`community-blog-card${featured ? ' community-blog-card--featured' : ''}`}
+      onClick={() => onOpen(post)}
+    >
       {showPin && post.pinned_at && (
         <span className="community-blog-card__pin">
           <Pin size={11} aria-hidden />
-          {formatRelTime(post.pinned_at) && ''}
-          置顶
+          {t('pinned', { defaultValue: '置顶' })}
         </span>
       )}
-      <header className="community-blog-card__head">
-        <span className="community-blog-card__author">{displayName}</span>
-        <span className="community-blog-card__time">@{post.username} · {formatRelTime(post.created_at)}</span>
-      </header>
-      {post.title && <h3 className="community-blog-card__title">{post.title}</h3>}
-      {coverSrc && (
-        <img className="community-blog-card__cover" src={coverSrc} alt="" loading="lazy" draggable={false} />
-      )}
-      {excerpt && <p className="community-blog-card__excerpt">{excerpt}{excerpt.length >= 120 ? '…' : ''}</p>}
-      {post.tags && post.tags.length > 0 && (
-        <div className="community-blog-card__tags">
-          {post.tags.map((tg) => (
-            <button
-              key={tg}
-              type="button"
-              className="community-blog-card__tag"
-              onClick={(e) => {
-                e.stopPropagation();
-                onTag(tg);
-              }}
+      <span className="community-blog-card__media" aria-hidden>
+        {coverSrc ? (
+          <img src={coverSrc} alt="" loading="lazy" draggable={false} />
+        ) : (
+          <span
+            className="community-blog-card__ph"
+            style={{ backgroundImage: `linear-gradient(135deg, ${art[0]} 0%, ${art[1]} 100%)` }}
+          >
+            <span className="community-blog-card__ph-letter">{artLetter}</span>
+          </span>
+        )}
+      </span>
+      <div className="community-blog-card__body">
+        {title && <h3 className="community-blog-card__title">{title}</h3>}
+        {excerpt && (
+          <p className="community-blog-card__excerpt">
+            {excerpt}
+            {excerpt.length >= 120 ? '…' : ''}
+          </p>
+        )}
+        {post.tags && post.tags.length > 0 && (
+          <div className="community-blog-card__tags">
+            {post.tags.map((tg) => (
+              <button
+                key={tg}
+                type="button"
+                className="community-blog-card__tag"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTag(tg);
+                }}
+              >
+                #{tg}
+              </button>
+            ))}
+          </div>
+        )}
+        <footer className="community-blog-card__foot">
+          <span className="community-blog-card__stats">
+            <span
+              className="community-blog-card__stat"
+              title={t('like', { defaultValue: '点赞' })}
             >
-              #{tg}
-            </button>
-          ))}
-        </div>
-      )}
+              <Heart size={12} strokeWidth={1.8} aria-hidden />
+              {post.like_count}
+            </span>
+            <span
+              className="community-blog-card__stat"
+              title={t('comment', { defaultValue: '评论' })}
+            >
+              <MessageCircle size={12} strokeWidth={1.8} aria-hidden />
+              {post.comment_count}
+            </span>
+            <span
+              className="community-blog-card__stat"
+              title={t('views', { defaultValue: '{{n}} 次浏览', n: post.view_count ?? 0 })}
+            >
+              <Eye size={12} strokeWidth={1.8} aria-hidden />
+              {post.view_count ?? 0}
+            </span>
+          </span>
+          <time className="community-blog-card__time">{formatRelTime(post.created_at)}</time>
+          <ArrowUpRight size={15} strokeWidth={1.8} aria-hidden className="community-blog-card__go" />
+        </footer>
+      </div>
     </article>
   );
 };
@@ -408,19 +479,23 @@ export const ProfileView: React.FC = () => {
 
       {tab === 'posts' && (
         <div className="community-profile2__list">
-          {monthFiltered.map((p) => (
-            <BlogCard key={p.id} post={p} showPin onOpen={openDetail} onTag={onTag} />
+          {monthFiltered.map((p, i) => (
+            <ProfilePostCard key={p.id} post={p} featured={i === 0} showPin onOpen={openDetail} onTag={onTag} />
           ))}
           {homeHasMore && (
-            <Button variant="ghost" size="small" onClick={() => void loadHomePosts(false)}>
-              {t('loadMore', { defaultValue: '加载更多' })}
-            </Button>
+            <div className="community-profile2__wide">
+              <Button variant="ghost" size="small" onClick={() => void loadHomePosts(false)}>
+                {t('loadMore', { defaultValue: '加载更多' })}
+              </Button>
+            </div>
           )}
           {monthFiltered.length === 0 && (
-            <Empty
-              title={t('profileEmptyTitle', { defaultValue: '还没有动态' })}
-              description={isSelf ? t('profileEmptyHint', { defaultValue: '去广场发布第一条动态吧' }) : undefined}
-            />
+            <div className="community-profile2__wide">
+              <Empty
+                title={t('profileEmptyTitle', { defaultValue: '还没有动态' })}
+                description={isSelf ? t('profileEmptyHint', { defaultValue: '去广场发布第一条动态吧' }) : undefined}
+              />
+            </div>
           )}
           <div ref={setListEnd} aria-hidden />
         </div>
@@ -449,10 +524,14 @@ export const ProfileView: React.FC = () => {
       {tab === 'bookmarks' && isSelf && (
         <div className="community-profile2__list">
           {bookmarks.map((p) => (
-            <BlogCard key={`bm-${p.id}`} post={p} onOpen={openDetail} onTag={onTag} />
+            <ProfilePostCard key={`bm-${p.id}`} post={p} onOpen={openDetail} onTag={onTag} />
           ))}
           {bookmarksHasMore && <div ref={setListEnd} aria-hidden />}
-          {bookmarks.length === 0 && <Empty title={t('bookmarksEmpty', { defaultValue: '还没有收藏' })} />}
+          {bookmarks.length === 0 && (
+            <div className="community-profile2__wide">
+              <Empty title={t('bookmarksEmpty', { defaultValue: '还没有收藏' })} />
+            </div>
+          )}
         </div>
       )}
 
