@@ -1,7 +1,6 @@
 export * from './repository';
 export * from './operations';
 export * from './events';
-export * from './git-agent.types';
 export * from './graph';
 
 export interface GitFeatureItem {

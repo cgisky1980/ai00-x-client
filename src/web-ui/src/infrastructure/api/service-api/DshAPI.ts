@@ -102,6 +102,21 @@ export interface DshSessionModels {
 export type DshMuxFrame =
   | { type: 'session/event'; sessionId: string; event: DshSessionEvent; view?: unknown }
   | { type: 'session/subscribed'; sessionId: string; lastSeq: number }
+  /** 后台任务注册表快照（注册/停止/结算等可见集合变化时广播） */
+  | {
+      type: 'session/jobs';
+      sessionId?: string;
+      jobs: Array<{
+        id: string;
+        kind?: string;
+        label?: string;
+        status: string;
+        startedAt?: number;
+        finishedAt?: number;
+      }>;
+    }
+  /** 投影单元更新（key: subagent/subagentTiming/title 等） */
+  | { type: 'session/projection'; sessionId: string; key: string; value: unknown; seq: number }
   | {
       type: 'approval/requested';
       sessionId: string;

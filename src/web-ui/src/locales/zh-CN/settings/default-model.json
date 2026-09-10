@@ -122,6 +122,32 @@
       "failed": "分类测试失败"
     },
     "disabledSuffix": "（已禁用）",
+    "evolution": {
+      "title": "自我进化",
+      "stats": "已捕获 {{total}} 条 · 已标注 {{labeled}} · 待标注 {{unlabeled}}（上限 {{limit}}）· 满 {{next}} 条自动进化",
+      "listToggle": "样本列表",
+      "loadMore": "加载更多",
+      "empty": "暂无样本，正常对话即可自动捕获",
+      "predicted": "预测",
+      "srcPreview": "测试",
+      "needMore": "再标注 {{n}} 条即可进化（需 ≥ {{min}} 条）",
+      "evolve": "开始进化",
+      "clearAll": "清空",
+      "clearTitle": "清空进化样本",
+      "clearMessage": "将删除全部 {{total}} 条已捕获的路由样本（含标注），此操作不可恢复。",
+      "progress": {
+        "loading": "准备样本数据…",
+        "training": "本地微调中…",
+        "gating": "闸门评估中…",
+        "done": "完成"
+      },
+      "result": {
+        "ok": "进化完成：准确率 {{from}}% → {{to}}%（{{samples}} 条训练样本，{{epochs}} 轮），新分类头已热生效",
+        "rejected": "闸门拦截：新头 {{to}}% 低于基线 {{from}}%（容差 0.5%），已保留原分类头",
+        "skipped": "本次跳过：{{message}}"
+      },
+      "failed": "进化流程失败"
+    },
     "warnings": {
       "invalidRef": "部分档位引用的模型不存在或已禁用，运行时将回落到主力模型"
     },

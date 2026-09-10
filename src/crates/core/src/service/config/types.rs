@@ -1081,12 +1081,12 @@ impl Default for RouterTierModels {
 
 impl RouterTierModels {
     /// Returns the model reference for the given route tier.
-    pub fn model_for(&self, tier: &crate::agent::routing::RouteClass) -> &str {
+    pub fn model_for(&self, tier: &crate::routing::RouteClass) -> &str {
         match tier {
-            crate::agent::routing::RouteClass::R0 => &self.r0,
-            crate::agent::routing::RouteClass::R1 => &self.r1,
-            crate::agent::routing::RouteClass::R2 => &self.r2,
-            crate::agent::routing::RouteClass::R3 => &self.r3,
+            crate::routing::RouteClass::R0 => &self.r0,
+            crate::routing::RouteClass::R1 => &self.r1,
+            crate::routing::RouteClass::R2 => &self.r2,
+            crate::routing::RouteClass::R3 => &self.r3,
         }
     }
 }

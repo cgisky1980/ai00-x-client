@@ -17,10 +17,9 @@ interface ChatWindowAppProps {
 
 const ChatWindowApp: React.FC<ChatWindowAppProps> = (props) => {
   const { openSettings, openMusic, openDsh } = props;
-  void props.sessionId; // 老会话路由已随 flow_chat 移除
   const { activeWorkspace } = useWorkspaceContext();
   const openScene = useSceneStore((s) => s.openScene);
-  const init = useCoreLayoutInit(false);
+  const init = useCoreLayoutInit();
 
   useEffect(() => {
     if (activeWorkspace) {

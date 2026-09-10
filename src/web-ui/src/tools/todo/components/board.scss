@@ -240,7 +240,7 @@
     width: 7px;
     height: 7px;
     flex-shrink: 0;
-    margin-top: 5px;
+    margin-top: var(--size-gap-1);
     border-radius: var(--size-radius-full, 9999px);
     background-color: var(--color-text-muted);
 
@@ -508,6 +508,16 @@
     min-width: 0;
   }
 
+  // 验收动作条（抽屉体顶部右对齐——动作不挤头部）
+  &__acc-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--size-gap-2, 8px);
+    flex-wrap: wrap;
+    margin-bottom: var(--size-gap-2, 8px);
+  }
+
   // 验收清单行（可点击代勾——与 agent 对等读写同一 MD）
   &__acc {
     display: flex;
@@ -543,7 +553,7 @@
     width: 14px;
     height: 14px;
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: var(--size-gap-0-5);
     border: 1px solid color-mix(in oklch, var(--color-text-primary) 30%, transparent);
     border-radius: var(--size-radius-xs, 4px);
     font-size: var(--font-size-2xs, 10px);
@@ -913,6 +923,9 @@
 
   &__state {
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-0-5, 2px);
     font-size: var(--font-size-xs, 12px);
     color: var(--color-text-muted);
     font-family: var(--font-family-mono, monospace);

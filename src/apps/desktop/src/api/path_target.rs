@@ -1,7 +1,6 @@
 //! Shared desktop resolution and access helpers for local, runtime, and remote paths.
 
 use crate::api::app_state::AppState;
-use ai00_x_core::agent::tools::workspace_paths::{is_ai00x_runtime_uri, parse_ai00x_runtime_uri};
 use ai00_x_core::infrastructure::get_path_manager_arc;
 use ai00_x_core::infrastructure::FileOperationOptions;
 use ai00_x_core::service::remote_ssh::workspace_state::remote_workspace_runtime_root;
@@ -12,6 +11,69 @@ use ai00_x_core::service::workspace::{WorkspaceInfo, WorkspaceKind};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+
+// ---------------------------------------------------------------------------
+// ai00-x://runtime/ URI helpers (migrated locally from the removed
+// core agent tool-stack workspace_paths module; pure functions only).
+// ---------------------------------------------------------------------------
+
+const AI00X_RUNTIME_URI_PREFIX: &str = "ai00-x://runtime/";
+
+#[derive(Debug, Clone)]
+struct ParsedAi00XRuntimeUri {
+    workspace_scope: String,
+    relative_path: String,
+}
+
+fn is_ai00x_runtime_uri(path: &str) -> bool {
+    path.trim().starts_with(AI00X_RUNTIME_URI_PREFIX)
+}
+
+fn normalize_runtime_relative_path(path: &str) -> Result<String, String> {
+    let normalized = path.trim().replace('\\', "/");
+    let trimmed = normalized.trim_matches('/');
+    if trimmed.is_empty() {
+        return Err("Runtime artifact path cannot be empty".to_string());
+    }
+
+    let mut segments = Vec::new();
+    for part in trimmed.split('/') {
+        match part {
+            "" | "." => continue,
+            ".." => return Err("Runtime artifact path cannot escape its root".to_string()),
+            value => segments.push(value.to_string()),
+        }
+    }
+
+    if segments.is_empty() {
+        return Err("Runtime artifact path cannot be empty".to_string());
+    }
+
+    Ok(segments.join("/"))
+}
+
+fn parse_ai00x_runtime_uri(path: &str) -> Result<ParsedAi00XRuntimeUri, String> {
+    let trimmed = path.trim();
+    let suffix = trimmed
+        .strip_prefix(AI00X_RUNTIME_URI_PREFIX)
+        .ok_or_else(|| format!("Unsupported runtime URI: {}", path))?;
+
+    let mut parts = suffix.splitn(2, '/');
+    let workspace_scope = parts
+        .next()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Runtime URI is missing workspace scope".to_string())?
+        .to_string();
+    let relative_path = parts
+        .next()
+        .ok_or_else(|| "Runtime URI is missing artifact path".to_string())?;
+
+    Ok(ParsedAi00XRuntimeUri {
+        workspace_scope,
+        relative_path: normalize_runtime_relative_path(relative_path)?,
+    })
+}
 
 #[derive(Debug, Clone)]
 pub enum DesktopPathTarget {
@@ -83,7 +145,7 @@ async fn resolve_runtime_artifact_path(
         return Ok(None);
     }
 
-    let parsed = parse_ai00x_runtime_uri(raw_path).map_err(|e| e.to_string())?;
+    let parsed = parse_ai00x_runtime_uri(raw_path)?;
     let workspace = if parsed.workspace_scope == "current" {
         app_state.workspace_service.get_current_workspace().await
     } else {

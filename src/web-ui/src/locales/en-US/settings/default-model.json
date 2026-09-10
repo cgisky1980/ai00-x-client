@@ -122,6 +122,32 @@
       "failed": "Classification test failed"
     },
     "disabledSuffix": " (disabled)",
+    "evolution": {
+      "title": "Self-evolution",
+      "stats": "{{total}} captured · {{labeled}} labeled · {{unlabeled}} pending (limit {{limit}}) · auto-evolve at {{next}}",
+      "listToggle": "Sample list",
+      "loadMore": "Load more",
+      "empty": "No samples yet — normal conversations are captured automatically",
+      "predicted": "pred",
+      "srcPreview": "test",
+      "needMore": "Label {{n}} more samples to evolve (needs ≥ {{min}})",
+      "evolve": "Evolve",
+      "clearAll": "Clear",
+      "clearTitle": "Clear evolution samples",
+      "clearMessage": "All {{total}} captured routing samples (including labels) will be deleted. This cannot be undone.",
+      "progress": {
+        "loading": "Preparing samples…",
+        "training": "Fine-tuning locally…",
+        "gating": "Gate evaluation…",
+        "done": "Done"
+      },
+      "result": {
+        "ok": "Evolved: accuracy {{from}}% → {{to}}% ({{samples}} training samples, {{epochs}} epochs); new head is live",
+        "rejected": "Gated: new head {{to}}% is below baseline {{from}}% (tolerance 0.5%); previous head kept",
+        "skipped": "Skipped: {{message}}"
+      },
+      "failed": "Evolution failed"
+    },
     "warnings": {
       "invalidRef": "Some tiers reference a missing or disabled model; they will fall back to primary at runtime"
     },

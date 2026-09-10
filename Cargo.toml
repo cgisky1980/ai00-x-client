@@ -6,13 +6,8 @@ members = [
     "src/crates/git",
     "src/crates/inference",
     "src/crates/transport",
-    "src/crates/api-layer",
-    "src/crates/tool-framework",
-    "src/crates/mcp",
-    "src/crates/remote",
     "src/crates/webdriver",
     "src/apps/desktop",
-    "src/crates/relay",
     "src/crates/sa3",
     "src/crates/acestep",
 ]

@@ -1106,7 +1106,7 @@ pub struct AceStepSearchResult {
 
 /// Web search command for the ACE-Step lyrics advisor.
 ///
-/// Reuses `ai00_x_core::agent::tools::WebSearchTool` (AnySearch primary,
+/// Reuses `ai00_x_core::websearch::WebSearchTool` (AnySearch primary,
 /// SearXNG fallback) to gather background knowledge before drafting lyrics.
 /// Called by the chat flow when the LLM emits `{"action":"search","query":"..."}`.
 #[tauri::command]
@@ -1125,7 +1125,7 @@ pub async fn acestep_web_search(
         limit
     );
 
-    let tool = ai00_x_core::agent::tools::implementations::WebSearchTool::new();
+    let tool = ai00_x_core::websearch::WebSearchTool::new();
     let items = tool
         .search_simple(&query, &lang, limit)
         .await

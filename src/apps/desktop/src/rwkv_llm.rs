@@ -111,15 +111,29 @@ enum PoolRequest {
     /// Single-shot classification (smart router): mean-hidden extraction from
     /// a zero state + trained MLP head -> four tier probabilities (R0-R3).
     /// `prev_tier`: sticky-tier value of the previous turn (v4 head one-hot;
-    /// v1 head ignores).
+    /// v1 head ignores). `capture`: true = 真实路由（进化数据回流捕获样本）；
+    /// false = 设置页预览（不采集）。
     Classify {
         request: String,
         prev_tier: Option<u8>,
+        capture: bool,
         reply: oneshot::Sender<Result<Vec<f32>, String>>,
+    },
+    /// 查询当前可用分类骨干的 hidden 维度（router_mini 优先，主模型回退）；
+    /// 两者皆未加载时 None。进化流程用于样本维度过滤。
+    RouterDim {
+        reply: oneshot::Sender<Option<usize>>,
     },
     /// Hot-reload the router classification head (router_head.json) into the
     /// running engine without an app restart.
     ReloadRouterHead {
+        reply: oneshot::Sender<Result<(), String>>,
+    },
+    /// Load/replace the resident router mini model (0.1B, classify-only).
+    /// Independent of the main engine: does not touch slots/Init/Evict.
+    InitRouter {
+        model_path: String,
+        vocab_path: String,
         reply: oneshot::Sender<Result<(), String>>,
     },
     /// VRAM manager eviction: unload the engine if idle (busy -> ignored).
@@ -165,9 +179,29 @@ static CANCEL_EPOCH: OnceLock<AtomicU64> = OnceLock::new();
 static LLM_INITING: OnceLock<Mutex<bool>> = OnceLock::new();
 /// 当前已加载模型路径（路径感知切换 gate：相同路径直接返回，不同路径触发热切换）。
 static LLM_CURRENT_MODEL: RwLock<Option<String>> = RwLock::new(None);
+/// 路由小模型（0.1B）常驻槽就绪标志：与主模型 LLM_READY 相互独立。
+static ROUTER_MINI_READY: AtomicBool = AtomicBool::new(false);
+/// 路由小模型固定文件名（models/rwkv/ 下；`router-` 前缀用于主模型扫描过滤）。
+const ROUTER_MODEL_FILE: &str = "router-0.1B-int8.st";
+
+fn router_model_path() -> PathBuf {
+    assets_models_dir().join(ROUTER_MODEL_FILE)
+}
 
 fn get_inference_pool() -> Option<&'static InferencePoolHandle> {
     INFERENCE_POOL.get()
+}
+
+/// 确保 pool 线程已启动（Init / InitRouter 共用入口）。
+fn ensure_inference_pool() -> &'static InferencePoolHandle {
+    INFERENCE_POOL.get_or_init(|| {
+        let (pool_tx, pool_rx) = mpsc::unbounded_channel::<PoolRequest>();
+        std::thread::Builder::new()
+            .name("rwkv-inference-pool".to_string())
+            .spawn(move || inference_pool_main(pool_rx))
+            .expect("failed to spawn rwkv inference pool thread");
+        InferencePoolHandle { tx: pool_tx }
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +304,7 @@ pub fn get_router_head_status() -> RouterHeadStatus {
 
 /// 加载智能路由分类头（models 目录 router_head.json），并写入全局状态。
 /// 缺失/损坏/维度不匹配时返回 None（分类降级回落），状态记录原因。
-fn load_router_head(model_num_emb: usize) -> Option<ai00_x_core::agent::routing::head::RouterHead> {
+fn load_router_head(model_num_emb: usize) -> Option<ai00_x_core::routing::head::RouterHead> {
     let head_path = assets_models_dir().join("router_head.json");
     if !head_path.exists() {
         log::info!(
@@ -284,20 +318,22 @@ fn load_router_head(model_num_emb: usize) -> Option<ai00_x_core::agent::routing:
         });
         return None;
     }
-    match ai00_x_core::agent::routing::head::RouterHead::from_json_file(&head_path) {
+    match ai00_x_core::routing::head::RouterHead::from_json_file(&head_path) {
         Ok(head) => {
-            if head.input_dim() != model_num_emb {
+            // v4 头 input_dim = base_dim + 5（prev_tier one-hot），须按
+            // expected_hidden_dim（= base_dim）与模型 n_embd 校验。
+            if head.expected_hidden_dim() != model_num_emb {
                 log::warn!(
-                    "[rwkv] router head input_dim {} != model n_embd {}, classify disabled",
-                    head.input_dim(),
+                    "[rwkv] router head hidden dim {} != model n_embd {}, classify disabled",
+                    head.expected_hidden_dim(),
                     model_num_emb
                 );
                 set_router_head_status(RouterHeadStatus {
                     loaded: false,
                     input_dim: Some(head.input_dim()),
                     detail: Some(format!(
-                        "dimension mismatch: head {} vs model {}",
-                        head.input_dim(),
+                        "dimension mismatch: head hidden {} vs model {}",
+                        head.expected_hidden_dim(),
                         model_num_emb
                     )),
                 });
@@ -343,22 +379,39 @@ struct PoolEngine {
     initial_state: Vec<f32>,
     /// session_id → (已缓存 token 序列, RNN 状态)
     session_states: HashMap<String, (Vec<u32>, Vec<f32>)>,
-    /// 专用分类状态（智能路由 prefill 用，与生成槽位隔离）。
+    /// 专用分类状态（智能路由 prefill 用，与生成槽位隔离；仅主模型兼容回退时使用）。
     classify_state: State,
-    /// 智能路由分类头（models 目录 router_head.json；缺失则分类降级回落）。
-    router_head: Option<ai00_x_core::agent::routing::head::RouterHead>,
+}
+
+/// 常驻路由小模型（0.1B，仅做 R0-R3 分类）。生命周期与主引擎完全独立：
+/// 主模型 Init/热切换/Evict 均不触碰本槽，路由可用性不受主模型影响。
+struct RouterMini {
+    model: GpuModel,
+    /// 零初始状态快照（每次分类前重置）。
+    initial_state: Vec<f32>,
+    classify_state: State,
+    tokenizer: Tokenizer,
+    num_embd: usize,
+    model_path: String,
 }
 
 /// pool 线程主循环：常驻，Init 消息触发（重）加载，Submit/ClearSession 业务消息。
 fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
     let mut pool_rx = pool_rx;
     let mut engine: Option<PoolEngine> = None;
+    // 常驻路由小模型与分类头（与主引擎生命周期解耦；分类头全局唯一，
+    // 按所选分类模型的 n_embd 校验匹配）。
+    let mut router_mini: Option<RouterMini> = None;
+    let mut router_head: Option<ai00_x_core::routing::head::RouterHead> = None;
     let mut slots: Vec<Option<InferenceTask>> = (0..MAX_SLOTS).map(|_| None).collect();
     let mut pending: Vec<InferenceTaskParams> = Vec::new();
 
     loop {
-        // 引擎未加载或完全空闲 → 阻塞等待消息；否则非阻塞抽干消息
-        let idle = engine.is_some() && slots.iter().all(|s| s.is_none()) && pending.is_empty();
+        // 引擎或路由小模型存在且完全空闲 → 可进入等待；否则非阻塞抽干消息。
+        // 注意 router_mini 计入空闲判定：主模型未加载时不能陷入忙等空转。
+        let idle = (engine.is_some() || router_mini.is_some())
+            && slots.iter().all(|s| s.is_none())
+            && pending.is_empty();
         LLM_BUSY.store(!idle, Ordering::SeqCst);
         if idle {
             if engine.is_some() {
@@ -382,7 +435,14 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
                 'keep_alive_wait: loop {
                     // 抽干已到达的消息
                     while let Ok(req) = pool_rx.try_recv() {
-                        if !handle_request(req, &mut engine, &mut pending, false) {
+                        if !handle_request(
+                            req,
+                            &mut engine,
+                            &mut router_mini,
+                            &mut router_head,
+                            &mut pending,
+                            false,
+                        ) {
                             exit_pool = true;
                             break 'keep_alive_wait;
                         }
@@ -423,7 +483,14 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
             } else {
                 match pool_rx.blocking_recv() {
                     Some(req) => {
-                        if !handle_request(req, &mut engine, &mut pending, false) {
+                        if !handle_request(
+                            req,
+                            &mut engine,
+                            &mut router_mini,
+                            &mut router_head,
+                            &mut pending,
+                            false,
+                        ) {
                             break;
                         }
                     }
@@ -433,7 +500,14 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
         } else {
             while let Ok(req) = pool_rx.try_recv() {
                 let busy = !pending.is_empty() || slots.iter().any(|s| s.is_some());
-                if !handle_request(req, &mut engine, &mut pending, busy) {
+                if !handle_request(
+                    req,
+                    &mut engine,
+                    &mut router_mini,
+                    &mut router_head,
+                    &mut pending,
+                    busy,
+                ) {
                     return;
                 }
             }
@@ -487,9 +561,12 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
 
 /// 处理一条请求。返回 false 表示线程应退出（channel 关闭或 Shutdown）。
 /// `busy`：调用时是否有活跃/待处理任务（热切换忙检查用；阻塞等待路径恒为 false）。
+#[allow(clippy::too_many_arguments)]
 fn handle_request(
     req: PoolRequest,
     engine: &mut Option<PoolEngine>,
+    router_mini: &mut Option<RouterMini>,
+    router_head: &mut Option<ai00_x_core::routing::head::RouterHead>,
     pending: &mut Vec<InferenceTaskParams>,
     busy: bool,
 ) -> bool {
@@ -569,6 +646,7 @@ fn handle_request(
                 crate::vram_manager::notify_state("rwkv-llm", "RWKV 对话", false, "evicted");
             }
             // busy: ignore — the manager never evicts busy engines.
+            // 注意：router_mini 常驻槽不随 Evict 卸载（路由可用性独立于主模型）。
             true
         }
         PoolRequest::Submit(params) => {
@@ -592,22 +670,69 @@ fn handle_request(
         PoolRequest::Classify {
             request,
             prev_tier,
+            capture,
             reply,
         } => {
-            LLM_LAST_USED_MS.store(now_ms(), Ordering::Relaxed);
-            let result = match engine.as_mut() {
-                Some(engine) => classify_with_engine(engine, &request, prev_tier),
-                None => Err("LLM engine not initialized".to_string()),
-            };
-            let _ = reply.send(result);
+            // 分类优先级链：常驻 router_mini → 主模型兼容回退（头与主模型
+            // 维度匹配时）→ Err（上游降级回落远程）。
+            if let Some(mini) = router_mini.as_mut() {
+                let result = classify_with_mini(mini, router_head.as_ref(), &request, prev_tier);
+                if capture {
+                    if let Ok((ref probs, ref hidden)) = result {
+                        crate::router_evolution::capture_route_sample(
+                            &request,
+                            hidden,
+                            prev_tier,
+                            probs,
+                            mini.num_embd,
+                        );
+                    }
+                }
+                let _ = reply.send(result.map(|(probs, _)| probs));
+                return true;
+            }
+            if let Some(engine) = engine.as_mut() {
+                // 仅主模型回退路径计入主模型 keep_alive（router_mini 分类不续命大模型）。
+                LLM_LAST_USED_MS.store(now_ms(), Ordering::Relaxed);
+                let result =
+                    classify_with_engine(engine, router_head.as_ref(), &request, prev_tier);
+                if capture {
+                    if let Ok((ref probs, ref hidden)) = result {
+                        crate::router_evolution::capture_route_sample(
+                            &request,
+                            hidden,
+                            prev_tier,
+                            probs,
+                            engine.model.info().num_emb,
+                        );
+                    }
+                }
+                let _ = reply.send(result.map(|(probs, _)| probs));
+                return true;
+            }
+            let _ = reply.send(Err(
+                "router mini model not loaded and LLM engine not initialized".to_string(),
+            ));
+            true
+        }
+        PoolRequest::RouterDim { reply } => {
+            let dim = router_mini
+                .as_ref()
+                .map(|m| m.num_embd)
+                .or_else(|| engine.as_ref().map(|e| e.model.info().num_emb));
+            let _ = reply.send(dim);
             true
         }
         PoolRequest::ReloadRouterHead { reply } => {
-            let result = match engine.as_mut() {
-                Some(engine) => {
-                    let num_emb = engine.model.info().num_emb;
-                    engine.router_head = load_router_head(num_emb);
-                    if engine.router_head.is_some() {
+            // 校验对象随可用分类模型走：优先 router_mini，其次主模型。
+            let target_emb = router_mini
+                .as_ref()
+                .map(|m| m.num_embd)
+                .or_else(|| engine.as_ref().map(|e| e.model.info().num_emb));
+            let result = match target_emb {
+                Some(num_emb) => {
+                    *router_head = load_router_head(num_emb);
+                    if router_head.is_some() {
                         Ok(())
                     } else {
                         Err(get_router_head_status()
@@ -615,9 +740,83 @@ fn handle_request(
                             .unwrap_or_else(|| "router head reload failed".to_string()))
                     }
                 }
-                None => Err("LLM engine not initialized".to_string()),
+                None => {
+                    Err("router mini model not loaded and LLM engine not initialized".to_string())
+                }
             };
             let _ = reply.send(result);
+            true
+        }
+        PoolRequest::InitRouter {
+            model_path,
+            vocab_path,
+            reply,
+        } => {
+            // 路径感知 gate：同路径已加载直接成功（幂等，懒加载防重复）。
+            if let Some(mini) = router_mini.as_ref() {
+                if mini.model_path == model_path {
+                    let _ = reply.send(Ok(()));
+                    return true;
+                }
+            }
+            // VRAM 预算检查（0.1B int8 ~0.2GB，预算不足时仅告警照常加载）。
+            let estimate = estimate_rwkv_vram_bytes(&model_path).unwrap_or(0);
+            if let Err(e) = crate::vram_manager::ensure_capacity(estimate, None) {
+                log::warn!("[rwkv] router mini budget check failed, loading anyway: {e}");
+            }
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                load_router_mini(&model_path, &vocab_path)
+            }));
+            match result {
+                Ok(Ok(mini)) => {
+                    // 分类头与路由小模型绑定加载（校验对象 = mini n_embd）。
+                    *router_head = load_router_head(mini.num_embd);
+                    let head_ok = router_head.is_some();
+                    log::info!(
+                        "[rwkv] router mini loaded: n_embd={} (head {})",
+                        mini.num_embd,
+                        if head_ok {
+                            "loaded"
+                        } else {
+                            "missing/mismatch"
+                        }
+                    );
+                    *router_mini = Some(mini);
+                    ROUTER_MINI_READY.store(true, Ordering::SeqCst);
+                    if !head_ok {
+                        // 模型已就绪但头缺失：分类头状态已由 load_router_head 记录，
+                        // 这里补写 detail 说明分类仍不可用。
+                        set_router_head_status(RouterHeadStatus {
+                            loaded: false,
+                            input_dim: None,
+                            detail: Some(
+                                "router model loaded but router_head.json missing/mismatch"
+                                    .to_string(),
+                            ),
+                        });
+                    }
+                    let _ = reply.send(Ok(()));
+                }
+                Ok(Err(e)) => {
+                    log::warn!("[rwkv] router mini load failed: {e}");
+                    set_router_head_status(RouterHeadStatus {
+                        loaded: false,
+                        input_dim: None,
+                        detail: Some(format!("router model load failed: {e}")),
+                    });
+                    let _ = reply.send(Err(e));
+                }
+                Err(panic) => {
+                    let msg = format!("router mini init panicked: {panic:?}");
+                    log::error!("[rwkv] {}", msg);
+                    set_router_head_status(RouterHeadStatus {
+                        loaded: false,
+                        input_dim: None,
+                        detail: Some(msg.clone()),
+                    });
+                    let _ = reply.send(Err(msg));
+                }
+            }
             true
         }
     }
@@ -627,22 +826,16 @@ fn handle_request(
 /// 256 与 seq 路径 GEMM 的 m_pad 对齐档一致，延迟与旧 128 档基本持平。
 const CLASSIFY_MAX_TOKENS: usize = 256;
 
-/// 单次分类（智能路由）：tokenize 输入（摘要+请求，截断 256）→ 零状态 prefill →
-/// mean-hidden（state embedding）→ 训练好的 MLP 头 → 4 类概率。
-/// `prev_tier` 为上一轮 sticky tier（v4 head 拼 one-hot 特征；v1 head 忽略）。
-/// 在 pool 线程内同步执行（prefill 短，耗时可忽略）。
-fn classify_with_engine(
-    engine: &mut PoolEngine,
+/// 分类特征提取（共享）：tokenize 输入（摘要+请求，截断 256）→ 零状态恢复 →
+/// mean-hidden（state embedding）。在 pool 线程内同步执行（prefill 短）。
+fn classify_extract_hidden(
+    model: &mut GpuModel,
+    tokenizer: &Tokenizer,
+    classify_state: &mut State,
+    initial_state: &[f32],
     request: &str,
-    prev_tier: Option<u8>,
 ) -> Result<Vec<f32>, String> {
-    let head = engine
-        .router_head
-        .as_ref()
-        .ok_or_else(|| "router head not loaded (router_head.json missing)".to_string())?;
-
-    let mut tokens = engine
-        .tokenizer
+    let mut tokens = tokenizer
         .encode(request.as_bytes())
         .map_err(|e| format!("failed to encode classify request: {}", e))?;
     if tokens.is_empty() {
@@ -651,28 +844,69 @@ fn classify_with_engine(
     }
     tokens.truncate(CLASSIFY_MAX_TOKENS);
 
-    // 校验分类头与模型维度匹配（用户更换模型后 head 失效 → 降级回落）。
-    // v4 head 的 expected_hidden_dim = base_dim（input_dim 含 5 维 one-hot）。
-    if head.expected_hidden_dim() != engine.model.info().num_emb {
+    model
+        .state_load(classify_state, initial_state)
+        .map_err(|e| format!("failed to reset classify state: {}", e))?;
+    model
+        .forward_seq_mean_hidden(classify_state, &tokens)
+        .map_err(|e| format!("classify prefill failed: {}", e))
+}
+
+/// 分类头可用性校验：头已加载且 expected_hidden_dim 与所选模型 n_embd 匹配。
+/// v4 head 的 expected_hidden_dim = base_dim（input_dim 含 5 维 one-hot）。
+fn check_router_head(
+    head: Option<&ai00_x_core::routing::head::RouterHead>,
+    num_embd: usize,
+) -> Result<&ai00_x_core::routing::head::RouterHead, String> {
+    let head =
+        head.ok_or_else(|| "router head not loaded (router_head.json missing)".to_string())?;
+    if head.expected_hidden_dim() != num_embd {
         return Err(format!(
             "router head expects hidden {} != model n_embd {} (head/model mismatch)",
             head.expected_hidden_dim(),
-            engine.model.info().num_emb
+            num_embd
         ));
     }
+    Ok(head)
+}
 
-    // 从零状态恢复专用分类状态，一次 mean-hidden prefill。
-    engine
-        .model
-        .state_load(&engine.classify_state, &engine.initial_state)
-        .map_err(|e| format!("failed to reset classify state: {}", e))?;
-    let hidden = engine
-        .model
-        .forward_seq_mean_hidden(&mut engine.classify_state, &tokens)
-        .map_err(|e| format!("classify prefill failed: {}", e))?;
-
+/// 常驻路由小模型分类路径（主模型无关）。返回 `(probs, hidden)`，
+/// hidden 供进化数据回流捕获。
+fn classify_with_mini(
+    mini: &mut RouterMini,
+    head: Option<&ai00_x_core::routing::head::RouterHead>,
+    request: &str,
+    prev_tier: Option<u8>,
+) -> Result<(Vec<f32>, Vec<f32>), String> {
+    let head = check_router_head(head, mini.num_embd)?;
+    let hidden = classify_extract_hidden(
+        &mut mini.model,
+        &mini.tokenizer,
+        &mut mini.classify_state,
+        &mini.initial_state,
+        request,
+    )?;
     let probs = head.forward(&hidden, prev_tier)?;
-    Ok(probs.to_vec())
+    Ok((probs.to_vec(), hidden))
+}
+
+/// 主模型兼容回退分类路径（router_mini 未加载且主模型头维度匹配时）。
+fn classify_with_engine(
+    engine: &mut PoolEngine,
+    head: Option<&ai00_x_core::routing::head::RouterHead>,
+    request: &str,
+    prev_tier: Option<u8>,
+) -> Result<(Vec<f32>, Vec<f32>), String> {
+    let head = check_router_head(head, engine.model.info().num_emb)?;
+    let hidden = classify_extract_hidden(
+        &mut engine.model,
+        &engine.tokenizer,
+        &mut engine.classify_state,
+        &engine.initial_state,
+        request,
+    )?;
+    let probs = head.forward(&hidden, prev_tier)?;
+    Ok((probs.to_vec(), hidden))
 }
 
 /// 按模型规模动态核减生成槽位数：RWKV state 显存随模型规模线性放大，
@@ -721,9 +955,8 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
         .create_state()
         .map_err(|e| format!("failed to create classify state: {}", e))?;
 
-    // 加载智能路由分类头（models 目录 router_head.json；缺失/损坏/维度
-    // 不匹配时分类降级回落，状态经 ROUTER_HEAD_STATUS 全局可查询）。
-    let router_head = load_router_head(model.info().num_emb);
+    // 注意：主模型不再加载分类头（路由分类由常驻 router_mini 承担；
+    // 头由 InitRouter 加载，主模型仅作维度匹配的兼容回退）。
 
     let info = model.info();
     log::info!(
@@ -742,7 +975,36 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
         initial_state,
         session_states: HashMap::new(),
         classify_state,
-        router_head,
+    })
+}
+
+/// 加载常驻路由小模型（0.1B int8）：仅创建分类状态，无生成槽位。
+fn load_router_mini(model_path: &str, vocab_path: &str) -> Result<RouterMini, String> {
+    log::info!("[rwkv] loading router mini model: {}", model_path);
+    let bundle: Bundle = ModelBuilder::new(model_path)
+        .build()
+        .map_err(|e| format!("failed to load router mini '{}': {}", model_path, e))?;
+    let Bundle { mut model, state } = bundle;
+
+    let initial_state = model
+        .state_back(&state)
+        .map_err(|e| format!("failed to snapshot router mini initial state: {}", e))?;
+    let classify_state = model
+        .create_state()
+        .map_err(|e| format!("failed to create router mini classify state: {}", e))?;
+
+    let vocab = std::fs::read_to_string(vocab_path)
+        .map_err(|e| format!("failed to read vocab '{}': {}", vocab_path, e))?;
+    let tokenizer = Tokenizer::new(&vocab).map_err(|e| format!("failed to parse vocab: {}", e))?;
+
+    let num_embd = model.info().num_emb;
+    Ok(RouterMini {
+        model,
+        initial_state,
+        classify_state,
+        tokenizer,
+        num_embd,
+        model_path: model_path.to_string(),
     })
 }
 
@@ -1146,9 +1408,19 @@ pub async fn pool_infer(
 }
 
 /// 单次分类请求（智能路由用）：mean-hidden 提取 + MLP 头 → 4 类概率（R0-R3）。
-pub async fn rwkv_classify(request: String, prev_tier: Option<u8>) -> Result<Vec<f32>, String> {
-    if !LLM_READY.load(Ordering::SeqCst) {
-        return Err("LLM engine not initialized".to_string());
+/// `capture`：true = 真实路由（进化数据回流）；false = 设置页预览（不采集）。
+pub async fn rwkv_classify(
+    request: String,
+    prev_tier: Option<u8>,
+    capture: bool,
+) -> Result<Vec<f32>, String> {
+    // 路由分类与主模型解耦：router_mini 未就绪但模型文件已下载时先懒加载
+    // （幂等；下载完成后的首次分类自动恢复，无需重启）。文件缺失时直接
+    // 走 pool 内兼容回退链（主模型匹配头 / Err 降级回落远程）。
+    if !ROUTER_MINI_READY.load(Ordering::SeqCst) && router_model_path().exists() {
+        if let Err(e) = init_router_internal().await {
+            log::warn!("[rwkv] router mini lazy-init failed, classify falls back: {e}");
+        }
     }
     let pool = get_inference_pool().ok_or("inference pool not started")?;
     let (reply_tx, reply_rx) = oneshot::channel::<Result<Vec<f32>, String>>();
@@ -1156,6 +1428,7 @@ pub async fn rwkv_classify(request: String, prev_tier: Option<u8>) -> Result<Vec
         .send(PoolRequest::Classify {
             request,
             prev_tier,
+            capture,
             reply: reply_tx,
         })
         .map_err(|e| format!("failed to send classify request: {}", e))?;
@@ -1166,10 +1439,65 @@ pub async fn rwkv_classify(request: String, prev_tier: Option<u8>) -> Result<Vec
     }
 }
 
+/// 查询当前分类骨干 hidden 维度（router_mini 优先，主模型回退；未就绪 = None）。
+/// 仅在阻塞线程上下文调用（blocking_recv）。
+pub fn router_head_target() -> Result<(std::path::PathBuf, usize), String> {
+    let pool = get_inference_pool().ok_or("inference pool not started")?;
+    let (reply_tx, reply_rx) = oneshot::channel::<Option<usize>>();
+    pool.tx
+        .send(PoolRequest::RouterDim { reply: reply_tx })
+        .map_err(|e| format!("failed to send router-dim request: {e}"))?;
+    let dim = reply_rx
+        .blocking_recv()
+        .ok()
+        .flatten()
+        .ok_or("no classification backbone loaded (router mini / LLM engine)")?;
+    Ok((assets_models_dir().join("router_head.json"), dim))
+}
+
+/// 同步热重载路由头（进化流程写入新 router_head.json 后复用）。
+/// 仅在阻塞线程上下文调用（blocking_recv）。
+pub fn reload_head_blocking() -> Result<(), String> {
+    let pool = get_inference_pool().ok_or("inference pool not started")?;
+    let (reply_tx, reply_rx) = oneshot::channel::<Result<(), String>>();
+    pool.tx
+        .send(PoolRequest::ReloadRouterHead { reply: reply_tx })
+        .map_err(|e| format!("failed to send reload request: {e}"))?;
+    reply_rx
+        .blocking_recv()
+        .unwrap_or_else(|_| Err("reload reply channel closed".to_string()))
+}
+
+/// 加载/替换常驻路由小模型（0.1B）。幂等：同路径已加载直接成功。
+async fn init_router_internal() -> Result<(), String> {
+    let mp = router_model_path();
+    if !mp.exists() {
+        return Err("router model not downloaded (router-0.1B-int8.st missing)".to_string());
+    }
+    let (default_vocab, _) = resolve_default_paths();
+    let pool = ensure_inference_pool();
+    register_with_vram_manager();
+    let (reply_tx, reply_rx) = oneshot::channel::<Result<(), String>>();
+    pool.tx
+        .send(PoolRequest::InitRouter {
+            model_path: mp.to_string_lossy().into_owned(),
+            vocab_path: default_vocab,
+            reply: reply_tx,
+        })
+        .map_err(|e| format!("failed to send init-router request: {}", e))?;
+    // 0.1B 加载很快（秒级），超时放宽到 60s 覆盖首载 GPU 初始化。
+    match tokio::time::timeout(Duration::from_secs(60), reply_rx).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => Err("init-router reply channel closed".to_string()),
+        Err(_) => Err("router mini load timed out after 60s".to_string()),
+    }
+}
+
 /// 热重载智能路由分类头（router_head.json）：无需重启应用/引擎。
 pub async fn rwkv_reload_router_head() -> Result<(), String> {
-    if !LLM_READY.load(Ordering::SeqCst) {
-        return Err("LLM engine not initialized".to_string());
+    // 路由头校验对象优先 router_mini，主模型仅兼容回退——两者皆未加载才拒绝。
+    if !ROUTER_MINI_READY.load(Ordering::SeqCst) && !LLM_READY.load(Ordering::SeqCst) {
+        return Err("no engine available (router mini and LLM engine not initialized)".to_string());
     }
     let pool = get_inference_pool().ok_or("inference pool not started")?;
     let (reply_tx, reply_rx) = oneshot::channel::<Result<(), String>>();
@@ -1332,6 +1660,15 @@ fn is_rwkv_model_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// 路由小模型固定名（router- 前缀）：主模型扫描/自动选择必须跳过，
+/// 防止 0.1B 路由模型被误当主模型加载。
+fn is_router_model_file(path: &Path) -> bool {
+    path.file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase().starts_with("router-"))
+        .unwrap_or(false)
+}
+
 /// 解析 safetensors 文件头（前 8 字节 u64 长度 + JSON），判断是否为 int8 量化
 /// （量化张量键含 ".int8_idx" 后缀，存储在 .st 文件内部）。
 fn is_int8_model(model_path: &Path) -> bool {
@@ -1389,14 +1726,14 @@ pub fn list_rwkv_models() -> Vec<RwkvModelInfo> {
             if let Ok(sub) = std::fs::read_dir(&path) {
                 for e in sub.flatten() {
                     let p = e.path();
-                    if p.is_file() && is_rwkv_model_file(&p) {
+                    if p.is_file() && is_rwkv_model_file(&p) && !is_router_model_file(&p) {
                         if let Some(info) = build_model_info(&p, &vocab) {
                             out.push(info);
                         }
                     }
                 }
             }
-        } else if is_rwkv_model_file(&path) {
+        } else if is_rwkv_model_file(&path) && !is_router_model_file(&path) {
             flat_files.push(path);
         }
     }
@@ -1589,13 +1926,13 @@ pub async fn rwkv_builtin_download(key: String) -> Result<Vec<String>, String> {
     Ok(task_ids)
 }
 
-/// 扫描模型目录，返回第一个 .st / .safetensors 模型文件。
+/// 扫描模型目录，返回第一个 .st / .safetensors 模型文件（跳过路由小模型）。
 fn scan_model_file() -> Option<String> {
     let models_dir = assets_models_dir();
     let entries = std::fs::read_dir(&models_dir).ok()?;
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_file() && is_rwkv_model_file(&path) {
+        if path.is_file() && is_rwkv_model_file(&path) && !is_router_model_file(&path) {
             return Some(path.to_string_lossy().into_owned());
         }
     }
@@ -1702,14 +2039,7 @@ pub async fn init_engine_internal(
     }
 
     // 确保 pool 线程已启动（常驻，加载由 Init 消息触发）
-    let pool = INFERENCE_POOL.get_or_init(|| {
-        let (pool_tx, pool_rx) = mpsc::unbounded_channel::<PoolRequest>();
-        std::thread::Builder::new()
-            .name("rwkv-inference-pool".to_string())
-            .spawn(move || inference_pool_main(pool_rx))
-            .expect("failed to spawn rwkv inference pool thread");
-        InferencePoolHandle { tx: pool_tx }
-    });
+    let pool = ensure_inference_pool();
     register_with_vram_manager();
 
     let (reply_tx, reply_rx) = oneshot::channel::<Result<(), String>>();
@@ -1736,8 +2066,10 @@ pub async fn init_engine_internal(
     }
 }
 
-/// 启动序列智能路由预加载：router.enabled 时自动初始化 RWKV 引擎，
-/// 使首个 auto 模式请求即可完成本地分类（无需前端手动触发加载）。
+/// 启动序列智能路由预加载：router.enabled 时仅加载常驻路由小模型（0.1B，
+/// ~0.2GB 显存），使首个 auto 模式请求即可完成本地分类——不再为路由加载
+/// 整个主本地模型。路由模型未下载（manifest 首启拉取）时跳过，首次分类
+/// 请求会懒加载兜底。
 pub async fn preload_engine_for_router() {
     // 等待配置服务就绪（启动初期可能尚未初始化，最多等 30s）。
     for _ in 0..300 {
@@ -1757,11 +2089,11 @@ pub async fn preload_engine_for_router() {
     if !ai_config.router.enabled {
         return;
     }
-    // 显存预算保护：预算不足时跳过预加载（预加载不驱逐其它引擎；
-    // 首个请求到达时 auto-start 仍会按需拉起并执行完整预算检查）。
+    // 显存预算保护：路由小模型常驻预算 ~0.5GB（0.1B int8 ~0.2GB + 状态/缓冲）。
+    // 预算不足时跳过（预加载不驱逐其它引擎；首次分类请求会懒加载兜底）。
     if let Some(mem) = crate::vram_monitor::query_vram(None) {
         let reserve = 1024u64 * 1024 * 1024;
-        let min_need = 2u64 * 1024 * 1024 * 1024;
+        let min_need = 512u64 * 1024 * 1024;
         if mem.free_bytes.saturating_sub(reserve) < min_need {
             log::info!(
                 "[rwkv] insufficient VRAM headroom (free {} MB), skip router preload",
@@ -1770,8 +2102,15 @@ pub async fn preload_engine_for_router() {
             return;
         }
     }
-    log::info!("[rwkv] smart router enabled, preloading RWKV engine");
-    match init_engine_internal(None, None, None).await {
+    if !router_model_path().exists() {
+        log::info!(
+            "[rwkv] router mini model not downloaded yet ({}), classify lazy-inits after download",
+            router_model_path().display()
+        );
+        return;
+    }
+    log::info!("[rwkv] smart router enabled, preloading router mini model");
+    match init_router_internal().await {
         Ok(_) => log::info!("[rwkv] router preload complete"),
         Err(e) => log::warn!("[rwkv] router preload failed: {}", e),
     }
@@ -1951,5 +2290,53 @@ pub async fn rwkv_clear_session_cache(session_id: String) -> Result<bool, String
             Ok(true)
         }
         None => Ok(false),
+    }
+}
+
+#[cfg(test)]
+mod router_mini_tests {
+    use super::*;
+
+    /// router- 前缀过滤：固定名命中（大小写不敏感），普通模型名不命中。
+    #[test]
+    fn router_prefix_filter() {
+        let yes = |name: &str| is_router_model_file(Path::new(name));
+        assert!(yes("router-0.1B-int8.st"));
+        assert!(yes("ROUTER-test.safetensors"));
+        assert!(!yes("rwkv7-3B-int8.st"));
+        assert!(!yes("rwkv7-7B-int8.st"));
+        // 无连缀前缀（routerX）不是路由模型。
+        assert!(!yes("routerx.st"));
+    }
+
+    fn toy_v4_head(base_dim: usize) -> ai00_x_core::routing::head::RouterHead {
+        let n = base_dim + 5;
+        let mean = vec![0.0_f32; n];
+        let std = vec![1.0_f32; n];
+        let mut w1 = vec![0.0_f32; n];
+        w1[0] = 1.0;
+        let json = format!(
+            r#"{{"version":1,"input_dim":{n},"hidden_dim":1,"base_dim":{base_dim},
+                "mean":{mean:?},"std":{std:?},
+                "w1":{w1:?},"b1":[0.0],"ln_g":[1.0],"ln_b":[0.0],
+                "w2":[1.0,0.0,0.0,0.0],"b2":[0.0,0.0,0.0,0.0]}}"#
+        );
+        ai00_x_core::routing::head::RouterHead::from_json_str(&json).unwrap()
+    }
+
+    /// 分类头校验：缺失拒绝；维度不匹配拒绝；匹配通过（回退链判定核心）。
+    #[test]
+    fn check_router_head_dims() {
+        let head = toy_v4_head(2);
+        assert!(check_router_head(None, 2).is_err());
+        assert!(check_router_head(Some(&head), 3).is_err());
+        assert!(check_router_head(Some(&head), 2).is_ok());
+        // 错误信息可定位（缺失 vs 不匹配）。
+        assert!(check_router_head(None, 2)
+            .unwrap_err()
+            .contains("not loaded"));
+        assert!(check_router_head(Some(&head), 3)
+            .unwrap_err()
+            .contains("mismatch"));
     }
 }

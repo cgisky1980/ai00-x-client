@@ -11,7 +11,8 @@ import { useTodoStore } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
 import { useReminderTicker } from '../hooks/useReminderTicker';
 import { XpKinds, type FocusSession } from '../api/types';
-import { connectMux, dshSession, foldEvents, type DshMuxFrame } from '@/infrastructure/api/service-api/DshAPI';
+import { connectMux, dshApproval, dshSession, foldEvents, type DshMuxFrame } from '@/infrastructure/api/service-api/DshAPI';
+import { isSessionAllowed } from '@/shared/agent-approval-rules';
 import {
   judgeModelFor,
   judgeStall,
@@ -124,8 +125,13 @@ export const TodoOverlay: React.FC = () => {
         activityRef.current.set(frame.sessionId, Date.now());
         store.removeAgentQuestion(frame.sessionId, frame.questionRpcId);
       } else if (frame.type === 'approval/requested') {
-        // 工具审批挂起 = 等人工点击——合法静默，看门狗豁免
         activityRef.current.set(frame.sessionId, Date.now());
+        // 「总是允许」记忆命中：自动应答放行，不再打扰人工
+        if (isSessionAllowed(frame.sessionId, frame.toolName)) {
+          void dshApproval.respond(rpcId, frame.sessionId, frame.approvalId, 'allowed-once');
+          return;
+        }
+        // 工具审批挂起 = 等人工点击——合法静默，看门狗豁免
         awaitingApprovalRef.current.add(frame.sessionId);
       } else if (frame.type === 'approval/resolved') {
         awaitingApprovalRef.current.delete(frame.sessionId);

@@ -4,7 +4,7 @@
 
 use super::service::ConfigService;
 use crate::util::errors::*;
-use log::{debug, info, warn};
+use log::{debug, info};
 use std::sync::Arc;
 use std::sync::OnceLock;
 
@@ -78,21 +78,6 @@ impl GlobalConfigManager {
 
         info!("Global config service initialized");
 
-        match super::mode_config_canonicalizer::canonicalize_mode_configs().await {
-            Ok(report) => {
-                if !report.removed_mode_configs.is_empty() || !report.updated_modes.is_empty() {
-                    info!(
-                        "Mode config canonicalization completed: removed_modes={}, updated_modes={}",
-                        report.removed_mode_configs.len(),
-                        report.updated_modes.len()
-                    );
-                }
-            }
-            Err(e) => {
-                warn!("Mode config canonicalization failed: {}", e);
-            }
-        }
-
         Ok(())
     }
 
@@ -113,12 +98,6 @@ impl GlobalConfigManager {
     pub async fn reload() -> Ai00XResult<()> {
         let service = Self::get_service()?;
         service.reload().await?;
-        if let Err(error) = super::mode_config_canonicalizer::canonicalize_mode_configs().await {
-            warn!(
-                "Mode config canonicalization failed after reload: {}",
-                error
-            );
-        }
         Self::broadcast_update(ConfigUpdateEvent::ConfigReloaded).await;
         Ok(())
     }

@@ -52,8 +52,6 @@ class PlanBuildStateService {
   /** Files currently being written (suppresses watcher reloads). */
   private writingFiles = new Set<string>();
 
-  /** Map planFilePath → sessionId for syncing activePlan.todos to FlowChatStore. */
-  private planFilePathToSessionId = new Map<string, string>();
 
   private constructor() {
     this.setupGlobalListeners();
@@ -69,16 +67,13 @@ class PlanBuildStateService {
   // ==================== Public API ====================
 
   /** Mark a plan as building and notify all subscribers. */
-  startBuild(planFilePath: string, todoIds: string[], sessionId?: string): void {
+  startBuild(planFilePath: string, todoIds: string[], _sessionId?: string): void {
     const key = this.normalizePath(planFilePath);
     this.buildingPlans.set(key, {
       todoIds: new Set(todoIds),
       planFilePath,
       startedAt: Date.now(),
     });
-    if (sessionId) {
-      this.planFilePathToSessionId.set(key, sessionId);
-    }
     this.notify(key, { type: 'build-started', isBuilding: true });
   }
 
@@ -226,8 +221,6 @@ class PlanBuildStateService {
           planContent,
         });
 
-        const _sid = this.planFilePathToSessionId.get(key);
-        void _sid; // 老状态机同步已随 flow_chat 移除
       } catch (err) {
         log.warn('Plan build state sync failed', { error: String(err) });
       }

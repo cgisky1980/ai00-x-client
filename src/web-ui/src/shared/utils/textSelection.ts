@@ -85,31 +85,3 @@ export const getElementText = (element: HTMLElement): string => {
   
   return element.innerText || element.textContent || '';
 };
-
- 
-export const isInFlowChat = (element: HTMLElement): boolean => {
-  return element.closest('.flow-chat-container') !== null;
-};
-
- 
-export const getFlowChatContext = (element: HTMLElement) => {
-  const flowChatContainer = element.closest('.flow-chat-container');
-  if (!flowChatContainer) {
-    return null;
-  }
-
-  const dialogTurn = element.closest('.flow-chat-dialog-turn');
-  const modelRound = element.closest('.model-round');
-  const textBlock = element.closest('.flow-text-block');
-  const toolCard = element.closest('.flow-tool-card');
-  const userMessage = element.closest('.user-message');
-
-  return {
-    container: flowChatContainer as HTMLElement,
-    dialogTurn: dialogTurn as HTMLElement | null,
-    modelRound: modelRound as HTMLElement | null,
-    textBlock: textBlock as HTMLElement | null,
-    toolCard: toolCard as HTMLElement | null,
-    userMessage: userMessage as HTMLElement | null
-  };
-};

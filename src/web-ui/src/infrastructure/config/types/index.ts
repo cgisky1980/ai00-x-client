@@ -157,9 +157,6 @@ export interface AIConfig {
   default_models: DefaultModelsConfig;
   router?: SmartRouterConfig;
   agent_models: Record<string, string>;
-  func_agent_models: Record<string, string>;
-  mode_configs: Record<string, StoredModeConfigItem>;
-  subagent_configs: Record<string, SubAgentConfigItem>;
   proxy: ProxyConfig;
   debug_mode_config: DebugModeConfig;
   request_timeout: number;
@@ -174,28 +171,6 @@ export interface AIConfig {
   skip_tool_confirmation?: boolean;
   computer_use_enabled?: boolean;
   anysearch_api_key?: string;
-}
-
-export interface StoredModeConfigItem {
-  mode_id: string;
-  added_tools: string[];
-  removed_tools: string[];
-  enabled: boolean;
-  disabled_user_skills?: string[];
-  enabled_user_skills?: string[];
-}
-
-export interface ModeConfigItem {
-  mode_id: string;
-  enabled_tools: string[];
-  enabled: boolean;
-  default_tools: string[];
-  disabled_user_skills?: string[];
-  enabled_user_skills?: string[];
-}
-
-export interface SubAgentConfigItem {
-  enabled: boolean;
 }
 
 export type SkillLevel = 'user' | 'project';

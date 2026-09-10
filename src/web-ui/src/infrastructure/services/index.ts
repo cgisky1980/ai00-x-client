@@ -8,7 +8,6 @@
 export * from './api/aiService';
 
 // Business layer: domain logic and orchestration
-export * from './business/agentService';
 export * from './business/workspaceManager';
 
 // Infrastructure layer: low-level technical services

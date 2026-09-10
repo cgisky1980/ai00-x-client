@@ -449,9 +449,7 @@
     "terminalAccess": "Terminal Access",
     "terminalAccessDesc": "Allow AI to execute terminal commands",
     "webSearch": "Web Search",
-    "webSearchDesc": "Allow AI to search the web",
-    "browserControl": "Browser Control",
-    "browserControlDesc": "Allow AI to control the browser"
+    "webSearchDesc": "Allow AI to search the web"
   },
   "skills": {
     "title": "Skills",
@@ -459,13 +457,6 @@
     "addSkill": "Add Skill",
     "noSkills": "No skills",
     "noSkillsHint": "Skills can extend AI capabilities"
-  },
-  "agents": {
-    "title": "Agents",
-    "subtitle": "Configure agents",
-    "addAgent": "Add Agent",
-    "noAgents": "No sub-agents",
-    "noAgentsHint": "Sub-agents can handle specific types of tasks"
   },
   "mcp": {
     "title": "MCP",

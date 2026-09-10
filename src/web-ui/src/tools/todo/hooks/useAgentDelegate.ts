@@ -135,6 +135,7 @@ export function useAgentDelegate() {
         `任务书：${task.title}`,
         taskBrief,
         ...(cwd ? [`工作目录：${cwd}（文件读写在此目录下进行）`] : []),
+        `长耗时命令（预计超过 2 分钟）：用 pwsh 的 run_in_background: true 参数转后台执行——立即返回任务 id，完成后引擎会自动通知你，届时用 job_output 读取输出再继续；多个后台任务用 job_list 查看，确需放弃用 job_kill。不要让长命令阻塞在前台。`,
         ...(hasPlanDoc
           ? [
               `计划文档可读写（与用户共享，策窗口实时可见）：先用 ai00_plan_read（taskId: "${task.id}"）读取全文。执行协议：① 每完成「## 步骤」段的一个步骤，立即把对应项改为 "- [x]"（ai00_plan_write 全量写回）；② 执行中的进度、关键变更、结果记录同步更新回计划文档。`,

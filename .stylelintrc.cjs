@@ -107,7 +107,6 @@ module.exports = {
   ignoreFiles: [
     '**/node_modules/**',
     '**/dist/**',
-    'src/crates/relay/static/assets/**', // relay 前端构建产物
     'src/web-ui/public/**', // 第三方资产（monaco 等）
     'packages/design-system/tokens/**',
     'packages/design-system/css/tokens.css',

@@ -10,9 +10,14 @@
  * Promise——同步调用点必须 await（迁移时已全部改为 await）。
  */
 import { createRoot, type Root } from 'react-dom/client';
-import { ShimHost, type PendingDialog } from './dialog-shim-host';
+import { ShimHost } from './dialog-shim-host';
+import type { PendingDialog } from './dialog-shim-host-types';
 
 let pending: PendingDialog | null = null;
+// 最后一次展示的对话框：结算后保留一拍、以 isOpen=false 重渲染——
+// 让 Radix 走正常关闭流程清理 body 滚动/指针锁（直接卸载 open 状态的
+// Dialog 会残留 pointer-events: none，整页不可点击）
+let shown: PendingDialog | null = null;
 let root: Root | null = null;
 let installed = false;
 
@@ -25,7 +30,7 @@ function settle(p: PendingDialog, ok: boolean, promptText: string): void {
 }
 
 function render(): void {
-  root?.render(<ShimHost pending={pending} onSettle={settle} />);
+  root?.render(<ShimHost pending={pending} shown={shown} onSettle={settle} />);
 }
 
 function open(kind: PendingDialog['kind'], message: string, defaultValue: string): Promise<unknown> {
@@ -33,6 +38,7 @@ function open(kind: PendingDialog['kind'], message: string, defaultValue: string
     // 同时只保留一个活跃弹窗：后到的直接裁决前一个（false/null），避免叠窗
     if (pending) settle(pending, false, pending.defaultValue);
     pending = { kind, message, defaultValue, resolve };
+    shown = pending;
     render();
   });
 }

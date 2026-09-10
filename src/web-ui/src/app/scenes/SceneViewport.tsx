@@ -26,14 +26,11 @@ import './SceneViewport.scss';
 const TerminalScene   = lazy(() => import('./terminal/TerminalScene'));
 const GitScene        = lazy(() => import('./git/GitScene'));
 const FileViewerScene = lazy(() => import('./file-viewer/FileViewerScene'));
-const ProfileScene    = lazy(() => import('./profile/ProfileScene'));
-const AgentsScene       = lazy(() => import('./agents/AgentsScene'));
 const SkillsScene     = lazy(() => import('./skills/SkillsScene'));
 const PluginsScene    = lazy(() => import('./plugins/PluginsScene'));
 const MiniAppGalleryScene = lazy(() => import('./miniapps/MiniAppGalleryScene'));
 const BrowserScene    = lazy(() => import('./browser/BrowserScene'));
 const MermaidEditorScene = lazy(() => import('./mermaid/MermaidEditorScene'));
-const InsightsScene   = lazy(() => import('./my-agent/InsightsScene'));
 const ShellScene      = lazy(() => import('./shell/ShellScene'));
 const WelcomeScene    = lazy(() => import('./welcome/WelcomeScene'));
 const MiniAppScene    = lazy(() => import('./miniapps/MiniAppScene'));
@@ -121,10 +118,6 @@ function renderScene(
       return <SettingsScene />;
     case 'file-viewer':
       return <FileViewerScene workspacePath={workspacePath} />;
-    case 'profile':
-      return <ProfileScene />;
-    case 'agents':
-      return <AgentsScene />;
     case 'skills':
       return <SkillsScene />;
     case 'plugins':
@@ -143,8 +136,6 @@ function renderScene(
       return <BrowserScene />;
     case 'mermaid':
       return <MermaidEditorScene />;
-    case 'insights':
-      return <InsightsScene />;
     case 'shell':
       return <ShellScene isActive={isActive} />;
     case 'panel-view':

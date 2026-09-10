@@ -1,22 +1,19 @@
 //! MCP server manager
 //!
 //! The manager is split into focused submodules so lifecycle, reconnect,
-//! catalog, interaction, and tool-registration logic can evolve independently.
+//! catalog, and interaction logic can evolve independently.
 
 mod auth;
 mod catalog;
 mod interaction;
 mod lifecycle;
 mod reconnect;
-mod skill_bridge;
 #[cfg(test)]
 mod tests;
-mod tools;
 
 use super::connection::{MCPConnection, MCPConnectionEvent, MCPConnectionPool};
 use super::{MCPServerConfig, MCPServerRegistry, MCPServerStatus};
 use crate::infrastructure::events::event_system::{get_global_event_system, BackendEvent};
-use crate::service::mcp::adapter::MCPToolAdapter;
 use crate::service::mcp::auth::MCPRemoteOAuthSessionSnapshot;
 use crate::service::mcp::config::MCPConfigService;
 use crate::service::mcp::protocol::{MCPError, MCPPrompt, MCPResource};

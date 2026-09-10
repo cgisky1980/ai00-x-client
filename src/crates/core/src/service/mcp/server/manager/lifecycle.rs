@@ -268,21 +268,6 @@ impl MCPServerManager {
                 .add_connection(server_id.to_string(), connection.clone())
                 .await;
 
-            match Self::register_mcp_tools(server_id, &config.name, connection.clone()).await {
-                Ok(count) => {
-                    info!(
-                        "Registered {} MCP tools: server_name={} server_id={}",
-                        count, config.name, server_id
-                    );
-                }
-                Err(e) => {
-                    warn!(
-                        "Failed to register MCP tools: server_name={} server_id={} error={}",
-                        config.name, server_id, e
-                    );
-                }
-            }
-
             self.start_connection_event_listener(server_id, &config.name, connection.clone())
                 .await;
             self.warm_catalog_caches(server_id, connection).await;
@@ -315,8 +300,6 @@ impl MCPServerManager {
         self.connection_pool.remove_connection(server_id).await;
         self.resource_catalog_cache.write().await.remove(server_id);
         self.prompt_catalog_cache.write().await.remove(server_id);
-
-        Self::unregister_mcp_tools(server_id).await;
 
         stop_result
     }

@@ -1,11 +1,9 @@
-import { useState, useCallback, useEffect, useMemo, useRef, useContext } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useWorkspaceContext } from '../../infrastructure/contexts/WorkspaceContext';
 import { workspaceAPI } from '@/infrastructure/api';
 import { createLogger } from '@/shared/utils/logger';
 import { useI18n } from '@/infrastructure/i18n';
-import { WorkspaceKind } from '@/shared/types';
-import { SSHContext } from '@/features/ssh-remote/SSHRemoteContext';
 import { useApp } from './useApp';
 
 const log = createLogger('CoreLayoutInit');
@@ -31,7 +29,7 @@ export interface CoreLayoutInitResult {
   setSplashExiting: (v: boolean) => void;
 }
 
-export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResult {
+export function useCoreLayoutInit(): CoreLayoutInitResult {
   const { t } = useI18n('components');
   const {
     currentWorkspace,
@@ -39,16 +37,9 @@ export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResul
     openWorkspace,
   } = useWorkspaceContext();
 
-  const sshContext = useContext(SSHContext);
-  const remoteSshFlowChatKey =
-    currentWorkspace?.workspaceKind === WorkspaceKind.Remote && currentWorkspace?.connectionId
-      ? sshContext?.workspaceStatuses[currentWorkspace.connectionId] ?? 'unknown'
-      : 'local';
 
   const { state, switchLeftPanelTab, toggleLeftPanel, toggleRightPanel } = useApp();
 
-  const initializedWorkspacePathsRef = useRef<Set<string>>(new Set());
-  void initializedWorkspacePathsRef; // 老会话初始化退场后暂无消费者
 
   // No longer auto-open recent workspace on startup.
   // Each mode (Code/Task/Wallpaper) shows its own welcome page.
@@ -126,24 +117,6 @@ export function useCoreLayoutInit(autoCreateSession = true): CoreLayoutInitResul
     return () => { unlistenFns.forEach(fn => fn()); unlistenFns = []; };
   }, [isMacOS, openWorkspace, handleNewProject, handleShowAbout]);
 
-  useEffect(() => {
-    // 老会话初始化已随 flow_chat 退场：dsh 场景自理会话
-    const initializeFlowChat = async () => {
-      if (!currentWorkspace?.rootPath) return;
-      // no-op
-    };
-
-    initializeFlowChat();
-  }, [
-    currentWorkspace?.id,
-    currentWorkspace?.rootPath,
-    currentWorkspace?.workspaceKind,
-    currentWorkspace?.connectionId,
-    currentWorkspace?.sshHost,
-    remoteSshFlowChatKey,
-    t,
-    autoCreateSession,
-  ]);
 
   useEffect(() => {
     let unlistenFn: (() => void) | null = null;

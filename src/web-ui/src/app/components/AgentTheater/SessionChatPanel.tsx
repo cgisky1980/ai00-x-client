@@ -30,6 +30,7 @@ import {
 } from '@/infrastructure/api/service-api/DshAPI';
 import { useDraggable, refreshRegions, setDragging } from '../../../infrastructure/overlay';
 import { usePopupResize } from '../../../tools/island/hooks/usePopupResize';
+import { isSessionAllowed } from '@/shared/agent-approval-rules';
 import { ApprovalCard, MessageBubble, QuestionCard } from '../../scenes/dsh/DshChatPieces';
 // 消息/输入区样式类来自策场景（__msg* / __composer），必须引入该样式表
 import '../../scenes/dsh/DshScene.scss';
@@ -149,6 +150,11 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
     const conn = connectMux((frame: DshMuxFrame, frameRpcId: string) => {
       // 审批/提问（mux 重连会重放 pending 帧 → 按 rpcId 去重）
       if (frame.type === 'approval/requested' && frame.sessionId === sessionId) {
+        // 「总是允许」记忆命中：自动应答，不弹卡
+        if (isSessionAllowed(sessionId, frame.toolName)) {
+          void dshApproval.respond(frameRpcId, sessionId, frame.approvalId, 'allowed-once');
+          return;
+        }
         setApprovals(prev =>
           prev.some(a => a.rpcId === frameRpcId)
             ? prev

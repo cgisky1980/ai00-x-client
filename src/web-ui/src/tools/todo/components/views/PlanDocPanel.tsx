@@ -16,6 +16,8 @@ import { listen } from '@tauri-apps/api/event';
 import { Check, ChevronDown, ChevronRight, Diff, Pencil, RotateCcw, Send, Undo2 } from 'lucide-react';
 import { Markdown, Modal } from '@/component-library';
 import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
+import { addMemory } from '@/infrastructure/api/aiMemoryApi';
+import { aiComplete } from '../../ai/consult';
 import { resolveDelegateCwd } from '../../ai/workspace';
 import type { TodoTask } from '../../api/types';
 import { XpKinds } from '../../api/types';
@@ -196,6 +198,36 @@ export const PlanDocPanel: React.FC<{
   };
 
   /** 人类验收通过（双段验收第二段）：completedAt + XP；周期克隆在 completeTask 内。 */
+  const distillMemory = async (): Promise<void> => {
+    try {
+      const chat = (task.chat ?? [])
+        .slice(-6)
+        .map(m => `${m.role === 'user' ? '用户' : 'AI'}: ${m.text.slice(0, 200)}`)
+        .join('\n');
+      const out = await aiComplete(
+        `任务「${task.title}」已验收通过。\n${chat ? `打回历史与讨论：\n${chat}\n` : ''}如果这次任务有值得长期记住的经验（用户偏好/项目事实/避坑教训），只输出一条简洁经验（50 字内）；没有就只输出：无`,
+        '你是记忆蒸馏器，只输出经验文本或「无」。',
+        {
+          temperature: 0.3,
+          maxTokens: 120,
+          model: task.discussModel && task.discussModel !== 'auto' ? task.discussModel : undefined,
+          tag: `todo:memory:${task.id}`,
+        },
+      );
+      const text = (out || '').trim();
+      if (!text || /^无$/.test(text)) return;
+      await addMemory({
+        title: task.title.slice(0, 40),
+        content: text.slice(0, 500),
+        type: 'project_context',
+        importance: 3,
+        tags: ['策', '验收沉淀'],
+      });
+    } catch {
+      // 蒸馏失败静默——不影响验收主流程
+    }
+  };
+
   const accept = () => {
     completeTask(task.id, true);
     const xp = xpFor(task);
@@ -203,7 +235,11 @@ export const PlanDocPanel: React.FC<{
     void addXpEvent(XpKinds.taskDone, xp, { taskId: task.id, title: task.title }).catch(() => undefined);
     void checkBadges();
     showToast('验收通过', `「${task.title.slice(0, 16)}」已成 +${xp}XP`);
+    void distillMemory();
   };
+
+  /** 验收后经验蒸馏（fire-and-forget）：讨论模型判断值得记则写入记忆库，
+   *  下次委托时随任务书注入——形成"做过→记住→复用"闭环。失败静默。 */
 
   /** 打回：清模型自检态，理由发回会话（agent 重读计划，继续完善）。 */
   const handleReject = async () => {
@@ -334,19 +370,27 @@ export const PlanDocPanel: React.FC<{
               onToggle={() => setOpenAcc(v => !v)}
               label="验收"
               summary={accTotal > 0 ? `${accDone}/${accTotal}` : '无验收项'}
-              actions={
-                isDoing && !task.completedAt ? (
-                  awaitingHuman ? (
-                    <>
-                      <span
-                        className="td-chip"
-                        title={`模型自检通过于 ${new Date(task.agentCompletedAt as number).toLocaleTimeString()}`}
-                      >
-                        已自检
-                      </span>
-                      {hasSnapshots && (
+            >
+              {accTotal === 0 ? (
+                <div className="td-plandoc__empty">无验收项（免验收）</div>
+              ) : (
+                <>
+                  {/* 验收动作条（抽屉体顶部右对齐——不放头部，避免窄窗口挤成一条） */}
+                  {isDoing && !task.completedAt && (
+                    <div className="td-plandoc__acc-actions">
+                      {awaitingHuman && hasSnapshots && (
                         <button className="td-chip" onClick={() => void showDiff()} title="查看 agent 的实际改动（基线→自检 diff）">
                           <Diff size={11} /> 查看改动
+                        </button>
+                      )}
+                      {awaitingHuman && (
+                        <button className="td-chip" onClick={() => void handleRollback()} title="丢弃 agent 全部改动，工作区回到动工前状态">
+                          <RotateCcw size={11} /> 回滚
+                        </button>
+                      )}
+                      {awaitingHuman && (
+                        <button className="td-chip" onClick={() => void handleReject()} title="打回：agent 重读计划继续完善">
+                          <Undo2 size={11} /> 打回
                         </button>
                       )}
                       <button
@@ -359,49 +403,25 @@ export const PlanDocPanel: React.FC<{
                             : '人类验收通过，标记完成'
                         }
                       >
-                        <Check size={11} /> 验收通过{accTotal > 0 ? ` ${accDone}/${accTotal}` : ''}
+                        <Check size={11} />
+                        {awaitingHuman ? '验收通过' : '标记完成'}
+                        {accTotal > 0 ? ` ${accDone}/${accTotal}` : ''}
                       </button>
-                      <button className="td-chip" onClick={() => void handleReject()} title="打回：agent 重读计划继续完善">
-                        <Undo2 size={11} /> 打回
-                      </button>
-                      {hasSnapshots && (
-                        <button className="td-chip" onClick={() => void handleRollback()} title="丢弃 agent 全部改动，工作区回到动工前状态">
-                          <RotateCcw size={11} /> 回滚
-                        </button>
-                      )}
-                    </>
-                  ) : (
+                    </div>
+                  )}
+                  {acceptanceItems.map(a => (
                     <button
-                      className="td-chip is-on"
-                      onClick={accept}
-                      disabled={accTotal > 0 && accDone < accTotal}
-                      title={
-                        accTotal > 0 && accDone < accTotal
-                          ? `还有 ${accTotal - accDone} 项验收未通过（在验收清单勾选）`
-                          : '验收通过，标记完成'
-                      }
+                      key={a.lineIndex}
+                      className={`td-plandoc__acc${a.done ? ' is-done' : ''}`}
+                      onClick={() => void toggleAcc(a, !a.done)}
+                      disabled={!canTickAcc}
+                      title={canTickAcc ? (a.done ? '点击取消勾选' : '点击确认通过') : '交付执行后可勾选'}
                     >
-                      <Check size={11} /> 标记完成{accTotal > 0 ? ` ${accDone}/${accTotal}` : ''}
+                      <span className="td-plandoc__accbox">{a.done ? '✓' : ''}</span>
+                      <span className="td-plandoc__acctext">{a.text}</span>
                     </button>
-                  )
-                ) : undefined
-              }
-            >
-              {accTotal === 0 ? (
-                <div className="td-plandoc__empty">无验收项（免验收）</div>
-              ) : (
-                acceptanceItems.map(a => (
-                  <button
-                    key={a.lineIndex}
-                    className={`td-plandoc__acc${a.done ? ' is-done' : ''}`}
-                    onClick={() => void toggleAcc(a, !a.done)}
-                    disabled={!canTickAcc}
-                    title={canTickAcc ? (a.done ? '点击取消勾选' : '点击确认通过') : '交付执行后可勾选'}
-                  >
-                    <span className="td-plandoc__accbox">{a.done ? '✓' : ''}</span>
-                    <span className="td-plandoc__acctext">{a.text}</span>
-                  </button>
-                ))
+                  ))}
+                </>
               )}
             </Drawer>
 

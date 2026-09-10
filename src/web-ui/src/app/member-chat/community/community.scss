@@ -1774,7 +1774,7 @@
     font-size: 44px;
     font-weight: 600;
     line-height: 1;
-    color: rgb(255 255 255 / 32%);
+    color: color-mix(in srgb, var(--pt-text) 32%, transparent);
     user-select: none;
   }
 
@@ -1796,7 +1796,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--size-gap-1);
-    padding: 2px var(--size-gap-2);
+    padding: var(--size-gap-0-5) var(--size-gap-2);
     border-radius: var(--radius-full);
     background-color: color-mix(in srgb, var(--pt-surface) 78%, transparent);
     color: var(--pt-accent);
@@ -1846,7 +1846,7 @@
   &__stat {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: var(--size-gap-1);
     color: var(--pt-text-muted);
     font-family: var(--pt-mono);
     font-variant-numeric: tabular-nums;
@@ -1874,7 +1874,7 @@
 
   &__tag {
     border: none;
-    padding: 1px var(--size-gap-2);
+    padding: var(--size-gap-0-25) var(--size-gap-2);
     border-radius: var(--radius-full);
     background-color: color-mix(in srgb, var(--pt-accent) 13%, transparent);
     color: var(--pt-accent);

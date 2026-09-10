@@ -13,12 +13,12 @@
  *
  * Usage:
  *   node scripts/build-windows.mjs                          # defaults below
- *   node scripts/build-windows.mjs --package ai00-x-relay
+ *   node scripts/build-windows.mjs --package ai00-x-transport
  *   node scripts/build-windows.mjs --release
  *   node scripts/build-windows.mjs --verbose
  *
  * Options:
- *   --package <name>   crate to build (default: ai00-x-relay)
+ *   --package <name>   crate to build (default: ai00-x-transport)
  *   --release          build with --release (default: debug)
  *   --verbose          pass -v to cargo
  */
@@ -30,16 +30,14 @@ function arg(name, fallback) {
   return i !== -1 && args[i + 1] ? args[i + 1] : fallback;
 }
 
-const PACKAGE = arg('--package', 'ai00-x-relay');
+const PACKAGE = arg('--package', 'ai00-x-transport');
 const RELEASE = args.includes('--release');
 const VERBOSE = args.includes('--verbose');
 
 // Pure-Rust server/backend crates we build on Windows.
 const ELIGIBLE = new Set([
-  'ai00-x-relay',
   'ai00-x-transport',
   'ai00-x-events',
-  'ai00-x-tool-framework',
 ]);
 
 function fail(msg) {

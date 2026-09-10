@@ -24,11 +24,11 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:2100";
 /** 内部 token 环境变量名（与客户端 AI00_S_INTERNAL_TOKEN 约定一致）。 */
 const TOKEN_ENV = "AI00_S_INTERNAL_TOKEN";
 
-/** 广告的模型目录（网关的 /models 端点同源）。 */
+/** 通告的模型目录（网关的 /models 端点同源）。contextWindow 供引擎压缩预算计算。 */
 const MODELS = [
-  { id: "ai00-auto", name: "Ai00-X Auto (smart routing)" },
-  { id: "rwkv-local", name: "Ai00-X Local RWKV" },
-  { id: "ai00-salvo", name: "Ai00-X Salvo (ai00-x.com)" },
+  { id: "ai00-auto", name: "Ai00-X Auto (smart routing)", contextWindow: 128000 },
+  { id: "rwkv-local", name: "Ai00-X Local RWKV", contextWindow: 16384 },
+  { id: "ai00-salvo", name: "Ai00-X Salvo (ai00-x.com)", contextWindow: 128000 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -346,6 +346,7 @@ class Ai00XAdapter {
       id: model.id,
       name: model.name,
       inputModalities: ["text"],
+      contextWindow: model.contextWindow,
     }));
     // 合并网关下发的具体模型目录（ai00s:/gguf-local:/自定义 id——讨论
     // 通道同源），dsh 模型选择器可见可选；拉不到时静态三模型兜底
@@ -360,6 +361,7 @@ class Ai00XAdapter {
             id: m.id,
             name: m.name || m.id,
             inputModalities: ["text"],
+            ...(m.contextWindow ? { contextWindow: m.contextWindow } : {}),
           }));
         return [...base, ...extra];
       }
@@ -374,11 +376,18 @@ class Ai00XAdapter {
     // 网关按 client_factory 同源解析；此前未知 id 静默回落 ai00-auto，
     // 导致执行会话总是走智能路由（与讨论选型不一致）
     const known = MODELS.find((m) => m.id === model);
+    const id = known ? known.id : model;
+    const name = known ? known.name : String(model ?? "");
+    // contextWindow = 引擎压缩预算的容量来源（缺失则压缩对该路由不生效）
+    const contextWindow =
+      known?.contextWindow ??
+      (typeof id === "string" && id.startsWith("gguf-local:") ? 16384 : 32768);
     return {
       provider,
-      id: known ? known.id : model,
-      name: known ? known.name : String(model ?? ""),
+      id,
+      name,
       inputModalities: ["text"],
+      context: { contextWindow },
     };
   }
 

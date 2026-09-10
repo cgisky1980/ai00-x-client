@@ -7,7 +7,6 @@ use super::manager::{
     WorkspaceManagerConfig, WorkspaceManagerStatistics, WorkspaceOpenOptions, WorkspaceStatus,
     WorkspaceSummary, WorkspaceType,
 };
-use crate::agent::persistence::{PersistenceManager, SessionWorkspaceMaintenanceService};
 use crate::infrastructure::storage::{PersistenceService, StorageOptions};
 use crate::infrastructure::{try_get_path_manager_arc, PathManager};
 use crate::service::remote_ssh::workspace_state::local_workspace_roots_equal;
@@ -31,7 +30,6 @@ pub struct WorkspaceService {
     persistence: Arc<PersistenceService>,
     path_manager: Arc<PathManager>,
     runtime_service: Arc<WorkspaceRuntimeService>,
-    session_workspace_maintenance: Arc<SessionWorkspaceMaintenanceService>,
 }
 
 /// Workspace creation options.
@@ -136,40 +134,6 @@ impl WorkspaceService {
                     e
                 );
             }
-
-            self.maintain_workspace_sessions_best_effort(
-                &workspace_path,
-                "workspace_history_restored",
-            )
-            .await;
-        }
-    }
-
-    async fn maintain_workspace_sessions_best_effort(&self, workspace_path: &Path, trigger: &str) {
-        match self
-            .session_workspace_maintenance
-            .ensure_workspace_maintained(workspace_path)
-            .await
-        {
-            Ok(report) if report.skipped || report.deleted_sessions == 0 => {}
-            Ok(report) => {
-                info!(
-                    "Workspace session maintenance finished: trigger={}, workspace_path={}, scanned_sessions={}, hidden_sessions={}, deleted_sessions={}",
-                    trigger,
-                    workspace_path.display(),
-                    report.scanned_sessions,
-                    report.hidden_sessions,
-                    report.deleted_sessions
-                );
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to maintain workspace sessions: trigger={}, workspace_path={}, error={}",
-                    trigger,
-                    workspace_path.display(),
-                    e
-                );
-            }
         }
     }
 
@@ -195,9 +159,6 @@ impl WorkspaceService {
         );
 
         let manager = WorkspaceManager::new(config.clone());
-        let session_workspace_maintenance = Arc::new(SessionWorkspaceMaintenanceService::new(
-            Arc::new(PersistenceManager::new(path_manager.clone())?),
-        ));
 
         let service = Self {
             manager: Arc::new(RwLock::new(manager)),
@@ -205,7 +166,6 @@ impl WorkspaceService {
             persistence,
             path_manager,
             runtime_service,
-            session_workspace_maintenance,
         };
 
         if let Err(e) = service.load_workspace_history_only().await {
@@ -269,11 +229,6 @@ impl WorkspaceService {
             if let Err(e) = self.save_workspace_data().await {
                 warn!("Failed to save workspace data after opening: {}", e);
             }
-        }
-
-        if let Ok(workspace) = result.as_ref() {
-            self.maintain_workspace_sessions_best_effort(&workspace.root_path, "workspace_opened")
-                .await;
         }
 
         result
@@ -401,11 +356,6 @@ impl WorkspaceService {
                         );
                     }
                 }
-                self.maintain_workspace_sessions_best_effort(
-                    &workspace.root_path,
-                    "workspace_activated",
-                )
-                .await;
             }
         }
 
@@ -1344,191 +1294,4 @@ pub fn set_global_workspace_service(service: Arc<WorkspaceService>) {
 
 pub fn get_global_workspace_service() -> Option<Arc<WorkspaceService>> {
     GLOBAL_WORKSPACE_SERVICE.get().cloned()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::infrastructure::storage::{PersistenceService, StorageOptions};
-    use crate::service::session::SessionMetadata;
-    use std::collections::HashMap;
-    use uuid::Uuid;
-
-    struct TestEnvironment {
-        root: PathBuf,
-        path_manager: Arc<PathManager>,
-    }
-
-    impl TestEnvironment {
-        fn new() -> Self {
-            let root = std::env::temp_dir()
-                .join(format!("ai00-x-workspace-service-test-{}", Uuid::new_v4()));
-            std::fs::create_dir_all(&root).expect("test root should be created");
-
-            let path_manager = Arc::new(PathManager::with_user_root_for_tests(
-                root.join("user-root"),
-            ));
-
-            Self { root, path_manager }
-        }
-
-        fn create_workspace_dir(&self, name: &str) -> PathBuf {
-            let path = self.root.join(name);
-            std::fs::create_dir_all(&path).expect("workspace directory should be created");
-            path
-        }
-    }
-
-    impl Drop for TestEnvironment {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.root);
-        }
-    }
-
-    async fn build_test_workspace_service(path_manager: Arc<PathManager>) -> WorkspaceService {
-        path_manager
-            .initialize_user_directories()
-            .await
-            .expect("user directories should initialize");
-
-        let config = WorkspaceManagerConfig::default();
-        let persistence = Arc::new(
-            PersistenceService::new_user_level(path_manager.clone())
-                .await
-                .expect("persistence should initialize"),
-        );
-        let runtime_service = Arc::new(WorkspaceRuntimeService::new(path_manager.clone()));
-        let session_workspace_maintenance =
-            Arc::new(SessionWorkspaceMaintenanceService::new(Arc::new(
-                PersistenceManager::new(path_manager.clone())
-                    .expect("persistence manager should initialize"),
-            )));
-
-        WorkspaceService {
-            manager: Arc::new(RwLock::new(WorkspaceManager::new(config.clone()))),
-            config,
-            persistence,
-            path_manager,
-            runtime_service,
-            session_workspace_maintenance,
-        }
-    }
-
-    #[tokio::test]
-    async fn load_workspace_history_only_ensures_all_opened_local_workspaces() {
-        let env = TestEnvironment::new();
-        let service = build_test_workspace_service(env.path_manager.clone()).await;
-        let persistence_manager = PersistenceManager::new(env.path_manager.clone())
-            .expect("persistence manager should initialize");
-
-        let first_workspace_root = env.create_workspace_dir("workspace-one");
-        let second_workspace_root = env.create_workspace_dir("workspace-two");
-
-        let first_workspace = WorkspaceInfo::new(
-            first_workspace_root.clone(),
-            WorkspaceOpenOptions {
-                auto_set_current: false,
-                ..Default::default()
-            },
-        )
-        .await
-        .expect("first workspace should initialize");
-        let second_workspace = WorkspaceInfo::new(
-            second_workspace_root.clone(),
-            WorkspaceOpenOptions {
-                auto_set_current: false,
-                ..Default::default()
-            },
-        )
-        .await
-        .expect("second workspace should initialize");
-
-        let legacy_session = SessionMetadata::new(
-            Uuid::new_v4().to_string(),
-            "Legacy Session".to_string(),
-            "agent".to_string(),
-            "model".to_string(),
-        );
-        persistence_manager
-            .save_session_metadata(&second_workspace_root, &legacy_session)
-            .await
-            .expect("legacy session metadata should save");
-
-        let second_runtime = persistence_manager
-            .runtime_service()
-            .context_for_local_workspace(&second_workspace_root);
-        let legacy_sessions_root = second_workspace_root.join(".ai00-x").join("sessions");
-        std::fs::create_dir_all(&legacy_sessions_root)
-            .expect("legacy sessions root should be created");
-        std::fs::rename(
-            second_runtime.sessions_dir.join(&legacy_session.session_id),
-            legacy_sessions_root.join(&legacy_session.session_id),
-        )
-        .expect("session directory should move to legacy path");
-        let _ = std::fs::remove_dir_all(&second_runtime.runtime_root);
-
-        let first_runtime = service
-            .runtime_service
-            .context_for_local_workspace(&first_workspace_root);
-        assert!(
-            !first_runtime.runtime_root.exists(),
-            "startup should begin without a runtime root for the first workspace"
-        );
-        assert!(
-            !second_runtime.runtime_root.exists(),
-            "startup should begin without a runtime root for the second workspace"
-        );
-
-        let workspace_data = WorkspacePersistenceData {
-            workspaces: HashMap::from([
-                (first_workspace.id.clone(), first_workspace.clone()),
-                (second_workspace.id.clone(), second_workspace.clone()),
-            ]),
-            opened_workspace_ids: vec![first_workspace.id.clone(), second_workspace.id.clone()],
-            current_workspace_id: Some(first_workspace.id.clone()),
-            recent_workspaces: vec![first_workspace.id.clone(), second_workspace.id.clone()],
-            saved_at: chrono::Utc::now(),
-        };
-
-        service
-            .persistence
-            .save_json("workspace_data", &workspace_data, StorageOptions::default())
-            .await
-            .expect("workspace data should save");
-
-        service
-            .load_workspace_history_only()
-            .await
-            .expect("workspace history should restore");
-
-        let restored_current = service
-            .get_current_workspace()
-            .await
-            .expect("current workspace should be restored");
-        assert_eq!(restored_current.id, first_workspace.id);
-        assert!(
-            first_runtime.runtime_root.exists(),
-            "active workspace runtime should be ensured on startup"
-        );
-        assert!(
-            second_runtime
-                .sessions_dir
-                .join(&legacy_session.session_id)
-                .exists(),
-            "non-active opened workspace sessions should migrate into the shared runtime root"
-        );
-
-        let restored_sessions = persistence_manager
-            .list_session_metadata(&second_workspace_root)
-            .await
-            .expect("restored workspace sessions should list successfully");
-        assert_eq!(restored_sessions.len(), 1);
-        assert_eq!(restored_sessions[0].session_id, legacy_session.session_id);
-        assert!(
-            !legacy_sessions_root
-                .join(&legacy_session.session_id)
-                .exists(),
-            "legacy session directory should be removed after startup migration"
-        );
-    }
 }

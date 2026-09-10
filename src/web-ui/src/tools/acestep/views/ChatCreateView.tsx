@@ -24,8 +24,8 @@ import { SessionAudioList } from '../components/SessionAudioList';
 import { LegoFlowPanel } from '../components/LegoFlowPanel';
 import { LyricsCard, PlanCard, StatusChip, ChatBubble } from '../components/ChatMessageViews';
 import './ChatCreateView.scss';
-// Reuse flow_chat ChatInput styles for visual consistency.
-import '@/flow_chat/components/ChatInput.scss';
+// Reuse chat input styles for visual consistency.
+import './chat-input.scss';
 
 const EMPTY_ARRAY: never[] = [];
 

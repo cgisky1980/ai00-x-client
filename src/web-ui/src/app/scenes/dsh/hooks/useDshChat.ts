@@ -33,6 +33,7 @@ import {
   type DshStatus,
   type DshUsageSummary,
 } from '@/infrastructure/api/service-api/DshAPI';
+import { isSessionAllowed } from '@/shared/agent-approval-rules';
 import { reportRuntimeFailure } from '@/infrastructure/api/service-api/DshMarketApi';
 
 export interface DshChatState {
@@ -398,6 +399,11 @@ export function useDshChat() {
           } else if (frame.type === 'session/subscribed') {
             refreshSessions();
           } else if (frame.type === 'approval/requested') {
+            // 「总是允许」记忆命中：自动应答放行，不进待处理列表
+            if (isSessionAllowed(frame.sessionId, frame.toolName)) {
+              void dshApproval.respond(rpcId, frame.sessionId, frame.approvalId, 'allowed-once');
+              return;
+            }
             // mux 重连会以相同 rpcId 重放 pending 帧 → upsert 去重
             setState(prev =>
               prev.approvals.some(a => a.rpcId === rpcId)

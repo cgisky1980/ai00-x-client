@@ -33,7 +33,8 @@
   "approval": {
     "pending": "Confirmation needed",
     "allow": "Allow once",
-    "reject": "Reject"
+    "reject": "Reject",
+    "allowAlways": "Always allow"
   },
   "models": {
     "loading": "Loading models…"

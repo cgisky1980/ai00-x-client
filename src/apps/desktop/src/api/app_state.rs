@@ -1,17 +1,14 @@
 //! Application state management
 
-use ai00_x_core::agent::side_question::SideQuestionRuntime;
-use ai00_x_core::agent::{agents, tools};
 use ai00_x_core::infrastructure::ai::{AIClient, AIClientFactory};
 use ai00_x_core::miniapp::{initialize_global_miniapp_manager, JsWorkerPool, MiniAppManager};
 use ai00_x_core::service::remote_ssh::{
     init_remote_workspace_manager, RemoteFileService, RemoteTerminalManager, SSHConnectionManager,
 };
-use ai00_x_core::service::{ai_rules, config, filesystem, mcp, token_usage, workspace};
+use ai00_x_core::service::{ai_rules, config, filesystem, mcp, workspace};
 use ai00_x_core::util::errors::*;
 
 use crate::tts::SpeakerInfo;
-use dashmap::DashSet;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -60,16 +57,12 @@ pub struct RemoteWorkspace {
 pub struct AppState {
     pub ai_client: Arc<RwLock<Option<AIClient>>>,
     pub ai_client_factory: Arc<AIClientFactory>,
-    pub side_question_runtime: Arc<SideQuestionRuntime>,
-    pub tool_registry: Arc<Vec<Arc<dyn tools::framework::Tool>>>,
     pub workspace_service: Arc<workspace::WorkspaceService>,
     pub workspace_path: Arc<RwLock<Option<std::path::PathBuf>>>,
     pub config_service: Arc<config::ConfigService>,
     pub filesystem_service: Arc<filesystem::FileSystemService>,
     pub ai_rules_service: Arc<ai_rules::AIRulesService>,
-    pub agent_registry: Arc<agents::AgentRegistry>,
     pub mcp_service: Option<Arc<mcp::MCPService>>,
-    pub token_usage_service: Arc<token_usage::TokenUsageService>,
     pub miniapp_manager: Arc<MiniAppManager>,
     pub js_worker_pool: Option<Arc<JsWorkerPool>>,
     pub statistics: Arc<RwLock<AppStatistics>>,
@@ -81,13 +74,10 @@ pub struct AppState {
     pub remote_workspace: Arc<RwLock<Option<RemoteWorkspace>>>,
     pub active_searches: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
     pub speakers: std::sync::RwLock<Vec<SpeakerInfo>>,
-    pub session_creation_cancellations: Arc<DashSet<String>>,
 }
 
 impl AppState {
-    pub async fn new_async(
-        token_usage_service: Arc<token_usage::TokenUsageService>,
-    ) -> Ai00XResult<Self> {
+    pub async fn new_async() -> Ai00XResult<Self> {
         let start_time = std::time::Instant::now();
 
         let config_service = config::get_global_config_service().map_err(|e| {
@@ -98,13 +88,6 @@ impl AppState {
         let ai_client_factory = AIClientFactory::get_global().map_err(|e| {
             Ai00XError::service(format!("Failed to get global AIClientFactory: {}", e))
         })?;
-        let side_question_runtime = Arc::new(SideQuestionRuntime::new());
-
-        let tool_registry = {
-            let registry = tools::registry::get_global_tool_registry();
-            let lock = registry.read().await;
-            Arc::new(lock.get_all_tools())
-        };
 
         let workspace_service = Arc::new(workspace::WorkspaceService::new().await?);
         workspace::set_global_workspace_service(workspace_service.clone());
@@ -119,8 +102,6 @@ impl AppState {
         let ai_rules_service = ai_rules::get_global_ai_rules_service()
             .await
             .map_err(|e| Ai00XError::service(format!("Failed to get AI rules service: {}", e)))?;
-
-        let agent_registry = agents::get_agent_registry();
 
         let mcp_service = match mcp::MCPService::new(config_service.clone()) {
             Ok(service) => {
@@ -162,19 +143,6 @@ impl AppState {
             .map(|workspace| workspace.root_path);
 
         if let Some(workspace_path) = initial_workspace_path.clone() {
-            if let Err(e) =
-                ai00_x_core::service::snapshot::initialize_snapshot_manager_for_workspace(
-                    workspace_path.clone(),
-                    None,
-                )
-                .await
-            {
-                log::warn!(
-                    "Failed to restore snapshot system on startup: path={}, error={}",
-                    workspace_path.display(),
-                    e
-                );
-            }
             if let Err(e) = ai_rules_service.set_workspace(workspace_path).await {
                 log::warn!("Failed to restore AI rules workspace on startup: {}", e);
             }
@@ -294,16 +262,12 @@ impl AppState {
         let app_state = Self {
             ai_client,
             ai_client_factory,
-            side_question_runtime,
-            tool_registry,
             workspace_service,
             workspace_path: Arc::new(RwLock::new(initial_workspace_path)),
             config_service,
             filesystem_service,
             ai_rules_service,
-            agent_registry,
             mcp_service,
-            token_usage_service,
             miniapp_manager,
             js_worker_pool,
             statistics,
@@ -316,7 +280,6 @@ impl AppState {
             remote_workspace,
             active_searches: Arc::new(Mutex::new(HashMap::new())),
             speakers: std::sync::RwLock::new(Vec::new()),
-            session_creation_cancellations: Arc::new(DashSet::new()),
         };
 
         log::info!("AppState initialized successfully");
@@ -355,13 +318,6 @@ impl AppState {
         let mut stats = self.statistics.read().await.clone();
         stats.uptime_seconds = self.start_time.elapsed().as_secs();
         stats
-    }
-
-    pub fn get_tool_names(&self) -> Vec<String> {
-        self.tool_registry
-            .iter()
-            .map(|tool| tool.name().to_string())
-            .collect()
     }
 
     // SSH Remote connection methods

@@ -449,9 +449,7 @@
     "terminalAccess": "终端访问",
     "terminalAccessDesc": "允许 AI 执行终端命令",
     "webSearch": "网络搜索",
-    "webSearchDesc": "允许 AI 搜索网络信息",
-    "browserControl": "浏览器控制",
-    "browserControlDesc": "允许 AI 控制浏览器"
+    "webSearchDesc": "允许 AI 搜索网络信息"
   },
   "skills": {
     "title": "技能",
@@ -459,13 +457,6 @@
     "addSkill": "添加技能",
     "noSkills": "暂无技能",
     "noSkillsHint": "技能可以扩展 AI 的能力"
-  },
-  "agents": {
-    "title": "智能体",
-    "subtitle": "配置智能体",
-    "addAgent": "添加智能体",
-    "noAgents": "暂无子智能体",
-    "noAgentsHint": "子智能体可以处理特定类型的任务"
   },
   "mcp": {
     "title": "MCP",

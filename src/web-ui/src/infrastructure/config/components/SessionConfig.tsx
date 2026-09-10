@@ -17,31 +17,19 @@ import { ConfigPageHeader, ConfigPageLayout, ConfigPageContent, ConfigPageSectio
 import { aiExperienceConfigService, type AIExperienceSettings } from '../services/AIExperienceConfigService';
 import { configManager } from '../services/ConfigManager';
 import { useNotification, notificationService } from '@/shared/notification-system';
-import type { AIModelConfig, DebugModeConfig, LanguageDebugTemplate } from '../types';
+import type { DebugModeConfig, LanguageDebugTemplate } from '../types';
 import {
   LANGUAGE_TEMPLATE_LABELS,
   DEFAULT_DEBUG_MODE_CONFIG,
   ALL_LANGUAGES,
   DEFAULT_LANGUAGE_TEMPLATES,
 } from '../types';
-import { ModelSelectionRadio } from './ModelSelectionRadio';
 import { open } from '@tauri-apps/plugin-dialog';
 import { createLogger } from '@/shared/utils/logger';
 import './AIFeaturesConfig.scss';
 import './DebugConfig.scss';
 
 const log = createLogger('SessionConfig');
-
-const IS_TAURI_DESKTOP = typeof window !== 'undefined' && '__TAURI__' in window;
-
-const AGENT_SESSION_TITLE = 'session-title-func-agent';
-
-type ComputerUseStatusPayload = {
-  computerUseEnabled: boolean;
-  accessibilityGranted: boolean;
-  screenCaptureGranted: boolean;
-  platformNote: string | null;
-};
 
 const SessionConfig: React.FC = () => {
   const { t } = useTranslation('settings/session-config');
@@ -52,27 +40,10 @@ const SessionConfig: React.FC = () => {
   // ── Session config state ─────────────────────────────────────────────────
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<AIExperienceSettings | null>(null);
-  const [models, setModels] = useState<AIModelConfig[]>([]);
-  const [funcAgentModels, setFuncAgentModels] = useState<Record<string, string>>({});
   const [skipToolConfirmation, setSkipToolConfirmation] = useState(false);
   const [executionTimeout, setExecutionTimeout] = useState('');
   const [confirmationTimeout, setConfirmationTimeout] = useState('');
   const [toolExecConfigLoading, setToolExecConfigLoading] = useState(false);
-
-  const [_computerUseEnabled, setComputerUseEnabled] = useState(false);
-  const [_computerUseAccess, setComputerUseAccess] = useState(false);
-  const [_computerUseScreen, setComputerUseScreen] = useState(false);
-  const [_computerUseBusy, _setComputerUseBusy] = useState(false);
-
-  // ── Browser control state ───────────────────────────────────────────────
-  const [browserCdpAvailable, setBrowserCdpAvailable] = useState(false);
-  const [browserKind, setBrowserKind] = useState('');
-  const [browserVersion, setBrowserVersion] = useState<string | null>(null);
-  const [browserPageCount, setBrowserPageCount] = useState(0);
-  const [browserControlBusy, setBrowserControlBusy] = useState(false);
-  const [browserDaemonRunning, setBrowserDaemonRunning] = useState(false);
-  const [browserExtensionConnected, setBrowserExtensionConnected] = useState(false);
-  const [browserRecommendedMode, setBrowserRecommendedMode] = useState('none');
 
   // ── Debug mode config state ──────────────────────────────────────────────
   const [debugConfig, setDebugConfig] = useState<DebugModeConfig>(DEFAULT_DEBUG_MODE_CONFIG);
@@ -81,93 +52,35 @@ const SessionConfig: React.FC = () => {
   const [expandedTemplates, setExpandedTemplates] = useState<Set<string>>(new Set());
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
 
-  const refreshComputerUseStatus = useCallback(async (): Promise<boolean> => {
-    if (!IS_TAURI_DESKTOP) return false;
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const s = await invoke<ComputerUseStatusPayload>('computer_use_get_status');
-      setComputerUseEnabled(s.computerUseEnabled);
-      setComputerUseAccess(s.accessibilityGranted);
-      setComputerUseScreen(s.screenCaptureGranted);
-      return true;
-    } catch (error) {
-      log.error('computer_use_get_status failed', error);
-      return false;
-    }
-  }, []);
-
-  const refreshBrowserControlStatus = useCallback(async () => {
-    if (!IS_TAURI_DESKTOP) return;
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const s = await invoke<{
-        cdpAvailable: boolean;
-        browserKind: string;
-        browserVersion: string | null;
-        port: number;
-        pageCount: number;
-        daemonRunning: boolean;
-        extensionConnected: boolean;
-        daemonPort: number;
-        recommendedMode: string;
-      }>('browser_control_get_status', { request: { port: 9222 } });
-      setBrowserCdpAvailable(s.cdpAvailable);
-      setBrowserKind(s.browserKind);
-      setBrowserVersion(s.browserVersion);
-      setBrowserPageCount(s.pageCount);
-      setBrowserDaemonRunning(s.daemonRunning);
-      setBrowserExtensionConnected(s.extensionConnected);
-      setBrowserRecommendedMode(s.recommendedMode);
-    } catch (error) {
-      log.error('browser_control_get_status failed', error);
-    }
-  }, []);
-
   const loadAllData = useCallback(async () => {
     setIsLoading(true);
     try {
       const [
         loadedSettings,
-        allModels,
-        funcAgentModelsData,
         skipConfirm,
         execTimeout,
         confirmTimeout,
         debugConfigData,
-        computerUseCfg,
       ] = await Promise.all([
         aiExperienceConfigService.getSettingsAsync(),
-        configManager.getConfig<AIModelConfig[]>('ai.models') || [],
-        configManager.getConfig<Record<string, string>>('ai.func_agent_models') || {},
         configManager.getConfig<boolean>('ai.skip_tool_confirmation'),
         configManager.getConfig<number | null>('ai.tool_execution_timeout_secs'),
         configManager.getConfig<number | null>('ai.tool_confirmation_timeout_secs'),
         configManager.getConfig<DebugModeConfig>('ai.debug_mode_config'),
-        configManager.getConfig<boolean>('ai.computer_use_enabled'),
       ]);
 
       setSettings(loadedSettings);
-      setModels(allModels as AIModelConfig[]);
-      setFuncAgentModels(funcAgentModelsData as Record<string, string>);
       setSkipToolConfirmation(skipConfirm || false);
       setExecutionTimeout(execTimeout != null ? String(execTimeout) : '');
       setConfirmationTimeout(confirmTimeout != null ? String(confirmTimeout) : '');
       if (debugConfigData) setDebugConfig(debugConfigData);
-
-      if (IS_TAURI_DESKTOP) {
-        const ok = await refreshComputerUseStatus();
-        if (!ok) setComputerUseEnabled(computerUseCfg ?? false);
-        await refreshBrowserControlStatus();
-      } else {
-        setComputerUseEnabled(computerUseCfg ?? false);
-      }
     } catch (error) {
       log.error('Failed to load session config data', error);
       setSettings(await aiExperienceConfigService.getSettingsAsync());
     } finally {
       setIsLoading(false);
     }
-  }, [refreshComputerUseStatus, refreshBrowserControlStatus]);
+  }, []);
 
   useEffect(() => {
     loadAllData();
@@ -192,39 +105,6 @@ const SessionConfig: React.FC = () => {
     }
   };
 
-  const getModelName = useCallback((modelId: string | null | undefined): string | undefined => {
-    if (!modelId) return undefined;
-    return models.find(m => m.id === modelId)?.name;
-  }, [models]);
-
-  const handleAgentModelChange = async (agentKey: string, featureTitleKey: string, modelId: string) => {
-    try {
-      const current = await configManager.getConfig<Record<string, string>>('ai.func_agent_models') || {};
-      const updated = { ...current, [agentKey]: modelId };
-      await configManager.setConfig('ai.func_agent_models', updated);
-      setFuncAgentModels(updated);
-
-      let modelDesc = '';
-      if (modelId === 'primary') {
-        modelDesc = t('model.primary');
-      } else if (modelId === 'fast') {
-        modelDesc = t('model.fast');
-      } else if (modelId === 'rwkv-local') {
-        modelDesc = t('model.local');
-      } else {
-        modelDesc = getModelName(modelId) || modelId || '';
-      }
-
-      notificationService.success(
-        t('models.updateSuccess', { agentName: t(featureTitleKey), modelName: modelDesc }),
-        { duration: 2000 }
-      );
-    } catch (error) {
-      log.error('Failed to update agent model', { agentKey, modelId, error });
-      notificationService.error(t('messages.updateFailed'), { duration: 3000 });
-    }
-  };
-
   const handleSkipToolConfirmationChange = async (checked: boolean) => {
     setSkipToolConfirmation(checked);
     setToolExecConfigLoading(true);
@@ -244,50 +124,6 @@ const SessionConfig: React.FC = () => {
       setSkipToolConfirmation(!checked);
     } finally {
       setToolExecConfigLoading(false);
-    }
-  };
-
-  const handleBrowserControlLaunch = async () => {
-    setBrowserControlBusy(true);
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const result = await invoke<{
-        success: boolean;
-        status: string;
-        message: string | null;
-        browserKind: string;
-      }>('browser_control_launch', { request: { port: 9222 } });
-      if (result.success) {
-        notificationService.success(
-          t('browserControl.connectSuccess', { browser: result.browserKind }),
-          { duration: 3000 }
-        );
-      } else if (result.message) {
-        notificationService.info(result.message, { duration: 8000 });
-      }
-      await refreshBrowserControlStatus();
-    } catch (error) {
-      log.error('browser_control_launch failed', error);
-      notificationService.error(t('browserControl.connectFailed'));
-    } finally {
-      setBrowserControlBusy(false);
-    }
-  };
-
-  const handleBrowserControlCreateLauncher = async () => {
-    setBrowserControlBusy(true);
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const path = await invoke<string>('browser_control_create_launcher');
-      notificationService.success(
-        t('browserControl.createLauncherSuccess', { path }),
-        { duration: 5000 }
-      );
-    } catch (error) {
-      log.error('browser_control_create_launcher failed', error);
-      notificationService.error(t('browserControl.createLauncherFailed'));
-    } finally {
-      setBrowserControlBusy(false);
     }
   };
 
@@ -438,8 +274,6 @@ const SessionConfig: React.FC = () => {
 
   // ── Derived values ───────────────────────────────────────────────────────
 
-  const enabledModels = models.filter((m: AIModelConfig) => m.enabled);
-  const sessionTitleModelId = funcAgentModels[AGENT_SESSION_TITLE] || 'rwkv-local';
   const templateEntries = getTemplateEntries();
 
   if (isLoading || !settings) {
@@ -469,22 +303,6 @@ const SessionConfig: React.FC = () => {
               <Switch
                 checked={settings.enable_session_title_generation}
                 onChange={(e) => updateSetting('enable_session_title_generation', e.target.checked)}
-                size="small"
-              />
-            </div>
-          </ConfigPageRow>
-          <ConfigPageRow
-            className="ai00-x-func-agent-config__model-row"
-            label={t('model.label')}
-            description={enabledModels.length === 0 ? t('models.empty') : undefined}
-            align="center"
-          >
-            <div className="ai00-x-func-agent-config__row-control ai00-x-func-agent-config__row-control--model">
-              <ModelSelectionRadio
-                value={sessionTitleModelId}
-                models={enabledModels}
-                onChange={(modelId) => handleAgentModelChange(AGENT_SESSION_TITLE, 'features.sessionTitle.title', modelId)}
-                layout="horizontal"
                 size="small"
               />
             </div>
@@ -550,239 +368,6 @@ const SessionConfig: React.FC = () => {
               />
             </div>
           </ConfigPageRow>
-        </ConfigPageSection>
-
-        {/* ── Computer use (desktop) — temporarily hidden ──────────
-        <ConfigPageSection
-          title={t('computerUse.sectionTitle')}
-          description={
-            IS_TAURI_DESKTOP ? t('computerUse.sectionDescription') : t('computerUse.desktopOnly')
-          }
-        >
-          {IS_TAURI_DESKTOP ? (
-            <>
-              <ConfigPageRow label={t('computerUse.enable')} description={t('computerUse.enableDesc')} align="center">
-                <div className="ai00-x-func-agent-config__row-control">
-                  <Switch
-                    checked={computerUseEnabled}
-                    onChange={(e) => handleComputerUseEnabledChange(e.target.checked)}
-                    disabled={computerUseBusy}
-                    size="small"
-                  />
-                </div>
-              </ConfigPageRow>
-              <ConfigPageRow
-                label={t('computerUse.accessibility')}
-                description={t('computerUse.accessibilityDesc')}
-                align="center"
-                balanced
-              >
-                <div
-                  className="ai00-x-func-agent-config__row-control"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    flexWrap: 'nowrap',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    gap: 8,
-                  }}
-                >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <span className={computerUseAccess ? 'ai00-x-func-agent-config__perm-status--granted' : undefined}>
-                      {computerUseAccess ? t('computerUse.granted') : t('computerUse.notGranted')}
-                    </span>
-                    <IconButton
-                      type="button"
-                      size="small"
-                      variant="ghost"
-                      aria-label={t('computerUse.refreshStatus')}
-                      tooltip={t('computerUse.refreshStatus')}
-                      disabled={computerUseBusy}
-                      onClick={() => void refreshComputerUseStatus()}
-                    >
-                      <RefreshCw size={14} />
-                    </IconButton>
-                  </span>
-                  <Button
-                    className="ai00-x-func-agent-config__row-action-btn"
-                    size="small"
-                    variant="secondary"
-                    disabled={computerUseBusy}
-                    onClick={() => void handleComputerUseOpenSettings('accessibility')}
-                  >
-                    {t('computerUse.openSettings')}
-                  </Button>
-                </div>
-              </ConfigPageRow>
-              <ConfigPageRow
-                label={t('computerUse.screenCapture')}
-                description={t('computerUse.screenCaptureDesc')}
-                align="center"
-                balanced
-              >
-                <div
-                  className="ai00-x-func-agent-config__row-control"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    flexWrap: 'nowrap',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    gap: 8,
-                  }}
-                >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <span className={computerUseScreen ? 'ai00-x-func-agent-config__perm-status--granted' : undefined}>
-                      {computerUseScreen ? t('computerUse.granted') : t('computerUse.notGranted')}
-                    </span>
-                    <IconButton
-                      type="button"
-                      size="small"
-                      variant="ghost"
-                      aria-label={t('computerUse.refreshStatus')}
-                      tooltip={t('computerUse.refreshStatus')}
-                      disabled={computerUseBusy}
-                      onClick={() => void refreshComputerUseStatus()}
-                    >
-                      <RefreshCw size={14} />
-                    </IconButton>
-                  </span>
-                  <Button
-                    className="ai00-x-func-agent-config__row-action-btn"
-                    size="small"
-                    variant="secondary"
-                    disabled={computerUseBusy}
-                    onClick={() => void handleComputerUseOpenSettings('screen_capture')}
-                  >
-                    {t('computerUse.openSettings')}
-                  </Button>
-                </div>
-              </ConfigPageRow>
-            </>
-          ) : null}
-        </ConfigPageSection>
-        ─────────────────────────────────────────────────────────── */}
-
-        {/* ── Browser control (CDP + Extension) ──────────────────── */}
-        <ConfigPageSection
-          title={t('browserControl.sectionTitle')}
-          description={
-            IS_TAURI_DESKTOP ? t('browserControl.sectionDescription') : t('browserControl.desktopOnly')
-          }
-        >
-          {IS_TAURI_DESKTOP ? (
-            <>
-              <ConfigPageRow
-                label={t('browserControl.extensionStatus')}
-                description={t('browserControl.extensionStatusDesc')}
-                align="center"
-                balanced
-              >
-                <div
-                  className="ai00-x-func-agent-config__row-control"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    flexWrap: 'nowrap',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    gap: 8,
-                  }}
-                >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <span className={browserExtensionConnected ? 'ai00-x-func-agent-config__perm-status--granted' : undefined}>
-                      {browserExtensionConnected
-                        ? t('browserControl.extensionConnected')
-                        : browserDaemonRunning
-                          ? t('browserControl.daemonRunningNoExt')
-                          : t('browserControl.daemonNotRunning')}
-                    </span>
-                    <IconButton
-                      type="button"
-                      size="small"
-                      variant="ghost"
-                      aria-label={t('browserControl.refreshStatus')}
-                      tooltip={t('browserControl.refreshStatus')}
-                      disabled={browserControlBusy}
-                      onClick={() => void refreshBrowserControlStatus()}
-                    >
-                      <RefreshCw size={14} />
-                    </IconButton>
-                  </span>
-                </div>
-              </ConfigPageRow>
-              <ConfigPageRow
-                label={t('browserControl.status')}
-                description={t('browserControl.statusDesc')}
-                align="center"
-                balanced
-              >
-                <div
-                  className="ai00-x-func-agent-config__row-control"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    flexWrap: 'nowrap',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    gap: 8,
-                  }}
-                >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <span className={browserCdpAvailable ? 'ai00-x-func-agent-config__perm-status--granted' : undefined}>
-                      {browserCdpAvailable
-                        ? `${browserKind}${browserVersion ? ` (${browserVersion})` : ''} — ${browserPageCount} ${t('browserControl.tabs')}`
-                        : t('browserControl.notConnected')}
-                    </span>
-                  </span>
-                  {!browserCdpAvailable && !browserExtensionConnected && (
-                    <Button
-                      className="ai00-x-func-agent-config__row-action-btn"
-                      size="small"
-                      variant="secondary"
-                      disabled={browserControlBusy}
-                      onClick={() => void handleBrowserControlLaunch()}
-                    >
-                      {t('browserControl.connect')}
-                    </Button>
-                  )}
-                </div>
-              </ConfigPageRow>
-              <ConfigPageRow
-                label={t('browserControl.recommendedMode')}
-                description={t('browserControl.recommendedModeDesc')}
-                align="center"
-              >
-                <div className="ai00-x-func-agent-config__row-control">
-                  <span className={browserRecommendedMode !== 'none' ? 'ai00-x-func-agent-config__perm-status--granted' : undefined}>
-                    {browserRecommendedMode === 'extension'
-                      ? t('browserControl.modeExtension')
-                      : browserRecommendedMode === 'cdp'
-                        ? t('browserControl.modeCdp')
-                        : t('browserControl.modeNone')}
-                  </span>
-                </div>
-              </ConfigPageRow>
-              <ConfigPageRow
-                label={t('browserControl.createLauncher')}
-                description={t('browserControl.createLauncherDesc')}
-                align="center"
-              >
-                <div className="ai00-x-func-agent-config__row-control">
-                  <Button
-                    className="ai00-x-func-agent-config__row-action-btn"
-                    size="small"
-                    variant="secondary"
-                    disabled={browserControlBusy}
-                    onClick={() => void handleBrowserControlCreateLauncher()}
-                  >
-                    {t('browserControl.createLauncher')}
-                  </Button>
-                </div>
-              </ConfigPageRow>
-            </>
-          ) : null}
         </ConfigPageSection>
 
         {/* ── Debug mode settings ───────────────────────────────── */}

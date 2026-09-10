@@ -4,7 +4,6 @@ import { api } from './ApiClient';
 import { createTauriCommandError } from '../errors/TauriCommandError';
 import type {
   ModeSkillInfo,
-  ModeConfigItem,
   RuntimeLoggingInfo,
   SkillInfo,
   SkillLevel,
@@ -142,111 +141,6 @@ export class ConfigAPI {
     }
   }
 
-   
-  async getModelConfigs(): Promise<any[]> {
-    try {
-      return await api.invoke('get_model_configs', { 
-        request: {} 
-      });
-    } catch (error) {
-      throw createTauriCommandError('get_model_configs', error);
-    }
-  }
-
-   
-  async saveModelConfig(config: any): Promise<void> {
-    try {
-      await api.invoke('save_model_config', { 
-        request: { config } 
-      });
-    } catch (error) {
-      throw createTauriCommandError('save_model_config', error, { config });
-    }
-  }
-
-   
-  async deleteModelConfig(configId: string): Promise<void> {
-    try {
-      await api.invoke('delete_model_config', { 
-        request: { configId } 
-      });
-    } catch (error) {
-      throw createTauriCommandError('delete_model_config', error, { configId });
-    }
-  }
-
-  
-
-   
-  async getModeConfigs(): Promise<Record<string, ModeConfigItem>> {
-    try {
-      return await api.invoke<Record<string, ModeConfigItem>>('get_mode_configs');
-    } catch (error) {
-      throw createTauriCommandError('get_mode_configs', error);
-    }
-  }
-
-   
-  async getModeConfig(modeId: string): Promise<ModeConfigItem> {
-    try {
-      return await api.invoke<ModeConfigItem>('get_mode_config', { modeId });
-    } catch (error) {
-      throw createTauriCommandError('get_mode_config', error, { modeId });
-    }
-  }
-
-   
-  async setModeConfig(modeId: string, config: any): Promise<string> {
-    try {
-      return await api.invoke('set_mode_config', { modeId, config });
-    } catch (error) {
-      throw createTauriCommandError('set_mode_config', error, { modeId, config });
-    }
-  }
-
-   
-  async resetModeConfig(modeId: string): Promise<string> {
-    try {
-      return await api.invoke('reset_mode_config', { modeId });
-    } catch (error) {
-      throw createTauriCommandError('reset_mode_config', error, { modeId });
-    }
-  }
-
-  
-
-   
-  async getSubagentConfigs(): Promise<Record<string, { enabled: boolean }>> {
-    try {
-      return await api.invoke('get_subagent_configs');
-    } catch (error) {
-      throw createTauriCommandError('get_subagent_configs', error);
-    }
-  }
-
-   
-  async setSubagentConfig(subagentId: string, enabled: boolean): Promise<string> {
-    try {
-      return await api.invoke('set_subagent_config', { subagentId, enabled });
-    } catch (error) {
-      throw createTauriCommandError('set_subagent_config', error, { subagentId, enabled });
-    }
-  }
-
-   
-  async deleteSubagent(subagentId: string): Promise<void> {
-    try {
-      await api.invoke('delete_subagent', {
-        request: { subagentId },
-      });
-    } catch (error) {
-      throw createTauriCommandError('delete_subagent', error, { subagentId });
-    }
-  }
-
-  
-
-   
   async getSkillConfigs({
     forceRefresh,
     workspacePath,

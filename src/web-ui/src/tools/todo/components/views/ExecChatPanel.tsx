@@ -9,6 +9,7 @@
  * 数据逻辑与 SessionChatPanel（剧场浮层）同构；组件按卡片 key 重挂载。
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Bot, Hourglass } from 'lucide-react';
 import { PromptInput } from '@/component-library';
 import ModelSelector from '@/shared/components/ModelSelector';
 import {
@@ -26,6 +27,7 @@ import {
   type DshSessionEvent,
 } from '@/infrastructure/api/service-api/DshAPI';
 import { ApprovalCard, MessageBubble, QuestionCard } from '@/app/scenes/dsh/DshChatPieces';
+import { isSessionAllowed } from '@/shared/agent-approval-rules';
 import { getDiscussModel, MODEL_AUTO } from '../../ai/modelCatalog';
 import { WATCH_STALL_SOFT_MS, recoverSession } from '../../utils/watchdog';
 import { useTodoStore } from '../../store/todoStore';
@@ -47,6 +49,9 @@ export const ExecChatPanel: React.FC<{
   const [resuming, setResuming] = useState(false);
   const [approvals, setApprovals] = useState<DshApproval[]>([]);
   const [questions, setQuestions] = useState<DshQuestion[]>([]);
+  // 后台任务（session/jobs 快照帧）与子代理（projection 帧）状态
+  const [jobs, setJobs] = useState<Array<{ id: string; label?: string; status: string }>>([]);
+  const [subagentLabel, setSubagentLabel] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   /** 基线 + 实时事件统一数组（foldEvents 的输入） */
   const eventsRef = useRef<DshSessionEvent[]>([]);
@@ -108,8 +113,27 @@ export const ExecChatPanel: React.FC<{
     if (!sessionId) return undefined;
     const conn = connectMux((frame: DshMuxFrame, frameRpcId: string) => {
       lastEventRef.current = Date.now();
+      // 后台任务快照（仅活跃状态入列；终态自动消失）
+      if (frame.type === 'session/jobs') {
+        if (!frame.sessionId || frame.sessionId === sessionId) {
+          setJobs(frame.jobs.filter(j => !/complet|finish|fail|kill|cancel|stop|error/i.test(j.status ?? '')));
+        }
+        return;
+      }
+      if (frame.type === 'session/projection') {
+        if (frame.sessionId === sessionId && frame.key === 'subagent') {
+          const v = frame.value as { label?: string; id?: string } | null;
+          setSubagentLabel(typeof v === 'object' && v ? v.label || v.id || '子代理' : '子代理');
+        }
+        return;
+      }
       // 审批/提问（mux 重连会重放 pending 帧 → 按 rpcId 去重）
       if (frame.type === 'approval/requested' && frame.sessionId === sessionId) {
+        // 「总是允许」记忆命中：自动应答，不弹卡
+        if (isSessionAllowed(sessionId, frame.toolName)) {
+          void dshApproval.respond(frameRpcId, sessionId, frame.approvalId, 'allowed-once');
+          return;
+        }
         setApprovals(prev =>
           prev.some(a => a.rpcId === frameRpcId)
             ? prev
@@ -143,6 +167,7 @@ export const ExecChatPanel: React.FC<{
       if (frame.type !== 'session/event' || frame.sessionId !== sessionId) return;
       if (frame.event.type === 'turn/end') {
         // turn 结束后以引擎基线为权威重拉（含 usage 与完整折叠），并刷新运行态
+        setSubagentLabel(null); // 子代理随轮次结束
         void reloadBaseline();
         void refreshRunning();
         return;
@@ -275,6 +300,19 @@ export const ExecChatPanel: React.FC<{
             ↑{fmtK(usage.inputTokens)} ↓{fmtK(usage.outputTokens)} · {usage.requests}
           </span>
         )}
+        {jobs.length > 0 && (
+          <span
+            className="td-execchat__state"
+            title={`后台任务：${jobs.map(j => j.label || j.id).join('、')}`}
+          >
+            <Hourglass size={11} /> 后台 {jobs.length}
+          </span>
+        )}
+        {subagentLabel && (
+          <span className="td-execchat__state is-running" title="子代理运行中">
+            <Bot size={11} /> {subagentLabel}
+          </span>
+        )}
         {/* 会话已停、未提交自检 → 一键续跑（重启断联/执行中断的恢复入口） */}
         {!agentRunning && !awaitingHuman && !task.completedAt && task.agentSessionId && (
           <button className="td-chip" onClick={() => void handleResume()} disabled={resuming} title="发标准续跑指令：重读计划、从断点继续">
@@ -292,7 +330,7 @@ export const ExecChatPanel: React.FC<{
                 className="td-execchat__state is-await"
                 title="长时间无事件——正常长任务请再等等；确认卡死可点「中断并继续」"
               >
-                ⚠ 无响应 {Math.round((Date.now() - lastEventRef.current) / 60_000)} 分钟
+                <AlertTriangle size={11} /> 无响应 {Math.round((Date.now() - lastEventRef.current) / 60_000)} 分钟
               </span>
               <button className="td-chip" onClick={() => void handleInterruptContinue()}>
                 中断并继续

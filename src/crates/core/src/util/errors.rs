@@ -75,12 +75,6 @@ pub enum Ai00XError {
 
 pub type Ai00XResult<T> = Result<T, Ai00XError>;
 
-impl From<ai00_x_tool_framework::ToolError> for Ai00XError {
-    fn from(e: ai00_x_tool_framework::ToolError) -> Self {
-        Ai00XError::Tool(e.message().to_string())
-    }
-}
-
 // Custom serialization functions for non-serializable error types
 fn serialize_io_error<S>(err: &std::io::Error, serializer: S) -> Result<S::Ok, S::Error>
 where

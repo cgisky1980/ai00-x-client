@@ -1,7 +1,6 @@
 //! macOS foreground application detector.
 //!
-//! Uses `osascript` invoking System Events (migrated from
-//! `computer_use/desktop_host.rs::macos_foreground_application`) to obtain
+//! Uses `osascript` invoking System Events to obtain
 //! PID + name + bundle_id, and `sysinfo` to resolve exe path from the PID.
 //!
 //! The `osascript` invocation is blocking (~10-30ms); the caller

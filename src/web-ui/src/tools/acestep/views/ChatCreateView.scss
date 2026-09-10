@@ -31,7 +31,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--size-gap-3);
-    // Match flow_chat: constrain content width and center it.
+    // Constrain content width and center it.
     align-items: center;
 
     // Direct children (messages list + input bar) share the same max-width.
@@ -229,9 +229,9 @@
   }
 
   // ---- Input bar ----
-  // Visual styles (box, actions, send button) come from flow_chat's ChatInput.scss
+  // Visual styles (box, actions, send button) come from chat-input.scss
   // (imported in ChatCreateView.tsx). We only keep a textarea override here because
-  // flow_chat uses RichTextInput while we use a plain <textarea>.
+  // chat-input targets a rich text input while we use a plain <textarea>.
 
   &__input-bar-wrap {
     flex-shrink: 0;

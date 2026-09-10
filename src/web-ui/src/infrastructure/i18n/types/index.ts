@@ -41,7 +41,6 @@ export type I18nNamespace =
   | 'mermaid-editor'
   | 'scenes/miniapp'
   | 'scenes/capabilities'
-  | 'scenes/agents'
   | 'scenes/profile'
   | 'scenes/skills'
   | 'scenes/wallpaper'

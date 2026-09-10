@@ -9,7 +9,6 @@ pub mod audio_gen;
 pub mod audio_playback;
 pub mod auth;
 pub mod auth_vault;
-pub mod computer_use;
 pub mod desktop;
 pub mod download_manager;
 pub mod dsh_manager;
@@ -30,6 +29,7 @@ pub mod music_source_manager;
 pub mod overlay;
 pub mod resource_manager;
 pub mod resource_p2p;
+pub mod router_evolution;
 pub use ai00_x_inference::runtime;
 pub mod chat_history_backup;
 pub mod preview_window;
@@ -48,13 +48,11 @@ pub mod vram_manager;
 pub mod vram_monitor;
 pub mod zip_serve;
 
-use ai00_x_core::agent::tools::computer_use_capability::set_computer_use_desktop_available;
-use ai00_x_core::agent::tools::computer_use_host::ComputerUseHostRef;
 use ai00_x_core::infrastructure::ai::AIClientFactory;
 use ai00_x_core::infrastructure::app_paths::path_migration;
-use ai00_x_core::infrastructure::{get_path_manager_arc, try_get_path_manager_arc};
+use ai00_x_core::infrastructure::get_path_manager_arc;
 use ai00_x_core::service::workspace::get_global_workspace_service;
-use ai00_x_transport::{TauriTransportAdapter, TransportAdapter};
+use ai00_x_transport::TauriTransportAdapter;
 use serde::Deserialize;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -71,38 +69,17 @@ use api::acestep_api::*;
 use api::ai_rules_api::*;
 use api::clipboard_file_api::*;
 use api::commands::*;
-use api::computer_use_api::*;
 use api::config_api::*;
-use api::cron_api::*;
 use api::diff_api::*;
-use api::git_agent_api::*;
 use api::git_api::*;
 use api::i18n_api::*;
 use api::lsp_api::*;
 use api::lsp_workspace_api::*;
 use api::mcp_api::*;
 use api::runtime_api::*;
-use api::session_api::*;
-use api::skill_api::*;
-use api::snapshot_service::*;
-use api::startchat_agent_api::*;
 use api::storage_commands::*;
-use api::subagent_api::*;
 use api::system_api::*;
-use api::tool_api::*;
 use api::usage_stats_api::*;
-
-/// Agent Coordinator state
-#[derive(Clone)]
-pub struct CoordinatorState {
-    pub coordinator: Arc<ai00_x_core::agent::coordination::ConversationCoordinator>,
-}
-
-/// Dialog scheduler state (primary entry point for user messages)
-#[derive(Clone)]
-pub struct SchedulerState {
-    pub scheduler: Arc<ai00_x_core::agent::coordination::DialogScheduler>,
-}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -174,34 +151,12 @@ pub async fn run() {
         rwkv_engine_adapter::DesktopRwkvEngine,
     ));
 
-    let (coordinator, scheduler, event_queue, event_router, ai_client_factory, token_usage_service) =
-        match init_agent_system().await {
-            Ok(state) => state,
-            Err(e) => {
-                eprintln!("[FATAL] Failed to initialize agent system: {}", e);
-                return;
-            }
-        };
-
-    if let Err(e) = init_function_agents(ai_client_factory.clone()).await {
-        eprintln!("[FATAL] Failed to initialize function agents: {}", e);
-        return;
-    }
-
-    let app_state = match AppState::new_async(token_usage_service).await {
+    let app_state = match AppState::new_async().await {
         Ok(state) => state,
         Err(e) => {
             eprintln!("[FATAL] Failed to initialize AppState: {}", e);
             return;
         }
-    };
-
-    let coordinator_state = CoordinatorState {
-        coordinator: coordinator.clone(),
-    };
-
-    let scheduler_state = SchedulerState {
-        scheduler: scheduler.clone(),
     };
 
     let terminal_state = api::terminal_api::TerminalState::new();
@@ -240,11 +195,7 @@ pub async fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(app_state)
-        .manage(coordinator_state)
-        .manage(scheduler_state)
         .manage(path_manager)
-        .manage(coordinator)
-        .manage(scheduler)
         .manage(terminal_state)
         .manage(overlay::OverlayState::default())
         .manage(api::gesture_api::GestureState::default())
@@ -262,48 +213,6 @@ pub async fn run() {
             }
 
             logging::register_runtime_log_state(startup_log_level, session_log_dir.clone());
-
-            // Register bundled mobile-web resource path for remote connect.
-            // tauri.conf.json maps "../../mobile-web/dist" -> "mobile-web/dist",
-            // so the primary candidate is "mobile-web/dist". Additional fallbacks
-            // handle legacy or non-standard bundle layouts.
-            {
-                let candidates = ["mobile-web/dist", "mobile-web", "dist"];
-                let mut found = false;
-                for candidate in &candidates {
-                    if let Ok(p) = app
-                        .path()
-                        .resolve(candidate, tauri::path::BaseDirectory::Resource)
-                    {
-                        if p.join("index.html").exists() {
-                            log::info!("Found bundled mobile-web at: {}", p.display());
-                            api::remote_connect_api::set_mobile_web_resource_path(p);
-                            found = true;
-                            break;
-                        }
-                    }
-                }
-                if !found {
-                    // Last resort: scan the resource root for any index.html
-                    if let Ok(res_dir) = app.path().resource_dir() {
-                        for sub in &["mobile-web/dist", "mobile-web", "dist", ""] {
-                            let p = if sub.is_empty() {
-                                res_dir.clone()
-                            } else {
-                                res_dir.join(sub)
-                            };
-                            if p.join("index.html").exists() {
-                                log::info!(
-                                    "Found mobile-web via resource root scan: {}",
-                                    p.display()
-                                );
-                                api::remote_connect_api::set_mobile_web_resource_path(p);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
 
             let app_handle = app.handle().clone();
             server::start_salvo_server();
@@ -387,14 +296,6 @@ pub async fn run() {
                     );
                 });
             }
-
-            let transport = Arc::new(TauriTransportAdapter::new(app_handle.clone()));
-
-            start_event_loop_with_transport(event_queue, event_router, transport);
-
-            // Eagerly initialize the remote connect service so previously
-            // paired bots start listening immediately on app startup.
-            api::remote_connect_api::init_on_startup();
 
             {
                 let _terminal_state: tauri::State<'_, api::terminal_api::TerminalState> =
@@ -493,7 +394,6 @@ pub async fn run() {
                             }
                             preview_window::close_all_preview_windows(window.app_handle());
                             ai00_x_core::util::process_manager::cleanup_all_processes();
-                            api::remote_connect_api::cleanup_on_exit();
 
                             window.app_handle().exit(0);
                         } else {
@@ -518,7 +418,6 @@ pub async fn run() {
                             }
                             preview_window::close_all_preview_windows(window.app_handle());
                             ai00_x_core::util::process_manager::cleanup_all_processes();
-                            api::remote_connect_api::cleanup_on_exit();
 
                             window.app_handle().exit(0);
                         } else {
@@ -578,7 +477,6 @@ pub async fn run() {
             api::wallpaper_api::publish_wallpaper_project,
             api::wallpaper_api::delete_workspace_wallpaper_project,
             api::wallpaper_api::apply_wallpaper_to_desktop,
-            api::wallpaper_api::compact_wallpaper_context,
             api::gesture_api::start_gesture_detection,
             api::gesture_api::stop_gesture_detection,
             api::gesture_api::get_gesture_config,
@@ -672,45 +570,11 @@ pub async fn run() {
             crate::vram_manager::vram_list_engines,
             crate::vram_manager::vram_evict_engine,
             crate::vram_manager::vram_set_active_context,
-            api::agent_api::create_session,
-            api::agent_api::cancel_session_creation,
-            api::agent_api::update_session_model,
-            api::agent_api::update_session_title,
-            api::agent_api::ensure_coordinator_session,
-            api::agent_api::start_dialog_turn,
-            api::agent_api::compact_session,
-            api::agent_api::cancel_dialog_turn,
-            api::agent_api::delete_session,
-            api::agent_api::restore_session,
             webdriver_bridge_result,
-            api::agent_api::list_sessions,
-            api::agent_api::confirm_tool_execution,
-            api::agent_api::reject_tool_execution,
-            api::agent_api::confirm_plan,
-            api::agent_api::reject_plan,
-            api::agent_api::revise_plan,
-            api::agent_api::auto_review_plan,
-            api::agent_api::cancel_tool,
-            api::agent_api::generate_session_title,
-            api::agent_api::get_available_modes,
-            api::agent_api::submit_rating,
-            api::agent_api::archive_and_merge,
-            api::btw_api::btw_ask,
-            api::btw_api::btw_ask_stream,
-            api::btw_api::btw_cancel,
             api::editor_ai_api::editor_ai_stream,
             api::editor_ai_api::editor_ai_cancel,
             api::ai_once_api::ai_complete_once,
-            api::context_upload_api::upload_image_contexts,
-            get_all_tools_info,
-            get_readonly_tools_info,
-            get_tool_info,
-            validate_tool_input,
-            execute_tool,
-            is_tool_enabled,
-            submit_user_answers,
             initialize_global_state,
-            get_available_tools,
             report_ide_control_result,
             get_health_status,
             get_statistics,
@@ -718,8 +582,6 @@ pub async fn run() {
             test_ai_config_connection,
             list_ai_models_by_config,
             initialize_ai,
-            set_agent_model,
-            get_agent_models,
             refresh_model_client,
             fix_mermaid_code,
             get_app_state,
@@ -761,9 +623,12 @@ pub async fn run() {
             api::config_api::get_router_status,
             api::config_api::test_router_classification,
             api::config_api::reload_router_head,
-            computer_use_get_status,
-            computer_use_request_permissions,
-            computer_use_open_system_settings,
+            router_evolution::router_capture_stats,
+            router_evolution::router_capture_list,
+            router_evolution::router_capture_label,
+            router_evolution::router_capture_delete,
+            router_evolution::router_capture_clear,
+            router_evolution::evolve_router_head,
             set_config,
             reset_config,
             export_config,
@@ -814,27 +679,6 @@ pub async fn run() {
             acestep_read_chunk_index,
             acestep_decrypt_block_range,
             acestep_update_song_meta,
-            get_mode_configs,
-            get_mode_config,
-            set_mode_config,
-            reset_mode_config,
-            get_subagent_configs,
-            set_subagent_config,
-            list_subagents,
-            get_subagent_detail,
-            delete_subagent,
-            create_subagent,
-            update_subagent,
-            reload_subagents,
-            list_agent_tool_names,
-            update_subagent_config,
-            get_skill_configs,
-            list_skill_market,
-            search_skill_market,
-            download_skill_market,
-            validate_skill_path,
-            add_skill,
-            delete_skill,
             api::plugin_api::get_plugins,
             api::plugin_api::install_plugin,
             api::plugin_api::install_plugin_from_github,
@@ -883,41 +727,11 @@ pub async fn run() {
             git_has_conflicts,
             git_abort_merge,
             git_snapshot,
-            generate_commit_message,
-            quick_commit_message,
             save_git_repo_history,
             load_git_repo_history,
-            preview_commit_message,
-            analyze_work_state,
-            quick_analyze_work_state,
-            generate_greeting_only,
-            get_work_state_summary,
             compute_diff,
             apply_patch,
             save_merged_diff_content,
-            initialize_snapshot,
-            record_file_change,
-            rollback_session,
-            rollback_to_turn,
-            accept_session,
-            accept_file,
-            reject_file,
-            get_session_files,
-            get_session_turns,
-            get_turn_files,
-            get_file_diff,
-            get_operation_diff,
-            get_operation_summary,
-            get_session_operations,
-            accept_operation,
-            reject_operation,
-            get_session_stats,
-            get_snapshot_system_stats,
-            get_snapshot_sessions,
-            check_git_isolation,
-            get_file_change_history,
-            get_all_modified_files,
-            get_baseline_snapshot_diff,
             get_storage_paths,
             get_project_storage_paths,
             cleanup_storage,
@@ -933,35 +747,12 @@ pub async fn run() {
             build_ai_rules_system_prompt,
             reload_ai_rules,
             toggle_ai_rule,
-            // Session persistence API
-            list_persisted_sessions,
-            load_session_turns,
-            save_session_turn,
-            save_session_metadata,
-            export_session_transcript,
-            delete_persisted_session,
-            touch_session_activity,
-            load_persisted_session_metadata,
             // AI Memory API
             api::ai_memory_api::get_all_memories,
             api::ai_memory_api::add_memory,
             api::ai_memory_api::update_memory,
             api::ai_memory_api::delete_memory,
             api::ai_memory_api::toggle_memory,
-            api::project_context_api::get_document_statuses,
-            api::project_context_api::toggle_document_enabled,
-            api::project_context_api::create_context_document,
-            api::project_context_api::generate_context_document,
-            api::project_context_api::cancel_context_document_generation,
-            api::project_context_api::get_project_context_config,
-            api::project_context_api::save_project_context_config,
-            api::project_context_api::create_project_category,
-            api::project_context_api::delete_project_category,
-            api::project_context_api::get_all_categories,
-            api::project_context_api::import_project_document,
-            api::project_context_api::delete_imported_document,
-            api::project_context_api::toggle_imported_document_enabled,
-            api::project_context_api::delete_context_document,
             initialize_mcp_servers,
             api::mcp_api::initialize_mcp_servers_non_destructive,
             get_mcp_servers,
@@ -975,7 +766,6 @@ pub async fn run() {
             get_mcp_server_status,
             load_mcp_json_config,
             save_mcp_json_config,
-            get_mcp_tool_ui_uri,
             fetch_mcp_app_resource,
             send_mcp_app_message,
             submit_mcp_interaction_response,
@@ -985,10 +775,6 @@ pub async fn run() {
             api::mcp_api::start_mcp_remote_oauth,
             api::mcp_api::get_mcp_remote_oauth_session,
             api::mcp_api::cancel_mcp_remote_oauth,
-            api::mcp_api::get_mcp_skill_info,
-            api::mcp_api::get_mcp_tools_preview,
-            api::mcp_api::set_mcp_skill_description,
-            api::mcp_api::regenerate_mcp_skill,
             lsp_initialize,
             lsp_start_server_for_file,
             lsp_stop_server,
@@ -1035,7 +821,6 @@ pub async fn run() {
             reload_global_config,
             get_global_config_status,
             subscribe_config_updates,
-            get_model_configs,
             get_recent_workspaces,
             remove_recent_workspace,
             cleanup_invalid_workspaces,
@@ -1050,11 +835,6 @@ pub async fn run() {
             get_task_workspace_path,
             get_code_workspace_path,
             scan_workspace_info,
-            list_cron_jobs,
-            create_cron_job,
-            update_cron_job,
-            delete_cron_job,
-            api::config_api::canonicalize_mode_configs,
             api::terminal_api::terminal_get_shells,
             api::terminal_api::terminal_create,
             api::terminal_api::terminal_get,
@@ -1080,23 +860,6 @@ pub async fn run() {
             i18n_get_supported_languages,
             i18n_get_config,
             i18n_set_config,
-            // Remote Connect
-            api::remote_connect_api::remote_connect_get_device_info,
-            api::remote_connect_api::remote_connect_get_lan_ip,
-            api::remote_connect_api::remote_connect_get_lan_network_info,
-            api::remote_connect_api::remote_connect_get_methods,
-            api::remote_connect_api::remote_connect_start,
-            api::remote_connect_api::remote_connect_stop,
-            api::remote_connect_api::remote_connect_stop_bot,
-            api::remote_connect_api::remote_connect_status,
-            api::remote_connect_api::remote_connect_get_form_state,
-            api::remote_connect_api::remote_connect_set_form_state,
-            api::remote_connect_api::remote_connect_configure_custom_server,
-            api::remote_connect_api::remote_connect_configure_bot,
-            api::remote_connect_api::remote_connect_weixin_qr_start,
-            api::remote_connect_api::remote_connect_weixin_qr_poll,
-            api::remote_connect_api::remote_connect_get_bot_verbose_mode,
-            api::remote_connect_api::remote_connect_set_bot_verbose_mode,
             // MiniApp API
             api::miniapp_api::list_miniapps,
             api::miniapp_api::get_miniapp,
@@ -1125,18 +888,6 @@ pub async fn run() {
             // Browser API (embedded webview)
             api::browser_api::browser_webview_eval,
             api::browser_api::browser_get_url,
-            // Browser Control API (CDP-based user browser control)
-            api::browser_control_api::browser_control_get_status,
-            api::browser_control_api::browser_control_launch,
-            api::browser_control_api::browser_control_create_launcher,
-            api::browser_control_api::browser_control_daemon_status,
-            api::self_control_api::submit_self_control_response,
-            // Insights API
-            api::insights_api::generate_insights,
-            api::insights_api::get_latest_insights,
-            api::insights_api::load_insights_report,
-            api::insights_api::has_insights_data,
-            api::insights_api::cancel_insights_generation,
             // SSH Remote API
             api::ssh_api::ssh_list_saved_connections,
             api::ssh_api::ssh_save_connection,
@@ -1244,114 +995,6 @@ pub async fn run() {
         .ok();
 }
 
-async fn init_agent_system() -> anyhow::Result<(
-    Arc<ai00_x_core::agent::coordination::ConversationCoordinator>,
-    Arc<ai00_x_core::agent::coordination::DialogScheduler>,
-    Arc<ai00_x_core::agent::events::EventQueue>,
-    Arc<ai00_x_core::agent::events::EventRouter>,
-    Arc<AIClientFactory>,
-    Arc<ai00_x_core::service::token_usage::TokenUsageService>,
-)> {
-    use ai00_x_core::agent::*;
-
-    let ai_client_factory = AIClientFactory::get_global()?;
-
-    let event_queue = Arc::new(events::EventQueue::new(Default::default()));
-    let event_router = Arc::new(events::EventRouter::new());
-
-    let path_manager = try_get_path_manager_arc()?;
-    let persistence_manager = Arc::new(persistence::PersistenceManager::new(path_manager.clone())?);
-
-    let context_store = Arc::new(session::SessionContextStore::new());
-    let context_compressor = Arc::new(session::ContextCompressor::new(Default::default()));
-
-    let session_manager = Arc::new(session::SessionManager::new(
-        context_store,
-        persistence_manager,
-        Default::default(),
-    ));
-
-    let tool_registry = tools::registry::get_global_tool_registry();
-    let tool_state_manager = Arc::new(tools::pipeline::ToolStateManager::new(event_queue.clone()));
-
-    let computer_use_host: ComputerUseHostRef =
-        Arc::new(computer_use::DesktopComputerUseHost::new());
-    set_computer_use_desktop_available(true);
-
-    let tool_pipeline = Arc::new(tools::pipeline::ToolPipeline::new(
-        tool_registry,
-        tool_state_manager,
-        Some(computer_use_host),
-    ));
-
-    let stream_processor = Arc::new(execution::StreamProcessor::new(event_queue.clone()));
-    let round_executor = Arc::new(execution::RoundExecutor::new(
-        stream_processor,
-        event_queue.clone(),
-        tool_pipeline.clone(),
-    ));
-    let execution_engine = Arc::new(execution::ExecutionEngine::new(
-        round_executor,
-        event_queue.clone(),
-        session_manager.clone(),
-        context_compressor,
-        Default::default(),
-    ));
-
-    let coordinator = Arc::new(coordination::ConversationCoordinator::new(
-        session_manager.clone(),
-        execution_engine,
-        tool_pipeline,
-        event_queue.clone(),
-        event_router.clone(),
-    ));
-
-    coordination::ConversationCoordinator::set_global(coordinator.clone());
-
-    // Initialize token usage service and register subscriber
-    let token_usage_service = Arc::new(
-        ai00_x_core::service::token_usage::TokenUsageService::new(path_manager.clone())
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to initialize token usage service: {}", e))?,
-    );
-    ai00_x_core::service::token_usage::set_global_token_usage_service(token_usage_service.clone());
-    let token_usage_subscriber = Arc::new(
-        ai00_x_core::service::token_usage::TokenUsageSubscriber::new(token_usage_service.clone()),
-    );
-    event_router.subscribe_internal("token_usage".to_string(), token_usage_subscriber);
-
-    log::info!("Token usage service initialized and subscriber registered");
-
-    // Create the DialogScheduler and wire up the outcome notification channel
-    let scheduler =
-        coordination::DialogScheduler::new(coordinator.clone(), session_manager.clone());
-    coordinator.set_scheduler_notifier(scheduler.outcome_sender());
-    coordinator.set_round_preempt_source(scheduler.preempt_monitor());
-    coordination::set_global_scheduler(scheduler.clone());
-
-    let cron_service =
-        ai00_x_core::service::cron::CronService::new(path_manager.clone(), scheduler.clone())
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to initialize cron service: {}", e))?;
-    ai00_x_core::service::cron::set_global_cron_service(cron_service.clone());
-    let cron_subscriber = Arc::new(ai00_x_core::service::cron::CronEventSubscriber::new(
-        cron_service.clone(),
-    ));
-    event_router.subscribe_internal("cron_jobs".to_string(), cron_subscriber);
-    cron_service.start();
-
-    log::info!("Cron service initialized and subscriber registered");
-    log::info!("Agent system initialized");
-    Ok((
-        coordinator,
-        scheduler,
-        event_queue,
-        event_router,
-        ai_client_factory,
-        token_usage_service,
-    ))
-}
-
 async fn ensure_workspace_dirs() -> anyhow::Result<()> {
     use ai00_x_core::infrastructure::PathManager;
     use ai00_x_core::service::config::get_global_config_service;
@@ -1368,18 +1011,6 @@ async fn ensure_workspace_dirs() -> anyhow::Result<()> {
     PathManager::ensure_workspace_dirs(config.workspace.default_workspace_parent_dir.as_deref())
         .await
         .map_err(|e| anyhow::anyhow!("{}", e))
-}
-
-async fn init_function_agents(ai_client_factory: Arc<AIClientFactory>) -> anyhow::Result<()> {
-    let _ = ai00_x_core::function_agents::git_func_agent::GitFunctionAgent::new(
-        ai_client_factory.clone(),
-    );
-
-    let _ = ai00_x_core::function_agents::startchat_func_agent::StartchatFunctionAgent::new(
-        ai_client_factory.clone(),
-    );
-
-    Ok(())
 }
 
 fn init_mcp_servers(app_handle: tauri::AppHandle) {
@@ -1448,36 +1079,6 @@ fn setup_panic_hook() {
     }));
 }
 
-fn start_event_loop_with_transport(
-    event_queue: Arc<ai00_x_core::agent::events::EventQueue>,
-    event_router: Arc<ai00_x_core::agent::events::EventRouter>,
-    transport: Arc<TauriTransportAdapter>,
-) {
-    tokio::spawn(async move {
-        loop {
-            event_queue.wait_for_events().await;
-            loop {
-                let batch = event_queue.dequeue_configured_batch().await;
-                if batch.is_empty() {
-                    break;
-                }
-
-                for envelope in batch {
-                    // Route to internal subscribers (e.g. RemoteSessionStateTracker)
-                    // sequentially so that text chunks are appended in order.
-                    if let Err(e) = event_router.route(envelope.clone()).await {
-                        log::warn!("Internal event routing failed: {:?}", e);
-                    }
-
-                    if let Err(e) = transport.emit_event("", envelope.event).await {
-                        log::error!("Failed to emit event: {:?}", e);
-                    }
-                }
-            }
-        }
-    });
-}
-
 fn init_services(app_handle: tauri::AppHandle, default_log_level: log::LevelFilter) {
     use ai00_x_core::{infrastructure, service};
 
@@ -1487,8 +1088,6 @@ fn init_services(app_handle: tauri::AppHandle, default_log_level: log::LevelFilt
     tokio::spawn(async move {
         let transport = Arc::new(TauriTransportAdapter::new(app_handle.clone()));
         let emitter = create_event_emitter(transport);
-
-        service::snapshot::initialize_snapshot_event_emitter(emitter.clone());
 
         ai00_x_core::service::initialize_file_watch_service(emitter.clone());
 

@@ -296,19 +296,6 @@ impl MCPServerManager {
                                     "Received MCP tools list-changed notification: server_name={} server_id={}",
                                     server_name_owned, server_id_owned
                                 );
-                                if let Err(e) = manager
-                                    .refresh_mcp_tools(
-                                        &server_id_owned,
-                                        &server_name_owned,
-                                        connection_for_refresh.clone(),
-                                    )
-                                    .await
-                                {
-                                    warn!(
-                                        "Failed to refresh MCP tools after list-changed notification: server_name={} server_id={} error={}",
-                                        server_name_owned, server_id_owned, e
-                                    );
-                                }
                             }
                             Some(ListChangedKind::Prompts) => {
                                 info!(

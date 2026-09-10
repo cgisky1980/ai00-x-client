@@ -33,7 +33,8 @@
   "approval": {
     "pending": "请求确认",
     "allow": "允许一次",
-    "reject": "拒绝"
+    "reject": "拒绝",
+    "allowAlways": "总是允许"
   },
   "models": {
     "loading": "模型加载中…"

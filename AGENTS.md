@@ -14,23 +14,10 @@ src/
 │   ├── util/              # Utilities layer (errors, types, process mgmt)
 │   ├── infrastructure/    # Infrastructure layer (AI client, storage, events, filesystem)
 │   ├── service/           # Service layer (workspace, config, Git, MCP, LSP, SSH...)
-│   ├── agent/             # Agent layer
-│   │   ├── core/          # Core data model (Session, Message, DialogTurn)
-│   │   ├── events/        # Agent event system (queue, router)
-│   │   ├── execution/     # Execution engine (ExecutionEngine, StreamProcessor)
-│   │   ├── tools/         # Tool system (registry, permissions, pipeline)
-│   │   ├── agents/        # Agent implementations (CoreAgent, PlanMode, DebugMode...)
-│   │   ├── session/       # Session management (compression, caching)
-│   │   ├── coordination/  # Coordination layer (Coordinator, Scheduler)
-│   │   ├── persistence/   # Persistence manager
-│   │   ├── insights/      # Insights service
-│   │   ├── image_analysis/# Image analysis
-│   │   └── workspace/     # Workspace binding
-│   ├── function_agents/   # Function agents (GitFunctionAgent, StartchatFunctionAgent)
+│   ├── routing/           # Smart routing (SmartRouter: R0-R3 classification + tier model mapping)
+│   ├── websearch.rs       # Web search client (AnySearch primary + SearXNG fallback)
 │   └── miniapp/           # MiniApp runtime (JS Worker, export, permissions)
 ├── crates/transport/      # Transport adapters (Tauri)
-├── crates/api-layer/      # Platform-agnostic API handlers
-├── crates/relay/          # Remote connect relay (HTTP<->WebSocket bridge)
 ├── crates/webdriver/      # WebDriver implementation (browser automation)
 ├── apps/desktop/          # Tauri 2.0 desktop app
 ├── web-ui/                # React frontend
@@ -316,16 +303,6 @@ pub async fn your_command(
 await api.invoke('your_command', { request: { ... } });
 ```
 
-### Agent Module Rename
-
-All agent code was renamed from `agentic/` to `agent/`:
-- Old: `src/crates/core/src/agentic/` (deleted)
-- New: `src/crates/core/src/agent/`
-- Events: `src/crates/events/src/agent.rs` (replaces `agentic.rs`)
-- API: `src/apps/desktop/src/api/agent_api.rs` (replaces `agentic_api.rs`)
-- Frontend event listener: `AgentEventListener.ts` (replaces `AgenticEventListener.ts`)
-- i18n keys: `settings/agent-tools.json` (replaces `agentic-tools.json`)
-
 ### Frontend Reuse
 
 When developing frontend features, reuse existing infrastructure:
@@ -333,7 +310,7 @@ When developing frontend features, reuse existing infrastructure:
 - **I18n**: `infrastructure/i18n/` + `locales/` - useI18n, t()
 - **Components**: `component-library/` - shared UI components
 - **State**: Zustand stores in each module
-- **API**: `infrastructure/api/service-api/` - AgentAPI, ConfigAPI, SessionAPI, etc.
+- **API**: `infrastructure/api/service-api/` - DshAPI, ConfigAPI, MCPAPI, etc.
 
 ### Frontend Visual Specification
 
@@ -481,82 +458,50 @@ All UI MUST follow the design tokens defined in `src/web-ui/src/component-librar
 3. **Default namespace** is `'common'` — keys not in common.json will return the key string
 4. **All user-facing strings** must use `t()` — no hardcoded strings
 
-## Agent System
+## AI Agent 栈（dsh）
+
+老自研 agent 栈（CoreAgent/RouterAgent/工具管线/会话持久化等，`core/src/agent/`）已于 2026-09 退役删除；agent 执行由 **dsh 栈** 承担：dsh 前端场景 + dsh 插件运行时 + AI 网关 + MCP + Skills。
 
 ### Architecture Overview
 
 ```
-DialogScheduler (receives user messages)
+dsh 场景 (web-ui app/scenes dsh, AgentTheater)
     |
     v
-ConversationCoordinator (orchestrates turns)
-    |-- Agent selection (RouterAgent / user-specified)
-    |-- Prompt building (PromptBuilder + embedded prompt templates)
-    |-- ExecutionEngine (multi-round model invocation loop)
-    |   |-- RoundExecutor -> per-model-request
-    |   |-- StreamProcessor -> SSE stream handling
-    |   +-- ToolPipeline -> tool execution (with concurrency)
-    |-- SessionManager (session lifecycle + context management)
-    |   |-- ContextStore (message management)
-    |   |-- PromptCache (prompt caching)
-    |   +-- Compression (strategies: fallback / microcompact)
-    +-- PersistenceManager (persists to .ai00-x/sessions/{id}/)
+dsh 插件运行时 (plugin_api: install/enable/proxy/plugin_data_*)
+    |-- @ai00-x/ai-bridge 插件 → AI 网关（统一 LLM 入口）
+    |-- MCP servers (service/mcp: 连接池 + resources/prompts catalog 缓存)
+    +-- Skills (.ai00-x/skills/*/SKILL.md)
 ```
 
-### Agent Types
+### AI 网关（ai_gateway.rs）
 
-| Type | ID | Description |
-|------|----|-------------|
-| CoreAgent | `Core` | Core agent: Think-Plan-Execute-Review workflow |
-| RouterAgent | `Router` | Route user intent to appropriate sub-agent |
-| PlanMode | `Plan` | Plan-then-execute mode |
-| DebugMode | `Debug` | Debug mode: instrumentation -> root cause |
-| DeepResearchAgent | `DeepResearch` | Deep research agent |
-| ExploreAgent | `Explore` | Explore agent |
-| FileFinderAgent | `FileFinder` | File finder agent |
-| CodeReviewAgent | `CodeReview` | Code review agent |
-| InitAgent | `Init` | Init agent |
-| GenerateDocAgent | `GenerateDoc` | Documentation generator |
-| CustomSubagent | custom | User/project-defined custom sub-agents (via Markdown) |
+挂在本地内嵌 Salvo（2100 端口，仅本机监听）：
 
-### Tool System
+- `POST /ai00-internal/llm/v1/chat/completions` — OpenAI 兼容（含 SSE 流式）
+- `GET  /ai00-internal/llm/v1/models` — 逻辑模型列表
+- 鉴权：`X-Ai00-Internal-Token` 头（匹配 `AI00_S_INTERNAL_TOKEN`，回退默认值）
 
-Tools registered in `agent/tools/registry.rs`:
+按请求 `model` 字段分流：
+- `ai00-auto`（默认）→ SmartRouter 分级转发
+- `rwkv-local` → 强制本地 RWKV
+- `ai00-salvo` → 强制远程转发（primary 模型）
+- 其他引用（`ai00s:<子模型>` / `gguf-local:<路径>` / 自定义 id）→ client_factory 解析转发（与讨论通道 plugin_ai_complete 同一解析链）
 
-Tool categories:
-- **File system**: Read, Write, Edit, Delete, LS, Glob, Grep, GetFileDiff
-- **Execution**: Bash, TerminalControl
-- **Git**: Git
-- **Computer Use**: ComputerUse (mouse click/locate/input), ComputerUseResult
-- **MCP**: ListMCPPrompts, GetMCPPrompt, ListMCPResources, ReadMCPResource
-- **Web**: WebSearch, WebFetch
-- **Agent Control**: SessionControl, SessionHistory, SessionMessage, SelfControl, ControlHub
-- **Utility**: AskUserQuestion, TodoWrite, Task, Skill, Cron, Log
-- **Generative UI**: GenerativeUI
-- **Mermaid**: MermaidInteractive
-- **Planning**: CreatePlan, Playbook
-- **MiniApp**: InitMiniApp
-- **Code Review**: CodeReview
+### SmartRouter（core/src/routing/）
 
-### Adding a New Tool
+每请求分类为复杂度层级 R0-R3 并映射模型：
 
-1. Create file in `agent/tools/implementations/`
-2. Implement the `Tool` trait (defined in `agent/tools/framework.rs`)
-3. Define `serde` input/output types
-4. Export in `implementations/mod.rs`
-5. Register in `agent/tools/registry.rs`
-6. If it is a default tool, add to the relevant agent's `default_tools()`
+1. trivial-ack 规则短路（零成本 → R0，不污染 sticky 表）
+2. RWKV 本地分类（mean-pooled hidden state + MLP 分类头 `router_head.json`，热重载见 `reload_router_head`）
+3. 后处理规则栈（安全升级 / sticky 层级）
+4. tier → 模型映射（`AIConfig.router.tier_models`）
 
-### Prompt System
+`route_preview` 为无状态预览（设置页测试框用，不读/不写会话 sticky）。
 
-Prompt templates are embedded at compile time in `agent/agents/prompts/`, generated via `build.rs` -> `embedded_agents_prompt.rs`.
-- Each prompt template is a standalone `.md` file
-- Agents reference templates via `prompt_template_name()`
-- `PromptBuilder` handles dynamic context injection (project context, workspace structure, etc.)
+### MCP
 
-### Session Persistence
-
-Location: `.ai00-x/sessions/{session_id}/`
+`service/mcp`：server 连接池 + lifecycle/reconnect + resources/prompts catalog 缓存（`warm_catalog_caches`）。远端 server 仅支持 StreamableHttp transport。
 
 ## Frontend Architecture
 
@@ -570,7 +515,7 @@ Location: `.ai00-x/sessions/{session_id}/`
   - `state-machine/` - State machine (SessionStateMachine)
   - `store/` - Zustand state management (FlowChatStore)
   - `hooks/` - React hooks (useFlowChat, useMessageSender, useAutoScroll...)
-- **app/** - Application scenes (agents, settings, profile, components)
+- **app/** - Application scenes (dsh, session, settings, profile, skills, plugins, mcp-tools...)
 - **tools/** - Feature modules (editor, git, terminal, file-explorer, lsp, mermaid, snapshot)
 - **features/** - Features (ssh-remote)
 - **locales/** - Translation files (en-US, zh-CN)

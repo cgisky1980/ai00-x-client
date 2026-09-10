@@ -1,7 +1,7 @@
 //! Windows foreground application detector.
 //!
 //! Uses `GetForegroundWindow` + `GetWindowThreadProcessId` + `GetWindowTextW`
-//! (migrated from `computer_use/desktop_host.rs`) for window/PID/title, and
+//! for window/PID/title, and
 //! `sysinfo` to resolve process name + exe path from the PID.
 //!
 //! Friendly application names are resolved from the executable's version

@@ -321,11 +321,6 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
                         }
                       });
                     }
-                    // Write-back of mermaid code to old session store removed with flow_chat.
-                    const source = mermaidData._source;
-                    if (source?.type === 'tool-call' && source.toolCallId && newData.mermaid_code) {
-                      // no-op: legacy session write-back no longer exists
-                    }
                   }}
                   onInteraction={onInteraction}
                 />

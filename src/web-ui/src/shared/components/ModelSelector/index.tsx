@@ -13,7 +13,6 @@ import { Cpu, ChevronDown, ChevronRight, Check, Sparkles, Lock, Rocket, Coins } 
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
-import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { getProviderDisplayName } from '@/infrastructure/config/services/modelConfigs';
 import { getGgufModelDisplayName } from '@/infrastructure/config/services/modelClass';
 import {
@@ -506,15 +505,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         if (!keepOpen) setDropdownOpen(false);
       }
 
-      if (sessionId) {
-        // 老会话模型名同步已随 flow_chat 移除（无副作用）
-        void sessionId;
-        await agentAPI.updateSessionModel({
-          sessionId,
-          modelName: modelId === 'auto' ? 'auto' : modelId,
-        });
-      }
-
       log.info('Primary model updated', { modelId });
 
       globalEventBus.emit('mode:config:updated');
@@ -734,15 +724,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       delete updatedAgentModels[currentMode];
       await configManager.setConfig('ai.agent_models', updatedAgentModels);
       setAgentModels(updatedAgentModels);
-
-      if (sessionId) {
-        // 老会话模型名同步已随 flow_chat 移除（无副作用）
-        void compositeRef;
-        await agentAPI.updateSessionModel({
-          sessionId,
-          modelName: compositeRef,
-        });
-      }
 
       log.info('Ai00-API sub-model selected', { subModelId: apiModel.id });
 

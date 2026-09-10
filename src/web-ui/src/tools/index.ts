@@ -25,5 +25,4 @@ export * from './file-system';
 export * from './git';
 export * from './lsp';
 export * from './mermaid-editor';
-export * from './snapshot-system';
 export * from './terminal';

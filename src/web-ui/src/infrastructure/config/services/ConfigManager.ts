@@ -95,9 +95,6 @@ class ConfigManagerImpl implements IConfigManager {
       if (path === 'ai.agent_models') {
         return {} as T;
       }
-      if (path === 'ai.func_agent_models') {
-        return {} as T;
-      }
       if (path === 'ai.default_models') {
         return {} as T;
       }
@@ -262,7 +259,6 @@ class ConfigManagerImpl implements IConfigManager {
       
       await this.getConfig('ai.models');
       await this.getConfig('ai.agent_models');
-      await this.getConfig('ai.func_agent_models');
       await this.getConfig('ai.default_models');
     } catch (error) {
       log.error('Failed to reload config', error);

@@ -60,8 +60,13 @@ impl RwkvInferenceEngine for DesktopRwkvEngine {
         Ok(())
     }
 
-    async fn classify(&self, request: String, prev_tier: Option<u8>) -> Result<Vec<f32>, String> {
-        rwkv_llm::rwkv_classify(request, prev_tier).await
+    async fn classify(
+        &self,
+        request: String,
+        prev_tier: Option<u8>,
+        capture: bool,
+    ) -> Result<Vec<f32>, String> {
+        rwkv_llm::rwkv_classify(request, prev_tier, capture).await
     }
 
     fn is_initialized(&self) -> bool {

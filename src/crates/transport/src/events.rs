@@ -3,36 +3,6 @@
 /// Supports multiple event types, uniformly distributed by transport layer
 use serde::{Deserialize, Serialize};
 
-/// Unified event enum - All events to be sent to frontend
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "event_type", content = "payload")]
-pub enum UnifiedEvent {
-    Agent(AgentEventPayload),
-
-    /// LSP event
-    Lsp(LspEventPayload),
-
-    /// File watch event
-    FileWatch(FileWatchEventPayload),
-
-    /// Profile generation event
-    Profile(ProfileEventPayload),
-
-    /// Snapshot event
-    Snapshot(SnapshotEventPayload),
-
-    /// Generic backend event
-    Backend(BackendEventPayload),
-}
-
-/// Agent event payload
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentEventPayload {
-    pub session_id: String,
-    pub turn_id: Option<String>,
-    pub event_data: serde_json::Value,
-}
-
 /// LSP event payload
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LspEventPayload {

@@ -1016,8 +1016,6 @@ pub async fn init_embedding_engine() -> Result<(), String> {
     .await
     .map_err(|e| format!("Embedding init task failed: {}", e))??;
 
-    crate::embedding::init_embedding_provider();
-
     EMBEDDING_ENGINE_INITIALIZED.store(true, Ordering::SeqCst);
     log::info!("[model_init] Embedding engine initialized successfully");
     Ok(())

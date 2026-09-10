@@ -21,9 +21,9 @@ use salvo::http::StatusCode;
 use salvo::prelude::*;
 use serde_json::{json, Value};
 
-use ai00_x_core::agent::routing::get_smart_router;
-use ai00_x_core::agent::routing::RouteClass;
 use ai00_x_core::infrastructure::ai::client_factory::{ai00_s_internal_token, AIClientFactory};
+use ai00_x_core::routing::get_smart_router;
+use ai00_x_core::routing::RouteClass;
 use ai00_x_core::service::config::get_global_config_service;
 
 use crate::rwkv_llm::{pool_infer, InferenceEvent};
@@ -64,9 +64,9 @@ async fn list_models(res: &mut Response) {
     // 静态三逻辑模型 + 用户已配置的具体模型引用（讨论通道同源，dsh 侧
     // 模型选择器可见可选；桥按 id 透传回网关按引用解析）
     let mut data = vec![
-        json!({"id": MODEL_AUTO,   "object": "model", "name": "Ai00-X Auto (smart routing)", "owned_by": "ai00-x"}),
-        json!({"id": MODEL_RWKV,   "object": "model", "name": "Ai00-X Local RWKV", "owned_by": "ai00-x"}),
-        json!({"id": MODEL_REMOTE, "object": "model", "name": "Ai00-X Salvo (ai00-x.com)", "owned_by": "ai00-x"}),
+        json!({"id": MODEL_AUTO,   "object": "model", "name": "Ai00-X Auto (smart routing)", "contextWindow": 128000, "owned_by": "ai00-x"}),
+        json!({"id": MODEL_RWKV,   "object": "model", "name": "Ai00-X Local RWKV", "contextWindow": 16384, "owned_by": "ai00-x"}),
+        json!({"id": MODEL_REMOTE, "object": "model", "name": "Ai00-X Salvo (ai00-x.com)", "contextWindow": 128000, "owned_by": "ai00-x"}),
     ];
     if let Ok(service) = get_global_config_service() {
         if let Ok(config) = service
@@ -77,10 +77,13 @@ async fn list_models(res: &mut Response) {
                 if m.id.is_empty() || m.id == MODEL_RWKV {
                     continue;
                 }
+                // contextWindow 随目录下发——dsh 桥透传给引擎，压缩预算据此计算
+                let cw = m.context_window.filter(|v| *v > 0).unwrap_or(32768);
                 data.push(json!({
                     "id": m.id,
                     "object": "model",
                     "name": if m.name.is_empty() { m.id.clone() } else { m.name.clone() },
+                    "contextWindow": cw,
                     "owned_by": "ai00-x",
                 }));
             }
@@ -427,7 +430,11 @@ async fn local_rwkv_sse(
 /// 转发到指定模型引用（OpenAI 兼容 SSE 透传）：`ai00-salvo` → primary 槽；
 /// 其他引用（ai00s:/gguf-local:/自定义 id）按 client_factory 同一解析链直达。
 async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response, model_ref: &str) {
-    let resolve_key = if model_ref == MODEL_REMOTE { "primary" } else { model_ref };
+    let resolve_key = if model_ref == MODEL_REMOTE {
+        "primary"
+    } else {
+        model_ref
+    };
     // 恢复登录态：dsh 侧请求可能先于任何前端登录流程到达，
     // AI00S_AUTH_TOKEN 是内存态——从 vault 兜底恢复（幂等，已有则秒回）。
     let _ = crate::auth::ensure_auth_synced().await;

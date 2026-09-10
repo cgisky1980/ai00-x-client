@@ -84,10 +84,6 @@ sse-stream = "0.2.1"
 ai00-x-ai-adapters = { path = "../ai-adapters" }
 
 # Tool framework (Tool trait + types)
-ai00-x-tool-framework = { path = "../tool-framework" }
-
-# Tool runtime
-tool-runtime = { path = "src/agent/tools/implementations/tool-runtime" }
 
 # terminal
 terminal-core = { path = "src/service/terminal" }
@@ -129,8 +125,6 @@ russh-keys = { version = "0.45", optional = true }
 shellexpand = { version = "3", optional = true }
 ssh_config = { version = "0.1", optional = true }
 
-# Relay server shared library (embedded relay reuses standalone relay logic)
-ai00-x-relay = { path = "../relay" }
 
 # Event layer dependency (lowest layer)
 ai00-x-events = { path = "../events" }
@@ -148,9 +142,8 @@ tauri = { workspace = true, optional = true }
 win32job = { workspace = true }
 
 [features]
-default = ["ssh-remote", "remote-connect", "web-fetch", "i18n"]
+default = ["ssh-remote", "web-fetch", "i18n"]
 tauri-support = ["tauri"]  # Optional tauri support
 ssh-remote = ["russh", "russh-sftp", "russh-keys", "shellexpand", "ssh_config"]  # russh-keys pure-Rust crypto backend (no openssl)
-remote-connect = ["dep:x25519-dalek", "dep:qrcode", "dep:mac_address", "dep:local-ip-address", "dep:hostname", "i18n"]
 web-fetch = ["dep:headless_chrome", "dep:htmd", "dep:text-splitter"]
 i18n = ["dep:fluent-bundle", "dep:unic-langid"]

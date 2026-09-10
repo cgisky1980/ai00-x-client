@@ -32,7 +32,6 @@ import zhCNNotifications from '../../../locales/zh-CN/notifications.json';
 import zhCNComponents from '../../../locales/zh-CN/components.json';
 
 import zhCNScenesCapabilities from '../../../locales/zh-CN/scenes/capabilities.json';
-import zhCNScenesAgents from '../../../locales/zh-CN/scenes/agents.json';
 import zhCNScenesProfile from '../../../locales/zh-CN/scenes/profile.json';
 import zhCNScenesSkills from '../../../locales/zh-CN/scenes/skills.json';
 import zhCNScenesPlugins from '../../../locales/zh-CN/scenes/plugins.json';
@@ -61,11 +60,9 @@ import zhCNSettingsDshPlugins from '../../../locales/zh-CN/settings/dsh-plugins.
 import zhCNSettingsAiRules from '../../../locales/zh-CN/settings/ai-rules.json';
 import zhCNSettingsAiMemory from '../../../locales/zh-CN/settings/ai-memory.json';
 import zhCNSettingsAiContext from '../../../locales/zh-CN/settings/ai-context.json';
-import zhCNSettingsAgents from '../../../locales/zh-CN/settings/agents.json';
 import zhCNSettingsDefaultModel from '../../../locales/zh-CN/settings/default-model.json';
 import zhCNSettingsVoice from '../../../locales/zh-CN/settings/voice.json';
 import zhCNSettingsAssistant from '../../../locales/zh-CN/settings/assistant.json';
-import zhCNSettingsMemory from '../../../locales/zh-CN/settings/memory.json';
 import zhCNSettingsAccount from '../../../locales/zh-CN/settings/account.json';
 import zhCNSettingsAbout from '../../../locales/zh-CN/settings/about.json';
 
@@ -82,7 +79,6 @@ import enUSNotifications from '../../../locales/en-US/notifications.json';
 import enUSComponents from '../../../locales/en-US/components.json';
 
 import enUSScenesCapabilities from '../../../locales/en-US/scenes/capabilities.json';
-import enUSScenesAgents from '../../../locales/en-US/scenes/agents.json';
 import enUSScenesProfile from '../../../locales/en-US/scenes/profile.json';
 import enUSScenesSkills from '../../../locales/en-US/scenes/skills.json';
 import enUSScenesPlugins from '../../../locales/en-US/scenes/plugins.json';
@@ -111,11 +107,9 @@ import enUSSettingsDshPlugins from '../../../locales/en-US/settings/dsh-plugins.
 import enUSSettingsAiRules from '../../../locales/en-US/settings/ai-rules.json';
 import enUSSettingsAiMemory from '../../../locales/en-US/settings/ai-memory.json';
 import enUSSettingsAiContext from '../../../locales/en-US/settings/ai-context.json';
-import enUSSettingsAgents from '../../../locales/en-US/settings/agents.json';
 import enUSSettingsDefaultModel from '../../../locales/en-US/settings/default-model.json';
 import enUSSettingsVoice from '../../../locales/en-US/settings/voice.json';
 import enUSSettingsAssistant from '../../../locales/en-US/settings/assistant.json';
-import enUSSettingsMemory from '../../../locales/en-US/settings/memory.json';
 import enUSSettingsAccount from '../../../locales/en-US/settings/account.json';
 import enUSSettingsAbout from '../../../locales/en-US/settings/about.json';
 
@@ -139,7 +133,6 @@ const resources = {
     components: zhCNComponents,
     
     'scenes/capabilities': zhCNScenesCapabilities,
-    'scenes/agents': zhCNScenesAgents,
     'scenes/profile': zhCNScenesProfile,
     'scenes/skills': zhCNScenesSkills,
     'scenes/plugins': zhCNScenesPlugins,
@@ -168,11 +161,9 @@ const resources = {
     'settings/ai-rules': zhCNSettingsAiRules,
     'settings/ai-memory': zhCNSettingsAiMemory,
     'settings/ai-context': zhCNSettingsAiContext,
-    'settings/agents': zhCNSettingsAgents,
     'settings/default-model': zhCNSettingsDefaultModel,
     'settings/voice': zhCNSettingsVoice,
     'settings/assistant': zhCNSettingsAssistant,
-    'settings/memory': zhCNSettingsMemory,
     'settings/account': zhCNSettingsAccount,
     'settings/about': zhCNSettingsAbout,
     
@@ -190,7 +181,6 @@ const resources = {
     components: enUSComponents,
     
     'scenes/capabilities': enUSScenesCapabilities,
-    'scenes/agents': enUSScenesAgents,
     'scenes/profile': enUSScenesProfile,
     'scenes/skills': enUSScenesSkills,
     'scenes/plugins': enUSScenesPlugins,
@@ -219,11 +209,9 @@ const resources = {
     'settings/ai-rules': enUSSettingsAiRules,
     'settings/ai-memory': enUSSettingsAiMemory,
     'settings/ai-context': enUSSettingsAiContext,
-    'settings/agents': enUSSettingsAgents,
     'settings/default-model': enUSSettingsDefaultModel,
     'settings/voice': enUSSettingsVoice,
     'settings/assistant': enUSSettingsAssistant,
-    'settings/memory': enUSSettingsMemory,
     'settings/account': enUSSettingsAccount,
     'settings/about': enUSSettingsAbout,
     
@@ -264,7 +252,6 @@ export class I18nService {
           'components',
           
           'scenes/capabilities',
-          'scenes/agents',
           'scenes/profile',
           'scenes/skills',
           'scenes/plugins',
@@ -291,11 +278,9 @@ export class I18nService {
           'settings/ai-rules',
           'settings/ai-memory',
           'settings/ai-context',
-          'settings/agents',
           'settings/default-model',
           'settings/voice',
           'settings/assistant',
-          'settings/memory',
           'settings/account',
           'settings/about',
           

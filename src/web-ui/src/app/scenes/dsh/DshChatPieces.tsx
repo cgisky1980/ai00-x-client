@@ -18,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { Button } from '@/component-library';
+import { rememberSessionAllow } from '@/shared/agent-approval-rules';
 import type {
   DshApproval,
   DshMessage,
@@ -113,9 +114,22 @@ export const ApprovalCard: React.FC<{
         <Button
           variant="primary"
           size="small"
-          onClick={() => onRespond(approval.rpcId, 'allowed-once')}
+          onClick={() => {
+            // 「允许」= 本卡放行；「总是允许」= 额外记住本会话+该工具，
+            // 后续同类审批帧由客户端自动放行（引擎词汇仅 allowed-once）
+            rememberSessionAllow(approval.sessionId, approval.toolName);
+            onRespond(approval.rpcId, 'allowed-once');
+          }}
         >
           {t('approval.allow')}
+        </Button>
+        <Button
+          variant="secondary"
+          size="small"
+          onClick={() => onRespond(approval.rpcId, 'allowed-once')}
+          title="本会话内该工具不再询问（客户端记忆，引擎仍逐次确认）"
+        >
+          {t('approval.allowAlways', { defaultValue: '总是允许' })}
         </Button>
         <Button
           variant="secondary"

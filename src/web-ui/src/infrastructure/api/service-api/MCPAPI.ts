@@ -432,28 +432,6 @@ export class MCPAPI {
   static async cancelRemoteOAuth(request: CancelMCPRemoteOAuthRequest): Promise<void> {
     return api.invoke('cancel_mcp_remote_oauth', { request });
   }
-
-  // --- Progressive Tool Disclosure APIs ---
-
-  /** Get MCP server's generated Skill info */
-  static async getMCPSkillInfo(serverId: string): Promise<MCPSkillInfoResponse> {
-    return api.invoke('get_mcp_skill_info', { serverId });
-  }
-
-  /** Get MCP server tool preview list (without activation) */
-  static async getMCPToolsPreview(serverId: string): Promise<MCPToolPreview[]> {
-    return api.invoke('get_mcp_tools_preview', { serverId });
-  }
-
-  /** Customize MCP server's Skill description */
-  static async setMCPSkillDescription(request: SetMCPSkillDescriptionRequest): Promise<void> {
-    return api.invoke('set_mcp_skill_description', { request });
-  }
-
-  /** Regenerate MCP server's Skill file from current tool list */
-  static async regenerateMCPSkill(serverId: string): Promise<void> {
-    return api.invoke('regenerate_mcp_skill', { serverId });
-  }
 }
 
 export default MCPAPI;

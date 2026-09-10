@@ -3,16 +3,13 @@ import {
   Settings,
   Info,
   MoreVertical,
-  Smartphone,
   Globe,
   Network,
   Layers,
   PanelsTopLeft,
   BarChart3,
-  LineChart,
   Activity,
   ChevronUp,
-  Users,
   Puzzle,
   Cog,
   Brain,
@@ -20,27 +17,17 @@ import {
   Code,
   Bot,
 } from 'lucide-react';
-import { Tooltip, Modal } from '@/component-library';
+import { Tooltip } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useSceneManager } from '../../../hooks/useSceneManager';
 import { useSceneStore } from '../../../stores/sceneStore';
 import { useCanvasStore } from '@/app/components/panels/content-canvas/stores';
 import NotificationButton from '../../TitleBar/NotificationButton';
-import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext';
-import { useNotification } from '@/shared/notification-system';
 import { AboutDialog } from '../../AboutDialog';
-import { RemoteConnectDialog } from '../../RemoteConnectDialog';
-import {
-  RemoteConnectDisclaimerContent,
-} from '../../RemoteConnectDialog/RemoteConnectDisclaimer';
-import {
-  getRemoteConnectDisclaimerAgreed,
-  setRemoteConnectDisclaimerAgreed,
-} from '../../RemoteConnectDialog/remoteConnectDisclaimerStorage';
 import { MERMAID_INTERACTIVE_EXAMPLE } from '@/shared/constants/mermaidExamples';
 
 interface PersistentFooterActionsProps {
-  /** Compact mode: hide browser, mermaid, and insights buttons (used in task window) */
+  /** Compact mode: hide browser and mermaid buttons (used in task window) */
   compact?: boolean;
 }
 
@@ -57,17 +44,12 @@ const PersistentFooterActions: React.FC<PersistentFooterActionsProps> = ({ compa
     const activeTab = s.primaryGroup.tabs.find((t) => t.id === s.primaryGroup.activeTabId);
     return activeTab?.content.type === 'mermaid-editor';
   });
-  const { hasWorkspace } = useCurrentWorkspace();
-  const { warning } = useNotification();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
   const [multimodalOpen, setMultimodalOpen] = useState(false);
   const multimodalHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showAbout, setShowAbout] = useState(false);
-  const [showRemoteConnect, setShowRemoteConnect] = useState(false);
-  const [showRemoteDisclaimer, setShowRemoteDisclaimer] = useState(false);
-  const [hasAgreedRemoteDisclaimer, setHasAgreedRemoteDisclaimer] = useState<boolean>(() => getRemoteConnectDisclaimerAgreed());
 
   const closeMenu = useCallback(() => {
     setMenuClosing(true);
@@ -138,13 +120,6 @@ const PersistentFooterActions: React.FC<PersistentFooterActionsProps> = ({ compa
     multimodalHoverTimerRef.current = setTimeout(() => setMultimodalOpen(false), 180);
   }, []);
 
-  const handleOpenInsights = useCallback(() => {
-    openScene('insights');
-  }, [openScene]);
-
-  const insightsTooltip = t('nav.items.insights');
-  const isInsightsActive = activeTabId === 'insights';
-
   const handleOpenUsageStats = useCallback(() => {
     openScene('usage-stats');
   }, [openScene]);
@@ -156,30 +131,6 @@ const PersistentFooterActions: React.FC<PersistentFooterActionsProps> = ({ compa
     closeMenu();
     setShowAbout(true);
   };
-
-  const handleRemoteConnect = useCallback(async () => {
-    if (!hasWorkspace) {
-      warning(t('header.remoteConnectRequiresWorkspace'));
-      return;
-    }
-
-    closeMenu();
-
-    if (hasAgreedRemoteDisclaimer || getRemoteConnectDisclaimerAgreed()) {
-      setHasAgreedRemoteDisclaimer(true);
-      setShowRemoteConnect(true);
-      return;
-    }
-
-    setShowRemoteDisclaimer(true);
-  }, [hasWorkspace, warning, t, closeMenu, hasAgreedRemoteDisclaimer]);
-
-  const handleAgreeDisclaimer = useCallback(() => {
-    setRemoteConnectDisclaimerAgreed();
-    setHasAgreedRemoteDisclaimer(true);
-    setShowRemoteDisclaimer(false);
-    setShowRemoteConnect(true);
-  }, []);
 
   return (
     <>
@@ -215,26 +166,6 @@ const PersistentFooterActions: React.FC<PersistentFooterActionsProps> = ({ compa
                   className={`ai00-x-nav-panel__footer-menu${menuClosing ? ' is-closing' : ''}`}
                   role="menu"
                 >
-                  {!compact && (
-                    <Tooltip
-                      content={t('header.remoteConnectRequiresWorkspace')}
-                      placement="right"
-                      disabled={hasWorkspace}
-                    >
-                      <button
-                        type="button"
-                        className={`ai00-x-nav-panel__footer-menu-item${!hasWorkspace ? ' is-disabled' : ''}`}
-                        role="menuitem"
-                        aria-disabled={!hasWorkspace}
-                        onClick={handleRemoteConnect}
-                      >
-                        <Smartphone size={14} />
-                        <span>{t('header.remoteConnect')}</span>
-                      </button>
-                    </Tooltip>
-                  )}
-                  {!compact && <div className="ai00-x-nav-panel__footer-menu-divider" />}
-
                   {/* Extensions (定制) items */}
                   <button
                     type="button"
@@ -244,15 +175,6 @@ const PersistentFooterActions: React.FC<PersistentFooterActionsProps> = ({ compa
                   >
                     <Bot size={14} />
                     <span>{t('scenes.dsh', { defaultValue: 'Agent' })}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`ai00-x-nav-panel__footer-menu-item${activeTabId === 'agents' ? ' is-active' : ''}`}
-                    role="menuitem"
-                    onClick={() => { closeMenu(); openScene('agents'); }}
-                  >
-                    <Users size={14} />
-                    <span>{t('nav.items.agents')}</span>
                   </button>
                   <button
                     type="button"
@@ -385,22 +307,6 @@ const PersistentFooterActions: React.FC<PersistentFooterActionsProps> = ({ compa
         )}
 
           {!compact && (
-            <Tooltip content={insightsTooltip} placement="right" followCursor>
-              <button
-                type="button"
-                className={`ai00-x-nav-panel__footer-btn ai00-x-nav-panel__footer-btn--icon${isInsightsActive ? ' is-active' : ''}`}
-                onClick={handleOpenInsights}
-                aria-label={insightsTooltip}
-              >
-                <span className="ai00-x-nav-panel__footer-btn-icon-swap" aria-hidden="true">
-                  <BarChart3 size={15} className="ai00-x-nav-panel__footer-btn-icon-swap-default" />
-                  <LineChart size={15} className="ai00-x-nav-panel__footer-btn-icon-swap-hover" />
-                </span>
-              </button>
-            </Tooltip>
-          )}
-
-          {!compact && (
             <Tooltip content={usageStatsTooltip} placement="right" followCursor>
               <button
                 type="button"
@@ -432,21 +338,6 @@ const PersistentFooterActions: React.FC<PersistentFooterActionsProps> = ({ compa
         </div>
       </div>
       <AboutDialog isOpen={showAbout} onClose={() => setShowAbout(false)} />
-      <RemoteConnectDialog isOpen={showRemoteConnect} onClose={() => setShowRemoteConnect(false)} />
-      <Modal
-        isOpen={showRemoteDisclaimer}
-        onClose={() => setShowRemoteDisclaimer(false)}
-        title={t('remoteConnect.disclaimerTitle')}
-        showCloseButton
-        size="large"
-        contentInset
-      >
-        <RemoteConnectDisclaimerContent
-          agreed={hasAgreedRemoteDisclaimer}
-          onClose={() => setShowRemoteDisclaimer(false)}
-          onAgree={handleAgreeDisclaimer}
-        />
-      </Modal>
     </>
   );
 };

@@ -625,7 +625,11 @@ async fn ensure_once(gguf_path: &str) -> Result<String, String> {
         .arg("-ctv")
         .arg("q8_0")
         // 看门狗需要 /metrics（MTP 接受率崩塌检测）
-        .arg("--metrics");
+        .arg("--metrics")
+        // 完整 Jinja chat template 渲染：MiniCPM5 等 Think 模型模板复杂，
+        // legacy 简化转换会静默丢 reasoning 标签处理；简单模板无副作用。
+        // think 内容由 llama-server 提取到 reasoning_content（stream_processor 已支持）
+        .arg("--jinja");
     // MTP 投机解码：Qwen3.8 等 nextn 层模型内嵌 draft 权重。
     // n_max=8 + KV q8_0 为 2080 Ti 22GB 实测甜点（23.3 tok/s @ IQ4_XS）；
     // 默认 n_max=3 仅 8.4，n_max=12 接受率崩塌（2.3）。
@@ -880,6 +884,17 @@ const BUILTIN_GGUF: &[BuiltinCatalogModel] = &[
         size_bytes: 4_370_000_000,
         gguf_file: "Spark-X2.5-4B-Q8_0.gguf",
         // 本地 llama-quantize 产物（BF16 官方源量化），统一走自有模型仓
+        download_repo: "cgisky/ai00-x",
+        download_dir: "llm",
+    },
+    BuiltinCatalogModel {
+        key: "MiniCPM5-2B-Q8_0",
+        display: "MiniCPM5 2B",
+        file_rel: "llm/MiniCPM5-2B-Q8_0.gguf",
+        size_bytes: 2_679_710_688,
+        gguf_file: "MiniCPM5-2B-Q8_0.gguf",
+        // 源出 OpenBMB 官方 GGUF（标准 Llama 架构，vanilla llama.cpp 直接支持；Think 推理模型），
+        // 统一走自有模型仓（下载源一致好管理）
         download_repo: "cgisky/ai00-x",
         download_dir: "llm",
     },

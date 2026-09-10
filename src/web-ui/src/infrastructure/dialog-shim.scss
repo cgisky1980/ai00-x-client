@@ -1,0 +1,28 @@
+/**
+ * dialog-shim 弹窗样式（AGENTS.md 弹窗规范：内容 padding-4、表单纵向 gap-3、
+ * 按钮右对齐 gap-2 + 上分隔线；全 token，无硬编码）。
+ */
+.ai00-dialog-shim {
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3, 12px);
+    padding: var(--spacing-4, 16px);
+  }
+
+  &__message {
+    font-size: var(--font-size-sm, 13px);
+    line-height: 1.5;
+    color: var(--color-text-secondary, inherit);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-2, 8px);
+    padding-top: var(--spacing-3, 12px);
+    border-top: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.26));
+  }
+}

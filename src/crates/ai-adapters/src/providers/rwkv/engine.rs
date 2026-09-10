@@ -26,7 +26,15 @@ pub trait RwkvInferenceEngine: Send + Sync {
     /// `prev_tier`: tier routed for the previous turn of the same session
     /// (sticky-tier value; 0-3), `None` on the first turn/unknown. v4 heads
     /// feed it as a one-hot feature; v1 heads ignore it.
-    async fn classify(&self, _request: String, _prev_tier: Option<u8>) -> Result<Vec<f32>, String> {
+    ///
+    /// `capture`: true = 真实路由请求（进化数据回流采集 hidden 样本）；
+    /// false = 无状态预览/测试（不采集）。
+    async fn classify(
+        &self,
+        _request: String,
+        _prev_tier: Option<u8>,
+        _capture: bool,
+    ) -> Result<Vec<f32>, String> {
         Err("classify not supported by this engine".to_string())
     }
 

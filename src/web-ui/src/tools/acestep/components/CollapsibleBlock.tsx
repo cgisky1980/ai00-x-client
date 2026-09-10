@@ -3,7 +3,7 @@
  *
  * Used to compress long LLM outputs (lyrics drafts, creation plans, long
  * explanations) into a single-line header that expands on click. Modeled
- * after flow_chat's ModelThinkingDisplay pattern but simpler and reusable.
+ * after a thinking-display collapse pattern but simpler and reusable.
  */
 
 import React, { useState } from 'react';

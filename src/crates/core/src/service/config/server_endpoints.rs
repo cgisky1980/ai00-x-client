@@ -31,21 +31,6 @@ pub fn ai00_s_base_url_test() -> String {
     ])
 }
 
-/// 远程连接中继地址（位于主服务器根目录 /ai00-s/relay/*）（生产域名，XOR 混淆存储）
-pub fn ai00_s_relay_url() -> String {
-    decode_xor(&[
-        50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 42, 116, 59, 51, 106, 106, 119, 34, 116, 57, 53,
-        55,
-    ])
-}
-
-/// 测试服务器中继地址（--server=test 时覆盖 ai00_s_relay_url）（生产域名，XOR 混淆存储）
-pub fn ai00_s_relay_url_test() -> String {
-    decode_xor(&[
-        50, 46, 46, 42, 41, 96, 117, 117, 59, 51, 106, 106, 119, 34, 116, 57, 53, 55,
-    ])
-}
-
 /// 移动端 web 应用地址（生产域名，XOR 混淆存储）
 pub fn ai00_s_web_app_url() -> String {
     decode_xor(&[

@@ -1,6 +1,5 @@
 pub mod adapters;
 pub mod emitter;
-pub mod event_bus;
 pub mod events;
 /// Ai00-X Transport Layer
 ///
@@ -8,12 +7,11 @@ pub mod events;
 /// - Tauri (app.emit)
 pub mod traits;
 pub use emitter::TransportEmitter;
-pub use event_bus::{EventBus, EventPriority};
 pub use events::{
-    AgentEventPayload, BackendEventPayload, FileWatchEventPayload, LspEventPayload,
-    ProfileEventPayload, SnapshotEventPayload, UnifiedEvent,
+    BackendEventPayload, FileWatchEventPayload, LspEventPayload, ProfileEventPayload,
+    SnapshotEventPayload,
 };
-pub use traits::{StreamEvent, TextChunk, ToolEventPayload, ToolEventType, TransportAdapter};
+pub use traits::TransportAdapter;
 
 #[cfg(feature = "tauri-adapter")]
 pub use adapters::TauriTransportAdapter;

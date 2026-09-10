@@ -87,40 +87,6 @@ pub fn is_embedding_model_available() -> bool {
     get_embedding_model_path().exists()
 }
 
-struct Model2VecEmbeddingProvider;
-
-impl ai00_x_core::agent::tools::implementations::skills::embedding_provider::EmbeddingProvider
-    for Model2VecEmbeddingProvider
-{
-    fn embed_text(&self, text: &str) -> Result<Vec<f32>, String> {
-        get_embedding_service()
-            .map_err(|e| e.0)?
-            .lock()
-            .map_err(|e| format!("lock: {}", e))?
-            .embed(text)
-            .map_err(|e| e.0)
-    }
-
-    fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, String> {
-        get_embedding_service()
-            .map_err(|e| e.0)?
-            .lock()
-            .map_err(|e| format!("lock: {}", e))?
-            .embed_batch(texts)
-            .map_err(|e| e.0)
-    }
-
-    fn dimension(&self) -> usize {
-        EMBEDDING_DIMENSION
-    }
-}
-
-pub fn init_embedding_provider() {
-    ai00_x_core::agent::tools::implementations::skills::embedding_provider::set_embedding_provider(
-        std::sync::Arc::new(Model2VecEmbeddingProvider),
-    );
-}
-
 pub fn init_embedding_service() -> Result<(), EmbeddingError> {
     let model_path = get_embedding_model_path();
     log::info!("[Embedding] Model path: {:?}", model_path);

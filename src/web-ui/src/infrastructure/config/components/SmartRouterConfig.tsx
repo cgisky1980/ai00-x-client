@@ -16,6 +16,7 @@ import { api } from '@/infrastructure/api/service-api/ApiClient';
 import type { AIModelConfig, SmartRouterConfig as SmartRouterConfigType } from '../types';
 import { ConfigPageRow } from './common';
 import RouterTestPanel from './RouterTestPanel';
+import RouterEvolutionPanel from './RouterEvolutionPanel';
 import { createLogger } from '@/shared/utils/logger';
 import './SmartRouterConfig.scss';
 
@@ -392,6 +393,13 @@ export const SmartRouterConfig: React.FC = () => {
               {t('smartRouter.test.title')}
             </div>
             <RouterTestPanel />
+          </div>
+
+          <div className="smart-router-config__test">
+            <div className="smart-router-config__test-title">
+              {t('smartRouter.evolution.title')}
+            </div>
+            <RouterEvolutionPanel />
           </div>
 
           <div className="smart-router-config__hint">

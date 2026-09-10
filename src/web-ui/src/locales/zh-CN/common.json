@@ -5,35 +5,8 @@
     "loading": "加载中...",
     "welcome": "欢迎使用 Ai00-X"
   },
-  "agents": {
-    "general": {
-      "name": "通用助手",
-      "description": "通用 AI 助手，可以回答各种问题"
-    },
-    "coder": {
-      "name": "代码助手",
-      "description": "专业的编程助手，擅长代码分析和生成"
-    },
-    "projectQa": {
-      "name": "项目问答助手",
-      "description": "专注于项目问答与代码库探索的助手"
-    },
-    "requirementClarification": {
-      "name": "需求澄清助手",
-      "description": "专注于澄清需求并收集细节的助手"
-    },
-    "core": {
-      "name": "核心助手",
-      "description": "用于通用任务与协调的核心助手"
-    }
-  },
   "core": {
     "initializing": "正在初始化核心系统..."
-  },
-  "agentService": {
-    "clarificationItemTitle": "澄清项 {{index}}",
-    "clarificationItemProcessed": "已处理",
-    "clarificationBatchCompleted": "批量澄清处理完成"
   },
   "header": {
     "openProject": "打开工作区",
@@ -52,8 +25,6 @@
     "showChatPanel": "显示聊天面板",
     "hideChatPanel": "隐藏聊天面板",
     "switchToToolbar": "悬浮窗模式",
-    "remoteConnect": "远程控制",
-    "remoteConnectRequiresWorkspace": "请先打开工作区后再使用远程控制",
     "modeSwitchAriaLabel": "视图模式切换",
     "switchToCore": "切换到 Core 模式",
     "switchToCoder": "切换到 Coder 模式",
@@ -78,7 +49,6 @@
     "items": {
       "sessions": "任务",
       "project": "目录",
-      "agents": "专业智能体",
       "skills": "技能",
       "sessionConfig": "任务配置",
       "aiContext": "AI 规则与记忆",
@@ -89,8 +59,7 @@
       "tools": "工具",
       "terminal": "Shell",
       "git": "Git",
-      "miniApps": "小应用",
-      "insights": "洞察"
+      "miniApps": "小应用"
     },
     "tooltips": {
       "agents": "它能调用哪些 Agent",
@@ -184,93 +153,6 @@
       "needProjectWorkspaceForSession": "请先打开或添加项目工作区。编码与工作（Core）任务不能在助理区域创建。",
       "newSessionPattern": "新建会话|New Session|新建任务|New Task"
     },
-    "scheduledJobs": {
-      "title": "定时任务",
-      "open": "打开定时任务",
-      "shortLabel": "定时任务",
-      "listTitle": "任务列表",
-      "loading": "正在加载定时任务...",
-      "never": "未安排",
-      "nextRunLabel": "下次执行",
-      "fields": {
-        "workspacePath": "工作区路径",
-        "session": "任务",
-        "name": "任务名称",
-        "enabled": "启用状态",
-        "enabledHint": "启用该任务",
-        "scheduleKind": "调度方式",
-        "at": "执行时间",
-        "everyMs": "间隔（分钟）",
-        "anchorMs": "锚点时间（可选）",
-        "cronExpr": "Cron 表达式",
-        "timezone": "时区（可选）",
-        "prompt": "任务内容"
-      },
-      "placeholders": {
-        "workspacePath": "请输入工作区路径",
-        "session": "请选择或输入任务 ID",
-        "name": "例如：每日全球新闻简报",
-        "anchorMs": "留空则使用创建时刻",
-        "timezone": "例如：Asia/Shanghai",
-        "prompt": "请输入定时触发时发送给助理的内容"
-      },
-      "scheduleKinds": {
-        "at": "单次执行",
-        "every": "固定间隔",
-        "cron": "Cron"
-      },
-      "scheduleSummary": {
-        "every": "每 {{everyMinutes}} 分钟",
-        "cron": "Cron: {{expr}}",
-        "cronWithTz": "Cron: {{expr}} · {{tz}}"
-      },
-      "status": {
-        "idle": "待命",
-        "disabled": "已停用",
-        "queued": "已入队",
-        "running": "执行中",
-        "ok": "成功",
-        "error": "失败",
-        "cancelled": "已取消"
-      },
-      "actions": {
-        "refresh": "刷新任务列表",
-        "newJob": "新增任务",
-        "toggleEnabled": "切换启用状态",
-        "edit": "编辑任务",
-        "delete": "删除任务",
-        "save": "保存修改",
-        "create": "创建任务",
-        "cancel": "取消"
-      },
-      "editor": {
-        "editTitle": "编辑任务",
-        "createTitle": "新建任务"
-      },
-      "empty": {
-        "title": "还没有定时任务",
-        "description": "点击右上角的加号创建第一条定时任务。"
-      },
-      "deleteDialog": {
-        "title": "删除任务“{{name}}”？"
-      },
-      "messages": {
-        "loadFailed": "加载定时任务失败：{{error}}",
-        "saveFailed": "保存定时任务失败：{{error}}",
-        "updateFailed": "更新定时任务失败：{{error}}",
-        "deleteFailed": "删除定时任务失败：{{error}}",
-        "deleteSuccess": "定时任务已删除",
-        "createSuccess": "定时任务已创建",
-        "updateSuccess": "定时任务已更新",
-        "sessionRequired": "当前没有可用任务，请先为该助理创建一个任务后再添加定时任务。"
-      },
-      "validation": {
-        "nameRequired": "请输入任务名称",
-        "promptRequired": "请输入任务内容",
-        "workspaceRequired": "请输入工作区路径",
-        "sessionRequired": "请选择任务"
-      }
-    },
     "workspaces": {
       "empty": "暂无已打开工作区",
       "emptyProjects": "暂无普通工作区",
@@ -327,11 +209,6 @@
       },
       "sessionBranch": "分支"
     },
-    "agents": {
-      "allAgents": "全部子智能体",
-      "newAgent": "新建子智能体",
-      "agentsOverview": "Agent 总览"
-    },
     "skills": {
       "allSkills": "全部技能",
       "addSkill": "添加技能"
@@ -370,100 +247,6 @@
     "errorSelectParent": "请选择父目录",
     "errorEnterName": "请输入工作区名称",
     "errorCreateFailed": "创建工作区失败"
-  },
-  "remoteConnect": {
-    "title": "远程控制",
-    "tabLan": "局域网",
-    "tabAi00-xServer": "Ai00-X服务器",
-    "tabNgrok": "内网穿透",
-    "tabCustomServer": "自建服务器",
-    "tabBot": "IM机器人",
-    "groupNetwork": "网络中继",
-    "groupBot": "IM机器人",
-    "connect": "连接",
-    "connecting": "连接中...",
-    "disconnect": "断开连接",
-    "cancel": "取消",
-    "scanHint": "使用手机扫描二维码进行连接",
-    "botHint": "将配对码发送给机器人完成配对",
-    "connectedHint": "移动设备已连接，可以关闭此对话框。",
-    "connectedUserId": "用户 ID",
-    "ngrokUsageLink": "查看 ngrok 隧道用量与状态。",
-    "serverUrl": "服务器地址",
-    "currentIp": "当前 IP",
-    "gatewayIp": "网关 IP",
-    "feishu": "飞书",
-    "openBot": "打开机器人",
-    "stateIdle": "就绪",
-    "stateWaiting": "等待连接...",
-    "urlCopied": "已拷贝 URL",
-    "stateWaitingBot": "等待机器人确认...",
-    "stateHandshaking": "握手中...",
-    "stateVerifying": "验证中...",
-    "stateConnected": "已连接",
-    "stateDisconnected": "已断开",
-    "desc_lan": "通过局域网连接，两台设备需在同一LAN/WiFi下。若连接失败，请检查路由器安全设置（如AP隔离/客户端隔离）是否限制局域网互访，并确认两台设备的代理服务设置未影响局域网流量（允许直连局域网）。",
-    "desc_ai00_x_server": "通过Ai00-X中继服务器连接。当前该服务器由Ai00-X团队自建，主要用于便捷试用与功能体验。尽管业务消息采用端到端加密，中继服务及其相关基础设施仍可能感知必要元数据，且任何公网服务都可能因配置缺陷、日志暴露、运营失误或遭受攻击而带来信息安全与数据泄露风险。若用于长期使用、正式环境或更高安全要求场景，建议优先使用自建服务器，并自行控制部署与运维策略。",
-    "desc_ngrok": "通过ngrok隧道连接，首次使用需安装ngrok并完成授权，无需手动启动ngrok服务。",
-    "desc_ngrok_prefix": "通过ngrok隧道连接，首次使用需",
-    "desc_ngrok_link": "安装ngrok",
-    "desc_ngrok_suffix": "并完成授权，无需手动启动ngrok服务。",
-    "desc_custom_server": "通过自建中继服务器连接。",
-    "desc_custom_server_prefix": "通过",
-    "desc_custom_server_link": "自建中继服务器连接",
-    "desc_custom_server_suffix": "。",
-    "desc_bot": "通过飞书、Telegram 或微信机器人连接，请先完成对应配置。",
-    "botTgStep1": "打开Telegram，搜索 @BotFather",
-    "botTgStep2": "发送 /newbot，按提示创建机器人",
-    "botTgStep3": "复制Bot Token，粘贴到下方",
-    "botFeishuDocPrefix": "查看",
-    "botFeishuDocLink": "飞书机器人完整配置指南",
-    "botFeishuDocSuffix": "",
-    "botFeishuStep1Prefix": "前往",
-    "botFeishuOpenPlatform": "飞书开放平台",
-    "botFeishuStep1Suffix": "，创建企业自建应用",
-    "botFeishuStep2": "启用机器人能力，配置权限管理和事件与回调",
-    "botFeishuStep3": "将App ID和App Secret填入下方",
-    "weixin": "微信",
-    "botWeixinIntro": "使用腾讯微信 iLink 通道连接。需先用微信扫码登录，再与飞书/Telegram 一样发送 6 位配对码。",
-    "botWeixinStep1": "点击下方按钮显示二维码，用微信扫码并在手机上确认登录。",
-    "botWeixinStep2": "在手机微信中确认登录后，桌面端会自动显示 6 位配对码；在微信中打开与机器人的对话并发送该配对码。",
-    "botWeixinQrButton": "获取微信登录二维码",
-    "botWeixinQrCancel": "取消扫码",
-    "botWeixinAwaitingPhoneConfirm": "已扫码，请在微信中确认登录；确认后将自动显示配对码。",
-    "botWeixinLinked": "微信已登录。若未自动进入配对步骤，请点击「连接」重试。",
-    "botWeixinPolling": "等待扫码确认…",
-    "botVerboseMode": "详细模式",
-    "botConciseMode": "简洁模式",
-    "openNgrokSetup": "打开 ngrok 安装与配置页面",
-    "disclaimerTitle": "远程连接免责声明",
-    "disclaimerIntro": "启用远程连接前，请确认你已理解并接受以下事项：",
-    "disclaimerItemGeneralRisk": "远程连接可能存在未发现的安全漏洞、功能缺陷或不兼容变更，请在充分了解风险后使用。",
-    "disclaimerItemSecurity": "远程连接会开启与网络通信相关的能力（包括但不限于局域网、第三方中继、自建服务、机器人通道等），请仅在可信网络和可信设备上使用。",
-    "disclaimerItemEncryption": "远程连接采用端到端加密（X25519 ECDH + AES-256-GCM，每次会话生成临时密钥对）传输业务消息，中继服务器无法解密消息内容；但设备名称、连接状态、服务地址等必要元数据及其他连接上下文信息不属于业务消息密文范畴，仍可能被网络路径、服务节点或其他基础设施感知。",
-    "disclaimerItemOpenSource": "Ai00-X 远程连接的加密实现完全开源，你可以自行审计源码以验证安全性。",
-    "disclaimerItemPrivacy": "请勿在不受信任环境中传输敏感信息；机器人消息平台、第三方网络、系统日志策略等可能影响你的数据暴露面，其他外部服务策略变化亦可能带来额外风险。",
-    "disclaimerItemDataUsage": "Ai00-X 不会将你的远程连接业务内容用于训练或商业化使用；但你选择接入的第三方服务（如 ngrok、Telegram、飞书、自建服务器运维组件等）可能按其条款处理数据，其他关联服务亦可能产生数据处理行为。",
-    "disclaimerItemCredentials": "使用 ngrok、自建中继、Telegram/飞书机器人等方式时，相关地址、Token、App Secret、密钥及其他访问凭证由你自行保管，泄露可能导致未授权访问或其他安全事件。",
-    "disclaimerItemQrCode": "二维码中包含中继地址、房间标识、公钥等连接信息及其他会话标识，请避免将其截图、录屏或展示给无关人员。",
-    "disclaimerItemNgrok": "使用 ngrok 或其他第三方隧道服务时，流量会经过外部服务链路。请自行评估账号安全、地域合规、配额限制、服务可用性与潜在中间链路风险等因素。",
-    "disclaimerItemSelfHosted": "使用自建中继服务时，你需自行负责主机与容器安全（包括但不限于系统补丁、访问控制、TLS 证书、端口暴露、防火墙、DDoS/爆破防护、日志审计、备份恢复等）。服务器被攻击、配置错误、密钥泄露或其他运维失误可能导致连接中断、数据泄露或被篡改风险。",
-    "disclaimerItemNetwork": "网络环境、防火墙、路由器隔离策略（如 AP/客户端隔离）、代理/隧道服务设置等以及其他网络策略都可能影响连接结果与稳定性。",
-    "disclaimerItemBot": "机器人模式下发送的配对码仅用于当前会话绑定，请勿向无关人员泄露；其他机器人平台机制或策略变更也可能影响安全性与可用性。",
-    "disclaimerItemBotPersistence": "机器人配对信息会保存在本地磁盘以便重启后自动恢复连接；如果本机被未授权人员访问、恶意软件入侵或发生其他系统安全事件，该信息可能被利用。",
-    "disclaimerItemMobileBrowser": "移动端通过浏览器加载 Web 应用进行连接，浏览器缓存、本地存储、页面截图、系统剪贴板等都可能带来额外的信息暴露风险，其他浏览器插件或系统功能亦可能扩大风险面。",
-    "disclaimerItemCompliance": "部分国家或地区对加密通信、隧道服务、跨境数据传输等有法规限制，请自行评估当地法律合规性；其他监管政策变化也可能影响功能可用性与合规义务。",
-    "disclaimerItemLiability": "使用远程连接功能过程中产生的风险、损失、纠纷或其他不利后果（包括但不限于数据泄露、连接中断、账号异常、服务不可用等）由你自行承担；Ai00-X 不对由此造成的问题负责。",
-    "disclaimerReview": "查看免责声明",
-    "disclaimerStatusAgreed": "已同意",
-    "disclaimerStatusPending": "未同意",
-    "disclaimerDecline": "不同意",
-    "disclaimerAgree": "同意并继续",
-    "clickToCopyUrl": "点击复制 URL",
-    "botToken": "机器人 Token",
-    "appId": "App ID",
-    "appSecret": "App Secret",
-    "wechatQr": "微信二维码"
   },
   "about": {
     "close": "关闭",
@@ -566,10 +349,6 @@
     "fileExplorerMenu": {
       "name": "文件浏览器菜单",
       "description": "提供文件和文件夹操作"
-    },
-    "flowChatMenu": {
-      "name": "FlowChat菜单",
-      "description": "提供FlowChat对话相关的操作"
     },
     "notificationMenu": {
       "name": "通知菜单",
@@ -796,13 +575,11 @@
     "settings": "设置",
     "fileViewer": "文件查看",
     "projectContext": "项目概况",
-    "agents": "智能体",
     "skills": "技能",
     "plugins": "插件",
     "miniApps": "小应用",
     "browser": "浏览器",
     "mermaidEditor": "Mermaid 图表",
-    "insights": "洞察",
     "assistant": "助理",
     "shell": "Shell",
     "wallpaper": "壁纸设计",
@@ -941,65 +718,6 @@
       "untitledTask": "未命名任务"
     },
     "taskTabLabel": "任务"
-  },
-  "insights": {
-    "title": "洞察",
-    "subtitle": "分析你的使用习惯与效率洞察",
-    "buttonTooltip": "洞察",
-    "reportTitle": "{{dateStart}} ~ {{dateEnd}} 洞察报告",
-    "generating": "正在生成洞察...",
-    "generateNew": "生成新报告",
-    "generateBtn": "生成",
-    "rangeLabel": "统计范围",
-    "history": "历史报告",
-    "noReports": "暂无报告，点击上方按钮生成第一份洞察报告。",
-    "backToList": "返回列表",
-    "openHtml": "打开完整报告",
-    "atAGlance": "概览",
-    "stats": "关键指标",
-    "whatsWorking": "做得好的",
-    "whatsHindering": "遇到的阻碍",
-    "quickWins": "快速提升",
-    "lookingAhead": "展望未来",
-    "interactionStyle": "你如何使用 Ai00-X",
-    "sessions": "任务",
-    "messages": "消息",
-    "analyzed": "已分析",
-    "hours": "小时",
-    "days": "天",
-    "msgsPerDay": "消息/天",
-    "topGoals": "你的需求",
-    "topTools": "常用工具",
-    "languages": "编程语言",
-    "sessionTypes": "任务类型",
-    "projectAreas": "工作领域",
-    "bigWins": "亮眼成果",
-    "friction": "问题所在",
-    "suggestions": "建议",
-    "mdAdditions": "AI00-X.md 补充",
-    "featuresToTry": "推荐功能",
-    "usagePatterns": "使用模式",
-    "tryThisPrompt": "试试这个提示",
-    "horizon": "未来展望",
-    "howToTry": "如何尝试",
-    "error": "生成洞察报告失败",
-    "impact": "影响",
-    "rateLimited": "请求频率受限，正在逐个重试...",
-    "keepLatest5": "仅保留最近 5 份报告",
-    "openHtmlFailed": "打开报告失败",
-    "cancelBtn": "停止",
-    "outcomes": "结果分布",
-    "satisfaction": "满意度（推断）",
-    "responseTime": "响应时间分布",
-    "agentTypes": "智能体类型",
-    "medianResponseTime": "中位响应时间",
-    "avgResponseTime": "平均响应时间",
-    "frictionTypes": "主要摩擦类型",
-    "whatHelpedMost": "最有帮助的方面",
-    "toolErrors": "工具错误统计",
-    "timeOfDay": "按时段分布",
-    "lines": "行",
-    "files": "文件"
   },
   "ssh": {
     "remote": {

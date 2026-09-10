@@ -2,7 +2,7 @@
  * WorkingCopyView — Git working copy: commit bar + file list + diff area (ContentCanvas mode=git).
  */
 
-import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   GitBranch,
@@ -14,13 +14,12 @@ import {
   RotateCcw,
   ArrowUp,
   ArrowDown,
-  Sparkles,
   FileCode2,
 } from 'lucide-react';
 import { Button, Tooltip, IconButton, Textarea, Search as SearchComponent } from '@/component-library';
 import { ContentCanvas } from '@/app/components/panels/content-canvas';
 import { CanvasStoreModeContext } from '@/app/components/panels/content-canvas/stores';
-import { useGitState, useGitOperations, useGitAgent } from '@/tools/git/hooks';
+import { useGitState, useGitOperations } from '@/tools/git/hooks';
 import { gitService } from '@/tools/git/services';
 import { createGitDiffEditorTab, createGitCodeEditorTab } from '@/shared/utils/tabUtils';
 import { useNotification } from '@/shared/notification-system';
@@ -97,13 +96,6 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
     repositoryPath: workspacePath ?? '',
     autoRefresh: false,
   });
-  const { commitMessage: aiCommitMessage, isGeneratingCommit, quickGenerateCommit, cancelCommitGeneration } = useGitAgent({
-    repoPath: workspacePath ?? '',
-  });
-
-  useEffect(() => {
-    if (aiCommitMessage?.fullMessage) setQuickCommitMessage(aiCommitMessage.fullMessage);
-  }, [aiCommitMessage]);
 
   const handleRefresh = useCallback(() => refresh({ force: true, layers: ['basic', 'status'], reason: 'manual' }), [refresh]);
   const handlePush = useCallback(async () => {
@@ -177,14 +169,6 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
       notification.success(t('notifications.commitSuccess'));
     } else notification.error(t('notifications.commitFailed', { error: result.error || t('common.unknownError') }));
   }, [quickCommitMessage, status, commit, handleRefresh, notification, t]);
-
-  const handleAIGenerateCommit = useCallback(async () => {
-    if (!status?.staged?.length && !status?.unstaged?.length && !status?.untracked?.length) {
-      notification.warning(t('notifications.noFilesToGenerate'));
-      return;
-    }
-    await quickGenerateCommit();
-  }, [status, quickGenerateCommit, notification, t]);
 
   const handleDiscardFile = useCallback(
     async (filePath: string, fileType: 'staged' | 'unstaged' | 'untracked') => {
@@ -360,22 +344,15 @@ const WorkingCopyView: React.FC<WorkingCopyViewProps> = ({
                 handleQuickCommit();
               }
             }}
-            disabled={isOperating || isGeneratingCommit}
+            disabled={isOperating}
           />
-          {isGeneratingCommit ? (
-            <IconButton size="xs" variant="ghost" onClick={cancelCommitGeneration} tooltip={t('actions.cancelGenerate')} />
-          ) : (
-            <IconButton size="xs" variant="ghost" onClick={handleAIGenerateCommit} disabled={isOperating} tooltip={t('actions.aiGenerateCommit')}>
-              <Sparkles size={14} />
-            </IconButton>
-          )}
         </div>
         <div className="ai00-x-git-scene-working-copy__commit-actions">
           <Button
             size="small"
             variant={quickCommitMessage.trim() && status?.staged?.length ? 'primary' : 'secondary'}
             onClick={handleQuickCommit}
-            disabled={!status?.staged?.length || !quickCommitMessage.trim() || isOperating || isGeneratingCommit}
+            disabled={!status?.staged?.length || !quickCommitMessage.trim() || isOperating}
           >
             {status?.staged?.length ? t('actions.commitWithCount', { count: status.staged.length }) : t('actions.commit')}
           </Button>

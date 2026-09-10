@@ -48,8 +48,7 @@
     "src/shared/context-menu-system/examples/**",
     "src/infrastructure/services/api/index.ts",
     "src/infrastructure/services/infra/index.ts",
-    "src/tools/mermaid-editor/examples/**",
-    "src/flow_chat/components/ImageAnalysisCard.tsx"
+    "src/tools/mermaid-editor/examples/**"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

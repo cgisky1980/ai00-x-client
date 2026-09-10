@@ -14,7 +14,6 @@ use ai00_x_core::infrastructure::{
 };
 use ai00_x_core::service::file_watch;
 use ai00_x_core::service::remote_ssh::get_remote_workspace_manager;
-use ai00_x_core::service::remote_ssh::workspace_state::is_remote_path;
 use ai00_x_core::service::workspace::{
     ScanOptions, WorkspaceInfo, WorkspaceKind, WorkspaceOpenOptions,
 };
@@ -580,7 +579,6 @@ async fn clear_active_workspace_context(state: &State<'_, AppState>, app: &AppHa
     }
 
     state.ai_rules_service.clear_workspace().await;
-    state.agent_registry.clear_custom_subagents();
 
     #[cfg(target_os = "macos")]
     {
@@ -610,37 +608,6 @@ async fn apply_active_workspace_context(
     clear_active_workspace_context(state, app).await;
 
     *state.workspace_path.write().await = Some(workspace_info.root_path.clone());
-
-    // Remote workspace roots are POSIX paths on the SSH host — not writable local directories on
-    // Windows. Snapshot hooks already skip file tracking for registered remote paths; avoid
-    // creating `/.ai00-x` (or drive root) here which fails with access denied.
-    let root_str = workspace_info.root_path.to_string_lossy().to_string();
-    let skip_local_snapshot = workspace_info.workspace_kind == WorkspaceKind::Remote
-        || is_remote_path(root_str.trim()).await;
-    if !skip_local_snapshot {
-        if let Err(e) = ai00_x_core::service::snapshot::initialize_snapshot_manager_for_workspace(
-            workspace_info.root_path.clone(),
-            None,
-        )
-        .await
-        {
-            warn!(
-                "Failed to initialize snapshot system: path={}, error={}",
-                workspace_info.root_path.display(),
-                e
-            );
-        }
-    } else {
-        debug!(
-            "Skipping local snapshot manager init for remote/non-local workspace root_path={}",
-            workspace_info.root_path.display()
-        );
-    }
-
-    state
-        .agent_registry
-        .load_custom_subagents(&workspace_info.root_path)
-        .await;
 
     if let Err(e) = state
         .ai_rules_service
@@ -708,11 +675,6 @@ pub async fn initialize_global_state(
     }
 
     Ok("Global state initialized successfully".to_string())
-}
-
-#[tauri::command]
-pub async fn get_available_tools(state: State<'_, AppState>) -> Result<Vec<String>, String> {
-    Ok(state.get_tool_names())
 }
 
 #[tauri::command]
@@ -959,50 +921,6 @@ context:
 }
 
 #[tauri::command]
-pub async fn set_agent_model(
-    state: State<'_, AppState>,
-    agent_name: String,
-    model_id: String,
-) -> Result<String, String> {
-    let config_service = &state.config_service;
-    let global_config: ai00_x_core::service::config::GlobalConfig = config_service
-        .get_config(None)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if !global_config.ai.models.iter().any(|m| m.id == model_id) {
-        return Err(format!("Model does not exist: {}", model_id));
-    }
-
-    let path = format!("ai.agent_models.{}", agent_name);
-    config_service
-        .set_config(&path, model_id.clone())
-        .await
-        .map_err(|e| e.to_string())?;
-
-    state.ai_client_factory.invalidate_cache();
-
-    info!("Agent model set: agent={}, model={}", agent_name, model_id);
-    Ok(format!(
-        "Agent '{}' model has been set to: {}",
-        agent_name, model_id
-    ))
-}
-
-#[tauri::command]
-pub async fn get_agent_models(
-    state: State<'_, AppState>,
-) -> Result<std::collections::HashMap<String, String>, String> {
-    let config_service = &state.config_service;
-    let global_config: ai00_x_core::service::config::GlobalConfig = config_service
-        .get_config(None)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(global_config.ai.agent_models)
-}
-
-#[tauri::command]
 pub async fn refresh_model_client(
     state: State<'_, AppState>,
     model_id: String,
@@ -1025,7 +943,6 @@ pub async fn get_app_state(state: State<'_, AppState>) -> Result<serde_json::Val
         "messages_processed": stats.messages_processed,
         "tools_executed": stats.tools_executed,
         "services": health.services,
-        "tool_count": state.get_tool_names().len(),
     });
 
     Ok(app_state)
@@ -2507,28 +2424,6 @@ pub async fn subscribe_config_updates() -> Result<(), String> {
         Ok(())
     } else {
         Err("Config update subscription not available".to_string())
-    }
-}
-
-#[tauri::command]
-pub async fn get_model_configs(
-    state: State<'_, AppState>,
-) -> Result<Vec<serde_json::Value>, String> {
-    let config_service = &state.config_service;
-
-    match config_service.get_ai_models().await {
-        Ok(models) => {
-            let model_configs: Vec<serde_json::Value> = models
-                .into_iter()
-                .map(|model| serde_json::to_value(model).unwrap_or_default())
-                .collect();
-
-            Ok(model_configs)
-        }
-        Err(e) => {
-            error!("Failed to get AI model configs: {}", e);
-            Err(format!("Failed to get model configurations: {}", e))
-        }
     }
 }
 

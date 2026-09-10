@@ -2,7 +2,6 @@ use super::types::{
     RuntimeMigrationRecord, WorkspaceRuntimeContext, WorkspaceRuntimeEnsureResult,
     WorkspaceRuntimeTarget, WORKSPACE_RUNTIME_LAYOUT_VERSION,
 };
-use crate::agent::WorkspaceBinding;
 use crate::infrastructure::{get_path_manager_arc, PathManager};
 use crate::service::remote_ssh::workspace_state::remote_workspace_runtime_root;
 use crate::util::errors::{Ai00XError, Ai00XResult};
@@ -87,22 +86,6 @@ impl WorkspaceRuntimeService {
     ) -> Ai00XResult<WorkspaceRuntimeEnsureResult> {
         let context = self.context_for_remote_workspace(ssh_host, remote_root);
         self.ensure_runtime_context(context, None).await
-    }
-
-    pub async fn ensure_runtime_for_workspace_binding(
-        &self,
-        workspace: &WorkspaceBinding,
-    ) -> Ai00XResult<WorkspaceRuntimeEnsureResult> {
-        if workspace.is_remote() {
-            self.ensure_remote_workspace_runtime(
-                &workspace.session_identity.hostname,
-                &workspace.session_identity.workspace_path,
-            )
-            .await
-        } else {
-            self.ensure_local_workspace_runtime(workspace.root_path())
-                .await
-        }
     }
 
     async fn ensure_runtime_context(

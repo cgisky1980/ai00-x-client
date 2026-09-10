@@ -29,9 +29,7 @@ pub use server::{
     MCPServerTransport, MCPServerType,
 };
 
-pub use adapter::{
-    ContextEnhancer, MCPContextProvider, MCPToolAdapter, PromptAdapter, ResourceAdapter,
-};
+pub use adapter::{ContextEnhancer, MCPContextProvider, PromptAdapter, ResourceAdapter};
 
 pub use config::{ConfigLocation, MCPConfigService};
 

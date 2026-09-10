@@ -9,7 +9,11 @@ use crate::api::app_state::AppState;
 use ai00_x_core::util::types::message::Message as AIMessage;
 use futures::StreamExt;
 use log::warn;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -55,6 +59,48 @@ pub struct EditorAiErrorEvent {
     pub error: String,
 }
 
+/// Cancellation token for one in-flight editor AI stream.
+#[derive(Clone)]
+struct CancelToken(Arc<AtomicBool>);
+
+impl CancelToken {
+    fn is_cancelled(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
+/// Registry of in-flight editor AI streams, keyed by request id.
+#[derive(Default)]
+struct CancelRegistry {
+    tokens: Mutex<HashMap<String, CancelToken>>,
+}
+
+impl CancelRegistry {
+    fn register(&self, request_id: &str) -> CancelToken {
+        let token = CancelToken(Arc::new(AtomicBool::new(false)));
+        if let Ok(mut guard) = self.tokens.lock() {
+            guard.insert(request_id.to_string(), token.clone());
+        }
+        token
+    }
+
+    fn cancel(&self, request_id: &str) {
+        if let Ok(guard) = self.tokens.lock() {
+            if let Some(token) = guard.get(request_id) {
+                token.0.store(true, Ordering::Relaxed);
+            }
+        }
+    }
+
+    fn remove(&self, request_id: &str) {
+        if let Ok(mut guard) = self.tokens.lock() {
+            guard.remove(request_id);
+        }
+    }
+}
+
+static CANCEL_REGISTRY: Lazy<CancelRegistry> = Lazy::new(CancelRegistry::default);
+
 fn system_prompt() -> &'static str {
     "You are an in-editor AI writing assistant.\n\
 Follow the user's prompt exactly.\n\
@@ -65,17 +111,14 @@ Follow the user's prompt exactly.\n\
 
 #[tauri::command]
 pub async fn editor_ai_cancel(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     request: EditorAiCancelRequest,
 ) -> Result<(), String> {
     if request.request_id.trim().is_empty() {
         return Err("requestId is required".to_string());
     }
 
-    state
-        .side_question_runtime
-        .cancel(&request.request_id)
-        .await;
+    CANCEL_REGISTRY.cancel(&request.request_id);
     Ok(())
 }
 
@@ -106,14 +149,10 @@ pub async fn editor_ai_stream(
         .await
         .map_err(|error| format!("Failed to create AI client: {}", error))?;
 
-    let cancel_token = state
-        .side_question_runtime
-        .register(request.request_id.clone())
-        .await;
+    let cancel_token = CANCEL_REGISTRY.register(&request.request_id);
 
     let request_id = request.request_id.clone();
     let prompt = request.prompt.clone();
-    let runtime = state.side_question_runtime.clone();
     let app_handle = app.clone();
 
     tokio::spawn(async move {
@@ -128,7 +167,7 @@ pub async fn editor_ai_stream(
         let mut stream = match client.send_message_stream(messages, None).await {
             Ok(response) => response.stream,
             Err(error) => {
-                runtime.remove(&request_id).await;
+                CANCEL_REGISTRY.remove(&request_id);
                 let payload = EditorAiErrorEvent {
                     request_id,
                     error: format!("AI call failed: {}", error),
@@ -142,7 +181,7 @@ pub async fn editor_ai_stream(
 
         while let Some(chunk_result) = stream.next().await {
             if cancel_token.is_cancelled() {
-                runtime.remove(&request_id).await;
+                CANCEL_REGISTRY.remove(&request_id);
                 return;
             }
 
@@ -168,7 +207,7 @@ pub async fn editor_ai_stream(
                     }
                 }
                 Err(error) => {
-                    runtime.remove(&request_id).await;
+                    CANCEL_REGISTRY.remove(&request_id);
                     let payload = EditorAiErrorEvent {
                         request_id,
                         error: format!("Stream error: {}", error),
@@ -181,7 +220,7 @@ pub async fn editor_ai_stream(
             }
         }
 
-        runtime.remove(&request_id).await;
+        CANCEL_REGISTRY.remove(&request_id);
 
         if cancel_token.is_cancelled() {
             return;

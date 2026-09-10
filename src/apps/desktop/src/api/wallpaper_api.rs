@@ -3,11 +3,9 @@
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Arc;
 use tauri::{Emitter, State};
 
 use crate::api::app_state::AppState;
-use ai00_x_core::agent::coordination::ConversationCoordinator;
 use ai00_x_core::service::config::server_endpoints::{LOCAL_EMBEDDED_SERVER_PORT, LOCAL_HOST};
 use ai00_x_core::wallpaper::service;
 use ai00_x_core::wallpaper::types::{CreateProjectResult, WallpaperProject};
@@ -287,42 +285,6 @@ pub struct ApplyToDesktopRequest {
     pub mode: Option<String>,
     /// Monitor ID to apply to (only used when mode is "per-monitor").
     pub monitor_id: Option<u32>,
-}
-
-// ============== Compact Wallpaper Context ==============
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CompactWallpaperContextRequest {
-    pub session_id: String,
-    pub workspace_path: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CompactWallpaperContextResponse {
-    pub compacted: bool,
-    pub removed_turns: usize,
-}
-
-/// Compact a wallpaper session's context by removing turns before the
-/// second-to-last Write/Edit tool call.
-#[tauri::command]
-pub async fn compact_wallpaper_context(
-    _state: State<'_, AppState>,
-    coordinator: State<'_, Arc<ConversationCoordinator>>,
-    request: CompactWallpaperContextRequest,
-) -> Result<CompactWallpaperContextResponse, String> {
-    let workspace_path = PathBuf::from(&request.workspace_path);
-    let session_manager = coordinator.get_session_manager();
-    let (compacted, removed_turns) = session_manager
-        .compact_to_last_file_write(&workspace_path, &request.session_id)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(CompactWallpaperContextResponse {
-        compacted,
-        removed_turns,
-    })
 }
 
 /// Apply a wallpaper project to the desktop underlay.
