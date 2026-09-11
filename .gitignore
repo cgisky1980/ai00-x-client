@@ -117,3 +117,6 @@ tmp_batch.txt
 graphify-out/
 musicdl_outputs/
 scripts/router_head/
+
+# Internal project reference docs — local only, never push to GitHub
+参考/
