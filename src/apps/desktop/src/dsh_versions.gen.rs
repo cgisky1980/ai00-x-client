@@ -7,7 +7,7 @@
 pub const NODE_VERSION: &str = "24.20.0";
 
 /// 钉死的 dsh npm 版本（锁版本升级走 D5 受控机制）。
-pub const DSH_NPM_SPEC: &str = "@deepseek-ai/dsh@0.1.1-rc.2";
+pub const DSH_NPM_SPEC: &str = "@deepseek-ai/dsh@0.1.5-rc.2";
 
 /// dsh NPM 镜像（国内加速；与 resource_manager 多主机测速体系后续对齐）。
 pub const NPM_REGISTRY: &str = "https://registry.npmmirror.com";

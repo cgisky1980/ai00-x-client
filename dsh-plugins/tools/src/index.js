@@ -14,6 +14,8 @@
  * - ai00_focus_log     — 记录专注会话（宿主广播事件，web-ui 发放 XP）
  * - ai00_plan_read     — 读卡片计划文档 MD（与策窗口共享同一文件）
  * - ai00_plan_write    — 写卡片计划文档 MD（策窗口热刷新可见）
+ * - ai00_web_extract   — web 有效信息提取（全本地闭环：搜索→并发抓取→本地并发筛选）
+ * - ai00_text_summarize— 长文总结（全本地闭环：≤6000 单次 / >6000 map-reduce 并发）
  *
  * 本插件只做协议薄壳：业务逻辑在宿主侧（D7 决策）。
  * 不 import @deepseek-ai/dsh-tools（pnpm 严格解析下不可达），用原始
@@ -114,6 +116,23 @@ function extractCmd(item) {
 }
 
 /**
+ * 验证命令白名单（首词命中才允许自动执行）：黑名单挡不住 `curl x | sh` /
+ * `powershell -enc` 这类注入（网页内容 → worker → 计划文档 → 自检执行链路），
+ * 2026-09-11 改白名单。非白名单命令不报错，回落「人工判据」口径（agent 自勾 +
+ * 人类验收兜底，与不携 cmd 的条目同级信任）。
+ */
+const CMD_WHITELIST = new Set([
+  "cargo", "rustc", "pnpm", "npm", "npx", "node", "python", "python3",
+  "uv", "git", "go", "dotnet",
+]);
+
+function isCmdAllowed(cmd) {
+  const first = cmd.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  const normalized = first.replace(/\.(exe|cmd|bat|ps1)$/, "");
+  return CMD_WHITELIST.has(normalized);
+}
+
+/**
  * 执行一条验收验证命令（child_process.exec，任务工作目录内，2 分钟超时）。
  * 返回 {ok, output}；output 截断到 2000 字符（错误信息可承载，不撑爆上下文）。
  */
@@ -159,7 +178,7 @@ function runVerification(cmd, cwd, signal) {
  * 完成任务：completedAt 置当前时间；周期任务克隆下一次（due 推进、
  * remindAt 同时刻映射、状态复位）。返回 {data, task, xp}。
  */
-function submitSelfCheckInData(data, taskId) {
+function submitSelfCheckInData(data, taskId, deliverables) {
   const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
   const index = tasks.findIndex((t) => t?.id === taskId);
   if (index < 0) {
@@ -176,8 +195,15 @@ function submitSelfCheckInData(data, taskId) {
   const now = Date.now();
   const nextTasks = [...tasks];
   // 双段验收：这里只提交「模型自检通过」——完成（completedAt）/XP/周期克隆
-  // 全部挪到人类验收（策窗口「验收通过」），agent 不得替人拍板
-  nextTasks[index] = { ...task, agentCompletedAt: now };
+  // 全部挪到人类验收（策窗口「验收通过」），agent 不得替人拍板。
+  // deliverables：本次产出交付物的文件路径清单（面板「交付物」抽屉展示）。
+  nextTasks[index] = {
+    ...task,
+    agentCompletedAt: now,
+    ...(Array.isArray(deliverables) && deliverables.length
+      ? { deliverables: deliverables.map(String).filter(Boolean).slice(0, 20) }
+      : {}),
+  };
   return { data: { ...data, tasks: nextTasks }, task, already: false };
 }
 
@@ -450,7 +476,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_complete",
     description:
-      "Submit a Zhixing task's SELF-CHECK for HUMAN acceptance by id (dual-stage acceptance — this does NOT complete the task; the human reviews and accepts in the Zhixing board). Self-check gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot of all changes is taken automatically — do NOT commit manually. After submitting, tell the user it is awaiting their acceptance; XP and completion are granted by the human, not by this tool.",
+      "Submit a Zhixing task's SELF-CHECK for HUMAN acceptance by id (dual-stage acceptance — this does NOT complete the task; the human reviews and accepts in the Zhixing board). Self-check gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot of all changes is taken automatically — do NOT commit manually. MUST pass `deliverables`: the absolute paths of every artifact file you produced for this task (report/summary/output files — at least one; write them as real files in the working directory BEFORE calling, e.g. report.md). After submitting, REPORT to the user in the conversation: a short result summary (≤200 words) + the deliverables list (filename + one-line description). XP and completion are granted by the human, not by this tool.",
     parameters: {
       type: "object",
       properties: {
@@ -459,6 +485,12 @@ function defineTools(ctx, api) {
           type: "string",
           description:
             "Working directory from the task brief (if any). A git snapshot of your changes is committed on submission.",
+        },
+        deliverables: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "REQUIRED: absolute paths of artifact files produced by this task (report/summary/output…). At least one — a summary/report file must exist even for research-only tasks. Register here so the human sees links in the Zhixing board.",
         },
       },
       required: ["taskId"],
@@ -471,17 +503,30 @@ function defineTools(ctx, api) {
           ok: { type: "boolean" },
           title: { type: "string" },
           xp: { type: "integer" },
+          deliverables: {
+            type: "array",
+            items: { type: "string" },
+            description: "Registered deliverable file paths.",
+          },
+          verifiedByCmd: {
+            type: "array",
+            items: { type: "string" },
+            description: "Verification commands actually executed and passed (whitelist-gated).",
+          },
         },
         required: ["ok", "title", "xp"],
         additionalProperties: false,
       },
       render: (_args, value) =>
-        text(`self-check submitted for human acceptance: ${value.title} (awaiting user review in the Zhixing board)`),
+        text(`self-check submitted for human acceptance: ${value.title} (${(value.deliverables ?? []).length} deliverables registered; awaiting user review in the Zhixing board)`),
     },
     async execute(args, exec) {
       const taskId = String(args?.taskId ?? "").trim();
       if (!taskId) throw new Error("taskId is required");
       const snapshotDir = String(args?.snapshotDir ?? "").trim();
+      const deliverables = Array.isArray(args?.deliverables)
+        ? args.deliverables.map((d) => String(d ?? "").trim()).filter(Boolean)
+        : [];
 
       // DoD 对等校验（与策窗口人侧「标记完成」同口径）：验收未全勾 → 报错驱动自纠。
       // evals 进环（M2.3）：带 {cmd: ...} 标记的条目由插件实际执行命令判定——
@@ -490,6 +535,7 @@ function defineTools(ctx, api) {
         .get(`/plan?taskId=${encodeURIComponent(taskId)}`, exec.signal)
         .catch(() => null);
       const acceptance = parseAcceptance(plan?.markdown);
+      const executedCmds = [];
       if (acceptance.total > 0) {
         const cmdFailures = [];
         let manualUnchecked = 0;
@@ -499,6 +545,13 @@ function defineTools(ctx, api) {
             manualUnchecked += 1;
             continue;
           }
+          if (!isCmdAllowed(cmd)) {
+            // 非白名单命令不自动执行（防提示注入），回落人工判据口径
+            ctx.logger.warn(`ai00-x-tools: verification cmd rejected by whitelist: ${cmd}`);
+            manualUnchecked += 1;
+            continue;
+          }
+          executedCmds.push(cmd);
           const verdict = await runVerification(cmd, snapshotDir || undefined, exec.signal);
           if (verdict.ok) continue;
           cmdFailures.push({ item, cmd, output: verdict.output });
@@ -533,7 +586,7 @@ function defineTools(ctx, api) {
       }
 
       const data = await api.get("/todo", exec.signal);
-      const { data: next, task, already } = submitSelfCheckInData(data, taskId);
+      const { data: next, task, already } = submitSelfCheckInData(data, taskId, deliverables);
       if (already) {
         return { ok: true, title: task.title ?? "", xp: 0 };
       }
@@ -565,6 +618,10 @@ function defineTools(ctx, api) {
         ok: true,
         title: task.title ?? "",
         xp: 0,
+        // 回显登记的交付物（自检透明度）
+        deliverables,
+        // 回显实际执行过的验证命令（自检透明度；空 = 全部人工判据/无验收段）
+        verifiedByCmd: executedCmds,
       };
     },
   });
@@ -772,6 +829,108 @@ function defineTools(ctx, api) {
       if (!taskId || !markdown.trim()) throw new Error("taskId and markdown are required");
       await api.put("/plan", { taskId, markdown }, exec.signal);
       return { ok: true };
+    },
+  });
+
+  // ---- ai00_web_extract：web 有效信息提取（全本地闭环：搜索→并发抓取→本地筛选）----
+  ctx.tools.register({
+    name: "ai00_web_extract",
+    description:
+      "Search the web and extract useful information for a query. Internally: searches up to 12 pages, fetches them concurrently, and the LOCAL model screens/summarizes each page concurrently — returns ready-to-use per-page key points (title/url/summary). Prefer this over raw web search when you need distilled content, not links. Pages marked [degraded] fell back to raw search snippets (local screening unavailable).",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query (Chinese or English)." },
+        max_results: {
+          type: "number",
+          description: "Pages to fetch and screen (1-12, default 8).",
+        },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          pages: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                url: { type: "string" },
+                summary: { type: "string" },
+                degraded: { type: "boolean" },
+              },
+              required: ["title", "url", "summary"],
+            },
+          },
+        },
+        required: ["pages"],
+        additionalProperties: false,
+      },
+      render: (_args, value) => {
+        const pages = Array.isArray(value?.pages) ? value.pages : [];
+        if (pages.length === 0) return text("web extract: no results");
+        const lines = pages.map(
+          (p, i) =>
+            `${i + 1}. ${p.title}\n   ${p.url}\n   ${p.summary}${p.degraded ? " [degraded: raw snippet]" : ""}`
+        );
+        return text(lines.join("\n"));
+      },
+    },
+    isConcurrencySafe: () => true,
+    async execute(args, exec) {
+      const query = String(args?.query ?? "").trim();
+      if (!query) throw new Error("query is required");
+      const body = { query };
+      if (Number.isFinite(args?.max_results)) body.max_results = args.max_results;
+      return api.post("/web/extract", body, exec.signal);
+    },
+  });
+
+  // ---- ai00_text_summarize：长文总结（全本地闭环：≤6000 单次 / >6000 map-reduce 并发）----
+  ctx.tools.register({
+    name: "ai00_text_summarize",
+    description:
+      "Summarize a long text entirely LOCALLY (no remote model): short texts in one pass; long texts are chunked and summarized with concurrent local map-reduce. Use this for article/paper/document summarization. Optional 'focus' steers the summary (e.g. '性能数据'). Result may carry degraded=true when the local quality gate fell back to partial/raw content — mention the caveat to the user if present.",
+    parameters: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Full text to summarize (up to 200k chars)." },
+        focus: { type: "string", description: "Optional aspect to focus on." },
+        max_length: {
+          type: "number",
+          description: "Target summary length in chars (50-4000, default 500).",
+        },
+      },
+      required: ["text"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          summary: { type: "string" },
+          degraded: { type: "boolean" },
+        },
+        required: ["summary"],
+        additionalProperties: false,
+      },
+      render: (_args, value) =>
+        text(
+          (value?.summary ?? "") + (value?.degraded ? "\n\n[degraded: local quality gate fallback]" : "")
+        ),
+    },
+    isConcurrencySafe: () => true,
+    async execute(args, exec) {
+      const text = String(args?.text ?? "").trim();
+      if (!text) throw new Error("text is required");
+      const body = { text };
+      if (typeof args?.focus === "string" && args.focus.trim()) body.focus = args.focus.trim();
+      if (Number.isFinite(args?.max_length)) body.max_length = args.max_length;
+      return api.post("/text/summarize", body, exec.signal);
     },
   });
 }

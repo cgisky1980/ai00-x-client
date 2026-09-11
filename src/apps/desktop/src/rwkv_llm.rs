@@ -1811,26 +1811,8 @@ const BUILTIN_RWKV: &[BuiltinRwkvModel] = &[
         min_bytes: 2_500_000_000,
         max_bytes: 4_500_000_000,
     },
-    BuiltinRwkvModel {
-        key: "rwkv-7b",
-        display: "RWKV 7B",
-        // g1j 7.2b（20260831，ctx16384）int8；统一命名后 vocab 与其他档共用顶层
-        // vocab.json（旧 g1i 7.2b 的独立子目录 vocab 内容与其完全一致）
-        st_rel: "rwkv/rwkv7-7B-int8.st",
-        vocab_rel: "rwkv/vocab.json",
-        size_bytes: 7_898_815_456,
-        min_bytes: 6_500_000_000,
-        max_bytes: 9_500_000_000,
-    },
-    BuiltinRwkvModel {
-        key: "rwkv-13b",
-        display: "RWKV 13B",
-        st_rel: "rwkv/rwkv7-world-13b-int8.st",
-        vocab_rel: "rwkv/vocab.json",
-        size_bytes: 13_600_000_000,
-        min_bytes: 11_500_000_000,
-        max_bytes: 15_500_000_000,
-    },
+    // 7B/13B 内置支持已收窄移除（2026-09-10）：本地对话模型仅保留 RWKV 3B，
+    // 已下载文件保留但不再出现在目录/下载列表。
 ];
 
 const RWKV_UNIFIED_REPO: &str = "cgisky/ai00-x";

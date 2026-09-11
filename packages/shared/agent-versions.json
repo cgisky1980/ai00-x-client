@@ -2,7 +2,7 @@
   "comment": "dsh agent 运行环境版本唯一来源。dsh_manager.rs 与 scripts/dsh-plugin-check.mjs 统一从本文件生成/读取，禁止各自硬编码。修改后运行 `pnpm run generate-agent-versions` 重新生成 TS + Rust 常量。",
   "nodeVersion": "24.20.0",
   "nodeVersionComment": "dsh 0.1.x 要求 ^22.19 || >=24；选 24 LTS 官方 CI 主力线",
-  "dshNpmSpec": "@deepseek-ai/dsh@0.1.1-rc.2",
+  "dshNpmSpec": "@deepseek-ai/dsh@0.1.5-rc.2",
   "npmRegistry": "https://registry.npmmirror.com",
   "bundledPlugins": [
     { "dir": "ai-bridge", "npmName": "@ai00-x/dsh-ai-bridge" },

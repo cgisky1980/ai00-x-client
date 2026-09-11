@@ -73,6 +73,12 @@ pub struct DshManager {
     /// 端口导致下次启动 loader 白屏。保活在此（句柄随主进程回收）。
     #[cfg(windows)]
     sidecar_job: std::sync::Mutex<Option<win32job::Job>>,
+    /// 0.1.5 鉴权：stdout 捕获的一次性启动 token（`dsh web: http://...?token=X`）。
+    auth_token: tokio::sync::Mutex<Option<String>>,
+    /// 0.1.5 鉴权：token 换取的签名会话 cookie（`dsh-auth-<host>=<value>`，
+    /// 引擎 .credentials.yaml 签名密钥不变则跨重启 30 天有效；每次 spawn 后
+    /// 仍重新交换）。dsh_proxy 转发时注入到 /api 与 remote.mux 请求。
+    auth_cookie: tokio::sync::Mutex<Option<String>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +201,8 @@ impl DshManager {
             restart_lock: tokio::sync::Mutex::new(()),
             #[cfg(windows)]
             sidecar_job: std::sync::Mutex::new(None),
+            auth_token: tokio::sync::Mutex::new(None),
+            auth_cookie: tokio::sync::Mutex::new(None),
         }
     }
 
@@ -273,9 +281,36 @@ fn fingerprint_matches_marker() -> bool {
         && marker.get("plugin_marker").and_then(|v| v.as_str()) == Some(fp.plugin_marker.as_str())
 }
 
-/// 环境是否完整：node/dsh/profile/标记。
+/// 托管全局安装的 dsh 实际版本是否与 pinned spec 一致（升级检测：
+/// `dsh.cmd` 存在 ≠ 版本正确，marker 可能与磁盘漂移，以 package.json 为准）。
+fn installed_dsh_version_matches() -> bool {
+    let pkg = node_dir()
+        .join("node_modules")
+        .join("@deepseek-ai")
+        .join("dsh")
+        .join("package.json");
+    let Ok(raw) = std::fs::read_to_string(&pkg) else {
+        return false;
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return false;
+    };
+    let Some(installed) = v.get("version").and_then(|x| x.as_str()) else {
+        return false;
+    };
+    // spec 形如 "@deepseek-ai/dsh@0.1.5-rc.2"：取最后一个 '@' 后为版本
+    match DSH_NPM_SPEC.rsplit_once('@') {
+        Some((_, want)) => installed == want,
+        None => false,
+    }
+}
+
+/// 环境是否完整：node/dsh/版本/标记。
 pub fn environment_ready() -> bool {
-    node_exe().exists() && dsh_cmd().exists() && fingerprint_matches_marker()
+    node_exe().exists()
+        && dsh_cmd().exists()
+        && installed_dsh_version_matches()
+        && fingerprint_matches_marker()
 }
 
 // ---------------------------------------------------------------------------
@@ -307,8 +342,8 @@ pub async fn ensure_environment() -> Result<(), String> {
         install_node().await?;
     }
 
-    // 2. dsh（托管 npm 全局安装）
-    if !dsh_cmd().exists() {
+    // 2. dsh（托管 npm 全局安装；已装但版本 ≠ pinned spec 时同样触发——升级路径）
+    if !dsh_cmd().exists() || !installed_dsh_version_matches() {
         mgr.set_phase(DshPhase::Installing {
             stage: format!("installing {DSH_NPM_SPEC}"),
         });
@@ -495,49 +530,7 @@ async fn ensure_profile() -> Result<(), String> {
         "[DshManager] profile {DSH_PROFILE} ready at {}",
         dir.display()
     );
-    ensure_agent_presets()?;
-    Ok(())
-}
-
-/// 预置 Ai00-X 自定义 agent preset（策窗口模块用）。
-///
-/// preset = `{DSH_HOME}/.agent-presets/<id>/agent.cordis.yml`（写入即时生效，
-/// roster 无需重启）。code 模块直接用 system preset "standard"，无需预置；
-/// 此处只预置壁纸工坊（ai00_wallpaper_* 工具由 @ai00-x/dsh-tools 全局注册，
-/// preset 仅定制 persona + ask-user）。
-fn ensure_agent_presets() -> Result<(), String> {
-    const WALLPAPER_PRESET: &str = r#"# Ai00-X 壁纸工坊 agent preset（策窗口「壁纸」模块）
-# 最小行集：定制 persona + ask-user（需求确认）；ai00_wallpaper_* 工具由
-# @ai00-x/dsh-tools 插件全局注册，无需在此声明。
-- id: persona
-  name: '@deepseek-ai/dsh-persona'
-  config:
-    text: |-
-      You are a wallpaper studio agent powered by the {{model}} model, running inside the Ai00-X desktop client. Your working directory is {{cwd}}.
-
-      你的职责：帮用户制作并应用 HTML 动态壁纸。工作流程：
-      1. 用 ask_user_question 工具与用户确认风格/元素/动效偏好（一次问清，不反复打扰）
-      2. 生成完整自包含的 HTML 壁纸（内联 CSS/JS，无外部依赖，适配桌面全屏，性能友好）
-      3. 调用 ai00_wallpaper_create 工具创建壁纸项目（name + html 参数），需要应用桌面时用 apply: true
-      4. 用户要换现有壁纸时可用 ai00_set_wallpaper；查看已有项目用 ai00_wallpaper_projects
-
-      注意：不要用文件工具写 HTML 到磁盘（沙箱限制），必须通过 ai00_wallpaper_create 交付。
-
-- id: tool-ask-user
-  name: '@deepseek-ai/dsh-tool-ask-user'
-"#;
-    let dir = dsh_home().join(".agent-presets").join("ai00x-wallpaper");
-    let file = dir.join("agent.cordis.yml");
-    let need_write = match std::fs::read_to_string(&file) {
-        Ok(existing) => existing != WALLPAPER_PRESET,
-        Err(_) => true,
-    };
-    if need_write {
-        std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir preset dir: {e}"))?;
-        std::fs::write(&file, WALLPAPER_PRESET)
-            .map_err(|e| format!("write wallpaper preset: {e}"))?;
-        log::info!("[DshManager] preset ai00x-wallpaper written/updated");
-    }
+    ensure_orchestration_patch()?;
     Ok(())
 }
 
@@ -553,26 +546,173 @@ fn default_profile_manifest() -> serde_json::Value {
     })
 }
 
-/// 确保 DSH_HOME/settings.yaml 的默认模型指向 Ai00-X 网关（ai00-x/ai00-auto）。
-/// 幂等：仅在无 agent-default-model 键时写入，尊重用户后续选择。
+/// 确保 DSH_HOME/settings.yaml 的默认模型指向 Ai00-X 网关远端（ai00-x/ai00-salvo）。
+///
+/// 编排架构约定：主会话（含 plan 模式——plan 跟随会话模型）一律远端强模型；
+/// 本地 RWKV 只服务子代理智能路由（research_worker 经 ai00-auto 由网关分流）。
+/// - 无 agent-default-model 键 → 写入默认；
+/// - 已有键且为 ai00-auto / rwkv-local → 一次性迁移到 ai00-salvo（2026-09
+///   编排改造：此前默认 ai00-auto，存量安装可能停留在旧默认或用户手选本地）；
+/// - 其他值（用户明确选择的远端子模型等）→ 尊重不动。
 async fn ensure_default_model_setting() -> Result<(), String> {
+    const REMOTE_ENTRY: &str = "agent-default-model:\n  provider: ai00-x\n  model: ai00-salvo\n";
     let path = dsh_home().join("settings.yaml");
     let raw = if path.exists() {
         std::fs::read_to_string(&path).map_err(|e| e.to_string())?
     } else {
         String::new()
     };
-    if raw.contains("agent-default-model") {
-        return Ok(());
+    if !raw.contains("agent-default-model") {
+        let next = if raw.trim().is_empty() {
+            REMOTE_ENTRY.to_string()
+        } else {
+            format!("{raw}\n{REMOTE_ENTRY}")
+        };
+        std::fs::create_dir_all(dsh_home()).map_err(|e| e.to_string())?;
+        return std::fs::write(&path, next).map_err(|e| format!("write settings failed: {e}"));
     }
-    let entry = "agent-default-model:\n  provider: ai00-x\n  model: ai00-auto\n";
-    let next = if raw.trim().is_empty() {
-        entry.to_string()
-    } else {
-        format!("{raw}\n{entry}")
+    // 旧默认/本地默认 → 远端（逐行解析：只命中 agent-default-model 块内的
+    // model 行，不依赖精确缩进与尾换行——文件末尾无换行的存量文件也能迁移）
+    let mut in_default_block = false;
+    let mut changed = false;
+    let lines: Vec<String> = raw
+        .split('\n')
+        .map(|line| {
+            let trimmed = line.trim_end();
+            if trimmed.starts_with("agent-default-model:") {
+                in_default_block = true;
+                return line.to_string();
+            }
+            // 新的顶层键开始 → 离开 agent-default-model 块
+            if in_default_block && !trimmed.is_empty() && !trimmed.starts_with([' ', '#']) {
+                in_default_block = false;
+            }
+            if in_default_block
+                && trimmed.trim_start().starts_with("model:")
+                && (trimmed.ends_with("ai00-auto") || trimmed.ends_with("rwkv-local"))
+            {
+                changed = true;
+                let indent = &line[..line.len() - line.trim_start().len()];
+                return format!("{indent}model: ai00-salvo");
+            }
+            line.to_string()
+        })
+        .collect();
+    if changed {
+        let migrated = lines.join("\n");
+        std::fs::write(&path, &migrated).map_err(|e| format!("write settings failed: {e}"))?;
+        log::info!("[DshManager] agent-default-model migrated to ai00-salvo (remote)");
+    }
+    Ok(())
+}
+
+/// 编排架构 patch 层（profile cordis.patch.yml，客户端托管，整文件幂等覆写）：
+/// 主对话 = 规划者（persona 软约束：只规划+并发派发，不直接调工具）；
+/// 子代理 = 两类工人实例（同包 @deepseek-ai/dsh-tool-subagent 多行，
+/// 各自 toolName + toolFilter + agentOptions.model 硬约束）。
+///
+/// persona 挂点：覆盖 system-prompt 行的 config.persona（deployment persona
+/// 槽）。不能另插 @deepseek-ai/dsh-persona 行——"deployment:persona" 槽
+/// 全局唯一，重复注册 boot 即崩（2026-09-11 实测，症状=sidecar 起不来、
+/// dsh-api 全 502）。
+///
+/// 模型分工（与 ai_gateway.rs 白名单同源约定，见 LOCAL_TOOL_WHITELIST 注释）：
+/// - research_worker：只读六件套 + model=ai00-auto → 网关 SmartRouter/
+///   hybrid_tool_loop 判后 R0/R1 走本地 RWKV（零成本），本地失败自动远端；
+/// - code_worker：执行类工具 + model=ai00-salvo → 远端强模型。
+///
+/// 工具名为 dsh 引擎注册名（dsh-tool-fs: read/read_image/edit/write、
+/// dsh-tool-fs-search: glob/grep、dsh-tool-pwsh: pwsh、dsh-tool-bash: bash、
+/// dsh-tool-skill: skill、dsh-tool-todo: todo_write、dsh-tool-web:
+/// web_fetch/web_search）。改动组合后用
+/// `dsh --profile ai00x --dump-config` 验证（DSH_HOME 指向 dsh_home()）。
+/// 组合行为 boot 时装配——本文件变更需 sidecar 重启生效。
+fn ensure_orchestration_patch() -> Result<(), String> {
+    const ORCHESTRATION_PATCH: &str = r#"# Ai00-X 编排架构 patch（dsh_manager::ensure_orchestration_patch 幂等维护，
+# 手工改动会被启动覆写；组合预览：dsh --profile ai00x --dump-config）
+#
+# 编排约定：主对话只规划+并发派发（continuable 后台模式，完成自动通知）；
+# research_worker 调研（只读，智能路由），code_worker 执行（远端强模型）。
+# 注意：新增条目必须放 insert 列表（顶层裸行 = 按 id 覆盖既有条目）。
+# 注意：规划者 persona 走 system-prompt 行覆盖——"deployment:persona" 槽
+# 全局唯一，另插 @deepseek-ai/dsh-persona 行会重复注册导致 boot 崩溃
+# （已实测）；策窗口 preset 的 per-agent persona 遮蔽不受影响。
+- id: system-prompt
+  config:
+    persona: |-
+      You are the Ai00-X orchestrator, powered by the {{model}} model. Your working directory is {{cwd}}.
+
+      你的职责：规划与派发，不亲自执行。
+      1. 理解用户意图后先给出简短计划（目标 / 步骤 / 并发分组），然后全部通过子代理执行。
+      2. 尽量并发：相互独立的任务放在同一条回复里用 research_worker / code_worker 派发（默认后台运行，完成后会自动通知你）；只有下一步依赖结果时才同步等待。
+      3. 每个任务写明六要素：目标与验收标准、边界（不要做什么）、建议用哪些工具、相关文件与上下文线索、期望的返回格式、并发分组。任务要明确、精简、自包含（worker 看不到你们的对话）。
+      4. 分工：调研 / 检索 / 读码 / 事实查证 → research_worker；写码 / 改文件 / 跑命令 / 产出交付物 → code_worker。拿不准就用 code_worker。
+      5. 你自己不直接调用文件 / 终端 / 网络工具（read、glob、grep、edit、write、bash、pwsh、web_* 等）——需要事实就派 research_worker。
+      6. 收齐 worker 结论后向用户交付：结论优先，注明关键依据与未尽事项。执行细节属于 worker，不进入你的答复。
+
+- insert:
+    - id: tool-subagent-research
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: research_worker
+        backgroundMode: continuable
+        agentOptions:
+          provider: ai00-x
+          model: ai00-auto
+        toolFilter:
+          allow:
+            - read
+            - read_image
+            - glob
+            - grep
+            - web_fetch
+            - web_search
+        persona: |-
+          You are a research worker dispatched by the Ai00-X orchestrator.
+          只做只读调查（读文件 / 搜索 / 网络查证），不修改任何文件、不运行命令。
+          严格按任务边界工作，完成后返回精炼结论 + 证据位置（文件:行号或 URL）。
+
+    - id: tool-subagent-code
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: code_worker
+        backgroundMode: continuable
+        agentOptions:
+          provider: ai00-x
+          model: ai00-salvo
+        toolFilter:
+          allow:
+            - read
+            - read_image
+            - glob
+            - grep
+            - edit
+            - write
+            - bash
+            - pwsh
+            - skill
+            - todo_write
+            - web_fetch
+            - web_search
+        persona: |-
+          You are a code worker dispatched by the Ai00-X orchestrator.
+          只实现被派发的任务，不扩大范围；需要的事实自己去读。完成后报告：
+          改了什么、如何验证、遗留风险。
+"#;
+    let file = profile_dir().join("cordis.patch.yml");
+    let need_write = match std::fs::read_to_string(&file) {
+        Ok(existing) => existing != ORCHESTRATION_PATCH,
+        Err(_) => true,
     };
-    std::fs::create_dir_all(dsh_home()).map_err(|e| e.to_string())?;
-    std::fs::write(&path, next).map_err(|e| format!("write settings failed: {e}"))
+    if need_write {
+        std::fs::create_dir_all(profile_dir()).map_err(|e| format!("mkdir profile: {e}"))?;
+        std::fs::write(&file, ORCHESTRATION_PATCH)
+            .map_err(|e| format!("write orchestration patch: {e}"))?;
+        log::info!("[DshManager] orchestration patch written/updated");
+    }
+    Ok(())
 }
 
 fn prepend_path(dir: PathBuf) -> String {
@@ -608,34 +748,98 @@ pub async fn start() -> Result<(), String> {
 
     spawn_sidecar().await?;
 
-    // 健康等待：POST /api/host.describe 直到 200 或超时（首次启动含插件加载）
+    // 健康等待：0.1.5 鉴权链——stdout 捕获 token → GET /?token= 换签名 cookie
+    // （无 Origin + cookie = 信任栅栏放行）→ POST /api/settings/describe 探活
+    // （host.describe 已在 0.1.5 移除）。
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    let mut warned_no_token = false;
     loop {
         if tokio::time::Instant::now() >= deadline {
             let err = "dsh sidecar health check timed out".to_string();
             mgr.set_phase(DshPhase::Failed { error: err.clone() });
             return Err(err);
         }
-        if let Ok(resp) = reqwest::Client::new()
-            .post(format!("http://127.0.0.1:{DSH_PORT}/api/host.describe"))
-            .json(&serde_json::json!({
+        if mgr.auth_token.lock().await.is_none() {
+            if !warned_no_token {
+                warned_no_token = true;
+                log::info!("[DshManager] waiting for launch token on sidecar stdout");
+            }
+            tokio::time::sleep(Duration::from_millis(800)).await;
+            continue;
+        }
+        // token → cookie（每轮重试直到成功；引擎未监听时 GET 会失败）
+        let needs_exchange = mgr.auth_cookie.lock().await.is_none();
+        if needs_exchange {
+            let token = mgr.auth_token.lock().await.clone().unwrap_or_default();
+            match exchange_auth_cookie(&token).await {
+                Ok(cookie) => {
+                    log::info!("[DshManager] auth cookie exchanged from launch token");
+                    *mgr.auth_cookie.lock().await = Some(cookie);
+                }
+                Err(e) => {
+                    log::info!("[DshManager] auth cookie exchange pending: {e}");
+                    tokio::time::sleep(Duration::from_millis(800)).await;
+                    continue;
+                }
+            }
+        }
+        let cookie = mgr.auth_cookie.lock().await.clone();
+        if let Some(cookie) = cookie {
+            let probe = serde_json::json!({
                 "type": "client-request",
                 "rpcId": format!("health-{}", std::process::id()),
-                "method": "host.describe",
-                "payload": {}
-            }))
-            .timeout(Duration::from_secs(3))
-            .send()
-            .await
-        {
-            if resp.status().is_success() {
-                mgr.set_phase(DshPhase::Running { port: DSH_PORT });
-                monitor_restart();
-                return Ok(());
+                "method": "settings/describe",
+                "payload": { "args": {} }
+            });
+            if let Ok(resp) = ai00_x_core::util::local_http_client()
+                .post(format!("http://127.0.0.1:{DSH_PORT}/api/settings/describe"))
+                .header("content-type", "application/json")
+                .header(reqwest::header::COOKIE, &cookie)
+                .json(&probe)
+                .timeout(Duration::from_secs(3))
+                .send()
+                .await
+            {
+                if resp.status().is_success() {
+                    mgr.set_phase(DshPhase::Running { port: DSH_PORT });
+                    monitor_restart();
+                    return Ok(());
+                }
             }
         }
         tokio::time::sleep(Duration::from_millis(800)).await;
     }
+}
+
+/// 0.1.5 鉴权：用一次性启动 token 换签名会话 cookie。
+/// `?token=` 只在 `GET /` 接受，303 → Set-Cookie（authority-bound，
+/// Host/Origin 栅栏在无 Origin 的服务端转发场景下直接放行）。
+async fn exchange_auth_cookie(token: &str) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        // 回环目标绝不能走系统代理（同 dsh_proxy 教训）
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("http client build failed: {e}"))?;
+    let resp = client
+        .get(format!("http://127.0.0.1:{DSH_PORT}/?token={token}"))
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+        .map_err(|e| format!("token exchange GET failed: {e}"))?;
+    for value in resp.headers().get_all(reqwest::header::SET_COOKIE) {
+        let Ok(s) = value.to_str() else {
+            continue;
+        };
+        let pair = s.split(';').next().unwrap_or_default();
+        if pair.starts_with("dsh-auth-") {
+            return Ok(pair.to_string());
+        }
+    }
+    Err(format!(
+        "no dsh-auth cookie in token exchange response (status {})",
+        resp.status()
+    ))
 }
 
 /// 用户主动停止（不自动重启）。
@@ -647,8 +851,18 @@ pub async fn stop() -> Result<(), String> {
     if let Some(mut c) = child.take() {
         let _ = c.kill().await;
     }
+    // 清理鉴权状态：下次 start 重新捕获 token + 交换 cookie
+    *mgr.auth_token.lock().await = None;
+    *mgr.auth_cookie.lock().await = None;
     mgr.set_phase(DshPhase::Ready);
     Ok(())
+}
+
+/// dsh_proxy 转发时注入的签名会话 cookie（0.1.5 鉴权）。
+/// 返回 `"dsh-auth-<host>=<value>"` 或 None（引擎未就绪）。
+pub fn auth_cookie() -> Option<String> {
+    let mgr = get();
+    mgr.auth_cookie.try_lock().ok().and_then(|g| g.clone())
 }
 
 async fn spawn_sidecar() -> Result<(), String> {
@@ -740,16 +954,28 @@ async fn spawn_sidecar() -> Result<(), String> {
             }
         });
     }
-    // stdout 排水泵（piped 但不读会在缓冲写满后阻塞子进程）
+    // stdout 行泵：解析一次性启动 token（0.1.5 鉴权）。行格式：
+    // `dsh web: http://127.0.0.1:3210/?token=<TOKEN>`（早于 /api 就绪打印）
     if let Some(stdout) = child.stdout.take() {
         tokio::spawn(async move {
-            use tokio::io::AsyncReadExt;
-            let mut reader = tokio::io::BufReader::new(stdout);
-            let mut buf = [0u8; 4096];
-            loop {
-                match reader.read(&mut buf[..]).await {
-                    Ok(0) | Err(_) => break,
-                    Ok(_) => {} // 丢弃（dsh 正常日志走 stderr）
+            use tokio::io::{AsyncBufReadExt, BufReader};
+            let mgr = get();
+            let mut lines = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                if let Some(idx) = line.find("?token=") {
+                    // 截到空白/右括号为止：0.1.5 还会打 LAN 行尾
+                    // `...?token=X (LAN: http://...?token=Y)`，不能整行捕获
+                    let rest = &line[idx + "?token=".len()..];
+                    let end = rest
+                        .find(|c: char| c.is_whitespace() || c == ')')
+                        .unwrap_or(rest.len());
+                    let token = rest[..end].to_string();
+                    if !token.is_empty() {
+                        log::info!("[DshManager] captured launch token from stdout");
+                        *mgr.auth_token.lock().await = Some(token);
+                    }
+                } else if !line.trim().is_empty() {
+                    log::info!("[dsh] {line}");
                 }
             }
         });

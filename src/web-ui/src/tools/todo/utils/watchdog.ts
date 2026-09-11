@@ -20,7 +20,7 @@ export const WATCH_MAX_DELAY_MS = 60 * 60_000;
 export const WATCH_MAX_RECOVER = 2;
 
 export const WATCH_RECOVER_PROMPT =
-  '【自动恢复】检测到执行长时间无响应，已中断卡住的轮次。请先用 ai00_plan_read 重读计划文档确认当前进度，然后从断点继续执行；刚才未完成的工具调用请重新执行。';
+  '【自动恢复】检测到执行长时间无响应，已中断卡住的轮次。请先用 ai00_plan_read 重读计划文档确认当前进度，然后从断点继续执行；未完成的子任务请重新派发（research_worker/code_worker），不要亲自调用执行工具。';
 
 export interface StallJudgment {
   verdict: 'normal' | 'stuck';

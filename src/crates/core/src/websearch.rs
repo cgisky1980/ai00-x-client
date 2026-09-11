@@ -74,7 +74,8 @@ struct AnySearchParams<'a> {
     language: &'a str,
 }
 
-fn is_private_ip(url_str: &str) -> bool {
+/// 私网/回环地址判定（SSRF 防护）：web_extract 抓取复用同口径。
+pub fn is_private_ip(url_str: &str) -> bool {
     let parsed: reqwest::Url = match url_str.parse() {
         Ok(u) => u,
         Err(_) => return true,

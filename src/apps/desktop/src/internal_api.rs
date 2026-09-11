@@ -11,6 +11,8 @@
 //! - `PUT  /ai00-internal/plan`            — 写卡片计划文档 `{taskId, markdown}`（广播 `todo-plan-updated`）
 //! - `POST /ai00-internal/git/snapshot`    — 工作区 git 快照（libgit2）
 //! - `POST /ai00-internal/xp`              — XP 事件转发远端（member JWT；服务端按 kind 幂等去重）
+//! - `POST /ai00-internal/web/extract`     — web 有效信息提取（全本地闭环：搜索→并发抓取→并发本地筛选）
+//! - `POST /ai00-internal/text/summarize`  — 长文总结（全本地闭环：≤6000 单次 / >6000 map-reduce）
 //!
 //! 鉴权分两层：
 //! 1. `X-Ai00-Internal-Token` 头匹配 `AI00_S_INTERNAL_TOKEN`（回退默认值），
@@ -50,6 +52,8 @@ pub const SCOPE_PLAN_READ: &str = "plan:read";
 pub const SCOPE_PLAN_WRITE: &str = "plan:write";
 pub const SCOPE_GIT: &str = "git";
 pub const SCOPE_XP: &str = "xp";
+pub const SCOPE_WEB_EXTRACT: &str = "web:extract";
+pub const SCOPE_TEXT_SUMMARIZE: &str = "text:summarize";
 
 /// 全部 scope（dsh_plugin_grants_list / 授权 UI 的词表）。
 pub const ALL_SCOPES: &[&str] = &[
@@ -61,12 +65,20 @@ pub const ALL_SCOPES: &[&str] = &[
     SCOPE_PLAN_WRITE,
     SCOPE_GIT,
     SCOPE_XP,
+    SCOPE_WEB_EXTRACT,
+    SCOPE_TEXT_SUMMARIZE,
 ];
 
 /// 未标识请求（无 Plugin-Id 头）的兜底 scope：只读 + 通知。
 /// 写操作（知行写/计划写/git/XP/壁纸）一律 403——历史第三方插件接入
 /// Plugin-Id 头 + 授权后恢复。
-pub const BASIC_SCOPES: &[&str] = &[SCOPE_NOTIFY, SCOPE_TODO_READ, SCOPE_PLAN_READ];
+pub const BASIC_SCOPES: &[&str] = &[
+    SCOPE_NOTIFY,
+    SCOPE_TODO_READ,
+    SCOPE_PLAN_READ,
+    SCOPE_WEB_EXTRACT,
+    SCOPE_TEXT_SUMMARIZE,
+];
 
 /// grants 文件：DSH_HOME/plugin-grants.json，形如 `{ "<pluginId>": ["scope", ...] }`。
 fn grants_path() -> PathBuf {
@@ -243,6 +255,16 @@ pub fn router() -> Router {
                 .post(git_snapshot),
         )
         .push(Router::with_path("xp").hoop(no_cache).post(xp_report))
+        .push(
+            Router::with_path("web/extract")
+                .hoop(no_cache)
+                .post(web_extract),
+        )
+        .push(
+            Router::with_path("text/summarize")
+                .hoop(no_cache)
+                .post(text_summarize),
+        )
 }
 
 /// 解析 JSON body；失败时写好 400 响应并返回 None。
@@ -296,6 +318,75 @@ async fn notify(req: &mut Request, res: &mut Response) {
         }
         Err(e) => err(res, StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     }
+}
+
+// ---------------------------------------------------------------------------
+// web 有效信息提取（全本地闭环工具宿主侧：搜索→并发抓取→并发本地筛选）
+// ---------------------------------------------------------------------------
+
+#[handler]
+async fn web_extract(req: &mut Request, res: &mut Response) {
+    if !authorize(req, res, SCOPE_WEB_EXTRACT) {
+        return;
+    }
+    let Some(body) = parse_body(req, res).await else {
+        return;
+    };
+    let Some(query) = body
+        .get("query")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|q| !q.is_empty())
+    else {
+        err(res, StatusCode::BAD_REQUEST, "missing field: query".into());
+        return;
+    };
+    let max_results = body
+        .get("max_results")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
+    let pages = crate::web_extract::extract(query, max_results).await;
+    res.body(json!({"pages": pages}).to_string());
+}
+
+// ---------------------------------------------------------------------------
+// 长文总结（全本地闭环：≤6000 单次 / >6000 切块 map-reduce 并发）
+// ---------------------------------------------------------------------------
+
+#[handler]
+async fn text_summarize(req: &mut Request, res: &mut Response) {
+    if !authorize(req, res, SCOPE_TEXT_SUMMARIZE) {
+        return;
+    }
+    let Some(body) = parse_body(req, res).await else {
+        return;
+    };
+    let Some(text) = body
+        .get("text")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    else {
+        err(res, StatusCode::BAD_REQUEST, "missing field: text".into());
+        return;
+    };
+    // 防滥用：单次总结上限 20 万字符（约 50 块，块间并发池内调度）
+    const TEXT_CAP: usize = 200_000;
+    if text.chars().count() > TEXT_CAP {
+        err(
+            res,
+            StatusCode::BAD_REQUEST,
+            format!("text too long (>{TEXT_CAP} chars)"),
+        );
+        return;
+    }
+    let focus = body.get("focus").and_then(|v| v.as_str());
+    let max_length = body
+        .get("max_length")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
+    let result = crate::web_extract::summarize(text, focus, max_length).await;
+    res.body(json!(result).to_string());
 }
 
 // ---------------------------------------------------------------------------

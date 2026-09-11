@@ -47,7 +47,8 @@ export type I18nNamespace =
   | 'vrm'
   | 'acestep'
   | 'scenes/dsh'
-  | 'community';
+  | 'community'
+  | 'translate';
 
  
 export interface I18nConfig {

@@ -32,6 +32,66 @@ const DEFAULT_CTX: u32 = 16384;
 const BUSY_WINDOW_MS: u64 = 30_000;
 
 // ---------------------------------------------------------------------------
+// win32 Job kill-on-close（孤儿子进程兜底回收）
+//
+// kill_on_drop 只覆盖 tokio Child 正常 Drop 路径；客户端被强杀/崩溃时
+// runtime 直接死亡，llama-server 残留成孤儿（实测：Qwen-VL 调试实例孤儿
+// 挂 11 小时白吃 6.6GB 显存）。Job Object 把子进程绑到客户端生命周期上：
+// 主进程退出 → job 句柄被系统关闭 → 内核回收所有绑定进程，无遗漏。
+// ---------------------------------------------------------------------------
+
+/// 全局 job 句柄（懒创建；**故意不 CloseHandle**——句柄存活期 = 客户端存活期）。
+static KILL_ON_CLOSE_JOB: std::sync::OnceLock<isize> = std::sync::OnceLock::new();
+
+fn kill_on_close_job() -> isize {
+    *KILL_ON_CLOSE_JOB.get_or_init(|| {
+        use windows::core::PCWSTR;
+
+        use windows::Win32::System::JobObjects::{
+            CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        };
+        unsafe {
+            let job = match CreateJobObjectW(None, PCWSTR::null()) {
+                Ok(h) => h,
+                Err(e) => {
+                    log::warn!("[LlamaServer] CreateJobObjectW failed: {e}");
+                    return 0;
+                }
+            };
+            let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            if let Err(e) = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const core::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            ) {
+                log::warn!("[LlamaServer] SetInformationJobObject failed: {e}");
+            }
+            job.0 as isize
+        }
+    })
+}
+
+/// 把 llama-server 子进程绑定到 kill-on-close job（幂等；失败仅告警不阻断）。
+fn bind_to_kill_on_close_job(child: &Child) {
+    let job = kill_on_close_job();
+    if job == 0 {
+        return;
+    }
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::JobObjects::AssignProcessToJobObject;
+    if let Some(h) = child.raw_handle() {
+        unsafe {
+            match AssignProcessToJobObject(HANDLE(job as *mut _), HANDLE(h)) {
+                Ok(()) => log::info!("[LlamaServer] child bound to kill-on-close job"),
+                Err(e) => log::warn!("[LlamaServer] AssignProcessToJobObject failed: {e}"),
+            }
+        }
+    }
+}
+// ---------------------------------------------------------------------------
 // GGUF 模型扫描
 // ---------------------------------------------------------------------------
 
@@ -383,7 +443,7 @@ fn spawn_idle_monitor() {
             if port == 0 {
                 continue;
             }
-            let metrics = match reqwest::Client::new()
+            let metrics = match ai00_x_core::util::local_http_client()
                 .get(format!("http://127.0.0.1:{port}/metrics"))
                 .timeout(Duration::from_secs(5))
                 .send()
@@ -472,7 +532,7 @@ fn pick_free_port() -> Result<u16, String> {
 /// /health 就绪轮询。
 async fn wait_ready(port: u16) -> Result<(), String> {
     let url = format!("http://127.0.0.1:{port}/health");
-    let client = reqwest::Client::new();
+    let client = ai00_x_core::util::local_http_client();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(READY_TIMEOUT_SECS);
     loop {
         if tokio::time::Instant::now() >= deadline {
@@ -647,6 +707,7 @@ async fn ensure_once(gguf_path: &str) -> Result<String, String> {
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("failed to spawn llama-server: {e}"))?;
+    bind_to_kill_on_close_job(&child);
 
     // stderr 日志泵（llama-server 日志走 stderr；加载失败原因在此）
     if let Some(stderr) = child.stderr.take() {
@@ -867,38 +928,10 @@ struct BuiltinCatalogModel {
     download_dir: &'static str,
 }
 
-const BUILTIN_GGUF: &[BuiltinCatalogModel] = &[
-    BuiltinCatalogModel {
-        key: "Qwen3.8-27B-UD-Q4_K_M",
-        display: "Qwen3.8 27B",
-        file_rel: "llm/Qwen3.8-27B-UD-Q4_K_M.gguf",
-        size_bytes: 16_500_000_000,
-        gguf_file: "Qwen3.8-27B-UD-Q4_K_M.gguf",
-        download_repo: "cgisky/ai00-x",
-        download_dir: "llm",
-    },
-    BuiltinCatalogModel {
-        key: "Spark-X2.5-4B-Q8_0",
-        display: "Spark-X2.5 4B",
-        file_rel: "llm/Spark-X2.5-4B-Q8_0.gguf",
-        size_bytes: 4_370_000_000,
-        gguf_file: "Spark-X2.5-4B-Q8_0.gguf",
-        // 本地 llama-quantize 产物（BF16 官方源量化），统一走自有模型仓
-        download_repo: "cgisky/ai00-x",
-        download_dir: "llm",
-    },
-    BuiltinCatalogModel {
-        key: "MiniCPM5-2B-Q8_0",
-        display: "MiniCPM5 2B",
-        file_rel: "llm/MiniCPM5-2B-Q8_0.gguf",
-        size_bytes: 2_679_710_688,
-        gguf_file: "MiniCPM5-2B-Q8_0.gguf",
-        // 源出 OpenBMB 官方 GGUF（标准 Llama 架构，vanilla llama.cpp 直接支持；Think 推理模型），
-        // 统一走自有模型仓（下载源一致好管理）
-        download_repo: "cgisky/ai00-x",
-        download_dir: "llm",
-    },
-];
+/// 内置 GGUF 目录。对话模型支持已收窄为仅 RWKV 3B（.st 走 rwkv 引擎，
+/// 见 rwkv_llm::BUILTIN_RWKV）；GGUF 对话模型（Qwen3.8/Spark-X2.5/MiniCPM5）
+/// 的内置登记已移除（2026-09-10），已下载文件保留但不再出现在目录/下载列表。
+const BUILTIN_GGUF: &[BuiltinCatalogModel] = &[];
 
 /// 仓库内相对路径（空 download_dir = 仓库根）。
 fn builtin_repo_path(entry: &BuiltinCatalogModel) -> String {

@@ -403,6 +403,7 @@ fn parse_ready_port(line: &str) -> Option<u16> {
 /// 轮询 /healthz 直到 200（READY_TIMEOUT_SECS 内）。
 async fn wait_healthz(port: u16) -> Result<(), String> {
     let client = reqwest::Client::builder()
+        .no_proxy()
         .timeout(Duration::from_secs(3))
         .build()
         .map_err(|e| e.to_string())?;
@@ -544,6 +545,7 @@ async fn sidecar_post<T: serde::de::DeserializeOwned>(
     timeout: Duration,
 ) -> Result<T, String> {
     let client = reqwest::Client::builder()
+        .no_proxy()
         .timeout(timeout)
         .build()
         .map_err(|e| e.to_string())?;
@@ -572,6 +574,7 @@ async fn sidecar_post<T: serde::de::DeserializeOwned>(
 pub async fn search(keyword: &str) -> Result<Vec<OnlineSong>, String> {
     let port = ensure_ready().await?;
     let client = reqwest::Client::builder()
+        .no_proxy()
         .timeout(Duration::from_secs(SEARCH_TIMEOUT_SECS))
         .build()
         .map_err(|e| e.to_string())?;
@@ -598,6 +601,7 @@ pub async fn search(keyword: &str) -> Result<Vec<OnlineSong>, String> {
 pub async fn charts() -> Result<Vec<OnlineChart>, String> {
     let port = ensure_ready().await?;
     let client = reqwest::Client::builder()
+        .no_proxy()
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
@@ -630,6 +634,7 @@ pub async fn chart_tracks(chart_id: &str) -> Result<OnlineTrackList, String> {
 pub async fn radio_pool() -> Result<Vec<OnlineTrack>, String> {
     let port = ensure_ready().await?;
     let client = reqwest::Client::builder()
+        .no_proxy()
         .timeout(Duration::from_secs(40))
         .build()
         .map_err(|e| e.to_string())?;

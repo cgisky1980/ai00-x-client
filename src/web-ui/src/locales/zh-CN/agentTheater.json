@@ -15,13 +15,13 @@
     "gone": "该会话已结束"
   },
   "status": {
-    "appear": "🛠 开工",
-    "working": "⚙️ 干活中",
-    "thinking": "💭 深度思考中",
-    "trouble": "😵 翻车了",
-    "milestone": "✨ 有进展",
-    "deliver-big": "🎉 已交付",
-    "deliver-quiet": "😮‍💨 已收工",
+    "appear": "🛠 开场锣响",
+    "working": "⚙️ 紧锣密鼓",
+    "thinking": "💭 琢磨剧本",
+    "trouble": "😵 台上出岔",
+    "milestone": "✨ 满堂彩",
+    "deliver-big": "🎉 大幕落下",
+    "deliver-quiet": "😮‍💨 鞠躬谢幕",
     "leaving": "👋 离场"
   },
   "outcome": {
@@ -54,9 +54,9 @@
     "stop": "停止"
   },
   "live": {
-    "thinking": "💭 思考中",
-    "acceptance": "📋 待验收",
-    "alert": "❌ 执行出错",
+    "thinking": "💭 后台琢磨剧本",
+    "acceptance": "🎬 候场待验收",
+    "alert": "💥 台上出岔",
     "idle_tool": ""
   }
 }

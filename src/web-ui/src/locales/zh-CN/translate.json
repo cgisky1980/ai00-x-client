@@ -1,0 +1,14 @@
+{
+  "actions": {
+    "translate": "翻译",
+    "copy": "复制"
+  },
+  "result": {
+    "title": "翻译结果",
+    "loading": "本地模型翻译中…",
+    "copy": "复制",
+    "copied": "已复制",
+    "failed": "翻译失败",
+    "source": "原文"
+  }
+}

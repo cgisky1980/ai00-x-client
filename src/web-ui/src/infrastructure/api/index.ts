@@ -21,9 +21,10 @@ import { gitAPI } from './service-api/GitAPI';
 import { gitRepoHistoryAPI, type GitRepoHistory } from './service-api/GitRepoHistoryAPI';
 import { i18nAPI } from './service-api/I18nAPI';
 import { editorAiAPI } from './service-api/EditorAiAPI';
+import { translateApi } from './service-api/TranslateApi';
 
 // Export API modules
-export { workspaceAPI, configAPI, aiApi, systemAPI, diffAPI, globalAPI, contextAPI, gitAPI, gitRepoHistoryAPI, i18nAPI, editorAiAPI };
+export { workspaceAPI, configAPI, aiApi, systemAPI, diffAPI, globalAPI, contextAPI, gitAPI, gitRepoHistoryAPI, i18nAPI, editorAiAPI, translateApi };
 
 // Export types
 export type { GitRepoHistory };
@@ -41,6 +42,7 @@ export const ai00xAPI = {
   gitRepoHistory: gitRepoHistoryAPI,
   i18n: i18nAPI,
   editorAi: editorAiAPI,
+  translate: translateApi,
 };
 
 // Default export

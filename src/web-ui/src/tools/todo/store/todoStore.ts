@@ -219,6 +219,10 @@ function sanitize(raw: unknown): TodoData {
           agentPrompt: typeof t.agentPrompt === 'string' ? t.agentPrompt : undefined,
           // 双段验收：模型自检时刻（ai00_task_complete 写入；缺失=未提交）
           agentCompletedAt: typeof t.agentCompletedAt === 'number' ? t.agentCompletedAt : null,
+          // 自检登记的交付物路径清单（面板交付物抽屉展示；缺失=未登记）
+          deliverables: Array.isArray(t.deliverables)
+            ? t.deliverables.filter((d): d is string => typeof d === 'string' && d.length > 0).slice(0, 20)
+            : undefined,
           // 快照 commit（基线/自检——验收 diff 与回滚用；缺失=null）
           agentBaseCommit: typeof t.agentBaseCommit === 'string' ? t.agentBaseCommit : null,
           agentCommit: typeof t.agentCommit === 'string' ? t.agentCommit : null,
@@ -570,6 +574,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
                 id: genId('t'),
                 completedAt: null,
                 agentCompletedAt: null,
+                deliverables: undefined, // 新周期无产物，重新自检登记
                 createdAt: Date.now(),
                 order: Date.now(),
                 checklist: task.checklist.map((c) => ({ ...c, d: false })),

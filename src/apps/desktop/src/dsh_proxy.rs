@@ -1,26 +1,29 @@
 //! dsh sidecar 反向代理：把 webview（origin = 内嵌服务器 2100）的同源请求
 //! 转发到 dsh 引擎（127.0.0.1:3210）。
 //!
-//! 为什么必须代理：dsh 的 /api 信任栅栏要求 Origin 与请求 Host 完全同源
-//! （isTrustedApiRequest），webview 页面在 2100、引擎在 3210，直连跨源必被
-//! 403。经本代理转发时由 reqwest/tokio-tungstenite 发起（无 Origin 头）
-//! → 栅栏放行。
+//! 为什么必须代理：0.1.5 起引擎 /api 是「签名 cookie + Host/Origin 信任栅栏」
+//! 双重门（cookie 由 manager 从 stdout 的一次性 token 换取）。webview 页面在
+//! 2100、引擎在 3210，直连时 Origin≠Host 必被 403。经本代理转发时由
+//! reqwest/tokio-tungstenite 发起（无 Origin 头 → 栅栏放行）并注入 auth
+//! cookie → 通过。
 //!
 //! 路由：
 //! - `POST /dsh-api/{*path}` → `http://127.0.0.1:3210/api/{path}`（unary RPC）
-//! - `GET  /dsh-ws/events.mux` → `ws://127.0.0.1:3210/api/events.mux`（WS 双向泵）
+//! - `GET  /dsh-ws/remote.mux` → `ws://127.0.0.1:3210/api/remote.mux`（WS 双向泵）
 
 use futures::{SinkExt, StreamExt};
 use salvo::http::StatusCode;
 use salvo::prelude::*;
 use salvo::websocket::{Message as WsMessage, WebSocket, WebSocketUpgrade};
 use serde_json::json;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::Message as UpMessage;
 
 use crate::dsh_manager;
 
 const DSH_HTTP_ORIGIN: &str = "http://127.0.0.1:3210";
-const DSH_WS_UPSTREAM: &str = "ws://127.0.0.1:3210/api/events.mux";
+const DSH_WS_UPSTREAM: &str = "ws://127.0.0.1:3210/api/remote.mux";
 
 /// 挂到主 router 的代理子路由。
 pub fn router() -> Router {
@@ -31,7 +34,7 @@ pub fn router() -> Router {
                 .post(proxy_rpc),
         )
         .push(
-            Router::with_path("dsh-ws/events.mux")
+            Router::with_path("dsh-ws/remote.mux")
                 .hoop(no_cache)
                 .get(proxy_ws),
         )
@@ -63,15 +66,19 @@ async fn proxy_rpc(req: &mut Request, res: &mut Response) {
         }
     };
 
-    let client = reqwest::Client::new();
-    let upstream = match client
+    // 回环目标绝不能走系统代理：代理（Clash 等 7897）不转发 127.0.0.1，
+    // 劫持后 dsh 引擎所有请求挂起 → 创建计划等对话全败且与模型无关。
+    let client = ai00_x_core::util::local_http_client();
+    let mut upstream_req = client
         .post(&url)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .body(body)
-        .timeout(std::time::Duration::from_secs(60))
-        .send()
-        .await
-    {
+        .timeout(std::time::Duration::from_secs(60));
+    // 0.1.5 鉴权：注入 manager 持有的签名会话 cookie（无 cookie 引擎 401）
+    if let Some(cookie) = dsh_manager::auth_cookie() {
+        upstream_req = upstream_req.header(reqwest::header::COOKIE, cookie);
+    }
+    let upstream = match upstream_req.send().await {
         Ok(r) => r,
         Err(e) => {
             // 引擎未就绪等场景：502 + 错误 JSON，前端提示重试
@@ -100,7 +107,7 @@ async fn proxy_rpc(req: &mut Request, res: &mut Response) {
     res.body(bytes);
 }
 
-/// WebSocket 双向泵：webview WS ↔ 引擎 events.mux。
+/// WebSocket 双向泵：webview WS ↔ 引擎 remote.mux。
 #[handler]
 async fn proxy_ws(req: &mut Request, res: &mut Response) -> Result<(), StatusError> {
     // 引擎在线才接受升级（否则前端 WS 立即断开走重连逻辑）
@@ -119,9 +126,22 @@ async fn proxy_ws(req: &mut Request, res: &mut Response) -> Result<(), StatusErr
         .await
 }
 
-/// 把一侧 WS 与引擎 events.mux 互连（全双工转发，任一侧断开即结束）。
+/// 把一侧 WS 与引擎 remote.mux 互连（全双工转发，任一侧断开即结束）。
 async fn pump_websocket(client_ws: WebSocket) {
-    let (upstream, _) = match tokio_tungstenite::connect_async(DSH_WS_UPSTREAM).await {
+    // 0.1.5 鉴权：握手请求注入签名 cookie（remote.mux 与 /api 同一鉴权门）
+    let mut upstream_req = match DSH_WS_UPSTREAM.into_client_request() {
+        Ok(r) => r,
+        Err(e) => {
+            log::warn!("[dsh-proxy] upstream ws request build failed: {e}");
+            return;
+        }
+    };
+    if let Some(cookie) = dsh_manager::auth_cookie() {
+        if let Ok(v) = HeaderValue::from_str(&cookie) {
+            upstream_req.headers_mut().insert("cookie", v);
+        }
+    }
+    let (upstream, _) = match tokio_tungstenite::connect_async(upstream_req).await {
         Ok(conn) => conn,
         Err(e) => {
             log::warn!("[dsh-proxy] upstream ws connect failed: {e}");

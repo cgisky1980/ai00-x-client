@@ -1,12 +1,18 @@
 /**
- * todo 本地 AI 通道（拆解 / 规划对话 / 拟策 / 日终回顾）——走 `plugin_ai_complete`
+ * todo 规划对话 AI 通道（拆解 / 规划对话 / 拟策 / 日终回顾）——走 `plugin_ai_complete`
  * 命令，核心 id `com.ai00x.core.todo` 豁免插件 gate（plugin_api.rs
- * CORE_FEATURE_IDS）。本地 RWKV 优先（Instruction 格式 + few-shot 示范 +
- * T≈0.6/P≈0.1）。
- * model 引用可选透传（'auto' = 不传：本地 RWKV 优先 + primary 自动回退；
- * 其余引用见 plugin_api.rs resolve_model_selection）。
+ * CORE_FEATURE_IDS）。讨论/规划默认远程主模型（ai00-salvo），可在
+ * ModelSelector 手切本地（auto = 本地 RWKV 优先 + primary 回退；
+ * Instruction 格式 + few-shot 示范 + T≈0.6/P≈0.1）。
+ * model 引用可选透传（'auto' 不传 = 本地 RWKV 优先；其余引用见
+ * plugin_api.rs resolve_model_selection）。
+ *
+ * 规划工具环（planChatReplyWithTools）：讨论轮可让模型调用只读三件套
+ * （read_file / list_dir / search）实地查看绑定的项目文件——前端执行后把
+ * 结果以材料行回注重呼；出计划单发（plan 模式）不挂工具，保持两段式稳定。
  */
 import { invoke } from '@tauri-apps/api/core';
+import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 
 const CORE_ID = 'com.ai00x.core.todo';
 
@@ -184,20 +190,31 @@ const THINK_PREFILL: AiMsg = { role: 'assistant', content: '<think>\n</think>\n`
  * 实质单发——历史全部作为最后一条 User 材料注入；
  * 最近 6 条全文保留，更早的每条压到 40 字并入「此前讨论要点」。
  *
- * 讨论模式是双态工具协议：信息不足 → questions 追问；信息足够 → 模型
- * 主动调用 create_plan 工具（arguments 即完整计划契约），前端执行落盘。
+ * 讨论模式是三态工具协议：信息不足 → questions 追问；信息足够 → 模型
+ * 主动调用 create_plan 工具（arguments 即完整计划契约），前端执行落盘；
+ * 已绑定工作区时追加只读三件套（read_file/list_dir/search）供实地查看
+ * 项目文件——工具由前端执行、结果回注，出计划单发不挂工具。
  */
+
+/** 只读三件套协议行（仅已绑定工作区的讨论轮注入）。 */
+const TOOL_PROTOCOL_LINE =
+  '\n三、需要实际查看项目文件再定稿时，可调用只读工具（系统执行后把结果提供给你，再按一/二/三继续）：' +
+  '{"tool":"read_file","path":"相对工作区的文件路径"} 读文件内容；' +
+  '{"tool":"list_dir","path":"相对工作区的目录路径"} 列目录（省略 path 列根目录）；' +
+  '{"tool":"search","query":"关键词"} 在工作区内全文搜索。';
 function buildPlanChatMessages(
   title: string,
   notes: string,
   chat: PlanChatMessage[],
   currentPlan?: BoardPlan | null,
   mode: 'chat' | 'plan' = 'chat',
-  planHint?: string
+  planHint?: string,
+  /** 已绑定工作区（讨论轮协议追加只读三件套；plan 模式不挂工具） */
+  hasWorkspace?: boolean
 ): AiMsg[] {
   if (mode === 'plan') {
     const schema =
-      '{"summary":"一段话摘要","goal":"一句话目标","tasks":[{"title":"步骤名","notes":"补充"}],"acceptance":["验收1","验收2"],"deliverable":"交付物或null"}';
+      '{"summary":"一段话摘要","goal":"一句话目标","tasks":[{"title":"步骤名","notes":"补充"}],"acceptance":["验收1","验收2"],"deliverable":"交付物描述"}';
     if (currentPlan) {
       // —— 计划编辑器（专用修改格式，用户定稿 2026-08-28）：当前计划 JSON +
       // 修改意见 → 更新后的完整计划 JSON。JSON 进 JSON 出、schema 完全一致，
@@ -206,13 +223,13 @@ function buildPlanChatMessages(
         {
           role: 'user',
           content:
-            `你是计划编辑器。根据用户的修改意见更新给定的计划 JSON。回复协议：只输出更新后的完整计划 JSON（用 \`\`\`json 围栏包裹），schema：${schema}。用户没有提到的部分原样保留；tasks 每一项必须是含 title 键的对象，绝不能是字符串数组；acceptance 给3-6项可客观检验的判据。` +
+            `你是计划编辑器。根据用户的修改意见更新给定的计划 JSON。回复协议：只输出更新后的完整计划 JSON（用 \`\`\`json 围栏包裹），schema：${schema}。用户没有提到的部分原样保留；tasks 每一项必须是含 title 键的对象，绝不能是字符串数组；acceptance 给3-6项可客观检验的判据；deliverable 必填且具体——写明可交付的产物文件名与内容形式（如 "report.md 调研报告"、"报销明细.md + 发票扫描件.zip"），即使纯咨询/调研类任务也必须产出一份汇报文件。` +
             (planHint ? `\n额外要求：${planHint}` : ''),
         },
         {
           role: 'assistant',
           content:
-            '```json\n{"summary":"汇总本季报销票据并当面提交财务","goal":"周五前完成报销提交","tasks":[{"title":"核对三张发票金额","notes":""},{"title":"录入财务系统","notes":""},{"title":"周五当面提交给财务","notes":"替代原电话跟进"}],"acceptance":["金额与票据一致","周五完成当面提交"],"deliverable":"季度报销单"}\n```',
+            '```json\n{"summary":"汇总本季报销票据并当面提交财务","goal":"周五前完成报销提交","tasks":[{"title":"核对三张发票金额","notes":""},{"title":"录入财务系统","notes":""},{"title":"周五当面提交给财务","notes":"替代原电话跟进"}],"acceptance":["金额与票据一致","周五完成当面提交"],"deliverable":"报销明细.md 提交清单"}\n```',
         },
         {
           role: 'user',
@@ -222,7 +239,7 @@ function buildPlanChatMessages(
         {
           role: 'assistant',
           content:
-            '```json\n{"summary":"汇总本季报销票据并当面提交财务","goal":"周五前完成报销提交","tasks":[{"title":"核对三张发票金额","notes":""},{"title":"录入财务系统","notes":""},{"title":"周五当面提交给财务","notes":""}],"acceptance":["金额与票据一致","周五完成当面提交"],"deliverable":"季度报销单"}\n```',
+            '```json\n{"summary":"汇总本季报销票据并当面提交财务","goal":"周五前完成报销提交","tasks":[{"title":"核对三张发票金额","notes":""},{"title":"录入财务系统","notes":""},{"title":"周五当面提交给财务","notes":""}],"acceptance":["金额与票据一致","周五完成当面提交"],"deliverable":"报销明细.md 提交清单"}\n```',
         },
       ];
       let s = `当前计划：${JSON.stringify(currentPlan)}\n修改意见与讨论：`;
@@ -236,13 +253,13 @@ function buildPlanChatMessages(
       {
         role: 'user',
         content:
-          `你是规划助手，根据需求和讨论拟定计划契约。回复协议：只输出一个 JSON（用 \`\`\`json 围栏包裹）：${schema}。tasks 给3-7个按推进顺序，每一项必须是含 title 键的对象（如 {"title":"步骤名"}），绝不能是字符串数组；acceptance 是可客观检验的完成判据，给3-6项；只依据材料里的信息。所有字段必须填与需求相关的具体内容，禁止照抄示例占位词（如"步骤名""补充""验收1"）；title 不要带 [in_progress]/[pending] 等状态标记；回复的第一个字符必须是 { ，最后一个字符必须是 } 。` +
+          `你是规划助手，根据需求和讨论拟定计划契约。回复协议：只输出一个 JSON（用 \`\`\`json 围栏包裹）：${schema}。tasks 给3-7个按推进顺序，每一项必须是含 title 键的对象（如 {"title":"步骤名"}），绝不能是字符串数组；acceptance 是可客观检验的完成判据，给3-6项；deliverable 必填且具体——写明可交付的产物文件名与内容形式（如 "report.md 调研报告"、"summary.md 总结"），即使纯咨询/调研类任务也必须产出一份汇报文件；只依据材料里的信息。所有字段必须填与需求相关的具体内容，禁止照抄示例占位词（如"步骤名""补充""验收1"）；title 不要带 [in_progress]/[pending] 等状态标记；回复的第一个字符必须是 { ，最后一个字符必须是 } 。` +
           (planHint ? `\n额外要求：${planHint}` : ''),
       },
       {
         role: 'assistant',
         content:
-          '```json\n{"summary":"汇总本季报销票据并提交财务系统","goal":"完成本季度报销提交","tasks":[{"title":"核对三张发票金额","notes":""},{"title":"录入财务系统","notes":""},{"title":"跟进部门审批","notes":""}],"acceptance":["金额与票据一致","系统状态为已提交"],"deliverable":"季度报销单"}\n```',
+          '```json\n{"summary":"汇总本季报销票据并提交财务系统","goal":"完成本季度报销提交","tasks":[{"title":"核对三张发票金额","notes":""},{"title":"录入财务系统","notes":""},{"title":"跟进部门审批","notes":""}],"acceptance":["金额与票据一致","系统状态为已提交"],"deliverable":"报销明细.md 提交清单"}\n```',
       },
     ];
     let s = `规划任务：${title}${notes ? `（${cleanMaterial(notes)}）` : ''}。这是需求与已有讨论：`;
@@ -264,9 +281,10 @@ function buildPlanChatMessages(
       {
         role: 'user',
         content:
-          '你是规划助手，卡片已有一份计划（材料中给出）。与用户讨论这份计划的调整，你拥有工具 create_plan（更新计划文件）。回复协议：只输出一个 JSON（用 ```json 围栏包裹），二选一：\n' +
+          '你是规划助手，卡片已有一份计划（材料中给出）。与用户讨论这份计划的调整，你拥有工具 create_plan（更新计划文件）。回复协议：只输出一个 JSON（用 ```json 围栏包裹），按情形回复：\n' +
           '一、用户的调整意向不明确，先追问：{"reply":"简短回应","questions":[{"q":"关键问题","options":["选项1","选项2"],"allowInput":true}]}。questions 最多2个问题，每个配2-4个候选项。\n' +
-          '二、用户给出了明确的调整（或认可现状），调用工具：{"tool":"create_plan"}。只输出这个 JSON，不要附加计划内容，系统会按讨论结论更新计划文件。',
+          '二、用户给出了明确的调整（或认可现状），调用工具：{"tool":"create_plan"}。只输出这个 JSON，不要附加计划内容，系统会按讨论结论更新计划文件。' +
+          (hasWorkspace ? TOOL_PROTOCOL_LINE : ''),
       },
       {
         role: 'assistant',
@@ -302,9 +320,10 @@ function buildPlanChatMessages(
       {
         role: 'user',
         content:
-          '你是规划助手，与用户讨论需求，你拥有工具 create_plan（创建计划文件）。回复协议：只输出一个 JSON（用 ```json 围栏包裹），二选一：\n' +
+          '你是规划助手，与用户讨论需求，你拥有工具 create_plan（创建计划文件）。回复协议：只输出一个 JSON（用 ```json 围栏包裹），按情形回复：\n' +
           '一、信息不足，先追问：{"reply":"简短回应","questions":[{"q":"关键问题","options":["选项1","选项2"],"allowInput":true}]}。questions 最多2个问题，每个配2-4个候选项。\n' +
-          '二、信息足够（时间/数量/方式等关键信息已明确，或用户已表示无需追问），调用工具：{"tool":"create_plan"}。只输出这个 JSON，不要附加计划内容，系统会自动生成计划文件。',
+          '二、信息足够（时间/数量/方式等关键信息已明确，或用户已表示无需追问），调用工具：{"tool":"create_plan"}。只输出这个 JSON，不要附加计划内容，系统会自动生成计划文件。' +
+          (hasWorkspace ? TOOL_PROTOCOL_LINE : ''),
       },
       {
         role: 'assistant',
@@ -386,13 +405,19 @@ function appendHistory(s: string, list: Array<{ kind: 'digest' | 'msg'; role?: '
 // 提示词已并入 buildPlanChatMessages 的 few-shot 对话形态（rwkv-rsv 实验结论）。
 
 /** 讨论轮次结果：questions=继续追问；tool='create_plan'=模型调用工具（plan 为
- *  工具参数归一化后的计划契约）。ready 保留为兼容回退标记（旧协议输出）。 */
+ *  工具参数归一化后的计划契约）。ready 保留为兼容回退标记（旧协议输出）。
+ *  只读三件套（read_file/list_dir/search）：模型请求查看项目文件，由
+ *  planChatReplyWithTools 前端执行回注。 */
 export interface PlanChatTurn {
   reply: string;
   questions?: PlanChatQuestion[];
   ready?: boolean;
-  tool?: 'create_plan';
+  tool?: 'create_plan' | 'read_file' | 'list_dir' | 'search';
   plan?: BoardPlan;
+  /** read_file/list_dir 的相对工作区路径 */
+  path?: string;
+  /** search 的关键词 */
+  query?: string;
 }
 
 /** 把模型输出的计划契约片段归一化为 BoardPlan；summary 缺失返回 null。 */
@@ -487,11 +512,21 @@ export async function planChatReply(
   model?: string,
   goalId?: string | null,
   currentPlan?: BoardPlan | null,
-  workspaceSummary?: string | null
+  workspaceSummary?: string | null,
+  /** 已绑定工作区目录（有值=讨论轮协议开放只读三件套） */
+  cwd?: string | null,
+  /** 工具结果材料行（工具环重呼时追加到最后一条 user 材料） */
+  extraMaterial?: string
 ): Promise<PlanChatTurn | null> {
   try {
-    const messages = buildPlanChatMessages(title, notes, chat, currentPlan, 'chat');
+    const messages = buildPlanChatMessages(title, notes, chat, currentPlan, 'chat', undefined, !!cwd);
     injectWorkspaceSummary(messages, workspaceSummary);
+    // 工具结果回注（在 THINK_PREFILL 前的最后一条 user 材料尾部追加）
+    const extra = extraMaterial?.trim();
+    if (extra) {
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+      if (lastUser) lastUser.content = `${lastUser.content}\n${extra}`;
+    }
     const out = await aiComplete('', '', {
       messages,
       temperature: 0.6,
@@ -513,8 +548,24 @@ export async function planChatReply(
       return text ? text.slice(0, 300) : null;
     };
     const parsed = extractJson(out) as
-      | { tool?: unknown; arguments?: Partial<BoardPlan>; reply?: unknown; questions?: unknown[]; ready?: unknown; summary?: unknown }
+      | { tool?: unknown; arguments?: Partial<BoardPlan>; reply?: unknown; questions?: unknown[]; ready?: unknown; summary?: unknown; path?: unknown; query?: unknown }
       | null;
+    // 只读三件套判定（工具环由 planChatReplyWithTools 执行回注）
+    if (
+      parsed &&
+      (parsed.tool === 'read_file' || parsed.tool === 'list_dir' || parsed.tool === 'search')
+    ) {
+      return {
+        reply: typeof parsed.reply === 'string' ? parsed.reply.trim().slice(0, 300) : '',
+        tool: parsed.tool,
+        ...(typeof parsed.path === 'string' && parsed.path.trim()
+          ? { path: parsed.path.trim().slice(0, 300) }
+          : {}),
+        ...(typeof parsed.query === 'string' && parsed.query.trim()
+          ? { query: parsed.query.trim().slice(0, 120) }
+          : {}),
+      };
+    }
     // 工具调用判定（决策信号优先，参数可缺——由计划专用单发补齐）：
     // a) JSON 可解析且 tool=create_plan；b) JSON 坏但含 create_plan 标记
     // （tool3h 组 2/10：模型调对了工具却附加嵌套 payload 括号断裂——
@@ -563,6 +614,123 @@ export async function planChatReply(
     console.warn('[todo:chat] AI 通道失败：', e);
     throw e instanceof Error ? e : new Error(String(e));
   }
+}
+
+// ===== 规划工具环：只读三件套前端执行（read_file / list_dir / search）=====
+
+/** 工具环最多执行的工具次数（超出后强制最后一呼收束到回复或 create_plan）。 */
+export const PLAN_TOOL_ROUNDS = 4;
+
+/** 单条工具结果材料截断（字）——控制重呼 token 预算。 */
+const TOOL_RESULT_MAX_CHARS = 3000;
+
+/** 工作区路径安全归一化：拒绝绝对路径与 .. 逃逸；空 rel = 根目录。 */
+function safeJoinWorkspace(cwd: string, rel: string | undefined): string | null {
+  const raw = (rel ?? '').trim().replace(/\\/g, '/');
+  if (/^([a-zA-Z]:|\/)/.test(raw)) return null;
+  const parts = raw.split('/').filter((p) => p.length > 0 && p !== '.');
+  if (parts.some((p) => p === '..')) return null;
+  const sep = cwd.includes('\\') ? '\\' : '/';
+  return cwd.replace(/[\\/]+$/, '') + sep + parts.join(sep);
+}
+
+/** 工具调用的人话标签（UI 反馈与材料行头共用）。 */
+function planToolLabel(turn: PlanChatTurn): string {
+  const arg = turn.tool === 'search' ? turn.query ?? '' : turn.path ?? '';
+  if (turn.tool === 'read_file') return `read_file ${arg}`;
+  if (turn.tool === 'list_dir') return `list_dir ${arg || '.'}`;
+  return `search "${arg}"`;
+}
+
+/** 执行一次只读工具调用（cwd 已由调用方保证非空）。 */
+async function execPlanTool(turn: PlanChatTurn, cwd: string): Promise<string> {
+  if (turn.tool === 'read_file') {
+    const p = safeJoinWorkspace(cwd, turn.path);
+    if (!p) return '（路径非法：须为工作区内相对路径，且不得包含 ..）';
+    const content = await workspaceAPI.readFileContent(p);
+    if (!content) return '（空文件）';
+    return content.length > TOOL_RESULT_MAX_CHARS
+      ? content.slice(0, TOOL_RESULT_MAX_CHARS) + `\n…（已截断，原文 ${content.length} 字）`
+      : content;
+  }
+  if (turn.tool === 'list_dir') {
+    const p = safeJoinWorkspace(cwd, turn.path);
+    if (!p) return '（路径非法：须为工作区内相对路径，且不得包含 ..）';
+    const nodes = await workspaceAPI.getDirectoryChildren(p);
+    if (!nodes.length) return '（空目录）';
+    const lines = nodes.slice(0, 100).map((n) => (n.isDirectory ? `${n.name}/` : n.name));
+    return (
+      lines.join('\n') +
+      (nodes.length > 100 ? `\n…（共 ${nodes.length} 项，仅列前 100）` : '')
+    );
+  }
+  // search
+  const q = (turn.query ?? '').trim();
+  if (!q) return '（缺少搜索关键词）';
+  const results = await workspaceAPI.searchContentOnly(cwd, q, false, false, false, undefined, 20);
+  if (!results.length) return '（无匹配结果）';
+  // 绝对路径剥 cwd 前缀显示（省 token；未命中前缀原样保留）
+  const prefix = cwd.replace(/[\\/]+$/, '');
+  const strip = (p: string) =>
+    p.startsWith(prefix) ? p.slice(prefix.length).replace(/^[\\/]/, '') : p;
+  const lines = results
+    .slice(0, 20)
+    .map((r) => {
+      const snippet = (r.matchedContent ?? r.previewInside ?? '').trim().slice(0, 120);
+      return `${strip(r.path)}${r.lineNumber ? `:${r.lineNumber}` : ''}: ${snippet}`;
+    });
+  return lines.join('\n');
+}
+
+/**
+ * 规划讨论的工具环包装：模型请求只读三件套时前端执行 → 结果以
+ * 「【工具结果 …】」材料行回注重呼，直至普通回复或 create_plan；
+ * 上限 PLAN_TOOL_ROUNDS 次，超限最后一呼强制收束（工具调用被丢弃，
+ * 只保留散文回复）。cwd 为空（未绑定工作区）直接透传 planChatReply。
+ * onTool = 工具执行回调（UI 反馈「翻阅项目文件…」用）。
+ */
+export async function planChatReplyWithTools(
+  title: string,
+  notes: string,
+  chat: PlanChatMessage[],
+  model?: string,
+  goalId?: string | null,
+  currentPlan?: BoardPlan | null,
+  cwd?: string | null,
+  workspaceSummary?: string | null,
+  onTool?: (label: string) => void
+): Promise<PlanChatTurn | null> {
+  if (!cwd) return planChatReply(title, notes, chat, model, goalId, currentPlan, workspaceSummary);
+  const toolNotes: string[] = [];
+  for (let used = 0; used <= PLAN_TOOL_ROUNDS; used++) {
+    const turn = await planChatReply(
+      title,
+      notes,
+      chat,
+      model,
+      goalId,
+      currentPlan,
+      workspaceSummary,
+      cwd,
+      toolNotes.length ? toolNotes.join('\n\n') : undefined
+    );
+    if (!turn) return null;
+    if (turn.tool !== 'read_file' && turn.tool !== 'list_dir' && turn.tool !== 'search') {
+      return turn;
+    }
+    if (used === PLAN_TOOL_ROUNDS) {
+      return turn.reply ? { reply: turn.reply } : null;
+    }
+    onTool?.(planToolLabel(turn));
+    let result: string;
+    try {
+      result = await execPlanTool(turn, cwd);
+    } catch (e) {
+      result = `（工具执行失败：${e instanceof Error ? e.message : String(e)}）`;
+    }
+    toolNotes.push(`【工具结果 ${planToolLabel(turn)}】\n${result}`);
+  }
+  return null; // 不可达（循环必有返回）
 }
 
 // ===== 两段式·第二段：出计划（独立单发，专注产出计划契约 JSON）=====

@@ -13,9 +13,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { Check, ChevronDown, ChevronRight, Diff, Pencil, RotateCcw, Send, Undo2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Diff, FolderOpen, Pencil, RotateCcw, Send, Undo2 } from 'lucide-react';
 import { Markdown, Modal } from '@/component-library';
 import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
+import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import { addMemory } from '@/infrastructure/api/aiMemoryApi';
 import { aiComplete } from '../../ai/consult';
 import { resolveDelegateCwd } from '../../ai/workspace';
@@ -23,6 +24,7 @@ import type { TodoTask } from '../../api/types';
 import { XpKinds } from '../../api/types';
 import { addXpEvent } from '../../api/XpApi';
 import { useAgentDelegate } from '../../hooks/useAgentDelegate';
+import { DeliverablePreview } from '../DeliverablePreview';
 import { useTodoStore } from '../../store/todoStore';
 import { useGrowthStore } from '../../store/growthStore';
 import {
@@ -85,6 +87,9 @@ export const PlanDocPanel: React.FC<{
   const [openSteps, setOpenSteps] = useState(true);
   const [openAcc, setOpenAcc] = useState(false);
   const [openRaw, setOpenRaw] = useState(false);
+  const [openDlv, setOpenDlv] = useState(false);
+  /** 预览中的交付物路径（null=关闭） */
+  const [previewPath, setPreviewPath] = useState<string | null>(null);
 
   // 验收 diff/回滚（有基线+自检双快照时可用——人眼验收 agent 的实际改动）
   const hasSnapshots = Boolean(task.agentBaseCommit && task.agentCommit);
@@ -150,12 +155,13 @@ export const PlanDocPanel: React.FC<{
     setPlanSteps(task.id, steps.done, steps.total, steps.current);
   }, [task.id, steps, setPlanSteps]);
 
-  // agent 提交自检 → 自动展开验收抽屉（人该看这里了）
+  // agent 提交自检 → 自动展开验收 + 交付物抽屉（人该看这里了）
   const awaitingHuman = Boolean(task.agentCompletedAt) && !task.completedAt;
   const isDoing = (task.status ?? 'requirement') === 'doing';
   useEffect(() => {
     if (awaitingHuman) {
       setOpenAcc(true);
+      setOpenDlv(true);
       setOpenSteps(false);
     }
   }, [awaitingHuman]);
@@ -425,7 +431,57 @@ export const PlanDocPanel: React.FC<{
               )}
             </Drawer>
 
-            {/* 抽屉 3：原文——计划 MD 查看/编辑（默认折叠） */}
+            {/* 抽屉 3：交付物——计划声明 + agent 登记的实际产物（可预览） */}
+            <Drawer
+              open={openDlv}
+              onToggle={() => setOpenDlv(v => !v)}
+              label="交付物"
+              summary={
+                task.deliverables?.length
+                  ? `${task.deliverables.length} 项`
+                  : awaitingHuman
+                    ? '未登记'
+                    : '待自检'
+              }
+            >
+              {task.plan?.deliverable ? (
+                <div className="td-plandoc__dlv-declared">计划声明：{task.plan.deliverable}</div>
+              ) : (
+                <div className="td-plandoc__dlv-missing">计划未声明交付物——交付执行前建议回讨论窗补上</div>
+              )}
+              {task.deliverables?.length ? (
+                <div className="td-plandoc__dlv-list">
+                  {task.deliverables.map(d => {
+                    const i = Math.max(d.lastIndexOf('\\'), d.lastIndexOf('/'));
+                    const name = i >= 0 ? d.slice(i + 1) : d;
+                    return (
+                      <div key={d} className="td-plandoc__dlv-item">
+                        <button
+                          className="td-plandoc__dlv-name"
+                          onClick={() => setPreviewPath(d)}
+                          title={`预览 ${d}`}
+                        >
+                          {name}
+                        </button>
+                        <button
+                          className="td-chip"
+                          onClick={() => workspaceAPI.revealInExplorer(d).catch(() => undefined)}
+                          title="在文件夹中显示"
+                        >
+                          <FolderOpen size={11} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="td-plandoc__dlv-missing">
+                  {awaitingHuman ? 'agent 未登记产物——可打回要求补交' : 'agent 自检时产物清单会出现在这里'}
+                </div>
+              )}
+            </Drawer>
+
+            {/* 抽屉 4：原文——计划 MD 查看/编辑（默认折叠） */}
             <Drawer
               open={openRaw}
               onToggle={() => setOpenRaw(v => !v)}
@@ -479,6 +535,9 @@ export const PlanDocPanel: React.FC<{
       >
         <pre className="td-plandoc__diff">{diffLoading ? '加载中…' : diffText}</pre>
       </Modal>
+
+      {/* 交付物预览（md/文本/图片/音视频/pdf 分流渲染） */}
+      <DeliverablePreview path={previewPath} onClose={() => setPreviewPath(null)} />
     </div>
   );
 };

@@ -13,7 +13,7 @@ import { HelpCircle, Send } from 'lucide-react';
 import { PromptInput } from '@/component-library';
 import ModelSelector from '@/shared/components/ModelSelector';
 import { useTodoStore } from '../../store/todoStore';
-import { planChatReply, generateBoardPlan, DELEGATION_RE } from '../../ai/consult';
+import { planChatReplyWithTools, generateBoardPlan, DELEGATION_RE } from '../../ai/consult';
 import { collectProjectSummary } from '../../ai/projectSummary';
 import { resolveDelegateCwd } from '../../ai/workspace';
 import type { PlanChatTurn } from '../../ai/consult';
@@ -173,7 +173,7 @@ export const PlanChatPanel: React.FC<{
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   /** 当前忙什么：chat=讨论一轮；plan=AI 判定就绪后第二段独立单发出计划 */
-  const [phase, setPhase] = useState<'chat' | 'plan'>('chat');
+  const [phase, setPhase] = useState<'chat' | 'plan' | 'tool'>('chat');
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // 讨论模型选择（'auto' = 本地 RWKV 优先 + primary 自动回退）；
@@ -183,20 +183,27 @@ export const PlanChatPanel: React.FC<{
 
   // 计划接地：按交付同款 cwd 解析链取工作区，采集项目概况（目录树/README/近期提交）
   // 注入规划材料——代码类任务的计划与真实目录一致，不再盲猜（每卡取一次）
-  const [wsSummary, setWsSummary] = useState<string | null>(null);
+  // 工作区（dir + 摘要 + 就绪位）：工具环与材料注入共用；ready=true 后自动开场才触发
+  const [ws, setWs] = useState<{ dir: string | null; summary: string | null; ready: boolean }>({
+    dir: null,
+    summary: null,
+    ready: false,
+  });
   useEffect(() => {
     let cancelled = false;
     const dir = resolveDelegateCwd(useTodoStore.getState().data, task.goalId);
     if (!dir) {
-      setWsSummary(null);
+      setWs({ dir: null, summary: null, ready: true });
       return;
     }
-    setWsSummary(null);
+    setWs({ dir, summary: null, ready: false });
     collectProjectSummary(dir)
-      .then(s => {
-        if (!cancelled) setWsSummary(s);
+      .then((s) => {
+        if (!cancelled) setWs({ dir, summary: s, ready: true });
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setWs({ dir, summary: null, ready: true });
+      });
     return () => {
       cancelled = true;
     };
@@ -215,6 +222,13 @@ export const PlanChatPanel: React.FC<{
    * + 卡片进「计划中」。已有草案时作为材料注入——后续讨论按反馈再触发即覆盖更新。
    * 选项点选与自由输入共用此通道。
    */
+  /** 计划落盘（send/kickoff 共用）：MD 写入 + 卡片更新（进行中卡保留 doing）。 */
+  const savePlan = async (plan: BoardPlan) => {
+    await invoke('todo_plan_set', { taskId: task.id, markdown: planToMarkdown(task, plan) });
+    // 进行中卡的讨论改计划：卡片留在进行中（agent 会话仍在跑），只更新计划
+    updateTask(task.id, { plan, status: isDoing ? 'doing' : 'planning' });
+  };
+
   const send = async (raw: string) => {
     const text = raw.trim();
     if (!text || busy) return;
@@ -224,9 +238,20 @@ export const PlanChatPanel: React.FC<{
     setPhase('chat');
     const nextChat = [...chat, { role: 'user' as const, text }];
     updateTask(task.id, { chat: nextChat });
+    // 工具环：讨论轮模型可请求只读查看项目文件（前端执行回注，上限 4 次）
     let turn: PlanChatTurn | null = null;
     try {
-      turn = await planChatReply(task.title, task.notes, nextChat, modelId, task.goalId, task.plan ?? null, wsSummary);
+      turn = await planChatReplyWithTools(
+        task.title,
+        task.notes,
+        nextChat,
+        modelId,
+        task.goalId,
+        task.plan ?? null,
+        ws.dir,
+        ws.summary,
+        () => setPhase('tool')
+      );
     } catch (e) {
       setBusy(false);
       setError(describeAiError(e));
@@ -248,16 +273,14 @@ export const PlanChatPanel: React.FC<{
       const fullChat = [...nextChat, aiMsg];
       updateTask(task.id, { chat: fullChat });
       setPhase('plan');
-      const plan = turn.plan ?? (await generateBoardPlan(task.title, task.notes, fullChat, modelId, task.goalId, task.plan ?? null, wsSummary));
+      const plan = turn.plan ?? (await generateBoardPlan(task.title, task.notes, fullChat, modelId, task.goalId, task.plan ?? null, ws.summary));
       setBusy(false);
       if (!plan) {
         setError('计划生成失败，请再发一条消息让我重新拟（或补充点细节）');
         return;
       }
       try {
-        await invoke('todo_plan_set', { taskId: task.id, markdown: planToMarkdown(task, plan) });
-        // 进行中卡的讨论改计划：卡片留在进行中（agent 会话仍在跑），只更新计划
-        updateTask(task.id, { plan, status: isDoing ? 'doing' : 'planning' });
+        await savePlan(plan);
       } catch (e) {
         setError(`计划保存失败：${e instanceof Error ? e.message : String(e)}`);
       }
@@ -279,15 +302,14 @@ export const PlanChatPanel: React.FC<{
     if (ready) {
       // 第二段：独立单发，专注出计划契约
       setPhase('plan');
-      const plan = await generateBoardPlan(task.title, task.notes, fullChat, modelId, task.goalId, task.plan ?? null, wsSummary);
+      const plan = await generateBoardPlan(task.title, task.notes, fullChat, modelId, task.goalId, task.plan ?? null, ws.summary);
       setBusy(false);
       if (!plan) {
         setError('计划生成失败，请再发一条消息让我重新拟（或补充点细节）');
         return;
       }
       try {
-        await invoke('todo_plan_set', { taskId: task.id, markdown: planToMarkdown(task, plan) });
-        updateTask(task.id, { plan, status: isDoing ? 'doing' : 'planning' });
+        await savePlan(plan);
       } catch (e) {
         setError(`计划保存失败：${e instanceof Error ? e.message : String(e)}`);
       }
@@ -295,6 +317,70 @@ export const PlanChatPanel: React.FC<{
       setBusy(false);
     }
   };
+
+  /** 新建即自动启动计划：空讨论 + 无计划 + 工作区就绪 → AI 先开口（用户拍板
+   *  2026-09-11「所有新卡自动启动」）。kickoffRef 防重（taskId 级 + busy 守卫），
+   *  失败走既有 error 展示。开场即 create_plan 也按落盘处理。 */
+  const kickoffRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (busy || !ws.ready) return;
+    if (chat.length > 0 || task.plan) return;
+    if (kickoffRef.current.has(task.id)) return;
+    kickoffRef.current.add(task.id);
+    void (async () => {
+      setBusy(true);
+      setPhase('chat');
+      setError(null);
+      try {
+        const turn = await planChatReplyWithTools(
+          task.title,
+          task.notes,
+          [],
+          modelId,
+          task.goalId,
+          null,
+          ws.dir,
+          ws.summary,
+          () => setPhase('tool')
+        );
+        if (turn?.tool === 'create_plan') {
+          setPhase('plan');
+          const plan =
+            turn.plan ??
+            (await generateBoardPlan(
+              task.title,
+              task.notes,
+              turn.reply ? [{ role: 'ai', text: turn.reply }] : [],
+              modelId,
+              task.goalId,
+              null,
+              ws.summary
+            ));
+          if (plan) await savePlan(plan);
+          return;
+        }
+        if (turn && (turn.reply || turn.questions?.length)) {
+          updateTask(task.id, {
+            chat: [
+              {
+                role: 'ai',
+                text: turn.reply || '这个想法想聊聊——',
+                ...(turn.questions?.length ? { questions: turn.questions } : {}),
+              },
+            ],
+          });
+        } else if (!turn) {
+          setError('AI 暂时没有回应，稍后再试');
+        }
+      } catch (e) {
+        setError(describeAiError(e));
+      } finally {
+        setBusy(false);
+      }
+    })();
+    // 依赖：ws 就绪/变更后重试；kickoffRef 内部守卫防重复
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- savePlan/updateTask 为稳定引用（store 动作 + 闭包 task）
+  }, [busy, ws.ready, ws.dir, ws.summary, chat.length, task.plan, task.id, task.title, task.notes, task.goalId, modelId]);
 
   /** 最新一条 AI 消息的选项卡才可点选（旧消息仅展示，防误触错位）。 */
   const canAnswer = !busy && chat.length > 0 && chat[chat.length - 1].role === 'ai';
@@ -313,7 +399,7 @@ export const PlanChatPanel: React.FC<{
         </span>
       </div>
       <div className="td-planchat__messages" ref={scrollRef}>
-        {chat.length === 0 && (
+        {chat.length === 0 && !busy && (
           <div className="td-planchat__empty">说说你想怎么做这件事，AI 会帮你把需求聊清楚</div>
         )}
         {chat.map((m, i) => (
@@ -327,7 +413,7 @@ export const PlanChatPanel: React.FC<{
         {busy && (
           <div className="td-planchat__msg is-ai">
             <div className="td-planchat__bubble is-typing">
-              {phase === 'plan' ? '正在拟定计划…' : '思考中…'}
+              {phase === 'plan' ? '正在拟定计划…' : phase === 'tool' ? '翻阅项目文件…' : '思考中…'}
             </div>
           </div>
         )}

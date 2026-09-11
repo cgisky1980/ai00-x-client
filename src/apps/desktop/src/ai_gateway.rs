@@ -7,11 +7,15 @@
 //! 分流策略（按请求 `model` 字段）：
 //! - `ai00-auto`（默认）→ SmartRouter（本地 RWKV classify R0-R3）：
 //!   R0/R1 → 本地 RWKV；R2/R3 → ai00-salvo（primary 模型转发）
+//! - 带 tools 且全部在本地白名单 → 混合工具循环（M1.3，默认开）：工具轮
+//!   本地 RWKV 零状态临时会话，收敛后远端基于折叠历史合成终答
 //! - `rwkv-local`  → 强制本地 RWKV
 //! - `ai00-salvo`  → 强制远程转发（primary 模型）
 //! - 其他引用（`ai00s:<子模型>` / `gguf-local:<路径>` / 自定义 id）→ 按引用
 //!   经 client_factory 解析转发——与讨论通道（plugin_ai_complete）同一解析链，
 //!   dsh 执行会话可以和策讨论选到完全相同的模型，不再静默并入智能路由。
+//!
+//! 所有远程转发在 `forward_to_ai00_salvo` 入口做工具段历史折叠（M1.3）。
 //!
 //! 鉴权：`X-Ai00-Internal-Token` 头匹配 `AI00_S_INTERNAL_TOKEN`（回退默认值）。
 
@@ -61,10 +65,11 @@ pub fn router() -> Router {
 
 #[handler]
 async fn list_models(res: &mut Response) {
-    // 静态三逻辑模型 + 用户已配置的具体模型引用（讨论通道同源，dsh 侧
-    // 模型选择器可见可选；桥按 id 透传回网关按引用解析）
+    // 静态逻辑模型 + 用户已配置的具体模型引用（讨论通道同源，dsh 侧
+    // 模型选择器可见可选；桥按 id 透传回网关按引用解析）。
+    // ai00-auto 不再广告（弹层去 auto）：主会话钉远端、编排 worker 内部
+    // 使用该 id 走 SmartRouter，分流语义保留（存量会话/aux 兼容）。
     let mut data = vec![
-        json!({"id": MODEL_AUTO,   "object": "model", "name": "Ai00-X Auto (smart routing)", "contextWindow": 128000, "owned_by": "ai00-x"}),
         json!({"id": MODEL_RWKV,   "object": "model", "name": "Ai00-X Local RWKV", "contextWindow": 16384, "owned_by": "ai00-x"}),
         json!({"id": MODEL_REMOTE, "object": "model", "name": "Ai00-X Salvo (ai00-x.com)", "contextWindow": 128000, "owned_by": "ai00-x"}),
     ];
@@ -74,7 +79,8 @@ async fn list_models(res: &mut Response) {
             .await
         {
             for m in &config.ai.models {
-                if m.id.is_empty() || m.id == MODEL_RWKV {
+                // "ai00s" 裸别名条目与 ai00-salvo（primary 槽）语义重叠，不下发
+                if m.id.is_empty() || m.id == MODEL_RWKV || m.id == MODEL_AUTO || m.id == "ai00s" {
                     continue;
                 }
                 // contextWindow 随目录下发——dsh 桥透传给引擎，压缩预算据此计算
@@ -90,6 +96,94 @@ async fn list_models(res: &mut Response) {
         }
     }
     res.body(json!({"object": "list", "data": data}).to_string());
+}
+
+/// 从破损 JSON 字符串里抢救第一个平衡的对象/数组（处理 `{...}{...}` 拼接、
+/// 前导垃圾；不平衡输入放弃）。web_extract 本地筛选 JSON 解析复用。
+/// 首个候选 parse 失败时继续尝试后续候选（模型可能先复述模板再输出真 JSON）。
+pub(crate) fn salvage_balanced_json(s: &str) -> Option<Value> {
+    let bytes = s.as_bytes();
+    let mut start = 0;
+    while start < bytes.len() {
+        // 找下一个 '{' / '[' 候选起点
+        let i = bytes[start..]
+            .iter()
+            .position(|&b| b == b'{' || b == b'[')
+            .map(|p| start + p)?;
+        let mut depth = 0i32;
+        let mut in_str = false;
+        let mut esc = false;
+        let mut balanced_end = None;
+        for (j, &b) in bytes[i..].iter().enumerate() {
+            if in_str {
+                if esc {
+                    esc = false;
+                } else if b == b'\\' {
+                    esc = true;
+                } else if b == b'"' {
+                    in_str = false;
+                }
+                continue;
+            }
+            match b {
+                b'"' => in_str = true,
+                b'{' | b'[' => depth += 1,
+                b'}' | b']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        balanced_end = Some(i + j);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        match balanced_end {
+            Some(end) => {
+                if let Ok(v) = serde_json::from_str(&s[i..=end]) {
+                    return Some(v);
+                }
+                // 该候选不是合法 JSON（如模板复述）：从下一字节继续找候选
+                start = i + 1;
+            }
+            None => return None, // 不平衡：没有更多候选
+        }
+    }
+    None
+}
+
+/// 入站清洗历史消息里的 `tool_calls[].function.arguments`：llama-server 渲染
+/// 模板前会把 string arguments 严格 parse 成 JSON，小模型偶发拼接/截断输出
+/// 会 500 毒死整个会话（2026-09-10 实录）。合法 string 原样保留（OpenAI 规范
+/// arguments 为 string，远程端点要求）；仅修复非法值——抢救失败则替换 "{}"。
+/// 返回修复条数。
+fn sanitize_tool_call_args(body: &mut Value) -> usize {
+    let Some(messages) = body.get_mut("messages").and_then(|v| v.as_array_mut()) else {
+        return 0;
+    };
+    let mut fixed = 0;
+    for message in messages.iter_mut() {
+        let Some(calls) = message.get_mut("tool_calls").and_then(|v| v.as_array_mut()) else {
+            continue;
+        };
+        for call in calls.iter_mut() {
+            let Some(func) = call.get_mut("function") else {
+                continue;
+            };
+            let Some(raw) = func.get("arguments").and_then(|v| v.as_str()) else {
+                continue; // 已是 object 或缺失——不动
+            };
+            if serde_json::from_str::<Value>(raw).is_ok() {
+                continue; // 合法 string：保持类型不变
+            }
+            let repaired = salvage_balanced_json(raw)
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "{}".to_string());
+            func["arguments"] = json!(repaired);
+            fixed += 1;
+        }
+    }
+    fixed
 }
 
 #[handler]
@@ -108,7 +202,15 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
     }
 
     let body: Value = match req.parse_json().await {
-        Ok(v) => v,
+        Ok(mut v) => {
+            // 历史里小模型吐出的坏 tool-call 参数会毒死 llama-server 模板
+            // 渲染（严格 parse 500，一条脏数据败掉整个会话）——入站统一修复
+            let fixed = sanitize_tool_call_args(&mut v);
+            if fixed > 0 {
+                log::warn!("[ai-gateway] sanitized {fixed} malformed tool_call argument(s)");
+            }
+            v
+        }
         Err(e) => {
             res.status_code(StatusCode::BAD_REQUEST);
             res.body(json!({"error": {"message": format!("invalid json: {e}")}}).to_string());
@@ -132,6 +234,16 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
         .get("tools")
         .and_then(|v| v.as_array())
         .is_some_and(|t| !t.is_empty());
+
+    // 混合工具循环（M1.3）：工具轮走本地 RWKV 零状态临时会话（不传
+    // session_id，引擎不写会话缓存——主会话状态零污染零残留，隔离由构造
+    // 保证）；本地收敛出结论草稿 → 远端基于折叠历史合成终答。
+    // 全本地闭环工具（web 提取/长文总结）终答也本地直出（质量门把关）。
+    // `AI00X_TOOL_LOOP_LOCAL=0` 回退旧路径（白名单 + SmartRouter / 强制远端）。
+    if hybrid_eligible(&model, &body, has_tools) {
+        hybrid_tool_loop(body, &model, res).await;
+        return;
+    }
     // 具体模型引用（非三个保留逻辑 id）→ 按引用解析转发，不参与智能路由
     let is_specific_ref = !model.is_empty() && model != MODEL_AUTO;
     let use_local = match model.as_str() {
@@ -183,10 +295,7 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
     if use_local {
         // 本地失败（引擎未就绪/推理错误，且发生在任何 SSE 字节写出之前）→
         // 自动降级远程，请求不失败——aux 误路由无感
-        if local_rwkv_sse(body.clone(), session_id.clone(), res)
-            .await
-            .is_err()
-        {
+        if local_rwkv_sse(body.clone(), res).await.is_err() {
             log::warn!("[ai-gateway] local branch failed -> fallback to remote");
             forward_to_ai00_salvo(body, res, &model).await;
         }
@@ -195,14 +304,26 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
     }
 }
 
-/// 本地工具白名单（M1.2）：只放行只读 + 通知类 ai00_* 工具——本地分支即使
-/// 工具调用解析失败也不会产生破坏性副作用（写知行/换壁纸/XP 全部排除）。
+/// 本地工具白名单：只放行只读 + 通知类工具——本地分支即使工具调用解析失败
+/// 也不会产生破坏性副作用（写知行/换壁纸/XP 全部排除）。
+/// 两部分同源约定（改动须双向同步）：
+/// - ai00_*：桌面业务只读工具（M1.2）
+/// - dsh 只读六件套：与 dsh_manager.rs ORCHESTRATION_PATCH 的
+///   research_worker toolFilter.allow 完全一致——编排架构里调研 worker
+///   （model=ai00-auto）靠本白名单获得 hybrid_tool_loop 本地资格
 const LOCAL_TOOL_WHITELIST: &[&str] = &[
     "ai00_notify",
     "ai00_todo_read",
     "ai00_plan_read",
     "ai00_focus_log",
     "ai00_wallpaper_projects",
+    // dsh 只读六件套（research_worker 允许集）
+    "read",
+    "read_image",
+    "glob",
+    "grep",
+    "web_fetch",
+    "web_search",
 ];
 
 /// 本地工具路径开关（env `AI00X_DSH_LOCAL_TOOLS=1`；默认关，M1.1 真机验证
@@ -213,7 +334,19 @@ fn local_tools_enabled() -> bool {
         .unwrap_or(false)
 }
 
-/// 请求的 tools 是否全部在本地白名单内。
+/// 混合工具循环入口判定（纯函数，便于单测）：仅智能路由语义（空 / ai00-auto）
+/// 才允许进入本地工具循环；显式选型（rwkv-local=强制本地 / ai00-salvo=强制远端 /
+/// 具体模型引用）一律尊重，不被本地循环劫持（2026-09-11 审查 P0：原入口不查
+/// model，显式远端 + 全白名单工具会被本地接管终答，rwkv-local 会被远端接管）。
+fn hybrid_eligible(model: &str, body: &Value, has_tools: bool) -> bool {
+    let auto_route = model.is_empty() || model == MODEL_AUTO;
+    has_tools
+        && auto_route
+        && crate::tool_session::tool_loop_local_enabled()
+        && (tools_all_local(body) || crate::tool_session::tools_all_local_final(body))
+}
+
+/// 请求的 tools 是否全部在本地白名单内（含全本地闭环工具——工具轮同样本地）。
 fn tools_all_local(body: &Value) -> bool {
     body.get("tools")
         .and_then(|v| v.as_array())
@@ -223,7 +356,10 @@ fn tools_all_local(body: &Value) -> bool {
                     tool.get("function")
                         .and_then(|f| f.get("name"))
                         .and_then(|n| n.as_str())
-                        .map(|n| LOCAL_TOOL_WHITELIST.contains(&n))
+                        .map(|n| {
+                            LOCAL_TOOL_WHITELIST.contains(&n)
+                                || crate::tool_session::LOCAL_FINAL_TOOLS.contains(&n)
+                        })
                         .unwrap_or(false)
                 })
         })
@@ -269,14 +405,14 @@ fn last_user_text(body: &Value) -> String {
 // ---------------------------------------------------------------------------
 
 /// 本地 RWKV：OpenAI 请求 → RWKV prompt → pool_infer 流 → OpenAI SSE chunks。
+/// 零状态推理（session_id=None 全量 prefill，不写会话缓存）——带会话 id + 全量
+/// prompt 会命中引擎缓存按增量续写，历史被双重喂入已演化 State → 输出错乱
+/// （M1.3 §2.4 留观项转正修复）。恢复点语义 = 折叠转录，RWKV 分块 prefill
+/// 开销可忽略。
 ///
 /// 返回 `Err` = 尚未写出任何 SSE 字节的失败（引擎未就绪/推理错误）——
 /// 调用方据此降级远程；一旦开始流式输出则只能走流内错误事件，返回 `Ok`。
-async fn local_rwkv_sse(
-    body: Value,
-    session_id: Option<String>,
-    res: &mut Response,
-) -> Result<(), String> {
+async fn local_rwkv_sse(body: Value, res: &mut Response) -> Result<(), String> {
     let messages = body
         .get("messages")
         .and_then(|v| v.as_array())
@@ -292,7 +428,19 @@ async fn local_rwkv_sse(
         .get("temperature")
         .and_then(|v| v.as_f64())
         .unwrap_or(1.0) as f32;
-    let top_p = body.get("top_p").and_then(|v| v.as_f64()).unwrap_or(0.3) as f32;
+    // 无工具对话保持请求原值；带工具时套用验证配方（top_p≈0.1 近贪心，
+    // presence=frequency=0.5 → JSON 骨架遵循 6/6，参考 2026-08-27 实验）
+    let has_tools = body
+        .get("tools")
+        .and_then(|v| v.as_array())
+        .is_some_and(|t| !t.is_empty());
+    let top_p = body
+        .get("top_p")
+        .and_then(|v| v.as_f64())
+        .map(|v| v as f32)
+        .unwrap_or(if has_tools { 0.1 } else { 0.3 });
+    let presence = if has_tools { 0.5 } else { 0.3 };
+    let frequency = if has_tools { 0.5 } else { 0.3 };
 
     let prompt = openai_messages_to_rwkv_prompt(&messages, tools.as_deref());
     let is_instruction_format = prompt.starts_with("Instruction: ");
@@ -313,11 +461,11 @@ async fn local_rwkv_sse(
         max_tokens,
         top_p,
         0,
-        0.3,
-        0.3,
+        presence,
+        frequency,
         0.996,
         Some(stop.clone()),
-        session_id,
+        None, // session_id：零状态全量 prefill，不写会话缓存——避免双重喂入
         stream,
         false,
         String::new(),
@@ -346,7 +494,6 @@ async fn local_rwkv_sse(
     // 补发 tool_call_delta 会让 text 块和 tool-call 块并存，污染 dsh 上下文。
     let (tx, rx_body) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
     let model_name = MODEL_RWKV.to_string();
-    let has_tools = tools.as_deref().is_some_and(|t| !t.is_empty());
 
     tokio::spawn(async move {
         let mut full_text = String::new();
@@ -424,16 +571,302 @@ async fn local_rwkv_sse(
 }
 
 // ---------------------------------------------------------------------------
+// 混合工具循环（M1.3）：本地工具轮 + 远端终答合成
+// ---------------------------------------------------------------------------
+
+/// 单轮本地工具推理结果。
+enum ToolRoundOutcome {
+    /// 模型产出工具调用（```json 协议解析成功）。
+    ToolCall { name: String, arguments: String },
+    /// 模型产出纯文本——工具循环收敛信号，作为终答草稿。
+    /// hit_len = 因 max_tokens 收尾（Done.stop_sequence 为 None），供质量门判定截断。
+    Draft { text: String, hit_len: bool },
+}
+
+/// 混合工具循环编排：工具轮本地 RWKV（零状态临时会话），收敛后远端终答。
+/// 本地失败整轮降级远端循环（旧路径），请求不失败。
+async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response) {
+    let rounds = crate::tool_session::count_turn_rounds(
+        body.get("messages")
+            .and_then(|v| v.as_array())
+            .map(|m| m.as_slice())
+            .unwrap_or(&[]),
+    );
+    let max_rounds = crate::tool_session::tool_loop_max_rounds();
+    if rounds > max_rounds {
+        // 熔断防工具死循环：交接远端续接工具循环（保留 tools，与本地失败
+        // 降级路径行为对齐——远端基于进行中工具段自然续跑直到收敛）。
+        // 防死循环职责移交远端模型，与纯远端路径一致，风险不增。
+        log::warn!(
+            "[ai-gateway] tool loop exceeded {max_rounds} rounds, handing off to remote loop"
+        );
+        forward_to_ai00_salvo(body, res, model).await;
+        return;
+    }
+
+    match local_tool_round(&body, None).await {
+        Ok(ToolRoundOutcome::ToolCall { name, arguments }) => {
+            log::info!("[ai-gateway] tool round {rounds}: local -> call {name}");
+            let (tx, rx_body) =
+                tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
+            tokio::spawn(async move {
+                let _ = tx.send(Ok(Bytes::from(sse_tool_call_delta(
+                    MODEL_RWKV, &name, &arguments,
+                ))));
+                let _ = tx.send(Ok(Bytes::from(sse_finish(MODEL_RWKV, "tool_calls"))));
+                let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n")));
+            });
+            res.headers_mut().insert(
+                salvo::http::header::CONTENT_TYPE,
+                salvo::http::HeaderValue::from_static("text/event-stream"),
+            );
+            res.headers_mut().insert(
+                salvo::http::header::CACHE_CONTROL,
+                salvo::http::HeaderValue::from_static("no-cache"),
+            );
+            res.stream(tokio_stream::wrappers::UnboundedReceiverStream::new(
+                rx_body,
+            ));
+        }
+        Ok(ToolRoundOutcome::Draft { text, hit_len }) => {
+            let is_local_final = crate::tool_session::tools_all_local_final(&body);
+            match crate::tool_session::quality_gate(&text, hit_len) {
+                Ok(()) if is_local_final => {
+                    // 全本地闭环工具（web 提取/长文总结）：草稿即终答，直出不绕远端
+                    log::info!(
+                        "[ai-gateway] tool round {rounds}: local-final answer {} chars (no remote)",
+                        text.chars().count()
+                    );
+                    stream_local_final(res, &text);
+                }
+                Ok(()) => {
+                    log::info!(
+                        "[ai-gateway] tool round {rounds}: local -> draft {} chars, composing remote final",
+                        text.chars().count()
+                    );
+                    compose_final_remote(body, Some(&text), model, res).await;
+                }
+                Err(problems) => {
+                    // 质量门拦截：换采样（top_p 0.5）本地重试一次，仍不合格升级远端（无草稿）
+                    log::warn!(
+                        "[ai-gateway] draft failed quality gate: {problems:?}, retrying top_p=0.5"
+                    );
+                    let retry = match local_tool_round(&body, Some(0.5)).await {
+                        Ok(ToolRoundOutcome::Draft {
+                            text: retry_text,
+                            hit_len: retry_hit,
+                        }) if crate::tool_session::quality_gate(&retry_text, retry_hit).is_ok() => {
+                            Some(retry_text)
+                        }
+                        _ => None,
+                    };
+                    match retry {
+                        Some(retry_text) if is_local_final => {
+                            log::info!(
+                                "[ai-gateway] retry passed gate: local-final answer {} chars",
+                                retry_text.chars().count()
+                            );
+                            stream_local_final(res, &retry_text);
+                        }
+                        Some(retry_text) => {
+                            compose_final_remote(body, Some(&retry_text), model, res).await;
+                        }
+                        None => {
+                            log::warn!(
+                                "[ai-gateway] retry failed gate, upgrading to remote (no draft)"
+                            );
+                            compose_final_remote(body, None, model, res).await;
+                        }
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            // 本地推理失败：整轮降级远端循环（forward 入口折叠闭合段，
+            // 进行中段原样保留，远端续接工具循环），用户无感。
+            log::warn!("[ai-gateway] local tool round failed ({e}), fallback to remote loop");
+            forward_to_ai00_salvo(body, res, model).await;
+        }
+    }
+}
+
+/// 单轮本地工具推理：折叠闭合历史段后零状态全量 prefill（不传 session_id，
+/// 不写会话缓存），非流式全缓冲——工具轮输出必须先判定类型再决定走向。
+/// 采样 = 验证配方（2026-08-27 JSON 遵循度实验 6/6）：top_p 默认 0.1 近贪心
+/// + presence/frequency 0.5；`top_p_override` 供质量门重试换采样探索（0.5）。
+async fn local_tool_round(
+    body: &Value,
+    top_p_override: Option<f32>,
+) -> Result<ToolRoundOutcome, String> {
+    let messages = body
+        .get("messages")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let tools = body.get("tools").and_then(|v| v.as_array()).cloned();
+    let max_tokens = body
+        .get("max_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(512) as usize;
+    let top_p = top_p_override
+        .or_else(|| body.get("top_p").and_then(|v| v.as_f64()).map(|v| v as f32))
+        .unwrap_or(0.1);
+
+    let folded = crate::tool_session::fold_tool_segments(&messages, false);
+    let prompt = openai_messages_to_rwkv_prompt(&folded, tools.as_deref());
+
+    // stop 序列与 local_rwkv_sse 对齐（带工具时恒为对话格式，无 Instruction 分支）
+    let stop = vec![
+        "\n\nUser:".to_string(),
+        "\n\nSystem:".to_string(),
+        "\n\nInstruction:".to_string(),
+        "\n\nInput:".to_string(),
+    ];
+    let mut rx = pool_infer(
+        prompt,
+        max_tokens,
+        top_p,
+        0,
+        0.5,
+        0.5,
+        0.996,
+        Some(stop),
+        None, // session_id：零状态临时会话，不写会话缓存
+        false,
+        false,
+        String::new(),
+    )
+    .await
+    .map_err(|e| {
+        if e.contains("not initialized") {
+            // 与 local_rwkv_sse 一致：后台触发 lazy-init，本请求降级
+            tokio::spawn(async move {
+                if let Err(e) = crate::rwkv_llm::init_engine_internal(None, None, None).await {
+                    log::warn!("[ai-gateway] RWKV lazy-init failed: {e}");
+                }
+            });
+        }
+        format!("local tool round: {e}")
+    })?;
+
+    let mut full_text = String::new();
+    let mut hit_len = false;
+    while let Some(event) = rx.recv().await {
+        match event {
+            InferenceEvent::Token(t) => full_text.push_str(&t),
+            InferenceEvent::Done {
+                text,
+                stop_sequence,
+                ..
+            } => {
+                full_text = text;
+                // stop_sequence 为 None = 因 max_tokens 收尾（截断），供质量门判定
+                hit_len = stop_sequence.is_none();
+                break;
+            }
+            InferenceEvent::Error(e) => return Err(e),
+        }
+    }
+
+    if let Some((name, arguments)) = try_extract_tool_call(&full_text) {
+        Ok(ToolRoundOutcome::ToolCall { name, arguments })
+    } else {
+        Ok(ToolRoundOutcome::Draft {
+            text: full_text.trim().to_string(),
+            hit_len,
+        })
+    }
+}
+
+/// 全本地闭环终答直出：草稿文本以 SSE 流式形状一次性下发（不绕远端）。
+fn stream_local_final(res: &mut Response, text: &str) {
+    let (tx, rx_body) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
+    let text = text.to_string();
+    tokio::spawn(async move {
+        let _ = tx.send(Ok(Bytes::from(sse_text_delta(MODEL_RWKV, &text))));
+        let _ = tx.send(Ok(Bytes::from(sse_usage(
+            MODEL_RWKV,
+            0,
+            text.chars().count(),
+        ))));
+        let _ = tx.send(Ok(Bytes::from(sse_finish(MODEL_RWKV, "stop"))));
+        let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n")));
+    });
+    res.headers_mut().insert(
+        salvo::http::header::CONTENT_TYPE,
+        salvo::http::HeaderValue::from_static("text/event-stream"),
+    );
+    res.headers_mut().insert(
+        salvo::http::header::CACHE_CONTROL,
+        salvo::http::HeaderValue::from_static("no-cache"),
+    );
+    res.stream(tokio_stream::wrappers::UnboundedReceiverStream::new(
+        rx_body,
+    ));
+}
+
+/// 远端终答合成：全部工具段折叠（tools 摘除，循环终止），本地草稿作为
+/// 组织语言的参考注入末位 user 消息。
+async fn compose_final_remote(body: Value, draft: Option<&str>, model: &str, res: &mut Response) {
+    let mut body = body;
+    if let Some(obj) = body.as_object_mut() {
+        let messages = obj
+            .get("messages")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let mut folded = crate::tool_session::fold_tool_segments(&messages, true);
+        if let Some(draft) = draft.map(str::trim).filter(|d| !d.is_empty()) {
+            folded.push(json!({
+                "role": "user",
+                "content": format!(
+                    "（工具已执行完毕。请基于以上工具结果直接给出最终答复，不要再调用任何工具。以下为本地草稿，仅供组织语言参考：）\n{draft}"
+                ),
+            }));
+        }
+        obj.insert("messages".to_string(), json!(folded));
+        obj.remove("tools");
+        obj.remove("tool_choice");
+    }
+    forward_to_ai00_salvo(body, res, model).await;
+}
+
+// ---------------------------------------------------------------------------
 // 远程转发分支（ai00-salvo primary / 具体模型引用解析转发）
 // ---------------------------------------------------------------------------
 
+/// 本地失败降级目标：不可解析为远端客户端的引用（本地/智能路由逻辑 id）
+/// 统一落到 primary 槽；具体远端引用（ai00s:xxx / 自定义 id / ai00-salvo）原样保留。
+fn remote_fallback_ref(model: &str) -> &str {
+    match model {
+        MODEL_RWKV | MODEL_AUTO => MODEL_REMOTE,
+        _ => model,
+    }
+}
+
 /// 转发到指定模型引用（OpenAI 兼容 SSE 透传）：`ai00-salvo` → primary 槽；
 /// 其他引用（ai00s:/gguf-local:/自定义 id）按 client_factory 同一解析链直达。
+/// 本地失败降级统一走此入口——逻辑 id（rwkv-local/ai00-auto）先经
+/// [`remote_fallback_ref`] 映射，保证「本地失败自动降级远端」真实成立。
 async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response, model_ref: &str) {
-    let resolve_key = if model_ref == MODEL_REMOTE {
-        "primary"
-    } else {
-        model_ref
+    // 历史折叠（M1.3）：已闭合工具段 → 紧凑结论行（省 token、防长会话漂移）；
+    // 进行中段原样保留——llama-server 需原始 tool 消息续接工具循环。幂等。
+    if let Some(obj) = body.as_object_mut() {
+        if let Some(messages) = obj.get("messages").and_then(|v| v.as_array()) {
+            let folded = crate::tool_session::fold_tool_segments(messages, false);
+            if folded.len() != messages.len() {
+                log::info!(
+                    "[ai-gateway] folded tool segments: {} -> {} messages",
+                    messages.len(),
+                    folded.len()
+                );
+            }
+            obj.insert("messages".to_string(), json!(folded));
+        }
+    }
+    let resolve_key = match remote_fallback_ref(model_ref) {
+        MODEL_REMOTE => "primary",
+        other => other,
     };
     // 恢复登录态：dsh 侧请求可能先于任何前端登录流程到达，
     // AI00S_AUTH_TOKEN 是内存态——从 vault 兜底恢复（幂等，已有则秒回）。
@@ -650,7 +1083,7 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
 }
 
 /// 取消息文本（兼容 string content 与数组 content 的 text 部分）。
-fn message_text(msg: &Value) -> Option<String> {
+pub(crate) fn message_text(msg: &Value) -> Option<String> {
     match msg.get("content")? {
         Value::String(s) => Some(s.clone()),
         Value::Array(parts) => {
@@ -876,6 +1309,36 @@ mod tests {
     }
 
     #[test]
+    fn hybrid_gate_respects_explicit_model() {
+        let body = json!({
+            "tools": [{"type":"function","function":{"name":"ai00_todo_read","parameters":{}}}]
+        });
+        // 智能路由语义（空 / ai00-auto）+ 全白名单工具 → 进混合循环
+        assert!(hybrid_eligible("", &body, true));
+        assert!(hybrid_eligible(MODEL_AUTO, &body, true));
+        // 显式选型一律不进：rwkv-local 保持纯本地，ai00-salvo/具体引用纯远端
+        assert!(!hybrid_eligible(MODEL_RWKV, &body, true));
+        assert!(!hybrid_eligible(MODEL_REMOTE, &body, true));
+        assert!(!hybrid_eligible("ai00s:GLM-4.7-Flash", &body, true));
+        // 无工具不进
+        assert!(!hybrid_eligible(MODEL_AUTO, &body, false));
+    }
+
+    #[test]
+    fn salvage_skips_invalid_template_echo() {
+        // 模型先复述非法模板（"true或false" 不是合法 JSON），随后输出真 JSON：
+        // 旧实现首候选 parse 失败即放弃，新实现须跳到后续候选。
+        let raw = r#"{"relevant":true或false,"summary":"要点"} 然后是 {"relevant":true,"summary":"RWKV7 是新一代 RNN 架构"}"#;
+        let v = salvage_balanced_json(raw).expect("should salvage second candidate");
+        assert_eq!(v.get("relevant").and_then(|b| b.as_bool()), Some(true));
+        // 全无可抢救候选 → None
+        assert!(salvage_balanced_json("没有任何 JSON").is_none());
+        // 首候选即合法 → 直接命中
+        let v = salvage_balanced_json(r#"前缀 {"a":1}"#).expect("first candidate");
+        assert_eq!(v.get("a").and_then(|n| n.as_i64()), Some(1));
+    }
+
+    #[test]
     fn world_format_for_multi_turn_with_tools() {
         let messages = vec![
             json!({"role": "system", "content": "You are helpful"}),
@@ -965,5 +1428,19 @@ mod tests {
         // 注：CI 环境不设 AI00X_DSH_LOCAL_TOOLS；若显式设为 0/false 也应关
         std::env::remove_var("AI00X_DSH_LOCAL_TOOLS");
         assert!(!local_tools_enabled());
+    }
+
+    #[test]
+    fn remote_fallback_maps_logic_ids_to_primary() {
+        // 本地/智能路由逻辑 id 不可被远端解析 → 统一落 primary 槽
+        assert_eq!(remote_fallback_ref(MODEL_RWKV), MODEL_REMOTE);
+        assert_eq!(remote_fallback_ref(MODEL_AUTO), MODEL_REMOTE);
+        // ai00-salvo 自身与具体远端引用原样保留
+        assert_eq!(remote_fallback_ref(MODEL_REMOTE), MODEL_REMOTE);
+        assert_eq!(
+            remote_fallback_ref("ai00s:deepseek-v3"),
+            "ai00s:deepseek-v3"
+        );
+        assert_eq!(remote_fallback_ref("my-custom-model"), "my-custom-model");
     }
 }

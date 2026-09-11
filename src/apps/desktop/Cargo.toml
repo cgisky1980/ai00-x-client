@@ -29,6 +29,9 @@ ai00-x-events = { path = "../../crates/events" }
 ai00-x-acestep = { path = "../../crates/acestep" }
 sa3-rs = { path = "../../crates/sa3" }
 
+# 划词翻译：源语言检测（纯 Rust，离线）
+whatlang = "0.16"
+
 # Tauri
 tauri = { workspace = true }
 tauri-plugin-opener = { workspace = true }
@@ -60,6 +63,8 @@ thiserror = "1.0"
 dashmap = { workspace = true }
 arc-swap = "1"
 futures = { workspace = true }
+htmd = { workspace = true }
+text-splitter = "0.30.1"
 async-trait = { workspace = true }
 salvo = { workspace = true }
 ai00-run = { workspace = true }
@@ -118,6 +123,8 @@ base64 = { workspace = true }
 fx-torrent = { version = "0.9", features = ["ed25519-dalek"] }
 # fx-torrent 的 Callback trait 需要 fx-callback 在作用域内才能调用 torrent.subscribe()
 fx-callback = "2.0"
+uiautomation = "0.25.1"
+tauri-plugin-clipboard-manager = "2.3.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.9"
@@ -149,7 +156,8 @@ windows = { version = "0.62.2", features = [
   "Win32_System_Com",
   "Win32_System_LibraryLoader",
   "Win32_System_SystemInformation",
-  "Win32_System_Threading",
+  "Win32_System_JobObjects",
+    "Win32_System_Threading",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",

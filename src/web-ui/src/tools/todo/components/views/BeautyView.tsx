@@ -3,7 +3,8 @@
  *
  * 竖列二级导航（单组「美化」：主题外观/点击特效/智能桌面/桌面插件）+ 内容区；
  * 复用 SettingsView 的 SecondaryNavLayout 外壳与设置内容组件（getSettingsTabContent）。
- * 壁纸（wallpaper 独立场景）暂不含，属后续迁移步骤。
+ * 壁纸为独立场景（scenes/wallpaper，壁纸工坊 agent 已摘除待插件化）暂不含，
+ * 属后续迁移步骤。
  */
 import React, { useState } from 'react';
 import { MousePointerClick, MonitorSmartphone, Palette, Puzzle } from 'lucide-react';

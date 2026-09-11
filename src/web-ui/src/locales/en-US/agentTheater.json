@@ -15,13 +15,13 @@
     "gone": "This session has ended"
   },
   "status": {
-    "appear": "🛠 Started",
-    "working": "⚙️ Working",
-    "thinking": "💭 Deep thinking",
-    "trouble": "😵 In trouble",
-    "milestone": "✨ Progress",
-    "deliver-big": "🎉 Delivered",
-    "deliver-quiet": "😮‍💨 Wrapped up",
+    "appear": "🛠 Curtain up",
+    "working": "⚙️ Hard at work",
+    "thinking": "💭 Rehearsing",
+    "trouble": "😵 Mishap on stage",
+    "milestone": "✨ A round of applause",
+    "deliver-big": "🎉 Final curtain",
+    "deliver-quiet": "😮‍💨 Taking a bow",
     "leaving": "👋 Leaving"
   },
   "outcome": {
@@ -54,9 +54,9 @@
     "stop": "Stop"
   },
   "live": {
-    "thinking": "💭 Thinking",
-    "acceptance": "📋 To verify",
-    "alert": "❌ Failed",
+    "thinking": "💭 Rehearsing backstage",
+    "acceptance": "🎬 Awaiting review",
+    "alert": "💥 Mishap on stage",
     "idle_tool": ""
   }
 }

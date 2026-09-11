@@ -9,7 +9,7 @@
 export const AGENT_NODE_VERSION = '24.20.0';
 
 /** 钉死的 dsh npm 版本（锁版本升级走受控机制） */
-export const AGENT_DSH_NPM_SPEC = '@deepseek-ai/dsh@0.1.1-rc.2';
+export const AGENT_DSH_NPM_SPEC = '@deepseek-ai/dsh@0.1.5-rc.2';
 
 /** dsh NPM 镜像（国内加速） */
 export const AGENT_NPM_REGISTRY = 'https://registry.npmmirror.com';

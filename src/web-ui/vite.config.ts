@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import { createRequire } from "module";
 import { versionInjectionPlugin } from "./vite.config.version-plugin";
+// file-viewer（交付物预览内核）：自动发现已装 preset 并拷贝 Worker/WASM/字体资产
+import { fileViewerRenderers } from "@file-viewer/vite-plugin";
 
 const require = createRequire(import.meta.url);
 // 本地端口唯一来源：packages/shared/server-endpoints.json（与 Rust/TS 由同一脚本生成）
@@ -17,7 +19,8 @@ export default defineConfig(({ mode, command }) => {
   return {
     plugins: [
       react(),
-      versionInjectionPlugin()
+      versionInjectionPlugin(),
+      fileViewerRenderers({ copyAssets: true }),
     ],
 
     base: '/main/',

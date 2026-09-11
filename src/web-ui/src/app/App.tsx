@@ -13,6 +13,7 @@ import { PlayerEngine } from '@/tools/acestep/components/PlayerEngine';
 import { startPlayerBridge } from '@/tools/acestep/services/PlayerBridge';
 import { AgentTheaterWidget } from './components/AgentTheater/AgentTheaterWidget';
 import { SessionChatPanels } from './components/AgentTheater/SessionChatPanels';
+import { TranslatePopup } from './components/Translate/TranslatePopup';
 
 function App() {
   const mainWindowShownRef = useRef(false);
@@ -150,6 +151,7 @@ function App() {
           <LyricsOverlay />
           <AgentTheaterWidget />
           <SessionChatPanels />
+          <TranslatePopup />
           <PlayerEngine />
           <ContextMenuRenderer />
           <NotificationContainer />

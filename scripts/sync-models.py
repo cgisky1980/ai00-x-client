@@ -29,6 +29,7 @@ the consumer-side contract.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -365,6 +366,13 @@ def main() -> int:
         help="upload only resources/* zips (models assumed already synced)",
     )
     ap.add_argument("--dry-run", action="store_true", help="print changes, upload nothing")
+    ap.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help="skip files matching glob (relative path, repeatable), e.g. --exclude 'rwkv/router-0.1B.st'",
+    )
     args = ap.parse_args()
 
     local_dir = Path(args.local_dir).resolve()
@@ -386,6 +394,10 @@ def main() -> int:
         if not res:
             log(f"warn: no resource zips found under {resources_dir}")
         files.update(res)
+    for pat in args.exclude:
+        before = len(files)
+        files = {p: s for p, s in files.items() if not fnmatch.fnmatch(p, pat)}
+        log(f"exclude '{pat}': {before - len(files)} file(s) skipped")
     if args.only_resources:
         files = {p: s for p, s in files.items() if p.startswith("resources/")}
         if not files:

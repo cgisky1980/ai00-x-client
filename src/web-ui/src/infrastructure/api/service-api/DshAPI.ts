@@ -1,12 +1,28 @@
 /**
  * DshAPI — dsh 引擎（sidecar, 127.0.0.1:3210）的前端客户端。
  *
- * v3 架构（Agent体系迁移DeepSeek-Harness分阶段计划.md Phase 3）：
+ * 0.1.5 协议（dsh 0.1.5-rc.2）：
  * 我们自己的 UI 经内嵌服务器（2100）的同源反向代理访问 dsh：
- * - unary RPC：POST /dsh-api/<method>（dsh_proxy 剥 Origin 转发到引擎 /api）
- * - 事件流：WS /dsh-ws/events.mux（dsh_proxy 双向泵到引擎 /api/events.mux）
- *   为什么必须代理：dsh 信任栅栏要求 Origin 与请求 Host 同源，
- *   webview 页面 origin 是 2100，直连 3210 会被 403。
+ * - unary RPC：POST /dsh-api/<endpoint>（endpoint 斜杠路径如 session/list、
+ *   $events/result；信封 {type:'client-request', rpcId, method, payload:{args}}，
+ *   响应 {type:'server-response', rpcId, result:{ok, value|error}}）
+ * - 事件流：WS /dsh-ws/remote.mux（dsh_proxy 双向泵到引擎 /api/remote.mux）。
+ *   流复用协议：上行 {type:'open', streamId, endpoint, payload:{args}} /
+ *   {type:'cancel', streamId}，下行 {type:'item', streamId, value?} /
+ *   {type:'error'|'end', streamId}。本文件用三条逻辑流拼出旧版 events.mux 语义：
+ *     · $events        —— 元事件流：ready 帧 + waterfall（approval/request、
+ *       user-questions/request）+ emit + cancel；应答走 $events/result RPC
+ *     · session/control —— 全局控制流：baseline + queue/jobs/projection 帧
+ *     · session/follow  —— 每会话一条：snapshot（含 cursor）+ event 增量
+ * - 会话历史：session/page（throughSeq = follow 快照的 cursor，-1 是空页不是
+ *   「最新」）；模型目录：session/modelCatalog（当前选择从投影 modelSelection 取）。
+ * - approval/question 应答：$events 的 waterfall 帧（{type:'waterfall', event,
+ *   eventId, agentId, request}）→ POST $events/result {clientId, eventId,
+ *   outcome}（outcome: {kind:'result', value} / {kind:'rejected', error} /
+ *   {kind:'next'}；旧 /api/respond 已在 0.1.5 删除）。agentId 即 sessionId。
+ *   为什么必须代理：0.1.5 引擎是「签名 cookie + Host/Origin 栅栏」双重门，
+ *   cookie 由 Rust 侧从 stdout 启动 token 换取并注入代理转发；webview 页面
+ *   origin 是 2100，直连 3210 会被 403。
  * - 引擎生命周期：Tauri 命令 dsh_status / dsh_ensure_ready / dsh_stop
  */
 
@@ -17,7 +33,7 @@ import { listen as tauriListen } from '@tauri-apps/api/event';
 const DSH_BASE = import.meta.env.DEV ? 'http://127.0.0.1:2100/dsh-api' : '/dsh-api';
 
 // ---------------------------------------------------------------------------
-// 类型（对齐 dsh-host-apiproxy 契约，仅取 UI 所需子集）
+// 类型（对齐 UI 所需子集；内部 wire 类型见下方各 interface）
 // ---------------------------------------------------------------------------
 
 export interface DshPhase {
@@ -47,17 +63,18 @@ export interface DshSessionSummary {
   cwd?: string;
   agentPreset?: string;
   parentSessionId?: string;
-  /** 投影块：title（会话标题）等 UI 派生值（可能缺失）。 */
+  /** 投影 hints：title（会话标题）、modelSelection 等 UI 派生值（可能缺失）。 */
   projections?: {
     asOfSeq: number;
     values?: {
       title?: string | null;
+      modelSelection?: DshModelSelectionProjection;
       [key: string]: unknown;
     };
   };
 }
 
-/** 会话事件（SessionEvent 子集）。 */
+/** 会话事件（SessionWireEvent 子集；ignorable 的 assistant/chunk 也走这里）。 */
 export interface DshSessionEvent {
   type: string;
   seq: number;
@@ -74,6 +91,12 @@ export interface DshModelSelection {
   provider: string;
   model: string;
   reasoningEffort?: string;
+}
+
+/** 会话投影里的模型选择 fold（next 优先于 lastUsed）。 */
+interface DshModelSelectionProjection {
+  lastUsed?: DshModelSelection | null;
+  next?: DshModelSelection | null;
 }
 
 /** 可选模型（DeepSeek 系带推理档位）。 */
@@ -98,11 +121,31 @@ export interface DshSessionModels {
   failures: Array<{ id: string; message: string }>;
 }
 
-/** WS mux 下行帧（payload 部分）。 */
+/** session/modelCatalog 的 wire 形状（current 不在目录里，按会话投影另取）。 */
+interface WireModelCatalog {
+  default: DshModelSelection;
+  routableProviders: string[];
+  groups: Array<{
+    id: string;
+    name: string;
+    models: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      reasoning?: {
+        efforts: Array<{ id: string; name: string }>;
+        defaultEffort?: string;
+      };
+    }>;
+  }>;
+  failures: Array<{ id: string; name: string; message: string }>;
+}
+
+/** WS mux 下行帧（适配层产出的旧 events.mux 语义，UI 零改动）。 */
 export type DshMuxFrame =
   | { type: 'session/event'; sessionId: string; event: DshSessionEvent; view?: unknown }
   | { type: 'session/subscribed'; sessionId: string; lastSeq: number }
-  /** 后台任务注册表快照（注册/停止/结算等可见集合变化时广播） */
+  /** 后台任务注册表快照（来自 session/control 流的 jobs 帧 / baseline） */
   | {
       type: 'session/jobs';
       sessionId?: string;
@@ -169,68 +212,107 @@ export interface DshQuestionAnswerItem {
   custom?: string;
 }
 
-/** respond 端点的回执（carrier receipt，非 RPC envelope）。 */
+/** 应答回执（$events/result 的 UI 层回执）。 */
 export type DshRpcReceipt =
   | { accepted: true }
   | { accepted: false; reason: 'not-pending' | 'bad-response' };
 
 // ---------------------------------------------------------------------------
-// RPC 底座
+// RPC 底座（0.1.5 信封：payload 必须是 {args} 对象）
 // ---------------------------------------------------------------------------
 
 let rpcSeq = 0;
 
-/** dsh sidecar 健康探测（引擎是否在线）。 */
-export async function dshReachable(): Promise<boolean> {
-  try {
-    const res = await fetch(`${DSH_BASE}/host.describe`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        type: 'client-request',
-        rpcId: `ui-${Date.now()}-${rpcSeq++}`,
-        method: 'host.describe',
-        payload: {},
-      }),
-      signal: AbortSignal.timeout(3000),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
+function nextRpcId(): string {
+  return `ui-${Date.now()}-${rpcSeq++}`;
 }
 
-async function rpc<T>(method: string, payload: unknown): Promise<T> {
-  const res = await fetch(`${DSH_BASE}/${method}`, {
+interface WireRpcEnvelope<T> {
+  type: string;
+  rpcId: string;
+  result: { ok: true; value: T } | { ok: false; error: { code: string; message: string } };
+}
+
+async function rpc<T>(
+  endpoint: string,
+  args: Record<string, unknown> = {},
+  timeoutMs = 30_000,
+): Promise<T> {
+  const res = await fetch(`${DSH_BASE}/${endpoint}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       type: 'client-request',
-      rpcId: `ui-${Date.now()}-${rpcSeq++}`,
-      method,
-      payload,
+      rpcId: nextRpcId(),
+      method: endpoint,
+      payload: { args },
     }),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
-  const envelope = (await res.json()) as {
-    type: string;
-    rpcId: string;
-    result: { ok: true; value: T } | { ok: false; error: { code: string; message: string } };
-  };
+  if (!res.ok) {
+    throw new Error(`dsh rpc ${endpoint} HTTP ${res.status}`);
+  }
+  const envelope = (await res.json()) as WireRpcEnvelope<T>;
   if (envelope.result.ok) {
     return envelope.result.value;
   }
   throw new Error(`${envelope.result.error.code}: ${envelope.result.error.message}`);
 }
 
+/** dsh sidecar 健康探测（引擎是否在线；0.1.5 探活端点 settings/describe）。 */
+export async function dshReachable(): Promise<boolean> {
+  try {
+    await rpc('settings/describe', {}, 3000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
-// 审批响应（POST /api/respond：client-response 信封，rpcId 回显请求帧）
+// $events waterfall 应答注册表（rpcId → clientId/eventId）+ 全连接广播
+// ---------------------------------------------------------------------------
+
+/** 一条待应答 waterfall（UI 持 rpcId 应答；映射回引擎的 clientId/eventId）。 */
+interface PendingEventAnswer {
+  clientId: string;
+  eventId: string;
+}
+
+const pendingEventAnswers = new Map<string, PendingEventAnswer>();
+/** waterfall 登记时顺带记住 sessionId（resolved 广播/取消帧用）。 */
+const pendingEventSessionIds = new Map<string, string>();
+/** 所有存活 mux 连接的帧回调（respond 后广播 resolved，跨消费者清卡）。 */
+const muxFrameBroadcast = new Set<(frame: DshMuxFrame) => void>();
+let answerSeq = 0;
+
+function newEventRpcId(): string {
+  return `ev-${Date.now()}-${answerSeq++}`;
+}
+
+/** 引擎侧应答一个 waterfall 事件。成功返回 true（not pending 等返回 false）。 */
+async function postEventResult(target: PendingEventAnswer, outcome: unknown): Promise<boolean> {
+  try {
+    await rpc(
+      '$events/result',
+      { clientId: target.clientId, eventId: target.eventId, outcome },
+      10_000,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 审批/问题应答（$events/result；旧 /api/respond 已删）
 // ---------------------------------------------------------------------------
 
 export const dshApproval = {
   /**
-   * 回答一个待处理审批。rpcId 必须回显 approval/requested 帧的 rpcId
-   * （引擎侧 pending 表按 rpcId 路由，payload 的 sessionId/approvalId 需与登记一致）。
+   * 回答一个待处理审批。rpcId 必须回显 approval/requested 帧回调给的 rpcId
+   * （适配层按它找到引擎的 clientId/eventId）；sessionId/approvalId 仅保持
+   * 旧签名兼容，引擎侧不再使用。
    */
   respond: async (
     rpcId: string,
@@ -238,67 +320,85 @@ export const dshApproval = {
     approvalId: string,
     outcome: 'allowed-once' | 'rejected',
   ): Promise<DshRpcReceipt> => {
-    const res = await fetch(`${DSH_BASE}/respond`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        type: 'client-response',
-        rpcId,
-        result: { ok: true, value: { sessionId, approvalId, outcome } },
-      }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) {
+    const target = pendingEventAnswers.get(rpcId);
+    if (!target) {
       return { accepted: false, reason: 'not-pending' };
     }
-    return (await res.json()) as DshRpcReceipt;
+    const ok = await postEventResult(target, { kind: 'result', value: outcome });
+    if (!ok) {
+      return { accepted: false, reason: 'bad-response' };
+    }
+    pendingEventAnswers.delete(rpcId);
+    pendingEventSessionIds.delete(rpcId);
+    broadcastFrame({ type: 'approval/resolved', sessionId, approvalId, outcome });
+    return { accepted: true };
   },
 };
 
 // ---------------------------------------------------------------------------
-// 问题应答（POST /api/respond：client-response 信封，rpcId 回显请求帧）
+// 问题应答（$events/result，value = {answers}；取消 = rejected error）
 // ---------------------------------------------------------------------------
 
-/** respond 信封的底层 POST（审批/问题共用）。 */
-async function postRespond(payload: unknown): Promise<DshRpcReceipt> {
-  const res = await fetch(`${DSH_BASE}/respond`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) {
-    return { accepted: false, reason: 'not-pending' };
+/** 向所有存活 mux 消费者广播一帧（跨组件清 pending 卡片）。 */
+function broadcastFrame(frame: DshMuxFrame): void {
+  for (const emit of muxFrameBroadcast) {
+    try {
+      emit(frame);
+    } catch {
+      // 单个消费者异常不阻断其余广播
+    }
   }
-  return (await res.json()) as DshRpcReceipt;
 }
 
 export const dshQuestion = {
   /**
    * 回答一批问题。answers 必须与 questions 数量相等且按顺序 id 对齐；
    * selected 只能是问题选项的 label；单选问题 custom 与 selected 互斥
-   * （引擎 matchesQuestions 严格校验，不匹配 = bad-response）。
+   * （引擎侧严格校验，不匹配 = 工具失败）。
    */
-  respond: (rpcId: string, sessionId: string, answers: DshQuestionAnswerItem[]) =>
-    postRespond({
-      type: 'client-response',
-      rpcId,
-      result: {
-        ok: true,
-        value: { sessionId, answer: { answers } },
-      },
-    }),
+  respond: async (
+    rpcId: string,
+    sessionId: string,
+    answers: DshQuestionAnswerItem[],
+  ): Promise<DshRpcReceipt> => {
+    const target = pendingEventAnswers.get(rpcId);
+    if (!target) {
+      return { accepted: false, reason: 'not-pending' };
+    }
+    const ok = await postEventResult(target, { kind: 'result', value: { answers } });
+    if (!ok) {
+      return { accepted: false, reason: 'bad-response' };
+    }
+    pendingEventAnswers.delete(rpcId);
+    pendingEventSessionIds.delete(rpcId);
+    broadcastFrame({ type: 'question/resolved', sessionId, questionRpcId: rpcId, outcome: 'answered' });
+    return { accepted: true };
+  },
 
-  /** 取消（引擎侧 reject ASK_CANCELLED，agent 收到取消错误）。 */
-  cancel: (rpcId: string) =>
-    postRespond({
-      type: 'client-response',
-      rpcId,
-      result: {
-        ok: false,
-        error: { code: 'cancelled', message: 'user cancelled ask_user_question', details: {} },
+  /** 取消（引擎侧 waterfall rejected，agent 收到取消错误）。 */
+  cancel: async (rpcId: string): Promise<DshRpcReceipt> => {
+    const target = pendingEventAnswers.get(rpcId);
+    if (!target) {
+      return { accepted: false, reason: 'not-pending' };
+    }
+    const ok = await postEventResult(target, {
+      kind: 'rejected',
+      error: {
+        name: 'Error',
+        message: 'user cancelled ask_user_question',
+        code: 'cancelled',
+        details: {},
       },
-    }),
+    });
+    if (!ok) {
+      return { accepted: false, reason: 'bad-response' };
+    }
+    pendingEventAnswers.delete(rpcId);
+    const sessionId = pendingEventSessionIds.get(rpcId) ?? '';
+    pendingEventSessionIds.delete(rpcId);
+    broadcastFrame({ type: 'question/resolved', sessionId, questionRpcId: rpcId, outcome: 'cancelled' });
+    return { accepted: true };
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -358,24 +458,7 @@ export interface DshPluginManifestEntry {
 
 /** 引擎运行时插件清单（Typert 信封：payload 是 {args:{}} 对象包装）。 */
 export async function pluginInventoryList(): Promise<DshPluginInventoryEntry[]> {
-  const res = await fetch(`${DSH_BASE}/pluginInventory/list`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      type: 'client-request',
-      rpcId: `ui-${Date.now()}-${rpcSeq++}`,
-      method: 'pluginInventory/list',
-      payload: { args: {} },
-    }),
-    signal: AbortSignal.timeout(10_000),
-  });
-  const envelope = (await res.json()) as {
-    result: { ok: true; value: { entries: DshPluginInventoryEntry[] } } | { ok: false; error: { message: string } };
-  };
-  if (envelope.result.ok) {
-    return envelope.result.value.entries;
-  }
-  throw new Error(envelope.result.error.message);
+  return rpc<{ entries: DshPluginInventoryEntry[] }>('pluginInventory/list').then(v => v.entries);
 }
 
 /** profile manifest 层插件管理（Tauri 命令 → DshManager）。 */
@@ -395,68 +478,232 @@ export const dshPlugins = {
 };
 
 // ---------------------------------------------------------------------------
-// 会话 API（HTTP unary）
+// 会话 API（HTTP unary；history/models 由 follow cursor + 目录拼装）
 // ---------------------------------------------------------------------------
 
-export const dshSession = {
-  list: () => rpc<{ items: DshSessionSummary[] }>('session.list', {}),
+/** 全局 follow 快照 cursor 缓存（history 的 throughSeq 来源）。 */
+const sessionCursors = new Map<string, number>();
+/** 全局 modelSelection 投影缓存（models() 的 current 来源）。 */
+const sessionModelSelection = new Map<string, DshModelSelectionProjection | undefined>();
+/** 等 cursor 的 waiter（新会话创建后立即拉历史时的竞态兜底）。 */
+const cursorWaiters = new Map<string, Array<(cursor: number) => void>>();
 
-  create: (opts?: { cwd?: string; agentPreset?: string }) =>
-    rpc<{ sessionId: string; agentPreset?: string }>('session.create', {
-      // cwd/agentPreset 可选：空值必须省略字段（引擎会对 '' 做 mkdir 报 ENOENT）
-      ...(opts?.cwd ? { cwd: opts.cwd } : {}),
-      ...(opts?.agentPreset ? { agentPreset: opts.agentPreset } : {}),
+function cacheProjectionValues(sessionId: string, values?: Record<string, unknown>): void {
+  const sel = values?.modelSelection;
+  if (sel && typeof sel === 'object') {
+    sessionModelSelection.set(sessionId, sel as DshModelSelectionProjection);
+  }
+}
+
+function resolveCursor(sessionId: string): Promise<number> {
+  const known = sessionCursors.get(sessionId);
+  if (known !== undefined) return Promise.resolve(known);
+  return new Promise<number>((resolve, reject) => {
+    const list = cursorWaiters.get(sessionId) ?? [];
+    list.push(resolve);
+    cursorWaiters.set(sessionId, list);
+    setTimeout(() => {
+      const waiters = cursorWaiters.get(sessionId);
+      if (waiters) {
+        cursorWaiters.set(sessionId, waiters.filter(w => w !== resolve));
+      }
+      reject(new Error('session history unavailable: engine event stream not connected'));
+    }, 3000);
+  });
+}
+
+function settleCursor(sessionId: string, cursor: number): void {
+  sessionCursors.set(sessionId, cursor);
+  const waiters = cursorWaiters.get(sessionId);
+  if (waiters) {
+    cursorWaiters.delete(sessionId);
+    for (const w of waiters) w(cursor);
+  }
+}
+
+interface WirePageRecord {
+  type: string;
+  event: DshSessionEvent;
+}
+
+export const dshSession = {
+  // 0.1.5 typert 严格参数：list 的 wire 参数名是 _request（其余 session 系是 request）
+  list: () =>
+    rpc<{ items: DshSessionSummary[] }>('session/list', { _request: {} }).then(({ items }) => {
+      for (const s of items) {
+        cacheProjectionValues(s.sessionId, s.projections?.values);
+      }
+      return { items };
     }),
 
-  /** 原生目录选择（host.pickDirectory，privileged 经代理）。取消返回 null。 */
-  pickDirectory: async (): Promise<string | null> => {
-    const envelope = await rpc<{ directory?: string | null } | Record<string, never>>(
-      'host.pickDirectory',
-      {}
-    ).catch(() => null);
-    if (!envelope) return null;
-    const dir = (envelope as { directory?: string | null }).directory;
-    return typeof dir === 'string' && dir ? dir : null;
-  },
+  create: (opts?: { cwd?: string; agentPreset?: string }) =>
+    rpc<{ sessionId: string; agentPreset?: string }>('session/create', {
+      request: {
+        // cwd/agentPreset 可选：空值必须省略字段（引擎会对 '' 做 mkdir 报 ENOENT）
+        ...(opts?.cwd ? { cwd: opts.cwd } : {}),
+        ...(opts?.agentPreset ? { agentPreset: opts.agentPreset } : {}),
+      },
+    }),
 
   prompt: (sessionId: string, text: string) =>
-    rpc<{ accepted: true }>('session.prompt', {
-      sessionId,
-      mode: 'queue',
-      content: [{ type: 'text', text }],
+    rpc<{ accepted: true }>('session/prompt', {
+      request: {
+        // 0.1.5 起必填：客户端铸造的 prompt 关联 id（乐观回执对账用）
+        requestId: nextRpcId(),
+        sessionId,
+        mode: 'queue',
+        content: [{ type: 'text', text }],
+      },
     }),
 
   cancel: (sessionId: string) =>
-    rpc<{ accepted: true }>('session.cancel', { sessionId }),
+    rpc<{ accepted: true }>('session/cancel', { request: { sessionId } }),
 
-  history: (sessionId: string) =>
-    rpc<{ events: DshHistoryEntry[]; hasMore: boolean }>('session.history', { sessionId }),
+  /** 全量历史：session/page，throughSeq = follow 快照 cursor（-1 是空页）。 */
+  history: async (sessionId: string) => {
+    const throughSeq = await resolveCursor(sessionId);
+    const page = await rpc<{ records: WirePageRecord[]; hasMore: boolean }>('session/page', {
+      request: {
+        address: { kind: 'session', sessionId },
+        throughSeq,
+        maxMessages: 100_000,
+      },
+    });
+    return { events: page.records.map(r => ({ event: r.event })) as DshHistoryEntry[], hasMore: page.hasMore };
+  },
 
-  models: (sessionId: string) =>
-    rpc<DshSessionModels>('session.models', { sessionId }),
+  /** 模型目录 = session/modelCatalog；current 从会话投影 modelSelection 取。 */
+  models: async (sessionId: string): Promise<DshSessionModels> => {
+    const catalog = await rpc<WireModelCatalog>('session/modelCatalog');
+    const sel = sessionModelSelection.get(sessionId);
+    const current = sel?.next ?? sel?.lastUsed ?? catalog.default;
+    return {
+      current,
+      routable: catalog.routableProviders.length > 0,
+      groups: catalog.groups.map(g => ({
+        id: g.id,
+        name: g.name,
+        models: g.models.map(m => ({
+          id: m.id,
+          name: m.name,
+          ...(m.description ? { description: m.description } : {}),
+          ...(m.reasoning
+            ? {
+                reasoning: {
+                  efforts: m.reasoning.efforts.map(e => ({ id: e.id, name: e.name })),
+                  defaultEffort: m.reasoning.defaultEffort ?? m.reasoning.efforts[0]?.id ?? '',
+                },
+              }
+            : {}),
+        })),
+      })),
+      failures: catalog.failures.map(f => ({ id: f.id, message: f.message })),
+    };
+  },
 
   selectModel: (sessionId: string, provider: string, model: string) =>
-    rpc<{ selected: DshModelSelection }>('session.selectModel', {
-      sessionId,
-      provider,
-      model,
+    rpc<{ selected: DshModelSelection }>('session/selectModel', {
+      request: { sessionId, provider, model },
     }),
 
   rename: (sessionId: string, title: string) =>
-    rpc<{ title: string; seq: number }>('session.rename', { sessionId, title }),
+    rpc<{ title: string; seq: number }>('session/rename', {
+      request: { sessionId, title },
+    }),
 
-  /** 派生会话（引擎原生 fork：复制历史到新会话；beforeSeq/maxMessages 可截断）。 */
+  /** 派生会话（引擎原生 fork：复制历史到新会话；atSeq 可截断）。 */
   fork: (sessionId: string) =>
-    rpc<{ sessionId: string }>('session.fork', { sessionId }),
+    rpc<{ sessionId: string }>('session/fork', { request: { sessionId } }),
 };
 
 // ---------------------------------------------------------------------------
-// WebSocket 事件流（mux）
+// WebSocket 事件流（remote.mux 适配层 → 旧 events.mux 帧语义）
 // ---------------------------------------------------------------------------
 
 export interface DshMuxConnection {
   close: () => void;
 }
+
+/** mux 逻辑流注册表条目。 */
+interface MuxStreamEntry {
+  kind: 'events' | 'control' | 'follow';
+  sessionId?: string;
+}
+
+// ---- $events 流的 item 值形状（dsh-api-gateway stream-protocol）----
+
+interface WireEventsReady {
+  type: 'ready';
+  clientId: string;
+  host?: { home?: string };
+}
+
+interface WireWaterfallFrame {
+  type: 'waterfall';
+  event: string;
+  eventId: string;
+  agentId: string;
+  request: Record<string, unknown>;
+}
+
+interface WireEventCancelFrame {
+  type: 'cancel';
+  eventId: string;
+}
+
+interface WireEmitFrame {
+  type: 'emit';
+  event: string;
+  args: unknown[];
+}
+
+type WireEventsItem = WireEventsReady | WireWaterfallFrame | WireEventCancelFrame | WireEmitFrame;
+
+// ---- session/follow 流的 item 值形状 ----
+
+interface WireFollowSnapshot {
+  type: 'snapshot';
+  cursor: number;
+  records: WirePageRecord[];
+  hasMore: boolean;
+  projections?: { asOfSeq: number; values?: Record<string, unknown> };
+}
+
+type WireFollowItem =
+  | WireFollowSnapshot
+  | { type: 'event'; event: DshSessionEvent }
+  | { type: string };
+
+// ---- session/control 流的 item 值形状 ----
+
+interface WireJob {
+  id: string;
+  kind?: string;
+  label?: string;
+  status: string;
+  startedAt?: number;
+  finishedAt?: number;
+}
+
+interface WireControlBaseline {
+  type: 'baseline';
+  value: {
+    queues?: Record<string, unknown[]>;
+    jobs?: Record<string, WireJob[]>;
+    projections?: Record<string, { asOfSeq: number; values?: Record<string, unknown> }>;
+  };
+}
+
+type WireControlItem =
+  | WireControlBaseline
+  | {
+      type: 'jobs' | 'projection' | 'queue';
+      sessionId?: string;
+      jobs?: WireJob[];
+      key?: string;
+      value?: unknown;
+      seq?: number;
+    };
 
 /** 订阅 mux 事件流（自动重连）。返回连接句柄。rpcId 供可应答帧（approval 等）回显。 */
 export function connectMux(
@@ -467,25 +714,233 @@ export function connectMux(
   let closed = false;
   let retry = 0;
 
+  let nextStreamId = 1;
+  const streams = new Map<string, MuxStreamEntry>();
+  const followed = new Set<string>();
+  let eventsClientId: string | null = null;
+
+  const send = (obj: unknown): void => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(obj));
+    }
+  };
+
+  const openStream = (endpoint: string, args: Record<string, unknown>, entry: MuxStreamEntry): void => {
+    const streamId = String(nextStreamId++);
+    streams.set(streamId, entry);
+    send({ type: 'open', streamId, endpoint, payload: { args } });
+  };
+
+  /** 跟随一个会话（幂等；connection 级去重，重连时清空重开）。 */
+  const followSession = (sessionId: string): void => {
+    if (followed.has(sessionId) || closed) return;
+    followed.add(sessionId);
+    openStream(
+      'session/follow',
+      // 0.1.5：follow 的 wire 参数名是 request（严格 codec）
+      { request: { address: { kind: 'session', sessionId }, maxMessages: 1 } },
+      { kind: 'follow', sessionId },
+    );
+  };
+
+  /** 初始拉全会话列表逐个 follow（复刻旧 events.mux「全量推送」语义）。 */
+  const followAllSessions = async (): Promise<void> => {
+    try {
+      const { items } = await rpc<{ items: DshSessionSummary[] }>('session/list', { _request: {} });
+      if (closed) return;
+      for (const s of items) {
+        cacheProjectionValues(s.sessionId, s.projections?.values);
+        followSession(s.sessionId);
+      }
+    } catch {
+      // 引擎未就绪/暂时不可达：等下一轮重连再拉
+    }
+  };
+
+  // ---- $events 流帧处理 ----
+
+  const answerNext = (eventId: string): void => {
+    if (eventsClientId) {
+      void postEventResult({ clientId: eventsClientId, eventId }, { kind: 'next' });
+    }
+  };
+
+  const handleWaterfall = (frame: WireWaterfallFrame): void => {
+    if (!eventsClientId) return;
+    const request = frame.request ?? {};
+    if (frame.event === 'approval/request') {
+      const rpcId = newEventRpcId();
+      pendingEventAnswers.set(rpcId, { clientId: eventsClientId, eventId: frame.eventId });
+      pendingEventSessionIds.set(rpcId, frame.agentId);
+      onFrame(
+        {
+          type: 'approval/requested',
+          sessionId: frame.agentId,
+          approvalId: frame.eventId,
+          toolName: String(request.toolName ?? ''),
+          ...(typeof request.callId === 'string' ? { callId: request.callId } : {}),
+          ...(typeof request.reason === 'string' ? { reason: request.reason } : {}),
+        },
+        rpcId,
+      );
+      return;
+    }
+    if (frame.event === 'user-questions/request') {
+      const rpcId = newEventRpcId();
+      pendingEventAnswers.set(rpcId, { clientId: eventsClientId, eventId: frame.eventId });
+      pendingEventSessionIds.set(rpcId, frame.agentId);
+      onFrame(
+        {
+          type: 'question/requested',
+          sessionId: frame.agentId,
+          questions: Array.isArray(request.questions) ? (request.questions as DshQuestionItem[]) : [],
+        },
+        rpcId,
+      );
+      return;
+    }
+    // 未知 waterfall：应答 next 委托（否则 agent 侧永远挂起）
+    answerNext(frame.eventId);
+  };
+
+  const handleEventsItem = (value: WireEventsItem): void => {
+    if (!value || typeof value !== 'object') return;
+    const v = value as unknown as Record<string, unknown>;
+    if (v.type === 'ready' && typeof v.clientId === 'string') {
+      eventsClientId = v.clientId;
+      return;
+    }
+    if (v.type === 'waterfall') {
+      handleWaterfall(value as WireWaterfallFrame);
+      return;
+    }
+    if (v.type === 'cancel' && typeof v.eventId === 'string') {
+      // 引擎侧已结算（别处已答/取消）：给本连接的消费者清 pending 卡
+      for (const [rpcId, target] of pendingEventAnswers) {
+        if (target.eventId !== v.eventId) continue;
+        pendingEventAnswers.delete(rpcId);
+        const sessionId = pendingEventSessionIds.get(rpcId) ?? '';
+        pendingEventSessionIds.delete(rpcId);
+        broadcastFrame({ type: 'approval/resolved', sessionId, approvalId: v.eventId, outcome: 'cancelled' });
+        broadcastFrame({ type: 'question/resolved', sessionId, questionRpcId: rpcId, outcome: 'cancelled' });
+      }
+      return;
+    }
+    if (v.type === 'emit' && typeof v.event === 'string' && Array.isArray(v.args)) {
+      // api-session/added → 开始跟随新会话（旧协议新会话自动出现）
+      if (v.event === 'api-session/added') {
+        const summary = v.args[0] as DshSessionSummary | undefined;
+        if (summary?.sessionId) {
+          cacheProjectionValues(summary.sessionId, summary.projections?.values);
+          followSession(summary.sessionId);
+        }
+      }
+      return;
+    }
+  };
+
+  // ---- session/control 流帧处理 ----
+
+  const emitJobs = (sessionId: string | undefined, jobs: WireJob[]): void => {
+    onFrame({ type: 'session/jobs', ...(sessionId ? { sessionId } : {}), jobs }, '');
+  };
+
+  const emitProjection = (sessionId: string, key: string, value: unknown, seq: number): void => {
+    onFrame({ type: 'session/projection', sessionId, key, value, seq }, '');
+  };
+
+  const handleControlItem = (value: WireControlItem): void => {
+    if (!value || typeof value !== 'object') return;
+    const v = value as Record<string, unknown>;
+    if (v.type === 'baseline') {
+      const baseline = (v.value ?? {}) as NonNullable<WireControlBaseline['value']>;
+      for (const [sessionId, jobs] of Object.entries(baseline.jobs ?? {})) {
+        emitJobs(sessionId, jobs);
+      }
+      for (const [sessionId, proj] of Object.entries(baseline.projections ?? {})) {
+        cacheProjectionValues(sessionId, proj.values);
+        for (const [key, val] of Object.entries(proj.values ?? {})) {
+          emitProjection(sessionId, key, val, proj.asOfSeq);
+        }
+      }
+      return;
+    }
+    if (v.type === 'jobs' && typeof v.sessionId === 'string') {
+      emitJobs(v.sessionId, Array.isArray(v.jobs) ? (v.jobs as WireJob[]) : []);
+      return;
+    }
+    if (v.type === 'projection' && typeof v.sessionId === 'string' && typeof v.key === 'string') {
+      if (v.key === 'modelSelection') {
+        cacheProjectionValues(v.sessionId, { modelSelection: v.value });
+      }
+      emitProjection(v.sessionId, v.key, v.value, typeof v.seq === 'number' ? v.seq : 0);
+      return;
+    }
+    // queue 帧：旧 UI 无消费方，忽略
+  };
+
+  // ---- session/follow 流帧处理 ----
+
+  const handleFollowItem = (sessionId: string, value: WireFollowItem): void => {
+    if (!value || typeof value !== 'object') return;
+    const v = value as Record<string, unknown>;
+    if (v.type === 'snapshot') {
+      const snap = value as WireFollowSnapshot;
+      settleCursor(sessionId, snap.cursor);
+      cacheProjectionValues(sessionId, snap.projections?.values);
+      onFrame({ type: 'session/subscribed', sessionId, lastSeq: snap.cursor }, '');
+      return;
+    }
+    if (v.type === 'event' && v.event && typeof v.event === 'object') {
+      onFrame({ type: 'session/event', sessionId, event: v.event as DshSessionEvent }, '');
+      return;
+    }
+    // assistant-stream 帧未订阅（assistantStream 未开），忽略
+  };
+
+  // ---- WS 生命周期 ----
+
   const open = () => {
     if (closed) return;
     // 同源代理：WS URL 按当前页面协议推导（http → ws）；dev 下显式指向 2100
     const base = import.meta.env.DEV ? 'http://127.0.0.1:2100' : window.location.origin;
-    const wsUrl = base.replace(/^http/, 'ws') + '/dsh-ws/events.mux';
+    const wsUrl = base.replace(/^http/, 'ws') + '/dsh-ws/remote.mux';
     ws = new WebSocket(wsUrl);
     ws.onopen = () => {
       retry = 0;
       onStateChange?.(true);
+      // 三条逻辑流：元事件 + 全局控制 + 每会话 follow
+      nextStreamId = 1;
+      eventsClientId = null;
+      openStream('$events', {}, { kind: 'events' });
+      openStream('session/control', {}, { kind: 'control' });
+      void followAllSessions();
     };
     ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data as string) as {
           type: string;
-          rpcId?: string;
-          payload: DshMuxFrame;
+          streamId?: string;
+          value?: unknown;
+          error?: { code: string; message: string };
         };
-        if (msg.type === 'server-request' && msg.payload && msg.rpcId) {
-          onFrame(msg.payload, msg.rpcId);
+        if (msg.type === 'item' && msg.streamId) {
+          const entry = streams.get(msg.streamId);
+          if (!entry) return;
+          if (entry.kind === 'events') handleEventsItem(msg.value as WireEventsItem);
+          else if (entry.kind === 'control') handleControlItem(msg.value as WireControlItem);
+          else if (entry.kind === 'follow' && entry.sessionId) {
+            handleFollowItem(entry.sessionId, msg.value as WireFollowItem);
+          }
+        } else if (msg.type === 'error' && msg.streamId) {
+          // 流级错误（如 session 不存在）：清理注册，等下轮重连
+          streams.delete(msg.streamId);
+          onFrame(
+            { type: 'stream/error', error: { code: msg.error?.code ?? 'unknown', message: msg.error?.message ?? 'stream error' } },
+            '',
+          );
+        } else if (msg.type === 'end' && msg.streamId) {
+          streams.delete(msg.streamId);
         }
       } catch {
         // 忽略无法解析的帧
@@ -493,6 +948,9 @@ export function connectMux(
     };
     ws.onclose = () => {
       onStateChange?.(false);
+      streams.clear();
+      followed.clear();
+      eventsClientId = null;
       if (!closed) {
         retry += 1;
         const delay = Math.min(1000 * 2 ** Math.min(retry, 4), 10_000);
@@ -503,9 +961,13 @@ export function connectMux(
   };
   open();
 
+  const broadcastFn = (frame: DshMuxFrame): void => onFrame(frame, '');
+  muxFrameBroadcast.add(broadcastFn);
+
   return {
     close: () => {
       closed = true;
+      muxFrameBroadcast.delete(broadcastFn);
       ws?.close();
     },
   };

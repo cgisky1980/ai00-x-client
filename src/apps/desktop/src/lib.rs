@@ -36,16 +36,19 @@ pub mod preview_window;
 pub mod profile_sync;
 pub mod rwkv_engine_adapter;
 pub mod rwkv_llm;
+pub mod selection_translate;
 pub mod server;
 pub mod share;
 pub mod system_monitor;
 pub mod theme;
+pub mod tool_session;
 pub mod tts;
 pub mod underlay;
 pub mod usage_stats;
 pub mod vram_engines;
 pub mod vram_manager;
 pub mod vram_monitor;
+pub mod web_extract;
 pub mod zip_serve;
 
 use ai00_x_core::infrastructure::ai::AIClientFactory;
@@ -193,6 +196,7 @@ pub async fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(app_state)
         .manage(path_manager)
@@ -216,6 +220,9 @@ pub async fn run() {
 
             let app_handle = app.handle().clone();
             server::start_salvo_server();
+            // 划词翻译：默认开启全局取词监听（拖选 / Alt+T），见 selection_translate.rs
+            #[cfg(target_os = "windows")]
+            selection_translate::init_selection_translate(app_handle.clone());
             // dsh 引擎：注入 AppHandle（phase 事件推送）+ 后台静默安装启动
             // （node/dsh/plugin 自动安装链，见 dsh_manager.rs；失败只记日志不阻塞主窗口）
             {
@@ -860,6 +867,10 @@ pub async fn run() {
             i18n_get_supported_languages,
             i18n_get_config,
             i18n_set_config,
+            // Selection translate
+            selection_translate::translate_text,
+            selection_translate::translate_set_enabled,
+            selection_translate::translate_get_enabled,
             // MiniApp API
             api::miniapp_api::list_miniapps,
             api::miniapp_api::get_miniapp,

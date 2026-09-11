@@ -20,7 +20,8 @@ export const TaskCreateModal: React.FC<{
   const addTask = useTodoStore((s) => s.addTask);
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
-  const [agent, setAgent] = useState<AgentModeValue>(undefined);
+  // 执行默认 Auto（agent 委托）——壁纸等特化模块后置为插件后仅剩 人做/Auto 两档
+  const [agent, setAgent] = useState<AgentModeValue>('agent');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -33,11 +34,15 @@ export const TaskCreateModal: React.FC<{
   const submit = () => {
     const t = title.trim();
     if (!t) return;
-    addTask(t.slice(0, 120), {
+    const task = addTask(t.slice(0, 120), {
       notes: notes.trim().slice(0, 2000),
       agentModule: agent || undefined,
       goalId: defaultGoalId ?? null,
     });
+    // 新建即自动启动计划流程：切回看板并选中新卡 → PlanChatPanel 挂载并
+    // 由 AI 开场提问（远程模型默认，见 PlanChatPanel 自动开场 effect）
+    useTodoStore.getState().setView('today');
+    useTodoStore.getState().setExpanded(task.id);
     close();
   };
 

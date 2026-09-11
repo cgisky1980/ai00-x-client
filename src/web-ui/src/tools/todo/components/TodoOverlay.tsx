@@ -95,10 +95,27 @@ export const TodoOverlay: React.FC = () => {
   }, [loaded]);
 
   // agent 侧 todo 写入（ai00_task_complete / ai00_todo_write / ai00_task_create）
-  // → 宿主广播 → 重读盘同步内存态（load 内部 save 幂等无害）
+  // → 宿主广播 → 重读盘同步内存态（load 内部 save 幂等无害）。
+  // 自检提交（agentCompletedAt 新出现）→ 弹「待验收」toast（产物清单 + 链接
+  // 在计划面板交付物抽屉）。
+  const knownCompletedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const un = listen('todo-agent-updated', () => {
-      void useTodoStore.getState().load();
+      void useTodoStore.getState().load().then(() => {
+        const { data } = useTodoStore.getState();
+        const current = new Set<string>();
+        for (const t of data.tasks) {
+          if (!t.agentCompletedAt || t.completedAt) continue;
+          current.add(t.id);
+          if (!knownCompletedRef.current.has(t.id)) {
+            useGrowthStore.getState().showToast(
+              '待验收',
+              `「${t.title}」已自检${t.deliverables?.length ? ` · ${t.deliverables.length} 项交付物` : ''}`,
+            );
+          }
+        }
+        knownCompletedRef.current = current;
+      });
     });
     return () => {
       void un.then(f => f());

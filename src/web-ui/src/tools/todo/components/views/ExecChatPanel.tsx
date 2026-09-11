@@ -4,8 +4,9 @@
  * 进行中卡片的「讨论」= agent 会话本体：历史基线（dshSession.history）+
  * 实时流（connectMux 过滤本会话）统一进事件数组后 foldEvents 折叠展示；
  * 可发消息干预（dshSession.prompt）/ 停止（cancel）；审批/提问卡内嵌应答；
- * 底部 ModelSelector 直选会话模型（会话级状态——按卡隔离，并行任务可
- * 各用各的模型；委托时已用卡片讨论模型初始化，此处可随时改）。
+ * 底部 ModelSelector 展示会话实际模型，手动切换 = 显式用户覆盖（仅同步
+ * 会话——主对话默认钉引擎远端，与讨论通道 discussModel 字段解耦，并行任务
+ * 可各用各的模型）。
  * 数据逻辑与 SessionChatPanel（剧场浮层）同构；组件按卡片 key 重挂载。
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -28,7 +29,7 @@ import {
 } from '@/infrastructure/api/service-api/DshAPI';
 import { ApprovalCard, MessageBubble, QuestionCard } from '@/app/scenes/dsh/DshChatPieces';
 import { isSessionAllowed } from '@/shared/agent-approval-rules';
-import { getDiscussModel, MODEL_AUTO } from '../../ai/modelCatalog';
+import { MODEL_AUTO } from '../../ai/modelCatalog';
 import { WATCH_STALL_SOFT_MS, recoverSession } from '../../utils/watchdog';
 import { useTodoStore } from '../../store/todoStore';
 import type { TodoTask } from '../../api/types';
@@ -52,6 +53,8 @@ export const ExecChatPanel: React.FC<{
   // 后台任务（session/jobs 快照帧）与子代理（projection 帧）状态
   const [jobs, setJobs] = useState<Array<{ id: string; label?: string; status: string }>>([]);
   const [subagentLabel, setSubagentLabel] = useState<string | null>(null);
+  // mux 回调闭包不随 jobs 状态更新 → 用 ref 供 turn/end 判断「子代理仍在后台跑」
+  const jobsRef = useRef<Array<{ id: string; label?: string; status: string }>>([]);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   /** 基线 + 实时事件统一数组（foldEvents 的输入） */
   const eventsRef = useRef<DshSessionEvent[]>([]);
@@ -62,10 +65,22 @@ export const ExecChatPanel: React.FC<{
     const t = setInterval(() => setRenderTick(v => v + 1), 30_000);
     return () => clearInterval(t);
   }, []);
-  // 模型选择与计划讨论同源（同一控件、同一卡片字段 discussModel）：
-  // 切换时写卡 + 同步到运行中的会话——讨论/执行/下次委托永远同一个模型
-  const updateTask = useTodoStore((s) => s.updateTask);
-  const discussModel = task.discussModel ?? getDiscussModel();
+  // 模型解耦：受控值 = 会话实际模型（挂载时拉取 dshSession.models 投影），
+  // 与讨论通道字段 discussModel 无关——主对话跟随引擎默认远端，委托不改写；
+  // 此处手动切换 = 显式用户覆盖（仅同步会话，不写卡片/讨论模型）。
+  const [sessionModel, setSessionModel] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    dshSession
+      .models(sessionId)
+      .then((m) => {
+        if (alive) setSessionModel(m.current?.model ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [sessionId]);
   // 会话累计 token 用量（与 DshScene 同源；eventsRef 每次渲染重算，量级可忽略）
   const usage = aggregateUsage(eventsRef.current);
   const fmtK = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
@@ -116,7 +131,9 @@ export const ExecChatPanel: React.FC<{
       // 后台任务快照（仅活跃状态入列；终态自动消失）
       if (frame.type === 'session/jobs') {
         if (!frame.sessionId || frame.sessionId === sessionId) {
-          setJobs(frame.jobs.filter(j => !/complet|finish|fail|kill|cancel|stop|error/i.test(j.status ?? '')));
+          const active = frame.jobs.filter(j => !/complet|finish|fail|kill|cancel|stop|error/i.test(j.status ?? ''));
+          jobsRef.current = active;
+          setJobs(active);
         }
         return;
       }
@@ -167,7 +184,9 @@ export const ExecChatPanel: React.FC<{
       if (frame.type !== 'session/event' || frame.sessionId !== sessionId) return;
       if (frame.event.type === 'turn/end') {
         // turn 结束后以引擎基线为权威重拉（含 usage 与完整折叠），并刷新运行态
-        setSubagentLabel(null); // 子代理随轮次结束
+        // 子代理标签只在「无活跃后台 job」时清除——continuable 派发后编排者
+        // 本轮结束，但 worker 还在后台跑，标签应继续显示
+        if (jobsRef.current.length === 0) setSubagentLabel(null);
         void reloadBaseline();
         void refreshRunning();
         return;
@@ -209,7 +228,7 @@ export const ExecChatPanel: React.FC<{
 
   /** 手动中断卡住的轮次 + 从计划断点继续（应用内确认，非原生弹窗）。 */
   const handleInterruptContinue = async (): Promise<void> => {
-    if (!(await window.confirm('中断当前轮次并让 agent 从计划断点继续？未完成的工具调用会重新执行。'))) return;
+    if (!(await window.confirm('中断当前轮次并让 agent 从计划断点继续？未完成的子任务将重新派发。'))) return;
     lastEventRef.current = Date.now();
     await recoverSession(sessionId);
   };
@@ -220,7 +239,7 @@ export const ExecChatPanel: React.FC<{
     try {
       await dshSession.prompt(
         sessionId,
-        '【继续】从计划断点继续执行（先用 ai00_plan_read 重读计划文档）；刚才未完成的工具调用请重新执行。',
+        '【继续】从计划断点继续执行（先用 ai00_plan_read 重读计划文档）；未完成的子任务请重新派发（research_worker/code_worker），不要亲自调用执行工具。',
       );
       lastEventRef.current = Date.now();
     } catch (err) {
@@ -247,15 +266,18 @@ export const ExecChatPanel: React.FC<{
     setQuestions(prev => prev.filter(q => q.rpcId !== rpcId));
   };
 
-  /** 执行中切模型：写卡片字段（讨论/下次委托同源）+ 同步到运行中的会话。 */
+  /** 手动切模型：仅同步到会话（显式用户覆盖），不写 discussModel（讨论通道专属字段）。 */
   const handleSelectModel = (ref: string): void => {
-    updateTask(task.id, { discussModel: ref });
+    setSessionModel(ref === MODEL_AUTO ? 'ai00-auto' : ref);
     dshSession
       .selectModel(sessionId, 'ai00-x', ref === MODEL_AUTO ? 'ai00-auto' : ref)
       .catch(err => setError(err instanceof Error ? err.message : String(err)));
   };
 
   // 执行五态（双段验收：模型自检提交后进入「待人类验收」，完成必须人类确认）
+  // 子代理活跃（后台 job 或 subagent 投影）= continuable 派发后 worker 仍在跑，
+  // 编排者会话虽非 running 也绝不能显示「已结束」或提供「继续执行」（防重复派发）
+  const subagentActive = jobs.length > 0 || subagentLabel !== null;
   const awaitingHuman = Boolean(task.agentCompletedAt) && !task.completedAt;
   const stateText = task.completedAt
     ? '已完成 · 人类验收通过'
@@ -263,16 +285,18 @@ export const ExecChatPanel: React.FC<{
       ? '待人类验收'
       : agentRunning
         ? 'agent 执行中'
-        : failed
-          ? '执行出错 · 待处理'
-          : messages.length === 0 && !loading
-            ? '等待中'
-            : '已结束 · 未提交自检';
+        : subagentActive
+          ? '子代理执行中'
+          : failed
+            ? '执行出错 · 待处理'
+            : messages.length === 0 && !loading
+              ? '等待中'
+              : '已结束 · 未提交自检';
   const stateClass = task.completedAt
     ? ' is-await'
     : awaitingHuman
       ? ' is-await'
-      : agentRunning
+      : agentRunning || subagentActive
         ? ' is-running'
         : failed
           ? ' is-failed'
@@ -313,15 +337,16 @@ export const ExecChatPanel: React.FC<{
             <Bot size={11} /> {subagentLabel}
           </span>
         )}
-        {/* 会话已停、未提交自检 → 一键续跑（重启断联/执行中断的恢复入口） */}
-        {!agentRunning && !awaitingHuman && !task.completedAt && task.agentSessionId && (
+        {/* 会话已停、无子代理在跑、未提交自检 → 一键续跑（重启断联/执行中断的恢复入口） */}
+        {!agentRunning && !subagentActive && !awaitingHuman && !task.completedAt && task.agentSessionId && (
           <button className="td-chip" onClick={() => void handleResume()} disabled={resuming} title="发标准续跑指令：重读计划、从断点继续">
             {resuming ? '发送中…' : '继续执行'}
           </button>
         )}
-        {/* 卡死观察（软阈值）：等人工场景豁免，只提示 + 手动开关，不自动杀 */}
+        {/* 卡死观察（软阈值）：等人工/子代理后台执行场景豁免，只提示 + 手动开关，不自动杀 */}
         {agentRunning &&
           !awaitingHuman &&
+          !subagentActive &&
           questions.length === 0 &&
           approvals.length === 0 &&
           Date.now() - lastEventRef.current > WATCH_STALL_SOFT_MS && (
@@ -381,7 +406,7 @@ export const ExecChatPanel: React.FC<{
             footerLeft={
               <ModelSelector
                 currentMode="plan-discuss"
-                controlledValue={discussModel}
+                controlledValue={sessionModel}
                 onControlledSelect={handleSelectModel}
               />
             }

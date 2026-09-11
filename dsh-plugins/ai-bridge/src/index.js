@@ -5,7 +5,8 @@
  *   POST http://127.0.0.1:2100/ai00-internal/llm/v1/chat/completions
  *
  * 网关侧分流（SmartRouter + 本地 RWKV + ai00-x.com）：
- *   - ai00-auto  → 智能路由（RWKV classify R0-R3 → 本地/远程）
+ *   - ai00-auto  → 智能路由（RWKV classify R0-R3 → 本地/远程）；
+ *                  编排 worker 内部 id，不再进弹层（去 auto，分流语义保留）
  *   - rwkv-local → 强制本地 RWKV
  *   - ai00-salvo → 强制 ai00-x.com primary 模型
  *
@@ -24,11 +25,18 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:2100";
 /** 内部 token 环境变量名（与客户端 AI00_S_INTERNAL_TOKEN 约定一致）。 */
 const TOKEN_ENV = "AI00_S_INTERNAL_TOKEN";
 
-/** 通告的模型目录（网关的 /models 端点同源）。contextWindow 供引擎压缩预算计算。 */
+/** 弹层通告目录（dsh 选模型弹层可见；contextWindow 供引擎压缩预算计算）。
+ * ai00-auto 已从弹层移除（去 auto）：主会话钉远端，auto 只作编排 worker 的
+ * 内部路由 id——仍可解析（见 INTERNAL_MODELS），网关分流语义保留。 */
 const MODELS = [
-  { id: "ai00-auto", name: "Ai00-X Auto (smart routing)", contextWindow: 128000 },
   { id: "rwkv-local", name: "Ai00-X Local RWKV", contextWindow: 16384 },
   { id: "ai00-salvo", name: "Ai00-X Salvo (ai00-x.com)", contextWindow: 128000 },
+];
+
+/** 内部保留 id：不在弹层通告，但 resolveModel 需要容量映射
+ * （research_worker 经 agentOptions 钉 ai00-auto 走 SmartRouter）。 */
+const INTERNAL_MODELS = [
+  { id: "ai00-auto", name: "Ai00-X Auto (smart routing)", contextWindow: 128000 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -145,7 +153,12 @@ async function* translateStream(sseObjects, model) {
   const order = [];
   let textBlock = null;
   let reasoningBlock = null;
-  let toolBlock = null;
+  // 并行 tool_calls：按 OpenAI 流式 index 分块（一条助手消息可含多个并行
+  // 调用——编排「同一条回复并发派发子代理」依赖此；单块合并会把 name 拼成
+  // "research_workercode_worker"、arguments 拼成非法 JSON，2026-09-11 实录）。
+  // key = call.index；index 缺失的端点按首个 id / 顺序兜底单块。
+  const toolBlocks = new Map();
+  let flatSeq = 0;
   let pendingUsage = null;
   let pendingFinish = null;
   let eventCount = 0;
@@ -211,54 +224,64 @@ async function* translateStream(sseObjects, model) {
       yield { type: "text-delta", index: textBlock.index, text: content };
     }
     for (const call of delta?.tool_calls ?? []) {
-      if (!toolBlock) {
-        toolBlock = {
+      // OpenAI 流式：并行调用按 call.index 分流；缺失时按 id，再兜底 0
+      const key =
+        typeof call.index === "number"
+          ? call.index
+          : typeof call.id === "string"
+            ? `id:${call.id}`
+            : 0;
+      let tb = toolBlocks.get(key);
+      if (!tb) {
+        tb = {
           index: order.length,
-          id: call.id ?? "call_ai00x",
+          id: call.id ?? `call_ai00x_${toolBlocks.size}`,
           name: "",
           arguments: "",
         };
-        order.push("tool-call");
-        yield { type: "block-start", index: toolBlock.index, blockType: "tool-call" };
+        toolBlocks.set(key, tb);
+        order.push(tb.index);
+        yield { type: "block-start", index: tb.index, blockType: "tool-call" };
       }
-      if (call.id !== undefined) toolBlock.id = call.id;
+      if (call.id !== undefined) tb.id = call.id;
       if (call.function?.name) {
-        toolBlock.name += call.function.name;
+        tb.name += call.function.name;
         yield {
           type: "tool-call-delta",
-          index: toolBlock.index,
-          id: toolBlock.id,
-          name: toolBlock.name,
+          index: tb.index,
+          id: tb.id,
+          name: tb.name,
           argumentsDelta: "",
         };
       }
       if (call.function?.arguments) {
         const fragment = call.function.arguments;
-        toolBlock.arguments += fragment;
+        tb.arguments += fragment;
         yield {
           type: "tool-call-delta",
-          index: toolBlock.index,
-          id: toolBlock.id,
+          index: tb.index,
+          id: tb.id,
           argumentsDelta: fragment,
         };
       }
     }
-    // ai00-salvo 自有格式：tool_call（单数，一次性完整对象）
-    if (flatToolCall && !toolBlock) {
-      toolBlock = {
+    // ai00-salvo 自有格式：tool_call（单数，一次性完整对象）——每个对象独立成块
+    if (flatToolCall) {
+      const tb = {
         index: order.length,
-        id: flatToolCall.id ?? "call_ai00x",
+        id: flatToolCall.id ?? `call_ai00x_flat_${flatSeq++}`,
         name: flatToolCall.name ?? "",
         arguments: flatToolCall.arguments ?? "{}",
       };
-      order.push("tool-call");
-      yield { type: "block-start", index: toolBlock.index, blockType: "tool-call" };
+      toolBlocks.set(`flat:${tb.index}`, tb);
+      order.push(tb.index);
+      yield { type: "block-start", index: tb.index, blockType: "tool-call" };
       yield {
         type: "tool-call-delta",
-        index: toolBlock.index,
-        id: toolBlock.id,
-        name: toolBlock.name,
-        argumentsDelta: toolBlock.arguments,
+        index: tb.index,
+        id: tb.id,
+        name: tb.name,
+        argumentsDelta: tb.arguments,
       };
     }
     if (event.usage) {
@@ -293,15 +316,16 @@ async function* translateStream(sseObjects, model) {
       block: { type: "text", text: textBlock.text },
     };
   }
-  if (toolBlock) {
+  // 并行调用逐块收尾（Map 保序 = 首次出现顺序）
+  for (const tb of toolBlocks.values()) {
     yield {
       type: "block-end",
-      index: toolBlock.index,
+      index: tb.index,
       block: {
         type: "tool-call",
-        id: toolBlock.id,
-        name: toolBlock.name,
-        arguments: toolBlock.arguments || "{}",
+        id: tb.id,
+        name: tb.name,
+        arguments: tb.arguments || "{}",
       },
     };
   }
@@ -349,13 +373,15 @@ class Ai00XAdapter {
       contextWindow: model.contextWindow,
     }));
     // 合并网关下发的具体模型目录（ai00s:/gguf-local:/自定义 id——讨论
-    // 通道同源），dsh 模型选择器可见可选；拉不到时静态三模型兜底
+    // 通道同源），dsh 模型选择器可见可选；拉不到时静态目录兜底。
+    // 内部保留 id（ai00-auto 等）一律过滤——不进弹层
     try {
       const res = await fetch(`${this.options.baseURL}/ai00-internal/llm/v1/models`);
       if (res.ok) {
         const data = await res.json();
+        const knownIds = new Set([...MODELS, ...INTERNAL_MODELS].map((m) => m.id));
         const extra = (data.data ?? [])
-          .filter((m) => m.id && !base.some((b) => b.id === m.id))
+          .filter((m) => m.id && !knownIds.has(m.id))
           .map((m) => ({
             provider: PROVIDER,
             id: m.id,
@@ -375,7 +401,7 @@ class Ai00XAdapter {
     // 未知引用（ai00s:<子模型>/gguf-local:<路径>/自定义 id）原样透传——
     // 网关按 client_factory 同源解析；此前未知 id 静默回落 ai00-auto，
     // 导致执行会话总是走智能路由（与讨论选型不一致）
-    const known = MODELS.find((m) => m.id === model);
+    const known = [...MODELS, ...INTERNAL_MODELS].find((m) => m.id === model);
     const id = known ? known.id : model;
     const name = known ? known.name : String(model ?? "");
     // contextWindow = 引擎压缩预算的容量来源（缺失则压缩对该路由不生效）

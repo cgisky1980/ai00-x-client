@@ -86,6 +86,9 @@ export interface TodoTask {
   /** 模型自检通过时刻（双段验收第一段；ai00_task_complete 写入）。
    *  completedAt=人类验收通过——完成的唯一判据。 */
   agentCompletedAt?: number | null;
+  /** 自检时登记的交付物文件路径清单（ai00_task_complete deliverables 参数；
+   *  计划面板「交付物」抽屉展示 + 预览弹窗）。 */
+  deliverables?: string[];
   /** 委托基线快照 commit（agent 动工前拍；diff 起点/回滚目标） */
   agentBaseCommit?: string | null;
   /** agent 自检快照 commit（执行产物定格；与基线 diff 即 agent 改动） */

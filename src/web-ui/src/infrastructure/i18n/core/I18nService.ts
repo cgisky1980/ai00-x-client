@@ -69,6 +69,7 @@ import zhCNSettingsAbout from '../../../locales/zh-CN/settings/about.json';
 import zhCNMermaidEditor from '../../../locales/zh-CN/mermaid-editor.json';
 import zhCNVrm from '../../../locales/zh-CN/vrm.json';
 import zhCNAcestep from '../../../locales/zh-CN/acestep.json';
+import zhCNTranslate from '../../../locales/zh-CN/translate.json';
 
 import enUSCommon from '../../../locales/en-US/common.json';
 import enUSFlowChat from '../../../locales/en-US/flow-chat.json';
@@ -116,6 +117,7 @@ import enUSSettingsAbout from '../../../locales/en-US/settings/about.json';
 import enUSMermaidEditor from '../../../locales/en-US/mermaid-editor.json';
 import enUSVrm from '../../../locales/en-US/vrm.json';
 import enUSAcestep from '../../../locales/en-US/acestep.json';
+import enUSTranslate from '../../../locales/en-US/translate.json';
 
 import { createLogger } from '@/shared/utils/logger';
 
@@ -170,6 +172,7 @@ const resources = {
     'mermaid-editor': zhCNMermaidEditor,
     vrm: zhCNVrm,
     acestep: zhCNAcestep,
+    translate: zhCNTranslate,
   },
   'en-US': {
     common: enUSCommon,
@@ -218,6 +221,7 @@ const resources = {
     'mermaid-editor': enUSMermaidEditor,
     vrm: enUSVrm,
     acestep: enUSAcestep,
+    translate: enUSTranslate,
   },
 };
 
@@ -286,6 +290,7 @@ export class I18nService {
           
           'mermaid-editor',
           'vrm',
+          'translate',
         ],
         interpolation: {
           escapeValue: false,

@@ -1,0 +1,14 @@
+{
+  "actions": {
+    "translate": "Translate",
+    "copy": "Copy"
+  },
+  "result": {
+    "title": "Translation",
+    "loading": "Translating with local model…",
+    "copy": "Copy",
+    "copied": "Copied",
+    "failed": "Translation failed",
+    "source": "Source"
+  }
+}
