@@ -225,6 +225,40 @@ export interface CommunityHome {
   follows_viewer: boolean;
   /** 双方互关（=好友，可私聊） */
   is_friend: boolean;
+  /** 造物集：歌曲作品数（songs 分库聚合） */
+  song_count?: number;
+  /** 造物集：歌曲总播放数 */
+  total_plays?: number;
+  /** 造物集：代表作置顶 JSON 字符串（[{type,id}]，≤3；'[]' = 未设置） */
+  pinned_works?: string;
+  /** 造物集：Lv 灵印角标（XP 等级；服务端 home handler 注入） */
+  author_level?: number | null;
+}
+
+/** 造物集代表作项（type: song=shareId / post=帖子数字 id 的字符串） */
+export interface PinnedWork {
+  type: 'song' | 'post';
+  id: string;
+}
+
+/** 造物集歌曲作品（服务端 /share/by-member 原始 snake_case 出参） */
+export interface MemberSongWork {
+  share_id: string;
+  author_member_id: number;
+  author_name: string;
+  title: string;
+  artist_name?: string | null;
+  album?: string | null;
+  genre?: string | null;
+  duration_seconds: number;
+  preview_duration_secs?: number;
+  cover_url?: string | null;
+  cover_mime?: string | null;
+  cover_width?: number | null;
+  cover_height?: number | null;
+  play_count: number;
+  tags?: string | null;
+  created_at: string;
 }
 
 export interface FollowToggleResult {
@@ -379,6 +413,41 @@ export const communityApi = {
     return unwrap(
       `/api/v1/community/members/${memberId}/posts?${params.toString()}`,
     );
+  },
+
+  // ---- 造物集（作品即门面）----
+
+  /** 某会员的歌曲作品列表（公开端点；page 分页，created_at DESC） */
+  async memberSongs(memberId: number, page = 1, perPage = 24): Promise<MemberSongWork[]> {
+    const data = (await unwrap(
+      `/api/v1/share/by-member/${memberId}?page=${page}&per_page=${perPage}`,
+    )) as { items?: MemberSongWork[] };
+    return data.items ?? [];
+  },
+
+  /** 设置造物集代表作（仅本人；works ≤3，服务端校验归属） */
+  async updatePinnedWorks(memberId: number, works: PinnedWork[]): Promise<void> {
+    await unwrap(`/api/v1/community/members/${memberId}/pinned-works`, {
+      method: 'PUT',
+      body: JSON.stringify({ works }),
+    });
+  },
+
+  /** 解析主页 payload 里的 pinned_works JSON（'[]'/脏数据兜底空数组） */
+  parsePinnedWorks(raw?: string | null): PinnedWork[] {
+    if (!raw) return [];
+    try {
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(
+        (w): w is PinnedWork =>
+          w && typeof w === 'object'
+          && (w.type === 'song' || w.type === 'post')
+          && typeof w.id === 'string',
+      );
+    } catch {
+      return [];
+    }
   },
 
   // ---- 互动 ----

@@ -1,17 +1,33 @@
 /**
- * ProfileView — 个人主页（P2B 博客化重写 + P2A 主题引擎）
+ * ProfileView — 创作者主页「造物集」（批次 1 重塑）
  *
- * 主题：服务端 profile_themes（迁移 027）为 SSOT，store.themes 缓存；
- *       ThemeResolver 把 payload 挂为容器级 --pt-* 变量，主页样式只消费这些变量。
- * 布局三骨架：hero（banner+头像压边）/ minimal（纯排版）/ editorial（杂志规则线）。
- * 页签：动态（网格卡流）/ 归档（按月，仅自己）/ 收藏（仅自己）。
- * 流卡片：bento 响应式网格，首卡 featured 头版横幅；卡片 = 首图压顶 +
- * 衬线标题 + 两行摘要 + mono 日期 + 标签，无作者行（同人流），点击进详情。
+ * 定位：AI 创作者的门面——作品即门面，色彩来自作品。三支柱：
+ * 1. 沉浸 header：代表作封面 canvas 取色晕染铺满（主题引擎 --pt-* 兜底），
+ *    衬线大名 + 组合身份章（作品构成动态判定）+ Lv 灵印角标。
+ * 2. 影响力数据条：作品/总播放/粉丝/关注，mono tabular。
+ * 3. 作品 tab（默认）：代表作置顶 ≤3 混排 + 造物墙（渲染器注册表，见 WorksWall）。
+ *
+ * 主题引擎（P2A）继续生效：--pt-* 变量仍驱动配色/字体/纹理/圆角，取色层在其上做增强。
+ * 页签：作品 / 动态（博客卡流）/ 徽章 /（本人）归档 / 收藏。
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
+import { tokenManager } from '@/infrastructure/auth/TokenManager';
 import { Button, Empty, IconButton, Modal, Skeleton, toastSuccess } from '@/component-library';
-import { ArrowLeft, ArrowUpRight, Eye, Globe, Heart, MapPin, MessageCircle, Pin, Settings2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Disc3,
+  Eye,
+  Globe,
+  Heart,
+  MapPin,
+  MessageCircle,
+  PenLine,
+  Pin,
+  Share2,
+  Settings2,
+} from 'lucide-react';
 import { useMemberChatStore } from '../store/memberChatStore';
 import { useCommunityStore } from './communityStore';
 import { MemberAvatar } from '../components/MemberAvatar';
@@ -19,8 +35,10 @@ import { FollowListModal } from './FollowListModal';
 import { ProfileEditModal } from './ProfileEditModal';
 import { ThemeShop } from './ThemeShop';
 import {
+  communityApi,
   resolveMediaUrl,
   type CommunityPost,
+  type PinnedWork,
   type ProfileThemeDTO,
 } from './communityApi';
 import {
@@ -33,13 +51,13 @@ import {
 import { mdPreview } from './md';
 import { gamificationApi, type MemberBadgeDTO } from './communityApi';
 import { formatRelTime } from './time';
+import { extractDominantColor } from './colorExtract';
+import { PinnedEditorModal, PinnedHero, WorksWall } from './WorksWall';
+import { useMemberSongs } from './works';
 
-type ProfileTab = 'posts' | 'archive' | 'bookmarks' | 'badges';
+type ProfileTab = 'works' | 'posts' | 'archive' | 'bookmarks' | 'badges';
 
-/**
- * 无图卡片的程序化渐变封面（Notion/Linear 式 cover art）：
- * 深浅双色 duotone，按帖子 id 稳定取色，避免外链图床依赖。
- */
+/** 无图卡片的程序化渐变封面（Notion/Linear 式 cover art） */
 const CARD_ART: Array<[string, string]> = [
   ['#1f2f52', '#3b6fd4'],
   ['#2b1f52', '#7c5cd4'],
@@ -102,11 +120,10 @@ function useMediaSrc(url: string | null | undefined): string {
 }
 
 /**
- * ProfilePostCard — 主页流卡片（bento 网格用）。
+ * ProfilePostCard — 动态 tab 博客卡流（bento 网格）。
  *
  * 同一个人的一片天：不放作者行/头像；有图用首图，无图生成程序化渐变封面；
  * 衬线标题 + 两行摘要 + 标签 chip + 数据行（赞/回复/浏览 + mono 日期）。
- * hover 卡片上浮、标题与箭头染主题 accent。featured 首卡横幅排版。
  */
 const ProfilePostCard: React.FC<{
   post: CommunityPost;
@@ -207,6 +224,27 @@ const ProfilePostCard: React.FC<{
   );
 };
 
+/** 组合身份章：按作品构成动态判定创作者人格（造物集三支柱之一） */
+const IdentitySeals: React.FC<{ songCount: number; postCount: number }> = ({ songCount, postCount }) => {
+  const { t } = useI18n('community');
+  const seals: Array<{ key: string; label: string; icon: React.ReactNode }> = [];
+  if (songCount > 0) seals.push({ key: 'musician', label: t('sealMusician', { defaultValue: '音乐人' }), icon: <Disc3 size={11} aria-hidden /> });
+  if (postCount > 0) seals.push({ key: 'writer', label: t('sealWriter', { defaultValue: '写手' }), icon: <PenLine size={11} aria-hidden /> });
+  if (seals.length === 0) {
+    seals.push({ key: 'creator', label: t('sealCreator', { defaultValue: '创作者' }), icon: null });
+  }
+  return (
+    <span className="community-profile2__seals">
+      {seals.map((s) => (
+        <span key={s.key} className="community-profile2__seal">
+          {s.icon}
+          {s.label}
+        </span>
+      ))}
+    </span>
+  );
+};
+
 export const ProfileView: React.FC = () => {
   const { t } = useI18n();
   const home = useCommunityStore((s) => s.home);
@@ -222,13 +260,14 @@ export const ProfileView: React.FC = () => {
   const loadMoreBookmarks = useCommunityStore((s) => s.loadMoreBookmarks);
   const setFeedTag = useCommunityStore((s) => s.setFeedTag);
   const openDetail = useCommunityStore((s) => s.openDetail);
+  const openPostById = useCommunityStore((s) => s.openPostById);
   const toggleFollow = useCommunityStore((s) => s.toggleFollow);
 
   const myMemberId = useMemberChatStore((s) => s.session?.memberId ?? null);
   const createDm = useMemberChatStore((s) => s.createDm);
   const setRailTab = useMemberChatStore((s) => s.setRailTab);
 
-  const [tab, setTab] = useState<ProfileTab>('posts');
+  const [tab, setTab] = useState<ProfileTab>('works');
   const [archiveMonth, setArchiveMonth] = useState('');
   const [listEnd, setListEnd] = useState<HTMLDivElement | null>(null);
   const [followersOpen, setFollowersOpen] = useState(false);
@@ -237,6 +276,11 @@ export const ProfileView: React.FC = () => {
   const [coverSrc, setCoverSrc] = useState('');
   /** 徽章墙（迁移 031；badges tab 拉取） */
   const [badges, setBadges] = useState<MemberBadgeDTO[] | null>(null);
+  /** 造物集：代表作（home.pinned_works 解析）+ 编辑器开关 */
+  const [pinned, setPinned] = useState<PinnedWork[]>([]);
+  const [pinnedEditorOpen, setPinnedEditorOpen] = useState(false);
+  /** 造物集：封面取色（沉浸 header 增强层，失败回退主题色） */
+  const [stageGlow, setStageGlow] = useState<string | null>(null);
 
   const isSelf = home?.member_id === myMemberId;
   const displayName = home ? home.nickname || home.username : '';
@@ -244,6 +288,8 @@ export const ProfileView: React.FC = () => {
     () => resolveAppliedTheme((themesDTO ?? []).map(toEngineTheme)),
     [themesDTO],
   );
+
+  const songs = useMemberSongs(home?.member_id ?? null);
 
   useEffect(() => {
     let alive = true;
@@ -259,6 +305,27 @@ export const ProfileView: React.FC = () => {
       alive = false;
     };
   }, [home?.cover]);
+
+  // 造物集：代表作随 home payload 刷新
+  useEffect(() => {
+    setPinned(communityApi.parsePinnedWorks(home?.pinned_works));
+  }, [home?.pinned_works]);
+
+  // 造物集：封面取色（banner 优先，无 banner 取首张歌曲封面；失败回退主题色）
+  useEffect(() => {
+    let alive = true;
+    const coverForColor = home?.cover || songs.songs.find((s) => s.cover_url)?.cover_url || null;
+    void (coverForColor ? resolveMediaUrl(coverForColor).then((u) => extractDominantColor(u)) : Promise.resolve(null))
+      .then((c) => {
+        if (alive) setStageGlow(c);
+      })
+      .catch(() => {
+        if (alive) setStageGlow(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [home?.cover, songs.songs]);
 
   useEffect(() => {
     if (tab === 'bookmarks' && isSelf) void loadBookmarks(true);
@@ -300,7 +367,7 @@ export const ProfileView: React.FC = () => {
   if (!home) {
     return (
       <div className="community-profile2" aria-busy>
-        <Skeleton style={{ height: 160 }} />
+        <Skeleton style={{ height: 220 }} />
         <Skeleton style={{ height: 44 }} />
       </div>
     );
@@ -322,17 +389,49 @@ export const ProfileView: React.FC = () => {
     setFeedTag(tag);
   };
 
+  const onDiscuss = async (shareId: string) => {
+    try {
+      const { post_id } = await communityApi.postByShare(shareId);
+      void openPostById(post_id);
+    } catch {
+      toastSuccess(t('songPostMissing', { defaultValue: '这首歌还没有社区讨论帖' }));
+    }
+  };
+
+  /** 站外分享：公开主页落地页（H5 与 API 同源，/u/{username} 全 host 可达） */
+  const onShare = async () => {
+    try {
+      const base = await tokenManager.getBaseUrl();
+      const origin = new URL(base).origin;
+      await navigator.clipboard.writeText(`${origin}/u/${home.username}`);
+      toastSuccess(t('shareCopied', { defaultValue: '主页链接已复制，去站外分享吧' }));
+    } catch {
+      toastSuccess(t('shareFailed', { defaultValue: '复制失败，请稍后再试' }));
+    }
+  };
+
   const monthFiltered = archiveMonth
     ? homePosts.filter((p) => p.created_at.startsWith(archiveMonth))
     : homePosts;
 
   const counts = (
-    <div className="community-profile2__counts">
-      <span className="ds-data">{t('postsCount', { defaultValue: '动态 {{n}}', n: home.post_count })}</span>
-      <button type="button" className="ds-data" onClick={() => setFollowersOpen(true)}>
-        {t('followersCount', { defaultValue: '粉丝 {{n}}', n: home.followers_count })}
+    <div className="community-profile2__stats">
+      <span className="community-profile2__stat">
+        <em className="ds-data">{home.post_count + (home.song_count ?? 0)}</em>
+        <span className="ds-data">{t('statWorks', { defaultValue: '作品' })}</span>
+      </span>
+      <span className="community-profile2__stat">
+        <em className="ds-data">{home.total_plays ?? 0}</em>
+        <span className="ds-data">{t('statPlays', { defaultValue: '总播放' })}</span>
+      </span>
+      <button type="button" className="community-profile2__stat" onClick={() => setFollowersOpen(true)}>
+        <em className="ds-data">{home.followers_count}</em>
+        <span className="ds-data">{t('statFollowers', { defaultValue: '粉丝' })}</span>
       </button>
-      <span className="ds-data">{t('followingCount', { defaultValue: '关注 {{n}}', n: home.following_count })}</span>
+      <span className="community-profile2__stat">
+        <em className="ds-data">{home.following_count}</em>
+        <span className="ds-data">{t('statFollowing', { defaultValue: '关注' })}</span>
+      </span>
     </div>
   );
 
@@ -355,10 +454,16 @@ export const ProfileView: React.FC = () => {
   const actions = (
     <div className="community-profile2__actions">
       {isSelf ? (
-        <Button variant="secondary" size="small" onClick={() => setEditOpen(true)}>
-          <Settings2 size={14} aria-hidden />
-          {t('editHome', { defaultValue: '编辑主页' })}
-        </Button>
+        <>
+          <Button variant="secondary" size="small" onClick={() => setEditOpen(true)}>
+            <Settings2 size={14} aria-hidden />
+            {t('editHome', { defaultValue: '编辑主页' })}
+          </Button>
+          <Button variant="secondary" size="small" onClick={() => void onShare()}>
+            <Share2 size={14} aria-hidden />
+            {t('share', { defaultValue: '分享' })}
+          </Button>
+        </>
       ) : (
         <>
           <Button
@@ -378,23 +483,31 @@ export const ProfileView: React.FC = () => {
               {t('message', { defaultValue: '发消息' })}
             </Button>
           )}
+          <Button variant="ghost" size="small" onClick={() => void onShare()}>
+            <Share2 size={14} aria-hidden />
+            {t('share', { defaultValue: '分享' })}
+          </Button>
         </>
       )}
     </div>
   );
 
-  let header: React.ReactNode;
-  if (applied.layout === 'hero') {
-    header = (
-      <header className="community-profile2__hero">
-        <div className="community-profile2__banner">
-          {coverSrc && <img src={coverSrc} alt="" draggable={false} />}
-          <span
-            className="community-profile2__banner-overlay"
-            style={{ opacity: applied.payload.bannerOverlay }}
-          />
-        </div>
-        <div className="community-profile2__hero-body">
+  const stageHeader = (
+    <header className="community-profile2__stage">
+      <div className="community-profile2__stage-glow" aria-hidden>
+        <span
+          className="community-profile2__stage-wash community-profile2__stage-wash--a"
+          style={stageGlow ? { backgroundColor: stageGlow } : undefined}
+        />
+        <span
+          className="community-profile2__stage-wash community-profile2__stage-wash--b"
+          style={stageGlow ? { backgroundColor: stageGlow, opacity: 0.5 } : undefined}
+        />
+        {coverSrc && <img className="community-profile2__stage-cover" src={coverSrc} alt="" draggable={false} />}
+        <span className="community-profile2__stage-veil" aria-hidden />
+      </div>
+      <div className="community-profile2__stage-body">
+        <div className="community-profile2__stage-id">
           <MemberAvatar
             name={displayName}
             size="xl"
@@ -402,54 +515,27 @@ export const ProfileView: React.FC = () => {
             animated
             className="community-profile2__avatar"
           />
-          <h1 className="community-profile2__name">{displayName}</h1>
-          {metaRow}
-          {home.bio && <p className="community-profile2__bio">{home.bio}</p>}
-          {counts}
-          {actions}
-        </div>
-      </header>
-    );
-  } else if (applied.layout === 'minimal') {
-    header = (
-      <header className="community-profile2__minimal">
-        <div className="community-profile2__minimal-top">
-          <MemberAvatar
-            name={displayName}
-            size="lg"
-            data={home.avatar}
-            animated
-            className="community-profile2__avatar-sm"
-          />
-          <h1 className="community-profile2__name">{displayName}</h1>
-          {actions}
+          <div className="community-profile2__stage-name">
+            <h1 className="community-profile2__name">{displayName}</h1>
+            <IdentitySeals songCount={home.song_count ?? 0} postCount={home.post_count} />
+            {typeof home.author_level === 'number' && home.author_level > 0 && (
+              <span className="community-profile2__lv ds-data" title={t('levelTitle', { defaultValue: 'Lv.{{n}}', n: home.author_level })}>
+                Lv.{home.author_level}
+              </span>
+            )}
+          </div>
         </div>
         {home.bio && <p className="community-profile2__bio">{home.bio}</p>}
         {metaRow}
-        <div className="community-profile2__rule" />
         {counts}
-      </header>
-    );
-  } else {
-    header = (
-      <header className="community-profile2__editorial">
-        <div className="community-profile2__kicker ds-data">PROFILE / 個人</div>
-        <h1 className="community-profile2__name community-profile2__name--display">{displayName}</h1>
-        <div className="community-profile2__byline">
-          {home.bio ? `${displayName} — ${home.bio}` : displayName}
-        </div>
-        <div className="community-profile2__meta-row">
-          {metaRow}
-          {counts}
-          {actions}
-        </div>
-      </header>
-    );
-  }
+        {actions}
+      </div>
+    </header>
+  );
 
   return (
     <div
-      className={`community-profile2 community-profile2--${applied.layout}${
+      className={`community-profile2 community-profile2--stage${
         applied.payload.decoration !== 'none' ? ` community-profile2--deco-${applied.payload.decoration}` : ''
       }`}
       data-profile-root
@@ -472,11 +558,12 @@ export const ProfileView: React.FC = () => {
         <span className="community-profile2__title ds-data">{applied.name}</span>
       </header>
 
-      {header}
+      {stageHeader}
 
       <nav className="community-profile2__tabs" role="tablist">
         {(
           [
+            ['works', t('tabWorks', { defaultValue: '作品' }), true],
             ['posts', t('tabPosts', { defaultValue: '动态' }), true],
             ['archive', t('tabArchive', { defaultValue: '归档' }), isSelf],
             ['bookmarks', t('tabBookmarks', { defaultValue: '收藏' }), isSelf],
@@ -497,6 +584,29 @@ export const ProfileView: React.FC = () => {
             </button>
           ))}
       </nav>
+
+      {tab === 'works' && (
+        <div className="community-profile2__works">
+          <PinnedHero
+            pinned={pinned}
+            songs={songs.songs}
+            posts={homePosts}
+            isSelf={!!isSelf}
+            onOpenPost={openDetail}
+            onDiscuss={(sid) => void onDiscuss(sid)}
+            onManage={() => setPinnedEditorOpen(true)}
+          />
+          <WorksWall
+            songs={songs.songs}
+            songsLoading={songs.loading}
+            songsHasMore={songs.hasMore}
+            onLoadMoreSongs={songs.loadMore}
+            posts={homePosts}
+            onOpenPost={openDetail}
+            onDiscuss={(sid) => void onDiscuss(sid)}
+          />
+        </div>
+      )}
 
       {tab === 'posts' && (
         <div className="community-profile2__list">
@@ -590,6 +700,18 @@ export const ProfileView: React.FC = () => {
             onPick={() => setFollowersOpen(false)}
           />
         </Modal>
+      )}
+
+      {pinnedEditorOpen && (
+        <PinnedEditorModal
+          open={pinnedEditorOpen}
+          memberId={home.member_id}
+          songs={songs.songs}
+          posts={homePosts}
+          initial={pinned}
+          onClose={() => setPinnedEditorOpen(false)}
+          onSaved={(works) => setPinned(works)}
+        />
       )}
 
       {editOpen && (
