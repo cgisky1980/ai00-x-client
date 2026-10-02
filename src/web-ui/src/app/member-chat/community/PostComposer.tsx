@@ -32,6 +32,44 @@ const MAX_IMAGES = 9;
 /** AI 起标题阈值：压平正文 ≥ 此长度才值得起标题（短动态不打扰模型） */
 const AI_TITLE_MIN_CHARS = 48;
 
+/** 草稿 localStorage 槽 key（迁移 030：关闭弹窗不再丢稿） */
+const DRAFT_KEY = 'ai00-x.community.draft.v1';
+
+/** 草稿持久化结构（已上传完成的媒体存相对 URL，重开恢复预览） */
+interface ComposerDraft {
+  content: string;
+  title: string;
+  coverPath: string;
+  images: Array<{ key: string; url: string; thumb_url?: string }>;
+  videoItem: CommunityMediaItem | null;
+  visibility: PostVisibility;
+  savedAt: string;
+}
+
+function loadDraft(): ComposerDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as ComposerDraft;
+    if (typeof d !== 'object' || d === null) return null;
+    // 空草稿（无正文无媒体）不恢复
+    const hasMedia = (d.images?.length ?? 0) > 0 || d.videoItem != null || !!d.coverPath;
+    if (!String(d.content ?? '').trim() && !String(d.title ?? '').trim() && !hasMedia) return null;
+    return d;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(d: ComposerDraft | null): void {
+  try {
+    if (d) localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+    else localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // 存储满/不可用：草稿尽力而为，不阻塞发布
+  }
+}
+
 /**
  * aiGenerateTitle — 单次 AI 起标题（ai_complete_once 通用接口：无会话、无事件、
  * 直接返回文本；模型默认 primary = 用户当前选用的主模型）。失败/超时返回 null。
@@ -132,6 +170,8 @@ export const PostComposer: React.FC<{ open: boolean; onClose: () => void }> = ({
   const [visibility, setVisibility] = useState<PostVisibility>('public');
   const [submitting, setSubmitting] = useState(false);
   const [titling, setTitling] = useState(false);
+  /** 恢复的草稿在编辑期间保持 true，供提示条展示（迁移 030） */
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const uploading = images.some((i) => i.status === 'uploading');
   const hasMedia = videoItem !== null || images.some((i) => i.status === 'done');
@@ -146,7 +186,48 @@ export const PostComposer: React.FC<{ open: boolean; onClose: () => void }> = ({
     setVideoItem(null);
     setVideoUrl('');
     setVisibility('public');
+    setDraftRestored(false);
+    saveDraft(null);
   };
+
+  /* ---- 草稿（迁移 030）：打开时恢复上次未发布内容；编辑防抖保存；发布成功清除 ---- */
+  React.useEffect(() => {
+    if (!open) return;
+    const d = loadDraft();
+    if (d) {
+      setContent(d.content ?? '');
+      setTitle(d.title ?? '');
+      setCoverPath(d.coverPath ?? '');
+      setCoverPreview(d.coverPath ?? '');
+      setImages((d.images ?? []).map((i) => ({ ...i, status: 'done' as const })));
+      setVideoItem(d.videoItem ?? null);
+      setVisibility(d.visibility ?? 'public');
+      setDraftRestored(true);
+    }
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open || submitting) return;
+    const timer = window.setTimeout(() => {
+      const empty = !content.trim() && !title.trim() && images.length === 0 && !videoItem && !coverPath;
+      if (empty) {
+        saveDraft(null);
+        return;
+      }
+      saveDraft({
+        content,
+        title,
+        coverPath,
+        images: images
+          .filter((i) => i.status === 'done' && i.url)
+          .map((i) => ({ key: i.key, url: i.url!, thumb_url: i.thumb_url })),
+        videoItem,
+        visibility,
+        savedAt: new Date().toISOString(),
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [open, content, title, coverPath, images, videoItem, visibility, submitting]);
 
   /* ---- 图片上传（编辑器 onImagesPicked 上抛到这里） ---- */
   const addImages = async (files: File[]) => {
@@ -270,6 +351,22 @@ export const PostComposer: React.FC<{ open: boolean; onClose: () => void }> = ({
       title={t('composeTitle', { defaultValue: '发布动态' })}
       size="medium"
     >
+      {/* 草稿恢复提示（迁移 030：上次未发布内容已自动恢复） */}
+      {open && draftRestored && (
+        <div className="community-composer__draft" role="status">
+          <span>{t('draftRestored', { defaultValue: '已恢复上次未发布的草稿' })}</span>
+          <button
+            type="button"
+            className="community-composer__draft-discard"
+            onClick={() => {
+              reset();
+              setDraftRestored(false);
+            }}
+          >
+            {t('draftDiscard', { defaultValue: '丢弃' })}
+          </button>
+        </div>
+      )}
       {/* 博客模式：标题（可选）——博客卡与详情页衬线渲染 */}
       <input
         className="community-composer__title"

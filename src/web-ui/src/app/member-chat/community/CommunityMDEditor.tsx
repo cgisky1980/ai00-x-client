@@ -186,7 +186,7 @@ export const CommunityMDEditor: React.FC<CommunityMDEditorProps> = ({
         readyRef.current = true;
         setReady(true);
       },
-      input: (md) => {
+      input: (md: string) => {
         lastEmitRef.current = md;
         onChangeRef.current(md);
       },

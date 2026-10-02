@@ -15,14 +15,15 @@ import {
   type CommunityMediaItem,
   type CommunityNotification,
   type CommunityPost,
+  type CommunityReactionSummary,
   type FollowToggleResult,
   type PostVisibility,
 } from './communityApi';
 
 export type CommunityViewKind = 'feed' | 'postDetail' | 'profile' | 'notifications';
-export type FeedTab = 'latest' | 'hot' | 'following';
+export type FeedTab = 'latest' | 'hot' | 'following' | 'songs';
 /** P1.5 搜索结果视图 + P1.6 收藏视图（皆复用 PostCard 列表渲染） */
-export type CommunityViewKindEx = CommunityViewKind | 'search';
+export type CommunityViewKindEx = CommunityViewKind | 'search' | 'tag';
 
 interface CommunityState {
   // 视图状态（history 支持详情↔主页逐级返回）
@@ -36,6 +37,8 @@ interface CommunityState {
   hasMore: boolean;
   loading: boolean;
   error: string | null;
+  /** 热门 tab 偏移游标（非 id 排序，不能用 before；服务端 feed_square offset 语义） */
+  hotOffset: number;
 
   // 搜索（P1.5）
   searchQuery: string;
@@ -102,7 +105,11 @@ interface CommunityState {
   reportPost(postId: number, reason: string, detail: string): Promise<boolean>;
   deletePost(postId: number): Promise<void>;
   toggleLike(post: CommunityPost): Promise<void>;
+  /** 表情回应 toggle（同 emoji 再点=取消，不同=替换；乐观更新+失败回滚） */
+  toggleReaction(post: CommunityPost, emoji: string): Promise<void>;
   updatePostContent(postId: number, content: string): void;
+  /** 编辑媒体后同步到所有缓存的同名帖（迁移 030） */
+  updatePostMedia(postId: number, media: CommunityMediaItem[]): void;
   openDetail(post: CommunityPost): void;
   openPostById(postId: number): Promise<void>;
   back(): void;
@@ -116,6 +123,13 @@ interface CommunityState {
   toggleFollow(memberId: number): Promise<FollowToggleResult | null>;
   /** 主页资料变更后重拉（编辑资料/关注态同步） */
   reloadHome(): Promise<void>;
+  /** 话题聚合页（迁移 032）：状态与动作 */
+  tagPosts: CommunityPost[];
+  tagHasMore: boolean;
+  tagLoading: boolean;
+  openTag(tag: string): void;
+  loadTagPosts(reset?: boolean): Promise<void>;
+  loadMoreTag(): Promise<void>;
   openNotifications(): void;
   loadNotifications(reset?: boolean): Promise<void>;
   markAllRead(): Promise<void>;
@@ -141,6 +155,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   bookmarks: [],
   bookmarksHasMore: false,
   bookmarksLoading: false,
+  tagPosts: [],
+  tagHasMore: false,
+  tagLoading: false,
 
   themes: null,
   themesLoading: false,
@@ -150,6 +167,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   hasMore: false,
   loading: false,
   error: null,
+  hotOffset: 0,
 
   detailPost: null,
   comments: [],
@@ -167,12 +185,48 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   setFeedTab: (tab) => {
     set({ feedTab: tab });
+    // 新歌 tab 走独立 SongsPanel（/share/recent），不打帖子 feed 接口
+    if (tab === 'songs') return;
     void get().loadFeed(true);
   },
 
   setFeedTag: (tag) => {
     set({ feedTag: tag, view: 'feed' });
     void get().loadFeed(true);
+  },
+
+  openTag: (tag) => {
+    const t = tag.trim();
+    if (!t) return;
+    set({ feedTag: t, view: 'tag', tagPosts: [], tagHasMore: false, history: ['feed'] });
+    void get().loadTagPosts(true);
+  },
+
+  loadTagPosts: async (reset = true) => {
+    const { feedTag, tagPosts, tagLoading } = get();
+    if (!feedTag || tagLoading) return;
+    set({ tagLoading: true });
+    try {
+      const before = reset ? undefined : tagPosts[tagPosts.length - 1]?.id;
+      const res = await communityApi.feedSquare('latest', {
+        before,
+        limit: PAGE_SIZE,
+        tag: feedTag,
+      });
+      set((st) => ({
+        tagPosts: reset ? res.posts : [...st.tagPosts, ...res.posts],
+        tagHasMore: res.posts.length >= PAGE_SIZE,
+      }));
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      set({ tagLoading: false });
+    }
+  },
+
+  loadMoreTag: async () => {
+    if (get().tagLoading || !get().tagHasMore) return;
+    await get().loadTagPosts(false);
   },
 
   search: (q) => {
@@ -279,23 +333,36 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   loadFeed: async (reset = true) => {
-    const { feedTab, feedTag, posts, loading } = get();
+    const { feedTab, feedTag, posts, loading, hotOffset } = get();
     if (loading) return;
+    // 新歌 tab 数据由 FeedView 的 SongsPanel 自取，不进帖子流
+    if (feedTab === 'songs') return;
     set({ loading: true, error: null });
     try {
-      const before = reset ? undefined : posts[posts.length - 1]?.id;
+      // 热门非 id 排序：offset 游标；最新/关注：before id 游标
+      const hot = feedTab === 'hot';
+      const offset = hot ? (reset ? 0 : hotOffset) : undefined;
+      const before = !hot && !reset ? posts[posts.length - 1]?.id : undefined;
       const res =
         feedTab === 'following'
           ? await communityApi.feedFollowing({ before, limit: PAGE_SIZE })
           : await communityApi.feedSquare(feedTab, {
               before,
+              offset,
               limit: PAGE_SIZE,
               tag: feedTag || undefined,
             });
-      set((st) => ({
-        posts: reset ? res.posts : [...st.posts, ...res.posts],
-        hasMore: res.posts.length >= PAGE_SIZE,
-      }));
+      set((st) => {
+        // offset 分页期间热度变化可能造成重叠，按 id 去重兜底
+        const fresh = hot
+          ? res.posts.filter((p) => !st.posts.some((o) => o.id === p.id))
+          : res.posts;
+        return {
+          posts: reset ? res.posts : [...st.posts, ...fresh],
+          hasMore: res.posts.length >= PAGE_SIZE,
+          hotOffset: hot ? (reset ? res.posts.length : st.hotOffset + fresh.length) : st.hotOffset,
+        };
+      });
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -395,12 +462,80 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }
   },
 
+  toggleReaction: async (post, emoji) => {
+    // 乐观更新回应汇总：同 emoji 再点=取消，不同=替换（一人一帖一枚）
+    const prevReactions = post.reactions ?? [];
+    const st0 = get();
+    const applyLocal = (rows: CommunityReactionSummary[]): Partial<CommunityState> => {
+      const patch = (p: CommunityPost): CommunityPost =>
+        p.id === post.id ? { ...p, reactions: rows } : p;
+      return {
+        posts: st0.posts.map(patch),
+        searchPosts: st0.searchPosts.map(patch),
+        bookmarks: st0.bookmarks.map(patch),
+        detailPost: st0.detailPost ? patch(st0.detailPost) : null,
+        homePosts: st0.homePosts.map(patch),
+      };
+    };
+    const merged: CommunityReactionSummary[] = (() => {
+      const rows = prevReactions.map((r) => ({ ...r }));
+      const hit = rows.find((r) => r.mine);
+      const cur = rows.find((r) => r.emoji === emoji);
+      if (hit && hit.emoji === emoji) {
+        // 取消
+        hit.count -= 1;
+        hit.mine = false;
+        return rows.filter((r) => r.count > 0);
+      }
+      if (hit) {
+        // 换 emoji：旧枚减一（0 则删），新枚加一
+        hit.count -= 1;
+        if (hit.count <= 0) {
+          const i = rows.indexOf(hit);
+          rows.splice(i, 1);
+        } else {
+          hit.mine = false;
+        }
+      }
+      if (cur) {
+        if (!hit || hit.emoji !== emoji) cur.count += 1;
+        cur.mine = true;
+      } else {
+        rows.push({ emoji, count: 1, mine: true });
+      }
+      return rows.sort((a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji));
+    })();
+    set(applyLocal(merged));
+    try {
+      const r = await communityApi.toggleReaction(post.id, emoji);
+      set(applyLocal(r.reactions));
+    } catch (e) {
+      set(applyLocal(prevReactions));
+      set({ error: e instanceof Error ? e.message : String(e) });
+    }
+  },
+
   /** 编辑动态后同步文本到所有缓存的同名帖 */
   updatePostContent: (postId, content) => {
     set((st) => {
       const patch = (p: CommunityPost): CommunityPost =>
         p.id === postId
           ? { ...p, content, edited_at: new Date().toISOString() }
+          : p;
+      return {
+        posts: st.posts.map(patch),
+        detailPost: st.detailPost && st.detailPost.id === postId ? patch(st.detailPost) : null,
+        homePosts: st.homePosts.map(patch),
+      };
+    });
+  },
+
+  /** 编辑媒体后同步到所有缓存的同名帖（迁移 030；含 edited_at 触碰） */
+  updatePostMedia: (postId, media) => {
+    set((st) => {
+      const patch = (p: CommunityPost): CommunityPost =>
+        p.id === postId
+          ? { ...p, media, edited_at: new Date().toISOString() }
           : p;
       return {
         posts: st.posts.map(patch),

@@ -9,7 +9,7 @@ import React from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { Button, Empty, IconButton } from '@/component-library';
 import { MemberAvatar } from '../components/MemberAvatar';
-import { ArrowLeft, AtSign, CheckCheck, Heart, MessageCircle, UserPlus, CornerUpLeft } from 'lucide-react';
+import { ArrowLeft, AtSign, Award, CheckCheck, CornerUpLeft, Heart, MessageCircle, SmilePlus, TrendingUp, UserPlus } from 'lucide-react';
 import { useCommunityStore } from './communityStore';
 import type { CommunityNotification } from './communityApi';
 import { formatRelTime } from './time';
@@ -20,6 +20,9 @@ function NoticeIcon({ kind }: { kind: CommunityNotification['kind'] }) {
   if (kind === 'comment') return <MessageCircle size={size} aria-hidden />;
   if (kind === 'reply') return <CornerUpLeft size={size} aria-hidden />;
   if (kind === 'mention') return <AtSign size={size} aria-hidden />;
+  if (kind === 'reaction') return <SmilePlus size={size} aria-hidden />;
+  if (kind === 'badge') return <Award size={size} aria-hidden />;
+  if (kind === 'level_up') return <TrendingUp size={size} aria-hidden />;
   return <UserPlus size={size} aria-hidden />;
 }
 
@@ -38,6 +41,9 @@ export const NotificationCenter: React.FC = () => {
     if (n.kind === 'comment') return t('noticeComment', { defaultValue: '{{name}} 留言了你的动态', name });
     if (n.kind === 'reply') return t('noticeReply', { defaultValue: '{{name}} 回复了你', name });
     if (n.kind === 'mention') return t('noticeMention', { defaultValue: '{{name}} 提到了你', name });
+    if (n.kind === 'reaction') return t('noticeReaction', { defaultValue: '{{name}} 回应了你的动态', name });
+    if (n.kind === 'badge') return t('noticeBadge', { defaultValue: '解锁了新徽章，去主页看看' });
+    if (n.kind === 'level_up') return t('noticeLevelUp', { defaultValue: '等级提升了，继续加油' });
     return t('noticeFollow', { defaultValue: '{{name}} 关注了你', name });
   };
 

@@ -35,16 +35,26 @@ import {
   Pencil,
   Pin,
   Repeat2,
+  SmilePlus,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useMemberChatStore } from '../store/memberChatStore';
-import { communityApi, resolveMediaUrl, type CommunityPost } from './communityApi';
+import {
+  communityApi,
+  resolveMediaUrl,
+  RESPONSE_EMOJIS,
+  type CommunityMediaItem,
+  type CommunityPost,
+} from './communityApi';
 import { useCommunityStore } from './communityStore';
 import { formatRelTime } from './time';
 import { mdPreview } from './md';
 import { linkifyMentions, parseMentionHref, resolveMentionId } from './mention';
 import { CommunityMDEditor } from './CommunityMDEditor';
 import { MediaGrid } from './MediaGrid';
+import { EMOJI_PACK } from './emojis';
+import { SongCard } from './SongCard';
 
 /** 博客卡封面（相对 URL 解析；缺省不渲染） */
 const PostCover: React.FC<{ url: string }> = ({ url }) => {
@@ -64,22 +74,131 @@ const PostCover: React.FC<{ url: string }> = ({ url }) => {
   return <img className="community-post__cover" src={src} alt="" loading="lazy" draggable={false} />;
 };
 
+/** 表情回应条（迁移 030）：汇总 chips + 添加选择器；一人一帖一枚，点 chip 即 toggle */
+const ReactionBar: React.FC<{ post: CommunityPost }> = ({ post }) => {
+  const { t } = useI18n('community');
+  const toggleReaction = useCommunityStore((s) => s.toggleReaction);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const reactions = post.reactions ?? [];
+  return (
+    <div className="community-post__reactions">
+      {pickerOpen && (
+        <div
+          className="community-post__reaction-backdrop"
+          onClick={() => setPickerOpen(false)}
+          aria-hidden
+        />
+      )}
+      {reactions.map((r) => (
+        <button
+          key={r.emoji}
+          type="button"
+          className={`community-post__reaction ${r.mine ? 'is-mine' : ''}`}
+          onClick={() => void toggleReaction(post, r.emoji)}
+          aria-pressed={r.mine}
+          aria-label={r.emoji}
+        >
+          {EMOJI_PACK[r.emoji] && (
+            <img src={EMOJI_PACK[r.emoji]} alt={r.emoji} draggable={false} />
+          )}
+          <span className="ds-data">{r.count}</span>
+        </button>
+      ))}
+      <span className="community-post__reaction-add">
+        <button
+          type="button"
+          className={`community-post__action community-post__action--react ${pickerOpen ? 'is-active' : ''}`}
+          onClick={() => setPickerOpen((v) => !v)}
+          aria-label={t('addReaction', { defaultValue: '添加表情回应' })}
+        >
+          <SmilePlus size={16} strokeWidth={1.8} />
+        </button>
+        {pickerOpen && (
+          <span className="community-post__reaction-picker" role="menu">
+            {RESPONSE_EMOJIS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={`community-post__reaction-pick ${
+                  reactions.some((r) => r.mine && r.emoji === key) ? 'is-mine' : ''
+                }`}
+                onClick={() => {
+                  setPickerOpen(false);
+                  void toggleReaction(post, key);
+                }}
+                aria-label={key}
+              >
+                {EMOJI_PACK[key] && (
+                  <img src={EMOJI_PACK[key]} alt={key} draggable={false} />
+                )}
+              </button>
+            ))}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+};
+
+/** 编辑态媒体缩略（迁移 030）：图片解析预览，视频/歌曲等显示类型徽标 */
+const EditMediaThumb: React.FC<{
+  item: CommunityMediaItem;
+  busy: boolean;
+  onRemove: () => void;
+}> = ({ item, busy, onRemove }) => {
+  const { t } = useI18n('community');
+  const [src, setSrc] = useState('');
+  React.useEffect(() => {
+    if (item.type !== 'image') return;
+    let alive = true;
+    void resolveMediaUrl(item.thumb || item.url)
+      .then((u) => {
+        if (alive) setSrc(u);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [item]);
+  return (
+    <div className={`community-composer__thumb ${busy ? 'is-busy' : ''}`}>
+      {item.type === 'image' && src ? (
+        <img src={src} alt="" loading="lazy" draggable={false} />
+      ) : (
+        <span className="community-composer__thumb-state" aria-hidden>
+          {item.type === 'video' ? (item.provider ?? 'video') : item.type}
+        </span>
+      )}
+      <button
+        type="button"
+        className="community-composer__remove"
+        aria-label={t('removeMedia', { defaultValue: '移除' })}
+        onClick={onRemove}
+      >
+        <X size={12} />
+      </button>
+    </div>
+  );
+};
+
 export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ post, rich = false }) => {
   const { t } = useI18n('community');
   const myMemberId = useMemberChatStore((s) => s.session?.memberId ?? null);
   const toggleLike = useCommunityStore((s) => s.toggleLike);
-  const toggleBookmark = useCommunityStore((s) => s.toggleBookmark);
-  const openDetail = useCommunityStore((s) => s.openDetail);
+  const toggleBookmark = useCommunityStore((s) => s.toggleBookmark);  const openDetail = useCommunityStore((s) => s.openDetail);
   const openProfile = useCommunityStore((s) => s.openProfile);
   const deletePost = useCommunityStore((s) => s.deletePost);
   const togglePin = useCommunityStore((s) => s.togglePin);
-  const setFeedTag = useCommunityStore((s) => s.setFeedTag);
+  const openTag = useCommunityStore((s) => s.openTag);
   const repostPost = useCommunityStore((s) => s.repostPost);
   const reportPost = useCommunityStore((s) => s.reportPost);
 
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const [saving, setSaving] = useState(false);
+  /** 编辑态媒体（迁移 030：初始化自帖子，可增删；song 等类型原样保留不可改） */
+  const [editMedia, setEditMedia] = useState<CommunityMediaItem[]>([]);
+  const [editUploading, setEditUploading] = useState(0);
   // 举报（P3）
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
@@ -134,17 +253,41 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
 
   const onEditSave = async () => {
     const content = editText.trim();
-    if (!content) return;
+    if (!content && editMedia.length === 0) return;
     setSaving(true);
     try {
-      await communityApi.editPost(post.id, content);
+      await communityApi.editPost(post.id, content, { media: editMedia });
       useCommunityStore.getState().updatePostContent(post.id, content);
+      useCommunityStore.getState().updatePostMedia(post.id, editMedia);
       setEditing(false);
       toastSuccess(t('postEdited', { defaultValue: '动态已更新' }));
     } catch (e) {
       toastError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  /** 编辑态追加上传图片（编辑器粘贴/拖拽与「添加图片」共用；≤9 张） */
+  const onEditAddImages = async (files: FileList | File[] | null) => {
+    if (!files) return;
+    const accepted = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (accepted.length === 0) return;
+    const room = 9 - editMedia.filter((m) => m.type === 'image').length;
+    if (accepted.length > room) {
+      toastError(t('tooManyImages', { defaultValue: '最多 9 张图片' }));
+    }
+    const take = accepted.slice(0, Math.max(0, room));
+    setEditUploading((n) => n + take.length);
+    for (const f of take) {
+      try {
+        const r = await communityApi.uploadMedia(f);
+        setEditMedia((prev) => [...prev, { type: 'image', url: r.url, thumb: r.thumb_url }]);
+      } catch (e) {
+        toastError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setEditUploading((n) => n - 1);
+      }
     }
   };
 
@@ -160,7 +303,15 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
           <span className="community-post__author-meta">
             <span className="community-post__name">{displayName}</span>
             <span className="community-post__sub ds-data">
-              @{post.username} · {formatRelTime(post.created_at)}
+              @{post.username}
+              {/* 作者等级角标（迁移 031；API 层回填） */}
+              {(post.author_level ?? 0) > 0 && (
+                <span className="community-post__lv" title={`Lv.${post.author_level}`}>
+                  Lv.{post.author_level}
+                </span>
+              )}
+              {' · '}
+              {formatRelTime(post.created_at)}
               {/* 浏览量（P3；仅详情页展示，feed 不渲染以减少噪音） */}
               {rich && (post.view_count ?? 0) > 0 && (
                 <>
@@ -200,6 +351,7 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
                   <DropdownMenuItem
                     onSelect={() => {
                       setEditText(post.content);
+                      setEditMedia(post.media ?? []);
                       setEditing(true);
                     }}
                   >
@@ -248,7 +400,7 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
               key={tg}
               type="button"
               className="community-post__tag"
-              onClick={() => setFeedTag(tg)}
+              onClick={() => openTag(tg)}
             >
               #{tg}
             </button>
@@ -283,6 +435,11 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
       {post.cover_url && <PostCover url={post.cover_url} />}
       {!rich && !post.cover_url && preview.firstImage && <PostCover url={preview.firstImage} />}
       <MediaGrid media={post.media} />
+      {/* 歌曲引用卡（迁移 030：发行即发帖；media 中 song 项由 SongCard 渲染） */}
+      {(() => {
+        const songItem = (post.media ?? []).find((m) => m.type === 'song');
+        return songItem ? <SongCard item={songItem} /> : null;
+      })()}
 
       {/* 转发嵌套卡（P3；源帖已删/不可见时显示占位） */}
       {post.repost_of != null && (
@@ -324,6 +481,9 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
           </div>
         )
       )}
+
+      {/* 表情回应条（迁移 030；feed/详情共用） */}
+      <ReactionBar post={post} />
 
       <footer className="community-post__actions">
         <button
@@ -378,12 +538,36 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
           value={editText}
           onChange={setEditText}
           disabled={saving}
-          onImagesPicked={(files) => {
-            // 编辑态媒体 v1 仅文本：提示走 Composer（与后端 edit 仅 content 一致）
-            toastError(t('editMediaUnsupported', { defaultValue: '编辑仅支持修改文字' }));
-            void files;
-          }}
+          onImagesPicked={(files) => void onEditAddImages(files)}
         />
+        {/* 编辑态媒体（迁移 030：图片可增删，视频/歌曲等原样保留可移除） */}
+        {editMedia.length > 0 && (
+          <div className="community-composer__media">
+            {editMedia.map((m, i) => (
+              <EditMediaThumb
+                key={`${m.type}-${m.url}-${i}`}
+                item={m}
+                busy={editUploading > 0 && i >= editMedia.length - editUploading}
+                onRemove={() => setEditMedia((prev) => prev.filter((_, j) => j !== i))}
+              />
+            ))}
+          </div>
+        )}
+        <label className="community-composer__cover-pick community-composer__media-add">
+          {editUploading > 0
+            ? t('uploading', { defaultValue: '上传中…' })
+            : t('editAddImages', { defaultValue: '添加图片' })}
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              void onEditAddImages(e.target.files);
+              e.target.value = '';
+            }}
+          />
+        </label>
         <div className="community-composer__actions">
           <Button variant="ghost" onClick={() => setEditing(false)}>
             {t('common:cancel', { defaultValue: '取消' })}
@@ -391,7 +575,7 @@ export const PostCard: React.FC<{ post: CommunityPost; rich?: boolean }> = ({ po
           <Button
             variant="primary"
             isLoading={saving}
-            disabled={!editText.trim()}
+            disabled={(!editText.trim() && editMedia.length === 0) || editUploading > 0}
             onClick={() => void onEditSave()}
           >
             {t('common:save', { defaultValue: '保存' })}

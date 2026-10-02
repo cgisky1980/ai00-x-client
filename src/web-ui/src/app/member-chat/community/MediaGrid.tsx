@@ -1,12 +1,13 @@
 /**
- * MediaGrid — 动态媒体展示（九宫格图片 + 外链视频嵌入卡）
+ * MediaGrid — 动态媒体展示（九宫格图片 + 外链视频嵌入卡 + 图片全屏预览）
  *
  * 图片：≤9 张九宫格（1 张大图 / 2-4 张两列 / 5+ 三列），object-fit cover；
+ *       点击进 Lightbox 全屏预览（左右切换/ESC/计数，迁移 030）；
  * 视频：白名单域名（bilibili/youtube/qqvideo）URL → iframe embed 转换，
- * 转换失败回退为外链卡。媒体相对 URL 经 resolveMediaUrl 解析到服务器。
+ *       转换失败回退为外链卡。媒体相对 URL 经 resolveMediaUrl 解析到服务器。
  */
-import React, { useEffect, useState } from 'react';
-import { Film } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight, Film, X } from 'lucide-react';
 import { resolveMediaUrl, type CommunityMediaItem } from './communityApi';
 
 /** 白名单域名 → iframe embed URL（与后端 is_allowed_video_host 同集；null=不可嵌入） */
@@ -55,12 +56,106 @@ function useMediaSrc(url: string): string {
   return src;
 }
 
-const MediaImage: React.FC<{ item: CommunityMediaItem; className: string }> = ({ item, className }) => {
-  // 服务端上传会生成 480px WebP 缩略图（thumb）；九宫格优先用缩略图，详情大图回退原图
+const MediaImage: React.FC<{
+  item: CommunityMediaItem;
+  className: string;
+  /** 点击进全屏预览（迁移 030） */
+  onOpen?: () => void;
+}> = ({ item, className, onOpen }) => {
+  // 服务端上传会生成 480px WebP 缩略图（thumb）；九宫格优先用缩略图，Lightbox 用原图
   const src = useMediaSrc(item.thumb || item.url);
+  const Tag = onOpen ? 'button' : 'div';
   return (
-    <div className={className}>
+    <Tag className={className} onClick={onOpen} type={onOpen ? 'button' : undefined}>
       <img src={src} alt="" loading="lazy" draggable={false} />
+    </Tag>
+  );
+};
+
+/** 全屏图片预览（迁移 030）：左右切换 + ESC/遮罩关闭 + 计数 */
+const Lightbox: React.FC<{
+  images: CommunityMediaItem[];
+  index: number;
+  onClose: () => void;
+  onIndex: (i: number) => void;
+}> = ({ images, index, onClose, onIndex }) => {
+  const [src, setSrc] = useState('');
+  const item = images[index];
+
+  useEffect(() => {
+    setSrc('');
+    if (!item) return;
+    let alive = true;
+    void resolveMediaUrl(item.url)
+      .then((u) => {
+        if (alive) setSrc(u);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [item]);
+
+  const prev = useCallback(
+    () => onIndex((index - 1 + images.length) % images.length),
+    [index, images.length, onIndex],
+  );
+  const next = useCallback(() => onIndex((index + 1) % images.length), [index, images.length, onIndex]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft' && images.length > 1) prev();
+      if (e.key === 'ArrowRight' && images.length > 1) next();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [images.length, next, onClose, prev]);
+
+  if (!item) return null;
+  return (
+    <div className="community-lightbox" onClick={onClose} role="dialog" aria-modal="true">
+      {images.length > 1 && (
+        <>
+          <button
+            type="button"
+            className="community-lightbox__nav community-lightbox__nav--prev"
+            onClick={(e) => {
+              e.stopPropagation();
+              prev();
+            }}
+            aria-label="上一张"
+          >
+            <ChevronLeft size={22} />
+          </button>
+          <button
+            type="button"
+            className="community-lightbox__nav community-lightbox__nav--next"
+            onClick={(e) => {
+              e.stopPropagation();
+              next();
+            }}
+            aria-label="下一张"
+          >
+            <ChevronRight size={22} />
+          </button>
+        </>
+      )}
+      {src && <img className="community-lightbox__img" src={src} alt="" draggable={false} />}
+      <div className="community-lightbox__meta">
+        {index + 1} / {images.length}
+      </div>
+      <button
+        type="button"
+        className="community-lightbox__close"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        aria-label="关闭预览"
+      >
+        <X size={18} />
+      </button>
     </div>
   );
 };
@@ -68,6 +163,7 @@ const MediaImage: React.FC<{ item: CommunityMediaItem; className: string }> = ({
 export const MediaGrid: React.FC<{ media: CommunityMediaItem[] }> = ({ media }) => {
   const images = media.filter((m) => m.type === 'image').slice(0, 9);
   const videos = media.filter((m) => m.type === 'video').slice(0, 1);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   if (images.length === 0 && videos.length === 0) return null;
 
   // 九宫格列数：1 张单列大图；2-4 两列；5+ 三列
@@ -83,7 +179,12 @@ export const MediaGrid: React.FC<{ media: CommunityMediaItem[] }> = ({ media }) 
       {images.length > 0 && (
         <div className={`community-media__grid ${gridCls}`}>
           {images.map((m, i) => (
-            <MediaImage key={`${m.url}-${i}`} item={m} className="community-media__cell" />
+            <MediaImage
+              key={`${m.url}-${i}`}
+              item={m}
+              className="community-media__cell community-media__cell--clickable"
+              onOpen={() => setLightboxIndex(i)}
+            />
           ))}
         </div>
       )}
@@ -115,6 +216,14 @@ export const MediaGrid: React.FC<{ media: CommunityMediaItem[] }> = ({ media }) 
           </div>
         );
       })}
+      {lightboxIndex != null && (
+        <Lightbox
+          images={images}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onIndex={setLightboxIndex}
+        />
+      )}
     </div>
   );
 };

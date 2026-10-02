@@ -14,6 +14,7 @@ import { PostDetail } from './PostDetail';
 import { ProfileView } from './ProfileView';
 import { NotificationCenter } from './NotificationCenter';
 import { SearchResults } from './SearchResults';
+import { TagView } from './TagView';
 import './community.scss';
 
 export const CommunityView: React.FC = () => {
@@ -33,6 +34,7 @@ export const CommunityView: React.FC = () => {
       {view === 'profile' && <ProfileView />}
       {view === 'notifications' && <NotificationCenter />}
       {view === 'search' && <SearchResults />}
+      {view === 'tag' && <TagView />}
     </main>
   );
 };

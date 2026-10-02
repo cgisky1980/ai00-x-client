@@ -154,8 +154,13 @@ const UsageView: React.FC = () => {
       if (result.already_signed) {
         toastWarning('今日已签到过啦');
       } else {
-        toastSuccess(`签到成功，获得 ${result.credits_granted} 积分`, {
-          description: '余额已刷新 · 邀请好友充值，你也拿分红',
+        // 连签梯度（迁移 031）：展示连签天数与明日档位
+        const ladder = [30, 35, 40, 45, 50, 55, 65, 80];
+        const base = result.base_reward ?? 30;
+        const nextIdx = Math.min((result.streak ?? 1), ladder.length); // 明日档位（0-based）
+        const nextReward = Math.round((base * ladder[nextIdx]) / 30);
+        toastSuccess(`签到成功，连签 ${result.streak ?? 1} 天，获得 ${result.credits_granted} 积分`, {
+          description: `明日可领约 ${nextReward} 积分 · 邀请好友充值，你也拿分红`,
         });
       }
     } catch {

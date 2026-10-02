@@ -31,9 +31,10 @@ import {
   type ProfileTheme,
 } from './themes';
 import { mdPreview } from './md';
+import { gamificationApi, type MemberBadgeDTO } from './communityApi';
 import { formatRelTime } from './time';
 
-type ProfileTab = 'posts' | 'archive' | 'bookmarks';
+type ProfileTab = 'posts' | 'archive' | 'bookmarks' | 'badges';
 
 /**
  * 无图卡片的程序化渐变封面（Notion/Linear 式 cover art）：
@@ -234,6 +235,8 @@ export const ProfileView: React.FC = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [coverSrc, setCoverSrc] = useState('');
+  /** 徽章墙（迁移 031；badges tab 拉取） */
+  const [badges, setBadges] = useState<MemberBadgeDTO[] | null>(null);
 
   const isSelf = home?.member_id === myMemberId;
   const displayName = home ? home.nickname || home.username : '';
@@ -260,6 +263,23 @@ export const ProfileView: React.FC = () => {
   useEffect(() => {
     if (tab === 'bookmarks' && isSelf) void loadBookmarks(true);
   }, [tab, isSelf, loadBookmarks]);
+
+  useEffect(() => {
+    if (tab !== 'badges' || home == null) return;
+    let alive = true;
+    setBadges(null);
+    void gamificationApi
+      .memberBadges(home.member_id)
+      .then((r) => {
+        if (alive) setBadges(r.badges);
+      })
+      .catch(() => {
+        if (alive) setBadges([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tab, home]);
 
   useEffect(() => {
     const el = listEnd;
@@ -460,6 +480,7 @@ export const ProfileView: React.FC = () => {
             ['posts', t('tabPosts', { defaultValue: '动态' }), true],
             ['archive', t('tabArchive', { defaultValue: '归档' }), isSelf],
             ['bookmarks', t('tabBookmarks', { defaultValue: '收藏' }), isSelf],
+            ['badges', t('tabBadges', { defaultValue: '徽章' }), true],
           ] as const
         )
           .filter(([, , visible]) => visible)
@@ -498,6 +519,27 @@ export const ProfileView: React.FC = () => {
             </div>
           )}
           <div ref={setListEnd} aria-hidden />
+        </div>
+      )}
+
+      {tab === 'badges' && (
+        <div className="community-profile2__badges">
+          {(badges ?? []).map((b) => (
+            <div key={b.slug} className={`community-badge community-badge--${b.tier}`} title={b.description}>
+              <span className="community-badge__icon" aria-hidden>
+                {b.icon || '🏅'}
+              </span>
+              <span className="community-badge__name">{b.name}</span>
+              <span className="community-badge__desc ds-data">{b.description}</span>
+            </div>
+          ))}
+          {badges != null && badges.length === 0 && (
+            <Empty
+              title={t('badgesEmpty', { defaultValue: '还没有徽章' })}
+              description={t('badgesEmptyHint', { defaultValue: '发帖、评论、签到都能解锁徽章' })}
+            />
+          )}
+          {badges == null && <Skeleton style={{ height: 80 }} />}
         </div>
       )}
 

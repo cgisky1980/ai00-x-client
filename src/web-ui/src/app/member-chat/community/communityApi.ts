@@ -12,7 +12,7 @@ import { tokenManager } from '@/infrastructure/auth/TokenManager';
 
 // ---- 类型（与后端 ai00-storage models 对齐）----
 
-export type MediaKind = 'image' | 'video';
+export type MediaKind = 'image' | 'video' | 'song';
 
 export interface CommunityMediaItem {
   type: MediaKind;
@@ -23,6 +23,12 @@ export interface CommunityMediaItem {
   provider?: string;
   title?: string;
   thumb?: string;
+  /** song 项：shared_songs.share_id（迁移 030） */
+  share_id?: string;
+  /** song 项快照：歌手 */
+  artist?: string;
+  /** song 项快照：时长秒 */
+  duration?: number;
 }
 
 export type PostVisibility = 'public' | 'followers' | 'private';
@@ -59,6 +65,115 @@ export interface CommunityPost {
   repost_source?: CommunityPost | null;
   /** 话题标签（P1.3；列表接口返回） */
   tags: string[];
+  /** 表情回应汇总（迁移 030；每 emoji 一行，count 含 mine 态） */
+  reactions?: CommunityReactionSummary[];
+  /** 作者等级（迁移 031；feed 回填） */
+  author_level?: number;
+}
+
+/** 表情回应白名单（与服务端 REACTION_EMOJIS 对齐，key → 灵印表情包） */
+export const RESPONSE_EMOJIS = [
+  'smile',
+  'laugh',
+  'love',
+  'heart-eyes',
+  'surprised',
+  'cry',
+  'rofl',
+  'sparkle',
+] as const;
+
+export interface CommunityReactionSummary {
+  emoji: string;
+  count: number;
+  /** 当前查看者是否打了这枚 */
+  mine: boolean;
+}
+
+/** 歌曲广场列表项（与乐窗 ShareService.SharedSongListItem 对齐；无封面 BLOB 字段） */
+export interface SharedSongItem {
+  shareId: string;
+  authorMemberId: number;
+  authorName: string;
+  title: string;
+  artistName?: string | null;
+  album?: string | null;
+  genre?: string | null;
+  durationSeconds: number;
+  previewDurationSecs?: number;
+  coverUrl?: string | null;
+  playCount: number;
+  tags?: string | null;
+  createdAt: string;
+}
+
+// ---- 增长激励（迁移 031）----
+
+/** 每日任务（服务端 defs 固定；listen/signin 为实时进度型） */
+export interface DailyQuest {
+  key: string;
+  name: string;
+  description: string;
+  goal: number;
+  progress: number;
+  claimed: boolean;
+  claimable: boolean;
+  reward_credits: number;
+  reward_xp: number;
+}
+
+export interface BadgeDefDTO {
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+  tier: 'bronze' | 'silver' | 'gold' | string;
+  owned: boolean;
+}
+
+export interface MemberBadgeDTO {
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+  tier: string;
+  awarded_at: string;
+}
+
+/** XP 等级档案（/me/xp/profile 出参子集） */
+export interface XpLevelProfile {
+  totalXp: number;
+  level: number;
+  into: number;
+  need: number;
+}
+
+/** 今日任务面板 */
+export const gamificationApi = {
+  /** 我的等级档案（等级进度条用） */
+  xpProfile(): Promise<XpLevelProfile> {
+    return unwrap('/api/v1/me/xp/profile');
+  },
+
+  /** 今日任务列表（含实时进度型 listen/signin） */
+  questsToday(): Promise<{ day: string; quests: DailyQuest[] }> {
+    return unwrap('/api/v1/me/quests/today');
+  },
+
+  /** 领取任务奖励（积分批次 + XP） */
+  claimQuest(key: string): Promise<{ claimed: string; reward_credits: number; reward_xp: number }> {
+    return unwrap(`/api/v1/me/quests/${encodeURIComponent(key)}/claim`, { method: 'POST' });
+  },
+
+  /** 徽章目录（含查看者 owned） */
+  badges(): Promise<{ badges: BadgeDefDTO[] }> {
+    return unwrap('/api/v1/community/badges');
+  },
+
+  /** 主页徽章墙 */
+  memberBadges(memberId: number): Promise<{ badges: MemberBadgeDTO[] }> {
+    return unwrap(`/api/v1/community/members/${memberId}/badges`);
+  },
 }
 
 export interface CommunityComment {
@@ -120,7 +235,7 @@ export interface FollowToggleResult {
   became_friend: boolean;
 }
 
-export type NoticeKind = 'follow' | 'comment' | 'reply' | 'like' | 'mention';
+export type NoticeKind = 'follow' | 'comment' | 'reply' | 'like' | 'mention' | 'reaction' | 'badge' | 'level_up';
 
 /** 主题 DTO（服务端 profile_themes 行 + 查看者视角） */
 export interface ProfileThemeDTO {
@@ -204,11 +319,22 @@ export const communityApi = {
     return unwrap(`/api/v1/community/posts/${postId}`);
   },
 
-  /** 编辑文本（仅作者，v1 仅文本） */
-  editPost(postId: number, content: string): Promise<unknown> {
+  /**
+   * 编辑动态（仅作者）。media 提供时整体替换媒体数组（迁移 030，可增删图/视频）；
+   * cover_url 提供时替换封面（空串=清除）。缺省不改动。
+   */
+  editPost(
+    postId: number,
+    content: string,
+    opts: { media?: CommunityMediaItem[]; cover_url?: string } = {},
+  ): Promise<unknown> {
     return unwrap(`/api/v1/community/posts/${postId}`, {
       method: 'PUT',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({
+        content,
+        ...(opts.media ? { media: opts.media } : {}),
+        ...(opts.cover_url !== undefined ? { cover_url: opts.cover_url } : {}),
+      }),
     });
   },
 
@@ -219,13 +345,14 @@ export const communityApi = {
 
   // ---- Feed ----
 
-  /** 广场流（tab=latest|hot；before 游标分页） */
+  /** 广场流（tab=latest|hot；latest 走 before 游标，hot 走 offset 偏移） */
   feedSquare(
     tab: 'latest' | 'hot',
-    opts: { before?: number; limit?: number; tag?: string } = {},
+    opts: { before?: number; offset?: number; limit?: number; tag?: string } = {},
   ): Promise<{ posts: CommunityPost[] }> {
     const params = new URLSearchParams({ tab });
     if (opts.before != null) params.set('before', String(opts.before));
+    if (opts.offset != null) params.set('offset', String(opts.offset));
     if (opts.tag) params.set('tag', opts.tag);
     params.set('limit', String(opts.limit ?? 20));
     return unwrap(`/api/v1/community/feed/square?${params.toString()}`);
@@ -259,6 +386,17 @@ export const communityApi = {
   /** 点赞 toggle → { liked, like_count } */
   toggleLike(postId: number): Promise<{ liked: boolean; like_count: number }> {
     return unwrap(`/api/v1/community/posts/${postId}/like`, { method: 'POST' });
+  },
+
+  /** 表情回应 toggle（同 emoji 再点=取消，不同=替换）→ 全量汇总 */
+  toggleReaction(
+    postId: number,
+    emoji: string,
+  ): Promise<{ my_reaction: string | null; reactions: CommunityReactionSummary[] }> {
+    return unwrap(`/api/v1/community/posts/${postId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji }),
+    });
   },
 
   /** 评论列表（after 游标；软删行原样返回供占位） */
@@ -303,6 +441,34 @@ export const communityApi = {
   /** 近 7 天热门话题（P1.3） */
   hotTags(limit = 10): Promise<{ tags: Array<{ tag: string; post_count: number }> }> {
     return unwrap(`/api/v1/community/tags/hot?limit=${limit}`);
+  },
+
+  // ---- 歌曲 × 社区打通（迁移 030）----
+
+  /**
+   * 歌曲帖映射（凡歌必有帖）：shareId → 社区帖 id（评论统一/去讨论用）。
+   * 无关联帖（未回填）时 404。
+   */
+  postByShare(shareId: string): Promise<{ post_id: number }> {
+    return unwrap(
+      `/api/v1/community/posts/by-share/${encodeURIComponent(shareId)}`,
+    );
+  },
+
+  /** 官方公告位（迁移 032；公开；无公告时 data 为 null） */
+  announcement(): Promise<{ title: string; body: string } | null> {
+    return unwrap('/api/v1/community/announcement');
+  },
+
+  /**
+   * 歌曲广场列表（公开端点 /share/recent；sort=latest|hot 热门含播放数时间衰减）。
+   * 字段与乐窗 ShareService.SharedSongListItem 对齐（camelCase）。
+   */
+  listSongs(
+    sort: 'latest' | 'hot',
+    limit = 50,
+  ): Promise<{ songs: SharedSongItem[] }> {
+    return unwrap(`/api/v1/share/recent?sort=${sort}&limit=${limit}`);
   },
 
   // ---- 主题引擎（P2A/P2C）----
