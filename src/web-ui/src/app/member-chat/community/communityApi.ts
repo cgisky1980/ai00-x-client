@@ -259,6 +259,8 @@ export interface MemberSongWork {
   play_count: number;
   tags?: string | null;
   created_at: string;
+  /** 对应社区帖 id（凡歌必有帖；by-member 端点回填） */
+  community_post_id?: number | null;
 }
 
 export interface FollowToggleResult {
