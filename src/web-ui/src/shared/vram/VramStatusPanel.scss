@@ -5,7 +5,7 @@
   flex-direction: column;
   gap: var(--spacing-2, 8px);
   padding: var(--spacing-3, 12px);
-  border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.26));
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle, rgba(128, 128, 128, 0.26));
   border-radius: var(--radius-base, 8px);
   background: var(--color-bg-secondary, transparent);
 
@@ -92,7 +92,7 @@
     font-size: var(--font-size-xs, 12px);
     color: var(--color-text-secondary);
     background: transparent;
-    border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.26));
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle, rgba(128, 128, 128, 0.26));
     border-radius: var(--radius-sm, 6px);
     cursor: pointer;
     transition:

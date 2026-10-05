@@ -39,7 +39,7 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--size-gap-4) var(--size-gap-6) var(--size-gap-3);
-    border-bottom: 1px solid var(--border-base);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
     flex-shrink: 0;
   }
 
@@ -89,7 +89,7 @@
   &__preview-area {
     width: 340px;
     flex-shrink: 0;
-    border-left: 1px solid var(--border-base);
+    border-left: var(--style-stroke-width, 1px) solid var(--border-base);
     overflow-y: auto;
     padding: var(--size-gap-4);
     background: var(--color-bg-tertiary);
@@ -100,7 +100,7 @@
     align-items: center;
     gap: var(--size-gap-3);
     padding: var(--size-gap-3) var(--size-gap-6);
-    border-top: 1px solid var(--border-base);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-base);
     flex-shrink: 0;
   }
 
@@ -168,7 +168,7 @@
 
 .aep-locked-section {
   margin-bottom: var(--size-gap-4);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: $size-radius-base;
   background: var(--color-bg-tertiary);
 
@@ -214,7 +214,7 @@
 
   &__body {
     padding: var(--size-gap-1) var(--size-gap-3-5) var(--size-gap-3-5);
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 }
 
@@ -236,7 +236,7 @@
   &__readonly-value {
     width: 100%;
     padding: var(--size-gap-2) var(--size-gap-3);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-left: 3px solid var(--border-subtle);
     border-radius: $size-radius-base;
     background: var(--color-bg-tertiary);
@@ -255,7 +255,7 @@
   &__input {
     width: 100%;
     padding: var(--size-gap-2) var(--size-gap-3);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: $size-radius-base;
     background: var(--input-bg);
     color: var(--input-text);
@@ -277,7 +277,7 @@
   &__select {
     width: 100%;
     padding: var(--size-gap-2) var(--size-gap-3);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-left: 3px solid var(--border-base);
     border-radius: $size-radius-base;
     background: var(--input-bg);
@@ -392,7 +392,7 @@
   font-weight: $font-weight-medium;
   background: var(--color-accent-100);
   color: var(--color-accent-500);
-  border: 1px solid var(--border-accent-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-accent-subtle);
   font-style: italic;
 }
 
@@ -474,7 +474,7 @@
 
   &__btn {
     padding: var(--size-gap-1) var(--size-gap-3);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: $size-radius-full;
     background: transparent;
     color: var(--color-text-secondary);
@@ -568,7 +568,7 @@
     font-weight: $font-weight-medium;
     background: var(--color-accent-100);
     color: var(--color-accent-500);
-    border: 1px solid var(--border-accent-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-accent-subtle);
   }
 
   &__id {
@@ -671,7 +671,7 @@
     height: 360px;
     border-radius: 12px;
     overflow: hidden;
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
   }
 
   &__screenshot-btn {
@@ -679,7 +679,7 @@
     align-items: center;
     gap: var(--size-gap-1);
     padding: var(--size-gap-1-5) var(--size-gap-3);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: $size-radius-base;
     background: transparent;
     color: var(--color-text-secondary);
@@ -702,7 +702,7 @@
     padding: var(--size-gap-3);
     border-radius: 12px;
     background: var(--element-bg-soft);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
   }
 
   &__avatar {
@@ -762,7 +762,7 @@
     font-weight: $font-weight-medium;
     background: var(--color-accent-100);
     color: var(--color-accent-500);
-    border: 1px solid var(--border-accent-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-accent-subtle);
   }
 
   &__speaker-card {
@@ -772,7 +772,7 @@
     padding: var(--size-gap-2-5) var(--size-gap-3-5);
     border-radius: $size-radius-base;
     background: var(--element-bg-soft);
-    border: 1px solid var(--border-accent-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-accent-subtle);
     position: relative;
     margin-top: var(--size-gap-1);
   }
@@ -917,7 +917,7 @@
   padding: var(--size-gap-5);
   border-radius: $size-radius-lg;
   background: var(--color-bg-secondary);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   box-shadow: 0 8px 32px var(--color-overlay);
 
   &__title {
@@ -936,7 +936,7 @@
 
   &__cancel {
     padding: var(--size-gap-1-5) var(--size-gap-4);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: $size-radius-base;
     background: transparent;
     color: var(--color-text-secondary);
@@ -991,7 +991,7 @@
   .aep__preview-area {
     width: 100%;
     border-left: none;
-    border-top: 1px solid var(--border-base);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-base);
     max-height: 280px;
     overflow-y: auto;
   }

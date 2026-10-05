@@ -4,7 +4,7 @@
   // ─── JSON editor (MCP) ─────────────────────────────────────────────────────
   &__json-editor {
     padding: $size-gap-4;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     gap: $size-gap-3;
@@ -41,7 +41,7 @@
 
   &__json-examples {
     padding-top: $size-gap-3;
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 
     h4 {
       margin: 0 0 $size-gap-2;
@@ -69,7 +69,7 @@
       margin: 0;
       padding: $size-gap-2 $size-gap-3;
       background: var(--element-bg-medium);
-      border: 1px solid var(--border-subtle);
+      border: var(--style-stroke-width, 1px) solid var(--border-subtle);
       border-radius: $size-radius-sm;
       font-family: $font-family-mono;
       font-size: var(--font-size-xs);

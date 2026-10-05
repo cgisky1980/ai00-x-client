@@ -84,7 +84,7 @@
     justify-content: flex-end;
     gap: $size-gap-2;
     padding: $size-gap-3 $size-gap-4;
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--color-bg-primary);
   }
 
@@ -136,7 +136,7 @@
 
   &__template-content {
     padding: $size-gap-4;
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     gap: $size-gap-4;
@@ -165,7 +165,7 @@
     flex-direction: column;
     gap: var(--size-gap-1-5);
     padding: var(--size-gap-2-5) var(--size-gap-3);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: $size-radius-sm;
     background: transparent;
   }

@@ -20,7 +20,7 @@
     padding: var(--size-gap-1) var(--size-gap-2-5);
     border-radius: $size-radius-full;
     background: var(--element-bg-medium);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
   }

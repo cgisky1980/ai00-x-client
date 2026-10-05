@@ -34,7 +34,7 @@
   display: flex;
   flex-direction: column;
   background: var(--color-bg-primary);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: 12px;
   box-shadow: 0 16px 48px var(--modal-overlay);
   width: 380px;
@@ -87,7 +87,7 @@
 .terminal-edit-dialog__header {
   flex-shrink: 0;
   padding: var(--size-gap-4) var(--size-gap-5) var(--size-gap-3);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .terminal-edit-dialog__title {
@@ -136,7 +136,7 @@
   width: 100%;
   padding: var(--size-gap-2) var(--size-gap-3);
   font-size: var(--font-size-sm);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: 6px;
   background: var(--color-bg-secondary);
   color: var(--color-text-primary);
@@ -171,7 +171,7 @@
   justify-content: flex-end;
   gap: var(--size-gap-2);
   padding: var(--size-gap-3) var(--size-gap-5) var(--size-gap-4);
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .terminal-edit-dialog__btn {

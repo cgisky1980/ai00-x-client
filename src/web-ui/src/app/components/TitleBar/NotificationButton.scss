@@ -69,7 +69,7 @@
 
   &__tooltip-content {
     background: var(--color-bg-elevated);
-    border: 1px solid var(--border-medium);
+    border: var(--style-stroke-width, 1px) solid var(--border-medium);
     border-radius: $size-radius-sm;
     padding: var(--size-gap-1) var(--size-gap-2);
     font-size: var(--font-size-xs);

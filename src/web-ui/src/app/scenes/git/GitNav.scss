@@ -47,7 +47,7 @@
   &__status {
     flex-shrink: 0;
     padding: 0 $size-gap-3 $size-gap-2;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     margin-bottom: $size-gap-2;
   }
 

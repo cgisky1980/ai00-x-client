@@ -55,7 +55,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   // Tab bar
@@ -65,7 +65,7 @@
     height: 32px;
     min-height: 32px;
     background: var(--color-bg-elevated);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
@@ -79,7 +79,7 @@
     padding: 0 $size-gap-2 0 $size-gap-3;
     height: 100%;
     border: none;
-    border-right: 1px solid var(--border-subtle);
+    border-right: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: transparent;
     color: var(--color-text-secondary);
     font-size: var(--font-size-xs);

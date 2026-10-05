@@ -76,7 +76,7 @@
         color-mix(in srgb, var(--color-text-primary) 6%, transparent) 0%,
         color-mix(in srgb, var(--color-text-primary) 4%, transparent) 100%
       );
-      border: 1px solid var(--border-subtle);
+      border: var(--style-stroke-width, 1px) solid var(--border-subtle);
       border-radius: $size-radius-lg;
     }
   }
@@ -109,7 +109,7 @@
   &__market-item {
     position: relative;
     overflow: hidden;
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: $size-radius-lg;
     background:linear-gradient(
       180deg,
@@ -202,7 +202,7 @@
     border-radius: $size-radius-full;
     font-size: var(--font-size-xs);
     font-weight: $font-weight-medium;
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--element-bg-soft);
     color: var(--color-text-muted);
   }
@@ -240,7 +240,7 @@
     border-radius: $size-radius-full;
     font-size: var(--font-size-xs);
     line-height: 1.35;
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--element-bg-soft);
     color: var(--color-text-muted);
     white-space: nowrap;
@@ -264,7 +264,7 @@
     font-size: var(--font-size-xs);
     font-weight: $font-weight-medium;
     color: var(--color-text-muted);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background:color-mix(in srgb, var(--color-text-primary) 6%, transparent);
   }
 

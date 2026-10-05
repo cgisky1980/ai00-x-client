@@ -14,13 +14,15 @@ import '@ai00-x/design-system/css'      // 仅 CSS 变量
 import '@ai00-x/design-system/tw'       // Tailwind v4 @theme 映射
 import '@ai00-x/design-system/standalone'  // 单文件全量（静态 HTML 内联）
 import { tokens, token } from '@ai00-x/design-system/tokens'  // TS 常量（antd 等用）
+import '@ai00-x/design-system/packs'    // 仅风格包 CSS（已含在 ./styles 内，一般不必单独引）
+import { stylePacks, stylePackTokens, resolveStylePackTokens, DEFAULT_STYLE_PACK_ID } from '@ai00-x/design-system/packs-meta'  // 风格包注册表（纯数据，不拖 React）
 ```
 
 web-ui 消费方统一走 `'@/component-library'` barrel（re-export 全部 web 系 + ds 新组件；Tooltip 为 web 系 BEM 版）。
 
 ## 硬纪律（生成代码前自查）
 
-1. **黛青 `--color-accent-*` 是唯一交互色**（hover/选中/焦点/链接/主按钮）；主按钮底色 = `--color-accent-500`（hover 加深 `--color-accent-600`，文字 `--color-accent-foreground`）；朱砂 `--color-brand-seal` 一屏最多一处（灵印或唯一 CTA）；语义色只表状态。
+1. **黛青 `--color-accent-*` 是唯一交互色**（hover/选中/焦点/链接/主按钮）；主按钮底色 = `--color-accent-500`（hover 加深 `--color-accent-600`，文字 `--color-accent-foreground`）；朱砂 `--color-brand-seal` 一屏最多一处（灵印或唯一 CTA）；语义色只表状态。**（本条是「默认风格」纪律；非默认风格包见下方「风格包」章）**
 2. **禁止手写下拉/弹出菜单** —— 一律用 DropdownMenu（菜单）/Popover（锚定面板）。禁止 getBoundingClientRect 定位 + outside-click 轮子。
 3. **body/html/全屏容器禁用 `background:` shorthand**（会重置宣纸纹理）—— 一律 `background-color:`。
 4. **禁止硬编码色值/px/z-index** —— 全用 CSS 变量 token；数字/时间戳/版本号用 mono + `tabular-nums`（`.ds-data`）。
@@ -33,6 +35,47 @@ web-ui 消费方统一走 `'@/component-library'` barrel（re-export 全部 web 
 - JSON 路径 `.` → CSS 变量 `-`：`color.bg.primary` → `--color-bg-primary`。无映射表。
 - 常用：`--color-bg-{base,sunken,card,overlay,modal}`（墨阶 5 级）、`--color-text-{primary,secondary,muted,disabled}`、`--color-accent-{50..800}` + `--color-accent-foreground`、`--color-brand-seal`、`--color-{success,warning,error,info}`、`--border-{subtle,medium,base}`、`--size-gap-{1..16}`（4/8/12/16/20/24/32/40/48/64px）、`--size-radius-{sm,base,lg,xl,2xl,full}`、`--shadow-{xs..2xl}`、`--z-{dropdown:60,toast:300,tooltip:350,drawer:150,modal:10000}`、`--font-family-{sans,serif,mono}`。
 - 主题机制：`:root` 暗色默认（松烟墨 hue 240），`[data-theme-type="light"]` 亮色（宣纸 hue 90）；色值内嵌 `var(--hue/--chroma/--chroma-surface)` 回退公式，改 token 只改 `tokens/*.json` 后 `pnpm build`。
+- **风格机制（第二正交轴，规范第九节）**：`data-style` = 风格包 id（默认 `xindongfang`）。两轴独立组合：`data-theme-type`（明/暗）× `data-style`。风格包覆盖写在 `html[data-style='<id>']`（及 `[data-style='<id>'][data-theme-type='light'|'dark']`），由包目录 `styles/<id>/` 生成。
+
+## 风格包（Style Packs，规范第九节）
+
+**两轴正交**：`data-theme-type`（light/dark，既有）× `data-style`（风格包 id，默认 `xindongfang`）。现有包：`xindongfang`（新东方极简，默认，零覆盖）、`comic`（漫画风：暖奶油底 + 暖墨 #29261F + 珊瑚交互色 + 2px 描边 + 零模糊硬投影阶梯 + 药丸标签）。
+
+**切换方式**（消费方不要自己写注入）：
+```ts
+import { themeService } from '@/infrastructure/theme';
+themeService.getStylePackId();              // 当前风格包 id
+await themeService.applyStylePack('comic'); // 切换（写 data-style + 持久化 + 广播）
+// React：const { stylePackId, stylePacks, setStylePack } = useTheme();
+// 注册表：import { stylePacks } from '@ai00-x/design-system/packs-meta'
+```
+
+**形态变量（只有两项，其余形态维度直接覆盖既有 token）**：
+
+| 变量 | 默认（新东方） | 用途 |
+|---|---|---|
+| `--style-stroke-width` | `1px` | 描边宽度（组件里原来是 `1px` 字面量） |
+| `--style-focus-ring` | `--color-accent-400` | 焦点环颜色（半语义引用，同 token 也用于选中态） |
+
+组件写法（**必须带默认值兜底**，且禁用字面值）：
+```scss
+border: var(--style-stroke-width, 1px) solid var(--border-base);   // 宽度走变量、颜色沿 border 层级
+outline: 2px solid var(--style-focus-ring, var(--color-accent-400));
+border-radius: var(--size-radius-lg);        // 圆角/阴影/字体 直接用 token，风格包覆盖 token 即可
+```
+
+**风格包契约（任何非默认风格不得违反，规范 9.2）**：正文对所在表面 ≥4.5:1；图形/交互指示 ≥3:1；hover/active/focus/disabled 四态可辨识且 focus ring 不可移除；尊重 `prefers-reduced-motion`、`prefers-contrast: more` 时关纹理；色值只能出现在 `styles/<id>/` 内（组件层禁止硬编码）。
+
+**新增一套风格包（照做即可，不需改组件）**：
+1. 建 `packages/design-system/styles/<id>/{manifest.json,tokens.json,components.css}`；`manifest` 含 `id/name/description/order/default/modes`，恰一个 `default:true`。
+2. `tokens.json` 顶层只允许 `base`（明暗通用形态）/`light`/`dark`/`alias`（扁平语义，key 即完整 token 路径，用于 `--color-success` 这类"基名与子名冲突"的 token）；**只能覆盖已存在的 token 路径**，构建期强校验。
+3. `components.css` 写变量表达不了的形态，规则一律自持 `[data-style='<id>']` 前缀。
+4. `pnpm build`（含 `check-style-packs.mjs` 契约校验）→ `pnpm lint:style` → 全风格 × 明暗对比度验证。
+
+**三条坑（构建期已加校验/警告，仍须知道）**：
+- 包 token 的**复合值禁用 `{ref}`**（`^\{…\}$` 全串匹配只处理整值引用）——必须写显式 `var(--token-name)`，否则静默产出非法 CSS。
+- **基名别名要成对覆盖**：`color.success` 与 `color.success.solid`、`radius.*` 与 `size.radius.*` —— ThemeService 会 inline 写这些变量，inline 优先级高于任何样式块，必须靠「包 token 再 inline 注入一次」才能生效（构建产物双通道，勿手改产物）。
+- 新增风格包后**必须复核默认风格零变化**（默认包 `tokens.json` 应为空覆盖 `{}`）。
 
 ## ds 系组件（./react 与 ./web 双出口；样式类 `.ds-*`，源 src/components/*.tsx）
 

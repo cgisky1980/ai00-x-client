@@ -17,7 +17,7 @@ $_dropdown-width: 220px;
   height: $_breadcrumb-height;
   padding: 0 $size-gap-3;
   background: var(--color-bg-scene);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   overflow: hidden;
   flex-shrink: 0;
   gap: var(--size-gap-0-5);
@@ -93,7 +93,7 @@ $_dropdown-width: 220px;
     align-items: center;
     gap: $size-gap-2;
     padding: var(--size-gap-1-5) var(--size-gap-2);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--color-bg-tertiary);
   }
   

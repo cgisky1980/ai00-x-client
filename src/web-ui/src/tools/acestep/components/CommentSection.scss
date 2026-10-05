@@ -8,7 +8,7 @@
 .comment-section {
   margin-top: var(--size-gap-4);
   padding-top: var(--size-gap-4);
-  border-top: 1px solid var(--border-base);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-base);
 
   &__title {
     display: flex;
@@ -95,7 +95,7 @@
     max-height: 200px;
     resize: vertical;
     padding: var(--size-gap-2) var(--size-gap-2-5);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: 6px;
     background: var(--color-bg-secondary);
     color: var(--text-primary);
@@ -184,7 +184,7 @@
 
   &__item {
     padding: var(--size-gap-2-5) 0;
-    border-bottom: 1px solid var(--border-base);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
 
     &:last-child {
       border-bottom: none;
@@ -278,7 +278,7 @@
     gap: var(--size-gap-3);
     margin-top: var(--size-gap-3);
     padding: var(--size-gap-2) 0;
-    border-top: 1px solid var(--border-base);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-base);
   }
 
   &__count-info {

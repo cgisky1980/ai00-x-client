@@ -172,7 +172,7 @@
 
         .currentFindMatch {
           background:color-mix(in srgb, var(--color-warning) 50%, transparent);
-          border:1px solid var(--color-warning);
+          border:var(--style-stroke-width, 1px) solid var(--color-warning);
           border-radius: 2px;
           box-shadow:0 0 10px color-mix(in srgb, var(--color-warning) 50%, transparent);
           animation: current-find-pulse 1s ease-in-out infinite;

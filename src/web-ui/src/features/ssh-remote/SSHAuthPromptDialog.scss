@@ -11,7 +11,7 @@
     gap: var(--size-gap-2-5);
     padding: var(--size-gap-3) var(--size-gap-3-5);
     background: var(--element-bg-subtle);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: 6px;
     margin-bottom: var(--size-gap-4);
 

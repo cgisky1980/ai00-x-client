@@ -4,7 +4,7 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-secondary);
@@ -49,7 +49,7 @@
 
 .ai00-x-voice-config__select {
   padding: var(--size-gap-1-5) var(--size-gap-2);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--radius-sm);
   background: var(--element-bg-soft);
   color: var(--color-text-primary);
@@ -64,7 +64,7 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-secondary);

@@ -108,7 +108,7 @@
       font-size: var(--font-size-xxs);
       padding: var(--size-gap-0-5) var(--size-gap-1);
       background: var(--color-bg-secondary);
-      border: 1px solid var(--border-base);
+      border: var(--style-stroke-width, 1px) solid var(--border-base);
       border-radius: 3px;
       color: var(--color-text-muted);
       font-family: inherit;

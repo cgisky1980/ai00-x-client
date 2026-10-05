@@ -90,6 +90,6 @@
      padding: var(--size-gap-1-5) var(--size-gap-3);
      font-size: var(--font-size-2xs);
      color: var(--color-text-muted);
-     border-bottom: 1px solid var(--border-subtle);
+     border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
    }
  }

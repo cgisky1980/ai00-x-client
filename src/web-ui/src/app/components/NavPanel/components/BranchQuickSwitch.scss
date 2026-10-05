@@ -9,7 +9,7 @@
   position: fixed;
   z-index: $z-popover;
   background: var(--color-bg-primary);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: 8px;
   box-shadow: 0 8px 32px var(--color-overlay);
   overflow: hidden;
@@ -25,14 +25,14 @@
 
 .branch-quick-switch__search {
   padding: var(--size-gap-2);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .branch-quick-switch__input {
   width: 100%;
   padding: var(--size-gap-1-5) var(--size-gap-2-5);
   font-size: var(--font-size-xs);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: 4px;
   background: var(--color-bg-secondary);
   color: var(--color-text-primary);

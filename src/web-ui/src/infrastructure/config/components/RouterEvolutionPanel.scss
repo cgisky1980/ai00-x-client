@@ -120,7 +120,7 @@
 
 .router-evolution-panel__tier-btn {
   padding: 0 var(--size-gap-2);
-  border: 1px solid var(--color-border-secondary);
+  border: var(--style-stroke-width, 1px) solid var(--color-border-secondary);
   border-radius: var(--size-radius-xs);
   background: transparent;
   color: var(--color-text-muted);

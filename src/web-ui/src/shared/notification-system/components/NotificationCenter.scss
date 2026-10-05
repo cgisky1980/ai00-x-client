@@ -17,7 +17,7 @@
     align-items: center;
     gap: $size-gap-2;
     padding: 0 $size-gap-4;
-    border-bottom: 1px solid var(--border-base);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
     background: var(--color-bg-primary);
     height: 40px;
     min-height: 40px;
@@ -77,7 +77,7 @@
     gap: $size-gap-1;
     margin: $size-gap-3 $size-gap-4 0;
     padding-bottom: $size-gap-2;
-    border-bottom: 1px solid var(--border-base);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
     flex-shrink: 0;
   }
 
@@ -434,7 +434,7 @@
 
   &__active-section {
     padding: $size-gap-3 0;
-    border-bottom: 1px solid var(--border-base);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
     background: var(--color-accent-200);
   }
 

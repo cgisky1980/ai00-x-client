@@ -34,7 +34,7 @@
   display: flex;
   flex-direction: column;
   background: var(--color-bg-primary);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: 12px;
   box-shadow: 0 16px 48px var(--modal-overlay);
   width: 380px;
@@ -88,7 +88,7 @@
 .branch-select-dialog__header {
   flex-shrink: 0;
   padding: var(--size-gap-4) var(--size-gap-5) var(--size-gap-3);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .branch-select-dialog__title {
@@ -140,7 +140,7 @@
   max-height: 240px;
   overflow-y: auto;
   overflow-x: hidden;
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: 6px;
   background: var(--color-bg-secondary);
   
@@ -209,7 +209,7 @@
   }
 
   &--new {
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--element-bg-soft);
     
     &:hover {
@@ -275,7 +275,7 @@
   gap: var(--size-gap-3);
   flex-wrap: wrap;
   padding: var(--size-gap-3) var(--size-gap-4) var(--size-gap-4);
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .branch-select-dialog__options {

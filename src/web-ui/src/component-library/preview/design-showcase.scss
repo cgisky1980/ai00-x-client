@@ -65,7 +65,7 @@
 
 .ds-show-section {
   padding: var(--size-gap-12) 0 var(--size-gap-2);
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 
   &__head {
     display: flex;
@@ -137,7 +137,7 @@
   &__chip {
     height: 44px;
     border-radius: var(--size-radius-sm);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__name {
@@ -209,7 +209,7 @@
     height: 64px;
     border-radius: var(--size-radius-base);
     background: var(--color-bg-card);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
 
     &--rounded {
       border-radius: var(--size-radius-full);
@@ -317,7 +317,7 @@
 }
 
 .ds-show-card--win {
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--size-radius-base);
   padding: var(--size-gap-4);
   background: var(--color-bg-card);
@@ -337,7 +337,7 @@
 .ds-show-footer {
   margin-top: 72px;
   padding-top: var(--size-gap-8);
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   align-items: center;

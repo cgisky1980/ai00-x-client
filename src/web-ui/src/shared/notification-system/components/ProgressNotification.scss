@@ -10,7 +10,7 @@
   background: var(--color-bg-primary);
   border-radius: $size-radius-base;
   box-shadow:var(--shadow-base);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   min-width: 280px;
   max-width: 320px;
   animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);

@@ -6,7 +6,7 @@
   // Unified header height: IconButton(xs=24px) + padding(6px*2)=36px
   padding: var(--size-gap-1-5) var(--size-gap-3);
   background: var(--color-bg-primary);
-  border-bottom: 1px solid var(--border-base);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
   flex-shrink: 0;
   min-height: 36px;
 

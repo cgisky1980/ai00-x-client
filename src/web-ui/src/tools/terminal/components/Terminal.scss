@@ -86,7 +86,7 @@
       margin-top: var(--size-gap-2);
       padding: var(--size-gap-1-5) var(--size-gap-4);
       background: var(--element-bg-soft);
-      border: 1px solid var(--border-base);
+      border: var(--style-stroke-width, 1px) solid var(--border-base);
       border-radius: 4px;
       color: var(--color-text-secondary);
       font-size: var(--font-size-sm);
@@ -106,7 +106,7 @@
     justify-content: space-between;
     padding: var(--size-gap-1) var(--size-gap-2);
     background: var(--nav-bg);
-    border-bottom: 1px solid var(--border-base);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
 
     &-left {
       display: flex;

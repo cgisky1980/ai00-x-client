@@ -15,7 +15,7 @@
   height: 40px;
   padding: 0 var(--size-gap-2) 0 var(--size-gap-3-5);
   background: var(--element-bg-soft);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   flex-shrink: 0;
   gap: var(--size-gap-2);
   user-select: none;

@@ -50,7 +50,7 @@
     white-space: nowrap;
     background: var(--element-bg-medium);
     color: var(--color-text-muted);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__item-actions {
@@ -129,7 +129,7 @@
     margin: 0;
     padding: $size-gap-3;
     background: var(--element-bg-medium);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: $size-radius-sm;
     font-family: $font-family-mono;
     font-size: var(--font-size-xs);
@@ -145,12 +145,12 @@
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
     padding-top: $size-gap-3;
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__form {
     padding: $size-gap-4;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     animation: ai00-x-ai-rules-config-slide-down 0.2s $easing-standard;
   }
 
@@ -257,7 +257,7 @@
     justify-content: flex-end;
     gap: $size-gap-2;
     padding: $size-gap-4;
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 }
 

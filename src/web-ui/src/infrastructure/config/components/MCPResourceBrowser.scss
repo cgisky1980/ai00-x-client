@@ -12,7 +12,7 @@
     justify-content: space-between;
     align-items: center;
     padding: var(--size-gap-6);
-    border-bottom: 1px solid var(--border-base);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
 
     h2 {
       margin: 0;
@@ -28,13 +28,13 @@
 
   .browser-search {
     padding: var(--size-gap-4) var(--size-gap-6);
-    border-bottom: 1px solid var(--border-base);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
 
     .search-input {
       width: 100%;
       padding: var(--size-gap-2) var(--size-gap-3);
       background: var(--color-bg-secondary);
-      border: 1px solid var(--border-base);
+      border: var(--style-stroke-width, 1px) solid var(--border-base);
       border-radius: 6px;
       color: var(--text-primary);
       font-size: var(--font-size-base);
@@ -59,7 +59,7 @@
     overflow: hidden;
 
     .resources-list {
-      border-right: 1px solid var(--border-base);
+      border-right: var(--style-stroke-width, 1px) solid var(--border-base);
       overflow-y: auto;
       background: var(--color-bg-secondary);
 
@@ -90,7 +90,7 @@
         gap: var(--size-gap-3);
         padding: var(--size-gap-4);
         cursor: pointer;
-        border-bottom: 1px solid var(--border-base);
+        border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
         transition: all 0.2s ease;
 
         &:hover {
@@ -152,7 +152,7 @@
         justify-content: space-between;
         align-items: center;
         padding: var(--size-gap-4) var(--size-gap-6);
-        border-bottom: 1px solid var(--border-base);
+        border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
         background: var(--color-bg-secondary);
 
         .viewer-title {

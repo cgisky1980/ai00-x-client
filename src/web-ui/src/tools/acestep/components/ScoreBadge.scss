@@ -29,13 +29,13 @@
   &--high {
     background: var(--color-success-bg);
     color: var(--color-success);
-    border: 1px solid var(--color-success-bg);
+    border: var(--style-stroke-width, 1px) solid var(--color-success-bg);
   }
 
   &--mid {
     background: var(--color-warning-bg);
     color: var(--color-warning);
-    border: 1px solid var(--color-warning-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-warning-border);
   }
 
   &--low {
@@ -47,7 +47,7 @@
   &--bad {
     background: var(--color-error-bg);
     color: var(--color-error);
-    border: 1px solid var(--color-error-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-error-border);
   }
 
   // ---- Tooltip content (rendered via portal) ----

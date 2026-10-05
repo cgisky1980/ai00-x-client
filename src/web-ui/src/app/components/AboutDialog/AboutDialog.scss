@@ -290,7 +290,7 @@
   margin-top: var(--size-gap-2);
   padding: var(--size-gap-1);
   background: transparent;
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: 8px;
   animation: about-list-expand 0.25s ease-out;
 }
@@ -395,21 +395,21 @@
   &--frontend {
     background: var(--color-accent-100);
     color: var(--color-accent-500);
-    border: 1px solid var(--color-accent-200);
+    border: var(--style-stroke-width, 1px) solid var(--color-accent-200);
   }
   
   // Backend tag - green
   &--backend {
     background: var(--color-success-bg);
     color: var(--color-success);
-    border: 1px solid var(--color-success-bg);
+    border: var(--style-stroke-width, 1px) solid var(--color-success-bg);
   }
   
   // General tag - purple
   &--general {
     background: var(--color-accent-500);
     color: var(--color-accent-600);
-    border: 1px solid var(--color-accent-200);
+    border: var(--style-stroke-width, 1px) solid var(--color-accent-200);
   }
 }
 

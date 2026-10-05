@@ -517,7 +517,7 @@
     padding: $size-gap-1 0;
     border-radius: $size-radius-base;
     background: var(--color-bg-elevated);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     box-shadow: 0 4px 12px var(--color-overlay);
     z-index: var(--z-modal);
     transform-origin: top left;

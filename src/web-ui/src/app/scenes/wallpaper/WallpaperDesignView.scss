@@ -78,7 +78,7 @@
     align-items: center;
     gap: var(--size-gap-1);
     padding: var(--size-gap-3) var(--size-gap-2);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: 10px;
     background: var(--color-bg-secondary);
     cursor: pointer;
@@ -182,7 +182,7 @@
   &__input {
     width: 100%;
     padding: var(--size-gap-3) var(--size-gap-3-5);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: 8px;
     background: var(--color-bg-secondary);
     color: var(--color-text-primary);
@@ -239,7 +239,7 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--size-gap-2) var(--size-gap-3);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: 8px;
     background: var(--color-bg-secondary);
     transition: background 0.15s;

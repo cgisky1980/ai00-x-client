@@ -386,7 +386,7 @@ $_section-header-height: 24px;
     &:active { transform: translateY(1px); }
 
     &:focus-visible {
-      outline: 1px solid var(--color-accent-500);
+      outline: var(--style-stroke-width, 1px) solid var(--color-accent-500);
       outline-offset: 1px;
     }
 
@@ -445,7 +445,7 @@ $_section-header-height: 24px;
     &:active { transform: translateY(1px); }
 
     &:focus-visible {
-      outline: 1px solid var(--color-accent-500);
+      outline: var(--style-stroke-width, 1px) solid var(--color-accent-500);
       outline-offset: 1px;
     }
   }
@@ -459,7 +459,7 @@ $_section-header-height: 24px;
     min-width: 180px;
     padding: $size-gap-1 0;
     background: var(--color-bg-elevated);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: $size-radius-base;
     box-shadow: 0 4px 12px var(--color-overlay);
     z-index: var(--z-modal);
@@ -566,7 +566,7 @@ $_section-header-height: 24px;
       }
 
       &:focus-visible {
-        outline: 1px solid var(--color-accent-500);
+        outline: var(--style-stroke-width, 1px) solid var(--color-accent-500);
         outline-offset: -1px;
       }
     }
@@ -708,7 +708,7 @@ $_section-header-height: 24px;
     &.is-active {
       color: var(--color-text-primary);
       background: color-mix(in srgb, var(--element-bg-soft) 94%, transparent);
-      border: 1px solid var(--border-subtle);
+      border: var(--style-stroke-width, 1px) solid var(--border-subtle);
       box-shadow:var(--shadow-base);
     }
   }
@@ -864,7 +864,7 @@ $_section-header-height: 24px;
     }
 
     &:focus-visible {
-      outline: 1px solid var(--color-accent-500);
+      outline: var(--style-stroke-width, 1px) solid var(--color-accent-500);
       outline-offset: 1px;
     }
   }
@@ -885,7 +885,7 @@ $_section-header-height: 24px;
     box-sizing: border-box;
     padding: $size-gap-1 0;
     background: var(--color-bg-elevated);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: $size-radius-base;
     box-shadow: 0 4px 12px var(--color-overlay);
     z-index: var(--z-modal);
@@ -1545,7 +1545,7 @@ $_section-header-height: 24px;
   min-width: 140px;
   padding: $size-gap-1;
   background: var(--color-bg-elevated);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: $size-radius-base;
   box-shadow: 0 8px 24px var(--color-overlay), 0 2px 8px var(--color-overlay);
   z-index: var(--z-modal);
@@ -1635,7 +1635,7 @@ $_section-header-height: 24px;
   min-width: 148px;
   padding: $size-gap-1;
   background: var(--color-bg-elevated);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: $size-radius-base;
   box-shadow: 0 4px 12px var(--color-overlay);
   z-index: var(--z-modal);
@@ -1749,7 +1749,7 @@ $_section-header-height: 24px;
   gap: var(--size-gap-3);
   margin-top: var(--size-gap-1-5);
   padding-top: var(--size-gap-2-5);
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .ai00-x-nav-panel__remote-disclaimer-btn {
@@ -1857,7 +1857,7 @@ $_section-header-height: 24px;
   // Divider below 扩展 (main row + optional Agents / Skills sublist) → scrollable sections
   padding-bottom: $size-gap-2;
   margin-bottom: $size-gap-1;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .ai00-x-nav-panel__top-action-sublist {
@@ -1933,7 +1933,7 @@ $_section-header-height: 24px;
   }
 
   &:focus-visible {
-    outline: 1px solid var(--color-accent-500);
+    outline: var(--style-stroke-width, 1px) solid var(--color-accent-500);
     outline-offset: 1px;
   }
 

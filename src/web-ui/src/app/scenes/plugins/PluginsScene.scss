@@ -11,7 +11,7 @@
     justify-content: space-between;
     gap: var(--spacing-4);
     padding: var(--spacing-4) var(--spacing-5);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     flex-shrink: 0;
     flex-wrap: wrap;
   }
@@ -70,7 +70,7 @@
     padding: var(--spacing-4);
     border-radius: var(--radius-lg);
     background: var(--element-bg-base);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     transition: border-color var(--motion-fast) ease;
 
     &:hover {
@@ -133,7 +133,7 @@
     justify-content: space-between;
     margin-top: auto;
     padding-top: var(--spacing-2);
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__uninstall {
@@ -160,7 +160,7 @@
     align-items: center;
     gap: var(--spacing-2);
     padding: var(--spacing-2) var(--spacing-5);
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
     flex-shrink: 0;

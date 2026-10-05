@@ -45,7 +45,7 @@
   display: flex;
   justify-content: flex-end;
   padding: $size-gap-3 $size-gap-4;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   background: color-mix(in srgb, var(--color-bg-flowchat) 92%, var(--color-bg-elevated));
   flex-shrink: 0;
 }
@@ -159,7 +159,7 @@
   h1 {
     font-size: var(--font-size-3xl);
     color: var(--color-text-primary);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     padding-bottom: $size-gap-3;
     text-align: center;
     letter-spacing: 0.5px;
@@ -167,7 +167,7 @@
 
   h2 {
     font-size: var(--font-size-2xl);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     padding-bottom: $size-gap-2;
   }
 
@@ -203,7 +203,7 @@
     font-family: var(--flowchat-md-code-font-mono);
     color: var(--flowchat-md-inline-code-fg);
     background: var(--flowchat-md-inline-code-bg);
-    border: 1px solid var(--flowchat-md-inline-code-border);
+    border: var(--style-stroke-width, 1px) solid var(--flowchat-md-inline-code-border);
     border-radius: 4px;
     transition: all 0.15s ease;
     box-decoration-break: clone;
@@ -356,7 +356,7 @@
     max-width: 100%;
     margin-bottom: $size-gap-4;
     font-size: var(--font-size-base);
-    border: 1px solid var(--flowchat-md-table-border);
+    border: var(--style-stroke-width, 1px) solid var(--flowchat-md-table-border);
     border-radius: var(--flowchat-md-table-radius);
     background: var(--flowchat-md-table-surface);
     box-shadow: var(--flowchat-md-table-shadow);
@@ -367,7 +367,7 @@
   table td {
     padding: $size-gap-3 $size-gap-4;
     border: none;
-    border-bottom: 1px solid var(--flowchat-md-table-cell-border);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--flowchat-md-table-cell-border);
     text-align: left;
     vertical-align: top;
     background: transparent;
@@ -389,7 +389,7 @@
   table th + th,
   table td + td,
   table th + td {
-    border-left: 1px solid var(--flowchat-md-table-col-divider);
+    border-left: var(--style-stroke-width, 1px) solid var(--flowchat-md-table-col-divider);
   }
 
   table tbody tr:last-child td,
@@ -473,7 +473,7 @@
     margin: 0 0 $size-gap-4;
     padding: $size-gap-3 $size-gap-4;
     background: color-mix(in srgb, var(--color-bg-secondary) 86%, transparent);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: $size-radius-lg;
 
     > :last-child {
@@ -501,7 +501,7 @@
     padding: 0;
     margin: $size-gap-5 0;
     border: 0;
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: none;
     overflow: visible;
   }

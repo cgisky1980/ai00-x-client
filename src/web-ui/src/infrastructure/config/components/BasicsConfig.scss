@@ -31,7 +31,7 @@
     width: 100%;
     padding: var(--size-gap-1-5) var(--size-gap-2-5);
     background: var(--element-bg-subtle);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: var(--radius-sm);
     color: var(--color-text-primary);
     font-size: var(--font-size-sm);
@@ -60,7 +60,7 @@
     align-items: center;
     gap: var(--size-gap-1);
     padding: var(--size-gap-1) var(--size-gap-3);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text-secondary);
@@ -94,7 +94,7 @@
     padding: $size-gap-3 $size-gap-4;
     min-width: 140px;
     background: transparent;
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: $size-radius-sm;
     cursor: pointer;
     transition: all $motion-base $easing-standard;
@@ -201,7 +201,7 @@
   flex-direction: column;
   padding: $size-gap-2;
   background: transparent;
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: $size-radius-sm;
   cursor: pointer;
   transition: all $motion-base $easing-standard;
@@ -285,7 +285,7 @@
     font-size: var(--font-size-xxs);
     font-weight: $font-weight-medium;
     background: transparent;
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: $size-radius-sm;
     color: var(--color-text-secondary);
   }
@@ -332,7 +332,7 @@
     height: 26px;
     padding: 0;
     background: transparent;
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: $size-radius-sm;
     color: var(--color-text-secondary);
     cursor: pointer;
@@ -858,7 +858,7 @@
   }
 
   &__inline-alert {
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
     padding: $size-gap-3;
   }
 

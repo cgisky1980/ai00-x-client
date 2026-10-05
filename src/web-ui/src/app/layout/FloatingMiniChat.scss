@@ -42,7 +42,7 @@ $panel-height: 620px;
   width: $button-size;
   height: $button-size;
   border-radius: 50%;
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -91,7 +91,7 @@ $panel-height: 620px;
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 80px);
   background: var(--color-bg-primary);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: 8px;
   box-shadow:0 4px 12px var(--color-overlay),
     0 0 1px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
@@ -176,7 +176,7 @@ $panel-height: 620px;
   align-items: center;
   padding: 0 var(--size-gap-2-5);
   gap: var(--size-gap-1);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .ai00-x-fmc__header-btn {
@@ -287,7 +287,7 @@ $panel-height: 620px;
   max-height: 220px;
   overflow-y: auto;
   background: var(--color-bg-elevated);
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   border-radius: 8px;
   box-shadow: 0 8px 24px var(--modal-overlay);
   z-index: var(--z-dropdown);
@@ -358,7 +358,7 @@ $panel-height: 620px;
   align-items: center;
   gap: var(--size-gap-1-5);
   padding: var(--size-gap-2) var(--size-gap-2-5);
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   background: var(--element-bg-subtle);
 }
 
@@ -381,7 +381,7 @@ $panel-height: 620px;
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    border: 1px solid var(--color-accent-300);
+    border: var(--style-stroke-width, 1px) solid var(--color-accent-300);
     background: var(--color-accent-200);
     color: var(--color-accent-300);
 

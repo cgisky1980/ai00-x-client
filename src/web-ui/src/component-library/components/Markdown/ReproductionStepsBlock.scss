@@ -9,7 +9,7 @@
   flex-direction: column;
   margin: var(--size-gap-1-5) 0;
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-warning);
+  border: var(--style-stroke-width, 1px) solid var(--color-warning);
   background: var(--color-bg-flowchat);
   backdrop-filter: blur(10px);
   transition: all 0.2s ease;
@@ -53,7 +53,7 @@
 
 
 .reproduction-steps-block.expanded .reproduction-steps-header {
-  border-bottom: 1px solid var(--border-base);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
 }
 
 
@@ -99,7 +99,7 @@
   padding: var(--size-gap-0-5) var(--size-gap-2);
   background: var(--element-bg-subtle);
   color: var(--color-text-secondary);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-xxs);
   font-weight: 600;
@@ -128,7 +128,7 @@
   gap: var(--size-gap-2-5);
   padding: var(--size-gap-2) var(--size-gap-3);
   background: transparent;
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: 500;
@@ -177,7 +177,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--size-gap-2-5);
-  border-top: 1px solid var(--border-base);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-base);
 }
 
 .reproduction-steps-hint {
@@ -186,7 +186,7 @@
   gap: var(--size-gap-2);
   padding: var(--size-gap-2) var(--size-gap-3);
   background: var(--element-bg-soft);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--radius-md);
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
@@ -201,7 +201,7 @@
   padding: var(--size-gap-2) var(--size-gap-4);
   background: var(--element-bg-base);
   color: var(--color-text-primary);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: 600;

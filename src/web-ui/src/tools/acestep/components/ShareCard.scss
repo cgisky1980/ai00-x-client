@@ -7,7 +7,7 @@
   padding: var(--size-gap-2-5);
   border-radius: 12px;
   background: var(--element-bg-soft);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s,
     box-shadow 0.2s;

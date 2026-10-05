@@ -8,7 +8,7 @@
   max-width: calc(100vw - 2 * var(--spacing-4, 16px));
   background: var(--color-bg-elevated, #1e1e24);
   color: var(--color-text-primary, #f8f8fa);
-  border: 1px solid var(--border-base, rgba(255, 255, 255, 0.35));
+  border: var(--style-stroke-width, 1px) solid var(--border-base, rgba(255, 255, 255, 0.35));
   border-radius: var(--size-radius-lg, 12px);
   box-shadow: var(--shadow-2xl, 0 16px 32px rgba(0, 0, 0, 0.4));
   backdrop-filter: blur(12px);
@@ -87,7 +87,7 @@
   }
 
   &__btn {
-    border: 1px solid var(--border-base, rgba(255, 255, 255, 0.35));
+    border: var(--style-stroke-width, 1px) solid var(--border-base, rgba(255, 255, 255, 0.35));
     background: var(--element-bg-base, rgba(255, 255, 255, 0.19));
     color: var(--color-text-primary, #f8f8fa);
     border-radius: var(--size-radius-sm, 6px);

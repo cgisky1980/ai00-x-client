@@ -90,7 +90,7 @@
   align-items: center;
   gap: var(--size-gap-1-5);
   padding: var(--size-gap-1-5) var(--size-gap-3);
-  border: 1px solid var(--color-error);
+  border: var(--style-stroke-width, 1px) solid var(--color-error);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-error);
@@ -121,7 +121,7 @@
 .ai00-x-account-config__unbind-btn {
   margin-left: var(--size-gap-2);
   padding: var(--size-gap-0-5) var(--size-gap-2);
-  border: 1px solid var(--color-error);
+  border: var(--style-stroke-width, 1px) solid var(--color-error);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-error);
@@ -151,7 +151,7 @@
   padding: var(--size-gap-5) var(--size-gap-6);
   border-radius: var(--radius-md);
   background: var(--color-bg-primary);
-  border: 1px solid var(--color-border);
+  border: var(--style-stroke-width, 1px) solid var(--color-border);
   box-shadow: 0 12px 40px var(--modal-overlay);
 }
 
@@ -182,7 +182,7 @@
   padding: var(--size-gap-2-5) var(--size-gap-3);
   border-radius: var(--radius-sm);
   background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
+  border: var(--style-stroke-width, 1px) solid var(--color-border);
 }
 
 .ai00-x-account-config__migration-section {
@@ -260,7 +260,7 @@
   padding: var(--size-gap-2) var(--size-gap-3);
   border-radius: var(--radius-sm);
   background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-accent);
+  border: var(--style-stroke-width, 1px) solid var(--color-accent);
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
 }
@@ -290,7 +290,7 @@
   align-items: center;
   gap: var(--size-gap-1-5);
   padding: var(--size-gap-1-5) var(--size-gap-3);
-  border: 1px solid var(--color-border);
+  border: var(--style-stroke-width, 1px) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-tertiary);
   color: var(--color-text-primary);
@@ -311,7 +311,7 @@
 .ai00-x-account-config__code-input {
   width: 100%;
   padding: var(--size-gap-2) var(--size-gap-2-5);
-  border: 1px solid var(--color-border);
+  border: var(--style-stroke-width, 1px) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-tertiary);
   color: var(--color-text-primary);
@@ -344,7 +344,7 @@
 
 .ai00-x-account-config__cancel-btn {
   padding: var(--size-gap-1-5) var(--size-gap-3-5);
-  border: 1px solid var(--color-border);
+  border: var(--style-stroke-width, 1px) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-secondary);
@@ -453,7 +453,7 @@
 
 .ai00-x-account-config__backup-modal-message--success {
   background: var(--color-success-bg);
-  border: 1px solid var(--color-success-bg);
+  border: var(--style-stroke-width, 1px) solid var(--color-success-bg);
   color: var(--color-success);
 }
 

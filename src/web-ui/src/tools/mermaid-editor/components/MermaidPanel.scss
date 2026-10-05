@@ -43,7 +43,7 @@
   gap: var(--size-gap-2);
   padding: var(--size-gap-2) var(--size-gap-3);
   background: var(--element-bg-subtle);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 

@@ -97,7 +97,7 @@
 
 .ai00-x-config-page-section__body {
   background: var(--element-bg-subtle);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-base);
   overflow: visible;
 }
@@ -111,7 +111,7 @@
 }
 
 .ai00-x-config-page-row + .ai00-x-config-page-row {
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .ai00-x-config-page-row--center {

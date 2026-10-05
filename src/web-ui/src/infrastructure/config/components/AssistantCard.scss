@@ -414,13 +414,13 @@
   &--identity {
     background: var(--color-accent-100);
     color: var(--color-accent-600);
-    border: 1px solid var(--color-accent-200);
+    border: var(--style-stroke-width, 1px) solid var(--color-accent-200);
   }
 
   &--personality {
     background: var(--color-accent-100);
     color: var(--color-accent-600);
-    border: 1px solid var(--color-accent-200);
+    border: var(--style-stroke-width, 1px) solid var(--color-accent-200);
   }
 }
 
@@ -453,7 +453,7 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: $size-radius-full;
   background: var(--element-bg-strong);
   color: var(--color-text-secondary);

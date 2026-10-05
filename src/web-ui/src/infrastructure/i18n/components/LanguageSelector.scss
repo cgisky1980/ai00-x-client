@@ -10,7 +10,7 @@
     .language-selector__select {
       appearance: none;
       background: var(--input-bg);
-      border: 1px solid var(--input-border);
+      border: var(--style-stroke-width, 1px) solid var(--input-border);
       border-radius: var(--radius-sm);
       padding: var(--size-gap-1-5) var(--size-gap-7) var(--size-gap-1-5) var(--size-gap-2-5);
       font-size: var(--font-size-sm);
@@ -126,7 +126,7 @@
       min-width: 150px;
       padding: var(--size-gap-1);
       background: var(--color-bg-elevated);
-      border: 1px solid var(--border-base);
+      border: var(--style-stroke-width, 1px) solid var(--border-base);
       border-radius: var(--radius-md);
       box-shadow: var(--shadow-lg);
       opacity: 0;

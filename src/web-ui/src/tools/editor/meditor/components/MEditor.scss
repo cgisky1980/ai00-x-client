@@ -57,7 +57,7 @@
   &-light {
     background: var(--color-bg-flowchat);
     color: var(--color-text-primary);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     
     .m-editor-textarea {
       color: var(--color-text-secondary);

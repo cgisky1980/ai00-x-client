@@ -16,17 +16,17 @@
 
 .ai00-x-config-collection-section__toolbar {
   padding-bottom: var(--size-gap-2);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .ai00-x-config-collection-section__filters {
   padding-bottom: var(--size-gap-2);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .ai00-x-config-collection-section__editor {
   background: var(--element-bg-subtle);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-base);
   padding: var(--size-gap-3);
 }

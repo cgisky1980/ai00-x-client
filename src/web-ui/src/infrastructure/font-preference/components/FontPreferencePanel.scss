@@ -99,7 +99,7 @@
     font-size: var(--font-size-sm);
     font-family: var(--font-sans);
     background: transparent;
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: $size-radius-sm;
     color: var(--text-secondary);
     cursor: pointer;
@@ -140,7 +140,7 @@
     display: flex;
     align-items: center;
     gap: 0;
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: $size-radius-sm;
     overflow: hidden;
     width: fit-content;
@@ -188,8 +188,8 @@
     height: 28px;
     padding: 0 $size-gap-2;
     border: none;
-    border-left: 1px solid var(--border-base);
-    border-right: 1px solid var(--border-base);
+    border-left: var(--style-stroke-width, 1px) solid var(--border-base);
+    border-right: var(--style-stroke-width, 1px) solid var(--border-base);
     background: var(--bg-primary);
     color: var(--text-primary);
     font-size: var(--font-size-sm);
@@ -242,7 +242,7 @@
     margin-top: $size-gap-2;
     padding: $size-gap-3 $size-gap-4;
     background: var(--bg-secondary);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: $size-radius-sm;
     color: var(--text-secondary);
     line-height: 1.6;
@@ -256,7 +256,7 @@
     font-size: var(--font-size-sm);
     font-family: var(--font-sans);
     background: transparent;
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: $size-radius-sm;
     color: var(--text-secondary);
     cursor: pointer;

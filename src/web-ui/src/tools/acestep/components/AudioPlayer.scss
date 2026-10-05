@@ -17,7 +17,7 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   background: var(--element-bg-soft);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: 6px;
   word-break: break-all;
 

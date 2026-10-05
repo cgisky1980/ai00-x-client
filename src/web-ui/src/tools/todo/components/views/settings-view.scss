@@ -19,7 +19,7 @@
     flex-direction: column;
     gap: var(--size-gap-1-5, 6px);
     background-color: color-mix(in oklch, var(--color-bg-sunken), var(--color-bg-base) 25%);
-    border-right: 1px solid var(--border-subtle);
+    border-right: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__nav-group {
@@ -61,7 +61,7 @@
     }
 
     &:focus-visible {
-      outline: 1px solid var(--color-accent);
+      outline: var(--style-stroke-width, 1px) solid var(--color-accent);
       outline-offset: -1px;
     }
 

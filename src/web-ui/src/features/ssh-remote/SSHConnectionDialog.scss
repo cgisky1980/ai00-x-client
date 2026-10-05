@@ -12,7 +12,7 @@
   &__error-banner {
     flex-shrink: 0;
     padding: var(--size-gap-2) var(--size-gap-4) var(--size-gap-2-5);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--color-bg-primary);
   }
 
@@ -54,7 +54,7 @@
     align-items: center;
     gap: var(--size-gap-2);
     padding: var(--size-gap-1) var(--size-gap-2-5);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: 6px;
     background: var(--card-bg-default);
     transition: all var(--motion-fast) var(--easing-standard);
@@ -133,7 +133,7 @@
     gap: var(--size-gap-1);
     padding: var(--size-gap-1) var(--size-gap-2);
     background: var(--element-bg-subtle);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: 4px;
     font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
@@ -233,7 +233,7 @@
     flex-shrink: 0;
     margin-top: 0;
     padding: var(--size-gap-2) var(--size-gap-4);
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--color-bg-primary);
 
     .btn.btn-sm {

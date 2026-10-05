@@ -73,7 +73,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   box-sizing: border-box;
   height: calc(var(--skills-left-body-h) * 2);
   max-height: calc(var(--skills-left-body-h) * 2);
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   border-radius: $size-radius-xl;
   padding: $size-gap-3 $size-gap-4 $size-gap-2;
   overflow: hidden;
@@ -209,7 +209,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   gap: $size-gap-2;
   margin-bottom: $size-gap-4;
   padding-bottom: $size-gap-2;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .skills-split__section-title {
@@ -257,7 +257,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   height: var(--skills-market-card-h);
   border-radius: 15px;
   background: var(--element-bg-subtle);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   position: relative;
   overflow: hidden;
   animation: skills-skeleton-card-in 0.28s $easing-decelerate both;
@@ -300,7 +300,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   height: 30px;
   border-radius: $size-radius-base;
   background: var(--element-bg-subtle);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   position: relative;
   overflow: hidden;
 
@@ -330,7 +330,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
 .skills-split__skeleton-line {
   border-radius: 4px;
   background: var(--element-bg-subtle);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   position: relative;
   overflow: hidden;
 
@@ -376,7 +376,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   height: 22px;
   border-radius: $size-radius-full;
   background: var(--element-bg-subtle);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   position: relative;
   overflow: hidden;
 
@@ -400,7 +400,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   height: 26px;
   border-radius: $size-radius-base;
   background: var(--element-bg-subtle);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   position: relative;
   overflow: hidden;
 
@@ -443,7 +443,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   justify-content: center;
   width: 30px;
   height: 30px;
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   border-radius: $size-radius-base;
   background: var(--element-bg-soft);
   color: var(--color-text-secondary);
@@ -511,7 +511,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   gap: $size-gap-2;
   padding-bottom: $size-gap-3;
   margin-bottom: $size-gap-1;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .skills-split__right-title {
@@ -550,7 +550,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   gap: $size-gap-1;
   height: 24px;
   padding: 0 $size-gap-2;
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: $size-radius-full;
   background: transparent;
   color: var(--color-text-muted);
@@ -651,7 +651,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
   justify-content: center;
   border-radius: $size-radius-base;
   background: var(--element-bg-medium);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   color: var(--color-text-secondary);
 }
 
@@ -841,7 +841,7 @@ $skills-content-top: clamp(36px, 4.5vh, 48px);
     gap: $size-gap-2;
     margin-top: $size-gap-1;
     padding-top: $size-gap-3;
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 }
 

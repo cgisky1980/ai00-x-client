@@ -137,7 +137,7 @@ body:has(.ai00-x-app-layout--overlay) {
   border-radius: 12px;
   overflow: visible;
   box-shadow: 0 8px 32px var(--modal-overlay), 0 2px 8px var(--color-overlay);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   pointer-events: auto;
   background-color: var(--color-bg-primary);
 

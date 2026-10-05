@@ -23,6 +23,6 @@
     justify-content: flex-end;
     gap: var(--spacing-2, 8px);
     padding-top: var(--spacing-3, 12px);
-    border-top: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.26));
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle, rgba(128, 128, 128, 0.26));
   }
 }

@@ -537,7 +537,7 @@
     flex-direction: column;
     background-color: color-mix(in oklch, var(--color-bg-sunken), var(--color-bg-base) 25%);
     // 顶格铺满：无圆角无右边距，右缘细分隔线分层
-    border-right: 1px solid var(--border-subtle);
+    border-right: var(--style-stroke-width, 1px) solid var(--border-subtle);
     overflow: hidden;
   }
 
@@ -548,7 +548,7 @@
     justify-content: space-between;
     gap: var(--size-gap-1, 4px);
     padding: var(--size-gap-2, 8px) var(--size-gap-1-5, 6px) var(--size-gap-1, 4px);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     flex-shrink: 0;
   }
 
@@ -882,7 +882,7 @@
     padding-top: var(--size-gap-0-5, 2px);
 
     > * + * {
-      border-left: 1px solid var(--border-subtle);
+      border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
       padding-left: var(--size-gap-3, 12px);
     }
   }
@@ -998,7 +998,7 @@
     align-items: center;
     gap: var(--size-gap-2, 8px);
     padding-bottom: var(--size-gap-0-5, 2px);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &goalpage__assess-time {
@@ -1193,7 +1193,7 @@
     padding: var(--size-gap-1-5, 6px) var(--size-gap-2, 8px);
     border-radius: var(--size-radius-sm, 6px);
     background: var(--color-bg-elevated);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     box-shadow: var(--shadow-sm, none);
   }
 

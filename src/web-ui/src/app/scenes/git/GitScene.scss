@@ -91,7 +91,7 @@
     align-items: center;
     gap: var(--size-gap-1-5);
     padding: var(--size-gap-2) var(--size-gap-4);
-    border: 1px solid var(--btn-primary-border);
+    border: var(--style-stroke-width, 1px) solid var(--btn-primary-border);
     border-radius: 8px;
     background: var(--btn-primary-bg);
     color: var(--btn-primary-color);

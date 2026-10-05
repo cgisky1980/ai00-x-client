@@ -8,7 +8,7 @@
   --ai00-x-collection-details-text: var(--color-text-secondary);
 
   & + .ai00-x-collection-item {
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &.is-disabled {
@@ -90,7 +90,7 @@
   white-space: nowrap;
   background: var(--element-bg-medium);
   color: var(--color-text-muted);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 // ─── right control area ────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@
 
 .ai00-x-collection-form {
   padding: $size-gap-4;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   animation: ai00-x-collection-slide-down 0.18s $easing-standard;
 }
 
@@ -218,7 +218,7 @@
   margin: 0;
   padding: $size-gap-3;
   background: var(--element-bg-medium);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: $size-radius-sm;
   font-family: $font-family-mono;
   font-size: var(--font-size-xs);
@@ -234,7 +234,7 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   padding-top: $size-gap-3;
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .ai00-x-collection-details__code {

@@ -108,7 +108,7 @@
     flex-direction: column;
     gap: var(--size-gap-0-5);
     padding: var(--size-gap-1) var(--size-gap-2) var(--size-gap-1-5);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__auto-route-head {
@@ -188,7 +188,7 @@
     gap: var(--size-gap-0-25, 1px);
     margin: 0 0 var(--size-gap-1) var(--size-gap-3);
     padding: var(--size-gap-0-5);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: var(--size-radius-sm);
     max-height: 160px;
     overflow-y: auto;
@@ -345,7 +345,7 @@
     justify-content: space-between;
     gap: var(--size-gap-2);
     padding: var(--size-gap-2) var(--size-gap-3);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     cursor: pointer;
     transition: background var(--motion-fast) ease;
 
@@ -581,7 +581,7 @@
     align-items: center;
     gap: var(--size-gap-1);
     padding: var(--size-gap-2) var(--size-gap-3);
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--element-bg-subtle);
   }
 

@@ -21,7 +21,7 @@
     align-items: center;
     gap: var(--spacing-2);
     padding: var(--spacing-2) var(--spacing-3);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: var(--radius-base);
     background: var(--color-bg-secondary);
 
@@ -61,7 +61,7 @@
     font-size: var(--font-size-xs);
     padding: 0 var(--spacing-2);
     border-radius: var(--radius-full);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     color: var(--color-text-muted);
 
     &.is-bundled {
@@ -108,7 +108,7 @@
   }
 
   &__tag-chip {
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: transparent;
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
@@ -133,7 +133,7 @@
     align-items: center;
     gap: var(--spacing-2);
     padding: var(--spacing-3);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: var(--radius-base);
     background: var(--color-bg-secondary);
     flex-wrap: wrap;
@@ -201,7 +201,7 @@
     flex-direction: column;
     gap: var(--spacing-2);
     padding-top: var(--spacing-2);
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__market-desc {
@@ -275,7 +275,7 @@
   }
 
   &__failed-banner {
-    border: 1px solid var(--color-error);
+    border: var(--style-stroke-width, 1px) solid var(--color-error);
     border-radius: var(--radius-base);
     background: var(--color-error-bg);
     padding: var(--spacing-2) var(--spacing-3);
@@ -319,7 +319,7 @@
     max-height: 320px;
     overflow-y: auto;
     padding: var(--spacing-1);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: var(--radius-base);
   }
 

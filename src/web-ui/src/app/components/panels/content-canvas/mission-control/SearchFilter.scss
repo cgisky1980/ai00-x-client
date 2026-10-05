@@ -12,7 +12,7 @@
     .search__wrapper {
       background: transparent;
       // Use the same border variable as the left file tree search
-      border: 1px solid var(--border-base);
+      border: var(--style-stroke-width, 1px) solid var(--border-base);
       
       &:hover {
         border-color: var(--border-medium);

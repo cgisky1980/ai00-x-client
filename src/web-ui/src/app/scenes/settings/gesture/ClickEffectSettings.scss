@@ -72,7 +72,7 @@
     padding: var(--size-gap-1) var(--size-gap-2-5);
     border-radius: 16px;
     background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
     font-size: var(--font-size-sm);
     transition: background 0.15s, border-color 0.15s;
 
@@ -94,7 +94,7 @@
     width: 60px;
     padding: var(--size-gap-0-5) var(--size-gap-1-5);
     font-size: var(--font-size-sm);
-    border: 1px solid var(--color-primary);
+    border: var(--style-stroke-width, 1px) solid var(--color-primary);
     border-radius: 4px;
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
@@ -134,7 +134,7 @@
     max-width: 200px;
     padding: var(--size-gap-1-5) var(--size-gap-2-5);
     font-size: var(--font-size-sm);
-    border: 1px solid var(--color-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
     border-radius: 6px;
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
@@ -149,7 +149,7 @@
   &__add-word-btn {
     padding: var(--size-gap-1-5) var(--size-gap-3-5);
     font-size: var(--font-size-sm);
-    border: 1px solid var(--color-primary);
+    border: var(--style-stroke-width, 1px) solid var(--color-primary);
     border-radius: 6px;
     background: var(--color-primary);
     color: var(--color-accent-foreground);
@@ -186,7 +186,7 @@
       width: 80px;
       padding: var(--size-gap-1-5) var(--size-gap-2-5);
       font-size: var(--font-size-sm);
-      border: 1px solid var(--color-border);
+      border: var(--style-stroke-width, 1px) solid var(--color-border);
       border-radius: 6px;
       background: var(--color-bg-primary);
       color: var(--color-text-primary);
@@ -212,7 +212,7 @@
   &__reset-btn {
     padding: var(--size-gap-2) var(--size-gap-5);
     font-size: var(--font-size-sm);
-    border: 1px solid var(--color-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
     border-radius: 6px;
     background: transparent;
     color: var(--color-text-secondary);

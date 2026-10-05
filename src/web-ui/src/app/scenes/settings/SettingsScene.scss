@@ -27,7 +27,7 @@
     height: 100%;
     overflow: hidden;
     background: var(--nav-bg);
-    border-right: 1px solid var(--border-subtle);
+    border-right: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__loading {

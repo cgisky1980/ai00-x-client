@@ -58,13 +58,13 @@ $_diff-error-max-width: 400px;
     &--add {
       color: var(--color-success);
       background: var(--color-success-bg);
-      border: 1px solid var(--color-success-bg);
+      border: var(--style-stroke-width, 1px) solid var(--color-success-bg);
     }
     
     &--del {
       color: var(--color-error);
       background: var(--color-error-bg);
-      border: 1px solid var(--color-error-bg);
+      border: var(--style-stroke-width, 1px) solid var(--color-error-bg);
     }
   }
 
@@ -178,7 +178,7 @@ $_diff-error-max-width: 400px;
   text-align: center;
   padding: $size-gap-6;
   background: var(--color-bg-primary);
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   border-radius: $size-radius-lg;
   max-width: $_diff-error-max-width;
   z-index: var(--z-overlay);

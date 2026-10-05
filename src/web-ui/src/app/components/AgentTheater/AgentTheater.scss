@@ -26,7 +26,7 @@
   gap: var(--spacing-1, 4px);
   padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
   background: var(--color-bg-elevated, #1e1e24);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--radius-full, 9999px);
   box-shadow: var(--shadow-base, 0 4px 8px rgba(0, 0, 0, 0.7));
   cursor: pointer;
@@ -264,7 +264,7 @@
     height: 30%;
     border-radius: 3px;
     background: var(--element-bg-medium);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     // gadget 0 → 无工具
     [style*='--imp-gadget:0'] & { display: none; }
   }
@@ -320,7 +320,7 @@
   width: 260px;
   padding: var(--spacing-3, 12px);
   background: var(--color-bg-elevated, #1e1e24);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--radius-lg, 12px);
   box-shadow: var(--shadow-xl, 0 12px 24px rgba(0, 0, 0, 0.5));
   backdrop-filter: blur(8px); // 浮层允许
@@ -381,7 +381,7 @@
     justify-content: flex-end;
     gap: var(--spacing-2, 8px);
     padding-top: var(--spacing-2, 8px);
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__open {
@@ -407,7 +407,7 @@
   display: flex;
   flex-direction: column;
   background: var(--color-bg-primary); // 对齐 dsh 场景主底（对话区视觉一致）
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--radius-lg, 12px);
   box-shadow: var(--shadow-xl, 0 12px 24px rgba(0, 0, 0, 0.5));
   backdrop-filter: blur(8px); // 浮层允许（规范白名单）
@@ -425,7 +425,7 @@
     padding: var(--size-gap-2, 8px) var(--size-gap-3, 12px);
     // 沉一档标题带（MusicPopup/策窗同配方：sunken 深于内容面）
     background-color: var(--color-bg-sunken);
-    border-bottom: 1px solid var(--element-bg-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--element-bg-subtle);
     cursor: grab;
     user-select: none;
 

@@ -168,7 +168,7 @@ $content-max: 1480px;
   height: var(--gallery-skeleton-height);
   border-radius: $size-radius-lg;
   background: var(--element-bg-subtle);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   position: relative;
   overflow: hidden;
   animation: gallery-item-in 0.28s $easing-decelerate both;
@@ -301,7 +301,7 @@ $content-max: 1480px;
   gap: var(--size-gap-0-5);
   padding: var(--size-gap-0-5);
   background: var(--element-bg-subtle);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: $size-radius-base;
   flex-wrap: wrap;
 }
@@ -334,13 +334,13 @@ $content-max: 1480px;
 
 .gallery-filter-chip,
 .gallery-cat-chip {
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .gallery-anchor-btn {
   padding: 0 $size-gap-3;
   height: 28px;
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   background:color-mix(in srgb, var(--color-text-primary) 4%, transparent);
 }
 
@@ -376,7 +376,7 @@ $content-max: 1480px;
   padding: 0 var(--size-gap-2);
   border-radius: $size-radius-full;
   background: var(--element-bg-medium);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   font-size: var(--font-size-xs);
   font-weight: $font-weight-semibold;
   color: var(--color-text-muted);
@@ -389,7 +389,7 @@ $content-max: 1480px;
   padding: 0 var(--size-gap-1);
   border-radius: $size-radius-full;
   background: var(--color-success-bg);
-  border: 1px solid var(--color-success-bg);
+  border: var(--style-stroke-width, 1px) solid var(--color-success-bg);
   color: var(--color-success);
   font-size: var(--font-size-2xs);
   font-weight: $font-weight-semibold;

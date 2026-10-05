@@ -9,7 +9,7 @@
   max-width: calc(100vw - 32px);
   max-height: 400px;
   background: var(--color-bg-elevated);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: 8px;
   box-shadow: 0 8px 32px var(--modal-overlay);
   display: flex;
@@ -35,7 +35,7 @@
     justify-content: space-between;
     padding: var(--size-gap-2) var(--size-gap-3);
     background: var(--color-bg-secondary);
-    border-bottom: 1px solid var(--border-base);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
   }
 
   &__title {
@@ -140,7 +140,7 @@
     font-size: var(--font-size-2xs);
     color: var(--color-text-muted);
     background: var(--color-bg-secondary);
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__separator {

@@ -19,7 +19,7 @@
   &__main {
     border-top-right-radius: 0 !important;
     border-bottom-right-radius: 0 !important;
-    border-right: 1px solid var(--element-bg-subtle) !important;
+    border-right: var(--style-stroke-width, 1px) solid var(--element-bg-subtle) !important;
     padding-right: var(--size-gap-2) !important;
 
     display: flex;

@@ -111,7 +111,7 @@ $_editor-padding-desktop: 32px;
     }
     
     &:focus-visible {
-      outline: 1px solid var(--color-text-muted);
+      outline: var(--style-stroke-width, 1px) solid var(--color-text-muted);
       outline-offset: 1px;
     }
   }

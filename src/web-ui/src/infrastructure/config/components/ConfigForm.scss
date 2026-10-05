@@ -85,7 +85,7 @@ $config-input-height: 32px;
   line-height: $config-input-height !important;
   color: var(--color-text-primary) !important;
   background: transparent !important;
-  border: 1px solid var(--border-base) !important;
+  border: var(--style-stroke-width, 1px) solid var(--border-base) !important;
   border-radius: var(--size-radius-sm) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -309,7 +309,7 @@ $config-input-height: 32px;
   justify-content: flex-end;
   margin-top: var(--size-gap-5);
   padding-top: var(--size-gap-4);
-  border-top: 1px solid var(--border-accent-soft);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-accent-soft);
 
   &--start {
     justify-content: flex-start;
@@ -340,25 +340,25 @@ $config-input-height: 32px;
 
   &--success {
     background: var(--color-success-bg);
-    border: 1px solid var(--color-success-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-success-border);
     color: var(--color-success);
   }
 
   &--error {
     background: var(--color-error-bg);
-    border: 1px solid var(--color-error-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-error-border);
     color: var(--color-error);
   }
 
   &--warning {
     background: var(--color-warning-bg);
-    border: 1px solid var(--color-warning-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-warning-border);
     color: var(--color-warning);
   }
 
   &--info {
     background: var(--color-info-bg);
-    border: 1px solid var(--color-info-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-info-border);
     color: var(--color-info);
   }
 }

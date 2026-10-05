@@ -42,7 +42,7 @@
     padding: var(--size-gap-5) 0 var(--size-gap-4);
     margin-bottom: var(--size-gap-5);
     background-color: var(--color-bg-primary);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__heading {
@@ -65,7 +65,7 @@
     .ai00-x-tabs__nav-list {
       gap: var(--size-gap-0-5);
       padding: var(--size-gap-0-5);
-      border: 1px solid var(--border-subtle);
+      border: var(--style-stroke-width, 1px) solid var(--border-subtle);
       border-radius: var(--size-radius-full);
       background-color: var(--element-bg-subtle);
     }
@@ -110,7 +110,7 @@
     align-items: center;
     gap: var(--size-gap-2) var(--size-gap-3);
     padding: var(--size-gap-3) var(--size-gap-4);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: var(--size-radius-base);
     background-color: var(--element-bg-subtle);
   }
@@ -157,7 +157,7 @@
     align-items: center;
     gap: var(--size-gap-1);
     padding: var(--size-gap-6) var(--size-gap-4) var(--size-gap-5);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: var(--size-radius-lg);
     background-color: var(--color-bg-card);
     color: var(--color-text-primary);
@@ -244,7 +244,7 @@
   text-align: center;
   gap: var(--size-gap-3);
   padding: var(--size-gap-7) var(--size-gap-5) var(--size-gap-6);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-xl);
   background-color: var(--color-bg-card);
   overflow: hidden;

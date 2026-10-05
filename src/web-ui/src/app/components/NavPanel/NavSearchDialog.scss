@@ -19,7 +19,7 @@
   z-index: var(--z-extreme);
   background: var(--color-bg-scene);
   border-radius: calc(#{$size-radius-base} + 2px);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--color-text-primary) 4%, transparent),
     0 2px 4px var(--color-bg-primary),
@@ -116,7 +116,7 @@
 
   & + & {
     margin-top: $size-gap-1;
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
     padding-top: $size-gap-1;
   }
 }
