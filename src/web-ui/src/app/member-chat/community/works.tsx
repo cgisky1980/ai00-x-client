@@ -43,6 +43,31 @@ export const WORK_TYPE_META: WorkRendererMeta[] = [
   { type: 'cartridge', label: '卡带', icon: <Gamepad2 size={12} aria-hidden />, enabled: false },
 ];
 
+/**
+ * mosaic 候选作品挑选（banner=mosaic 轴专用）
+ *
+ * 首屏拼贴要的是"最有代表性的一眼"，所以只取带封面的：
+ * 优先播放量高的歌曲 → 其余按时间。宁缺毋滥——没有封面的作品
+ * 拼进拼贴只会留下空格子，不如留白。
+ */
+export function mosaicPicks(
+  songs: MemberSongWork[],
+  posts: CommunityPost[],
+  limit = 4,
+): WorkItem[] {
+  const songWorks = songs.filter((s) => s.cover_url).map(songToWork);
+  const postWorks = posts
+    .filter((p) => !p.repost_of && (p.cover_url || p.media?.some((m) => m.type === 'image')))
+    .map(postToWork);
+  // 歌曲在前：社区的门面是"作品即门面"，且歌曲封面天然是方图，适合拼贴
+  const byPlays = [...songWorks].sort((a, b) => {
+    const pa = (a.raw as MemberSongWork).play_count ?? 0;
+    const pb = (b.raw as MemberSongWork).play_count ?? 0;
+    return pb - pa;
+  });
+  return [...byPlays, ...postWorks].slice(0, limit);
+}
+
 /** 秒 → mm:ss */
 export function fmtDuration(sec?: number): string {
   if (!sec || sec <= 0) return '';

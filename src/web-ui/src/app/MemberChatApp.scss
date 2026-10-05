@@ -7,8 +7,11 @@
 @use '../component-library/styles/tokens.scss' as *;
 
 .member-chat {
-  position: fixed;
-  inset: 0;
+  // 容器内填充（WindowTitleBar shell 的内容区），不再 fixed 全屏——
+  // fixed 相对视口会穿透 shell 盖住自绘标题栏
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background-color: var(--color-bg-primary);
@@ -37,7 +40,7 @@
   padding: var(--size-gap-8);
   border-radius: var(--size-radius-lg);
   background-color: var(--color-bg-card);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   text-align: center;
 
   h2 {
@@ -70,7 +73,7 @@
   display: flex;
   flex-direction: column;
   background-color: var(--color-bg-secondary);
-  border-right: 1px solid var(--border-base);
+  border-right: var(--style-stroke-width, 1px) solid var(--border-base);
   overflow: hidden;
 }
 
@@ -84,7 +87,7 @@
   gap: var(--size-gap-1);
   padding: var(--size-gap-3) var(--size-gap-1) var(--size-gap-2);
   background-color: var(--color-bg-secondary);
-  border-right: 1px solid var(--border-subtle);
+  border-right: var(--style-stroke-width, 1px) solid var(--border-subtle);
   overflow: hidden;
 }
 
@@ -404,7 +407,7 @@
   justify-content: space-between;
   gap: var(--size-gap-3);
   padding: var(--size-gap-3) var(--size-gap-4);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   min-height: 52px;
 }
 
@@ -559,7 +562,7 @@
   align-items: center;
   gap: var(--size-gap-2);
   padding: var(--size-gap-1-5) var(--size-gap-4);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   background-color: var(--element-bg-subtle);
   font-size: var(--font-size-xs);
   overflow-x: auto;
@@ -569,7 +572,7 @@
   flex-shrink: 0;
   max-width: 160px;
   padding: var(--size-gap-0-5) var(--size-gap-2);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--size-radius-sm);
   background-color: var(--color-bg-primary);
   color: var(--color-text-secondary);
@@ -723,7 +726,7 @@
   padding: var(--size-gap-0-25);
   border-radius: var(--size-radius-sm);
   background-color: var(--color-bg-elevated);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   box-shadow: var(--shadow-sm);
   opacity: 0;
   visibility: hidden;
@@ -768,7 +771,7 @@
   align-items: center;
   gap: var(--size-gap-1);
   padding: var(--size-gap-1) var(--size-gap-2-5);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--size-radius-lg);
   background: transparent;
   font-size: var(--font-size-sm);
@@ -798,7 +801,7 @@
   padding: var(--size-gap-1);
   border-radius: var(--size-radius-base);
   background-color: var(--color-bg-elevated);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   box-shadow: var(--shadow-base);
 }
 
@@ -830,7 +833,7 @@
   resize: none;
   padding: var(--size-gap-1-5) var(--size-gap-2);
   border-radius: var(--size-radius-base);
-  border: 1px solid var(--input-border-focus);
+  border: var(--style-stroke-width, 1px) solid var(--input-border-focus);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-family: inherit;
@@ -861,7 +864,7 @@
 
 .member-chat__edit-cancel {
   padding: var(--size-gap-0-5) var(--size-gap-2-5);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--size-radius-base);
   background: transparent;
   color: var(--color-text-secondary);
@@ -920,7 +923,7 @@
   min-width: 36px;
   height: 28px;
   padding: 0 var(--size-gap-2-5);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--size-radius-full);
   background-color: var(--color-bg-elevated);
   color: var(--color-accent-500);
@@ -937,7 +940,7 @@
 /* typing 指示 */
 .member-chat__typing {
   padding: var(--size-gap-1) var(--size-gap-4);
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
@@ -948,7 +951,7 @@
   gap: var(--size-gap-2);
   /* 底部呼吸略大于顶部，避免输入框贴窗底 */
   padding: var(--size-gap-3) var(--size-gap-4) var(--size-gap-4);
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 .member-chat__input {
@@ -956,7 +959,7 @@
   resize: none;
   padding: var(--size-gap-2-5) var(--size-gap-3);
   border-radius: var(--size-radius-base);
-  border: 1px solid var(--input-border);
+  border: var(--style-stroke-width, 1px) solid var(--input-border);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-family: inherit;
@@ -1006,7 +1009,7 @@
   display: flex;
   flex-direction: column;
   background-color: var(--color-bg-secondary);
-  border-left: 1px solid var(--border-base);
+  border-left: var(--style-stroke-width, 1px) solid var(--border-base);
   overflow: hidden;
 }
 
@@ -1061,7 +1064,7 @@
   align-items: center;
   gap: var(--size-gap-1-5);
   padding: var(--size-gap-3) var(--size-gap-3-5);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -1107,7 +1110,7 @@
   gap: var(--size-gap-1-5);
   align-items: center;
   padding: var(--size-gap-2) var(--size-gap-2-5);
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 
 /* ===== 发起私聊弹窗 ===== */
@@ -1272,7 +1275,7 @@
   align-items: center;
   gap: var(--size-gap-1);
   padding: var(--size-gap-0-5) var(--size-gap-2);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--size-radius-base);
   background: transparent;
   color: var(--color-text-secondary);
@@ -1329,7 +1332,7 @@
   min-height: 96px;
   padding: var(--size-gap-2) var(--size-gap-2-5);
   border-radius: var(--size-radius-base);
-  border: 1px solid var(--input-border);
+  border: var(--style-stroke-width, 1px) solid var(--input-border);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-family: inherit;
@@ -1387,7 +1390,7 @@
 
 .member-chat__group-card {
   padding: var(--size-gap-2) var(--size-gap-2-5);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-base);
   background: var(--element-bg-subtle);
 }
@@ -1458,7 +1461,7 @@
   gap: var(--size-gap-0-5);
   padding: var(--size-gap-4) var(--size-gap-2);
   background-color: var(--color-bg-secondary);
-  border-right: 1px solid var(--border-base);
+  border-right: var(--style-stroke-width, 1px) solid var(--border-base);
   overflow-y: auto;
 }
 
@@ -1558,7 +1561,7 @@
   min-height: 88px;
   padding: var(--size-gap-2) var(--size-gap-2-5);
   border-radius: var(--size-radius-base);
-  border: 1px solid var(--input-border);
+  border: var(--style-stroke-width, 1px) solid var(--input-border);
   background-color: var(--input-bg);
   color: var(--input-text);
   font-family: inherit;
@@ -1590,7 +1593,7 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-base);
   overflow: hidden;
 }
@@ -1604,7 +1607,7 @@
   background-color: var(--color-bg-secondary);
 
   & + & {
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   dt {
@@ -1636,7 +1639,7 @@
   flex-direction: column;
   gap: var(--size-gap-1);
   padding: var(--size-gap-3);
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--size-radius-base);
   background-color: var(--color-bg-secondary);
   color: var(--color-text-primary);

@@ -11,10 +11,16 @@ import { Button, Modal, toastError, toastSuccess } from '@/component-library';
 import { Check, Coins, Sparkles } from 'lucide-react';
 import { type ProfileThemeDTO } from './communityApi';
 import { useCommunityStore } from './communityStore';
-import { textureImage, textureSize, themeVars, type ProfileTheme } from './themes';
+import {
+  FALLBACK_STYLE,
+  styleAttrs,
+  themeVars,
+  type ProfileTheme,
+} from './themes';
 
-/** DTO → 引擎主题（缺省兜底同 ProfileView） */
+/** DTO → 引擎主题（皮肤标识来自 payload.style，其余视觉全在 CSS 里） */
 function toTheme(dto: ProfileThemeDTO): ProfileTheme {
+  const raw = dto.payload as Record<string, unknown>;
   return {
     slug: dto.slug,
     name: dto.name,
@@ -22,44 +28,64 @@ function toTheme(dto: ProfileThemeDTO): ProfileTheme {
     price_credits: dto.price_credits,
     owned: dto.owned,
     applied: dto.applied,
-    payload: {
-      bg: String(dto.payload.bg ?? '#242729'),
-      surface: String(dto.payload.surface ?? '#2b2f33'),
-      text: String(dto.payload.text ?? '#f0f2f4'),
-      textMuted: String(dto.payload.textMuted ?? '#9aa3ab'),
-      border: String(dto.payload.border ?? '#3a4046'),
-      borderStyle: String(dto.payload.borderStyle ?? 'solid'),
-      accent: String(dto.payload.accent ?? '#60a5fa'),
-      accentText: String(dto.payload.accentText ?? '#0b1220'),
-      bannerBg: String(dto.payload.bannerBg ?? '#1c2023'),
-      bannerOverlay: Number(dto.payload.bannerOverlay ?? 0.35),
-      fontDisplay: dto.payload.fontDisplay === 'sans' ? 'sans' : 'serif',
-      radius: String(dto.payload.radius ?? 'base'),
-      texture: String(dto.payload.texture ?? 'grain'),
-      decoration: String(dto.payload.decoration ?? 'none'),
-      monoData: dto.payload.monoData !== false,
-    },
+    style: typeof raw.style === 'string' ? (raw.style as string) : FALLBACK_STYLE,
   };
 }
 
-/** 缩微样张（hero 骨架的迷你版，仅展示气质） */
-const ThemePreview: React.FC<{ theme: ProfileTheme }> = ({ theme }) => (
-  <div
-    className="community-shop__preview"
-    style={{
-      ...themeVars(theme),
-      backgroundImage: textureImage(theme.payload),
-      backgroundSize: textureSize(theme.payload),
-    }}
-  >
-    <div className="community-shop__preview-banner" />
-    <div className="community-shop__preview-avatar" />
-    <div className="community-shop__preview-name">{theme.name}</div>
-    <div className="community-shop__preview-line" />
-    <div className="community-shop__preview-line community-shop__preview-line--short" />
-    <div className="community-shop__preview-accent" />
-  </div>
-);
+/**
+ * 缩微样张：用**真实骨架的缩微版**，而不是通用占位图。
+ *
+ * 关键点：样张自身带上 data-style 皮肤属性，与主页走同一套 SCSS 分支——
+ * 所以商店里看到的海报巨卡 + 卡片流的描边语言，就是切过去之后的真实结果。
+ * 这正是"两套主题长得不一样"能被验收的前提。
+ */
+const ThemePreview: React.FC<{ theme: ProfileTheme }> = ({ theme }) => {
+  return (
+    <div
+      className="community-profile2 community-shop__preview"
+      data-profile-root
+      {...styleAttrs(theme.style)}
+      style={themeVars()}
+    >
+      <div className="community-profile2__poster">
+        <div className="community-profile2__poster-glow">
+          <span className="community-profile2__poster-wash" />
+          <span className="community-profile2__poster-veil" />
+        </div>
+        <div className="community-profile2__poster-body">
+          <div className="community-profile2__poster-idrow">
+            <span className="community-profile2__avatar-tile">
+              <span className="community-profile2__avatar" />
+            </span>
+            <div className="community-profile2__poster-name">
+              <span className="community-profile2__name">{theme.name}</span>
+            </div>
+          </div>
+          <div className="community-profile2__stats">
+            <span className="community-profile2__stat">
+              <em className="ds-data">24</em>
+            </span>
+            <span className="community-profile2__stat">
+              <em className="ds-data">1.8k</em>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="community-profile2__works">
+        <div className="community-stream__grid">
+          {['夜', '雾', '雪', '海'].map((letter) => (
+            <div key={letter} className="community-stream-card">
+              <div className="community-stream-card__cover">
+                <span className="community-stream-card__letter">{letter}</span>
+                <span className="community-stream-card__tile" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const ThemeShop: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { t } = useI18n();

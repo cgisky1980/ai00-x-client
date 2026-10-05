@@ -217,8 +217,13 @@ export interface CommunityHome {
   following_count: number;
   followers_count: number;
   post_count: number;
-  /** 主页主题模板（xuanzhi/juan/yinzhang） */
+  /** 主页主题 slug（profile_themes.slug；默认 'songyan'，迁移 027 后旧的 xuanzhi/juan/yinzhang 已废弃） */
   profile_theme: string;
+  /**
+   * 主题完整载荷（含 axes 四轴 + 配色种子；服务端 home handler 注入）。
+   * 查不到时为 null —— 客户端据此回落默认主题，不要当成错误。
+   */
+  theme?: ProfileThemeDTO | null;
   /** 查看者是否关注了主页主人 */
   viewer_follows: boolean;
   /** 主页主人是否关注了查看者 */
@@ -233,6 +238,51 @@ export interface CommunityHome {
   pinned_works?: string;
   /** 造物集：Lv 灵印角标（XP 等级；服务端 home handler 注入） */
   author_level?: number | null;
+}
+
+/** 创作指纹 · 单日计数（热力图一格） */
+export interface FingerprintDay {
+  /** YYYY-MM-DD */
+  day: string;
+  posts: number;
+  /** songs 分库；分库不可达时恒 0 */
+  songs: number;
+}
+
+/** 创作指纹 · 类型分布一项 */
+export interface FingerprintGenre {
+  name: string;
+  count: number;
+}
+
+/** 创作指纹 · 里程碑一项（key 稳定，展示文案走客户端 i18n） */
+export interface FingerprintMilestone {
+  key: 'works' | 'songs' | 'posts' | 'activeDays' | 'streak' | 'minutes' | string;
+  value: number;
+}
+
+/**
+ * 创作指纹（造物集 D）
+ *
+ * ⚠️ clock 是 **UTC 小时分布**，未按用户时区本地化：
+ * member_profiles.timezone 存了但从未被写入（无采集来源），
+ * 与其编一个假时区，不如诚实给 UTC。
+ */
+export interface CommunityFingerprint {
+  /** 近 365 天逐日计数（升序；无作品的日子不出现在数组里） */
+  days: FingerprintDay[];
+  /** 24 小时分布（UTC），长度恒 24 */
+  clock: number[];
+  /** 类型分布（降序，≤8） */
+  genres: FingerprintGenre[];
+  first_day: string;
+  last_day: string;
+  total_seconds: number;
+  longest_seconds: number;
+  /** 连续创作天数 */
+  streak: number;
+  /** 里程碑（value > 0 才下发） */
+  milestones: FingerprintMilestone[];
 }
 
 /** 造物集代表作项（type: song=shareId / post=帖子数字 id 的字符串） */
@@ -603,6 +653,21 @@ export const communityApi = {
   /** 主页聚合（资料+计数+查看者视角关系） */
   memberHome(memberId: number): Promise<CommunityHome> {
     return unwrap(`/api/v1/community/members/${memberId}`);
+  },
+
+  /**
+   * 创作指纹（造物集 D）：热力图/时钟/类型/里程碑
+   *
+   * 独立端点而非并入 memberHome：只在滚到指纹区才拉，零作品用户不产生请求。
+   * 失败返回 null（不抛），调用方渲染兜底文案——指纹是锦上添花，
+   * 不该因为它让整个主页打不开。
+   */
+  async memberFingerprint(memberId: number): Promise<CommunityFingerprint | null> {
+    try {
+      return await unwrap(`/api/v1/community/members/${memberId}/fingerprint`);
+    } catch {
+      return null;
+    }
   },
 
   /** 关注 toggle（互关自动结为好友；返回 became_friend） */

@@ -1,145 +1,92 @@
 /**
- * themes — 个人主页主题引擎（P2A）
+ * themes — 个人主页主题皮肤（v5：颜色全部在 CSS 里）
  *
- * 主题 = 布局骨架（hero/minimal/editorial）+ token 载荷 JSON。
- * 服务端 profile_themes 表为 SSOT；此处提供：
- * - ThemePayload 类型与兜底（服务器不可达时用默认松烟主题渲染）
- * - applyThemeVars(resolver)：payload → [data-profile-root] 容器级 CSS 变量（--pt-*）
- * - 纹理/装饰的 CSS 生成（grain/dots/grid + seal/pixel/sticker 落在容器伪元素/角标）
+ * ── 这一版为什么把颜色搬进 CSS ──────────────────────────
+ * 目标：**以后写扩展主题 = 只写一段 CSS**。
+ * v4 之前颜色是「DB 里的 9 个种子 → palette.ts 推导 16 个值 → JS 注入
+ * --pt-*」，代价是：加一套配色要写迁移、改白名单、改三处测试常量表。
+ * 现在每个皮肤块在 community.scss 里自带完整色板，本模块只剩两件事：
+ *   1. 把 payload.style 透传成 data-style（SCSS 靠它分支）
+ *   2. 主题的商店元信息（slug / name / price）与皮肤解耦
  *
- * 设计约束：主题只作用于主页容器，不外溢应用界面；正文对比度底线由 schema 值域保证
- * （curated 色板，非自由 CSS）。
+ * 推导线（palette.ts）保留，但**降级为校验器**：tests/skinContrast.test.ts
+ * 扫 community.scss 里每个 [data-style] 块，校验 15 个色值的对比度红线。
+ * 手写色值 + CI 把关，比运行时推导更好维护，也不会在首屏闪一下。
+ *
+ * ── 加一套新皮肤（照着做就行）──────────────────────────
+ *   1. community.scss 里加一个 .community-profile2[data-style='xxx'] { … } 块，
+ *      声明 15 个 --pt-* 色值 + 6 个 --pt-cover-* + 5 个皮肤变量
+ *   2. （可选）DB 加一行主题元信息，payload.style = 'xxx'
+ *   3. 跑 pnpm test（skinContrast 会校验新皮肤），然后 pnpm run preview:profile 看效果
+ *   不用改 themes.ts、不用改测试常量表、不用改 H5。
  */
 import type { CSSProperties } from 'react';
 
 export type ProfileLayout = 'hero' | 'minimal' | 'editorial';
 
+/** 皮肤标识 —— 任意字符串都透传，由 community.scss 决定长什么样 */
+export type ThemeStyle = string;
+
+/**
+ * 皮肤白名单只用于**兜底**：SCSS 里没有对应 [data-style] 块时回落到 minimal。
+ * 不做硬校验 —— 扩展主题不该被这里的数组拦住。
+ */
+export const FALLBACK_STYLE = 'minimal';
+
 export interface ThemePayload {
-  bg: string;
-  surface: string;
-  text: string;
-  textMuted: string;
-  border: string;
-  /** solid | dashed | double */
-  borderStyle: string;
-  accent: string;
-  accentText: string;
-  bannerBg: string;
-  /** 0..1 遮罩强度（封面图压暗） */
-  bannerOverlay: number;
-  /** 大标题字体：serif | sans */
-  fontDisplay: 'serif' | 'sans';
-  /** none | sm | base | lg */
-  radius: string;
-  /** none | grain | dots | grid */
-  texture: string;
-  /** none | seal | pixel | sticker */
-  decoration: string;
-  monoData: boolean;
+  /** 皮肤标识（唯一还需要 payload 承载的字段） */
+  style: ThemeStyle;
 }
 
-export const DEFAULT_THEME_SLUG = 'songyan';
-
-/** 离线兜底：默认松烟主题（与迁移 027 种子同值） */
-export const FALLBACK_THEME: ProfileTheme = {
-  slug: DEFAULT_THEME_SLUG,
-  name: '松烟',
-  layout: 'hero',
-  price_credits: 0,
-  owned: true,
-  applied: false,
-  payload: {
-    bg: '#242729',
-    surface: '#2b2f33',
-    text: '#f0f2f4',
-    textMuted: '#9aa3ab',
-    border: '#3a4046',
-    borderStyle: 'solid',
-    accent: '#60a5fa',
-    accentText: '#0b1220',
-    bannerBg: '#1c2023',
-    bannerOverlay: 0.35,
-    fontDisplay: 'serif',
-    radius: 'base',
-    texture: 'grain',
-    decoration: 'none',
-    monoData: true,
-  },
-};
+export const DEFAULT_THEME_SLUG = 'xuanzhi';
 
 export interface ProfileTheme {
   slug: string;
   name: string;
+  /** 商店分类标签（纯展示） */
   layout: ProfileLayout;
   price_credits: number;
   owned: boolean;
   applied: boolean;
-  payload: ThemePayload;
+  style: ThemeStyle;
 }
 
-const RADIUS_MAP: Record<string, string> = {
-  none: '0px',
-  sm: '6px',
-  base: '10px',
-  lg: '16px',
+/** 离线兜底：宣纸（与迁移 035 的 xuanzhi 一致） */
+export const FALLBACK_THEME: ProfileTheme = {
+  slug: DEFAULT_THEME_SLUG,
+  name: '宣纸',
+  layout: 'minimal',
+  price_credits: 0,
+  owned: true,
+  applied: false,
+  style: FALLBACK_STYLE,
 };
 
-/** payload → 容器级 CSS 变量（组件样式全部消费 --pt-*） */
-export function themeVars(theme: ProfileTheme): CSSProperties {
-  const p = theme.payload;
-  return {
-    '--pt-bg': p.bg,
-    '--pt-surface': p.surface,
-    '--pt-text': p.text,
-    '--pt-text-muted': p.textMuted,
-    '--pt-border': p.border,
-    '--pt-border-style': p.borderStyle,
-    '--pt-accent': p.accent,
-    '--pt-accent-text': p.accentText,
-    '--pt-banner': p.bannerBg,
-    '--pt-banner-overlay': String(p.bannerOverlay),
-    '--pt-font-display':
-      p.fontDisplay === 'serif'
-        ? "var(--font-family-serif, 'Ai00 X Serif', serif)"
-        : 'var(--font-family-sans)',
-    '--pt-radius': RADIUS_MAP[p.radius] ?? '10px',
-    '--pt-mono': p.monoData ? 'var(--font-family-mono)' : 'inherit',
-  } as CSSProperties;
+/** 皮肤 → 容器 data-* 属性（SCSS 靠属性选择器分支，不靠 JS 条件渲染） */
+export function styleAttrs(style: ThemeStyle): Record<string, string> {
+  return { 'data-style': style };
 }
 
-/** 容器背景（纹理层用 background-image 实现，避免覆盖 background-color） */
-export function textureImage(payload: ThemePayload): string | undefined {
-  switch (payload.texture) {
-    case 'grain':
-      return (
-        "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E\")"
-      );
-    case 'dots':
-      return 'radial-gradient(rgba(128,128,128,0.18) 1px, transparent 1px)';
-    case 'grid':
-      return 'linear-gradient(rgba(128,200,220,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(128,200,220,0.08) 1px, transparent 1px)';
-    default:
-      return undefined;
-  }
+/**
+ * 主题容器上的 inline 变量 —— **刻意为空**。
+ *
+ * 以前这里会把 palette 推导结果注入 --pt-*（themeVars）。现在色板由
+ * [data-style] 块自己声明，JS 不再参与配色，所以容器上不需要任何 inline
+ * 变量。保留这个函数是为了让调用点（ProfileView / ThemeShop）读起来
+ * 仍然对称，且将来真需要 per-instance 覆盖（比如作品取色晕染）时有位置。
+ */
+export function themeVars(overrides?: Record<string, string>): CSSProperties {
+  return (overrides ?? {}) as CSSProperties;
 }
 
-/** 纹理 background-size */
-export function textureSize(payload: ThemePayload): string | undefined {
-  switch (payload.texture) {
-    case 'dots':
-      return '14px 14px';
-    case 'grid':
-      return '28px 28px';
-    default:
-      return undefined;
-  }
-}
-
-/** 从列表解析出「当前应用主题」（applied 优先，缺省松烟兜底） */
+/** 从主题列表解析「当前应用主题」（applied 优先，缺省回落到兜底主题） */
 export function resolveAppliedTheme(themes: ProfileTheme[] | null): ProfileTheme {
   if (themes && themes.length > 0) {
     const applied = themes.find((t) => t.applied);
     if (applied) return applied;
+    // 老用户可能持有已下架主题（迁移 035 删掉了 6 套）：按 slug 回落到兜底
+    const known = themes.find((t) => t.slug === DEFAULT_THEME_SLUG);
+    if (known) return known;
   }
   return FALLBACK_THEME;
 }

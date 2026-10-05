@@ -1,197 +1,23 @@
 /**
- * WorksWall — 造物集渲染组件（渲染器注册表的组件侧）
+ * PinnedHero / PinnedEditorModal — 代表作（≤3）与它的编辑器
  *
- * 渲染器注册表：歌曲卡/文字卡已点亮，卡带/图像预埋——新 AI 创作类型上线 =
- * 在 works.ts 注册 chips 元数据 + 在此注册渲染器 + 接一条数据源，主页永不重设计。
- * 数据模型/转换器/加载 hook 见 works.ts。
+ * 主页的「一条流」在 ProfileStream.tsx：动态与作品混排、同款卡。
+ * 这里只管**代表作**（手动置顶 ≤3，未设置时回退播放 top3 歌曲），
+ * 卡片渲染器复用 StreamCard —— 全站只有一种卡。
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
-import { Button, Empty, Modal, toastError, toastSuccess } from '@/component-library';
-import { Check, Disc3, Play } from 'lucide-react';
+import { Button, Modal, toastError, toastSuccess } from '@/component-library';
+import { Check } from 'lucide-react';
 import {
   communityApi,
-  resolveMediaUrl,
   type CommunityPost,
   type MemberSongWork,
   type PinnedWork,
 } from './communityApi';
-import { playShare } from './communityPlayer';
 import { mdPreview } from './md';
-import { useShareCover } from '@/tools/acestep/hooks/useShareCover';
-import { WORK_TYPE_META, postToWork, songToWork, type WorkItem } from './works';
-
-// ---------------------------------------------------------------------------
-// 歌曲墙卡（渲染器：方形封面 + 悬浮播放 + 播放数）
-// ---------------------------------------------------------------------------
-
-const SongWorkCard: React.FC<{ work: WorkItem; onDiscuss?: (shareId: string) => void }> = ({
-  work,
-  onDiscuss,
-}) => {
-  const { t } = useI18n('community');
-  const song = work.raw as MemberSongWork;
-  const cover = useShareCover(song.share_id, song.cover_url);
-
-  const onPlay = async () => {
-    if ((await playShare(song.share_id)) === 'unavailable') {
-      toastError(t('playUnavailable', { defaultValue: '播放引擎未就绪，请打开音乐窗口后重试' }));
-    }
-  };
-
-  return (
-    <article className="community-work community-work--song">
-      <button type="button" className="community-work__media" onClick={() => void onPlay()} aria-label={work.title}>
-        {cover ? (
-          <img src={cover} alt="" loading="lazy" draggable={false} />
-        ) : (
-          <span className="community-work__media-fallback" aria-hidden>
-            <Disc3 size={28} strokeWidth={1.4} />
-          </span>
-        )}
-        <span className="community-work__play" aria-hidden>
-          <Play size={16} fill="currentColor" />
-        </span>
-        {(work.metrics.plays ?? 0) > 0 && (
-          <span className="community-work__plays ds-data">{work.metrics.plays}</span>
-        )}
-      </button>
-      <div className="community-work__body">
-        <span className="community-work__title">{work.title}</span>
-        {work.subtitle && <span className="community-work__sub ds-data">{work.subtitle}</span>}
-        {onDiscuss && (
-          <button type="button" className="community-work__discuss ds-data" onClick={() => onDiscuss(song.share_id)}>
-            {t('goDiscuss', { defaultValue: '去讨论' })}
-          </button>
-        )}
-      </div>
-    </article>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// 文字墙卡（渲染器：首图压顶 + 衬线标题 + 数据行）
-// ---------------------------------------------------------------------------
-
-const PostWorkCard: React.FC<{ work: WorkItem; onOpen: (p: CommunityPost) => void }> = ({
-  work,
-  onOpen,
-}) => {
-  const post = work.raw as CommunityPost;
-  const [coverSrc, setCoverSrc] = useState('');
-  useEffect(() => {
-    let alive = true;
-    void (work.cover ? resolveMediaUrl(work.cover) : Promise.resolve(''))
-      .then((s) => {
-        if (alive) setCoverSrc(s);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [work.cover]);
-  return (
-    <article className="community-work community-work--post" onClick={() => onOpen(post)}>
-      <span className="community-work__media" aria-hidden>
-        {coverSrc ? (
-          <img src={coverSrc} alt="" loading="lazy" draggable={false} />
-        ) : (
-          <span className="community-work__media-fallback community-work__media-fallback--text">
-            {work.title?.charAt(0) || '文'}
-          </span>
-        )}
-      </span>
-      <div className="community-work__body">
-        {work.title && <span className="community-work__title">{work.title}</span>}
-        {work.subtitle && <span className="community-work__sub">{work.subtitle}</span>}
-        <span className="community-work__stats ds-data">
-          <em>♥ {work.metrics.likes ?? 0}</em>
-          <em>💬 {work.metrics.comments ?? 0}</em>
-        </span>
-      </div>
-    </article>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// 作品墙（chips + 网格 + 加载更多）
-// ---------------------------------------------------------------------------
-
-export const WorksWall: React.FC<{
-  songs: MemberSongWork[];
-  songsLoading: boolean;
-  songsHasMore: boolean;
-  onLoadMoreSongs: () => void;
-  posts: CommunityPost[];
-  onOpenPost: (p: CommunityPost) => void;
-  onDiscuss: (shareId: string) => void;
-}> = ({ songs, songsLoading, songsHasMore, onLoadMoreSongs, posts, onOpenPost, onDiscuss }) => {
-  const { t } = useI18n('community');
-  const [chip, setChip] = useState<string>('all');
-
-  const items = useMemo<WorkItem[]>(() => {
-    const songWorks = songs.map(songToWork);
-    const postWorks = posts.filter((p) => !p.repost_of).map(postToWork);
-    if (chip === 'song') return songWorks;
-    if (chip === 'post') return postWorks;
-    // 全部：按创建时间混排（造物集 = 一条创作时间线）
-    const all = [...songWorks, ...postWorks];
-    const ts = (w: WorkItem) =>
-      w.type === 'song' ? (w.raw as MemberSongWork).created_at : (w.raw as CommunityPost).created_at;
-    return all.sort((a, b) => (ts(a) < ts(b) ? 1 : -1));
-  }, [chip, songs, posts]);
-
-  return (
-    <div className="community-workswall">
-      <div className="community-workswall__chips" role="tablist" aria-label={t('worksFilter', { defaultValue: '作品类型' })}>
-        {WORK_TYPE_META.filter((m) => m.enabled || m.type === 'cartridge').map((m) => (
-          <button
-            key={m.type}
-            type="button"
-            role="tab"
-            aria-selected={chip === m.type}
-            disabled={!m.enabled}
-            title={m.enabled ? undefined : t('workTypeComing', { defaultValue: '即将上线' })}
-            className={`community-workswall__chip ${chip === m.type ? 'is-active' : ''} ${!m.enabled ? 'is-disabled' : ''}`}
-            onClick={() => setChip(m.type)}
-          >
-            {m.icon}
-            {m.label}
-          </button>
-        ))}
-      </div>
-
-      {items.length === 0 && !songsLoading ? (
-        <Empty
-          title={t('worksEmpty', { defaultValue: '还没有作品' })}
-          description={t('worksEmptyHint', { defaultValue: '发布的歌曲与动态都会出现在这里' })}
-        />
-      ) : (
-        <div className="community-workswall__grid">
-          {items.map((w) =>
-            w.type === 'song' ? (
-              <SongWorkCard key={`s-${w.id}`} work={w} onDiscuss={onDiscuss} />
-            ) : (
-              <PostWorkCard key={`p-${w.id}`} work={w} onOpen={onOpenPost} />
-            ),
-          )}
-        </div>
-      )}
-
-      {chip !== 'post' && songsHasMore && (
-        <div className="community-workswall__more">
-          <Button variant="ghost" size="small" disabled={songsLoading} onClick={onLoadMoreSongs}>
-            {songsLoading ? t('loading', { defaultValue: '加载中…' }) : t('loadMore', { defaultValue: '加载更多' })}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// 代表作（pinned ≤3 混排；未设置回退播放 top3 歌曲）
-// ---------------------------------------------------------------------------
+import { postToWork, songToWork, type WorkItem } from './works';
+import { StreamCard } from './ProfileStream';
 
 export const PinnedHero: React.FC<{
   pinned: PinnedWork[];
@@ -203,6 +29,7 @@ export const PinnedHero: React.FC<{
   onManage?: () => void;
 }> = ({ pinned, songs, posts, isSelf, onOpenPost, onDiscuss, onManage }) => {
   const { t } = useI18n('community');
+
 
   const items = useMemo<WorkItem[]>(() => {
     const resolve = (pw: PinnedWork): WorkItem | null => {
@@ -238,17 +65,14 @@ export const PinnedHero: React.FC<{
         )}
       </header>
       <div className="community-pinned__row">
-        {items.map((w) =>
-          w.type === 'song' ? (
-            <div key={`pin-s-${w.id}`} className="community-pinned__item">
-              <SongWorkCard work={w} onDiscuss={onDiscuss} />
-            </div>
-          ) : (
-            <div key={`pin-p-${w.id}`} className="community-pinned__item" onClick={() => onOpenPost(w.raw as CommunityPost)}>
-              <PostWorkCard work={w} onOpen={onOpenPost} />
-            </div>
-          ),
-        )}
+        {items.map((w) => (
+          <StreamCard
+            key={`pin-${w.type}-${w.id}`}
+            work={w}
+            onOpenPost={onOpenPost}
+            onDiscuss={onDiscuss}
+          />
+        ))}
       </div>
     </section>
   );

@@ -66,7 +66,7 @@
   "profileNoPostsSelf": "去广场发布第一条动态吧",
   "profileSaveFailed": "Failed to save, please retry",
   "profileSaved": "Profile saved",
-  "profileTitle": "个人主页",
+  "profileTitle": "Profile",
   "publish": "Publish",
   "removeMedia": "Remove",
   "reply": "Reply",
@@ -120,9 +120,6 @@
   "statPlays": "Total plays",
   "statFollowers": "Followers",
   "statFollowing": "Following",
-  "sealMusician": "Musician",
-  "sealWriter": "Writer",
-  "sealCreator": "Creator",
   "levelTitle": "Lv.{{n}}",
   "share": "Share",
   "shareCopied": "Profile link copied — share it anywhere",
@@ -137,5 +134,13 @@
   "pinnedSaved": "Featured works updated",
   "pinnedPickSongs": "Songs",
   "pinnedPickPosts": "Posts",
-  "pinnedCount": "{{n}}/3 selected"
+  "pinnedCount": "{{n}}/3 selected",
+  "fpTitle": "Creation fingerprint",
+  "fpHint": "Derived from your real creation data",
+  "fpEmpty": "No data yet — your first post will show up here",
+  "fpHeat": "Creation heatmap, last 365 days",
+  "fpLess": "Less",
+  "fpMore": "More",
+  "fpClock": "Creation hours (UTC)",
+  "fpGenres": "Genre breakdown"
 }
