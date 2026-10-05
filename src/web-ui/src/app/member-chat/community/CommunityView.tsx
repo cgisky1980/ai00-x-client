@@ -9,6 +9,7 @@
 import React, { useEffect } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { useCommunityStore } from './communityStore';
+import { useMemberChatStore } from '../store/memberChatStore';
 import { FeedView } from './FeedView';
 import { PostDetail } from './PostDetail';
 import { ProfileView } from './ProfileView';
@@ -17,15 +18,24 @@ import { SearchResults } from './SearchResults';
 import { TagView } from './TagView';
 import './community.scss';
 
+/** 本会话已拉过广场首屏的账号：从其它 rail tab 切回不再重传整包
+ * （头像以 base64 内联在出参里，重拉代价高）；账号切换后自动重拉 */
+let feedLoadedFor: number | null | undefined;
+
 export const CommunityView: React.FC = () => {
   const { t } = useI18n('community');
   const view = useCommunityStore((s) => s.view);
+  const myMemberId = useMemberChatStore((s) => s.session?.memberId ?? null);
 
   // 进入广场：拉未读红点 + 首屏 feed（子组件挂载后各自续拉详情/主页/通知）
+  // 刷新由 setFeedTab/setFeedTag/发帖负责，切 tab 回来不重复整包重拉。
   useEffect(() => {
     void useCommunityStore.getState().refreshUnread();
-    void useCommunityStore.getState().loadFeed(true);
-  }, []);
+    if (feedLoadedFor !== myMemberId) {
+      feedLoadedFor = myMemberId;
+      void useCommunityStore.getState().loadFeed(true);
+    }
+  }, [myMemberId]);
 
   return (
     <main className="community" aria-label={t('memberChat:tabCommunity', { defaultValue: '广场' })}>

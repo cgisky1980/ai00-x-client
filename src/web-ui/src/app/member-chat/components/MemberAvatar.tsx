@@ -25,11 +25,16 @@ type AvatarSize = 'sm' | 'base' | 'lg' | 'xl';
 /* ---------------- Spine 快照（离屏渲一帧，会话级缓存） ---------------- */
 
 const snapshotCache = new Map<string, Promise<string | null>>();
+/** 已出结果的快照：重挂载时同步取用，避免先渲首字再替换的闪烁 */
+const snapshotReady = new Map<string, string>();
 
 function getSnapshot(data: string, selection: AvatarSelection): Promise<string | null> {
   let entry = snapshotCache.get(data);
   if (!entry) {
-    entry = renderSpineSnapshot(selection);
+    entry = renderSpineSnapshot(selection).then((url) => {
+      if (url) snapshotReady.set(data, url);
+      return url;
+    });
     snapshotCache.set(data, entry);
   }
   return entry;
@@ -45,11 +50,11 @@ const MemberSpineSnapshot: React.FC<{
   size: AvatarSize;
   className?: string;
 }> = ({ dataKey, selection, name, size, className }) => {
-  const [src, setSrc] = React.useState<string | null>(null);
+  const [src, setSrc] = React.useState<string | null>(() => snapshotReady.get(dataKey) ?? null);
 
   React.useEffect(() => {
     let alive = true;
-    setSrc(null);
+    setSrc(snapshotReady.get(dataKey) ?? null);
     getSnapshot(dataKey, selection).then((url) => {
       if (alive && url) setSrc(url);
     });
@@ -117,7 +122,9 @@ export const MemberAvatar: React.FC<MemberAvatarProps> = ({
   animated = false,
   className,
 }) => {
-  const parsed = parseAvatarData(data);
+  // 引用稳定：parseAvatarData 每次返回新 selection 对象会让快照 effect 反复重跑
+  // （setSrc(null) → 头像闪回首字占位），故按 data 记忆化
+  const parsed = React.useMemo(() => parseAvatarData(data), [data]);
 
   if (parsed.kind !== 'spine') {
     return (
