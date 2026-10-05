@@ -9,10 +9,16 @@
  * 恒·AI 做（agentModule 非空）：到点不弹通知，直接委托 dsh agent
  * 执行（useAgentDelegate），完成后由 ai00_task_complete 闭环并滚动
  * 下一周期（completeTask 的 repeat 克隆）。
+ *
+ * R2-10 外部触发：本机脚本 / CI / 定时器 POST 内嵌服务
+ * `/ai00-internal/tasks/trigger` → Rust 侧鉴权 + 防重入后广播
+ * `todo://task-trigger` → 此处走同一条委托链路（12FA「随处触发」）。
  */
 import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useTodoStore } from '../store/todoStore';
+import { useGrowthStore } from '../store/growthStore';
 import { useAgentDelegate } from './useAgentDelegate';
 import type { TodoTask } from '../api/types';
 
@@ -108,6 +114,36 @@ export function useReminderTicker(): void {
     return () => {
       stopped = true;
       clearInterval(timer);
+    };
+  }, [delegate]);
+
+  // R2-10 外部触发：脚本 / CI / 定时器 → 内嵌服务 → Rust 广播 → 此处派活。
+  // 与「恒·AI 做」共用同一条委托链路，不再另开入口。
+  useEffect(() => {
+    const un = listen<{ taskId?: string; module?: string }>('todo://task-trigger', (evt) => {
+      const taskId = evt.payload?.taskId;
+      if (!taskId) return;
+      const task = useTodoStore.getState().data.tasks.find(t => t.id === taskId);
+      if (!task) {
+        useGrowthStore.getState().showToast('外部触发失败', `未找到卡片 ${taskId}`);
+        return;
+      }
+      // Rust 侧已做权威防重入；此处兜底事件与状态之间的竞争窗口
+      if ((task.status ?? 'requirement') === 'doing') {
+        useGrowthStore.getState().showToast('已忽略外部触发', `「${task.title}」正在执行中`);
+        return;
+      }
+      void delegate(task, evt.payload?.module).then(ok => {
+        useGrowthStore
+          .getState()
+          .showToast(
+            ok ? '外部触发已启动' : '外部触发失败',
+            ok ? `「${task.title}」已开始执行` : '委托未成功，请检查引擎状态',
+          );
+      });
+    });
+    return () => {
+      void un.then(f => f());
     };
   }, [delegate]);
 }

@@ -5,17 +5,17 @@ import { useModeStore, type AppMode } from '../../stores/modeStore';
 import { useSceneStore } from '../../stores/sceneStore';
 import { useNavSceneStore } from '../../stores/navSceneStore';
 import { useWorkspaceContext } from '@/infrastructure/contexts/WorkspaceContext';
+import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
 import { globalAPI } from '@/infrastructure/api/service-api/GlobalAPI';
 import { createLogger } from '@/shared/utils/logger';
 import './ModeTabs.scss';
 
 const log = createLogger('ModeTabs');
 
-function getDefaultScene(mode: AppMode): 'welcome' | 'task-welcome' | 'wallpaper' | 'acestep' {
+function getDefaultScene(mode: AppMode): 'welcome' | 'task-welcome' | 'wallpaper' {
   switch (mode) {
     case 'task': return 'task-welcome';
     case 'wallpaper': return 'wallpaper';
-    case 'music': return 'acestep';
     default: return 'welcome';
   }
 }
@@ -35,6 +35,14 @@ const ModeTabs: React.FC = () => {
   const { openWorkspace, currentWorkspace } = useWorkspaceContext();
 
   const handleModeChange = useCallback(async (mode: AppMode) => {
+    // 音乐模式已迁独立「乐」窗口：不切 overlay 模式/场景，直接开窗
+    if (mode === 'music') {
+      WindowAPI.open('music').catch((e) => {
+        log.error('Failed to open music window', e);
+      });
+      return;
+    }
+
     if (mode === activeMode) return;
 
     // 1. Switch mode
@@ -57,9 +65,6 @@ const ModeTabs: React.FC = () => {
       } catch (e) {
         log.error('Failed to open task workspace on mode switch', e);
       }
-    } else if (mode === 'music') {
-      // Music mode: no workspace, no nav scene — just the acestep scene
-      navStore.closeNavScene();
     } else {
       navStore.closeNavScene();
     }

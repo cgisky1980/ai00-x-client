@@ -17,6 +17,11 @@ export interface AcestepConfig {
   models_dir: string;
   output_dir: string;
   backend: string; // "auto" | "cuda" | "vulkan" | "cpu"
+  p2p?: {
+    enabled: boolean;
+    upload_slots: number;
+    seed_resources: boolean;
+  };
 }
 
 export interface AppConfig {

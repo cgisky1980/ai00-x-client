@@ -6,9 +6,19 @@
  * 判正常则按 ETA（无 ETA 则复查间隔翻倍，封顶 1h）自适应安排下一次复查，
  * **没有任何绝对时间的强制干预**——训练/编译跑几个小时也绝不误杀。
  * 等人工场景（ask_user_question 待答 / 工具审批挂起）由调用方豁免。
+ *
+ * R1-2（2026-09-12）：恢复词带进度快照——从计划文档勾选状态 + 事件流水账
+ * 近期工具动作确定性生成，恢复从"靠赌模型重读质量"变"拿进度条续跑"。
+ * 提示词文本统一收口 ../ai/prompts.ts（R1-5）。
  */
+import { invoke } from '@tauri-apps/api/core';
 import { dshSession, foldEvents } from '@/infrastructure/api/service-api/DshAPI';
 import { aiComplete } from '../ai/consult';
+import {
+  STALL_JUDGE_SYSTEM,
+  buildStallJudgePrompt,
+  buildWatchdogRecoverPrompt,
+} from '../ai/prompts';
 import { getDiscussModel } from '../ai/modelCatalog';
 import { useGrowthStore } from '../store/growthStore';
 
@@ -19,9 +29,6 @@ export const WATCH_MAX_DELAY_MS = 60 * 60_000;
 /** 判卡死自动恢复次数上限（超过转人工） */
 export const WATCH_MAX_RECOVER = 2;
 
-export const WATCH_RECOVER_PROMPT =
-  '【自动恢复】检测到执行长时间无响应，已中断卡住的轮次。请先用 ai00_plan_read 重读计划文档确认当前进度，然后从断点继续执行；未完成的子任务请重新派发（research_worker/code_worker），不要亲自调用执行工具。';
-
 export interface StallJudgment {
   verdict: 'normal' | 'stuck';
   /** 判正常时的预计剩余分钟数（评估 agent 估的；可能缺失） */
@@ -29,16 +36,85 @@ export interface StallJudgment {
   reason?: string;
 }
 
-/** 手动/自动共用的恢复动作：中断卡住的轮次 + 发继续指令。 */
-export async function recoverSession(sid: string, judgeReason?: string): Promise<void> {
+/**
+ * 进度快照（R1-2）：从两个权威数据源确定性拼装——
+ * ① 计划文档勾选状态（编排者边干边勾，进度的权威账本）；
+ * ② 事件流水账最近 3 个工具动作（正在做什么/卡在哪）。
+ * 全部尽力而为：任一源失败跳过，两源皆空返回 ''（恢复词回落旧口径）。
+ */
+export async function buildRecoverySnapshot(taskId: string, sid: string): Promise<string> {
+  const lines: string[] = [];
+
+  // ① 计划文档勾选状态（todo_plan_get 与委托任务书同源）
+  try {
+    const md = await invoke<string | null>('todo_plan_get', { taskId }).catch(() => null);
+    if (md) {
+      const sections = md.split(/^##\s+/m);
+      const stepSec = sections.find(s => s.startsWith('步骤')) ?? '';
+      const items = [...stepSec.matchAll(/^[-*]\s+\[( |x)\]\s+(.+)$/gim)];
+      if (items.length) {
+        const done = items.filter(m => m[1].toLowerCase() === 'x');
+        lines.push(`计划步骤：${done.length}/${items.length} 已完成`);
+        const pending = items
+          .filter(m => m[1].toLowerCase() !== 'x')
+          .map(m => m[2].trim().slice(0, 40));
+        if (pending.length) lines.push(`待做：${pending.slice(0, 3).join('；')}`);
+      }
+      const accSec = sections.find(s => s.startsWith('验收')) ?? '';
+      const acc = [...accSec.matchAll(/^[-*]\s+\[( |x)\]\s+/gim)];
+      if (acc.length) {
+        const doneAcc = acc.filter(m => m[1].toLowerCase() === 'x').length;
+        lines.push(`验收勾选：${doneAcc}/${acc.length}`);
+      }
+    }
+  } catch {
+    // 尽力而为
+  }
+
+  // ② 事件流水账最近 3 个工具动作（judgeStall 同一数据源）
+  try {
+    const { events } = await dshSession.history(sid);
+    const msgs = foldEvents(events.map(e => e.event));
+    const tools: string[] = [];
+    for (const m of [...msgs].reverse()) {
+      for (const t of [...m.toolCalls].reverse()) {
+        tools.push(`${t.name}${t.isError ? '（失败）' : t.pending ? '（未返回）' : '（完成）'}`);
+        if (tools.length >= 3) break;
+      }
+      if (tools.length >= 3) break;
+    }
+    if (tools.length) lines.push(`最近动作：${tools.join(' → ')}`);
+  } catch {
+    // 尽力而为
+  }
+
+  return lines.length ? `【执行进度快照】\n${lines.join('\n')}` : '';
+}
+
+/** 组装恢复词：快照（尽力而为）+ 检测依据。 */
+export async function buildRecoverPromptForTask(
+  taskId: string,
+  sid: string,
+  judgeReason?: string
+): Promise<string> {
+  const snapshot = await buildRecoverySnapshot(taskId, sid).catch(() => '');
+  return buildWatchdogRecoverPrompt({ snapshot: snapshot || undefined, judgeReason });
+}
+
+/** 手动/自动共用的恢复动作：中断卡住的轮次 + 发继续指令（带进度快照）。 */
+export async function recoverSession(
+  sid: string,
+  judgeReason?: string,
+  taskId?: string
+): Promise<void> {
   await dshSession.cancel(sid);
-  const prompt = judgeReason
-    ? `${WATCH_RECOVER_PROMPT}\n（检测依据：${judgeReason}）`
-    : WATCH_RECOVER_PROMPT;
+  const prompt = taskId
+    ? await buildRecoverPromptForTask(taskId, sid, judgeReason)
+    : buildWatchdogRecoverPrompt({ judgeReason });
   await dshSession.prompt(sid, prompt);
   useGrowthStore
     .getState()
-    .showToast('已中断卡住的轮次', '已发送继续指令，agent 会从计划断点继续');
+    .showToast('已中断卡住的轮次', '已发送继续指令（带进度快照），agent 会从计划断点继续');
 }
 
 export type StallVerdict = StallJudgment | null;
@@ -77,22 +153,9 @@ export async function judgeStall(params: {
       // 历史拉不到 → 用占位继续
     }
 
-    const prompt = [
-      `一个 AI agent 正在执行任务「${title}」，已 ${idleMinutes} 分钟没有任何新事件（无新 token、无工具返回——说明当前操作没有可观察的输出流）。`,
-      currentStep ? `当前计划步骤：${currentStep}` : '',
-      '最近的执行记录：',
-      tailDesc,
-      '',
-      '注意：模型训练、程序编译等操作可能合法运行数小时，不要仅因静默时间长就判卡死。',
-      '请结合操作类型判断这是【正常的长耗时操作】还是【卡死/异常】（死循环、弹窗阻塞、进程挂起等）。',
-      '只输出 JSON：',
-      '正常：{"verdict":"normal","etaMinutes":<预计还需的分钟数>,"reason":"一句话"}',
-      '卡死：{"verdict":"stuck","reason":"一句话依据"}',
-    ]
-      .filter(Boolean)
-      .join('\n');
+    const prompt = buildStallJudgePrompt({ title, idleMinutes, currentStep, tailDesc });
 
-    const out = await aiComplete(prompt, '你是 agent 执行监督员，只输出严格 JSON。', {
+    const out = await aiComplete(prompt, STALL_JUDGE_SYSTEM, {
       temperature: 0.3,
       maxTokens: 200,
       model: model === 'auto' ? undefined : model,

@@ -317,6 +317,10 @@ export interface SigninResult {
   /** 本次签到获得的积分（already_signed 时为 0） */
   credits_granted: number;
   already_signed: boolean;
+  /** 连签天数（迁移 031；含今天；already_signed 时为当日数值） */
+  streak?: number;
+  /** 连签梯度基准（site_settings.signin_reward_credits） */
+  base_reward?: number;
 }
 
 /** 签到状态（GET /me/signin 返回） */

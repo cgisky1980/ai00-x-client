@@ -64,6 +64,25 @@ export const SETTINGS_TAB_SEARCH_CONTENT: Record<ConfigTab, readonly SettingsTab
     { ns: 'settings/dsh-plugins', key: 'install.title' },
   ],
 
+  'dsh-orchestration': [
+    { ns: 'settings', key: 'configCenter.tabs.dshOrchestration' },
+    { ns: 'settings', key: 'configCenter.tabDescriptions.dshOrchestration' },
+    { ns: 'settings/dsh-orchestration', key: 'title' },
+    { ns: 'settings/dsh-orchestration', key: 'subtitle' },
+    { ns: 'settings/dsh-orchestration', key: 'workers.sectionTitle' },
+    { ns: 'settings/dsh-orchestration', key: 'hooks.sectionTitle' },
+  ],
+
+  'approval-rules': [
+    { ns: 'settings', key: 'configCenter.tabs.approvalRules' },
+    { ns: 'settings', key: 'configCenter.tabDescriptions.approvalRules' },
+    { ns: 'settings/approval-rules', key: 'title' },
+    { ns: 'settings/approval-rules', key: 'subtitle' },
+    { ns: 'settings/approval-rules', key: 'section.list.title' },
+    { ns: 'settings/approval-rules', key: 'section.list.description' },
+    { ns: 'settings/approval-rules', key: 'empty' },
+  ],
+
   'voice-settings': [
     { ns: 'settings/voice', key: 'voiceSettings.title' },
     { ns: 'settings/voice', key: 'voiceSettings.subtitle' },

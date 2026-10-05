@@ -22,6 +22,8 @@ import ClickEffectSettings from './gesture/ClickEffectSettings';
 import SmartDesktopConfig from '../../../infrastructure/config/components/SmartDesktopConfig';
 import PluginsConfig from '../../../infrastructure/config/components/PluginsConfig';
 import DshPluginsConfig from '../../../infrastructure/config/components/DshPluginsConfig';
+import DshOrchestrationConfig from '../../../infrastructure/config/components/DshOrchestrationConfig';
+import ApprovalRulesConfig from '../../../infrastructure/config/components/ApprovalRulesConfig';
 
 const SETTINGS_TAB_CONTENT: Partial<Record<ConfigTab, ComponentType>> = {
   ui: UiSettingsConfig,
@@ -31,6 +33,8 @@ const SETTINGS_TAB_CONTENT: Partial<Record<ConfigTab, ComponentType>> = {
   models: AIModelConfig,
   voice: VoiceModelsConfig,
   'dsh-plugins': DshPluginsConfig,
+  'dsh-orchestration': DshOrchestrationConfig,
+  'approval-rules': ApprovalRulesConfig,
   gesture: GestureSettings,
   'gesture-config': GestureConfigSettings,
   'gesture-templates': GestureTemplateSettings,

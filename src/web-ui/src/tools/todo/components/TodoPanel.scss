@@ -1,6 +1,6 @@
-// TodoPanel — overlay 核心待办面板（React 重写版）。
-// 浮窗 chrome 与 MusicPopup/SfxPopup 同一套：useDraggable + usePopupResize，
-// BEM + 全 token（新东方极简），机器输出 mono + tabular-nums。
+// TodoPanel — 「策」看板（独立窗口形态）。
+// 窗口装饰（拖拽 / 8 向缩放 / 关闭按钮）改由原生窗口提供，见文件末尾的
+// .todo-panel--window 覆盖；BEM + 全 token（新东方极简），机器输出 mono + tabular-nums。
 .todo-panel {
   position: fixed;
   z-index: var(--z-chrome-overlay, 50013);
@@ -15,7 +15,7 @@
   }
   color: var(--color-text-primary);
   border-radius: var(--size-radius-lg, 12px);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   box-shadow: var(--shadow-xl);
   overflow: hidden;
   font-family: var(--font-family-sans, sans-serif);
@@ -49,38 +49,8 @@
     &--sw { bottom: -3px; left: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
   }
 
-  // ===== Header（拖动把手 + 等级 + XP 条 + 成长 + 关闭）=====
-  // 层次靠墨阶：标题栏沉底一档（sunken），不加边框线
-  &__header {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-2, 8px);
-    padding: var(--size-gap-2-5, 10px) var(--size-gap-3-5, 14px);
-    cursor: grab;
-    background-color: var(--color-bg-sunken);
-
-    .is-dragging & { cursor: grabbing; }
-  }
-
-  &__grip {
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-    opacity: 0.4;
-    display: flex;
-    align-items: center;
-  }
-
-  &__title {
-    font-size: var(--font-size-lg, 15px);
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  &__spacer { flex: 1; }
-
+  // 标题栏左侧元信息（TitleMeta，挂在 WindowTitleBar 的 leading 插槽；
+  // 旧内部 PanelHeader 已移除，Lv/XP/积分搬进自绘标题栏）
   &__lv {
     font-family: var(--font-family-mono, monospace);
     font-variant-numeric: tabular-nums;
@@ -310,7 +280,7 @@
     margin-left: var(--size-gap-2, 8px);
     overflow-y: auto;
     padding: var(--size-gap-1, 4px) 0 var(--size-gap-2, 8px) var(--size-gap-2, 8px);
-    border-left: 1px solid var(--border-subtle);
+    border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 
   &__empty {
@@ -376,4 +346,26 @@
 @keyframes todoXpFloat {
   from { opacity: 1; transform: translateY(0); }
   to   { opacity: 0; transform: translateY(-18px); }
+}
+
+// ===== 独立窗口形态 =====
+// 「策」从 overlay 浮层升级为独立窗口后，窗口装饰交给原生（拖拽/缩放/关闭），
+// 面板改为占满窗口、贴边直角、不再需要浮层阴影与层级提升。
+// 放在文件末尾以覆盖上面的 .todo-panel 基样式（同特异性，后者生效）。
+.todo-panel--window {
+  position: absolute;
+  inset: 0;
+  z-index: auto;
+  width: auto;
+  height: auto;
+  border-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+// 标题栏元信息容器（TitleMeta，渲染于 WindowTitleBar 的 __leading 插槽内）
+.todo-title-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--size-gap-2, 8px);
 }

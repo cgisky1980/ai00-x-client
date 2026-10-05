@@ -1,4 +1,4 @@
 {
   "title": "MCP",
-  "subtitle": "管理 MCP 服务与 JSON 配置"
+  "subtitle": "管理 MCP 服务与 JSON 配置；已启用的 server 其工具会注入 Agent 工具循环（mcp__服务__工具），修改后需重启引擎生效"
 }

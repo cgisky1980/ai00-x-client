@@ -14,7 +14,9 @@ import { AlertTriangle, Bot, Hourglass } from 'lucide-react';
 import { PromptInput } from '@/component-library';
 import ModelSelector from '@/shared/components/ModelSelector';
 import {
+  aggregateSessionStats,
   aggregateUsage,
+  formatCacheHitRate,
   connectMux,
   dshApproval,
   dshQuestion,
@@ -28,7 +30,7 @@ import {
   type DshSessionEvent,
 } from '@/infrastructure/api/service-api/DshAPI';
 import { ApprovalCard, MessageBubble, QuestionCard } from '@/app/scenes/dsh/DshChatPieces';
-import { isSessionAllowed } from '@/shared/agent-approval-rules';
+import { isApprovalAllowed } from '@/shared/agent-approval-rules';
 import { MODEL_AUTO } from '../../ai/modelCatalog';
 import { WATCH_STALL_SOFT_MS, recoverSession } from '../../utils/watchdog';
 import { useTodoStore } from '../../store/todoStore';
@@ -83,7 +85,16 @@ export const ExecChatPanel: React.FC<{
   }, [sessionId]);
   // 会话累计 token 用量（与 DshScene 同源；eventsRef 每次渲染重算，量级可忽略）
   const usage = aggregateUsage(eventsRef.current);
+  // R2-8 缓存命中率：供应商未上报返回 null（不显示，避免误读成 0%）
+  const cacheRate = formatCacheHitRate(usage);
   const fmtK = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+  // R1-6 执行过程仪表盘：压缩次数 / 轮耗时 / 工具失败率（同事件流水账计数）
+  const stats = aggregateSessionStats(eventsRef.current);
+  const fmtDur = (ms: number | null): string => {
+    if (ms == null) return '—';
+    const s = Math.round(ms / 1000);
+    return s >= 60 ? `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s` : `${s}s`;
+  };
 
   const refreshRunning = useCallback(async (): Promise<void> => {
     try {
@@ -147,7 +158,7 @@ export const ExecChatPanel: React.FC<{
       // 审批/提问（mux 重连会重放 pending 帧 → 按 rpcId 去重）
       if (frame.type === 'approval/requested' && frame.sessionId === sessionId) {
         // 「总是允许」记忆命中：自动应答，不弹卡
-        if (isSessionAllowed(sessionId, frame.toolName)) {
+        if (isApprovalAllowed(sessionId, frame.toolName)) {
           void dshApproval.respond(frameRpcId, sessionId, frame.approvalId, 'allowed-once');
           return;
         }
@@ -230,7 +241,7 @@ export const ExecChatPanel: React.FC<{
   const handleInterruptContinue = async (): Promise<void> => {
     if (!(await window.confirm('中断当前轮次并让 agent 从计划断点继续？未完成的子任务将重新派发。'))) return;
     lastEventRef.current = Date.now();
-    await recoverSession(sessionId);
+    await recoverSession(sessionId, undefined, task.id);
   };
 
   /** 继续执行（会话已停、未提交自检——发标准续跑指令，无需 cancel）。 */
@@ -320,10 +331,35 @@ export const ExecChatPanel: React.FC<{
           {stateText}
         </span>
         {usage && (
-          <span className="td-execchat__state" title="会话累计 token 用量">
+          <span
+            className="td-execchat__state"
+            title={`会话累计 token 用量${cacheRate ? `（缓存命中 ${cacheRate}）` : ''}`}
+          >
             ↑{fmtK(usage.inputTokens)} ↓{fmtK(usage.outputTokens)} · {usage.requests}
+            {cacheRate ? ` · 缓存 ${cacheRate}` : ''}
           </span>
         )}
+        {(() => {
+          // R1-6 执行过程仪表盘：一项都没有就不渲染，不占头部空间
+          if (stats.rounds.count === 0 && stats.tools.total === 0 && stats.compactions === 0) return null;
+          const parts = [
+            `轮 ${stats.rounds.count} · 均 ${fmtDur(stats.rounds.avgMs)}`,
+            stats.tools.total > 0 ? `工具失败 ${stats.tools.failures}/${stats.tools.total}` : '',
+            stats.compactions > 0
+              ? `压缩 ${stats.compactions}${stats.compactionFailures ? `（失败 ${stats.compactionFailures}）` : ''}`
+              : '',
+          ].filter(Boolean);
+          const tip = [
+            `完成轮次 ${stats.rounds.count}，最近一轮 ${fmtDur(stats.rounds.lastMs)}，平均 ${fmtDur(stats.rounds.avgMs)}`,
+            `工具调用 ${stats.tools.total} 次，失败 ${stats.tools.failures} 次${stats.tools.pending > 0 ? `，${stats.tools.pending} 次未返回` : ''}`,
+            `上下文压缩 ${stats.compactions} 次成功${stats.compactionFailures ? `、${stats.compactionFailures} 次失败` : ''}`,
+          ].join('\n');
+          return (
+            <span className="td-execchat__state" title={`执行过程统计（R1-6）\n${tip}`}>
+              {parts.join(' · ')}
+            </span>
+          );
+        })()}
         {jobs.length > 0 && (
           <span
             className="td-execchat__state"

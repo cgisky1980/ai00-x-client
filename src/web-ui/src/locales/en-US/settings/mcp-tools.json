@@ -1,4 +1,4 @@
 {
   "title": "MCP",
-  "subtitle": "Manage MCP servers and JSON configuration"
+  "subtitle": "Manage MCP servers and JSON configuration; tools of enabled servers are injected into the agent tool loop (mcp__server__tool). Restart the engine to apply changes"
 }

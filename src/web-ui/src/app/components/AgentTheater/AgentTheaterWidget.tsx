@@ -12,14 +12,17 @@
 //  3) 位置变化后 refreshRegions 跟随（否则捕获区域滞留旧位，拖拽中断）
 
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { emit } from '@tauri-apps/api/event';
 import { connectMux, dshSession } from '../../../infrastructure/api/service-api/DshAPI';
 import type { DshMuxFrame } from '../../../infrastructure/api/service-api/DshAPI';
 import { useDraggable, refreshRegions, setDragging } from '../../../infrastructure/overlay';
+import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
 import { ImpManager } from './ImpManager';
 import { useTheaterStore } from './theaterStore';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
+import { requestFocusTask } from '@/tools/todo/sync/todoWindowSync';
 import { AgentImp } from './AgentImp';
 import type { TheaterTurnEndedPayload } from './theaterTypes';
 import './AgentTheater.scss';
@@ -31,6 +34,45 @@ async function emitBridgeEvent(name: string, payload: unknown): Promise<void> {
     await emit(name, payload);
   } catch {
     // 纯 web dev（无 Tauri）→ 桥不可用，静默
+  }
+}
+
+/**
+ * P2-A：回合结束 OS 通知（给不在屏幕前的人）。
+ * 文本刻意泛化——只到结果粒度，不含 prompt/回复/路径/模型名；
+ * 页面可见时不弹（用户在场，剧场动画已足够）；开关走 app.notifications.*。
+ */
+async function notifyTurnEnded(
+  payload: TheaterTurnEndedPayload,
+  text: { success: string; failed: string },
+): Promise<void> {
+  try {
+    if (typeof window === 'undefined' || !('__TAURI__' in window)) return;
+    // 注意：不做 visibilityState 检查——overlay 常驻可见，查了等于永不通知；
+    // 「前台不弹」的克制由用户开关承担（不需要就关掉）。
+    const { configManager } = await import('@/infrastructure/config');
+    const failed = payload.outcome === 'failed';
+    const key = failed
+      ? 'app.notifications.dialog_failure_notify'
+      : 'app.notifications.dialog_completion_notify';
+    const enabled = await configManager
+      .getConfig<boolean>(key)
+      .then((v) => v !== false)
+      .catch(() => true);
+    if (!enabled) return;
+    const { isPermissionGranted, requestPermission, sendNotification } = await import(
+      '@tauri-apps/plugin-notification'
+    );
+    if (!(await isPermissionGranted())) {
+      const granted = await requestPermission();
+      if (!granted) return;
+    }
+    sendNotification({
+      title: `Ai00-X · ${failed ? text.failed : text.success}`,
+      body: failed ? text.failed : text.success,
+    });
+  } catch {
+    // 通知链路任何失败都静默（提示条不是关键路径）
   }
 }
 
@@ -49,13 +91,13 @@ function readPosition(): { x: number; y: number } {
 }
 
 export const AgentTheaterWidget: React.FC = () => {
+  const { t } = useTranslation('agentTheater');
   const enabled = useTheaterStore((s) => s.enabled);
   const imps = useTheaterStore((s) => s.imps);
   const focusedSessionId = useTheaterStore((s) => s.focusedSessionId);
   const upsertImp = useTheaterStore((s) => s.upsertImp);
   const removeImp = useTheaterStore((s) => s.removeImp);
   const setSettled = useTheaterStore((s) => s.setSettled);
-  const openChatPanel = useTheaterStore((s) => s.openChatPanel);
 
   const managerRef = useRef<ImpManager | null>(null);
   const settledRef = useRef<Map<string, TheaterTurnEndedPayload>>(new Map());
@@ -109,6 +151,10 @@ export const AgentTheaterWidget: React.FC = () => {
           settledRef.current.set(payload.sessionId, payload);
           setSettled(payload);
           void emitBridgeEvent('theater://turn-ended', payload);
+          void notifyTurnEnded(payload, {
+            success: t('notifyTurnSuccess'),
+            failed: t('notifyTurnFailed'),
+          });
         },
         onScene: (payload) => {
           const turn = settledRef.current.get(payload.sessionId);
@@ -155,14 +201,27 @@ export const AgentTheaterWidget: React.FC = () => {
       managerRef.current = null;
       settledMap.clear();
     };
-  }, [enabled, upsertImp, removeImp, setSettled]);
+  }, [enabled, upsertImp, removeImp, setSettled, t]);
 
   if (!enabled) return null;
   const list = Object.values(imps).sort((a, b) => a.startedAt - b.startedAt);
 
-  /** 打开对话浮层（工灵驻留不因点击离场——验收完成才离场） */
-  const handleOpenChat = (sessionId: string, taskLabel: string): void => {
-    openChatPanel(sessionId, taskLabel);
+  /**
+   * 点击工灵 → 激活策窗口并定位到对应卡片。
+   *
+   * 不再打开会话浮层（2026-09-12 决策变更）：浮层与策窗口的 ExecChatPanel
+   * 是同一份对话的两个入口，并存会让用户困惑；且策窗口能同时给出卡片的
+   * 计划/验收/讨论上下文，信息更完整。
+   *
+   * 工灵驻留不因点击离场——验收完成才离场。
+   */
+  const handleLocate = (sessionId: string): void => {
+    // sessionId → 卡片：靠 task.agentSessionId 反查（useAgentDelegate 回写时落的字段）
+    const task = useTodoStore.getState().data.tasks.find(t => t.agentSessionId === sessionId);
+    if (!task) return; // 会话未绑定卡片（非策委派来源）→ 无卡片可定位，忽略
+
+    void WindowAPI.open('tasks');
+    requestFocusTask(task.id);
   };
 
   const handleDismissImp = (sessionId: string): void => {
@@ -181,7 +240,7 @@ export const AgentTheaterWidget: React.FC = () => {
           key={s.sessionId}
           state={s}
           focused={focusedSessionId === s.sessionId}
-          onOpenChat={handleOpenChat}
+          onLocate={handleLocate}
           onDismiss={handleDismissImp}
         />
       ))}

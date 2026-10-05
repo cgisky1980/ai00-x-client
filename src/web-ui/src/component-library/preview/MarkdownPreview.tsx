@@ -23,13 +23,8 @@ export const MarkdownPreview: React.FC = () => {
           <span className="badge">{t('componentLibrary.markdownPreview.badge')}</span>
         </div>
         <div className="header-right">
-          <Button
-            variant="ghost"
-            size="small"
-            onClick={() => window.location.href = '/preview.html'}
-          >
-            {t('componentLibrary.markdownPreview.backToLibrary')}
-          </Button>
+          {/* 2026-09-12：原 /preview.html（壁纸预览窗口入口）已移除，此处不再跳转。
+              本组件当前未被任何页面引用（孤儿组件），预览体系待重建时一并处理。 */}
         </div>
       </header>
 

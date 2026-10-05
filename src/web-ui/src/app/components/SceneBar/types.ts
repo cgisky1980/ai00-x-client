@@ -27,7 +27,6 @@ export type SceneTabId =
   | 'task-welcome'
   | 'panel-view'
   | 'usage-stats'
-  | 'acestep'
   | 'dsh'
   | 'credits'
   | `miniapp:${string}`;

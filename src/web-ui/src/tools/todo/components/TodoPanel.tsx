@@ -1,18 +1,18 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 /**
- * TodoPanel — overlay 核心待办面板「策」（React 重写版，v3 大窗）。
+ * TodoPanel — 「策」看板（独立窗口形态）。
  *
- * 浮窗 chrome：useDraggable + usePopupResize（初始 ~900×640 屏幕居中）；
- * 「行」= 三栏看板（想法池/计划中/进行中）+ 下半区（计划文档 MD + 讨论对话）；
+ * 窗口由 `src/apps/desktop/src/window_registry.rs` 的 `todo` spec 承载
+ * （900×640 / min 640×480 / 居中 / 原生边框），因此这里**不再自绘窗口装饰**：
+ * 拖拽、8 向缩放、关闭按钮改由原生窗口提供——省掉一整套手写 chrome，也省掉
+ * 浮层时代必须维护的 no-penetrate 穿透命中区。
+ *
+ * 布局：「行」= 三栏看板（需求卡/计划中/进行中）+ 下半区（计划文档 MD + 讨论对话）；
  * 恒（周期）/ 志（目标三级）/ 修行 / 足迹 视图维持原状。
  */
-import React, { useCallback, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { X, GripVertical, Settings, Palette } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Settings, Palette } from 'lucide-react';
 import { NavMarkAction, NavMarkHabit, NavMarkGoal, NavMarkGrow, NavMarkTrail } from './NavCharMarks';
-import { useDraggable } from '../../../infrastructure/overlay/useDraggable';
-import { usePopupResize } from '../../island/hooks/usePopupResize';
-import { CreditsBadge } from './CreditsBadge';
 import CreditsScene from '../../../app/scenes/credits/CreditsScene';
 import { useTodoStore, countOfView, type TodoView } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
@@ -33,46 +33,13 @@ import './TodoPanel.scss';
 import './todo-theme.scss';
 import './board.scss';
 
-const PANEL_W = 900;
-const PANEL_H = 640;
-const PANEL_MIN_W = 640;
-const PANEL_MIN_H = 480;
-
-const GRIP_SVG = <GripVertical size={14} />;
-
 export const TodoPanel: React.FC = () => {
-  const panelOpen = useTodoStore((s) => s.panelOpen);
-  const togglePanel = useTodoStore((s) => s.togglePanel);
-  if (!panelOpen) return null;
-  return <TodoPanelInner onClose={() => togglePanel(false)} />;
-};
-
-const TodoPanelInner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const data = useTodoStore((s) => s.data);
   const view = useTodoStore((s) => s.view);
   const setView = useTodoStore((s) => s.setView);
   const expandedId = useTodoStore((s) => s.expandedId);
 
   const toast = useGrowthStore((s) => s.toast);
-
-  // 初始屏幕居中（尺寸不超过视口）
-  const initialW = Math.min(PANEL_W, window.innerWidth - 48);
-  const initialH = Math.min(PANEL_H, window.innerHeight - 48);
-  const { position, setPosition, elementRef, handleMouseDown, isDragging } = useDraggable({
-    initialPosition: {
-      x: Math.max(8, Math.round((window.innerWidth - initialW) / 2)),
-      y: Math.max(8, Math.round((window.innerHeight - initialH) / 2)),
-    },
-    excludeSelector: 'button, input, textarea, select, .todo-panel__resize-handle, .td-check, [contenteditable]',
-  });
-  const { size, activeResize, handleResizeMouseDown } = usePopupResize({
-    initialSize: { width: initialW, height: initialH },
-    minWidth: PANEL_MIN_W,
-    minHeight: PANEL_MIN_H,
-    getPosition: useCallback(() => position, [position]),
-    setPosition,
-    elementRef,
-  });
 
   /** 创建类弹窗（需求卡/恒/志——弹窗化创建，支持完整字段与 agent 参与方式） */
   const [createModal, setCreateModal] = useState<'task' | 'routine' | 'goal' | null>(null);
@@ -100,12 +67,7 @@ const TodoPanelInner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   }, [data]);
 
   return (
-    <PanelShell
-      position={position} size={size} elementRef={elementRef}
-      isDragging={isDragging} activeResize={activeResize}
-      handleMouseDown={handleMouseDown} handleResizeMouseDown={handleResizeMouseDown}
-      onClose={onClose} toast={toast}
-    >
+    <div className="todo-panel todo-panel--window">
       <div className="todo-panel__body">
         <NavSidebar items={navItems} view={view} onSelect={setView} />
         <div className="todo-panel__main">
@@ -196,94 +158,16 @@ const TodoPanelInner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           defaultCategoryId={goalCategorySeed}
         />
       )}
-    </PanelShell>
-  );
-};
 
-// ===== 浮窗外壳（拖动/缩放/头/toast/模态挂载点）=====
-const PanelShell: React.FC<{
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-  elementRef: React.MutableRefObject<HTMLDivElement | null>;
-  isDragging: boolean;
-  activeResize: string | null;
-  handleMouseDown: (e: React.MouseEvent) => void;
-  handleResizeMouseDown: (dir: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw') => (e: React.MouseEvent) => void;
-  onClose: () => void;
-  toast: { id: number; title: string; sub?: string } | null;
-  xpFloat?: { id: number; text: string } | null;
-  children: React.ReactNode;
-}> = ({ position, size, elementRef, isDragging, activeResize, handleMouseDown, handleResizeMouseDown, onClose, toast, xpFloat, children }) => {
-  const profile = useGrowthStore((s) => s.profile);
-
-  return createPortal(
-    <div
-      ref={elementRef}
-      className={`todo-panel no-penetrate${isDragging ? ' is-dragging' : ''}${activeResize ? ' is-resizing' : ''}`}
-      style={{ left: position.x, top: position.y, width: size.width, height: size.height }}
-    >
-      {(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const).map((dir) => (
-        <div
-          key={dir}
-          className={`todo-panel__resize-handle todo-panel__resize-handle--${dir}`}
-          onMouseDown={handleResizeMouseDown(dir)}
-        />
-      ))}
-
-      <div className="todo-panel__header" onMouseDown={handleMouseDown}>
-        <span className="todo-panel__grip">{GRIP_SVG}</span>
-        <span className="todo-panel__title">策</span>
-        <span className="todo-panel__spacer" />
-        <span className="todo-panel__lv">Lv.{profile.level}</span>
-        <span className="todo-panel__xpbar">
-          <span
-            className="todo-panel__xpfill"
-            style={{ width: `${Math.min(100, Math.round((profile.into / Math.max(1, profile.need)) * 100))}%` }}
-          />
-        </span>
-        <CreditsBadge />
-        <button
-          className="todo-panel__close"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          title="关闭"
-        >
-          <X size={16} />
-        </button>
-      </div>
-
-      {children}
-
+      {/* 本窗口内的操作反馈（XP 结算、验收结果等）。
+          注意常驻提醒与看门狗类的提示在 overlay 窗口弹出——见 TodoWindowApp 注释。 */}
       {toast && (
         <div className="todo-panel__toast">
           <div className="todo-panel__toast-title">{toast.title}</div>
           {toast.sub && <div className="todo-panel__toast-sub">{toast.sub}</div>}
         </div>
       )}
-      {xpFloat && (
-        <div
-          style={{
-            position: 'absolute',
-            left: '50%',
-            top: 60,
-            transform: 'translateX(-50%)',
-            fontFamily: 'var(--font-family-mono)',
-            fontSize: 11,
-            fontWeight: 700,
-            color: 'var(--color-accent)',
-            pointerEvents: 'none',
-            zIndex: 30,
-            animation: 'todoXpFloat 0.8s ease forwards',
-          }}
-        >
-          {xpFloat.text}
-        </div>
-      )}
-    </div>,
-    document.body
+    </div>
   );
 };
 

@@ -3,10 +3,16 @@
  *
  * 持久化：Tauri `todo_store_get/set`（{data}/Ai00-X/todo/data.json 原子写），
  * 脱离插件数据接口。游戏化 XP 走 growthStore（服务器）。
+ *
+ * 跨窗口：「策」拆为「常驻 overlay 里的运行时」+「独立看板窗口」后，两个窗口各自
+ * 持有本 store 实例，靠 `windowBus` 对齐（见 `../sync/todoWindowSync.ts`）：
+ * 落盘成功后广播信号，对端重读文件；agent 运行态由运行时窗口单向广播过来。
  */
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
+import { publishWindowMessage } from '@/infrastructure/windows/windowBus';
 import type { DshQuestionItem } from '@/infrastructure/api/service-api/DshAPI';
+import { TODO_DATA_CHANGED } from '../sync/todoSyncEvents';
 import type { BoardPlan, ChecklistItem, FocusSession, GoalCategory, PlanChatMessage, PlanChatQuestion, RepeatType, TaskStatus, TodoData, TodoGoal, TodoList, TodoTask } from '../api/types';
 
 /** agent 提问批次（ask_user_question 一次 ask 的全部问题；rpcId 即问题逻辑 id）。 */
@@ -375,7 +381,6 @@ export function parseCaptureMeta(text: string): { flag: boolean; listName: strin
 
 interface TodoState {
   loaded: boolean;
-  panelOpen: boolean;
   view: TodoView;
   expandedId: string | null;
   data: TodoData;
@@ -391,9 +396,30 @@ interface TodoState {
   agentQuestions: Record<string, AgentQuestionBatch[]>;
   load: () => Promise<void>;
   save: () => void;
-  togglePanel: (force?: boolean) => void;
+  /**
+   * 采纳其他窗口写入的数据（不再落盘 / 广播，避免两个窗口互相覆盖形成回声）。
+   * 本地有未落盘改动时会被忽略——先保住本地，等本地落盘后由下一次广播对齐。
+   */
+  applyRemoteData: (value: unknown) => void;
+  /**
+   * 采纳运行时窗口广播的 agent 运行态。
+   * 仅供「策」独立窗口使用：它不跑 30s 轮询与 DSH mux（那由常驻 overlay 窗口的
+   * 运行时独占），运行态只能从那边拿。
+   */
+  applyRemoteRuntimeState: (payload: {
+    agentRunning: Record<string, boolean>;
+    agentFailed: Record<string, boolean>;
+    agentQuestions: Record<string, AgentQuestionBatch[]>;
+  }) => void;
   setView: (v: TodoView) => void;
   setExpanded: (id: string | null) => void;
+  /**
+   * 定位到某张卡片：切到「笃行」看板并选中它。
+   *
+   * 单独成一个 action（而非调用方自己两步）是因为 `setView` 会清空
+   * `expandedId`，顺序写反就白选——把正确顺序封在这里，避免调用方踩坑。
+   */
+  locateTask: (taskId: string) => void;
   setAgentRunning: (map: Record<string, boolean>) => void;
   setAgentFailed: (map: Record<string, boolean>) => void;
   setPlanAcceptance: (taskId: string, done: number, total: number) => void;
@@ -431,7 +457,6 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useTodoStore = create<TodoState>((set, get) => ({
   loaded: false,
-  panelOpen: false,
   view: 'today',
   expandedId: null,
   data: emptyData(),
@@ -468,17 +493,30 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveTimer = null;
-      invoke('todo_store_set', { value: get().data }).catch((e) =>
-        console.error('[todo] save failed:', e)
-      );
+      invoke('todo_store_set', { value: get().data })
+        // 落盘成功后再广播：接收方据此重读文件，保证读到的是新值
+        .then(() => publishWindowMessage(TODO_DATA_CHANGED))
+        .catch((e) => console.error('[todo] save failed:', e));
     }, SAVE_DEBOUNCE_MS);
   },
 
-  togglePanel: (force) =>
-    set((s) => ({ panelOpen: force !== undefined ? force : !s.panelOpen })),
+  applyRemoteData: (value) => {
+    // 本地有未落盘的改动 → 先保住本地，等本地落盘后由下一次广播对齐
+    if (saveTimer) return;
+    set({ data: sanitize(value), loaded: true });
+  },
+
+  applyRemoteRuntimeState: (payload) =>
+    set({
+      agentRunning: payload.agentRunning ?? {},
+      agentFailed: payload.agentFailed ?? {},
+      agentQuestions: payload.agentQuestions ?? {},
+    }),
 
   setView: (v) => set({ view: v, expandedId: null }),
   setExpanded: (id) => set({ expandedId: id }),
+  // 先 setView 再 setExpanded：setView 内部会清空 expandedId（见上），顺序不可颠倒
+  locateTask: (taskId) => set({ view: 'today', expandedId: taskId }),
   setAgentRunning: (map) => set({ agentRunning: map }),
   setAgentFailed: (map) => set({ agentFailed: map }),
   setPlanAcceptance: (taskId, done, total) =>

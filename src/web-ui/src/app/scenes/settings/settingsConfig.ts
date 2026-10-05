@@ -8,12 +8,14 @@ import {
   Layers,
   MousePointerClick,
   MonitorSmartphone,
+  Network,
   Palette,
   Terminal,
   Volume2,
   User,
   Info,
   Puzzle,
+  ShieldCheck,
 } from 'lucide-react';
 
 export type ConfigTab =
@@ -23,6 +25,8 @@ export type ConfigTab =
   | 'models'
   | 'voice'
   | 'dsh-plugins'
+  | 'dsh-orchestration'
+  | 'approval-rules'
   | 'gesture'
   | 'gesture-config'
   | 'gesture-templates'
@@ -109,6 +113,38 @@ export const SETTINGS_CATEGORIES: ConfigCategoryDef[] = [
           'cordis',
           'npm',
           'tool',
+        ],
+      },
+      {
+        id: 'dsh-orchestration',
+        labelKey: 'configCenter.tabs.dshOrchestration',
+        descriptionKey: 'configCenter.tabDescriptions.dshOrchestration',
+        icon: Network,
+        keywords: [
+          'agent',
+          'dsh',
+          'worker',
+          'subagent',
+          'orchestration',
+          'hooks',
+          'persona',
+          'tool',
+        ],
+      },
+      {
+        id: 'approval-rules',
+        labelKey: 'configCenter.tabs.approvalRules',
+        descriptionKey: 'configCenter.tabDescriptions.approvalRules',
+        icon: ShieldCheck,
+        keywords: [
+          'agent',
+          'approval',
+          'permission',
+          'allowlist',
+          'always allow',
+          'authorization',
+          'tool',
+          'read-only',
         ],
       },
     ],

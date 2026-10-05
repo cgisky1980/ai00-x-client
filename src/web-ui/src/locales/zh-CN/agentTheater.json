@@ -58,5 +58,7 @@
     "acceptance": "🎬 候场待验收",
     "alert": "💥 台上出岔",
     "idle_tool": ""
-  }
+  },
+  "notifyTurnSuccess": "任务完成",
+  "notifyTurnFailed": "任务失败"
 }

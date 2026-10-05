@@ -12,9 +12,9 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Pin, PinOff, ArrowLeft, MessageSquare } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Tooltip, WindowControls } from '@/component-library';
+import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
 import { useI18n } from '../../../infrastructure/i18n';
 import { LanguageSelector } from '@/infrastructure/i18n/components/LanguageSelector';
 import { ThemeSelector } from '@/infrastructure/theme';
@@ -66,9 +66,9 @@ const NavBar: React.FC<NavBarProps> = ({
     setIsPinned(next);
   }, [isPinned]);
 
-  const handleOpenMemberChat = useCallback(() => {
-    invoke('open_member_chat_window').catch((e) => {
-      console.error('open_member_chat_window failed', e);
+  const handleOpenCommunity = useCallback(() => {
+    WindowAPI.open('community').catch((e) => {
+      console.error('open_app_window(community) failed', e);
     });
   }, []);
 
@@ -110,7 +110,7 @@ const NavBar: React.FC<NavBarProps> = ({
         <Tooltip content={t('nav.chat', { defaultValue: 'Chat' })} placement="bottom" followCursor>
           <button
             className="ai00-x-nav-bar__pin-btn ai00-x-nav-bar__chat-btn"
-            onClick={handleOpenMemberChat}
+            onClick={handleOpenCommunity}
             type="button"
             aria-label={t('nav.chat', { defaultValue: 'Chat' })}
           >

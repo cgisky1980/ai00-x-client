@@ -37,7 +37,6 @@ const MiniAppScene    = lazy(() => import('./miniapps/MiniAppScene'));
 const WallpaperDesignScene = lazy(() => import('./wallpaper/WallpaperDesignView'));
 const PanelViewScene  = lazy(() => import('./panel-view/PanelViewScene'));
 const UsageStatsScene = lazy(() => import('./usage-stats/UsageStatsScene'));
-const AceStepScene     = lazy(() => import('./acestep/AceStepScene'));
 const DshScene         = lazy(() => import('./dsh/DshScene'));
 const CreditsScene     = lazy(() => import('./credits/CreditsScene'));
 
@@ -142,8 +141,6 @@ function renderScene(
       return <PanelViewScene workspacePath={workspacePath} />;
     case 'usage-stats':
       return <UsageStatsScene />;
-    case 'acestep':
-      return <AceStepScene />;
     case 'dsh':
       return <DshScene />;
     case 'credits':

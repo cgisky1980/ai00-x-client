@@ -27,7 +27,6 @@ import {
   Paintbrush,
   CheckSquare,
   Activity,
-  Music,
   Bot,
   Coins,
 } from 'lucide-react';
@@ -229,15 +228,6 @@ export const SCENE_TAB_REGISTRY: SceneTabDef[] = [
     label: 'Usage Stats',
     labelKey: 'scenes.usageStats',
     Icon: Activity,
-    pinned: false,
-    singleton: true,
-    defaultOpen: false,
-  },
-  {
-    id: 'acestep' as SceneTabId,
-    label: 'ACE-Step',
-    labelKey: 'scenes.acestep',
-    Icon: Music,
     pinned: false,
     singleton: true,
     defaultOpen: false,

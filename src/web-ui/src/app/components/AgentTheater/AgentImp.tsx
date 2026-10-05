@@ -12,8 +12,8 @@ import { ImpVisual } from './ImpVisual';
 interface AgentImpProps {
   state: ImpRuntimeState;
   focused: boolean;
-  /** 单击/双击：打开会话对话浮层（可发消息干预） */
-  onOpenChat: (sessionId: string, taskLabel: string) => void;
+  /** 单击/双击：激活策窗口并定位到该会话对应的卡片 */
+  onLocate: (sessionId: string) => void;
   /** 手动关闭（待验收/警示驻留态的 ✕；验收完成也会自动离场） */
   onDismiss: (sessionId: string) => void;
 }
@@ -43,7 +43,7 @@ function bubbleFor(state: ImpRuntimeState): string | null {
   }
 }
 
-export const AgentImp: React.FC<AgentImpProps> = ({ state, focused, onOpenChat, onDismiss }) => {
+export const AgentImp: React.FC<AgentImpProps> = ({ state, focused, onLocate, onDismiss }) => {
   const { t } = useTranslation('agentTheater');
   const bubble = bubbleFor(state);
 
@@ -75,7 +75,7 @@ export const AgentImp: React.FC<AgentImpProps> = ({ state, focused, onOpenChat, 
   const tooltipTitle = [
     state.taskLabel,
     toolLabel,
-    '（点击：打开对话）',
+    '（点击：在策中查看此卡片）',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -86,7 +86,7 @@ export const AgentImp: React.FC<AgentImpProps> = ({ state, focused, onOpenChat, 
     const d = downPos.current;
     downPos.current = null;
     if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5) {
-      onOpenChat(state.sessionId, state.taskLabel);
+      onLocate(state.sessionId);
     }
   };
   return (
@@ -99,7 +99,7 @@ export const AgentImp: React.FC<AgentImpProps> = ({ state, focused, onOpenChat, 
         downPos.current = { x: e.clientX, y: e.clientY };
       }}
       onMouseUp={handleUp}
-      onDoubleClick={() => onOpenChat(state.sessionId, state.taskLabel)}
+      onDoubleClick={() => onLocate(state.sessionId)}
       title={tooltipTitle}
     >
       {bubble && <span className="ai00-agent-imp__bubble">{bubble}</span>}

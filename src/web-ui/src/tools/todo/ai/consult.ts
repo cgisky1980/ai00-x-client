@@ -13,14 +13,27 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
+import {
+  FENCE_STOPS,
+  PLAN_CLARIFY_DEMO,
+  PLAN_CREATE_DEMO,
+  PLAN_EDIT_DEMO,
+  PLAN_GROUNDED_DEMO,
+  THINK_PREFILL,
+  buildPlanClarifyProtocol,
+  buildPlanCreateProtocol,
+  buildPlanEditProtocol,
+  buildPlanGroundedProtocol,
+  type AiMsg,
+} from './prompts';
+
+// R1-5 提示词收口：协议文本/few-shot/预填/停止序列在 prompts.ts 维护。
+// DELEGATION_RE / AiMsg 仍从此处 re-export（既有消费方不动）。
+export { DELEGATION_RE } from './prompts';
+export type { AiMsg } from './prompts';
+import { DELEGATION_RE } from './prompts';
 
 const CORE_ID = 'com.ai00x.core.todo';
-
-/** 一条直通消息（plugin_ai_complete 的 messages 模式）。 */
-export interface AiMsg {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
 
 export async function aiComplete(
   prompt: string,
@@ -175,11 +188,8 @@ function aiMsgToProtocolJson(m: PlanChatMessage): string {
   return '```json\n' + JSON.stringify(payload) + '\n```';
 }
 
-/** 用户交权话术：命中说明用户已放弃「被追问」，可提示模型调用工具。 */
-export const DELEGATION_RE = /不用问|别问了|直接安排|你安排|你来安排|你决定|直接拟|开始吧|可以了|就这样/;
-
-/** 快思考预填（官方 G1 格式：<think> + 换行 + </think>）。生成从 </think> 后立即开始。 */
-const THINK_PREFILL: AiMsg = { role: 'assistant', content: '<think>\n</think>\n```json' };
+/** 用户交权话术 DELEGATION_RE 收口在 prompts.ts（此处 re-export）。
+ *  快思考预填 THINK_PREFILL 同样收口在 prompts.ts。 */
 
 /**
  * 组装规划对话的多消息 few-shot 输入（rwkv-rsv 本地实验 2026-08-27 结论）：
@@ -194,14 +204,9 @@ const THINK_PREFILL: AiMsg = { role: 'assistant', content: '<think>\n</think>\n`
  * 主动调用 create_plan 工具（arguments 即完整计划契约），前端执行落盘；
  * 已绑定工作区时追加只读三件套（read_file/list_dir/search）供实地查看
  * 项目文件——工具由前端执行、结果回注，出计划单发不挂工具。
+ * 各模式协议文本与示范对收口在 prompts.ts（R1-5）。
  */
 
-/** 只读三件套协议行（仅已绑定工作区的讨论轮注入）。 */
-const TOOL_PROTOCOL_LINE =
-  '\n三、需要实际查看项目文件再定稿时，可调用只读工具（系统执行后把结果提供给你，再按一/二/三继续）：' +
-  '{"tool":"read_file","path":"相对工作区的文件路径"} 读文件内容；' +
-  '{"tool":"list_dir","path":"相对工作区的目录路径"} 列目录（省略 path 列根目录）；' +
-  '{"tool":"search","query":"关键词"} 在工作区内全文搜索。';
 function buildPlanChatMessages(
   title: string,
   notes: string,
@@ -213,34 +218,14 @@ function buildPlanChatMessages(
   hasWorkspace?: boolean
 ): AiMsg[] {
   if (mode === 'plan') {
-    const schema =
-      '{"summary":"一段话摘要","goal":"一句话目标","tasks":[{"title":"步骤名","notes":"补充"}],"acceptance":["验收1","验收2"],"deliverable":"交付物描述"}';
     if (currentPlan) {
       // —— 计划编辑器（专用修改格式，用户定稿 2026-08-28）：当前计划 JSON +
       // 修改意见 → 更新后的完整计划 JSON。JSON 进 JSON 出、schema 完全一致，
       // 避免全文再生成时的模式竞争（tasks 劣化为字符串数组的实测教训）——
+      // 协议文本与示范对收口在 prompts.ts（R1-5）
       const msgs: AiMsg[] = [
-        {
-          role: 'user',
-          content:
-            `你是计划编辑器。根据用户的修改意见更新给定的计划 JSON。回复协议：只输出更新后的完整计划 JSON（用 \`\`\`json 围栏包裹），schema：${schema}。用户没有提到的部分原样保留；tasks 每一项必须是含 title 键的对象，绝不能是字符串数组；acceptance 给3-6项可客观检验的判据；deliverable 必填且具体——写明可交付的产物文件名与内容形式（如 "report.md 调研报告"、"报销明细.md + 发票扫描件.zip"），即使纯咨询/调研类任务也必须产出一份汇报文件。` +
-            (planHint ? `\n额外要求：${planHint}` : ''),
-        },
-        {
-          role: 'assistant',
-          content:
-            '```json\n{"summary":"汇总本季报销票据并当面提交财务","goal":"周五前完成报销提交","tasks":[{"title":"核对三张发票金额","notes":""},{"title":"录入财务系统","notes":""},{"title":"周五当面提交给财务","notes":"替代原电话跟进"}],"acceptance":["金额与票据一致","周五完成当面提交"],"deliverable":"报销明细.md 提交清单"}\n```',
-        },
-        {
-          role: 'user',
-          content:
-            '当前计划：{"summary":"汇总本季报销票据并提交财务系统","goal":"周五前完成报销提交","tasks":[{"title":"核对三张发票金额","notes":""},{"title":"录入财务系统","notes":""},{"title":"跟进部门审批","notes":"周五前完成"}],"acceptance":["金额与票据一致","系统状态为已提交"],"deliverable":"季度报销单"}\n修改意见：第三步审批不用了，改成周五当面提交给财务。其他都不变。',
-        },
-        {
-          role: 'assistant',
-          content:
-            '```json\n{"summary":"汇总本季报销票据并当面提交财务","goal":"周五前完成报销提交","tasks":[{"title":"核对三张发票金额","notes":""},{"title":"录入财务系统","notes":""},{"title":"周五当面提交给财务","notes":""}],"acceptance":["金额与票据一致","周五完成当面提交"],"deliverable":"报销明细.md 提交清单"}\n```',
-        },
+        { role: 'user', content: buildPlanEditProtocol(planHint) },
+        ...PLAN_EDIT_DEMO,
       ];
       let s = `当前计划：${JSON.stringify(currentPlan)}\n修改意见与讨论：`;
       s = appendHistory(s, compressedChat(chat, true), { user: '用户', ai: '助手' });
@@ -248,19 +233,10 @@ function buildPlanChatMessages(
       msgs.push(THINK_PREFILL);
       return msgs;
     }
-    // —— 出计划（从零创建）：协议说明 + 一个示范对 ——
+    // —— 出计划（从零创建）：协议说明 + 一个示范对（收口在 prompts.ts，R1-5）——
     const msgs: AiMsg[] = [
-      {
-        role: 'user',
-        content:
-          `你是规划助手，根据需求和讨论拟定计划契约。回复协议：只输出一个 JSON（用 \`\`\`json 围栏包裹）：${schema}。tasks 给3-7个按推进顺序，每一项必须是含 title 键的对象（如 {"title":"步骤名"}），绝不能是字符串数组；acceptance 是可客观检验的完成判据，给3-6项；deliverable 必填且具体——写明可交付的产物文件名与内容形式（如 "report.md 调研报告"、"summary.md 总结"），即使纯咨询/调研类任务也必须产出一份汇报文件；只依据材料里的信息。所有字段必须填与需求相关的具体内容，禁止照抄示例占位词（如"步骤名""补充""验收1"）；title 不要带 [in_progress]/[pending] 等状态标记；回复的第一个字符必须是 { ，最后一个字符必须是 } 。` +
-          (planHint ? `\n额外要求：${planHint}` : ''),
-      },
-      {
-        role: 'assistant',
-        content:
-          '```json\n{"summary":"汇总本季报销票据并提交财务系统","goal":"完成本季度报销提交","tasks":[{"title":"核对三张发票金额","notes":""},{"title":"录入财务系统","notes":""},{"title":"跟进部门审批","notes":""}],"acceptance":["金额与票据一致","系统状态为已提交"],"deliverable":"报销明细.md 提交清单"}\n```',
-      },
+      { role: 'user', content: buildPlanCreateProtocol(planHint) },
+      PLAN_CREATE_DEMO,
     ];
     let s = `规划任务：${title}${notes ? `（${cleanMaterial(notes)}）` : ''}。这是需求与已有讨论：`;
     s = appendHistory(s, compressedChat(chat, true), { user: '用户说', ai: '助手回复' });
@@ -276,26 +252,10 @@ function buildPlanChatMessages(
   let msgs: AiMsg[];
   let s: string;
   if (currentPlan) {
-    // —— 计划接地模式：协议/示范/材料全部围绕当前计划 ——
+    // —— 计划接地模式：协议/示范/材料全部围绕当前计划（收口在 prompts.ts，R1-5）——
     msgs = [
-      {
-        role: 'user',
-        content:
-          '你是规划助手，卡片已有一份计划（材料中给出）。与用户讨论这份计划的调整，你拥有工具 create_plan（更新计划文件）。回复协议：只输出一个 JSON（用 ```json 围栏包裹），按情形回复：\n' +
-          '一、用户的调整意向不明确，先追问：{"reply":"简短回应","questions":[{"q":"关键问题","options":["选项1","选项2"],"allowInput":true}]}。questions 最多2个问题，每个配2-4个候选项。\n' +
-          '二、用户给出了明确的调整（或认可现状），调用工具：{"tool":"create_plan"}。只输出这个 JSON，不要附加计划内容，系统会按讨论结论更新计划文件。' +
-          (hasWorkspace ? TOOL_PROTOCOL_LINE : ''),
-      },
-      {
-        role: 'assistant',
-        content:
-          '```json\n{"reply":"好的，确认一下第三步想怎么调。","questions":[{"q":"第三步想怎么调整","options":["换成轻松的活动","时间往后挪","直接删掉"],"allowInput":true}]}\n```',
-      },
-      { role: 'user', content: '当前计划（讨论以此为准）：\n目标：周末前完成报销提交\n摘要：整理发票并提交财务系统\n步骤：1. 核对三张发票金额；2. 录入财务系统；3. 跟进部门审批\n验收：金额与票据一致；系统状态为已提交\n\n用户：嗯第三步太赶了，把审批挪到下周吧，其他都不变，直接改。' },
-      {
-        role: 'assistant',
-        content: '```json\n{"tool":"create_plan"}\n```',
-      },
+      { role: 'user', content: buildPlanGroundedProtocol(hasWorkspace) },
+      ...PLAN_GROUNDED_DEMO,
     ];
     const steps = currentPlan.tasks.map((t, i) => `${i + 1}. ${t.title}${t.notes ? `（${t.notes}）` : ''}`).join('；');
     s =
@@ -315,27 +275,11 @@ function buildPlanChatMessages(
       s += '\n（用户已明确表达调整意向，此时应调用工具更新计划。）';
     }
   } else {
-    // —— 需求澄清模式（无计划）：create_plan 工具协议（哨兵式调用）+ 两个追问示范对 ——
+    // —— 需求澄清模式（无计划）：create_plan 工具协议（哨兵式调用）+ 两个追问示范对
+    //    （收口在 prompts.ts，R1-5）——
     msgs = [
-      {
-        role: 'user',
-        content:
-          '你是规划助手，与用户讨论需求，你拥有工具 create_plan（创建计划文件）。回复协议：只输出一个 JSON（用 ```json 围栏包裹），按情形回复：\n' +
-          '一、信息不足，先追问：{"reply":"简短回应","questions":[{"q":"关键问题","options":["选项1","选项2"],"allowInput":true}]}。questions 最多2个问题，每个配2-4个候选项。\n' +
-          '二、信息足够（时间/数量/方式等关键信息已明确，或用户已表示无需追问），调用工具：{"tool":"create_plan"}。只输出这个 JSON，不要附加计划内容，系统会自动生成计划文件。' +
-          (hasWorkspace ? TOOL_PROTOCOL_LINE : ''),
-      },
-      {
-        role: 'assistant',
-        content:
-          '```json\n{"reply":"好的，先确认发票状态。","questions":[{"q":"发票现在的情况","options":["都已收齐","还差几张","还没整理"],"allowInput":true}]}\n```',
-      },
-      { role: 'user', content: '需求：整理报销发票。情况我还没梳理，回头看看再说。' },
-      {
-        role: 'assistant',
-        content:
-          '```json\n{"reply":"好的，不着急。","questions":[{"q":"大概什么时候要提交","options":["本周内","月底前","还没定"],"allowInput":true},{"q":"大概几张发票","options":["三五张","十张左右","不确定"],"allowInput":false}]}\n```',
-      },
+      { role: 'user', content: buildPlanClarifyProtocol(hasWorkspace) },
+      ...PLAN_CLARIFY_DEMO,
     ];
     s = `需求：${title}${notes ? `（${cleanMaterial(notes)}）` : ''}`;
     s = appendHistory(s, compressedChat(chat), { user: '用户', ai: '助手' });
@@ -355,12 +299,6 @@ function buildPlanChatMessages(
   msgs.push(THINK_PREFILL);
   return msgs;
 }
-
-/**
- * 围栏收尾停止序列：替代引擎默认组。返回文本 = ```json 围栏内的一份 JSON，
- * 遇闭合围栏立即截断；同时保留角色标记兜底（防围栏缺失时无限续写）。
- */
-const FENCE_STOPS: string[] = ['\n```', '\n\nUser:', '\n\nSystem:', '\n\nInstruction:', '\n\nInput:', '\n\nAssistant:'];
 
 /**
  * 压缩历史（用户定稿 2026-08-27：RWKV 多轮弱，历史别加太多——实质单轮）：

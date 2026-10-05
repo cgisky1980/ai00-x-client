@@ -106,24 +106,7 @@ export const wallpaperAPI = {
       request: { sessionId, workspacePath },
     }),
 
-  /** Open wallpaper preview in a separate native window */
-  openPreviewWindow: (projectPath?: string) => {
-    const params = new URLSearchParams();
-    if (projectPath) params.set('projectPath', projectPath);
-    params.set('mode', 'wallpaper');
-    const url = `${window.location.origin}/main/preview.html?${params.toString()}`;
-    return tauriInvoke<void>('open_preview_window', { url });
-  },
-
-  /** Close the preview window */
-  closePreviewWindow: () =>
-    tauriInvoke<void>('close_preview_window'),
-
-  /** Focus the preview window */
-  focusPreviewWindow: () =>
-    tauriInvoke<void>('focus_preview_window'),
-
-  /** Check if the preview window is open */
-  isPreviewWindowOpen: () =>
-    tauriInvoke<boolean>('is_preview_window_open'),
+  // 壁纸预览独立窗口已于 2026-09-12 移除（留给后期壁纸 agent 重做）。
+  // 原 openPreviewWindow / closePreviewWindow / focusPreviewWindow /
+  // isPreviewWindowOpen 四个命令与 preview.html 入口一并删除。
 };

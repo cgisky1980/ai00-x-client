@@ -25,7 +25,6 @@ import type { SceneTabId } from '../SceneBar/types';
 import MainNav from './MainNav';
 import PersistentFooterActions from './components/PersistentFooterActions';
 import NavSearchResults from './NavSearchResults';
-import { SessionSwitcher } from '@/tools/acestep/components/SessionSwitcher';
 import './NavPanel.scss';
 
 const SPLIT_OPEN_SCENES: ReadonlySet<SceneTabId> = new Set(['file-viewer']);
@@ -188,9 +187,7 @@ const NavPanel: React.FC<NavPanelProps> = ({ className = '', compact = false }) 
 
       <div ref={contentRef} className={contentCls}>
         {isMusicMode ? (
-          <div className="ai00-x-nav-panel__layer ai00-x-nav-panel__layer--music">
-            <SessionSwitcher filter={searchQuery} />
-          </div>
+          <div className="ai00-x-nav-panel__layer ai00-x-nav-panel__layer--music" />
         ) : (
           <>
             <div className="ai00-x-nav-panel__layer ai00-x-nav-panel__layer--main">

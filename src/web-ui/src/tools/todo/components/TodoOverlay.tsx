@@ -1,9 +1,15 @@
 /**
- * TodoOverlay — todo 核心功能根组件「策」（App.tsx 挂载）。
+ * TodoOverlay — 「策」常驻运行时（服务宿主，App.tsx 挂载在 overlay 窗口里）。
  *
- * 职责：数据加载 + XP profile 初始化 + 常驻提醒 ticker + 面板渲染
- * + 专注会话事件并入（underlay 番茄钟 → Rust todo_focus_append → 此处入账 XP）。
- * 面板关闭时数据与提醒仍在跑（60s ticker 与面板开关无关）。
+ * **本组件不渲染任何 UI**（`return null`）。它承担的是「窗口关掉也要继续跑」的那部分：
+ * 数据加载 + XP profile 初始化 + 常驻提醒 ticker + agent 执行看门狗（30s 轮询 /
+ * AI 卡死判定 / 自动恢复）+ DSH mux 订阅（提问与审批）+ 专注会话事件并入。
+ *
+ * 完整看板 UI 在独立 `todo` 窗口里（`src/app/TodoWindowApp.tsx` → `TodoPanel`）。
+ * 两者靠 `initTodoWindowSync` 对齐状态：本组件是 `agentRunning` / `agentFailed` /
+ * `agentQuestions` 的唯一 owner，单向广播给 UI 窗口。
+ *
+ * 为什么不把这一坨一起搬进独立窗口：窗口一关，到点提醒与卡死自动恢复就全停了。
  */
 import React, { useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
@@ -11,18 +17,18 @@ import { useTodoStore } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
 import { useReminderTicker } from '../hooks/useReminderTicker';
 import { XpKinds, type FocusSession } from '../api/types';
-import { connectMux, dshApproval, dshSession, foldEvents, type DshMuxFrame } from '@/infrastructure/api/service-api/DshAPI';
-import { isSessionAllowed } from '@/shared/agent-approval-rules';
+import { connectMux, deriveSessionRunState, dshApproval, dshSession, type DshMuxFrame, type DshSessionRunState } from '@/infrastructure/api/service-api/DshAPI';
+import { isApprovalAllowed } from '@/shared/agent-approval-rules';
 import {
+  buildRecoverPromptForTask,
   judgeModelFor,
   judgeStall,
   WATCH_JUDGE_MIN_INTERVAL_MS,
   WATCH_MAX_DELAY_MS,
   WATCH_MAX_RECOVER,
-  WATCH_RECOVER_PROMPT,
   WATCH_STALL_SOFT_MS,
 } from '../utils/watchdog';
-import { TodoPanel } from './TodoPanel';
+import { initTodoWindowSync } from '../sync/todoWindowSync';
 
 // ---- 执行看门狗（AI 评估 + 自适应复查，无绝对时间强制干预）----
 // 软阈值（5m 无事件）→ 派评估 agent 判断「正常长任务 vs 卡死」并给 ETA：
@@ -55,6 +61,11 @@ export const TodoOverlay: React.FC = () => {
     void load();
     void initGrowth();
   }, [load, initGrowth]);
+
+  // 跨窗口同步：本窗口是 agent 运行态的唯一 owner（30s 轮询与 DSH mux 都只在这里），
+  // 状态变化单向广播给独立「策」窗口；反向接收 UI 侧解析出的计划步骤/验收进度，
+  // 供下面的看门狗 AI 评估作为「执行到哪一步」的上下文。
+  useEffect(() => initTodoWindowSync('runtime'), []);
 
   // 专注会话并入：underlay 番茄钟完成 → Rust 落盘 + 广播 → 内存并入 + XP（1 XP/分钟，封顶 50）
   useEffect(() => {
@@ -144,7 +155,7 @@ export const TodoOverlay: React.FC = () => {
       } else if (frame.type === 'approval/requested') {
         activityRef.current.set(frame.sessionId, Date.now());
         // 「总是允许」记忆命中：自动应答放行，不再打扰人工
-        if (isSessionAllowed(frame.sessionId, frame.toolName)) {
+        if (isApprovalAllowed(frame.sessionId, frame.toolName)) {
           void dshApproval.respond(rpcId, frame.sessionId, frame.approvalId, 'allowed-once');
           return;
         }
@@ -170,38 +181,37 @@ export const TodoOverlay: React.FC = () => {
         for (const s of items) map[s.sessionId] = !!s.running;
         setAgentRunning(map);
 
-        // 失败态回填：doing 任务的会话已停止 → 拉历史尾判最后一轮成败
+        // 失败态回填（R2-9）：事件流水账重放派生——只看「最后一个轮次是否以错误收尾」，
+        // 不再读历史尾找 error（折叠规则一变就漂、且工具失败被后续轮次救回也误报）
         const doingSessions = tasks
           .filter(t => (t.status ?? 'requirement') === 'doing' && t.agentSessionId)
           .map(t => t.agentSessionId as string);
         const failedMap: Record<string, boolean> = {};
+        const runStateMap: Record<string, DshSessionRunState> = {};
         for (const sid of doingSessions) {
           if (map[sid]) continue; // 仍在跑，不判
           try {
             const { events } = await dshSession.history(sid);
-            const msgs = foldEvents(events.map(e => e.event));
-            const lastUserIdx = msgs.map(m => m.role).lastIndexOf('user');
-            const tail = msgs.slice(lastUserIdx + 1);
-            failedMap[sid] = tail.some(
-              m => Boolean(m.error) || m.toolCalls.some(tc => tc.isError),
-            );
+            const state = deriveSessionRunState(events.map(e => e.event));
+            runStateMap[sid] = state;
+            failedMap[sid] = state.lastTurnErrored;
           } catch {
-            // 历史拉不到 → 不标
+            // 历史拉不到 → 不标（宁可不报，不误报）
           }
         }
         setAgentFailed(failedMap);
 
-        // 启动首次轮询：客户端退出会杀引擎——进行中的执行任务全部中断，提醒人接管
+        // 启动首次轮询（R2-9）：客户端退出会杀引擎——按事件重放判「被中断」：
+        // 未闭合的轮次（turn/start 无 turn/end）或有工具调用未返回，才算中断；
+        // 已正常收尾但等人验收的任务不再误报。
         if (firstPollRef.current) {
           firstPollRef.current = false;
-          const interrupted = tasks.filter(
-            t =>
-              (t.status ?? 'requirement') === 'doing' &&
-              t.agentSessionId &&
-              !t.completedAt &&
-              !t.agentCompletedAt &&
-              !map[t.agentSessionId as string],
-          );
+          const interrupted = tasks.filter(t => {
+            const sid = t.agentSessionId;
+            if ((t.status ?? 'requirement') !== 'doing' || !sid || map[sid]) return false;
+            const state = runStateMap[sid];
+            return state ? state.openTurn || state.pendingTools > 0 : false;
+          });
           if (interrupted.length) {
             useGrowthStore
               .getState()
@@ -267,7 +277,9 @@ export const TodoOverlay: React.FC = () => {
             void (async () => {
               try {
                 await dshSession.cancel(sid); // 中断卡住的轮次
-                await dshSession.prompt(sid, `${WATCH_RECOVER_PROMPT}\n（检测依据：${why}）`);
+                // R1-2：恢复词带进度快照（计划勾选状态 + 近期工具动作）
+                const recoverPrompt = await buildRecoverPromptForTask(task.id, sid, why);
+                await dshSession.prompt(sid, recoverPrompt);
                 useGrowthStore
                   .getState()
                   .showToast(`执行卡住 · 已自动恢复（第 ${attempt} 次）`, why);
@@ -348,6 +360,6 @@ export const TodoOverlay: React.FC = () => {
 
   useReminderTicker();
 
-  if (!loaded) return null;
-  return <TodoPanel />;
+  // 纯运行时宿主：UI 在独立「策」窗口（src/app/TodoWindowApp.tsx）
+  return null;
 };

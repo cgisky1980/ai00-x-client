@@ -52,6 +52,7 @@ import zhCNSettingsBasics from '../../../locales/zh-CN/settings/basics.json';
 import zhCNSettingsAiFeatures from '../../../locales/zh-CN/settings/ai-features.json';
 import zhCNSettingsSessionConfig from '../../../locales/zh-CN/settings/session-config.json';
 import zhCNSettingsLsp from '../../../locales/zh-CN/settings/lsp.json';
+import zhCNSettingsApprovalRules from '../../../locales/zh-CN/settings/approval-rules.json';
 import zhCNSettingsDebug from '../../../locales/zh-CN/settings/debug.json';
 import zhCNSettingsEditor from '../../../locales/zh-CN/settings/editor.json';
 import zhCNSettingsSkills from '../../../locales/zh-CN/settings/skills.json';
@@ -100,6 +101,7 @@ import enUSSettingsBasics from '../../../locales/en-US/settings/basics.json';
 import enUSSettingsAiFeatures from '../../../locales/en-US/settings/ai-features.json';
 import enUSSettingsSessionConfig from '../../../locales/en-US/settings/session-config.json';
 import enUSSettingsLsp from '../../../locales/en-US/settings/lsp.json';
+import enUSSettingsApprovalRules from '../../../locales/en-US/settings/approval-rules.json';
 import enUSSettingsDebug from '../../../locales/en-US/settings/debug.json';
 import enUSSettingsEditor from '../../../locales/en-US/settings/editor.json';
 import enUSSettingsSkills from '../../../locales/en-US/settings/skills.json';
@@ -155,6 +157,7 @@ const resources = {
     'settings/ai-features': zhCNSettingsAiFeatures,
     'settings/session-config': zhCNSettingsSessionConfig,
     'settings/lsp': zhCNSettingsLsp,
+    'settings/approval-rules': zhCNSettingsApprovalRules,
     'settings/debug': zhCNSettingsDebug,
     'settings/editor': zhCNSettingsEditor,
     'settings/skills': zhCNSettingsSkills,
@@ -204,6 +207,7 @@ const resources = {
     'settings/ai-features': enUSSettingsAiFeatures,
     'settings/session-config': enUSSettingsSessionConfig,
     'settings/lsp': enUSSettingsLsp,
+    'settings/approval-rules': enUSSettingsApprovalRules,
     'settings/debug': enUSSettingsDebug,
     'settings/editor': enUSSettingsEditor,
     'settings/skills': enUSSettingsSkills,
@@ -274,6 +278,7 @@ export class I18nService {
           'settings/basics',
           'settings/ai-features',
           'settings/lsp',
+          'settings/approval-rules',
           'settings/debug',
           'settings/editor',
           'settings/skills',

@@ -22,6 +22,7 @@ import {
 import { getAgentModule } from '../agent-modules';
 import { AIRulesAPI } from '@/infrastructure/api/service-api/AIRulesAPI';
 import { getAllMemories } from '@/infrastructure/api/aiMemoryApi';
+import type { AIMemory } from '@/infrastructure/api/aiMemoryApi';
 import type { TodoTask } from '../api/types';
 import { useTodoStore } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
@@ -31,6 +32,167 @@ import {
   resolveDelegateCwd,
   setDefaultWorkspace,
 } from '../ai/workspace';
+import {
+  DELEGATE_BG_COMMAND_NOTICE,
+  DELEGATE_BOOK_TITLE,
+  DELEGATE_BOUNDARY_IDEA_POOL,
+  DELEGATE_BOUNDARY_PLAN_FIRST,
+  DELEGATE_COMPLETION_THREE_STEP,
+  DELEGATE_COMPLETION_TITLE,
+  DELEGATE_DELIVERABLE_DEFAULT,
+  DELEGATE_LONG_OP_NOTICE,
+  DELEGATE_MEMORY_HEADER,
+  DELEGATE_PROTOCOL_ORCHESTRATION,
+  DELEGATE_RULES_HEADER,
+  DELEGATE_SUBAGENT_NOTIFY,
+} from '../ai/prompts';
+
+// ===== R1-1 委托上下文配额（分区预算 + 记忆相关性挑选 + 缓存友好序） =====
+// 缓存友好序：稳定内容（promptPrefix → 用户规则）在前，易变内容（记忆 →
+// 任务书）靠后——远程模型命中提示词缓存省钱（Manus：KV-cache 命中率第一指标）。
+
+const RULES_MAX_CHARS = 4000;
+/** 记忆最多带 5 条（按相关性挑，不再前 20 条全塞） */
+const MEMORY_MAX_ITEMS = 5;
+const MEMORY_LINE_CHARS = 120;
+const MEMORY_BLOCK_MAX_CHARS = 1000;
+/** 计划书正文上限（超长截断留痕；通常 <2KB 打不满） */
+const PLAN_BODY_MAX_CHARS = 12000;
+/** 相关性匹配的 haystack 上限（防大计划书 O(n²) 扫描） */
+const RELEVANCE_HAYSTACK_CHARS = 6000;
+
+/** 记忆相关性打分：tags/标题命中权重高，内容关键词命中权重低。 */
+function scoreMemoryRelevance(mem: AIMemory, taskText: string): number {
+  let score = 0;
+  for (const tag of mem.tags ?? []) {
+    if (tag && taskText.includes(tag)) score += 2;
+  }
+  const tokenize = (s: string): string[] =>
+    s
+      .split(/[^\p{L}\p{N}]+/u)
+      .map(t => t.trim())
+      .filter(t => t.length >= 2);
+  for (const tok of tokenize(mem.title).slice(0, 8)) {
+    if (taskText.includes(tok)) score += 2;
+  }
+  for (const tok of tokenize((mem.content ?? '').slice(0, 160)).slice(0, 12)) {
+    if (taskText.includes(tok)) score += 1;
+  }
+  return score;
+}
+
+/**
+ * 按任务相关性挑记忆：命中分 > 0 的按分降序取前 max 条；
+ * 相关的不足 2 条时按原顺序补足（保底核心记忆不被相关性算法饿死）。
+ */
+export function selectRelevantMemories(mems: AIMemory[], taskText: string): AIMemory[] {
+  const hay = taskText.slice(0, RELEVANCE_HAYSTACK_CHARS);
+  const scored = mems
+    .map(m => ({ m, s: scoreMemoryRelevance(m, hay) }))
+    .sort((a, b) => b.s - a.s);
+  const picked = scored.filter(x => x.s > 0).slice(0, MEMORY_MAX_ITEMS);
+  if (picked.length < 2) {
+    for (const x of scored.filter(x => x.s === 0)) {
+      if (picked.length >= 2) break;
+      picked.push(x);
+    }
+  }
+  return picked.map(x => x.m);
+}
+
+/** R1-3 四段任务书的目标行。 */
+function goalLine(task: TodoTask): string {
+  const goal = task.plan?.goal?.trim();
+  return goal ? `${task.title}：${goal}` : task.title;
+}
+
+/**
+ * assembleDelegationPrompt — 委托 prompt 统一组装（R1-1/R1-3/R1-5）。
+ *
+ * 结构（自上而下）：
+ *   module.promptPrefix（稳定）→ 用户规则（稳定，截 4000）→ 用户记忆
+ *   （相关性 Top-5，截 1000）→ 任务书四段（目标/交付物/工具与资料/边界，
+ *   计划书全文嵌在交付物之后作为契约正文）→ 完工与收尾（稳定）。
+ */
+export function assembleDelegationPrompt(parts: {
+  promptPrefix: string;
+  rules: string;
+  memories: AIMemory[];
+  task: TodoTask;
+  planMd: string | null;
+  cwd: string | null;
+  taskId: string;
+  hasPlanDoc: boolean;
+}): string {
+  const { promptPrefix, rules, memories, task, planMd, cwd, taskId, hasPlanDoc } = parts;
+
+  // —— 记忆块（相关性挑选 + 预算）——
+  let memoryBlock = '';
+  if (memories.length) {
+    const lines = memories
+      .map(
+        m => `- ${m.title}${m.content ? `：${m.content}` : ''}`.slice(0, MEMORY_LINE_CHARS)
+      )
+      .join('\n')
+      .slice(0, MEMORY_BLOCK_MAX_CHARS);
+    memoryBlock = `${DELEGATE_MEMORY_HEADER}\n${lines}`;
+  }
+
+  // —— 任务书四段 ——
+  const book: string[] = [DELEGATE_BOOK_TITLE, `【目标】${goalLine(task)}`];
+  if (planMd && planMd.trim()) {
+    book.push(`【交付物】见计划书「## 交付物」段；${DELEGATE_DELIVERABLE_DEFAULT}`);
+    const body =
+      planMd.length > PLAN_BODY_MAX_CHARS
+        ? `${planMd.slice(0, PLAN_BODY_MAX_CHARS)}\n…（计划书超长已截断，全文用 ai00_plan_read 读取）`
+        : planMd;
+    book.push('—— 计划书全文（本任务书的契约正文，含步骤与验收勾选状态）——', body);
+  } else if (task.plan) {
+    book.push(`【交付物】${task.plan.deliverable?.trim() || DELEGATE_DELIVERABLE_DEFAULT}`);
+    const body: string[] = [];
+    if (task.plan.tasks.length) {
+      body.push('步骤：', ...task.plan.tasks.map((t, i) => `${i + 1}. ${t.title}${t.notes ? ` — ${t.notes}` : ''}`));
+    }
+    if (task.plan.acceptance.length) {
+      body.push(
+        '验收标准（完成后逐项自检，并在计划文档「## 验收」段把对应项勾为 `- [x]`）：',
+        ...task.plan.acceptance.map((a, i) => `${i + 1}. ${a}`),
+      );
+    }
+    if (body.length) book.push('—— 计划契约 ——', ...body);
+  } else {
+    book.push(`【交付物】${DELEGATE_DELIVERABLE_DEFAULT}`);
+    if (task.notes?.trim()) book.push(task.notes.trim());
+  }
+
+  // 【工具与资料】
+  const tools: string[] = ['【工具与资料】'];
+  if (cwd) {
+    tools.push(`- 工作目录：${cwd}（子代理的文件读写在此目录下进行，派发时把该目录写进任务书）`);
+  }
+  tools.push(DELEGATE_PROTOCOL_ORCHESTRATION(taskId));
+  if (hasPlanDoc) {
+    tools.push(DELEGATE_SUBAGENT_NOTIFY, DELEGATE_LONG_OP_NOTICE, DELEGATE_BG_COMMAND_NOTICE);
+  }
+
+  // 【边界】
+  const boundaries: string[] = ['【边界】'];
+  if (hasPlanDoc) boundaries.push(DELEGATE_BOUNDARY_PLAN_FIRST);
+  boundaries.push(DELEGATE_BOUNDARY_IDEA_POOL(taskId));
+
+  return [
+    promptPrefix,
+    rules ? `${DELEGATE_RULES_HEADER}\n${rules}` : '',
+    memoryBlock,
+    ...book,
+    ...tools,
+    ...boundaries,
+    DELEGATE_COMPLETION_TITLE,
+    DELEGATE_COMPLETION_THREE_STEP(taskId, cwd),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
 
 export function useAgentDelegate() {
   const busyRef = useRef(false);
@@ -83,80 +245,46 @@ export function useAgentDelegate() {
         baseCommit = snap?.commit ?? null;
       }
 
-      // 4. 任务书（契约即任务书）：优先读计划 MD 现文——replan 后的改动直接生效；
-      //    读不到再退化用 task.plan 结构化快照
-      let taskBrief: string;
-      let hasPlanDoc = false;
+      // 4. 计划文档探测（契约即任务书）：优先读计划 MD 现文——replan 后的改动
+      //    直接生效；读不到再退化用 task.plan 结构化快照
       const planMd = await invoke<string | null>('todo_plan_get', { taskId: task.id }).catch(
         () => null
       );
-      if (planMd && planMd.trim()) {
-        hasPlanDoc = true;
-        taskBrief = planMd;
-      } else if (task.plan) {
-        hasPlanDoc = true;
-        taskBrief = [
-          ...(task.plan.goal ? [`目标：${task.plan.goal}`] : []),
-          ...(task.plan.tasks.length
-            ? ['步骤：', ...task.plan.tasks.map((t, i) => `${i + 1}. ${t.title}${t.notes ? ` — ${t.notes}` : ''}`)]
-            : []),
-          ...(task.plan.acceptance.length
-            ? [
-                '验收标准（完成后逐项自检，并在计划文档「## 验收」段把对应项勾为 `- [x]`）：',
-                ...task.plan.acceptance.map((a, i) => `${i + 1}. ${a}`),
-              ]
-            : []),
-          ...(task.plan.deliverable ? [`交付物：${task.plan.deliverable}`] : []),
-        ].join('\n');
-      } else {
-        taskBrief = `${task.title}${task.notes ? `\n\n${task.notes}` : ''}`;
-      }
+      const hasPlanDoc = Boolean(planMd && planMd.trim());
 
-      // 用户 AI 规则 + 记忆注入（与老 agent 同源；为空/失败静默——不阻塞委托）
-      let rulesBlock = '';
+      // 用户 AI 规则 + 记忆（R1-1 配额：规则截 4000；记忆按相关性挑 Top-5；
+      // 为空/失败静默——不阻塞委托）
+      let rules = '';
       if (cwd) {
         try {
           const sys = await AIRulesAPI.buildSystemPrompt(cwd);
-          if (sys?.trim()) rulesBlock = `【用户规则——必须遵守】\n${sys.trim().slice(0, 4000)}`;
+          if (sys?.trim()) rules = sys.trim().slice(0, RULES_MAX_CHARS);
         } catch {
           // 规则读取失败静默
         }
       }
-      let memoryBlock = '';
+      let memories: AIMemory[] = [];
       try {
         const mems = (await getAllMemories()).filter(m => m.enabled !== false);
-        if (mems.length) {
-          memoryBlock = `【用户记忆——供参考】\n${mems
-            .slice(0, 20)
-            .map(m => `- ${m.title}${m.content ? `：${m.content}` : ''}`.slice(0, 120))
-            .join('\n')
-            .slice(0, 1500)}`;
-        }
+        memories = selectRelevantMemories(
+          mems,
+          `${task.title}\n${task.notes ?? ''}\n${planMd ?? ''}`,
+        );
       } catch {
         // 记忆读取失败静默
       }
 
-      const prompt = [
-        module.promptPrefix,
-        ...(rulesBlock ? [rulesBlock] : []),
-        ...(memoryBlock ? [memoryBlock] : []),
-        `任务书：${task.title}`,
-        taskBrief,
-        ...(cwd ? [`工作目录：${cwd}（子代理的文件读写在此目录下进行，派发时把该目录写进任务书）`] : []),
-        `执行协议（编排者——你不亲自执行）：第一步先 ai00_plan_read（taskId: "${task.id}"）读取任务书全文，把「## 步骤」拆解为可派发的子任务；调研/查证类派 research_worker，实现/执行类派 code_worker，相互独立的子任务在同一条回复里并发派发。派发的每个任务写明：目标与验收标准、边界、相关文件与上下文线索、期望的返回格式（worker 看不到你们的对话，任务书必须自包含）。`,
-        ...(hasPlanDoc
-          ? [
-              `每收到子代理完成通知：立即验收其结论，把「## 步骤」段对应项改为 "- [x]"（ai00_plan_write 全量写回），并把结果要点与遗留风险记录进计划文档；不合格就重新派发并说明问题。`,
-              `计划优先（铁律）：用户执行期间发来的消息，若涉及需求、方案、步骤或验收标准的变化，必须先把变更落入计划文档（ai00_plan_read → ai00_plan_write 更新「## 步骤」/「## 验收」等），再按更新后的计划重新派发——以计划文档为唯一依据；若只是确认、催促等无需改计划的交流，直接简短回应即可。你自己发现方案需要变化时同此规：先改计划，再派发。`,
-              `长耗时操作（编译/训练/下载等，预计超过 2 分钟）：收到子代理开始通知后先向用户发一句预计耗时（如「预计 20 分钟」），完成后再继续——策窗口按此安排检查节奏。`,
-              `派发执行类任务时在任务书中提醒 worker：长耗时命令（预计超过 2 分钟）用 pwsh 的 run_in_background: true 参数转后台执行——立即返回任务 id，完成后引擎会自动通知，用 job_output 读取输出再继续；不要让长命令阻塞在前台。`,
-            ]
-          : []),
-        `全部子代理完成、验收项逐项确认后（人工判据在计划文档中勾选 "- [x]"），按「完工三步」收尾：① 把交付物写成真实文件——计划「交付物」段承诺的产物必须逐一落地为工作目录下的实际文件（缺失的先让子代理补齐），纯调研/咨询任务也必须产出一份总结文件（如 report.md）；② 调用 ai00_task_complete 提交自检（taskId: "${task.id}"${cwd ? `，snapshotDir: "${cwd}"——提交时自动 git 快照工作目录的全部改动，不要手动 commit` : ''}），并带上 deliverables 参数（产物的绝对路径清单，必填）；验收未全勾该工具会拒绝；③ 提交后在会话内向用户汇报：结论摘要（≤200字）+ 产物清单（文件名 + 一句话内容）+ 待验收提示。提交后任务进入人类验收：完成状态的认定以用户在策窗口的验收为准，但结果汇报与产物清单必须主动给出，不要等用户来要。`,
-        `执行中发现需要新的子任务或想法，用 ai00_task_create 落入想法池（可带 sourceTaskId: "${task.id}" 标注来源、goalId 归志）——不要塞进当前计划文档的步骤段。`,
-      ]
-        .filter(Boolean)
-        .join('\n\n');
+      // R1-3 四段任务书 + R1-5 提示词收口：组装统一走 assembleDelegationPrompt
+      const prompt = assembleDelegationPrompt({
+        promptPrefix: module.promptPrefix,
+        rules,
+        memories,
+        task,
+        planMd: planMd ?? null,
+        cwd,
+        taskId: task.id,
+        hasPlanDoc,
+      });
 
       await dshSession.prompt(sessionId, prompt);
 
