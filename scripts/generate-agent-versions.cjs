@@ -6,10 +6,10 @@
  * dsh agent 运行环境版本（node / dsh / 内置插件清单）统一以
  * `packages/shared/agent-versions.json` 为唯一来源。本脚本从该 JSON 生成：
  *   1. TS 侧：`packages/shared/src/agentVersions.ts`
- *   2. Rust 侧：`src/apps/desktop/src/dsh_versions.gen.rs`
+ *   2. Rust 侧：`src/crates/agent-host/src/dsh_versions.gen.rs`
  *
  * 用法：`pnpm run generate-agent-versions`
- * 消费方：`src/apps/desktop/src/dsh_manager.rs`（sidecar 安装链）与
+ * 消费方：`src/crates/agent-host/src/dsh_manager.rs`（sidecar 安装链）与
  * `scripts/dsh-plugin-check.mjs`（检测流水线，直接读 JSON）。
  * 消除历史漂移 bug：check 脚本曾硬编码 node v22.23.2 而运行时是 v24.20.0。
  */
@@ -20,7 +20,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const JSON_SRC = path.join(ROOT, 'packages', 'shared', 'agent-versions.json');
 const TS_OUT = path.join(ROOT, 'packages', 'shared', 'src', 'agentVersions.ts');
-const RUST_OUT = path.join(ROOT, 'src', 'apps', 'desktop', 'src', 'dsh_versions.gen.rs');
+const RUST_OUT = path.join(ROOT, 'src', 'crates', 'agent-host', 'src', 'dsh_versions.gen.rs');
 
 const src = JSON.parse(fs.readFileSync(JSON_SRC, 'utf8'));
 
