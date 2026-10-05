@@ -1188,17 +1188,19 @@
     width: 11rem;
     height: 11rem;
     flex-shrink: 0;
+    // ★ 频谱画布相对唱片的「单边外扩量」——唯一真源：画布尺寸 = 11rem + 2×此值，
+    //   LyricParticles 读同一变量反推唱片半径（discR = 画布半径 − 此值），
+    //   从而保证「条从唱片外 2px 起画（不与封面相交）+ 最长条不越画布（不被方框裁断）」。
+    //   28px ⇒ 画布 232px，仍小于侧列 15rem(240)，不会越出盒子被 overflow:hidden 裁掉。
+    --vinyl-ring-margin: 28px;
   }
 
   &__online-radio-vinyl-ring {
     position: absolute;
-    // 画布尺寸与 LyricParticles 几何互相锁死：r0 = W/2 - maxLen - 2，maxLen = 0.14W
-    // ⇒ r0 = 0.36W - 2。取 W = 11rem + 48 = 224 ⇒ r0 ≈ 78.6，条外端 ≈ 110 < 112（半宽）。
-    // 两个边界同时成立：① 外端不超画布 ⇒ 不被矩形裁断；② 画布 224 < 侧列 15rem(240)
-    // 且不越出左列盒子 ⇒ 不被 `__online-list.is-radio-live` 的 overflow:hidden 裁掉。
-    inset: -24px;
-    width: calc(100% + 48px);
-    height: calc(100% + 48px);
+    // 尺寸完全由 --vinyl-ring-margin 派生（见上方唯一真源注释）
+    inset: calc(var(--vinyl-ring-margin) * -1);
+    width: calc(100% + var(--vinyl-ring-margin) * 2);
+    height: calc(100% + var(--vinyl-ring-margin) * 2);
     pointer-events: none;
     z-index: 1;
   }
