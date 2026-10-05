@@ -46,6 +46,26 @@ const STYLE_PACK_OWNED_VARS: readonly string[] = [
   ),
 ];
 
+/**
+ * 选择项的 localStorage 镜像键。
+ *
+ * 为什么需要：跨窗口同步走 SettingsSyncService（BroadcastChannel），但多 WebView2 窗口间
+ * 该通道不保证可靠到达 —— 一旦漏收，那个窗口就会保持在旧风格上（表现为「一个窗口换了
+ * 风格，别的窗口没变」）。localStorage 是同源共享存储，**读取**不依赖任何消息投递，
+ * 因此这里额外镜像一份，供窗口获得焦点时自检收敛（见 SettingsSyncService.resyncFromStorage）。
+ */
+export const STYLE_PACK_STORAGE_KEY = 'ai00-x:style-pack';
+export const THEME_SELECTION_STORAGE_KEY = 'ai00-x:theme-selection';
+
+/** 写 localStorage 镜像（隐私模式/配额异常时静默失败，不影响主链路） */
+function mirrorToStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_error) {
+    /* 忽略：镜像只是兜底通道 */
+  }
+}
+
 /** 未知/缺失的风格包 id → 默认风格（新东方极简） */
 function normalizeStylePackId(raw: unknown): StylePackId {
   return typeof raw === 'string' && STYLE_PACK_IDS.includes(raw)
@@ -285,6 +305,7 @@ export class ThemeService {
   }
 
   private async saveStyleSelection(styleId: StylePackId): Promise<void> {
+    mirrorToStorage(STYLE_PACK_STORAGE_KEY, styleId);
     try {
       await configAPI.setConfig('themes.style', styleId);
     } catch (error) {
@@ -624,6 +645,7 @@ export class ThemeService {
   
    
   private async saveThemeSelection(selection: ThemeSelectionId): Promise<void> {
+    mirrorToStorage(THEME_SELECTION_STORAGE_KEY, selection);
     try {
       await configAPI.setConfig('themes.current', selection);
     } catch (error) {

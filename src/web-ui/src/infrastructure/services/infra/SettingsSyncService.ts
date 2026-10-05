@@ -1,4 +1,8 @@
-import { themeService } from '@/infrastructure/theme';
+import {
+  themeService,
+  STYLE_PACK_STORAGE_KEY,
+  THEME_SELECTION_STORAGE_KEY,
+} from '@/infrastructure/theme';
 import { i18nService } from '@/infrastructure/i18n';
 import type { LocaleId } from '@/infrastructure/i18n/types';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
@@ -22,6 +26,7 @@ class SettingsSyncServiceImpl {
   private initialized = false;
   private syncing = false;
   private unsubWorkspace: (() => void) | null = null;
+  private unsubResync: (() => void) | null = null;
 
   constructor() {
     this.windowId = `w-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -51,6 +56,45 @@ class SettingsSyncServiceImpl {
         }
       }
     });
+
+    // 兜底收敛：即使 BroadcastChannel 完全失效（多 WebView2 窗口间不保证投递），
+    // 本窗口在获得焦点/重新可见时也会自检并补齐风格与明暗（见 resyncFromStorage）。
+    this.attachResync();
+  }
+
+  /**
+   * 窗口获得焦点 / 重新可见时，直接读 localStorage 镜像（同源共享，不依赖消息投递），
+   * 与当前值不一致就自行补齐。只写不广播，避免跨窗口回声。
+   */
+  private attachResync(): void {
+    if (this.unsubResync) return;
+    const resync = () => this.resyncFromStorage();
+    window.addEventListener('focus', resync);
+    document.addEventListener('visibilitychange', resync);
+    this.unsubResync = () => {
+      window.removeEventListener('focus', resync);
+      document.removeEventListener('visibilitychange', resync);
+    };
+  }
+
+  private resyncFromStorage(): void {
+    try {
+      const style = localStorage.getItem(STYLE_PACK_STORAGE_KEY);
+      const currentStyle = themeService.getStylePackId();
+      if (style && style !== currentStyle) {
+        log.info('Resync style pack from storage', { from: currentStyle, to: style });
+        void themeService.applyStylePack(style, { persist: false });
+      }
+
+      const theme = localStorage.getItem(THEME_SELECTION_STORAGE_KEY);
+      const currentTheme = themeService.getCurrentThemeId();
+      if (theme && theme !== currentTheme) {
+        log.info('Resync theme from storage', { from: currentTheme, to: theme });
+        void themeService.applyTheme(theme);
+      }
+    } catch (_error) {
+      /* localStorage 不可用（隐私模式等）→ 跳过兜底，不影响消息通道 */
+    }
   }
 
   stop(): void {
@@ -61,6 +105,10 @@ class SettingsSyncServiceImpl {
     if (this.unsubWorkspace) {
       this.unsubWorkspace();
       this.unsubWorkspace = null;
+    }
+    if (this.unsubResync) {
+      this.unsubResync();
+      this.unsubResync = null;
     }
     this.initialized = false;
   }

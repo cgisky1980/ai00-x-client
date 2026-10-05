@@ -9,7 +9,12 @@ export * from './types';
 export * from './presets';
 
 // Core service
-export { ThemeService, themeService } from './core/ThemeService';
+export {
+  ThemeService,
+  themeService,
+  STYLE_PACK_STORAGE_KEY,
+  THEME_SELECTION_STORAGE_KEY,
+} from './core/ThemeService';
 
 // Integrations
 export { monacoThemeSync } from './integrations/MonacoThemeSync';
