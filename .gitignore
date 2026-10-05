@@ -120,3 +120,15 @@ scripts/router_head/
 
 # Internal project reference docs — local only, never push to GitHub
 参考/
+
+# Local temp artifacts / scratch products (keep on disk, not tracked)
+loader.zip
+sse2.txt
+scripts/tmp_*.py
+test/tmp-*.py
+src/web-ui/src/app/member-chat/community/__*.cjs
+
+# Local AI agent working dirs (plans / memory — machine-local, never push)
+.workbuddy/
+.zcode/
+.trae/
