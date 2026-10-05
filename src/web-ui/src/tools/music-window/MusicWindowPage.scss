@@ -1174,7 +1174,8 @@
     position: relative;
     z-index: 1;
     flex: 0 0 auto;
-    width: 15rem;
+    // 18rem：需容纳外扩 50px 后的 276px 频谱画布（15rem=240 会裁掉环）
+    width: 18rem;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1191,8 +1192,9 @@
     // ★ 频谱画布相对唱片的「单边外扩量」——唯一真源：画布尺寸 = 11rem + 2×此值，
     //   LyricParticles 读同一变量反推唱片半径（discR = 画布半径 − 此值），
     //   从而保证「条从唱片外 2px 起画（不与封面相交）+ 最长条不越画布（不被方框裁断）」。
-    //   28px ⇒ 画布 232px，仍小于侧列 15rem(240)，不会越出盒子被 overflow:hidden 裁掉。
-    --vinyl-ring-margin: 28px;
+    //   50px ⇒ 画布 276px（须 ≤ 侧列 18rem=288px，否则越出盒子被 overflow:hidden 裁）；
+    //   唱片半径仍 = 276/2 − 50 = 88（封面大小不随外扩变），径向余量 46px 供长条使用。
+    --vinyl-ring-margin: 50px;
   }
 
   &__online-radio-vinyl-ring {

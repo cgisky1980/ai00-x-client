@@ -239,7 +239,8 @@ export const SpectrumRing: React.FC<{
         Number.parseFloat(getComputedStyle(canvas).getPropertyValue('--vinyl-ring-margin')) || 0;
       const half = Math.min(w, h) / 2;
       const discR = Math.max(1, half - margin);
-      geomRef.current = { discR, maxLen: Math.max(2, half - discR - 4) * 0.85 };
+      // 0.9：径向余量（half − discR − 4）的九成给最长条，余下留给画布边缘不被截断
+      geomRef.current = { discR, maxLen: Math.max(2, half - discR - 4) * 0.9 };
     };
     setup();
     const ro = new ResizeObserver(setup);
@@ -290,9 +291,10 @@ export const SpectrumRing: React.FC<{
         const dy = Math.sin(mid);
         const px = -dy; // 径向的垂线（单位向量），用于把宽度摊到两侧
         const py = dx;
-        // 内沿半宽固定 ≈1.2px；外沿半宽随 v 放大到 ≈8.2px（全宽 2.4 → 16.4px）
-        const wiHalf = 1.2;
-        const woHalf = 1.2 + 7 * v;
+        // 内沿半宽固定 ≈2.6px；外沿半宽随 v 放大到 ≈14.1px（全宽 5.2 → 28.2px）
+        // 最粗时外端相邻间距 ≈34.4px，仍留 ≈6px 间隙不粘连
+        const wiHalf = 2.6;
+        const woHalf = 2.6 + 11.5 * v;
         const ix = cx + dx * r0;
         const iy = cy + dy * r0;
         const ox = cx + dx * rOut;
