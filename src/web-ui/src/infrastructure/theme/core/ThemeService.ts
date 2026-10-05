@@ -23,6 +23,7 @@ import { createLogger } from '@/shared/utils/logger';
 import {
   DEFAULT_STYLE_PACK_ID,
   resolveStylePackTokens,
+  stylePackTokens,
   stylePacks,
   type StylePackId,
 } from '@ai00-x/design-system/packs-meta';
@@ -30,6 +31,20 @@ import {
 const log = createLogger('ThemeService');
 
 const STYLE_PACK_IDS: readonly string[] = stylePacks.map((p) => p.id);
+
+/**
+ * 所有风格包可能写过的 CSS 变量名并集（各包 × base/light/dark 的 key）。
+ * 切换风格包前必须逐个 removeProperty 清除，理由见 injectCSSVariables。
+ */
+const STYLE_PACK_OWNED_VARS: readonly string[] = [
+  ...new Set(
+    Object.values(stylePackTokens).flatMap((pack) => [
+      ...Object.keys(pack.base),
+      ...Object.keys(pack.light),
+      ...Object.keys(pack.dark),
+    ]),
+  ),
+];
 
 /** 未知/缺失的风格包 id → 默认风格（新东方极简） */
 function normalizeStylePackId(raw: unknown): StylePackId {
@@ -401,6 +416,31 @@ export class ThemeService {
    
   private injectCSSVariables(theme: ThemeConfig): void {
     const root = document.documentElement;
+
+    // ⚠️ 顺序即正确性（规范第九节）：
+    // 1) 先清除「所有风格包可能写过的」inline 变量。inline 的 setProperty 只覆盖同名
+    //    属性，**不会**因为「新风格包零覆盖」而自行消失——切回默认包 xindongfang 时
+    //    其 token 覆盖为空，若不清理，上一个包写下的几十个 inline 值会继续压住
+    //    :root 基座值，表现为「切不回默认风格」。
+    // 2) 再重写主题变量：清除会连带删掉同名主题变量（--shadow-* / --radius-* /
+    //    --color-success 等都被 comic 覆盖过），必须补回主题预设值。
+    // 3) 最后写当前风格包的值（后写者胜，压过主题预设的遗留值）。
+    for (const name of STYLE_PACK_OWNED_VARS) {
+      root.style.removeProperty(name);
+    }
+
+    this.applyThemeTokens(theme);
+
+    root.setAttribute('data-theme', theme.id);
+    root.setAttribute('data-theme-type', theme.type);
+    root.setAttribute('data-style', this.styleSelection);
+
+    this.injectStylePackTokens(theme.type);
+  }
+
+  /** 主题预设 token → inline CSS 变量 */
+  private applyThemeTokens(theme: ThemeConfig): void {
+    const root = document.documentElement;
     const { colors, effects, motion, typography } = theme;
 
     if (colors.background.tooltip) {
@@ -571,20 +611,12 @@ export class ThemeService {
       root.style.setProperty('--window-control-disabled-dot', colors.text.disabled);
       root.style.setProperty('--window-control-flow-gradient', 'none');
     }
-
-    root.setAttribute('data-theme', theme.id);
-    root.setAttribute('data-theme-type', theme.type);
-    root.setAttribute('data-style', this.styleSelection);
-
-    // 风格包 token 必须最后注入（规范第九节）：本函数上文已 inline 写入了
-    // --radius-*/--shadow-*/--font-*/语义色，而 inline 优先级高于任何 [data-style]
-    // 样式块 —— 只有再次 inline 覆盖才能让风格包的取值生效（CSS 块仅供静态消费方）。
-    this.injectStylePackTokens(theme.type);
   }
 
+  /** 当前风格包的 token → inline CSS 变量（只写不清；清除由 injectCSSVariables 统一负责） */
   private injectStylePackTokens(mode: 'dark' | 'light'): void {
-    const vars = resolveStylePackTokens(this.styleSelection, mode);
     const root = document.documentElement;
+    const vars = resolveStylePackTokens(this.styleSelection, mode);
     for (const [name, value] of Object.entries(vars)) {
       root.style.setProperty(name, value);
     }
