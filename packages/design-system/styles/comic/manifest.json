@@ -1,0 +1,8 @@
+{
+  "id": "comic",
+  "name": "漫画风",
+  "description": "纸底 + 真黑墨 + 品牌橙。粗黑描边、右下硬投影、手绘感——像一页被墨线框住的分镜纸。",
+  "order": 10,
+  "default": false,
+  "modes": ["light", "dark"]
+}

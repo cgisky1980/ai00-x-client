@@ -17,6 +17,7 @@ import type { ShellInfo } from '@/tools/terminal/types/session';
 import {
   useTheme,
 } from '@/infrastructure/theme';
+import type { StylePackId } from '@/infrastructure/theme';
 import { useLanguageSelector } from '@/infrastructure/i18n';
 import type { LocaleId } from '@/infrastructure/i18n/types';
 import {
@@ -35,7 +36,7 @@ const log = createLogger('BasicsConfig');
 
 export function BasicsAppearanceSection() {
   const { t } = useTranslation('settings/basics');
-  const { isDark, isLight, themes, setTheme, loading } = useTheme();
+  const { isDark, isLight, themes, setTheme, stylePackId, stylePacks, setStylePack, loading } = useTheme();
   const { currentLanguage, supportedLocales, selectLanguage, isChanging } = useLanguageSelector();
 
   const handleThemeTypeToggle = useCallback(async () => {
@@ -45,6 +46,8 @@ export function BasicsAppearanceSection() {
       await setTheme(targetTheme.id);
     }
   }, [isDark, themes, setTheme]);
+
+  const activeStylePack = stylePacks.find((p) => p.id === stylePackId) ?? stylePacks[0];
 
   return (
     <div className="theme-config">
@@ -98,6 +101,32 @@ export function BasicsAppearanceSection() {
                 <Moon size={14} />
                 <span>{t('appearance.darkMode')}</span>
               </button>
+            </div>
+          </ConfigPageRow>
+          <ConfigPageRow
+            label={t('appearance.style', { defaultValue: 'Style' })}
+            description={
+              activeStylePack
+                ? t(`appearance.stylePacks.${activeStylePack.id}.description`, {
+                    defaultValue: activeStylePack.description,
+                  })
+                : t('appearance.styleRowHint', { defaultValue: 'Choose the overall visual style.' })
+            }
+            align="center"
+          >
+            <div className="theme-config__language-select">
+              <select
+                value={stylePackId}
+                onChange={(e) => setStylePack(e.target.value as StylePackId)}
+                disabled={loading}
+                className="theme-config__native-select"
+              >
+                {stylePacks.map((pack) => (
+                  <option key={pack.id} value={pack.id}>
+                    {t(`appearance.stylePacks.${pack.id}.name`, { defaultValue: pack.name })}
+                  </option>
+                ))}
+              </select>
             </div>
           </ConfigPageRow>
         </ConfigPageSection>
@@ -515,6 +544,8 @@ export function BasicsNotificationsSection() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const [dialogFailureNotify, setDialogFailureNotify] = useState(true);
+
   useEffect(() => {
     void (async () => {
       try {
@@ -522,6 +553,12 @@ export function BasicsNotificationsSection() {
         setDialogNotify(notify !== false);
       } catch {
         setDialogNotify(true);
+      }
+      try {
+        const fail = await configManager.getConfig<boolean>('app.notifications.dialog_failure_notify');
+        setDialogFailureNotify(fail !== false);
+      } catch {
+        setDialogFailureNotify(true);
       }
     })();
   }, []);
@@ -553,6 +590,29 @@ export function BasicsNotificationsSection() {
         <Switch
           checked={dialogNotify}
           onChange={(e) => { void handleDialogNotifyToggle(e.target.checked); }}
+          disabled={saving}
+        />
+      </ConfigPageRow>
+      <ConfigPageRow
+        label={t('notifications.dialogFailure.label')}
+        description={t('notifications.dialogFailure.description')}
+        align="center"
+      >
+        <Switch
+          checked={dialogFailureNotify}
+          onChange={(e) => {
+            setSaving(true);
+            configAPI
+              .setConfig('app.notifications.dialog_failure_notify', e.target.checked)
+              .then(() => {
+                setDialogFailureNotify(e.target.checked);
+                setMessage({ type: 'success', text: t('notifications.messages.saveSuccess') });
+              })
+              .catch(() => {
+                setMessage({ type: 'error', text: t('notifications.messages.saveFailed') });
+              })
+              .finally(() => setSaving(false));
+          }}
           disabled={saving}
         />
       </ConfigPageRow>

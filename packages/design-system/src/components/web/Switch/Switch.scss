@@ -61,7 +61,7 @@ html:not([data-theme-type='light']) .ai00-x-switch:hover:not(.ai00-x-switch--dis
     height: 20px;
     padding: var(--size-gap-0-5);
     background: transparent;
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: 10px;
     transition: all 0.2s ease;
     pointer-events: none;
@@ -88,7 +88,7 @@ html:not([data-theme-type='light']) .ai00-x-switch:hover:not(.ai00-x-switch--dis
     width: 16px;
     height: 16px;
     background: var(--element-bg-subtle);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: 50%;
     transition: all 0.2s ease;
     display: flex;
@@ -111,7 +111,7 @@ html:not([data-theme-type='light']) .ai00-x-switch:hover:not(.ai00-x-switch--dis
   }
 
   &__input:focus-visible + &__track {
-    outline: 2px solid var(--color-accent-400);
+    outline: 2px solid var(--style-focus-ring, var(--color-accent-400));
     outline-offset: 2px;
   }
 

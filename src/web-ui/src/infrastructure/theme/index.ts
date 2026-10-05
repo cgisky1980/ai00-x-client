@@ -15,7 +15,16 @@ export { ThemeService, themeService } from './core/ThemeService';
 export { monacoThemeSync } from './integrations/MonacoThemeSync';
 
 // State
-export { useThemeStore } from './store/themeStore';
+export { useThemeStore, stylePackList } from './store/themeStore';
+
+// 风格包（规范第九节）：注册表直接透出，供设置页枚举
+export {
+  stylePacks,
+  stylePackTokens,
+  resolveStylePackTokens,
+  DEFAULT_STYLE_PACK_ID,
+} from '@ai00-x/design-system/packs-meta';
+export type { StylePackId, StylePackMeta, StylePackTokenMap } from '@ai00-x/design-system/packs-meta';
 
 // React hooks
 export {

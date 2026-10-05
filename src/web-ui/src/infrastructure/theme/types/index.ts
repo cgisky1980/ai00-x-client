@@ -530,7 +530,9 @@ export type ThemeEventType =
   | 'theme:load'
   | 'theme:unload'
   | 'theme:register'
-  | 'theme:unregister';
+  | 'theme:unregister'
+  /** 风格包（第二正交轴，规范第九节）切换完成 */
+  | 'style:after-change';
 
  
 export interface ThemeEvent {

@@ -6,7 +6,7 @@
 .ai-prompt-input {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-base);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
   border-radius: var(--size-radius-lg);
   background: var(--element-bg-base);
   transition: border-color var(--motion-fast) var(--easing-standard),
@@ -93,7 +93,7 @@
   &__stop {
     background: transparent;
     color: var(--color-text-secondary);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     animation: ai-prompt-input-breath 1.6s ease-in-out infinite;
 
     svg {
@@ -110,7 +110,7 @@
 
   // ---- footer：左（模型选择/工具）右（辅助信息）分区 ----
   &__footer {
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
     padding: var(--size-gap-1) var(--size-gap-2);
     display: flex;
     align-items: center;

@@ -24,7 +24,7 @@
 
     &:hover { color: var(--color-text-primary); }
     &:focus-visible {
-      outline: 2px solid var(--color-accent-400);
+      outline: 2px solid var(--style-focus-ring, var(--color-accent-400));
       outline-offset: -2px;
     }
   }
@@ -93,7 +93,7 @@
   &__body-inner {
     position: relative;
     padding: var(--size-gap-2) var(--size-gap-3) var(--size-gap-3);
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
     font-size: var(--font-size-xs);
     line-height: 1.7;
     color: var(--color-text-muted);

@@ -25,7 +25,7 @@ html:not([data-theme-type='light']) .ai00-x-number-input--dragging .ai00-x-numbe
     display: flex;
     align-items: center;
     background: transparent;
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: var(--size-radius-sm);
     transition: all var(--motion-base) var(--easing-standard);
     overflow: hidden;
@@ -102,7 +102,7 @@ html:not([data-theme-type='light']) .ai00-x-number-input--dragging .ai00-x-numbe
   &__buttons {
     display: flex;
     flex-direction: column;
-    border-left: 1px solid var(--border-subtle);
+    border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
     position: relative;
     z-index: 1;
   }
@@ -139,7 +139,7 @@ html:not([data-theme-type='light']) .ai00-x-number-input--dragging .ai00-x-numbe
     }
 
     &--up {
-      border-bottom: 1px solid var(--border-subtle);
+      border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
       border-radius: 0 var(--size-radius-sm) 0 0;
     }
 
@@ -266,12 +266,12 @@ html:not([data-theme-type='light']) .ai00-x-number-input--dragging .ai00-x-numbe
       border: none;
 
       &--minus {
-        border-right: 1px solid var(--border-subtle);
+        border-right: var(--style-stroke-width, 1px) solid var(--border-subtle);
         border-radius: var(--size-radius-sm) 0 0 var(--size-radius-sm);
       }
 
       &--plus {
-        border-left: 1px solid var(--border-subtle);
+        border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
         border-radius: 0 var(--size-radius-sm) var(--size-radius-sm) 0;
       }
     }

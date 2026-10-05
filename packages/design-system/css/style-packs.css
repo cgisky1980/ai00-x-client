@@ -1,0 +1,5 @@
+/* @ai00-x/design-system 风格包聚合 — AUTO-GENERATED（勿手改）
+ * ⚠️ 必须在 tokens.css 与 components.css 之后引入：
+ *   前者让包 token 压过基底 token，后者让包组件形态压过基座组件样式。 */
+@import './style-packs/xindongfang.css';
+@import './style-packs/comic.css';

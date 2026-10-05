@@ -70,7 +70,7 @@ html:not([data-theme-type='light']) .ai00-x-checkbox:hover:not(.ai00-x-checkbox-
     width: 18px;
     height: 18px;
     background: transparent;
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: var(--size-radius-sm);
     transition: all 0.2s ease;
     pointer-events: none;
@@ -128,7 +128,7 @@ html:not([data-theme-type='light']) .ai00-x-checkbox:hover:not(.ai00-x-checkbox-
   }
 
   &__input:focus-visible + &__box {
-    outline: 2px solid var(--color-accent-400);
+    outline: 2px solid var(--style-focus-ring, var(--color-accent-400));
     outline-offset: 2px;
   }
 

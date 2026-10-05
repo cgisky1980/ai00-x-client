@@ -100,7 +100,7 @@
 
   &--line {
     .ai00-x-tabs__nav {
-      border-bottom: 1px solid var(--border-base);
+      border-bottom: var(--style-stroke-width, 1px) solid var(--border-base);
     }
 
     .ai00-x-tabs__tab {
@@ -133,7 +133,7 @@
       background: linear-gradient(135deg,
         var(--element-bg-base) 0%,
         var(--element-bg-soft) 100%);
-      border: 1px solid var(--border-base);
+      border: var(--style-stroke-width, 1px) solid var(--border-base);
       border-radius: var(--size-radius-base);
       padding: var(--size-gap-1);
       backdrop-filter: var(--blur-base);
@@ -149,7 +149,7 @@
           var(--element-bg-soft) 0%,
           var(--element-bg-base) 50%,
           var(--element-bg-soft) 100%);
-        border: 1px solid var(--border-base);
+        border: var(--style-stroke-width, 1px) solid var(--border-base);
         box-shadow: var(--shadow-sm), var(--inner-glow-top);
         color: var(--color-text-primary);
       }

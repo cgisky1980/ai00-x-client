@@ -138,6 +138,8 @@
   --input-height-lg: 48px;
   --header-height: 36px;
   --sidebar-width: 240px;
+  --style-stroke-width: 1px;
+  --style-focus-ring: var(--color-accent-400);
 
   /* ==== semantic · 暗色默认「深墨」（墨阶/黛青/朱砂） ==== */
   --color-bg-base: oklch(0.27 calc(var(--chroma-surface, 0.012) * 0.5) var(--hue-ink, 240));
@@ -381,7 +383,7 @@
 }
 
 /* ---------- 亮色主题「宣纸」：[data-theme-type="light"] 覆盖（变量名与暗色一一对应；ThemeService 挂 data-theme-type 于 html） ---------- */
-[data-theme-type='light'] {
+html[data-theme-type='light'] {
   color-scheme: light;
 
   /* ==== semantic · 亮色·宣纸（规范 4.1/4.5） ==== */

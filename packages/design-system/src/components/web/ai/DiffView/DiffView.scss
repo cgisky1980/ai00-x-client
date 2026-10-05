@@ -3,7 +3,7 @@
  * 语义色低透明底 + 实色符号/数字（明暗两档均达标，参照语义 bg/border token 强度）。
  */
 .ai-diff {
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-base);
   background: var(--color-bg-sunken);
   overflow: hidden;
@@ -16,7 +16,7 @@
     justify-content: space-between;
     gap: var(--size-gap-2);
     padding: var(--size-gap-1) var(--size-gap-3);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--element-bg-soft);
     font-size: var(--font-size-2xs);
   }

@@ -3,7 +3,7 @@
  * 沉底墨面 + mono；行号淡墨右对齐 tabular。
  */
 .ai-code {
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-base);
   background: var(--color-bg-sunken);
   overflow: hidden;
@@ -16,7 +16,7 @@
     justify-content: space-between;
     gap: var(--size-gap-2);
     padding: var(--size-gap-1) var(--size-gap-2) var(--size-gap-1) var(--size-gap-3);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--element-bg-soft);
   }
 
@@ -32,7 +32,7 @@
   &__copy {
     flex-shrink: 0;
     appearance: none;
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: var(--size-radius-sm);
     background: var(--element-bg-base);
     padding: var(--size-gap-0-5) var(--size-gap-2);

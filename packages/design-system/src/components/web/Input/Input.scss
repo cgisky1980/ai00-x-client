@@ -37,7 +37,7 @@
   &--default {
     .ai00-x-input-container {
       background: transparent;
-      border: 1px solid var(--border-base);
+      border: var(--style-stroke-width, 1px) solid var(--border-base);
     }
   }
 
@@ -65,7 +65,7 @@
   &--outlined {
     .ai00-x-input-container {
       background: transparent;
-      border: 1px solid var(--border-medium);
+      border: var(--style-stroke-width, 1px) solid var(--border-medium);
     }
   }
 

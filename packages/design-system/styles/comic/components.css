@@ -1,0 +1,183 @@
+/* ============================================================
+ * 漫画风（comic）· 风格专属组件形态（规范第九节 9.5）
+ *
+ * 形态语言取自参考站 discuss.flarum.org.cn/extensions 的实测设计语言：
+ *   「现代网格骨架 + 漫画贴纸细节」的克制派——
+ *   统一 2px 暖墨描边 / 零模糊硬偏移投影阶梯 / hover 上浮 4px 并加长投影 /
+ *   药丸标签 / 1px dashed 分隔线 / 小面积贴纸旋转（±2°~±7°）/ 无网点纹理。
+ *
+ * 作用域：全部规则自持 [data-style='comic'] 前缀（构建期原文追加到
+ * css/style-packs/comic.css 末尾，在 components.css 与各 BEM SCSS 之后，
+ * 故同特异性下可覆盖基座形态）。
+ *
+ * 分工纪律（规范 9.4/9.6）——能用 token 表达的绝不在本文件重复：
+ *   ✅ 描边色/宽   → tokens.json 覆盖 border.* + style.stroke.width = 2px
+ *   ✅ 硬投影阶梯  → tokens.json 覆盖 shadow.*（2/3 → 8/9px，零模糊）
+ *   ✅ 圆角        → tokens.json 覆盖 size.radius.* + radius.*（10/12/15/19/22px）
+ *   ✅ 焦点环      → tokens.json 覆盖 style.focus.ring（= 墨色）
+ *   ✅ 字重/字体   → tokens.json 覆盖 font.weight.semibold·bold（700/800）+ serif→sans
+ *   ✅ 交互色/高亮 → tokens.json 覆盖 color.accent.*（珊瑚深档）/ color.highlight.*（亮黄）
+ *   本文件只写"变量表达不了的形态"：hover 上浮、按下位移与投影收平、
+ *   药丸标签、贴纸旋转、虚线分隔、气泡尾巴。
+ * ============================================================ */
+
+/* ==================== 1. 卡片/贴纸面：hover 上浮 + 投影加长 ====================
+ * 参考站实测：hover `translateY(-4px)`，阴影 4px/5px → 5px/9px，
+ * transition transform/box-shadow .2s。卡片本身已有 2px 墨框（token 给定）。 */
+[data-style='comic'] .ds-card,
+[data-style='comic'] .v-card,
+[data-style='comic'] .ai-tool-card {
+  transition: transform var(--motion-base) var(--easing-standard),
+    box-shadow var(--motion-base) var(--easing-standard);
+}
+[data-style='comic'] .ds-card:hover,
+[data-style='comic'] .v-card:hover,
+[data-style='comic'] .ai-tool-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ==================== 2. 可按压控件：抬出 → 压平 ====================
+ * 贴纸手感：hover 抬出硬投影并微微上抬，:active 压平并右下位移，
+ * 按下投影收平到 `0 1px 0`（参考站实测同款）。 */
+[data-style='comic'] .ds-btn:not(:disabled),
+[data-style='comic'] .icon-btn:not(:disabled),
+[data-style='comic'] .ai-tool-card__btn:not(:disabled),
+[data-style='comic'] .ds-pagination__btn:not(:disabled) {
+  transition: transform var(--motion-instant) var(--easing-standard),
+    box-shadow var(--motion-instant) var(--easing-standard),
+    background-color var(--motion-fast) var(--easing-standard);
+}
+[data-style='comic'] .ds-btn:not(:disabled):hover,
+[data-style='comic'] .icon-btn:not(:disabled):hover,
+[data-style='comic'] .ai-tool-card__btn:not(:disabled):hover {
+  box-shadow: var(--shadow-xs);
+  transform: translateY(-2px);
+}
+[data-style='comic'] .ds-btn:not(:disabled):active,
+[data-style='comic'] .icon-btn:not(:disabled):active,
+[data-style='comic'] .ai-tool-card__btn:not(:disabled):active,
+[data-style='comic'] .ds-pagination__btn:not(:disabled):active {
+  box-shadow: 0 1px 0 var(--color-text-primary);
+  transform: translate(2px, 2px);
+}
+
+/* 主按钮 / 印章按钮：一律带墨框（贴纸感的来源） */
+[data-style='comic'] .ds-btn--primary,
+[data-style='comic'] .ds-btn--seal {
+  border: 2px solid var(--border-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ==================== 3. 表单控件：墨框 + 墨色焦点环 ====================
+ * 漫画风的输入框是"手写的格子"：2px 墨框、聚焦时出墨色环（不用柔光）。 */
+[data-style='comic'] .ai00-x-input:focus,
+[data-style='comic'] .ai00-x-textarea:focus,
+[data-style='comic'] .ai00-x-number-input:focus-within,
+[data-style='comic'] .ds-input:focus,
+[data-style='comic'] .ds-textarea:focus {
+  box-shadow: 0 0 0 2px var(--style-focus-ring, var(--color-text-primary));
+}
+
+/* 开关 / 复选框：墨框 + 小投影 */
+[data-style='comic'] .ai00-x-switch,
+[data-style='comic'] .ai00-x-checkbox__box {
+  box-shadow: var(--shadow-xs);
+}
+
+/* ==================== 4. 标签 / 徽章：药丸 + 小面积贴纸旋转 ====================
+ * 参考站标签＝底 #FFFDF7 + 1px 描边 + 20px 圆角（药丸）+ 3px/8px padding + 9px 字；
+ * 旋转只用在"图标块/徽章"这类小面积装饰（±2°），不做整块倾斜。 */
+[data-style='comic'] .tag,
+[data-style='comic'] .badge,
+[data-style='comic'] .ds-badge {
+  border: 1px solid var(--border-base);
+  border-radius: var(--size-radius-full);
+  padding: 3px var(--size-gap-2);
+  font-size: var(--font-size-xxs);
+  background-color: var(--color-bg-card);
+}
+[data-style='comic'] .badge,
+[data-style='comic'] .ds-badge {
+  transform: rotate(-2deg);
+}
+[data-style='comic'] .ds-avatar,
+[data-style='comic'] .v-card__icon,
+[data-style='comic'] .ai-tool-card__icon {
+  border: 2px solid var(--border-base);
+  border-radius: var(--size-radius-lg);
+  box-shadow: var(--shadow-xs);
+  transform: rotate(-3deg);
+}
+
+/* ==================== 5. 数据区：分格墨线与虚线 ====================
+ * 表格/树的线是"分格线"；分隔线用 1px dashed（参考站同款）。 */
+[data-style='comic'] .ds-table__head {
+  border-bottom-color: var(--border-base);
+}
+[data-style='comic'] .ds-tree__item--selected,
+[data-style='comic'] .ds-pagination__page--active {
+  border-color: var(--border-base);
+  box-shadow: var(--shadow-xs);
+}
+[data-style='comic'] .ds-separator--horizontal {
+  border-top: 1px dashed var(--border-subtle);
+  background-color: transparent;
+}
+
+/* ==================== 6. 浮层：投影收一档，避免糊出画框 ==================== */
+[data-style='comic'] .modal,
+[data-style='comic'] .confirm-dialog,
+[data-style='comic'] .input-dialog,
+[data-style='comic'] .ds-dialog,
+[data-style='comic'] .ds-popover,
+[data-style='comic'] .ds-menu,
+[data-style='comic'] .ds-tooltip,
+[data-style='comic'] .ai00-x-tooltip,
+[data-style='comic'] .ds-drawer__content,
+[data-style='comic'] .ds-toast {
+  border: 2px solid var(--border-base);
+}
+
+/* ==================== 7. 滚动条：墨块而非药丸 ==================== */
+[data-style='comic'] .ds-scroll-area__thumb {
+  border-radius: 0;
+  box-shadow: var(--shadow-xs);
+}
+
+/* ==================== 8. 对话气泡：手绘尾巴 ====================
+ * 参考站是列表页、无对话 UI，此处按漫画分镜语言补：尾巴用旋转方块 + 两条墨边。 */
+[data-style='comic'] .ai-msg__bubble {
+  position: relative;
+  overflow: visible;
+  border: 2px solid var(--border-base);
+}
+[data-style='comic'] .ai-msg__bubble::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  bottom: -8px;
+  width: 13px;
+  height: 13px;
+  background-color: inherit;
+  border-right: 2px solid var(--border-base);
+  border-bottom: 2px solid var(--border-base);
+  transform: rotate(45deg) skew(8deg, 8deg);
+}
+
+/* ==================== 9. 动效克制（规范 9.2 契约） ====================
+ * 漫画风不加新动效；位移反馈在 reduce 模式下退化为纯颜色变化。 */
+@media (prefers-reduced-motion: reduce) {
+  [data-style='comic'] .ds-card:hover,
+  [data-style='comic'] .v-card:hover,
+  [data-style='comic'] .ai-tool-card:hover,
+  [data-style='comic'] .ds-btn:not(:disabled):hover,
+  [data-style='comic'] .icon-btn:not(:disabled):hover,
+  [data-style='comic'] .ai-tool-card__btn:not(:disabled):hover,
+  [data-style='comic'] .ds-btn:not(:disabled):active,
+  [data-style='comic'] .icon-btn:not(:disabled):active,
+  [data-style='comic'] .ai-tool-card__btn:not(:disabled):active,
+  [data-style='comic'] .ds-pagination__btn:not(:disabled):active {
+    transform: none;
+  }
+}

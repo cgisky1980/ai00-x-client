@@ -40,6 +40,18 @@
     "darkMode": "Dark",
     "mode": "Mode",
     "modeRowHint": "Switch between light and dark mode.",
+    "style": "Style",
+    "styleRowHint": "Choose the overall visual style. Combines freely with light/dark mode.",
+    "stylePacks": {
+      "xindongfang": {
+        "name": "Neo-Oriental Minimal",
+        "description": "Ink as bone, cyan as spirit, vermilion as seal, paper as breath. The default brand style."
+      },
+      "comic": {
+        "name": "Comic",
+        "description": "Paper base, true-black ink, brand orange. Bold outlines, hard offset shadows, hand-drawn feel."
+      }
+    },
     "systemTheme": "Match system",
     "systemThemeDescription": "Use light or dark theme based on your OS appearance. Updates when the system switches.",
     "presets": {
@@ -170,6 +182,10 @@
     "messages": {
       "saveSuccess": "Notification settings saved",
       "saveFailed": "Failed to save notification settings"
+    },
+    "dialogFailure": {
+      "label": "Notify on task failure",
+      "description": "Show a system notification when a background task fails (no task content)"
     }
   },
   "smartDesktop": {

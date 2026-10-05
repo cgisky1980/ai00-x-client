@@ -99,7 +99,7 @@
     padding: var(--size-gap-3) var(--size-gap-5);
     border-radius: var(--size-radius-base);
     background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
   }
 
   &__bullet-list li {
@@ -130,7 +130,7 @@
     margin-top: var(--size-gap-3);
     padding: var(--size-gap-3) var(--size-gap-4);
     background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
     border-radius: var(--size-radius-base);
     text-align: left;
     overflow: auto;
@@ -154,7 +154,7 @@
     justify-content: flex-end;
     align-items: center;
     padding: var(--size-gap-4) var(--size-gap-6) var(--size-gap-5);
-    border-top: 1px solid var(--color-border);
+    border-top: var(--style-stroke-width, 1px) solid var(--color-border);
 
     .btn {
       min-width: 88px;

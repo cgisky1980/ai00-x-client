@@ -53,7 +53,7 @@ $modal-edge-gutter-sm: 10px;
   display: flex;
   flex-direction: column;
   background: var(--color-bg-modal);
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-lg);
   box-shadow: var(--shadow-xl);
   max-height: calc(100vh - 48px);
@@ -115,7 +115,7 @@ $modal-edge-gutter-sm: 10px;
     justify-content: flex-start;
     gap: var(--size-gap-1-5);
     padding: var(--size-gap-1-5) $modal-edge-gutter;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: transparent;
 
     &--draggable {

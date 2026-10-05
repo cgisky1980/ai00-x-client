@@ -22,12 +22,12 @@
     align-items: center;
     gap: var(--size-gap-2);
     padding: var(--size-gap-2-5) var(--size-gap-5) var(--size-gap-3);
-    border-top: 1px solid var(--border-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 
     // Give buttons explicit borders for visual consistency with the input field
     .btn {
       min-width: 68px;
-      border: 1px solid var(--border-base);
+      border: var(--style-stroke-width, 1px) solid var(--border-base);
 
       &-primary {
         border-color: var(--color-accent-400);

@@ -1,4 +1,4 @@
-/* @ai00-x/design-system standalone — AUTO-GENERATED（tokens + 纸纹 + 动效 + 组件，单文件内联用） */
+/* @ai00-x/design-system standalone — AUTO-GENERATED（tokens + 纸纹 + 动效 + 组件 + 风格包，单文件内联用） */
 /* ============================================================
  * @ai00-x/design-system tokens — AUTO-GENERATED（pnpm build 产物，勿手改）
  * 源：tokens/{primitives,semantic.dark,semantic.light,aliases}.json（DTCG 2025.10）
@@ -139,6 +139,8 @@
   --input-height-lg: 48px;
   --header-height: 36px;
   --sidebar-width: 240px;
+  --style-stroke-width: 1px;
+  --style-focus-ring: var(--color-accent-400);
 
   /* ==== semantic · 暗色默认「深墨」（墨阶/黛青/朱砂） ==== */
   --color-bg-base: oklch(0.27 calc(var(--chroma-surface, 0.012) * 0.5) var(--hue-ink, 240));
@@ -382,7 +384,7 @@
 }
 
 /* ---------- 亮色主题「宣纸」：[data-theme-type="light"] 覆盖（变量名与暗色一一对应；ThemeService 挂 data-theme-type 于 html） ---------- */
-[data-theme-type='light'] {
+html[data-theme-type='light'] {
   color-scheme: light;
 
   /* ==== semantic · 亮色·宣纸（规范 4.1/4.5） ==== */
@@ -717,7 +719,7 @@ body {
     transform var(--motion-instant) var(--easing-standard);
 }
 .ds-btn:focus-visible {
-  outline: 2px solid var(--color-accent-400);
+  outline: 2px solid var(--style-focus-ring, var(--color-accent-400));
   outline-offset: 2px;
 }
 .ds-btn:disabled {
@@ -880,7 +882,7 @@ body {
   height: var(--input-height-base);
   padding: 0 var(--size-gap-3);
   background: var(--input-bg);
-  border: 1px solid var(--input-border);
+  border: var(--style-stroke-width, 1px) solid var(--input-border);
   border-radius: var(--size-radius-sm);
   color: var(--input-text);
   font-family: var(--font-family-sans);
@@ -894,7 +896,7 @@ body {
   outline: none;
   border-color: var(--input-border-focus);
   background: var(--input-bg-focus);
-  box-shadow: 0 0 0 1.5px var(--color-accent-400);
+  box-shadow: 0 0 0 1.5px var(--style-focus-ring, var(--color-accent-400));
 }
 .ds-input:disabled { background: var(--input-bg-disabled); opacity: var(--opacity-disabled); cursor: default; }
 .ds-textarea { height: auto; min-height: 72px; padding: var(--size-gap-2) var(--size-gap-3); resize: vertical; line-height: var(--line-height-base); }
@@ -906,7 +908,7 @@ body {
   min-width: 180px;
   padding: var(--size-gap-1);
   background: var(--color-bg-overlay);
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   border-radius: var(--size-radius-lg);
   box-shadow: var(--shadow-lg);
   backdrop-filter: var(--blur-base);
@@ -975,7 +977,7 @@ body {
   max-width: 280px;
   padding: var(--size-gap-1) var(--size-gap-2);
   background: var(--color-bg-overlay);
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   border-radius: var(--size-radius-sm);
   box-shadow: var(--shadow-base);
   backdrop-filter: var(--blur-base);
@@ -1009,7 +1011,7 @@ body {
   gap: var(--size-gap-2);
   padding: var(--size-gap-3) var(--size-gap-3) var(--size-gap-3) var(--size-gap-4);
   background: var(--color-bg-overlay);
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   border-left-width: 2px;
   border-radius: var(--size-radius-base);
   box-shadow: var(--shadow-lg);
@@ -1194,7 +1196,7 @@ body {
   max-width: 400px;
   padding: var(--size-gap-6);
   background: var(--color-bg-overlay);
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   border-radius: var(--size-radius-lg);
   box-shadow: var(--shadow-xl);
   backdrop-filter: var(--blur-base);
@@ -1227,7 +1229,7 @@ body {
 .ds-table-wrap {
   width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-base);
   background: var(--color-bg-card);
 }
@@ -1244,7 +1246,7 @@ body {
   text-align: left;
 }
 .ds-table__head th { padding: var(--size-gap-3) var(--size-gap-4); }
-.ds-table__row { border-top: 1px solid var(--border-subtle); }
+.ds-table__row { border-top: var(--style-stroke-width, 1px) solid var(--border-subtle); }
 .ds-table__row:first-child { border-top: none; }
 .ds-table__row:hover { background: var(--color-accent-50); }
 .ds-table__cell { padding: var(--size-gap-3) var(--size-gap-4); }
@@ -1265,7 +1267,7 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--color-bg-overlay);
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   box-shadow: var(--shadow-xl);
   backdrop-filter: var(--blur-base);
   -webkit-backdrop-filter: var(--blur-base);
@@ -1324,7 +1326,7 @@ body {
   transition: background-color var(--motion-instant) var(--easing-standard), color var(--motion-instant) var(--easing-standard);
 }
 .ds-drawer__close:hover { background: var(--element-bg-base); color: var(--color-text-primary); }
-.ds-drawer__header { padding: var(--size-gap-5) var(--size-gap-6) var(--size-gap-4); border-bottom: 1px solid var(--border-subtle); }
+.ds-drawer__header { padding: var(--size-gap-5) var(--size-gap-6) var(--size-gap-4); border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle); }
 .ds-drawer__title { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); }
 .ds-drawer__desc { margin-top: var(--size-gap-1); font-size: var(--font-size-sm); color: var(--color-text-muted); }
 .ds-drawer__body { flex: 1; overflow-y: auto; padding: var(--size-gap-5) var(--size-gap-6); }
@@ -1537,7 +1539,7 @@ body {
   border-radius: var(--size-radius-full);
   margin-top: 6px;
   background: var(--element-bg-medium);
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   transition: background-color var(--motion-fast) var(--easing-standard),
     box-shadow var(--motion-fast) var(--easing-standard);
 }
@@ -1607,14 +1609,14 @@ body {
 .ds-collapse {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border-subtle);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-lg);
   background-color: var(--color-bg-card);
   background-image: var(--ds-paper-grain);
   overflow: hidden;
 }
 .ds-collapse__item + .ds-collapse__item {
-  border-top: 1px solid var(--border-subtle);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
 }
 .ds-collapse__header {
   display: flex;
@@ -1636,7 +1638,7 @@ body {
   background: var(--element-bg-subtle);
 }
 .ds-collapse__header:focus-visible {
-  outline: 2px solid var(--color-accent-400);
+  outline: 2px solid var(--style-focus-ring, var(--color-accent-400));
   outline-offset: -2px;
 }
 .ds-collapse__item.is-disabled .ds-collapse__header {
@@ -1700,7 +1702,7 @@ body {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   background: var(--element-bg-medium);
-  border: 1px solid var(--border-medium);
+  border: var(--style-stroke-width, 1px) solid var(--border-medium);
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
   transition: background-color var(--motion-fast) var(--easing-standard),
@@ -1779,5 +1781,398 @@ body {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+/* ============================================================
+ * @ai00-x/design-system style pack — 新东方极简 (xindongfang)
+ * AUTO-GENERATED（pnpm build 产物，勿手改）｜ 源：styles/xindongfang/
+ * 规范第九节：html[data-style='xindongfang'] 覆盖基底 token；文件末尾为该风格专属组件形态
+ * ============================================================ */
+
+/* 默认风格：零覆盖（基底 tokens 即本风格本身） */
+html[data-style='xindongfang'] {}
+
+/* ---- styles/xindongfang/components.css（风格专属组件形态） ---- */
+/* ============================================================
+ * 默认风格（新东方极简）· 风格专属组件形态 —— 刻意为空
+ *
+ * 本风格就是组件基座本身（css/components.css + web 系 BEM SCSS），
+ * 没有任何"只在默认风格下才成立"的额外形态，因此无需任何规则。
+ * 其他风格包在此文件写 [data-style='<id>'] 作用域内的形态覆盖；
+ * 基座组件形态差异请优先用 --style-* 形态变量表达（规范 9.4）。
+ * ============================================================ */
+
+/* ============================================================
+ * @ai00-x/design-system style pack — 漫画风 (comic)
+ * AUTO-GENERATED（pnpm build 产物，勿手改）｜ 源：styles/comic/
+ * 规范第九节：html[data-style='comic'] 覆盖基底 token；文件末尾为该风格专属组件形态
+ * ============================================================ */
+
+/* 全模式覆盖（明暗通用；在 tokens.css 之后引入，故可压过 [data-theme-type='light'] 块） */
+html[data-style='comic'] {
+  --style-stroke-width: 2px;
+  --style-focus-ring: var(--color-text-primary);
+  --size-radius-sm: 10px;
+  --size-radius-base: 12px;
+  --size-radius-lg: 15px;
+  --size-radius-xl: 19px;
+  --size-radius-2xl: 22px;
+  --radius-sm: var(--size-radius-sm);
+  --radius-base: var(--size-radius-base);
+  --radius-lg: var(--size-radius-lg);
+  --radius-xl: var(--size-radius-xl);
+  --radius-2xl: var(--size-radius-2xl);
+  --shadow-xs: 2px 3px 0 var(--color-text-primary);
+  --shadow-sm: 3px 4px 0 var(--color-text-primary);
+  --shadow-base: 4px 5px 0 var(--color-text-primary);
+  --shadow-lg: 5px 6px 0 var(--color-text-primary);
+  --shadow-xl: 6px 7px 0 var(--color-text-primary);
+  --shadow-2xl: 8px 9px 0 var(--color-text-primary);
+  --font-family-serif: var(--font-family-sans);
+  --font-weight-semibold: 700;
+  --font-weight-bold: 800;
+}
+
+html[data-style='comic'][data-theme-type='light'] {
+  --color-bg-base: #FFF4DD;
+  --color-bg-sunken: #F7E9C9;
+  --color-bg-card: #FFFDF7;
+  --color-bg-overlay: #FFFEFB;
+  --color-bg-modal: #FFFEFB;
+  --color-bg-workbench: #F8ECD1;
+  --color-bg-scene: #FAF1DA;
+  --color-bg-tooltip: #FFFDF7;
+  --color-text-primary: #29261F;
+  --color-text-secondary: #69614F;
+  --color-text-muted: #8B8270;
+  --color-text-disabled: #ADA48F;
+  --color-accent-50: #FCEBDD;
+  --color-accent-100: #F7D2B8;
+  --color-accent-200: #EDA87E;
+  --color-accent-300: #E0703A;
+  --color-accent-400: #D2521B;
+  --color-accent-500: #B8461A;
+  --color-accent-600: #9E3A12;
+  --color-accent-700: #85300E;
+  --color-accent-800: #6A260A;
+  --color-accent-foreground: #FFFDF7;
+  --color-brand-seal: #A8382A;
+  --color-brand-seal-foreground: #FFFDF7;
+  --color-brand-seal-hover: #8E2E22;
+  --color-success-solid: #1F7A4D;
+  --color-success-bg: rgba(31, 122, 77, 0.14);
+  --color-success-border: rgba(31, 122, 77, 0.55);
+  --color-warning-solid: #8A6000;
+  --color-warning-bg: rgba(138, 96, 0, 0.14);
+  --color-warning-border: rgba(138, 96, 0, 0.55);
+  --color-error-solid: #B3261E;
+  --color-error-bg: rgba(179, 38, 30, 0.14);
+  --color-error-border: rgba(179, 38, 30, 0.55);
+  --color-info-solid: #17658B;
+  --color-info-bg: rgba(23, 101, 139, 0.12);
+  --color-info-border: rgba(23, 101, 139, 0.50);
+  --color-highlight-solid: #FFE071;
+  --color-highlight-bg: rgba(255, 224, 113, 0.40);
+  --color-overlay: rgba(41, 38, 31, 0.45);
+  --color-feedback-star: #D9A400;
+  --element-bg-subtle: rgba(41, 38, 31, 0.06);
+  --element-bg-soft: rgba(41, 38, 31, 0.09);
+  --element-bg-base: rgba(41, 38, 31, 0.12);
+  --element-bg-medium: rgba(41, 38, 31, 0.18);
+  --element-bg-strong: rgba(41, 38, 31, 0.26);
+  --element-bg-elevated: rgba(41, 38, 31, 0.10);
+  --border-subtle: rgba(41, 38, 31, 0.35);
+  --border-base: #29261F;
+  --border-medium: #29261F;
+  --border-strong: #29261F;
+  --border-prominent: #29261F;
+  --border-accent-solid: rgba(184, 70, 26, 0.55);
+  --border-accent-soft: rgba(184, 70, 26, 0.45);
+  --border-accent-subtle: rgba(184, 70, 26, 0.25);
+  --border-accent-strong: rgba(184, 70, 26, 0.75);
+  --card-bg-default: rgba(255, 253, 247, 0.92);
+  --card-bg-elevated: rgba(255, 254, 251, 0.98);
+  --card-bg-subtle: rgba(255, 253, 247, 0.70);
+  --card-bg-hover: rgba(255, 254, 251, 0.96);
+  --card-bg-active: rgba(255, 255, 255, 1.00);
+  --card-bg-accent: rgba(184, 70, 26, 0.12);
+  --card-bg-accent-hover: rgba(184, 70, 26, 0.20);
+  --input-bg: #FFFDF7;
+  --input-bg-hover: #FFFEFB;
+  --input-bg-focus: #FFFEFB;
+  --input-bg-disabled: rgba(41, 38, 31, 0.05);
+  --scrollbar-thumb: rgba(41, 38, 31, 0.25);
+  --scrollbar-thumb-hover: rgba(41, 38, 31, 0.40);
+  --modal-overlay: rgba(41, 38, 31, 0.50);
+  --badge-accent-bg: rgba(184, 70, 26, 0.14);
+  --color-success: var(--color-success-solid);
+  --color-warning: var(--color-warning-solid);
+  --color-error: var(--color-error-solid);
+  --color-info: var(--color-info-solid);
+  --color-highlight: var(--color-highlight-solid);
+}
+
+html[data-style='comic'][data-theme-type='dark'] {
+  --color-bg-base: #221C14;
+  --color-bg-sunken: #1B1610;
+  --color-bg-card: #2C251B;
+  --color-bg-overlay: #332B20;
+  --color-bg-modal: #3A3126;
+  --color-bg-workbench: #191410;
+  --color-bg-scene: #262019;
+  --color-bg-tooltip: #3A3126;
+  --color-text-primary: #F3EAD3;
+  --color-text-secondary: #D6CCB2;
+  --color-text-muted: #A79D86;
+  --color-text-disabled: #7C7462;
+  --color-accent-50: #3A2418;
+  --color-accent-100: #4D2E1B;
+  --color-accent-200: #6B3D20;
+  --color-accent-300: #B35F2A;
+  --color-accent-400: #D97636;
+  --color-accent-500: #E86E2E;
+  --color-accent-600: #F7A06A;
+  --color-accent-700: #FBB98D;
+  --color-accent-800: #FDD3B3;
+  --color-accent-foreground: #1A150C;
+  --color-brand-seal: #E0553A;
+  --color-brand-seal-foreground: #1A150C;
+  --color-brand-seal-hover: #EF6A4F;
+  --color-success-solid: #4ECB8B;
+  --color-success-bg: rgba(78, 203, 139, 0.14);
+  --color-success-border: rgba(78, 203, 139, 0.50);
+  --color-warning-solid: #E8A33D;
+  --color-warning-bg: rgba(232, 163, 61, 0.14);
+  --color-warning-border: rgba(232, 163, 61, 0.50);
+  --color-error-solid: #FF6B5E;
+  --color-error-bg: rgba(255, 107, 94, 0.14);
+  --color-error-border: rgba(255, 107, 94, 0.50);
+  --color-info-solid: #9FB3D9;
+  --color-info-bg: rgba(159, 179, 217, 0.14);
+  --color-info-border: rgba(159, 179, 217, 0.45);
+  --color-highlight-solid: #FFE071;
+  --color-highlight-bg: rgba(255, 224, 113, 0.22);
+  --color-overlay: rgba(0, 0, 0, 0.70);
+  --color-feedback-star: #FFD24A;
+  --element-bg-subtle: rgba(243, 234, 211, 0.06);
+  --element-bg-soft: rgba(243, 234, 211, 0.09);
+  --element-bg-base: rgba(243, 234, 211, 0.12);
+  --element-bg-medium: rgba(243, 234, 211, 0.18);
+  --element-bg-strong: rgba(243, 234, 211, 0.26);
+  --element-bg-elevated: rgba(243, 234, 211, 0.10);
+  --border-subtle: rgba(243, 234, 211, 0.30);
+  --border-base: rgba(243, 234, 211, 0.80);
+  --border-medium: rgba(243, 234, 211, 0.90);
+  --border-strong: rgba(243, 234, 211, 0.95);
+  --border-prominent: rgba(243, 234, 211, 1.00);
+  --border-accent-solid: rgba(232, 110, 46, 0.60);
+  --border-accent-soft: rgba(232, 110, 46, 0.45);
+  --border-accent-subtle: rgba(232, 110, 46, 0.25);
+  --border-accent-strong: rgba(232, 110, 46, 0.80);
+  --card-bg-default: rgba(243, 234, 211, 0.05);
+  --card-bg-elevated: rgba(243, 234, 211, 0.08);
+  --card-bg-subtle: rgba(243, 234, 211, 0.03);
+  --card-bg-hover: rgba(243, 234, 211, 0.09);
+  --card-bg-active: rgba(243, 234, 211, 0.13);
+  --card-bg-accent: rgba(232, 110, 46, 0.16);
+  --card-bg-accent-hover: rgba(232, 110, 46, 0.26);
+  --input-bg: rgba(243, 234, 211, 0.05);
+  --input-bg-hover: rgba(243, 234, 211, 0.08);
+  --input-bg-focus: rgba(243, 234, 211, 0.08);
+  --input-bg-disabled: rgba(243, 234, 211, 0.03);
+  --scrollbar-thumb: rgba(243, 234, 211, 0.25);
+  --scrollbar-thumb-hover: rgba(243, 234, 211, 0.40);
+  --modal-overlay: rgba(0, 0, 0, 0.75);
+  --badge-accent-bg: rgba(232, 110, 46, 0.16);
+  --color-success: var(--color-success-solid);
+  --color-warning: var(--color-warning-solid);
+  --color-error: var(--color-error-solid);
+  --color-info: var(--color-info-solid);
+  --color-highlight: var(--color-highlight-solid);
+}
+
+/* ---- styles/comic/components.css（风格专属组件形态） ---- */
+/* ============================================================
+ * 漫画风（comic）· 风格专属组件形态（规范第九节 9.5）
+ *
+ * 形态语言取自参考站 discuss.flarum.org.cn/extensions 的实测设计语言：
+ *   「现代网格骨架 + 漫画贴纸细节」的克制派——
+ *   统一 2px 暖墨描边 / 零模糊硬偏移投影阶梯 / hover 上浮 4px 并加长投影 /
+ *   药丸标签 / 1px dashed 分隔线 / 小面积贴纸旋转（±2°~±7°）/ 无网点纹理。
+ *
+ * 作用域：全部规则自持 [data-style='comic'] 前缀（构建期原文追加到
+ * css/style-packs/comic.css 末尾，在 components.css 与各 BEM SCSS 之后，
+ * 故同特异性下可覆盖基座形态）。
+ *
+ * 分工纪律（规范 9.4/9.6）——能用 token 表达的绝不在本文件重复：
+ *   ✅ 描边色/宽   → tokens.json 覆盖 border.* + style.stroke.width = 2px
+ *   ✅ 硬投影阶梯  → tokens.json 覆盖 shadow.*（2/3 → 8/9px，零模糊）
+ *   ✅ 圆角        → tokens.json 覆盖 size.radius.* + radius.*（10/12/15/19/22px）
+ *   ✅ 焦点环      → tokens.json 覆盖 style.focus.ring（= 墨色）
+ *   ✅ 字重/字体   → tokens.json 覆盖 font.weight.semibold·bold（700/800）+ serif→sans
+ *   ✅ 交互色/高亮 → tokens.json 覆盖 color.accent.*（珊瑚深档）/ color.highlight.*（亮黄）
+ *   本文件只写"变量表达不了的形态"：hover 上浮、按下位移与投影收平、
+ *   药丸标签、贴纸旋转、虚线分隔、气泡尾巴。
+ * ============================================================ */
+
+/* ==================== 1. 卡片/贴纸面：hover 上浮 + 投影加长 ====================
+ * 参考站实测：hover `translateY(-4px)`，阴影 4px/5px → 5px/9px，
+ * transition transform/box-shadow .2s。卡片本身已有 2px 墨框（token 给定）。 */
+[data-style='comic'] .ds-card,
+[data-style='comic'] .v-card,
+[data-style='comic'] .ai-tool-card {
+  transition: transform var(--motion-base) var(--easing-standard),
+    box-shadow var(--motion-base) var(--easing-standard);
+}
+[data-style='comic'] .ds-card:hover,
+[data-style='comic'] .v-card:hover,
+[data-style='comic'] .ai-tool-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ==================== 2. 可按压控件：抬出 → 压平 ====================
+ * 贴纸手感：hover 抬出硬投影并微微上抬，:active 压平并右下位移，
+ * 按下投影收平到 `0 1px 0`（参考站实测同款）。 */
+[data-style='comic'] .ds-btn:not(:disabled),
+[data-style='comic'] .icon-btn:not(:disabled),
+[data-style='comic'] .ai-tool-card__btn:not(:disabled),
+[data-style='comic'] .ds-pagination__btn:not(:disabled) {
+  transition: transform var(--motion-instant) var(--easing-standard),
+    box-shadow var(--motion-instant) var(--easing-standard),
+    background-color var(--motion-fast) var(--easing-standard);
+}
+[data-style='comic'] .ds-btn:not(:disabled):hover,
+[data-style='comic'] .icon-btn:not(:disabled):hover,
+[data-style='comic'] .ai-tool-card__btn:not(:disabled):hover {
+  box-shadow: var(--shadow-xs);
+  transform: translateY(-2px);
+}
+[data-style='comic'] .ds-btn:not(:disabled):active,
+[data-style='comic'] .icon-btn:not(:disabled):active,
+[data-style='comic'] .ai-tool-card__btn:not(:disabled):active,
+[data-style='comic'] .ds-pagination__btn:not(:disabled):active {
+  box-shadow: 0 1px 0 var(--color-text-primary);
+  transform: translate(2px, 2px);
+}
+
+/* 主按钮 / 印章按钮：一律带墨框（贴纸感的来源） */
+[data-style='comic'] .ds-btn--primary,
+[data-style='comic'] .ds-btn--seal {
+  border: 2px solid var(--border-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ==================== 3. 表单控件：墨框 + 墨色焦点环 ====================
+ * 漫画风的输入框是"手写的格子"：2px 墨框、聚焦时出墨色环（不用柔光）。 */
+[data-style='comic'] .ai00-x-input:focus,
+[data-style='comic'] .ai00-x-textarea:focus,
+[data-style='comic'] .ai00-x-number-input:focus-within,
+[data-style='comic'] .ds-input:focus,
+[data-style='comic'] .ds-textarea:focus {
+  box-shadow: 0 0 0 2px var(--style-focus-ring, var(--color-text-primary));
+}
+
+/* 开关 / 复选框：墨框 + 小投影 */
+[data-style='comic'] .ai00-x-switch,
+[data-style='comic'] .ai00-x-checkbox__box {
+  box-shadow: var(--shadow-xs);
+}
+
+/* ==================== 4. 标签 / 徽章：药丸 + 小面积贴纸旋转 ====================
+ * 参考站标签＝底 #FFFDF7 + 1px 描边 + 20px 圆角（药丸）+ 3px/8px padding + 9px 字；
+ * 旋转只用在"图标块/徽章"这类小面积装饰（±2°），不做整块倾斜。 */
+[data-style='comic'] .tag,
+[data-style='comic'] .badge,
+[data-style='comic'] .ds-badge {
+  border: 1px solid var(--border-base);
+  border-radius: var(--size-radius-full);
+  padding: 3px var(--size-gap-2);
+  font-size: var(--font-size-xxs);
+  background-color: var(--color-bg-card);
+}
+[data-style='comic'] .badge,
+[data-style='comic'] .ds-badge {
+  transform: rotate(-2deg);
+}
+[data-style='comic'] .ds-avatar,
+[data-style='comic'] .v-card__icon,
+[data-style='comic'] .ai-tool-card__icon {
+  border: 2px solid var(--border-base);
+  border-radius: var(--size-radius-lg);
+  box-shadow: var(--shadow-xs);
+  transform: rotate(-3deg);
+}
+
+/* ==================== 5. 数据区：分格墨线与虚线 ====================
+ * 表格/树的线是"分格线"；分隔线用 1px dashed（参考站同款）。 */
+[data-style='comic'] .ds-table__head {
+  border-bottom-color: var(--border-base);
+}
+[data-style='comic'] .ds-tree__item--selected,
+[data-style='comic'] .ds-pagination__page--active {
+  border-color: var(--border-base);
+  box-shadow: var(--shadow-xs);
+}
+[data-style='comic'] .ds-separator--horizontal {
+  border-top: 1px dashed var(--border-subtle);
+  background-color: transparent;
+}
+
+/* ==================== 6. 浮层：投影收一档，避免糊出画框 ==================== */
+[data-style='comic'] .modal,
+[data-style='comic'] .confirm-dialog,
+[data-style='comic'] .input-dialog,
+[data-style='comic'] .ds-dialog,
+[data-style='comic'] .ds-popover,
+[data-style='comic'] .ds-menu,
+[data-style='comic'] .ds-tooltip,
+[data-style='comic'] .ai00-x-tooltip,
+[data-style='comic'] .ds-drawer__content,
+[data-style='comic'] .ds-toast {
+  border: 2px solid var(--border-base);
+}
+
+/* ==================== 7. 滚动条：墨块而非药丸 ==================== */
+[data-style='comic'] .ds-scroll-area__thumb {
+  border-radius: 0;
+  box-shadow: var(--shadow-xs);
+}
+
+/* ==================== 8. 对话气泡：手绘尾巴 ====================
+ * 参考站是列表页、无对话 UI，此处按漫画分镜语言补：尾巴用旋转方块 + 两条墨边。 */
+[data-style='comic'] .ai-msg__bubble {
+  position: relative;
+  overflow: visible;
+  border: 2px solid var(--border-base);
+}
+[data-style='comic'] .ai-msg__bubble::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  bottom: -8px;
+  width: 13px;
+  height: 13px;
+  background-color: inherit;
+  border-right: 2px solid var(--border-base);
+  border-bottom: 2px solid var(--border-base);
+  transform: rotate(45deg) skew(8deg, 8deg);
+}
+
+/* ==================== 9. 动效克制（规范 9.2 契约） ====================
+ * 漫画风不加新动效；位移反馈在 reduce 模式下退化为纯颜色变化。 */
+@media (prefers-reduced-motion: reduce) {
+  [data-style='comic'] .ds-card:hover,
+  [data-style='comic'] .v-card:hover,
+  [data-style='comic'] .ai-tool-card:hover,
+  [data-style='comic'] .ds-btn:not(:disabled):hover,
+  [data-style='comic'] .icon-btn:not(:disabled):hover,
+  [data-style='comic'] .ai-tool-card__btn:not(:disabled):hover,
+  [data-style='comic'] .ds-btn:not(:disabled):active,
+  [data-style='comic'] .icon-btn:not(:disabled):active,
+  [data-style='comic'] .ai-tool-card__btn:not(:disabled):active,
+  [data-style='comic'] .ds-pagination__btn:not(:disabled):active {
+    transform: none;
+  }
 }
 

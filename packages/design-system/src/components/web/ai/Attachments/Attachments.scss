@@ -25,7 +25,7 @@
     height: 56px;
     object-fit: cover;
     border-radius: var(--size-radius-base);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     background: var(--element-bg-soft);
 
     &.is-loading {
@@ -38,7 +38,7 @@
     align-items: center;
     gap: var(--size-gap-1-5);
     padding: var(--size-gap-1-5) var(--size-gap-2-5);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: var(--size-radius-base);
     background: var(--element-bg-soft);
     font-size: var(--font-size-xs);
@@ -76,7 +76,7 @@
     width: 18px;
     height: 18px;
     border-radius: var(--size-radius-full);
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     background: var(--color-bg-primary);
     color: var(--color-text-secondary);
     cursor: pointer;

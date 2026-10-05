@@ -34,7 +34,7 @@
 
     background: var(--color-bg-tooltip);
 
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: var(--size-radius-sm);
 
     backdrop-filter: blur(8px) saturate(1.1);

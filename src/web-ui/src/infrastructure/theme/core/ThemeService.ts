@@ -20,8 +20,23 @@ import {
 import { configAPI } from '@/infrastructure/api';
 import { monacoThemeSync } from '../integrations/MonacoThemeSync';
 import { createLogger } from '@/shared/utils/logger';
+import {
+  DEFAULT_STYLE_PACK_ID,
+  resolveStylePackTokens,
+  stylePacks,
+  type StylePackId,
+} from '@ai00-x/design-system/packs-meta';
 
 const log = createLogger('ThemeService');
+
+const STYLE_PACK_IDS: readonly string[] = stylePacks.map((p) => p.id);
+
+/** 未知/缺失的风格包 id → 默认风格（新东方极简） */
+function normalizeStylePackId(raw: unknown): StylePackId {
+  return typeof raw === 'string' && STYLE_PACK_IDS.includes(raw)
+    ? (raw as StylePackId)
+    : DEFAULT_STYLE_PACK_ID;
+}
 
 export class ThemeService {
   private themes: Map<ThemeId, ThemeConfig> = new Map();
@@ -29,6 +44,8 @@ export class ThemeService {
   private themeSelection: ThemeSelectionId = SYSTEM_THEME_ID;
   /** Currently applied built-in or custom theme (never `system`). */
   private resolvedThemeId: ThemeId = getSystemPreferredDefaultThemeId();
+  /** 风格包选择（规范第九节；第二正交轴，与明暗独立）。 */
+  private styleSelection: StylePackId = DEFAULT_STYLE_PACK_ID;
   private systemThemeCleanup: (() => void) | null = null;
   private listeners: Map<ThemeEventType, Set<ThemeEventListener>> = new Map();
   private hooks: ThemeHooks = {};
@@ -84,6 +101,11 @@ export class ThemeService {
       // 自定义调色功能已移除（黛青唯一交互色，色板固定）：
       // 一次性清理历史残留的 themes.accentHue 配置值，避免脏数据。
       await this.resetLegacyAccentHue();
+
+      // 风格包（规范第九节，第二正交轴）：读选择并应用；应用会重放一次变量注入，
+      // 使包 token 在主题变量之后 inline 写入（后写者胜）。
+      const savedStyle = await this.loadStyleSelection();
+      await this.applyStylePack(savedStyle, { persist: false });
 
       this.loadUserThemes().catch(() => {
 
@@ -199,6 +221,60 @@ export class ThemeService {
   /** Actually applied theme id (never `system`). */
   getResolvedThemeId(): ThemeId {
     return this.resolvedThemeId;
+  }
+
+  /** 当前风格包 id（规范第九节；与明暗轴独立）。 */
+  getStylePackId(): StylePackId {
+    return this.styleSelection;
+  }
+
+  /**
+   * 切换风格包（第二正交轴，独立于明暗）。
+   * 会重放一次变量注入，确保风格包 token 在主题变量之后 inline 写入（inline 后写者胜）。
+   */
+  async applyStylePack(styleId: string, options: { persist?: boolean } = {}): Promise<void> {
+    const persist = options.persist !== false;
+    const next = normalizeStylePackId(styleId);
+
+    if (persist) {
+      await this.saveStyleSelection(next);
+    }
+    this.styleSelection = next;
+
+    if (this.themes.has(this.resolvedThemeId)) {
+      // 注入顺序即优先级：主题变量 → 风格包 token
+      this.injectCSSVariables(this.getCurrentTheme());
+    } else {
+      document.documentElement.setAttribute('data-style', next);
+    }
+
+    this.emitEvent('style:after-change', this.resolvedThemeId, this.getCurrentTheme());
+    log.info('Style pack applied', { id: next, persisted: persist });
+
+    if (persist) {
+      import('@/infrastructure/services/infra/SettingsSyncService').then(({ settingsSyncService }) => {
+        settingsSyncService.broadcast('style:changed', next);
+      });
+    }
+  }
+
+  private async loadStyleSelection(): Promise<StylePackId> {
+    try {
+      const raw = await configAPI.getConfig('themes.style', {
+        skipRetryOnNotFound: true,
+      });
+      return normalizeStylePackId(raw);
+    } catch (_error) {
+      return DEFAULT_STYLE_PACK_ID;
+    }
+  }
+
+  private async saveStyleSelection(styleId: StylePackId): Promise<void> {
+    try {
+      await configAPI.setConfig('themes.style', styleId);
+    } catch (error) {
+      log.warn('Failed to save style pack id', error);
+    }
   }
 
   /** 一次性清理已移除的自定义调色残留（themes.accentHue）。 */
@@ -498,6 +574,20 @@ export class ThemeService {
 
     root.setAttribute('data-theme', theme.id);
     root.setAttribute('data-theme-type', theme.type);
+    root.setAttribute('data-style', this.styleSelection);
+
+    // 风格包 token 必须最后注入（规范第九节）：本函数上文已 inline 写入了
+    // --radius-*/--shadow-*/--font-*/语义色，而 inline 优先级高于任何 [data-style]
+    // 样式块 —— 只有再次 inline 覆盖才能让风格包的取值生效（CSS 块仅供静态消费方）。
+    this.injectStylePackTokens(theme.type);
+  }
+
+  private injectStylePackTokens(mode: 'dark' | 'light'): void {
+    const vars = resolveStylePackTokens(this.styleSelection, mode);
+    const root = document.documentElement;
+    for (const [name, value] of Object.entries(vars)) {
+      root.style.setProperty(name, value);
+    }
   }
   
    

@@ -9,10 +9,13 @@ export function useTheme() {
     currentTheme,
     currentThemeId,
     themes,
+    stylePackId,
+    stylePacks,
     loading,
     error,
     initialize,
     setTheme,
+    setStylePack,
     refreshThemes,
   } = useThemeStore();
 
@@ -28,6 +31,10 @@ export function useTheme() {
     themeId: currentThemeId,
     themeType: currentTheme?.type || 'dark' as ThemeType,
     themes,
+    /** 风格包（第二正交轴，规范第九节） */
+    stylePackId,
+    stylePacks,
+    setStylePack,
     loading,
     error,
     setTheme,

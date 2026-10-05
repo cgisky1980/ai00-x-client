@@ -6,7 +6,7 @@ import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('SettingsSyncService');
 
-type SettingsEventType = 'theme:changed' | 'language:changed' | 'workspace:changed';
+type SettingsEventType = 'theme:changed' | 'style:changed' | 'language:changed' | 'workspace:changed';
 
 interface SettingsSyncMessage {
   type: SettingsEventType;
@@ -86,6 +86,9 @@ class SettingsSyncServiceImpl {
         case 'theme:changed':
           await this.syncTheme(message.payload as string);
           break;
+        case 'style:changed':
+          await this.syncStylePack(message.payload as string);
+          break;
         case 'language:changed':
           await this.syncLanguage(message.payload as string);
           break;
@@ -106,6 +109,17 @@ class SettingsSyncServiceImpl {
       log.info('Synced theme from other window', { themeId });
     } catch (error) {
       log.warn('Failed to sync theme', error);
+    }
+  }
+
+  private async syncStylePack(stylePackId: string): Promise<void> {
+    try {
+      const current = themeService.getStylePackId();
+      if (current === stylePackId) return;
+      await themeService.applyStylePack(stylePackId);
+      log.info('Synced style pack from other window', { stylePackId });
+    } catch (error) {
+      log.warn('Failed to sync style pack', error);
     }
   }
 

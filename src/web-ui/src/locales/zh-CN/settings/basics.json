@@ -40,6 +40,18 @@
     "darkMode": "深色",
     "mode": "模式",
     "modeRowHint": "在浅色和深色模式之间切换。",
+    "style": "风格",
+    "styleRowHint": "选择整体视觉风格，与明暗模式独立组合。",
+    "stylePacks": {
+      "xindongfang": {
+        "name": "新东方极简",
+        "description": "墨为骨，青为神，朱为印，白为息。品牌默认风格。"
+      },
+      "comic": {
+        "name": "漫画风",
+        "description": "纸底 + 真黑墨 + 品牌橙。粗黑描边、右下硬投影、手绘感。"
+      }
+    },
     "systemTheme": "跟随系统",
     "systemThemeDescription": "根据系统浅色/深色外观自动在亮暗主题间切换，并随系统切换而更新。",
     "presets": {
@@ -170,6 +182,10 @@
     "messages": {
       "saveSuccess": "通知设置已保存",
       "saveFailed": "保存通知设置失败"
+    },
+    "dialogFailure": {
+      "label": "任务失败时通知",
+      "description": "后台任务失败时弹系统通知（不包含任务内容）"
     }
   },
   "smartDesktop": {

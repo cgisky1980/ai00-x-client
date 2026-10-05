@@ -202,5 +202,22 @@
   },
   "sidebar": {
     "width": { "$value": "240px", "$type": "dimension" }
+  },
+  "style": {
+    "$description": "形态变量（规范 9.4）：风格包改变组件形态的单一旋钮。默认值 = 新东方极简形态，组件侧必须带默认值兜底。只收敛两类**无法由既有 token 表达**的形态：① 描边宽度（组件里是 `1px` 字面量）；② 焦点环颜色（组件里是半语义引用 --color-accent-400）。其余形态维度（圆角/阴影/标题字体/描边色/纹理）已由既有 token（size.radius.* / shadow.* / font.family.serif / border.* ）承载，风格包直接覆盖那些 token 即可生效。",
+    "stroke": {
+      "width": {
+        "$value": "1px",
+        "$type": "dimension",
+        "$description": "描边宽度。组件写 var(--style-stroke-width, 1px) solid var(--border-x)（宽度走本变量、颜色沿既有 border 层级）"
+      }
+    },
+    "focus": {
+      "ring": {
+        "$value": "{color.accent.400}",
+        "$type": "color",
+        "$description": "焦点环颜色（新东方=黛青 400）"
+      }
+    }
   }
 }

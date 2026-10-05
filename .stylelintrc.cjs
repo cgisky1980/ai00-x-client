@@ -113,6 +113,11 @@ module.exports = {
     'packages/design-system/css/tokens.standalone.css',
     'packages/design-system/css/tw-theme.css',
     'packages/design-system/css/texture.css',
+    // 风格包（规范第九节）：本质是色值源（性质同 tokens/**）——风格包的全部色值/形态
+    // 只允许出现在 styles/<id>/ 与其生成产物 css/style-packs/** 内，组件侧只读 token。
+    'packages/design-system/styles/**',
+    'packages/design-system/css/style-packs/**',
+    'packages/design-system/css/style-packs.css',
     'src/web-ui/src/component-library/styles/**', // legacy token 定义区（运行时定义，非消费端）
     'src/web-ui/src/app/styles/**', // 同上：换肤核心
     'src/web-ui/src/infrastructure/theme/**', // 同上

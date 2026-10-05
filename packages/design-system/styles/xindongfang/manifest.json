@@ -1,0 +1,8 @@
+{
+  "id": "xindongfang",
+  "name": "新东方极简",
+  "description": "墨为骨，青为神，朱为印，白为息。品牌默认风格，四签名（黛青 / 朱砂 / 衬线 / 宣纸）的持有者。",
+  "order": 0,
+  "default": true,
+  "modes": ["light", "dark"]
+}

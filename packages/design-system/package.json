@@ -13,13 +13,15 @@
     "./css": "./css/tokens.css",
     "./styles": "./css/index.css",
     "./styles.css": "./css/index.css",
+    "./packs": "./css/style-packs.css",
+    "./packs-meta": "./src/stylePacks.ts",
     "./tw": "./css/tw-theme.css",
     "./tw.css": "./css/tw-theme.css",
     "./standalone": "./css/tokens.standalone.css",
     "./tokens": "./src/tokens.ts"
   },
   "scripts": {
-    "build": "node scripts/build-tokens.mjs",
+    "build": "node scripts/build-tokens.mjs && node scripts/check-style-packs.mjs",
     "brand:icons": "node scripts/generate-brand-icons.mjs",
     "build:fonts": "uv run --with \"fonttools[woff]\" python scripts/subset-display-font.py",
     "type-check": "tsc --noEmit"

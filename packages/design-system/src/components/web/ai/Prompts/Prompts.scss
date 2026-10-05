@@ -21,7 +21,7 @@
     align-items: flex-start;
     gap: var(--size-gap-2-5);
     padding: var(--size-gap-3) var(--size-gap-3-5);
-    border: 1px solid var(--border-subtle);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: var(--size-radius-base);
     background-color: var(--color-bg-card);
     background-image: var(--ds-paper-grain);
@@ -54,7 +54,7 @@
     }
 
     &:focus-visible {
-      outline: 2px solid var(--color-accent-400);
+      outline: 2px solid var(--style-focus-ring, var(--color-accent-400));
       outline-offset: 2px;
     }
   }
