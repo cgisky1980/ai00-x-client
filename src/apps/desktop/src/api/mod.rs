@@ -28,6 +28,7 @@ pub mod path_target;
 pub mod plugin_api;
 pub mod runtime_api;
 pub mod share_api;
+pub mod skill_api;
 pub mod ssh_api;
 pub mod storage_commands;
 pub mod system_api;

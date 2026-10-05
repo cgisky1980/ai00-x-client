@@ -49,6 +49,28 @@ importers:
         specifier: ^7.0.4
         version: 7.3.1(@types/node@25.9.3)(jiti@2.7.0)(less@4.9.1)(lightningcss@1.32.0)(sass@1.97.3)(terser@5.51.2)(tsx@4.22.4)(yaml@2.8.2)
 
+  packages/bone-doll:
+    dependencies:
+      '@esotericsoftware/spine-canvas':
+        specifier: ^4.3.7
+        version: 4.3.7
+      '@esotericsoftware/spine-core':
+        specifier: ^4.3.7
+        version: 4.3.7
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.0
+        version: 22.19.7
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+      vite:
+        specifier: ^7.0.4
+        version: 7.3.1(@types/node@22.19.7)(jiti@2.7.0)(less@4.9.1)(lightningcss@1.32.0)(sass@1.97.3)(terser@5.51.2)(tsx@4.22.4)(yaml@2.8.2)
+
   packages/design-system:
     dependencies:
       '@radix-ui/react-alert-dialog':
@@ -118,6 +140,15 @@ importers:
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
+
+  packages/paper-doll:
+    devDependencies:
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+      vite:
+        specifier: ^7.0.4
+        version: 7.3.1(@types/node@25.9.3)(jiti@2.7.0)(less@4.9.1)(lightningcss@1.32.0)(sass@1.97.3)(terser@5.51.2)(tsx@4.22.4)(yaml@2.8.2)
 
   packages/shared:
     dependencies:
@@ -336,6 +367,9 @@ importers:
 
   src/underlay-ui:
     dependencies:
+      '@ai00-x/bone-doll':
+        specifier: workspace:*
+        version: link:../../packages/bone-doll
       '@ai00-x/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
@@ -11478,7 +11512,7 @@ snapshots:
   '@types/glob@7.2.0':
     dependencies:
       '@types/minimatch': 6.0.0
-      '@types/node': 17.0.45
+      '@types/node': 22.19.7
 
   '@types/hast@2.3.10':
     dependencies:
@@ -12747,7 +12781,6 @@ snapshots:
       '@esbuild/win32-arm64': 0.28.1
       '@esbuild/win32-ia32': 0.28.1
       '@esbuild/win32-x64': 0.28.1
-    optional: true
 
   escalade@3.2.0: {}
 
@@ -13414,7 +13447,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 17.0.45
+      '@types/node': 22.19.7
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -15419,7 +15452,6 @@ snapshots:
       esbuild: 0.28.1
     optionalDependencies:
       fsevents: 2.3.3
-    optional: true
 
   type-check@0.4.0:
     dependencies:
@@ -15637,6 +15669,25 @@ snapshots:
       tinyglobby: 0.2.15
     optionalDependencies:
       '@types/node': 20.19.37
+      fsevents: 2.3.3
+      jiti: 2.7.0
+      less: 4.9.1
+      lightningcss: 1.32.0
+      sass: 1.97.3
+      terser: 5.51.2
+      tsx: 4.22.4
+      yaml: 2.8.2
+
+  vite@7.3.1(@types/node@22.19.7)(jiti@2.7.0)(less@4.9.1)(lightningcss@1.32.0)(sass@1.97.3)(terser@5.51.2)(tsx@4.22.4)(yaml@2.8.2):
+    dependencies:
+      esbuild: 0.27.2
+      fdir: 6.5.0(picomatch@4.0.3)
+      picomatch: 4.0.3
+      postcss: 8.5.26
+      rollup: 4.57.1
+      tinyglobby: 0.2.15
+    optionalDependencies:
+      '@types/node': 22.19.7
       fsevents: 2.3.3
       jiti: 2.7.0
       less: 4.9.1

@@ -44,6 +44,7 @@ impl DownloadManager {
             tasks: Arc::new(RwLock::new(HashMap::new())),
             client: reqwest::Client::builder()
                 .connect_timeout(std::time::Duration::from_secs(30))
+                .redirect(ai00_x_core::util::net_guard::safe_redirect_policy(5))
                 .build()
                 .unwrap_or_else(|_| reqwest::Client::new()),
         }
@@ -59,6 +60,15 @@ impl DownloadManager {
         urls: Vec<String>,
         path: PathBuf,
     ) -> Result<(), String> {
+        // P1-A SSRF 加固：全部候选 URL 过 net_guard（私网/回环/假 IP 段封网）
+        for url in &urls {
+            ai00_x_core::util::net_guard::assert_url_allowed(url)
+                .await
+                .map_err(|e| {
+                    log::warn!("[DownloadManager] url blocked: {e}");
+                    e
+                })?;
+        }
         let tasks = self.tasks.clone();
 
         {

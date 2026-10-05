@@ -7,31 +7,31 @@ use crate::server::response::WebDriverErrorResponse;
 use crate::server::AppState;
 
 pub(crate) fn perform_actions() -> &'static str {
-    "async (actions) => { await window.__ai00-xWd.performActions(actions); return null; }"
+    "async (actions) => { await window['__ai00-xWd'].performActions(actions); return null; }"
 }
 
 pub(crate) fn release_actions() -> &'static str {
-    "async (pressedKeys, pressedButtons) => { await window.__ai00-xWd.releaseActions(pressedKeys, pressedButtons); return null; }"
+    "async (pressedKeys, pressedButtons) => { await window['__ai00-xWd'].releaseActions(pressedKeys, pressedButtons); return null; }"
 }
 
 pub(crate) fn dismiss_alert() -> &'static str {
-    "() => window.__ai00-xWd.closeAlert(false)"
+    "() => window['__ai00-xWd'].closeAlert(false)"
 }
 
 pub(crate) fn accept_alert() -> &'static str {
-    "() => window.__ai00-xWd.closeAlert(true)"
+    "() => window['__ai00-xWd'].closeAlert(true)"
 }
 
 pub(crate) fn alert_text() -> &'static str {
-    "() => window.__ai00-xWd.getAlertText()"
+    "() => window['__ai00-xWd'].getAlertText()"
 }
 
 pub(crate) fn send_alert_text() -> &'static str {
-    "(text) => window.__ai00-xWd.sendAlertText(text)"
+    "(text) => window['__ai00-xWd'].sendAlertText(text)"
 }
 
 pub(crate) fn take_logs() -> &'static str {
-    "() => window.__ai00-xWd.takeLogs()"
+    "() => window['__ai00-xWd'].takeLogs()"
 }
 
 pub(crate) async fn exec_perform_actions(

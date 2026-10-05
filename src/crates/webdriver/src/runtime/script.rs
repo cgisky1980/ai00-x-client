@@ -40,11 +40,11 @@ pub(crate) fn build_bridge_eval_script(
     let async_json = if async_mode { "true" } else { "false" };
     let frame_context_json = serde_json::to_string(frame_context).unwrap_or_else(|_| "[]".into());
 
-    format!(
+    let injected = format!(
         r#"
 (() => {{
   {helper}
-  window.__ai00-xWd.run({request_id}, {script}, {args}, {async_mode}, {frame_context});
+  window['__ai00-xWd'].run({request_id}, {script}, {args}, {async_mode}, {frame_context});
 }})();
 "#,
         helper = bridge_helper_script(),
@@ -53,7 +53,8 @@ pub(crate) fn build_bridge_eval_script(
         args = args_json,
         async_mode = async_json,
         frame_context = frame_context_json
-    )
+    );
+    injected
 }
 
 #[cfg(target_os = "macos")]
@@ -72,7 +73,7 @@ pub(crate) fn build_native_eval_script(
         r#"
 return (async () => {{
   {helper}
-  const response = await window.__ai00-xWd.execute({script}, {args}, {async_mode}, {frame_context});
+  const response = await window['__ai00-xWd'].execute({script}, {args}, {async_mode}, {frame_context});
   return JSON.stringify({{
     requestId: "__native__",
     ok: response.ok,
@@ -92,8 +93,8 @@ return (async () => {{
 fn bridge_helper_script() -> String {
     format!(
         r#"
-if (!window.__ai00-xWd) {{
-  window.__ai00-xWd = (() => {{
+if (!window['__ai00-xWd']) {{
+  window['__ai00-xWd'] = (() => {{
 {core_head}
 {input}
 {keyboard}

@@ -99,3 +99,72 @@ pub fn snapshot(path: &Path, message: &str) -> Result<SnapshotResult, String> {
         message: message.to_string(),
     })
 }
+
+/// 单条快照时间线记录（仅 agent 签名的快照 commit）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnapshotEntry {
+    /// commit 哈希（完整）
+    pub commit: String,
+    /// 提交信息
+    pub message: String,
+    /// 提交时间（Unix 秒）
+    pub time: i64,
+}
+
+/// 列出快照时间线：从 HEAD 反向遍历，仅保留 agent 签名
+/// （Ai00-X Agent <agent@ai00-x.local>）的 commit——用户的真实提交不进时间线、
+/// 也不受回滚之外的操作影响。`limit` 上限防止超长历史（默认 100）。
+pub fn list_agent_snapshots(path: &Path, limit: usize) -> Result<Vec<SnapshotEntry>, String> {
+    let repo = Repository::open(path).map_err(|e| e.to_string())?;
+    let head = repo.head().map_err(|e| e.to_string())?;
+    let head_commit = head.peel_to_commit().map_err(|e| e.to_string())?;
+
+    let mut revwalk = repo.revwalk().map_err(|e| e.to_string())?;
+    revwalk.push(head_commit.id()).map_err(|e| e.to_string())?;
+    revwalk
+        .set_sorting(git2::Sort::TIME)
+        .map_err(|e| e.to_string())?;
+
+    let mut entries = Vec::new();
+    for oid in revwalk.flatten() {
+        if entries.len() >= limit {
+            break;
+        }
+        let Ok(commit) = repo.find_commit(oid) else {
+            continue;
+        };
+        let committer = commit.committer();
+        if committer.email() != Some(AGENT_EMAIL) {
+            continue;
+        }
+        entries.push(SnapshotEntry {
+            commit: commit.id().to_string(),
+            message: commit.message().unwrap_or("").trim().to_string(),
+            time: committer.when().seconds(),
+        });
+    }
+    Ok(entries)
+}
+
+/// 回滚到某条快照：`reset --hard <commit>`（分支指针随动，目标之后的
+/// agent 快照被丢弃）。UI 侧须二次确认——目标之后的所有变更不可恢复。
+/// 只应回滚到 [`list_agent_snapshots`] 返回的条目。
+pub fn rollback_to_snapshot(path: &Path, commit: &str) -> Result<SnapshotResult, String> {
+    let repo = Repository::open(path).map_err(|e| e.to_string())?;
+    let oid = git2::Oid::from_str(commit).map_err(|e| e.to_string())?;
+    let obj = repo
+        .find_object(oid, Some(git2::ObjectType::Commit))
+        .map_err(|_| format!("snapshot not found: {commit}"))?;
+    // reset 前先记下目标信息，成功后返回给调用方展示
+    let target_commit = obj
+        .as_commit()
+        .ok_or_else(|| format!("not a commit: {commit}"))?;
+    let message = target_commit.message().unwrap_or("").trim().to_string();
+    repo.reset(&obj, git2::ResetType::Hard, None)
+        .map_err(|e| e.to_string())?;
+    Ok(SnapshotResult {
+        initialized: false,
+        commit: Some(target_commit.id().to_string()),
+        message,
+    })
+}

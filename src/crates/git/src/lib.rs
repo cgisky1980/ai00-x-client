@@ -10,4 +10,7 @@ pub use git_service::GitService;
 pub use git_types::*;
 pub use git_utils::*;
 pub use graph::*;
-pub use snapshot::{ensure_repo, snapshot, SnapshotResult};
+pub use snapshot::{
+    ensure_repo, list_agent_snapshots, rollback_to_snapshot, snapshot, SnapshotEntry,
+    SnapshotResult,
+};

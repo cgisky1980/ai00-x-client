@@ -1044,7 +1044,15 @@ async fn ensure_tts_engine(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some((model_dir, quant)) = reinit_data {
         init_tts_engine(model_dir.to_string_lossy().to_string(), quant, app.clone()).await
     } else {
-        Err("TTS engine not initialized and no init params available".to_string())
+        // 启动不再预初始化 TTS（首次使用懒加载）：用 loader 流水线过去的
+        // 默认参数兜底，避免"no init params available"。
+        let model_dir = runtime::get_models_dir().join("tts");
+        init_tts_engine(
+            model_dir.to_string_lossy().to_string(),
+            "q4km".to_string(),
+            app.clone(),
+        )
+        .await
     }
 }
 
@@ -1697,9 +1705,26 @@ pub async fn generate_audio(
             )
             .await?;
         } else {
-            return Err(
-                "Audio gen engine not initialized and no init params available".to_string(),
+            // 启动不再预初始化音频生成（首次使用懒加载）：用 loader 流水线
+            // 过去的默认参数兜底（空 model_dir = 自动解析 models/sa3）。
+            let backend = if request.force_cpu {
+                0
+            } else {
+                detect_mnn_gpu().recommended_backend
+            };
+            log::info!(
+                "[model_init] Audio gen not initialized, lazy-init with defaults (backend={})",
+                backend
             );
+            init_audio_gen_engine(
+                String::new(),
+                request.variant.as_str().to_string(),
+                backend,
+                true,
+                10.0,
+                app.clone(),
+            )
+            .await?;
         }
     }
 

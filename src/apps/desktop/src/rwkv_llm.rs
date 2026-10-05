@@ -4,7 +4,7 @@
 //! `GpuModel` 非 Send），上层（Tauri 命令 / ai-adapters）通过 channel 提交
 //! 任务，事件经 `InferenceEvent` 回流，接口与旧 web-rwkv 实现完全兼容。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock, RwLock};
@@ -22,7 +22,7 @@ use serde::Serialize;
 use tauri::{Emitter, Manager};
 use tokio::sync::{mpsc, oneshot};
 
-use rwkv_rsv::gpu_model::{Bundle, GpuModel, ModelBuilder, State};
+use rwkv_rsv::gpu_model::{Bundle, GpuModel, ModelBuilder, SamplerParams, State};
 use rwkv_rsv::tokenizer::Tokenizer;
 
 const DEBUG_LOG_LLM: bool = false;
@@ -37,11 +37,9 @@ macro_rules! debug_print {
 const MAX_SLOTS: usize = 16;
 /// prefill 分块长度：限制单次 seq 缓冲大小（块大小固定避免重建）。
 const PREFILL_CHUNK: usize = 128;
-
-enum TaskPhase {
-    Prefill,
-    Decode,
-}
+/// 惩罚历史每槽容量（token 数）。超出后丢弃最旧 1/4（惩罚窗口滑动，语义与
+/// 客户端原 `token_counts` 的"全历史计数"在窗口内等价）。
+const HIST_STRIDE: usize = 8192;
 
 pub enum InferenceEvent {
     Token(String),
@@ -54,10 +52,24 @@ pub enum InferenceEvent {
     Error(String),
 }
 
+/// 单个生成任务。生命周期：`pending` → `prefill_queue`（串行分块 prefill）
+/// → 解码组（密集占 batch 行）→ `finish_pending` 补喂末 token → 回收。
+///
+/// 解码组内**本步喂入的 token 即上一步采样的结果**（`feed_token` 与 `acc_ids`
+/// 错开一格）。判定结束时先补喂最后一个 token（丢弃其采样结果）再回写缓存，
+/// 使「状态已消费的 token」与「会话缓存 token 列表」严格一致——对齐旧实现
+/// 「先 forward 后判停」的语义，续聊前缀匹配才不会错位。
 struct InferenceTask {
-    phase: TaskPhase,
     prompt_tokens: Vec<u32>,
     input_tokens: Vec<u32>,
+    /// 会话缓存继承的 token 前缀（状态起点对应；空 = 零态起步）。
+    base_tokens: Vec<u32>,
+    /// prefill 已喂入的 input_tokens 数量（分块推进游标）。
+    prefill_cursor: usize,
+    /// prefill 末块产出的 logits（首 token 主机采样用；采样后取走）。
+    prefill_logits: Option<Vec<f32>>,
+    /// 会话缓存命中的起步状态（prefill 起点；None = 零初始状态）。
+    resume_state: Option<Vec<f32>>,
     session_id: Option<String>,
     max_tokens: usize,
     top_p: f32,
@@ -68,15 +80,22 @@ struct InferenceTask {
     stop: Option<Vec<String>>,
     is_streaming: bool,
     tx: mpsc::UnboundedSender<InferenceEvent>,
-    last_logits: Vec<f32>,
+    /// 已发射的 token（顺序）——用于流式增量解码与最终文本。
     acc_ids: Vec<u32>,
-    token_counts: HashMap<u32, i32>,
-    loaded_from_cache: bool,
-    dedup_backtrack: usize,
+    /// 惩罚历史（model_text 编码 + 已生成 token），GPU 采样器按此计数。
+    hist: Vec<u32>,
+    /// 本步要喂入解码组的 token（= 上一步采样的结果）。
+    feed_token: u32,
+    /// 采样种子，每步递增。
+    seed: u32,
     stop_buffer: String,
     last_decoded_len: usize,
     steps_done: usize,
     ended_by_stop: bool,
+    /// 命中的 stop 串（Done 时从文本尾部截断用）。
+    hit_stop: Option<String>,
+    /// 已判定结束、等待最后一次补喂（下一轮喂完即回写缓存并发 Done）。
+    finish_pending: bool,
 }
 
 struct InferenceTaskParams {
@@ -370,12 +389,20 @@ fn load_router_head(model_num_emb: usize) -> Option<ai00_x_core::routing::head::
 /// 推理引擎全部状态（仅 pool 线程访问，无锁）。
 struct PoolEngine {
     model: GpuModel,
-    /// 每槽一个独立 RNN 状态，支持多任务并发交错推进。
+    /// 批量解码组状态：batch = slot_count；活跃任务密集占行 [0, n_active)。
+    decode_state: State,
+    /// 解码组各行的惩罚历史设备缓冲 [slot_count, HIST_STRIDE]（前 hist_len 个有效）。
+    hist_buf: rwkv_rsv::backend::TensorId,
+    /// 单序列状态：串行 prefill 专用（与解码组隔离，避免 seq 缓冲互相抖动）。
+    prefill_state: State,
+    /// 是否走批量解码路径（fp16 模型缺 batch 层 kernel → 逐槽单序列兜底）。
+    use_batch_decode: bool,
+    /// 兜底路径的每槽单序列状态（仅 `!use_batch_decode` 时非空；批量路径不用）。
     slot_states: Vec<State>,
     /// 本模型实际启用的生成槽位数（按模型规模动态核减，≤ MAX_SLOTS）。
     slot_count: usize,
     tokenizer: Tokenizer,
-    /// 零初始状态缓存（新任务/无缓存任务重置槽位用）。
+    /// 零初始状态缓存（新任务/无缓存任务重置 slot 用）。
     initial_state: Vec<f32>,
     /// session_id → (已缓存 token 序列, RNN 状态)
     session_states: HashMap<String, (Vec<u32>, Vec<f32>)>,
@@ -403,14 +430,20 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
     // 按所选分类模型的 n_embd 校验匹配）。
     let mut router_mini: Option<RouterMini> = None;
     let mut router_head: Option<ai00_x_core::routing::head::RouterHead> = None;
-    let mut slots: Vec<Option<InferenceTask>> = (0..MAX_SLOTS).map(|_| None).collect();
+    // 解码组：活跃任务密集占前缀 [0, n_active)，索引即 batch 行。
+    let mut tasks: Vec<Option<InferenceTask>> = (0..MAX_SLOTS).map(|_| None).collect();
+    // prefill 队列：串行推进（prefill_state 独占），每轮喂一块。
+    let mut prefill_queue: VecDeque<InferenceTask> = VecDeque::new();
     let mut pending: Vec<InferenceTaskParams> = Vec::new();
+    // 采样种子基数：每任务递增（GPU 采样器以 seed 哈希随机数）。
+    let mut seed_counter: u32 = 1;
 
     loop {
         // 引擎或路由小模型存在且完全空闲 → 可进入等待；否则非阻塞抽干消息。
         // 注意 router_mini 计入空闲判定：主模型未加载时不能陷入忙等空转。
         let idle = (engine.is_some() || router_mini.is_some())
-            && slots.iter().all(|s| s.is_none())
+            && tasks.iter().all(|s| s.is_none())
+            && prefill_queue.is_empty()
             && pending.is_empty();
         LLM_BUSY.store(!idle, Ordering::SeqCst);
         if idle {
@@ -499,7 +532,9 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
             }
         } else {
             while let Ok(req) = pool_rx.try_recv() {
-                let busy = !pending.is_empty() || slots.iter().any(|s| s.is_some());
+                let busy = !pending.is_empty()
+                    || !prefill_queue.is_empty()
+                    || tasks.iter().any(|s| s.is_some());
                 if !handle_request(
                     req,
                     &mut engine,
@@ -518,39 +553,74 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
             continue;
         };
 
-        // 调度 pending → 空闲槽位（大模型动态核减槽位数，只调度前 slot_count 个）
+        // 调度 pending → prefill 队列（活跃任务总数 ≤ slot_count）
         while !pending.is_empty() {
-            let Some(slot_idx) = slots
-                .iter()
-                .take(engine.slot_count)
-                .position(|s| s.is_none())
-            else {
+            let active = tasks.iter().filter(|s| s.is_some()).count() + prefill_queue.len();
+            if active >= engine.slot_count {
                 break;
-            };
+            }
             let params = pending.remove(0);
             let tx = params.tx.clone();
-            match prepare_task(params, slot_idx, engine) {
-                Ok(task) => slots[slot_idx] = Some(task),
+            let seed = seed_counter;
+            seed_counter = seed_counter.wrapping_add(1);
+            match prepare_task(params, engine, seed) {
+                Ok(task) => prefill_queue.push_back(task),
                 Err(e) => {
                     let _ = tx.send(InferenceEvent::Error(e));
                 }
             }
         }
 
-        // 每个活跃任务推进一步（prefill 一块 / decode 一个 token）
-        for (slot_idx, slot) in slots.iter_mut().enumerate() {
-            if slot.is_none() {
-                continue;
-            }
-            let task = slot.as_mut().expect("checked non-empty");
-            match advance_task(task, engine, slot_idx) {
-                Ok(true) => {}
-                Ok(false) => *slot = None,
-                Err(e) => {
-                    log::error!("[rwkv] task error: {}", e);
-                    let _ = task.tx.send(InferenceEvent::Error(e));
-                    *slot = None;
+        // prefill 一步：串行推进队首任务一块（其余任务的解码不受阻塞）。
+        if let Some(task) = prefill_queue.front_mut() {
+            match prefill_step(task, engine) {
+                Ok(true) => {
+                    // 队首 prefill 完成 → 转入解码组（活跃数 ≤ slot_count 保证有空行）
+                    let mut task = prefill_queue.pop_front().expect("队首存在");
+                    let row = tasks
+                        .iter()
+                        .position(|s| s.is_none())
+                        .expect("活跃数 ≤ slot_count 保证有空行");
+                    match join_decode_group(&mut task, engine, row) {
+                        Ok(true) => tasks[row] = Some(task),
+                        // 首 token 即结束（stop / max_tokens=1）：已在 join 内收尾
+                        Ok(false) => {}
+                        Err(e) => {
+                            log::error!("[rwkv] join decode group failed: {}", e);
+                            let _ = task.tx.send(InferenceEvent::Error(e));
+                        }
+                    }
                 }
+                Ok(false) => {}
+                Err(e) => {
+                    let task = prefill_queue.pop_front().expect("队首存在");
+                    log::error!("[rwkv] prefill error: {}", e);
+                    let _ = task.tx.send(InferenceEvent::Error(e));
+                }
+            }
+        }
+
+        // 解码组推进一步（批量前向 + GPU 采样），并回收已补喂完成的任务。
+        if tasks[0].is_some() {
+            let n_active = tasks.iter().take_while(|s| s.is_some()).count();
+            // 本轮开始时已处于「待补喂」状态的行：喂完即回写缓存 + 发 Done。
+            let finalize_rows: Vec<usize> = (0..n_active)
+                .filter(|&i| tasks[i].as_ref().is_some_and(|t| t.finish_pending))
+                .collect();
+            if let Err(e) = decode_step(&mut tasks[..n_active], engine) {
+                log::error!("[rwkv] decode step failed: {}", e);
+                for slot in tasks[..n_active].iter_mut() {
+                    if let Some(t) = slot.take() {
+                        let _ = t.tx.send(InferenceEvent::Error(e.clone()));
+                    }
+                }
+            } else {
+                for row in finalize_rows {
+                    if let Some(mut t) = tasks[row].take() {
+                        finalize_task(&mut t, engine, Some(row));
+                    }
+                }
+                compact_tasks(&mut tasks[..n_active], engine);
             }
         }
     }
@@ -924,7 +994,7 @@ fn slot_count_for_model(model_path: &Path) -> usize {
     }
 }
 
-/// 加载模型并创建按规模核减后的推理状态槽。
+/// 加载模型并创建批量解码状态 + 单序列 prefill 状态。
 fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String> {
     log::info!("[rwkv] loading model: {}", model_path);
     let bundle: Bundle = ModelBuilder::new(model_path)
@@ -933,14 +1003,29 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
     let Bundle { mut model, state } = bundle;
 
     let slot_count = slot_count_for_model(Path::new(model_path));
-    let mut slot_states = Vec::with_capacity(slot_count);
-    slot_states.push(state);
-    for _ in 1..slot_count {
-        slot_states.push(
-            model
-                .create_state()
-                .map_err(|e| format!("failed to create slot state: {}", e))?,
-        );
+    let decode_state = model
+        .create_batch_state(slot_count)
+        .map_err(|e| format!("failed to create batch decode state: {}", e))?;
+    let prefill_state = model
+        .create_state()
+        .map_err(|e| format!("failed to create prefill state: {}", e))?;
+    let hist_buf = model
+        .alloc_u32(HIST_STRIDE * slot_count)
+        .map_err(|e| format!("failed to alloc hist buf: {}", e))?;
+    model
+        .write_u32(hist_buf, &vec![0u32; HIST_STRIDE * slot_count])
+        .map_err(|e| format!("failed to zero hist buf: {}", e))?;
+    let use_batch_decode = model.supports_batch_decode();
+    // 兜底路径（fp16 模型无 batch 层 kernel）才需要每槽单序列状态。
+    let mut slot_states = Vec::new();
+    if !use_batch_decode {
+        for i in 0..slot_count {
+            slot_states.push(
+                model
+                    .create_state()
+                    .map_err(|e| format!("failed to create slot state {i}: {}", e))?,
+            );
+        }
     }
 
     let vocab = std::fs::read_to_string(vocab_path)
@@ -948,27 +1033,33 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
     let tokenizer = Tokenizer::new(&vocab).map_err(|e| format!("failed to parse vocab: {}", e))?;
 
     let initial_state = model
-        .state_back(&slot_states[0])
+        .state_back(&state)
         .map_err(|e| format!("failed to snapshot initial state: {}", e))?;
+    // 将单序列零态灌入 batch 状态作起点（解码组每行起步状态）。
+    model
+        .reset_state_of(&decode_state)
+        .map_err(|e| format!("failed to reset batch state: {}", e))?;
 
     let classify_state = model
         .create_state()
         .map_err(|e| format!("failed to create classify state: {}", e))?;
 
-    // 注意：主模型不再加载分类头（路由分类由常驻 router_mini 承担；
-    // 头由 InitRouter 加载，主模型仅作维度匹配的兼容回退）。
-
     let info = model.info();
     log::info!(
-        "[rwkv] model loaded: layers={} emb={} vocab={} ({} slots)",
+        "[rwkv] model loaded: layers={} emb={} vocab={} slots={} batch_decode={}",
         info.num_layer,
         info.num_emb,
         info.num_vocab,
-        slot_count
+        slot_count,
+        use_batch_decode
     );
 
     Ok(PoolEngine {
         model,
+        decode_state,
+        hist_buf,
+        prefill_state,
+        use_batch_decode,
         slot_states,
         slot_count,
         tokenizer,
@@ -1008,11 +1099,12 @@ fn load_router_mini(model_path: &str, vocab_path: &str) -> Result<RouterMini, St
     })
 }
 
-/// 组装任务：prompt 清洗/编码、会话状态恢复（含前缀去重）、惩罚状态初始化。
+/// 组装任务：prompt 清洗/编码、会话状态恢复（含前缀去重）、惩罚历史初始化。
+/// 状态本身不在此灌入（prefill 串行，起步态在 `prefill_step` 首块时装入）。
 fn prepare_task(
     params: InferenceTaskParams,
-    slot: usize,
     engine: &mut PoolEngine,
+    seed: u32,
 ) -> Result<InferenceTask, String> {
     let prompt = if params.is_vrm {
         // VRM mode: only standardize line breaks, do NOT trim trailing newlines.
@@ -1036,92 +1128,81 @@ fn prepare_task(
         .encode(prompt.as_bytes())
         .map_err(|e| e.to_string())?;
     let mut input_tokens = prompt_tokens.clone();
-    let mut loaded_from_cache = false;
-    let mut dedup_backtrack = 0usize;
+    let mut base_tokens: Vec<u32> = Vec::new();
+    let mut resume_state: Option<Vec<f32>> = None;
 
     if let Some(sid) = &params.session_id {
         let cached = engine.session_states.get(sid).cloned();
         if let Some((cached_tokens, cached_state)) = cached {
-            if engine
-                .model
-                .state_load(&engine.slot_states[slot], &cached_state)
-                .is_ok()
-            {
-                let mut skip = 0;
-                let boundary_texts = ["\n\n# User", "# User", "\n\n### Tool Risk", "### Tool Risk"];
-                for text in boundary_texts {
-                    if let Ok(boundary_ids) = engine.tokenizer.encode(text.as_bytes()) {
-                        if !boundary_ids.is_empty()
-                            && prompt_tokens.starts_with(&boundary_ids)
-                            && cached_tokens.ends_with(&boundary_ids)
-                        {
-                            skip = skip.max(boundary_ids.len());
-                        }
+            let mut skip = 0;
+            let boundary_texts = ["\n\n# User", "# User", "\n\n### Tool Risk", "### Tool Risk"];
+            for text in boundary_texts {
+                if let Ok(boundary_ids) = engine.tokenizer.encode(text.as_bytes()) {
+                    if !boundary_ids.is_empty()
+                        && prompt_tokens.starts_with(&boundary_ids)
+                        && cached_tokens.ends_with(&boundary_ids)
+                    {
+                        skip = skip.max(boundary_ids.len());
                     }
                 }
-
-                if skip == 0 && !prompt_tokens.is_empty() && !cached_tokens.is_empty() {
-                    let last_id = cached_tokens.last().unwrap_or(&0);
-                    let is_last_newline = engine
-                        .tokenizer
-                        .decode(&[*last_id])
-                        .ok()
-                        .map(|s| String::from_utf8_lossy(&s) == "\n")
-                        .unwrap_or(false);
-
-                    if is_last_newline {
-                        if let Ok(double_newline_ids) = engine.tokenizer.encode(b"\n\n") {
-                            if prompt_tokens.starts_with(&double_newline_ids) {
-                                dedup_backtrack = 1;
-                            }
-                        }
-                    }
-                }
-
-                if skip > 0 {
-                    input_tokens = prompt_tokens[skip..].to_vec();
-                }
-
-                loaded_from_cache = true;
             }
-        }
-    }
 
-    if !loaded_from_cache {
-        // 重置槽位为零初始状态
-        engine
-            .model
-            .state_load(&engine.slot_states[slot], &engine.initial_state)
-            .map_err(|e| format!("failed to reset state: {}", e))?;
+            let mut dedup_backtrack = 0usize;
+            if skip == 0 && !prompt_tokens.is_empty() && !cached_tokens.is_empty() {
+                let last_id = cached_tokens.last().unwrap_or(&0);
+                let is_last_newline = engine
+                    .tokenizer
+                    .decode(&[*last_id])
+                    .ok()
+                    .map(|s| String::from_utf8_lossy(&s) == "\n")
+                    .unwrap_or(false);
+
+                if is_last_newline {
+                    if let Ok(double_newline_ids) = engine.tokenizer.encode(b"\n\n") {
+                        if prompt_tokens.starts_with(&double_newline_ids) {
+                            dedup_backtrack = 1;
+                        }
+                    }
+                }
+            }
+
+            if skip > 0 {
+                input_tokens = prompt_tokens[skip..].to_vec();
+            }
+
+            // 缓存命中的前缀（去掉回溯位）= 状态已消费的 token 前缀。
+            let keep = cached_tokens.len().saturating_sub(dedup_backtrack);
+            base_tokens = cached_tokens[..keep].to_vec();
+            resume_state = Some(cached_state);
+        }
     }
 
     if input_tokens.is_empty() {
         input_tokens = vec![0u32];
     }
 
-    // Initialize penalty state from model_text (prior Assistant message contents).
-    // This aligns with ai00-server's NucleusSampler which uses model_text to seed
-    // presence_penalty and frequency_penalty memory. Without this, penalties are
-    // completely ineffective on the first generated token.
-    let token_counts = if !params.model_text.is_empty() {
-        match engine.tokenizer.encode(params.model_text.as_bytes()) {
-            Ok(tokens) => {
-                let mut counts: HashMap<u32, i32> = HashMap::new();
-                for &id in &tokens {
-                    *counts.entry(id).or_insert(0) += 1;
-                }
-                counts
-            }
-            Err(_) => HashMap::new(),
-        }
+    // 惩罚历史：model_text 编码（对齐 ai00-server NucleusSampler 的预热语义；
+    // 不含 prompt 本身），生成 token 随后逐个追加。
+    let mut hist: Vec<u32> = if params.model_text.is_empty() {
+        Vec::new()
     } else {
-        HashMap::new()
+        engine
+            .tokenizer
+            .encode(params.model_text.as_bytes())
+            .unwrap_or_default()
     };
+    if hist.len() > HIST_STRIDE {
+        let drop = hist.len() - HIST_STRIDE;
+        hist.drain(..drop);
+    }
 
     Ok(InferenceTask {
-        phase: TaskPhase::Prefill,
         prompt_tokens,
         input_tokens,
+        base_tokens,
+        prefill_cursor: 0,
+        prefill_logits: None,
+        resume_state,
         session_id: params.session_id,
         max_tokens: if params.max_tokens == 0 {
             1
@@ -1140,187 +1221,352 @@ fn prepare_task(
         stop: params.stop,
         is_streaming: params.is_streaming,
         tx: params.tx,
-        last_logits: Vec::new(),
         acc_ids: Vec::new(),
-        token_counts,
-        loaded_from_cache,
-        dedup_backtrack,
+        hist,
+        feed_token: 0,
+        seed,
         stop_buffer: String::new(),
         last_decoded_len: 0,
         steps_done: 0,
         ended_by_stop: false,
+        hit_stop: None,
+        finish_pending: false,
     })
 }
 
-/// 推进一个任务一步。返回 Ok(false) 表示任务完成（槽位释放）。
-fn advance_task(
+/// prefill 推进一步（一块）。返回 true 表示 prefill 已完成（末块 logits 存入任务）。
+/// 首块前把起步状态（会话缓存态 / 零初始态）装入 `prefill_state`。
+fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<bool, String> {
+    if task.prefill_cursor == 0 {
+        let start = task
+            .resume_state
+            .take()
+            .unwrap_or_else(|| engine.initial_state.clone());
+        engine
+            .model
+            .state_load(&engine.prefill_state, &start)
+            .map_err(|e| format!("failed to load prefill state: {}", e))?;
+    }
+    let end = (task.prefill_cursor + PREFILL_CHUNK).min(task.input_tokens.len());
+    let chunk = task.input_tokens[task.prefill_cursor..end].to_vec();
+    let logits = engine
+        .model
+        .forward_seq_with_state(&mut engine.prefill_state, &chunk)
+        .map_err(|e| format!("prefill failed: {}", e))?;
+    task.prefill_cursor = end;
+    if end < task.input_tokens.len() {
+        return Ok(false);
+    }
+    task.prefill_logits = Some(logits);
+    // prefill 完成即缓存会话状态（任务中途异常也能保留已 prefill 的前缀）。
+    if let Some(sid) = task.session_id.clone() {
+        if let Ok(st) = engine.model.state_back(&engine.prefill_state) {
+            let mut tokens = task.base_tokens.clone();
+            tokens.extend_from_slice(&task.input_tokens);
+            engine.session_states.insert(sid, (tokens, st));
+        }
+    }
+    Ok(true)
+}
+
+/// prefill 完成 → 主机采样首 token 并转入解码组（状态从 `prefill_state` 迁到
+/// `row` 行）。返回 false 表示首 token 即命中结束条件（任务已收尾，不再入组）。
+fn join_decode_group(
     task: &mut InferenceTask,
     engine: &mut PoolEngine,
-    slot: usize,
+    row: usize,
 ) -> Result<bool, String> {
-    match task.phase {
-        TaskPhase::Prefill => {
-            // 分块 sequence-parallel prefill
-            let mut logits = Vec::new();
-            for chunk in task.input_tokens.chunks(PREFILL_CHUNK) {
-                logits = engine
-                    .model
-                    .forward_seq_with_state(&mut engine.slot_states[slot], chunk)
-                    .map_err(|e| format!("prefill failed: {}", e))?;
-            }
-            task.phase = TaskPhase::Decode;
-            task.last_logits = logits;
+    let logits = task
+        .prefill_logits
+        .take()
+        .ok_or_else(|| "prefill 未产出 logits".to_string())?;
+    let id = sample_token(
+        &logits,
+        task.top_p,
+        task.top_k,
+        &task.hist,
+        task.presence_penalty,
+        task.frequency_penalty,
+        task.penalty_decay,
+        task.seed,
+    );
+    task.acc_ids.push(id);
+    task.steps_done = 1;
+    task.feed_token = id;
+    task.seed = task.seed.wrapping_add(1);
+    task.hist.push(id);
+    post_sample(engine, task);
 
-            // prefill 完成后缓存会话状态（下次续聊免全量 prefill）
-            if let Some(sid) = &task.session_id {
-                let current_state = engine
-                    .model
-                    .state_back(&engine.slot_states[slot])
-                    .map_err(|e| format!("state_back failed: {}", e))?;
-                let mut new_cached_tokens = task.prompt_tokens.clone();
-                if task.loaded_from_cache {
-                    if let Some((old_tokens, _)) = engine.session_states.get(sid) {
-                        let new_len = old_tokens.len().saturating_sub(task.dedup_backtrack);
-                        let mut full = old_tokens[..new_len].to_vec();
-                        full.extend(task.input_tokens.clone());
-                        new_cached_tokens = full;
-                    }
-                }
-                engine
-                    .session_states
-                    .insert(sid.clone(), (new_cached_tokens, current_state));
-            }
-            Ok(true)
+    if task.finish_pending {
+        // 首 token 即结束：状态尚在 prefill_state，补喂末 token 后直接收尾
+        engine
+            .model
+            .forward_with_state(&mut engine.prefill_state, &[id])
+            .map_err(|e| format!("final sync forward failed: {}", e))?;
+        finalize_task(task, engine, None);
+        return Ok(false);
+    }
+
+    // 转入解码组：状态迁入 row 行（兜底路径直接换 State，批量路径走行灌入）
+    if engine.use_batch_decode {
+        let st = engine
+            .model
+            .state_back(&engine.prefill_state)
+            .map_err(|e| format!("state_back failed: {}", e))?;
+        engine
+            .model
+            .state_slot_load(&engine.decode_state, row, &st)
+            .map_err(|e| format!("state_slot_load failed: {}", e))?;
+    } else {
+        std::mem::swap(&mut engine.prefill_state, &mut engine.slot_states[row]);
+    }
+    upload_hist_row(engine, row, task)?;
+    Ok(true)
+}
+
+/// 解码组推进一步：一次批量前向 + GPU 采样（权重读一份算 n_active 份），
+/// 然后逐任务后处理。`tasks` 为活跃任务的密集前缀（索引 = batch 行）。
+fn decode_step(tasks: &mut [Option<InferenceTask>], engine: &mut PoolEngine) -> Result<(), String> {
+    let n = tasks.len();
+    if n == 0 {
+        return Ok(());
+    }
+    let sampled: Vec<u32> = if engine.use_batch_decode {
+        let mut toks: Vec<Vec<u32>> = Vec::with_capacity(n);
+        let mut hist_len: Vec<u32> = Vec::with_capacity(n);
+        let mut sp: Vec<SamplerParams> = Vec::with_capacity(n);
+        for slot in tasks.iter() {
+            let t = slot.as_ref().ok_or("decode_step: 活跃前缀存在空洞")?;
+            toks.push(vec![t.feed_token]);
+            hist_len.push(t.hist.len() as u32);
+            sp.push(SamplerParams {
+                temperature: 1.0,
+                top_k: t.top_k as u32,
+                top_p: t.top_p,
+                seed: t.seed,
+                repetition_penalty: 1.0,
+                frequency_penalty: t.frequency_penalty,
+                presence_penalty: t.presence_penalty,
+                penalty_decay: t.penalty_decay,
+            });
         }
-        TaskPhase::Decode => {
-            let tokens = if task.last_logits.is_empty() {
-                // 边缘回退：prefill 未产出 logits 时重推输入（保持旧实现行为）
-                task.input_tokens.clone()
-            } else {
-                let id = sample_token(
-                    &task.last_logits,
-                    task.top_p,
-                    task.top_k,
-                    &task.token_counts,
-                    task.presence_penalty,
-                    task.frequency_penalty,
-                    task.penalty_decay,
-                );
-                task.acc_ids.push(id);
-                *task.token_counts.entry(id).or_insert(0) += 1;
-                vec![id]
-            };
-
+        engine
+            .model
+            .batch_step_sample(
+                &mut engine.decode_state,
+                &toks,
+                engine.hist_buf,
+                HIST_STRIDE,
+                &hist_len,
+                &sp,
+            )
+            .map_err(|e| format!("batch decode failed: {}", e))?
+    } else {
+        let mut out = Vec::with_capacity(n);
+        for (row, slot) in tasks.iter_mut().enumerate() {
+            let t = slot.as_mut().ok_or("decode_step: 活跃前缀存在空洞")?;
             let logits = engine
                 .model
-                .forward_with_state(&mut engine.slot_states[slot], &tokens)
+                .forward_with_state(&mut engine.slot_states[row], &[t.feed_token])
                 .map_err(|e| format!("decode failed: {}", e))?;
-            task.last_logits = logits;
-
-            let last_id = task.acc_ids.last().copied().unwrap_or(0);
-            let decoded = engine.tokenizer.decode(&[last_id]).unwrap_or_default();
-            let token_str = String::from_utf8_lossy(&decoded).to_string();
-
-            task.stop_buffer.push_str(&token_str);
-            if task.stop_buffer.len() > 200 {
-                let split_idx = task.stop_buffer.len() - 100;
-                if let Some((idx, _)) = task
-                    .stop_buffer
-                    .char_indices()
-                    .find(|(i, _)| *i >= split_idx)
-                {
-                    task.stop_buffer = task.stop_buffer[idx..].to_string();
-                }
-            }
-
-            let mut hit_stop_seq: Option<String> = None;
-            if let Some(ref ss) = task.stop {
-                for stop_str in ss {
-                    if !stop_str.is_empty() && task.stop_buffer.ends_with(stop_str) {
-                        task.ended_by_stop = true;
-                        hit_stop_seq = Some(stop_str.clone());
-                        break;
-                    }
-                }
-            }
-
-            task.steps_done += 1;
-
-            if task.is_streaming {
-                if let Ok(decoded) = engine.tokenizer.decode(&task.acc_ids) {
-                    // 增量发射：以原始字节为基准切新增段；末尾不完整的 UTF-8 序列
-                    // 留到下轮补全。不能对 lossy 串按字节切片——增量解码在多字节
-                    // 字符（如 📋）中途时替换符会使索引漂移，直接切会 panic
-                    //（真实案例：990 行 start byte index not a char boundary 杀进程）。
-                    if decoded.len() >= task.last_decoded_len {
-                        let fresh = &decoded[task.last_decoded_len..];
-                        // 末尾可能是被截断的多字节序列：trim 到 UTF-8 安全边界
-                        let valid = match std::str::from_utf8(fresh) {
-                            Ok(_) => fresh.len(),
-                            Err(e) => e.valid_up_to(),
-                        };
-                        if valid > 0 {
-                            let chunk = String::from_utf8_lossy(&fresh[..valid]);
-                            if !chunk.is_empty() {
-                                let _ = task.tx.send(InferenceEvent::Token(chunk.to_string()));
-                            }
-                        }
-                        task.last_decoded_len += valid;
-                    } else {
-                        // 解码字节数回退（异常情形）：重置基线防 panic，宁丢增量
-                        task.last_decoded_len = decoded.len();
-                    }
-                }
-            }
-
-            if task.ended_by_stop || task.steps_done >= task.max_tokens {
-                let mut text = if let Ok(decoded) = engine.tokenizer.decode(&task.acc_ids) {
-                    String::from_utf8_lossy(&decoded).to_string()
-                } else {
-                    String::new()
-                };
-
-                if let Some(ref seq) = hit_stop_seq {
-                    if let Some(pos) = text.rfind(seq) {
-                        text.truncate(pos);
-                    }
-                }
-
-                let _ = task.tx.send(InferenceEvent::Done {
-                    text,
-                    input_tokens: task.prompt_tokens.len(),
-                    output_tokens: task.acc_ids.len(),
-                    stop_sequence: hit_stop_seq,
-                });
-
-                // 任务完成时把最终状态写回会话缓存
-                if let Some(sid) = &task.session_id {
-                    let current_state = engine
-                        .model
-                        .state_back(&engine.slot_states[slot])
-                        .map_err(|e| format!("state_back failed: {}", e))?;
-                    let mut base_tokens = task.prompt_tokens.clone();
-                    if task.loaded_from_cache {
-                        if let Some((prev_cached_tokens, _)) = engine.session_states.get(sid) {
-                            let new_len = prev_cached_tokens
-                                .len()
-                                .saturating_sub(task.dedup_backtrack);
-                            let mut full = prev_cached_tokens[..new_len].to_vec();
-                            full.extend_from_slice(&task.input_tokens);
-                            base_tokens = full;
-                        }
-                    }
-                    let mut full_tokens = base_tokens;
-                    full_tokens.extend_from_slice(&task.acc_ids);
-                    engine
-                        .session_states
-                        .insert(sid.clone(), (full_tokens, current_state));
-                }
-
-                return Ok(false);
-            }
-            Ok(true)
+            out.push(sample_token(
+                &logits,
+                t.top_p,
+                t.top_k,
+                &t.hist,
+                t.presence_penalty,
+                t.frequency_penalty,
+                t.penalty_decay,
+                t.seed,
+            ));
         }
+        out
+    };
+
+    for (row, id) in sampled.into_iter().enumerate() {
+        let Some(t) = tasks[row].as_mut() else {
+            continue;
+        };
+        if t.finish_pending {
+            // 补喂末 token（本轮只推进状态，采样结果丢弃）——下一轮回写缓存 + Done
+            continue;
+        }
+        t.acc_ids.push(id);
+        t.steps_done += 1;
+        t.feed_token = id;
+        t.seed = t.seed.wrapping_add(1);
+        append_hist(engine, row, t, id)?;
+        post_sample(engine, t);
+    }
+    Ok(())
+}
+
+/// 采样后处理：stop 串判定 + 流式增量发射 + 结束判定。
+fn post_sample(engine: &PoolEngine, task: &mut InferenceTask) {
+    let last_id = task.acc_ids.last().copied().unwrap_or(0);
+    let decoded = engine.tokenizer.decode(&[last_id]).unwrap_or_default();
+    let token_str = String::from_utf8_lossy(&decoded).to_string();
+
+    task.stop_buffer.push_str(&token_str);
+    if task.stop_buffer.len() > 200 {
+        let split_idx = task.stop_buffer.len() - 100;
+        if let Some((idx, _)) = task
+            .stop_buffer
+            .char_indices()
+            .find(|(i, _)| *i >= split_idx)
+        {
+            task.stop_buffer = task.stop_buffer[idx..].to_string();
+        }
+    }
+
+    if let Some(ref ss) = task.stop {
+        for stop_str in ss {
+            if !stop_str.is_empty() && task.stop_buffer.ends_with(stop_str) {
+                task.ended_by_stop = true;
+                task.hit_stop = Some(stop_str.clone());
+                break;
+            }
+        }
+    }
+
+    if task.is_streaming {
+        if let Ok(decoded) = engine.tokenizer.decode(&task.acc_ids) {
+            // 增量发射：以原始字节为基准切新增段；末尾不完整的 UTF-8 序列
+            // 留到下轮补全。不能对 lossy 串按字节切片——增量解码在多字节
+            // 字符（如 📋）中途时替换符会使索引漂移，直接切会 panic
+            //（真实案例：990 行 start byte index not a char boundary 杀进程）。
+            if decoded.len() >= task.last_decoded_len {
+                let fresh = &decoded[task.last_decoded_len..];
+                // 末尾可能是被截断的多字节序列：trim 到 UTF-8 安全边界
+                let valid = match std::str::from_utf8(fresh) {
+                    Ok(_) => fresh.len(),
+                    Err(e) => e.valid_up_to(),
+                };
+                if valid > 0 {
+                    let chunk = String::from_utf8_lossy(&fresh[..valid]);
+                    if !chunk.is_empty() {
+                        let _ = task.tx.send(InferenceEvent::Token(chunk.to_string()));
+                    }
+                }
+                task.last_decoded_len += valid;
+            } else {
+                // 解码字节数回退（异常情形）：重置基线防 panic，宁丢增量
+                task.last_decoded_len = decoded.len();
+            }
+        }
+    }
+
+    if task.ended_by_stop || task.steps_done >= task.max_tokens {
+        task.finish_pending = true;
+    }
+}
+
+/// 任务收尾：回写会话缓存（状态已含全部已发射 token）+ 发送 Done。
+/// `row` = 解码组行号；None 表示任务尚未入组（状态仍在 `prefill_state`）。
+fn finalize_task(task: &mut InferenceTask, engine: &mut PoolEngine, row: Option<usize>) {
+    if let Some(sid) = task.session_id.clone() {
+        let st = match row {
+            Some(row) if engine.use_batch_decode => {
+                engine.model.state_slot_back(&engine.decode_state, row)
+            }
+            Some(row) => engine.model.state_back(&engine.slot_states[row]),
+            None => engine.model.state_back(&engine.prefill_state),
+        };
+        if let Ok(st) = st {
+            // 状态已消费 base ++ input_tokens ++ acc_ids（末 token 已补喂）。
+            let mut tokens = task.base_tokens.clone();
+            tokens.extend_from_slice(&task.input_tokens);
+            tokens.extend_from_slice(&task.acc_ids);
+            engine.session_states.insert(sid, (tokens, st));
+        }
+    }
+
+    let mut text = engine
+        .tokenizer
+        .decode(&task.acc_ids)
+        .map(|d| String::from_utf8_lossy(&d).to_string())
+        .unwrap_or_default();
+    if let Some(ref seq) = task.hit_stop {
+        if let Some(pos) = text.rfind(seq.as_str()) {
+            text.truncate(pos);
+        }
+    }
+    let _ = task.tx.send(InferenceEvent::Done {
+        text,
+        input_tokens: task.prompt_tokens.len(),
+        output_tokens: task.acc_ids.len(),
+        stop_sequence: task.hit_stop.clone(),
+    });
+}
+
+/// 把任务的惩罚历史整行同步到设备 `row` 行（入组 / 槽位迁移时用）。
+fn upload_hist_row(engine: &PoolEngine, row: usize, task: &InferenceTask) -> Result<(), String> {
+    if task.hist.is_empty() {
+        return Ok(());
+    }
+    engine
+        .model
+        .write_u32_part(engine.hist_buf, row * HIST_STRIDE, &task.hist)
+        .map_err(|e| format!("hist row upload failed: {}", e))
+}
+
+/// 追加一个 token 到惩罚历史并同步到设备（O(1) 增量；满则滑窗重传整行）。
+fn append_hist(
+    engine: &PoolEngine,
+    row: usize,
+    task: &mut InferenceTask,
+    tok: u32,
+) -> Result<(), String> {
+    if task.hist.len() >= HIST_STRIDE {
+        // 滑动窗口：丢弃最旧 1/4（每 HIST_STRIDE/4 个 token 才发生一次）
+        let drop = HIST_STRIDE / 4;
+        task.hist.drain(..drop);
+        task.hist.push(tok);
+        return upload_hist_row(engine, row, task);
+    }
+    task.hist.push(tok);
+    engine
+        .model
+        .write_u32_part(
+            engine.hist_buf,
+            row * HIST_STRIDE + task.hist.len() - 1,
+            &[tok],
+        )
+        .map_err(|e| format!("hist append failed: {}", e))
+}
+
+/// 紧凑化解码组前缀：回收空洞后的任务前移，并迁移其状态行与惩罚历史行。
+fn compact_tasks(tasks: &mut [Option<InferenceTask>], engine: &mut PoolEngine) {
+    let mut to = 0usize;
+    for from in 0..tasks.len() {
+        if tasks[from].is_none() {
+            continue;
+        }
+        if to != from {
+            let t = tasks[from].take().expect("checked some");
+            migrate_slot(engine, from, to);
+            if let Err(e) = upload_hist_row(engine, to, &t) {
+                log::error!("[rwkv] hist migrate {from}->{to} failed: {e}");
+            }
+            tasks[to] = Some(t);
+        }
+        to += 1;
+    }
+}
+
+/// 迁移 batch 状态行 from → to（仅任务结束回收时发生，非每步开销）。
+/// 走设备内单行拷贝：主机中转版在 batch=16 时每次要传 ~260MB（实测 ~80ms/次）。
+fn migrate_slot(engine: &mut PoolEngine, from: usize, to: usize) {
+    if from == to {
+        return;
+    }
+    if !engine.use_batch_decode {
+        // 兜底路径的 State 由 Vec 直接持有，交换即完成迁移
+        engine.slot_states.swap(from, to);
+        return;
+    }
+    if let Err(e) = engine.model.state_slot_move(&engine.decode_state, from, to) {
+        log::error!("[rwkv] slot state migrate {from}->{to} failed: {e}");
     }
 }
 
@@ -1328,14 +1574,21 @@ fn sample_token(
     logits: &[f32],
     top_p: f32,
     top_k: usize,
-    token_counts: &HashMap<u32, i32>,
+    hist: &[u32],
     presence_penalty: f32,
     frequency_penalty: f32,
     penalty_decay: f32,
+    seed: u32,
 ) -> u32 {
     let mut logits = logits.to_vec();
-    for (&id, &count) in token_counts {
-        if (id as usize) < logits.len() {
+    if !hist.is_empty() && (presence_penalty != 0.0 || frequency_penalty != 0.0) {
+        let mut counts: HashMap<u32, u32> = HashMap::new();
+        for &id in hist {
+            if (id as usize) < logits.len() {
+                *counts.entry(id).or_insert(0) += 1;
+            }
+        }
+        for (id, count) in counts {
             let penalty = presence_penalty + frequency_penalty * (count as f32).powf(penalty_decay);
             logits[id as usize] -= penalty;
         }
@@ -1353,7 +1606,7 @@ fn sample_token(
             break;
         }
     }
-    let r = fastrand::f64() as f32 * cumsum.min(1.0);
+    let r = u01(seed) * cumsum.min(1.0);
     let mut cumsum = 0.0;
     let mut selected_id = top_k_candidates[0].0 as u32;
     for (i, p) in top_k_candidates {
@@ -1364,6 +1617,15 @@ fn sample_token(
         }
     }
     selected_id
+}
+
+/// 与 CUDA 采样器 `u01_batch` 同构的确定性随机数（主机侧首 token 采样用）。
+fn u01(seed: u32) -> f32 {
+    let mut z = seed.wrapping_add(0x9E37_79B9);
+    z = (z ^ (z >> 16)).wrapping_mul(0x85EB_CA6B);
+    z = (z ^ (z >> 13)).wrapping_mul(0xC2B2_AE35);
+    z ^= z >> 16;
+    z as f32 / 4294967296.0
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1381,8 +1643,36 @@ pub async fn pool_infer(
     is_vrm: bool,
     model_text: String,
 ) -> Result<mpsc::UnboundedReceiver<InferenceEvent>, String> {
+    // Lazy-init：启动不再预加载主 LLM，首个使用方（网关 / 对话 / 划词翻译 /
+    // 网页摘要）在此触发加载。app 传 None：池内加载完成即置 LLM_READY，无需事件。
     if !LLM_READY.load(Ordering::SeqCst) {
-        return Err("LLM engine not initialized".to_string());
+        if let Err(e) = init_engine_internal(None, None, None).await {
+            // 并发首用时另一调用方已在初始化：等待其完成（与 init 超时同上限 300s）。
+            if !e.contains("initialization in progress") {
+                return Err(format!("LLM auto-init failed: {}", e));
+            }
+            let mut ready = false;
+            for _ in 0..600 {
+                if LLM_READY.load(Ordering::SeqCst) {
+                    ready = true;
+                    break;
+                }
+                // 对方的初始化已结束（标志复位）且仍未就绪 = 加载失败，
+                // 立即报错而非傻等满 300s。成功路径 LLM_READY 先于标志复位置位。
+                let still_initing = LLM_INITING
+                    .get()
+                    .and_then(|f| f.lock().ok())
+                    .map(|f| *f)
+                    .unwrap_or(false);
+                if !still_initing {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+            if !ready {
+                return Err(format!("LLM auto-init failed: {}", e));
+            }
+        }
     }
     let pool = get_inference_pool().ok_or("inference pool not started")?;
     let (tx, rx) = mpsc::unbounded_channel::<InferenceEvent>();

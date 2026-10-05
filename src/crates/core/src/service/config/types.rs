@@ -413,18 +413,20 @@ impl Default for UnderlayConfig {
 
 /// ACE-Step music generation configuration.
 ///
-/// Controls the optional acestep.cpp FFI integration. When `enabled` is false
-/// the runtime skips loading `acestep_c.dll` and the frontend hides the
-/// music-studio tool. Empty path fields fall back to defaults under
-/// `<app_data>/models/acestep/` and `<app_data>/acestep/output/`.
+/// Controls the optional acestep.cpp FFI integration. The DLL loads lazily on
+/// first use and missing libraries only disable music generation. Note: the
+/// path overrides below are currently not consumed by the generation path —
+/// model downloads resolve via `AI00X_MODELS_DIR` or `<exe>/models/`, and
+/// generated audio lands in the system temp directory unless the caller
+/// passes `output_dir` explicitly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AcestepConfig {
     /// Master switch for the ACE-Step feature.
     pub enabled: bool,
-    /// Override for the models directory. Empty → `<app_data>/models/acestep/`.
+    /// Models directory override (currently unused by the download path).
     pub models_dir: String,
-    /// Override for the output directory. Empty → `<app_data>/acestep/output/`.
+    /// Output directory override (currently unused by `acestep_generate`).
     pub output_dir: String,
     /// Compute backend: "auto" | "cuda" | "vulkan" | "cpu".
     pub backend: String,
@@ -764,6 +766,9 @@ pub struct NotificationConfig {
     /// Whether to show a toast notification when a dialog turn completes while the window is not focused.
     #[serde(default = "default_true")]
     pub dialog_completion_notify: bool,
+    /// Whether to show a notification when a dialog turn fails (P2-A).
+    #[serde(default = "default_true")]
+    pub dialog_failure_notify: bool,
 }
 
 /// Theme configuration.
@@ -1023,73 +1028,10 @@ pub struct DefaultModelsConfig {
 ///
 /// The router classifies each user request (auto model mode) into a
 /// complexity tier (R0-R3) and dispatches it to the configured model.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct RouterConfig {
-    /// Master switch. Only takes effect when the session model is "auto".
-    pub enabled: bool,
-    /// Model reference per route tier (model id, "primary", "fast" or "rwkv-local").
-    pub tier_models: RouterTierModels,
-    /// Fallback model reference when classification fails or the engine is unavailable.
-    pub fallback: String,
-    /// Under-routing safety threshold: if argmax is R0/R1 and P(R2)+P(R3)
-    /// exceeds this value, upgrade to R2 (prefer over-routing to under-routing).
-    pub safety_threshold: f32,
-    /// Sticky tier: short messages never route below the previous turn's tier.
-    pub sticky_enabled: bool,
-    /// Classification inference timeout in milliseconds.
-    pub timeout_ms: u64,
-}
-
-impl Default for RouterConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            tier_models: RouterTierModels::default(),
-            fallback: "primary".to_string(),
-            safety_threshold: 0.45,
-            sticky_enabled: true,
-            timeout_ms: 3000,
-        }
-    }
-}
-
-/// Model references for each route tier of the smart router.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct RouterTierModels {
-    /// R0 trivial chat — local RWKV model by default.
-    pub r0: String,
-    /// R1 simple task — local RWKV model by default.
-    pub r1: String,
-    /// R2 complex task — mid-tier ("fast") model by default.
-    pub r2: String,
-    /// R3 high-stakes task — flagship ("primary") model by default.
-    pub r3: String,
-}
-
-impl Default for RouterTierModels {
-    fn default() -> Self {
-        Self {
-            r0: "rwkv-local".to_string(),
-            r1: "rwkv-local".to_string(),
-            r2: "fast".to_string(),
-            r3: "primary".to_string(),
-        }
-    }
-}
-
-impl RouterTierModels {
-    /// Returns the model reference for the given route tier.
-    pub fn model_for(&self, tier: &crate::routing::RouteClass) -> &str {
-        match tier {
-            crate::routing::RouteClass::R0 => &self.r0,
-            crate::routing::RouteClass::R1 => &self.r1,
-            crate::routing::RouteClass::R2 => &self.r2,
-            crate::routing::RouteClass::R3 => &self.r3,
-        }
-    }
-}
+///
+/// Since 2026-09 the canonical definition lives in the standalone
+/// `rwkv-router` crate; re-exported here for config-file compatibility.
+pub use rwkv_router::{RouterConfig, RouterTierModels};
 
 /// AI configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1857,6 +1799,7 @@ impl Default for AppConfig {
                 position: "topRight".to_string(),
                 duration: 5000,
                 dialog_completion_notify: true,
+                dialog_failure_notify: true,
             },
             session_config: AppSessionConfig::default(),
             ai_experience: AIExperienceConfig::default(),
@@ -2157,6 +2100,7 @@ impl Default for NotificationConfig {
             position: "topRight".to_string(),
             duration: 5000,
             dialog_completion_notify: true,
+            dialog_failure_notify: true,
         }
     }
 }

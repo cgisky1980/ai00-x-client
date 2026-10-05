@@ -96,6 +96,46 @@ impl AudioCaptureSession {
         })
     }
 
+    /// Detach the capture stream without consuming samples (auto-stop path).
+    /// The collected samples stay in the buffer for a later `stop_and_take_*`.
+    pub fn detach_stream(&mut self) {
+        let _ = self.stream.take();
+    }
+
+    /// Device sample rate of this capture session.
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    /// Stop capturing and return raw mono samples at the device sample rate
+    /// (clamped to [-1, 1], no resampling). Unlike [`Self::stop_and_take_samples`]
+    /// this keeps the full band — used for music/hum capture, not ASR.
+    pub fn stop_and_take_raw(&mut self) -> Result<(Vec<f32>, u32), String> {
+        let _ = self.stream.take();
+        let mut guard = self
+            .samples
+            .lock()
+            .map_err(|_| "Failed to lock captured samples".to_string())?;
+        let mut captured = std::mem::take(&mut *guard);
+        for sample in &mut captured {
+            *sample = sample.clamp(-1.0, 1.0);
+        }
+        let rate = self.sample_rate;
+        let n = captured.len();
+        let sum_sq: f64 = captured.iter().map(|s| (*s as f64) * (*s as f64)).sum();
+        let rms = (sum_sq / n.max(1) as f64).sqrt();
+        let peak = captured.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+        log::info!(
+            "[AudioCapture] raw captured: samples={} (~{}ms @{}Hz), rms={:.4}, peak={:.4}",
+            n,
+            n * 1000 / rate.max(1) as usize,
+            rate,
+            rms,
+            peak
+        );
+        Ok((captured, rate))
+    }
+
     pub fn stop_and_take_samples(&mut self) -> Result<Vec<f32>, String> {
         let _ = self.stream.take();
         let mut guard = self

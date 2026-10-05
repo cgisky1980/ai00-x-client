@@ -112,6 +112,12 @@ pub fn init_embedding_service() -> Result<(), EmbeddingError> {
 }
 
 pub fn get_embedding_service() -> Result<&'static Mutex<EmbeddingService>, EmbeddingError> {
+    if let Some(service) = EMBEDDING_SERVICE.get() {
+        return Ok(service);
+    }
+    // 启动不再预初始化 Embedding（首次使用懒加载）。模型缺失时 init 返回
+    // Err，向下落到未初始化错误——与过去的失败语义一致，只是延后。
+    let _ = init_embedding_service();
     EMBEDDING_SERVICE
         .get()
         .ok_or_else(|| EmbeddingError("Embedding service not initialized".to_string()))

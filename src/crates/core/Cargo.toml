@@ -83,6 +83,9 @@ sse-stream = "0.2.1"
 # Shared AI protocol adapters
 ai00-x-ai-adapters = { path = "../ai-adapters" }
 
+# RWKV-Router: self-evolving smart routing core (standalone component)
+rwkv-router = { path = "../../../../rwkv-router" }
+
 # Tool framework (Tool trait + types)
 
 # terminal

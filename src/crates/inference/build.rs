@@ -53,6 +53,13 @@ fn main() {
 
     println!("cargo:rerun-if-changed=../../../llama.cpp/CMakeLists.txt");
 
+    // GGML_MAX_NAME guard: llama.cpp submodule updates reset the shared
+    // ggml.h default to 64, but ACE-Step GGUFs carry tensor names up to 67
+    // chars. `char name[GGML_MAX_NAME]` also lives inside ggml_tensor, so
+    // every DLL compiled against ggml.h must agree — check BEFORE building
+    // so the whole llama+ggml set is (re)built with the widened value.
+    assert_ggml_max_name(&llama_cpp_dir.join("ggml").join("include").join("ggml.h"));
+
     // On Windows, ensure MSVC environment (cl.exe, INCLUDE, LIB) is set up
     // so that CMake and nvcc can find the compiler. When cargo invokes
     // build.rs from a plain PowerShell/CMD shell, cl.exe is typically NOT
@@ -286,17 +293,28 @@ fn sync_ggml_dlls_to_runtime(lib_dir: &std::path::Path, manifest_dir: &std::path
         "ggml-cuda.dll",
         "ggml-cpu.dll",
         "ggml-vulkan.dll",
+        // qwen3_fa links the ggml API too (ggml_tensor layout), so it must
+        // follow the same GGML_MAX_NAME ABI version as the 5 libs above.
+        "qwen3_fa.dll",
     ];
     let mut synced = 0;
     for dll in &ggml_dlls {
         let src = lib_dir.join(dll);
         let dst = runtime_gguf.join(dll);
         if src.exists() {
-            // Only copy if content differs (avoid unnecessary writes that
-            // trigger cargo rerun and file lock issues).
-            let need_copy = !dst.exists()
-                || std::fs::metadata(&src).map(|m| m.len()).ok()
-                    != std::fs::metadata(&dst).map(|m| m.len()).ok();
+            // Copy when size OR mtime differs. Size alone is not enough: a
+            // compile-flag change (e.g. GGML_MAX_NAME 64 -> 128) can keep the
+            // total byte count identical while the binaries are incompatible
+            // (2026-09-12: both were exactly 659968 bytes, only 4 of 5 got
+            // synced, leaving a stale ABI in runtime/gguf/). fs::copy keeps
+            // the source mtime, so an unchanged build re-syncs zero files.
+            let src_meta = std::fs::metadata(&src).ok();
+            let dst_meta = std::fs::metadata(&dst).ok();
+            let need_copy = src_meta.is_some()
+                && (dst_meta.is_none()
+                    || src_meta.as_ref().unwrap().len() != dst_meta.as_ref().unwrap().len()
+                    || src_meta.as_ref().unwrap().modified().ok()
+                        != dst_meta.as_ref().unwrap().modified().ok());
             if need_copy {
                 if let Err(e) = std::fs::copy(&src, &dst) {
                     log(&format!(
@@ -594,4 +612,57 @@ fn which(cmd: &str) -> Option<PathBuf> {
             }
         })
     })
+}
+
+/// Fail the build if the shared ggml.h has GGML_MAX_NAME < 128.
+///
+/// llama.cpp submodule updates reset this to the upstream default of 64, but
+/// ACE-Step GGUFs carry tensor names up to 67 chars, and the value also sizes
+/// `char name[GGML_MAX_NAME]` inside ggml_tensor — so every DLL compiled
+/// against ggml.h (llama.dll, qwen3_fa.dll, acestep_c.dll, ...) must agree.
+/// Turn the silent runtime failure ("ace_synth_load failed") into an explicit
+/// build error pointing at the exact fix. Same guard as acestep/build.rs.
+fn assert_ggml_max_name(ggml_h: &std::path::Path) {
+    const MIN_NAME: usize = 128;
+    let content = match std::fs::read_to_string(ggml_h) {
+        Ok(c) => c,
+        Err(e) => panic!(
+            "cannot read {}: {e}. The shared ggml source is incomplete; \
+             run `git submodule update --init --recursive`.",
+            ggml_h.display()
+        ),
+    };
+    let mut current = None;
+    let mut in_ifndef_block = false;
+    for line in content.lines() {
+        let t = line.trim();
+        if t.starts_with("#ifndef GGML_MAX_NAME") {
+            in_ifndef_block = true;
+        } else if in_ifndef_block && t.starts_with("#endif") {
+            in_ifndef_block = false;
+        } else if in_ifndef_block {
+            // Tokenize so both `#define GGML_MAX_NAME 64` and the upstream
+            // `#   define GGML_MAX_NAME        64` style parse correctly.
+            let tokens: Vec<&str> = t.split_whitespace().collect();
+            if tokens.len() >= 4
+                && tokens[0] == "#"
+                && tokens[1] == "define"
+                && tokens[2] == "GGML_MAX_NAME"
+            {
+                current = tokens[3].parse::<usize>().ok();
+            }
+        }
+    }
+    match current {
+        Some(v) if v >= MIN_NAME => {}
+        other => panic!(
+            "GGML_MAX_NAME is {:?} but this repo requires >= {MIN_NAME}.\n\
+             Fix: set `#define GGML_MAX_NAME 128` in {}.\n\
+             Why: llama.cpp submodule updates reset this to 64; ACE-Step GGUFs\n\
+             carry tensor names up to 67 chars, and mixing DLLs built with\n\
+             different values corrupts ggml_tensor layout (ABI mismatch).",
+            other,
+            ggml_h.display()
+        ),
+    }
 }

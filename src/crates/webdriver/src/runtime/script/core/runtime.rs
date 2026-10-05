@@ -37,8 +37,8 @@ pub(super) fn script() -> &'static str {
     const getFrameContext = () => currentFrameContext;
 
     const ensureRuntimeState = () => {
-      if (!window.__ai00-xWdRuntimeState) {
-        window.__ai00-xWdRuntimeState = {
+      if (!window['__ai00-xWdRuntimeState']) {
+        window['__ai00-xWdRuntimeState'] = {
           pointer: {
             x: 0,
             y: 0,
@@ -56,7 +56,7 @@ pub(super) fn script() -> &'static str {
           }
         };
       }
-      return window.__ai00-xWdRuntimeState;
+      return window['__ai00-xWdRuntimeState'];
     };
 
     const patchConsole = () => {
@@ -86,8 +86,8 @@ pub(super) fn script() -> &'static str {
     };
 
     const ensureAlertState = (targetWindow = window) => {
-      if (!targetWindow.__ai00-xWdAlertState) {
-        targetWindow.__ai00-xWdAlertState = {
+      if (!targetWindow['__ai00-xWd']) {
+        targetWindow['__ai00-xWd'] = {
           open: false,
           type: null,
           text: "",
@@ -95,7 +95,7 @@ pub(super) fn script() -> &'static str {
           promptText: null
         };
       }
-      return targetWindow.__ai00-xWdAlertState;
+      return targetWindow['__ai00-xWd'];
     };
 
     const patchDialogs = (targetWindow = window) => {

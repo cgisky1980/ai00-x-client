@@ -7,3 +7,5 @@ packages:
   - "packages/shared"
   - "packages/design-system"
   - "packages/vditor"
+  - "packages/paper-doll"
+  - "packages/bone-doll"

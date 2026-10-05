@@ -153,6 +153,18 @@ fn get_ui_prefs() -> Option<Arc<UiPrefsStore>> {
     UI_PREFS.lock().expect("UI_PREFS mutex poisoned").clone()
 }
 
+/// Rust 侧直接读 UI 偏好（不走 Tauri 命令；启动恢复场景用）。
+pub async fn pref_get_value(key: &str) -> Option<String> {
+    let prefs = get_ui_prefs()?;
+    prefs.get(key).await.ok().flatten()
+}
+
+/// Rust 侧直接写 UI 偏好（不发 kv_changed 事件）。
+pub async fn pref_set_value(key: &str, value: &str) -> Result<(), String> {
+    let prefs = get_ui_prefs().ok_or_else(|| "ui prefs store not initialized".to_string())?;
+    prefs.set(key, value).await.map_err(|e| e.to_string())
+}
+
 // ============================================================================
 // kv_changed 事件（跨 webview 同步）
 // ============================================================================

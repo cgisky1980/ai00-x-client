@@ -54,6 +54,8 @@ pub const SCOPE_GIT: &str = "git";
 pub const SCOPE_XP: &str = "xp";
 pub const SCOPE_WEB_EXTRACT: &str = "web:extract";
 pub const SCOPE_TEXT_SUMMARIZE: &str = "text:summarize";
+/// R2-10：外部触发——脚本 / CI / 定时器拉起某张卡的 agent 执行。
+pub const SCOPE_TASK_TRIGGER: &str = "task:trigger";
 
 /// 全部 scope（dsh_plugin_grants_list / 授权 UI 的词表）。
 pub const ALL_SCOPES: &[&str] = &[
@@ -67,17 +69,24 @@ pub const ALL_SCOPES: &[&str] = &[
     SCOPE_XP,
     SCOPE_WEB_EXTRACT,
     SCOPE_TEXT_SUMMARIZE,
+    SCOPE_TASK_TRIGGER,
 ];
 
 /// 未标识请求（无 Plugin-Id 头）的兜底 scope：只读 + 通知。
 /// 写操作（知行写/计划写/git/XP/壁纸）一律 403——历史第三方插件接入
 /// Plugin-Id 头 + 授权后恢复。
+///
+/// 唯一例外 `task:trigger`（R2-10，2026-09-12）：外部触发面向的是**本机脚本 /
+/// CI / 定时器**而非插件，它们没有 Plugin-Id 概念，只能靠共享 token 鉴权。
+/// 内嵌服务仅监听 127.0.0.1，未持 token 的本机进程无法调用；持 token 者本就
+/// 可直接调 AI 网关，故此处不构成实质提权。
 pub const BASIC_SCOPES: &[&str] = &[
     SCOPE_NOTIFY,
     SCOPE_TODO_READ,
     SCOPE_PLAN_READ,
     SCOPE_WEB_EXTRACT,
     SCOPE_TEXT_SUMMARIZE,
+    SCOPE_TASK_TRIGGER,
 ];
 
 /// grants 文件：DSH_HOME/plugin-grants.json，形如 `{ "<pluginId>": ["scope", ...] }`。
@@ -242,6 +251,12 @@ pub fn router() -> Router {
             Router::with_path("todo/focus")
                 .hoop(no_cache)
                 .post(todo_focus),
+        )
+        // R2-10：外部触发（脚本 / CI / 定时器）——鉴权 + 防重入后广播给前端
+        .push(
+            Router::with_path("tasks/trigger")
+                .hoop(no_cache)
+                .post(tasks_trigger),
         )
         .push(
             Router::with_path("plan")
@@ -640,6 +655,98 @@ async fn todo_task_create(req: &mut Request, res: &mut Response) {
         }
         Err(e) => err(res, StatusCode::BAD_REQUEST, e),
     }
+}
+
+/// R2-10：外部触发——脚本 / CI / 定时器拉起某张卡的 agent 执行。
+///
+/// 本机回环 + 共享 token 鉴权（`x-ai00-internal-token`）。参数 `taskId` 必填，
+/// 可选 `module`（agent 模块 id，缺省 `agent`）。防重入：卡片已处于 `doing`
+/// （执行中）直接 409，避免同卡并发跑两份。
+///
+/// 真正的编排在前端（委托流程在 web-ui，含计划书读取、worker 派发协议），
+/// 故此处只做鉴权 + 防重入 + 广播事件，由前端监听 `todo://task-trigger`
+/// 后走既有 delegate 链路；HTTP 立即返回 202（不等待执行完成）。
+#[handler]
+async fn tasks_trigger(req: &mut Request, res: &mut Response) {
+    if !authorize(req, res, SCOPE_TASK_TRIGGER) {
+        return;
+    }
+    let Some(body) = parse_body(req, res).await else {
+        return;
+    };
+    let task_id = body
+        .get("taskId")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if task_id.is_empty() {
+        err(res, StatusCode::BAD_REQUEST, "taskId is required".into());
+        return;
+    }
+    // 防重入：读知行数据判该卡是否在执行中（Rust 侧持盘，权威且无竞态顾虑）
+    let store = match crate::api::todo_api::todo_store_get().await {
+        Ok(Some(v)) => v,
+        Ok(None) => {
+            err(res, StatusCode::NOT_FOUND, "todo data not found".into());
+            return;
+        }
+        Err(e) => {
+            err(res, StatusCode::INTERNAL_SERVER_ERROR, e);
+            return;
+        }
+    };
+    let Some(task) = store
+        .get("tasks")
+        .and_then(Value::as_array)
+        .and_then(|arr| {
+            arr.iter()
+                .find(|t| t.get("id").and_then(Value::as_str) == Some(task_id.as_str()))
+        })
+    else {
+        err(
+            res,
+            StatusCode::NOT_FOUND,
+            format!("task not found: {task_id}"),
+        );
+        return;
+    };
+    let status = task
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("requirement");
+    if status == "doing" {
+        err(
+            res,
+            StatusCode::CONFLICT,
+            format!("task already running: {task_id}"),
+        );
+        return;
+    }
+    let Some(app) = crate::dsh_manager::app_handle() else {
+        err(res, StatusCode::SERVICE_UNAVAILABLE, "app not ready".into());
+        return;
+    };
+    let module = body
+        .get("module")
+        .and_then(|v| v.as_str())
+        .unwrap_or("agent")
+        .to_string();
+    if let Err(e) = Emitter::emit(
+        &app,
+        "todo://task-trigger",
+        json!({ "taskId": task_id, "module": module }),
+    ) {
+        err(
+            res,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("emit failed: {e}"),
+        );
+        return;
+    }
+    log::info!("[internal-api] task trigger accepted: {task_id} (module={module})");
+    res.status_code(StatusCode::ACCEPTED);
+    res.body(json!({"accepted": true, "taskId": task_id}).to_string());
 }
 
 #[handler]

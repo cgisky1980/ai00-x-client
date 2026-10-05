@@ -89,7 +89,10 @@ pub async fn extract(query: &str, max_results: Option<usize>) -> Vec<PageExtract
     let max_results = max_results
         .unwrap_or(DEFAULT_MAX_RESULTS)
         .clamp(1, MAX_RESULTS_CAP);
+    // SearXNG 自建实例（s.ai00-x.com，2026-10-02 部署）已作为主搜索源，
+    // 此处显式开启 fallback 链：AnySearch（有 key）→ SearXNG →（无则空）
     let results = WebSearchTool::new()
+        .with_searxng_enabled(true)
         .search_simple(query, "zh-CN", max_results)
         .await
         .unwrap_or_else(|e| {
@@ -152,16 +155,100 @@ pub async fn extract(query: &str, max_results: Option<usize>) -> Vec<PageExtract
     pages
 }
 
+/// 空壳/SPA 判定：剥掉 script/style 与标签后的可见文本过短、而页面总体偏大
+/// （脚本密集）——典型的前端框架空壳特征。
+fn is_shell_page(html: &str) -> bool {
+    // 剥 script/style 块
+    let mut cleaned = String::with_capacity(html.len());
+    let mut rest = html;
+    loop {
+        let Some(open) = ["<script", "<style"]
+            .iter()
+            .filter_map(|t| rest.find(t))
+            .min()
+        else {
+            cleaned.push_str(rest);
+            break;
+        };
+        let close = if rest[open..].starts_with("<script") {
+            "</script>"
+        } else {
+            "</style>"
+        };
+        cleaned.push_str(&rest[..open]);
+        match rest[open..].find(close) {
+            Some(off) => rest = &rest[open + off + close.len()..],
+            None => break,
+        }
+    }
+    // 数可见文本字符
+    let mut text_chars = 0usize;
+    let mut in_tag = false;
+    for ch in cleaned.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            c if !in_tag && !c.is_whitespace() => text_chars += 1,
+            _ => {}
+        }
+    }
+    text_chars < 250 && html.len() > 3000
+}
+
+/// html → markdown（统一 htmd 配置）。
+fn html_to_markdown(html: &str) -> Option<String> {
+    let converter = htmd::HtmlToMarkdown::builder()
+        .skip_tags(vec!["script", "style", "noscript", "iframe"])
+        .build();
+    let md = converter.convert(html).ok()?;
+    let cleaned = clean_markdown_noise(md.trim());
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned.chars().take(PAGE_MD_CHARS).collect())
+    }
+}
+
+/// r.jina.ai 托管 reader：JS 渲染 + 直接返回 markdown（免费额度，限速容忍失败）。
+async fn fetch_via_jina(url: &str) -> Option<String> {
+    let jina_url = format!("https://r.jina.ai/{url}");
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .redirect(ai00_x_core::util::net_guard::safe_redirect_policy(3))
+        .build()
+        .ok()?;
+    let resp = client.get(&jina_url).send().await.ok()?;
+    if !resp.status().is_success() {
+        log::warn!("[web-extract] r.jina.ai http {}", resp.status());
+        return None;
+    }
+    let md = resp.text().await.ok()?;
+    let cleaned = clean_markdown_noise(md.trim());
+    if cleaned.is_empty() {
+        None
+    } else {
+        log::info!("[web-extract] r.jina.ai fallback succeeded: {url}");
+        Some(cleaned.chars().take(PAGE_MD_CHARS).collect())
+    }
+}
+
 /// 抓取单页：10s 超时、2MB 截断流式读取、htmd 转 Markdown、取前 3000 字符。
 async fn fetch_page_markdown(url: &str) -> Option<String> {
     if is_private_ip(url) {
         log::warn!("[web-extract] blocked private url: {url}");
         return None;
     }
+    // P1-A：字符串前缀过滤只挡 IP 字面量；域名解析到内网的场景交给 net_guard
+    //（解析后全记录过封网清单）。
+    if let Err(e) = ai00_x_core::util::net_guard::assert_url_allowed(url).await {
+        log::warn!("[web-extract] blocked by net guard: {e}");
+        return None;
+    }
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(FETCH_TIMEOUT_SECS))
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
-        .redirect(reqwest::redirect::Policy::limited(3))
+        .redirect(ai00_x_core::util::net_guard::safe_redirect_policy(3))
         .build()
         .ok()?;
     let mut resp = client.get(url).send().await.ok()?;
@@ -187,11 +274,25 @@ async fn fetch_page_markdown(url: &str) -> Option<String> {
     if buf.is_empty() {
         return None;
     }
-    let html = String::from_utf8_lossy(&buf);
-    let converter = htmd::HtmlToMarkdown::builder()
-        .skip_tags(vec!["script", "style", "noscript", "iframe"])
-        .build();
-    let md = converter.convert(&html).ok()?;
+    let html = String::from_utf8_lossy(&buf).to_string();
+    // P1 无头 v1：空壳/SPA 判定——正文极少但页面很大且脚本密集 → JS 渲染升级
+    let is_shell = is_shell_page(&html);
+    let effective_html = if is_shell {
+        match crate::headless_fetch::fetch_rendered_html(url).await {
+            Ok(rendered) => {
+                log::info!("[web-extract] headless render upgraded: {url}");
+                rendered
+            }
+            Err(e) => {
+                log::warn!("[web-extract] headless render failed ({e}), trying r.jina.ai: {url}");
+                // r.jina.ai 托管 reader：JS 渲染 + 直接返回 markdown（免费额度）
+                return fetch_via_jina(url).await;
+            }
+        }
+    } else {
+        html
+    };
+    let md = html_to_markdown(&effective_html)?;
     let cleaned = clean_markdown_noise(md.trim());
     if cleaned.is_empty() {
         return None;
@@ -627,5 +728,66 @@ mod tests {
         assert!(matches!(v, Some(ScreenOutcome::NotRelevant)));
         // 完全无法解析 → None（调用方 snippet 降级）
         assert!(parse_screen_output("根据提供的网页内容，没有直接提及……因此无法判断").is_none());
+    }
+}
+
+#[cfg(test)]
+mod selftests {
+    use super::*;
+    use std::time::Instant;
+
+    /// 真机自验 1：SearXNG 搜索（s.ai00-x.com）→ 免 key 出结果。
+    /// 运行：cargo test -p ai00-x-desktop --release search_selftest -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore]
+    async fn search_selftest() {
+        let t = Instant::now();
+        let tool = ai00_x_core::websearch::WebSearchTool::new().with_searxng_enabled(true);
+        let results = tool
+            .search_simple("Rust 1.90 release notes", "zh-CN", 8)
+            .await
+            .expect("search failed");
+        println!(
+            "[search_selftest] {} results in {:.1}s",
+            results.len(),
+            t.elapsed().as_secs_f32()
+        );
+        for r in results.iter().take(3) {
+            println!(
+                "  - {} | {}",
+                r.title.chars().take(50).collect::<String>(),
+                r.url
+            );
+        }
+        assert!(!results.is_empty(), "SearXNG 搜索返回空");
+    }
+
+    /// 真机自验 2：extract 全管线——搜索 + 多页并发抓取 + 摘要（模拟 agent 的
+    /// ai00_web_extract 调用）。本地模型未起时页面标记 [degraded] 属预期。
+    /// 运行：cargo test -p ai00-x-desktop --release extract_batch_selftest -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore]
+    async fn extract_batch_selftest() {
+        let t = Instant::now();
+        let pages = extract("chromium devtools protocol", Some(6)).await;
+        let elapsed = t.elapsed().as_secs_f32();
+        println!(
+            "[extract_batch_selftest] {} pages in {:.1}s (degraded: {})",
+            pages.len(),
+            elapsed,
+            pages
+                .iter()
+                .filter(|p| p.summary.contains("[degraded]"))
+                .count()
+        );
+        for p in pages.iter().take(5) {
+            println!(
+                "  - {} | {} | summary {} chars",
+                p.title.chars().take(40).collect::<String>(),
+                p.url.chars().take(45).collect::<String>(),
+                p.summary.len()
+            );
+        }
+        assert!(pages.len() >= 2, "多页抓取结果不足: {}", pages.len());
     }
 }

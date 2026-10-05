@@ -6,6 +6,7 @@ pub mod front_matter_markdown;
 pub mod gesture_recognizer;
 pub mod http;
 pub mod json_extract;
+pub mod net_guard;
 pub mod pattern_recognizer;
 pub mod plain_output;
 pub mod process_manager;

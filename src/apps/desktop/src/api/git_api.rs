@@ -754,3 +754,69 @@ pub async fn git_snapshot(
     .await
     .map_err(|e| e.to_string())?
 }
+
+// ---------------------------------------------------------------------------
+// 志·快照时间线（agent 签名快照的列表 / 手动快照 / 回滚；libgit2 纯库）
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitSnapshotListRequest {
+    pub dir: String,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitSnapshotRollbackRequest {
+    pub dir: String,
+    pub commit: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitSnapshotNowRequest {
+    pub dir: String,
+    pub message: Option<String>,
+}
+
+/// 快照时间线（仅 agent 签名快照；HEAD 不存在 = 空 repo → 空列表）。
+#[tauri::command]
+pub async fn git_snapshots_list(
+    request: GitSnapshotListRequest,
+) -> Result<Vec<ai00_x_git::SnapshotEntry>, String> {
+    let limit = request.limit.unwrap_or(100).clamp(1, 500) as usize;
+    tokio::task::spawn_blocking(move || {
+        ai00_x_git::list_agent_snapshots(std::path::Path::new(&request.dir), limit)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// 手动快照（时间线「立即快照」按钮；等价 agent 侧 git/snapshot）。
+#[tauri::command]
+pub async fn git_snapshot_now(
+    request: GitSnapshotNowRequest,
+) -> Result<ai00_x_git::SnapshotResult, String> {
+    let message = request
+        .message
+        .filter(|m| !m.trim().is_empty())
+        .unwrap_or_else(|| "manual: user snapshot".to_string());
+    tokio::task::spawn_blocking(move || {
+        ai00_x_git::snapshot(std::path::Path::new(&request.dir), &message)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// 回滚到指定快照（reset --hard；UI 侧必须二次确认）。
+#[tauri::command]
+pub async fn git_snapshot_rollback(
+    request: GitSnapshotRollbackRequest,
+) -> Result<ai00_x_git::SnapshotResult, String> {
+    tokio::task::spawn_blocking(move || {
+        ai00_x_git::rollback_to_snapshot(std::path::Path::new(&request.dir), &request.commit)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
