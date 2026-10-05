@@ -36,6 +36,7 @@ import {
 } from '../localStore';
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { useCommunityStore } from '../community/communityStore';
+import { parseAvatarData } from '../components/avatarData';
 
 /** 桌面通知开关 localStorage key（设置页「通知与隐私」读写，store 触发时读） */
 export const NOTIFY_DESKTOP_KEY = 'memberChat.notifyDesktop';
@@ -337,6 +338,8 @@ export const useMemberChatStore = create<MemberChatState>((set, get) => {
       try {
         const p = await chatApi.getMyProfile();
         set({ myProfile: p });
+        // 头像独立 URL（迁移 037）：Spine 缺快照的老用户登录自愈（不阻塞主流程）
+        void selfHealSpineAvatar(p);
       } catch {
         /* 资料拉取失败不阻塞主流程（头像/昵称走 fallback） */
       }
@@ -927,6 +930,43 @@ export const useMemberChatStore = create<MemberChatState>((set, get) => {
     clearNotice: () => set({ notice: null }),
   };
 });
+
+/**
+ * 头像登录自愈（迁移 037）：Spine 形态且无快照的老用户，本人下次登录时
+ * 离屏渲一帧 PNG 并回存 → 服务端物化为独立 URL（此后出参不再内联 JSON）。
+ *
+ * - 会话内只尝试一次（avatarHealStarted），失败不重试、不阻塞主流程
+ * - 动态 import 保持 PIXI 在按需 chunk（不进首屏）
+ * - updateMyProfile 为全量提交，必须透传现有资料，否则会清空昵称/简介等字段
+ */
+let avatarHealStarted = false;
+
+async function selfHealSpineAvatar(p: MyProfile): Promise<void> {
+  if (avatarHealStarted || !p.avatarData || p.avatarSnapshot) return;
+  const parsed = parseAvatarData(p.avatarData);
+  if (parsed.kind !== 'spine') return;
+  avatarHealStarted = true;
+  try {
+    const { renderSpineSnapshot } = await import('@/infrastructure/account/spineSnapshot');
+    const snap = await renderSpineSnapshot(parsed.selection);
+    if (!snap) return;
+    const picked = await chatApi.updateMyProfile({
+      nickname: p.nickname,
+      bio: p.bio,
+      avatarData: p.avatarData,
+      avatarSnapshot: snap,
+      profileTheme: p.profileTheme,
+      location: p.location,
+      website: p.website,
+      coverPath: p.coverPath,
+    });
+    useMemberChatStore.setState((s) => ({
+      myProfile: s.myProfile ? { ...s.myProfile, ...picked } : null,
+    }));
+  } catch {
+    /* 自愈失败静默（下次登录再试） */
+  }
+}
 
 // ===== 离线消息自动补发（双端记录对齐）=====
 

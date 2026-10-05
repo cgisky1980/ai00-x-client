@@ -15,6 +15,7 @@ import React from 'react';
 import { Avatar } from '@/component-library';
 import { loadPartDefs, renderSpineSnapshot } from '@/infrastructure/account/spineSnapshot';
 import { createLogger } from '@/shared/utils/logger';
+import { resolveMediaUrl } from '../community/communityApi';
 import { parseAvatarData } from './avatarData';
 import type { AvatarSelection, PartDef } from '@ai00-x/shared';
 
@@ -39,6 +40,46 @@ function getSnapshot(data: string, selection: AvatarSelection): Promise<string |
   }
   return entry;
 }
+
+/* ---------------- 静态图 / 头像独立 URL（迁移 037） ---------------- */
+
+/** 相对 URL → 绝对 URL 的会话级缓存（内容指纹 URL 恒定，切页不重复解析） */
+const imageUrlCache = new Map<string, string>();
+
+/** 静态图态：data URL / http(s) 直接渲染；相对路径（/api/v1/community/avatars/...）
+ *  经 resolveMediaUrl 解析到服务器 baseUrl（WebView 页面源在本地，相对路径会打本机） */
+const MemberImage: React.FC<{
+  src: string;
+  name?: string;
+  size: AvatarSize;
+  className?: string;
+}> = ({ src, name, size, className }) => {
+  const [resolved, setResolved] = React.useState<string | null>(() =>
+    /^(https?:|data:)/i.test(src) ? src : (imageUrlCache.get(src) ?? null),
+  );
+
+  React.useEffect(() => {
+    let alive = true;
+    const abs = /^(https?:|data:)/i.test(src) ? src : imageUrlCache.get(src);
+    if (abs) {
+      setResolved(abs);
+      return undefined;
+    }
+    resolveMediaUrl(src)
+      .then((url) => {
+        imageUrlCache.set(src, url);
+        if (alive) setResolved(url);
+      })
+      .catch(() => {
+        /* 解析失败 → 保持首字占位 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [src]);
+
+  return <Avatar src={resolved ?? undefined} name={name} size={size} className={className} />;
+};
 
 /* ---------------- 子组件（先于主组件定义） ---------------- */
 
@@ -127,14 +168,10 @@ export const MemberAvatar: React.FC<MemberAvatarProps> = ({
   const parsed = React.useMemo(() => parseAvatarData(data), [data]);
 
   if (parsed.kind !== 'spine') {
-    return (
-      <Avatar
-        src={parsed.kind === 'image' ? parsed.src : undefined}
-        name={name}
-        size={size}
-        className={className}
-      />
-    );
+    if (parsed.kind === 'image') {
+      return <MemberImage src={parsed.src} name={name} size={size} className={className} />;
+    }
+    return <Avatar name={name} size={size} className={className} />;
   }
 
   if (animated) {
