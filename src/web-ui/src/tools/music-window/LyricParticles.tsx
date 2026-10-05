@@ -248,8 +248,10 @@ export const SpectrumRing: React.FC<{ active: boolean; className?: string }> = (
       const bars = BANDS * 2;
       const cx = w / 2;
       const cy = h / 2;
-      const r0 = Math.min(w, h) / 2 - 4;
       const maxLen = Math.min(w, h) * 0.14;
+      // 内半径要给最长频谱条留出空间，否则条被画布边界截断（画布即矩形，
+      // 斜向处的可用距离比正交处更长 → 表现为长短不一的「被切掉」）
+      const r0 = Math.min(w, h) / 2 - maxLen - 2;
       ctx.strokeStyle = colorRef.current;
       ctx.lineWidth = 2;
       for (let i = 0; i < bars; i++) {

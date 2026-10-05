@@ -1192,9 +1192,13 @@
 
   &__online-radio-vinyl-ring {
     position: absolute;
-    inset: -18px;
-    width: calc(100% + 36px);
-    height: calc(100% + 36px);
+    // 画布尺寸与 LyricParticles 几何互相锁死：r0 = W/2 - maxLen - 2，maxLen = 0.14W
+    // ⇒ r0 = 0.36W - 2。取 W = 11rem + 48 = 224 ⇒ r0 ≈ 78.6，条外端 ≈ 110 < 112（半宽）。
+    // 两个边界同时成立：① 外端不超画布 ⇒ 不被矩形裁断；② 画布 224 < 侧列 15rem(240)
+    // 且不越出左列盒子 ⇒ 不被 `__online-list.is-radio-live` 的 overflow:hidden 裁掉。
+    inset: -24px;
+    width: calc(100% + 48px);
+    height: calc(100% + 48px);
     pointer-events: none;
     z-index: 1;
   }
@@ -1219,6 +1223,18 @@
 
     &.is-playing {
       animation-play-state: running;
+    }
+
+    // 豁免全局降级动画：app/styles/global.scss 的 prefers-reduced-motion 钳制
+    //   *{animation-duration:.01ms!important;animation-iteration-count:1!important}
+    // 会把黑胶旋转压成「0.01ms 转一次」= 完全不转（实测：圆盘静止）。黑胶旋转是
+    // 「正在播放」的功能性指示而非装饰动效，故显式豁免（类选择器特异性 (0,2,0)
+    // 高于 *，同 !important 下可覆盖）。
+    @media (prefers-reduced-motion: reduce) {
+      &.is-playing {
+        animation-duration: 8s !important;
+        animation-iteration-count: infinite !important;
+      }
     }
 
     img {
