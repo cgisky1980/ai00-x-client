@@ -1,0 +1,908 @@
+{
+  "version": 1,
+  "frame": 64,
+  "directions": [
+    "down",
+    "up",
+    "right"
+  ],
+  "note": "chibi 素体骨架 v1（Px2d 风路线 v2.0）。部件 64×64 画布对齐；left=right 镜像。首版四动作：idle/walk/attack/work，关键帧数值为骨骼局部姿态绝对值。",
+  "defaultEquip": [
+    "head/base",
+    "face/base",
+    "torso/base",
+    "armL/base",
+    "armR/base",
+    "legL/base",
+    "legR/base"
+  ],
+  "bones": [
+    {
+      "key": "root",
+      "parent": null,
+      "x": 32,
+      "y": 50
+    },
+    {
+      "key": "body",
+      "parent": "root",
+      "x": 0,
+      "y": -7
+    },
+    {
+      "key": "head",
+      "parent": "body",
+      "x": 0,
+      "y": -7
+    },
+    {
+      "key": "armL",
+      "parent": "body",
+      "x": -9,
+      "y": -6
+    },
+    {
+      "key": "armR",
+      "parent": "body",
+      "x": 8,
+      "y": -6
+    },
+    {
+      "key": "legL",
+      "parent": "root",
+      "x": -4,
+      "y": -1
+    },
+    {
+      "key": "legR",
+      "parent": "root",
+      "x": 2,
+      "y": -1
+    }
+  ],
+  "setups": {
+    "right": {
+      "head": {
+        "x": 2
+      },
+      "armL": {
+        "x": 4
+      },
+      "armR": {
+        "x": -3
+      },
+      "legL": {
+        "x": 2
+      },
+      "legR": {
+        "x": -1
+      }
+    }
+  },
+  "slots": [
+    {
+      "key": "cape",
+      "bone": "body",
+      "z": 5,
+      "zBackView": 33,
+      "zSideView": 31,
+      "stack": true
+    },
+    {
+      "key": "armL",
+      "bone": "armL",
+      "z": 19
+    },
+    {
+      "key": "legL",
+      "bone": "legL",
+      "z": 21
+    },
+    {
+      "key": "legR",
+      "bone": "legR",
+      "z": 22
+    },
+    {
+      "key": "torso",
+      "bone": "body",
+      "z": 30
+    },
+    {
+      "key": "armR",
+      "bone": "armR",
+      "z": 36
+    },
+    {
+      "key": "head",
+      "bone": "head",
+      "z": 40
+    },
+    {
+      "key": "hair",
+      "bone": "head",
+      "z": 41
+    },
+    {
+      "key": "hat",
+      "bone": "head",
+      "z": 42,
+      "stack": true
+    },
+    {
+      "key": "face",
+      "bone": "head",
+      "z": 43
+    },
+    {
+      "key": "acc",
+      "bone": "head",
+      "z": 44,
+      "stack": true
+    },
+    {
+      "key": "weapon",
+      "bone": "armR",
+      "z": 46,
+      "stack": true
+    }
+  ],
+  "parts": {
+    "head/base": {
+      "slot": "head",
+      "name": "base · head",
+      "images": {
+        "down": {
+          "src": "parts/head/down.png"
+        },
+        "up": {
+          "src": "parts/head/up.png"
+        },
+        "right": {
+          "src": "parts/head/right.png"
+        }
+      }
+    },
+    "face/base": {
+      "slot": "face",
+      "name": "素体脸（平常）",
+      "images": {
+        "down": {
+          "src": "parts/face/down.png"
+        },
+        "right": {
+          "src": "parts/face/right.png"
+        }
+      }
+    },
+    "torso/base": {
+      "slot": "torso",
+      "name": "素体上衣",
+      "images": {
+        "down": {
+          "src": "parts/torso/down.png"
+        },
+        "up": {
+          "src": "parts/torso/up.png"
+        },
+        "right": {
+          "src": "parts/torso/right.png"
+        }
+      }
+    },
+    "armL/base": {
+      "slot": "armL",
+      "name": "左臂",
+      "images": {
+        "down": {
+          "src": "parts/armL/down.png"
+        },
+        "up": {
+          "src": "parts/armL/up.png"
+        },
+        "right": {
+          "src": "parts/armL/right.png"
+        }
+      }
+    },
+    "armR/base": {
+      "slot": "armR",
+      "name": "右臂",
+      "images": {
+        "down": {
+          "src": "parts/armR/down.png"
+        },
+        "up": {
+          "src": "parts/armR/up.png"
+        },
+        "right": {
+          "src": "parts/armR/right.png"
+        }
+      }
+    },
+    "legL/base": {
+      "slot": "legL",
+      "name": "左腿",
+      "images": {
+        "down": {
+          "src": "parts/legL/down.png"
+        },
+        "up": {
+          "src": "parts/legL/up.png"
+        },
+        "right": {
+          "src": "parts/legL/right.png"
+        }
+      }
+    },
+    "legR/base": {
+      "slot": "legR",
+      "name": "右腿",
+      "images": {
+        "down": {
+          "src": "parts/legR/down.png"
+        },
+        "up": {
+          "src": "parts/legR/up.png"
+        },
+        "right": {
+          "src": "parts/legR/right.png"
+        }
+      }
+    },
+    "hat/kerchief": {
+      "slot": "hat",
+      "name": "绒球头巾",
+      "images": {
+        "down": {
+          "src": "parts/hat/kerchief/down.png"
+        },
+        "up": {
+          "src": "parts/hat/kerchief/up.png"
+        },
+        "right": {
+          "src": "parts/hat/kerchief/right.png"
+        }
+      }
+    },
+    "weapon/sword-wood": {
+      "slot": "weapon",
+      "name": "木剑",
+      "images": {
+        "down": {
+          "src": "parts/weapon/sword-wood/down.png"
+        },
+        "up": {
+          "src": "parts/weapon/sword-wood/up.png"
+        },
+        "right": {
+          "src": "parts/weapon/sword-wood/right.png"
+        }
+      }
+    },
+    "cape/red": {
+      "slot": "cape",
+      "name": "红披风",
+      "images": {
+        "down": {
+          "src": "parts/cape/red/down.png"
+        },
+        "up": {
+          "src": "parts/cape/red/up.png"
+        },
+        "right": {
+          "src": "parts/cape/red/right.png"
+        }
+      }
+    }
+  },
+  "animations": {
+    "idle": {
+      "duration": 1.6,
+      "loop": true,
+      "tracks": {
+        "down": [
+          {
+            "t": 0,
+            "bones": {
+              "body": {
+                "y": -7
+              },
+              "head": {
+                "r": 0
+              },
+              "armL": {
+                "r": 0
+              },
+              "armR": {
+                "r": 0
+              }
+            }
+          },
+          {
+            "t": 0.8,
+            "bones": {
+              "body": {
+                "y": -8
+              },
+              "head": {
+                "r": 2
+              },
+              "armL": {
+                "r": 1
+              },
+              "armR": {
+                "r": -1
+              }
+            }
+          }
+        ],
+        "up": [
+          {
+            "t": 0,
+            "bones": {
+              "body": {
+                "y": -7
+              },
+              "armL": {
+                "r": 0
+              },
+              "armR": {
+                "r": 0
+              }
+            }
+          },
+          {
+            "t": 0.8,
+            "bones": {
+              "body": {
+                "y": -8
+              },
+              "armL": {
+                "r": 1
+              },
+              "armR": {
+                "r": -1
+              }
+            }
+          }
+        ],
+        "right": [
+          {
+            "t": 0,
+            "bones": {
+              "body": {
+                "y": -7
+              },
+              "head": {
+                "r": 0
+              }
+            }
+          },
+          {
+            "t": 0.8,
+            "bones": {
+              "body": {
+                "y": -8
+              },
+              "head": {
+                "r": 3
+              },
+              "armR": {
+                "r": 2
+              },
+              "armL": {
+                "r": -2
+              }
+            }
+          }
+        ]
+      }
+    },
+    "walk": {
+      "duration": 0.8,
+      "loop": true,
+      "tracks": {
+        "down": [
+          {
+            "t": 0,
+            "bones": {
+              "legL": {
+                "r": 20
+              },
+              "legR": {
+                "r": -20
+              },
+              "armL": {
+                "r": -18
+              },
+              "armR": {
+                "r": 18
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          },
+          {
+            "t": 0.2,
+            "bones": {
+              "legL": {
+                "r": 5
+              },
+              "legR": {
+                "r": -5
+              },
+              "body": {
+                "y": -8
+              }
+            }
+          },
+          {
+            "t": 0.4,
+            "bones": {
+              "legL": {
+                "r": -20
+              },
+              "legR": {
+                "r": 20
+              },
+              "armL": {
+                "r": 18
+              },
+              "armR": {
+                "r": -18
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          },
+          {
+            "t": 0.6,
+            "bones": {
+              "legL": {
+                "r": -5
+              },
+              "legR": {
+                "r": 5
+              },
+              "body": {
+                "y": -8
+              }
+            }
+          }
+        ],
+        "up": [
+          {
+            "t": 0,
+            "bones": {
+              "legL": {
+                "r": 20
+              },
+              "legR": {
+                "r": -20
+              },
+              "armL": {
+                "r": 18
+              },
+              "armR": {
+                "r": -18
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          },
+          {
+            "t": 0.2,
+            "bones": {
+              "legL": {
+                "r": 5
+              },
+              "legR": {
+                "r": -5
+              },
+              "body": {
+                "y": -8
+              }
+            }
+          },
+          {
+            "t": 0.4,
+            "bones": {
+              "legL": {
+                "r": -20
+              },
+              "legR": {
+                "r": 20
+              },
+              "armL": {
+                "r": -18
+              },
+              "armR": {
+                "r": 18
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          },
+          {
+            "t": 0.6,
+            "bones": {
+              "legL": {
+                "r": -5
+              },
+              "legR": {
+                "r": 5
+              },
+              "body": {
+                "y": -8
+              }
+            }
+          }
+        ],
+        "right": [
+          {
+            "t": 0,
+            "bones": {
+              "legR": {
+                "r": -25
+              },
+              "legL": {
+                "r": 25
+              },
+              "armR": {
+                "r": 20
+              },
+              "armL": {
+                "r": -20
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          },
+          {
+            "t": 0.2,
+            "bones": {
+              "legR": {
+                "r": -8
+              },
+              "legL": {
+                "r": 8
+              },
+              "body": {
+                "y": -8
+              }
+            }
+          },
+          {
+            "t": 0.4,
+            "bones": {
+              "legR": {
+                "r": 25
+              },
+              "legL": {
+                "r": -25
+              },
+              "armR": {
+                "r": -20
+              },
+              "armL": {
+                "r": 20
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          },
+          {
+            "t": 0.6,
+            "bones": {
+              "legR": {
+                "r": 8
+              },
+              "legL": {
+                "r": -8
+              },
+              "body": {
+                "y": -8
+              }
+            }
+          }
+        ]
+      }
+    },
+    "attack": {
+      "duration": 0.5,
+      "loop": false,
+      "next": "idle",
+      "tracks": {
+        "down": [
+          {
+            "t": 0,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "body": {
+                "r": 0
+              }
+            }
+          },
+          {
+            "t": 0.15,
+            "bones": {
+              "armR": {
+                "r": -140
+              }
+            }
+          },
+          {
+            "t": 0.3,
+            "bones": {
+              "armR": {
+                "r": -40
+              },
+              "body": {
+                "r": 4
+              }
+            }
+          },
+          {
+            "t": 0.5,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "body": {
+                "r": 0
+              }
+            }
+          }
+        ],
+        "up": [
+          {
+            "t": 0,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "body": {
+                "r": 0
+              }
+            }
+          },
+          {
+            "t": 0.15,
+            "bones": {
+              "armR": {
+                "r": 140
+              }
+            }
+          },
+          {
+            "t": 0.3,
+            "bones": {
+              "armR": {
+                "r": 40
+              },
+              "body": {
+                "r": -4
+              }
+            }
+          },
+          {
+            "t": 0.5,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "body": {
+                "r": 0
+              }
+            }
+          }
+        ],
+        "right": [
+          {
+            "t": 0,
+            "bones": {
+              "armR": {
+                "r": 10
+              },
+              "body": {
+                "r": 0
+              },
+              "head": {
+                "r": 0
+              }
+            }
+          },
+          {
+            "t": 0.15,
+            "bones": {
+              "armR": {
+                "r": 70
+              },
+              "body": {
+                "r": -5
+              },
+              "head": {
+                "r": -3
+              }
+            }
+          },
+          {
+            "t": 0.3,
+            "bones": {
+              "armR": {
+                "r": -95
+              },
+              "body": {
+                "r": 6
+              },
+              "head": {
+                "r": 4
+              }
+            }
+          },
+          {
+            "t": 0.5,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "body": {
+                "r": 0
+              },
+              "head": {
+                "r": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    "work": {
+      "duration": 1.2,
+      "loop": true,
+      "tracks": {
+        "down": [
+          {
+            "t": 0,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "armL": {
+                "r": 0
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          },
+          {
+            "t": 0.4,
+            "bones": {
+              "armR": {
+                "r": -120
+              },
+              "armL": {
+                "r": -120
+              },
+              "body": {
+                "y": -8
+              }
+            }
+          },
+          {
+            "t": 0.8,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "armL": {
+                "r": 0
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          }
+        ],
+        "up": [
+          {
+            "t": 0,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "armL": {
+                "r": 0
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          },
+          {
+            "t": 0.4,
+            "bones": {
+              "armR": {
+                "r": 120
+              },
+              "armL": {
+                "r": 120
+              },
+              "body": {
+                "y": -8
+              }
+            }
+          },
+          {
+            "t": 0.8,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "armL": {
+                "r": 0
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          }
+        ],
+        "right": [
+          {
+            "t": 0,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "armL": {
+                "r": 0
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          },
+          {
+            "t": 0.4,
+            "bones": {
+              "armR": {
+                "r": -110
+              },
+              "armL": {
+                "r": 10
+              },
+              "body": {
+                "y": -8
+              }
+            }
+          },
+          {
+            "t": 0.8,
+            "bones": {
+              "armR": {
+                "r": 0
+              },
+              "armL": {
+                "r": 0
+              },
+              "body": {
+                "y": -7
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

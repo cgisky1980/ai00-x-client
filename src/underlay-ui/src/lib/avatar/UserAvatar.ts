@@ -6,6 +6,7 @@ import type { PhysicsSystem } from '../physics/PhysicsSystem';
 import { getApiUrl } from '../config';
 import type { GardenManager } from '../world/GardenManager';
 import { AvatarBehaviorController } from './AvatarBehaviorController';
+import { DollAvatar } from './DollAvatar';
 import { storage } from '../storage';
 import { tokenManager } from '../tokenManager';
 
@@ -44,6 +45,25 @@ async function loadCrossOriginTexture(url: string): Promise<PIXI.Texture> {
 
 /** 角色缩放比例（3/5 = 0.6） */
 export const AVATAR_SCALE = 0.6;
+
+/**
+ * 骨骼纸娃娃资产基址探测：本地打包资源优先（public/pet/doll2，dev 与 tauri 内置
+ * salvo 同源可用），服务器 assets base 兜底（部署 doll 后生效）。都不可达返回
+ * null → 回落既有 Spine 路线。探测文件 = bone-doll 的 skeleton.json。
+ */
+async function resolveDollBase(remoteBase: string): Promise<string | null> {
+    const candidates = [
+        new URL('pet/doll2/', document.baseURI).href,
+        `${remoteBase.replace(/\/+$/, '')}/doll2/`,
+    ];
+    for (const base of candidates) {
+        try {
+            const resp = await fetch(new URL('skeleton.json', base).href, { cache: 'no-cache' });
+            if (resp.ok) return base;
+        } catch { /* 试下一个候选 */ }
+    }
+    return null;
+}
 
 /**
  * 共享 Spine 头像加载函数（UserAvatar 和 VisitorAvatar 复用）
@@ -299,6 +319,10 @@ function buildSlotNameMap(config: AvatarConfigFile): Map<string, string> {
 export class UserAvatar {
   private app: PIXI.Application;
   private spine: Spine | null = null;
+  /** 纸娃娃化身（LPC 分层运行时）；非 null 时 Spine 路线全部让位给它 */
+  private doll: DollAvatar | null = null;
+  /** 物理圆底到视图脚底的偏移：Spine 用 59*AVATAR_SCALE，纸娃娃用地面线内缩（负值上移） */
+  private footOffsetPx = 59 * AVATAR_SCALE;
   private container: PIXI.Container;
   private baseUrl: string;
   private physicsSystem: PhysicsSystem | null;
@@ -332,6 +356,18 @@ export class UserAvatar {
    * @param selection 用户选择的部位和颜色。如果不传，尝试从 localStorage 读取。
    */
   async load(selection?: AvatarSelection): Promise<void> {
+    // 0. 纸娃娃路线优先：manifest 可达即走分层运行时，失败/缺失回落 Spine
+    const dollBase = await resolveDollBase(this.baseUrl);
+    if (dollBase) {
+      try {
+        await this.loadDoll(dollBase);
+        return;
+      } catch (e) {
+        console.warn('[UserAvatar] 纸娃娃加载失败，回落 Spine 路线:', e);
+        this.doll = null;
+      }
+    }
+
     // 1. 加载 config.json
     const configResp = await fetch(`${this.baseUrl}/config.json`);
     this.config = await configResp.json() as AvatarConfigFile;
@@ -489,6 +525,47 @@ export class UserAvatar {
   }
 
   /**
+   * 骨骼纸娃娃路线：装载 chibi 分层化身并接入物理/行为（结构与 Spine 路径对齐）。
+   * 换装模型 = skeleton 部件槽位；用户自选部位/颜色的映射在衣柜 UI 落地后接入。
+   */
+  private async loadDoll(base: string): Promise<void> {
+    console.log(`[UserAvatar] 骨骼纸娃娃资产可用：${base} → bone-doll 骨骼运行时`);
+    this.doll = await DollAvatar.create(base);
+    this.container.addChild(this.doll.view);
+
+    // 物理体与脚底锚点（chibi 鞋底线在帧底上方 ~5px，负偏移把脚抬到地面）
+    this.footOffsetPx = -this.doll.groundInsetPx;
+    if (this.physicsSystem) {
+      const startX = window.innerWidth * 0.15;
+      const groundY = this.physicsSystem.getGroundTopScreenY();
+      this.physicsBody = this.physicsSystem.createPetBody(startX, groundY - 80, 40 * AVATAR_SCALE);
+      Matter.Sleeping.set(this.physicsBody, false);
+      this.app.ticker.add(this.tickPhysics);
+
+      this.behaviorController = new AvatarBehaviorController(
+        this.doll, this.physicsSystem, this.physicsBody,
+        this.gardenManager ?? undefined,
+        this.container,
+      );
+      void this.behaviorController.start();
+      this.app.ticker.add(this.tickBehavior);
+      void this.loadNickname();
+    } else {
+      this.setPosition(window.innerWidth * 0.15, window.innerHeight * 0.75);
+    }
+
+    // 每帧驱动纸娃娃（tick + render + 纹理上传）
+    this.app.ticker.add(this.tickDoll);
+  }
+
+  /**
+   * 每帧驱动纸娃娃运行时
+   */
+  private tickDoll = (): void => {
+    this.doll?.update(this.app.ticker.deltaMS);
+  };
+
+  /**
    * 合并 variant atlas 的 regions 到 base atlas（手动 fetch + 创建 TextureAtlas，绕过 PIXI.Assets.load）
    */
   private async mergeVariantAtlas(baseAtlas: TextureAtlas, partDef: PartDef, variantId: string): Promise<void> {
@@ -618,17 +695,18 @@ export class UserAvatar {
    * spine.y = 圆心底边 (screenPos.y + radius) + footOffset
    */
   private tickPhysics = (): void => {
-    if (!this.spine || !this.physicsBody || !this.physicsSystem) return;
+    // 纸娃娃与 Spine 共用物理同步：视图对象统一取 view（纸娃娃）或 spine
+    const view = this.doll ? this.doll.view : this.spine;
+    if (!view || !this.physicsBody || !this.physicsSystem) return;
     const screenPos = this.physicsSystem.physicsToScreen(
       this.physicsBody.position.x,
       this.physicsBody.position.y
     );
-    this.spine.x = screenPos.x;
+    view.x = screenPos.x;
     // 物理体圆心 + 半径 = 圆底 = 脚的位置
     const radius = (this.physicsBody as any).circleRadius || 40 * AVATAR_SCALE;
-    // Spine root 不在脚部，需要 footOffset 校正（缩放后偏移也按比例缩小）
-    const footOffset = 59 * AVATAR_SCALE;
-    this.spine.y = screenPos.y + radius + footOffset;
+    // footOffset 校正：Spine 根不在脚部（59*AVATAR_SCALE），纸娃娃为地面线内缩负偏移
+    view.y = screenPos.y + radius + this.footOffsetPx;
   };
 
   /**
@@ -782,6 +860,11 @@ export class UserAvatar {
    * 设置化身位置（屏幕坐标）
    */
   setPosition(x: number, y: number): void {
+    if (this.doll) {
+      this.doll.view.x = x;
+      this.doll.view.y = y;
+      return;
+    }
     if (this.spine) {
       this.spine.x = x;
       this.spine.y = y;
@@ -792,6 +875,10 @@ export class UserAvatar {
    * 设置缩放
    */
   setScale(scale: number): void {
+    if (this.doll) {
+      this.doll.scale.set(scale);
+      return;
+    }
     if (this.spine) {
       this.spine.scale.set(scale);
     }
@@ -806,6 +893,10 @@ export class UserAvatar {
    * 播放动画
    */
   playAnimation(name: string, loop: boolean = true): void {
+    if (this.doll) {
+      this.doll.state.setAnimation(0, name, loop);
+      return;
+    }
     if (this.spine) {
       this.spine.state.setAnimation(0, name, loop);
     }
@@ -815,6 +906,9 @@ export class UserAvatar {
    * 获取可用动画列表
    */
   getAnimations(): string[] {
+    if (this.doll) {
+      return this.doll.skeleton.data.animations.map(a => a.name);
+    }
     if (!this.spine) return [];
     return this.spine.skeleton.data.animations.map(a => a.name);
   }
@@ -826,6 +920,7 @@ export class UserAvatar {
     this.app.ticker.remove(this.tickColorApply);
     this.app.ticker.remove(this.tickPhysics);
     this.app.ticker.remove(this.tickBehavior);
+    this.app.ticker.remove(this.tickDoll);
     if (this.behaviorController) {
       this.behaviorController.destroy();
       this.behaviorController = null;
@@ -833,6 +928,11 @@ export class UserAvatar {
     if (this.physicsBody && this.physicsSystem) {
       this.physicsSystem.removeBody(this.physicsBody);
       this.physicsBody = null;
+    }
+    if (this.doll) {
+      this.container.removeChild(this.doll.view);
+      this.doll.destroy();
+      this.doll = null;
     }
     if (this.spine) {
       this.container.removeChild(this.spine);

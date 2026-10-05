@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>素体工坊 · 切图绑骨</title>
+    <style>
+      :root {
+        --bg: #141419; --panel: #1c1c24; --card: #22222c; --line: #2c2c38;
+        --text: #d6d6dc; --muted: #7a8296; --accent: #7aa2c4; --accent2: #e8a33d;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.55 Consolas, "Microsoft YaHei", sans-serif; }
+      h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 2px; }
+      button { font: inherit; background: var(--card); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+      button:hover { border-color: var(--accent); }
+      button.on { background: #24384a; border-color: var(--accent); color: var(--accent); }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #10141a; font-weight: 600; }
+      button.primary:hover { filter: brightness(1.1); }
+      select, input[type='text'] { font: inherit; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+      input[type='color'] { width: 34px; height: 28px; padding: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+      .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+      .hint { color: var(--muted); }
+
+      .topbar { display: flex; justify-content: space-between; align-items: center; padding: 9px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+      .brand { font-size: 15px; font-weight: 600; letter-spacing: 1px; }
+      .brand em { font-style: normal; color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 10px; letter-spacing: 0; }
+      .top-actions { display: flex; gap: 8px; align-items: center; }
+
+      .workbench { display: flex; height: calc(100vh - 47px); }
+      .canvas-pane { flex: none; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+      .seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+      .seg button { border: none; border-radius: 0; padding: 4px 12px; }
+      .seg button.on { background: #24384a; color: var(--accent); }
+      #stageWrap { position: relative; width: 512px; height: 512px; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; align-self: center; background: #23232c; }
+      #sel { position: absolute; border: 1px dashed var(--accent2); pointer-events: none; display: none; }
+      .statusbar { display: flex; gap: 18px; color: var(--muted); font-size: 12px; padding: 2px 4px; }
+      .statusbar b { color: var(--accent2); font-weight: 600; }
+
+      .panel { width: 400px; flex: none; border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+      #layers { display: flex; flex-direction: column; gap: 2px; }
+      #layers .layer { display: flex; align-items: center; gap: 8px; padding: 3px 8px; cursor: pointer; border: 1px solid transparent; border-radius: 6px; }
+      #layers .layer:hover { background: #26262f; }
+      #layers .layer.on { border-color: var(--accent); background: #24384a; }
+      #layers .layer .key { min-width: 64px; }
+      #layers .layer .meta { color: var(--muted); font-size: 12px; }
+      #layers .layer.on .key { color: var(--accent2); }
+      .swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+      .sw { width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; flex: none; }
+      .sw.on { outline: 2px solid var(--accent2); }
+      a { color: var(--accent); }
+      code { background: var(--card); padding: 1px 5px; border-radius: 4px; }
+      #msg { color: var(--accent2); }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">素体工坊 <em>画素体 · 切割 · 绑骨骼 · 导出部件包</em></div>
+      <div class="top-actions">
+        <button id="focusBtn" class="on">聚焦模式</button>
+        <button id="loadBase">载入当前素体</button>
+        <button id="clearActive">清空激活层</button>
+        <button id="exportBtn" class="primary">⬇ 导出素体</button>
+        <button id="exportSpineBtn" class="primary">⬇ 导出 Spine 部件包</button>
+      </div>
+    </header>
+    <main class="workbench">
+      <section class="canvas-pane">
+        <div class="row">
+          <div class="seg" id="dirs"></div>
+          <div class="seg">
+            <button id="toolPencil" class="on">✏ 铅笔</button>
+            <button id="toolEraser">◻ 橡皮</button>
+            <button id="toolBucket">🪣 油漆</button>
+            <button id="toolLine">╱ 画线</button>
+            <button id="toolRect">▦ 选区</button>
+          </div>
+          <button id="resetBtn" title="清空全部图层与本地存档，重载素体">⚠ 重置工作区</button>
+          <button id="undoBtn" title="Ctrl+Z">↶</button>
+          <button id="redoBtn" title="Ctrl+Y">↷</button>
+          <input id="color" type="color" value="#f6caa8" title="铅笔颜色" />
+          <span class="hint" style="margin-left:6px">缩放</span>
+          <button id="zoomOut" title="缩小">⊖</button>
+          <span id="zoomPct" style="min-width:38px;text-align:center">100%</span>
+          <button id="zoomIn" title="放大">⊕</button>
+          <button id="zoomFit" title="复位视图">⌂</button>
+        </div>
+        <div id="stageWrap">
+          <canvas id="stage" width="512" height="512"></canvas>
+          <div id="sel"></div>
+        </div>
+        <div class="statusbar">
+          <span>激活层 <b id="activeInfo">draft</b></span>
+          <span>光标 <b id="cursorPos">-, -</b></span>
+          <span>方向 <b id="dirInfo">down</b></span>
+          <span>缩放 <b id="zoomInfo">8×</b></span>
+          <span id="msg"></span>
+        </div>
+        <p class="hint" style="margin:0">滚轮缩放（以光标为中心） · 空格/中键拖拽平移 · Alt+点画布吸色 · Ctrl+Z 撤销</p>
+        <section class="card" style="align-self: stretch">
+          <h3>调色盘（锁定色） · Alt+点画布 = 吸色</h3>
+          <div id="swatches" class="swatches"></div>
+          <h3 style="margin-top:8px">自定义色（右键删除）</h3>
+          <div class="row">
+            <div id="customSwatches" class="swatches"></div>
+            <button id="addCustom" title="把当前颜色加入自定义">＋</button>
+          </div>
+        </section>
+      </section>
+      <aside class="panel">
+        <section class="card">
+          <h3>实时预览 · 动作</h3>
+          <div class="row" style="align-items:flex-start">
+            <canvas id="pv" width="128" height="128" style="image-rendering:pixelated;border:1px solid var(--line);background:#000;border-radius:4px"></canvas>
+            <div>
+              <div class="row" id="pvAnims"></div>
+              <div class="row" style="margin-top:6px">
+                <button id="pvPlay">⏸ 暂停</button>
+                <span class="hint">随编辑实时刷新</span>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="card">
+          <h3>切割 → 身体部件（槽位即骨骼绑定）</h3>
+          <div class="row">
+            <span class="hint">源层</span><select id="srcSel"></select>
+            <span class="hint">→ 切到</span><select id="dstSel"></select>
+            <button id="cutBtn">✂ 切割</button>
+          </div>
+          <p class="hint" style="margin:8px 0 0">矩形选区框住像素 → 选目标部件 → 切割（画错层时用来纠正归属）。</p>
+        </section>
+        <section class="card">
+          <h3>素体部件 · z 序 = 绘制序</h3>
+          <div id="layers"></div>
+        </section>
+        <section class="card">
+          <h3>导出</h3>
+          <div class="row">
+            <span class="hint">部件名</span>
+            <input id="packName" type="text" value="base" />
+          </div>
+          <p class="hint" style="margin:8px 0 0">导出后运行 <code>node scripts/import-pack.mjs 包.json</code> 落盘 assets + doll2 并合并 skeleton。装饰件命名避开 <code>base</code>（如 <code>hair-bob01</code>）。</p>
+        </section>
+        <p class="hint"><a href="/editor.html">→ 关键帧编辑器</a> · <a href="/">← playground</a></p>
+      </aside>
+    </main>
+    <script type="module" src="./demo/sucai.ts"></script>
+  </body>
+</html>

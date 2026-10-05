@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai00-x/design-system": "workspace:*",
+    "@ai00-x/bone-doll": "workspace:*",
     "@ai00-x/shared": "workspace:*",
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",
     "@atlaskit/pragmatic-drag-and-drop-flourish": "^2.0.9",

@@ -301,7 +301,7 @@ export function LoginPage() {
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-transparent p-5">
       <div
-        className="w-full h-full relative overflow-hidden rounded-xl border loader-card"
+        className="w-full h-full relative overflow-hidden rounded-lg border loader-card"
         style={{ borderColor: "var(--border-base)", backgroundColor: "var(--color-bg-base)", backgroundImage: "var(--ds-paper-grain)" }}
       >
         <div className="absolute top-0 left-0 right-0 h-10 z-0" data-tauri-drag-region />
@@ -347,22 +347,25 @@ export function LoginPage() {
               <div className="text-center space-y-5">
                 {/* 免登录卡片：显示用户形象占位 + 昵称 */}
                 <div
-                  className="mx-auto rounded-2xl p-6 flex flex-col items-center gap-3 border"
+                  className="mx-auto rounded-md p-6 flex flex-col items-center gap-3 border"
                   style={{
                     borderColor: "var(--border-base)",
                     backgroundColor: "var(--element-bg-subtle)",
                   }}
                 >
-                  {/* Spine 头像预览（复用 AvatarCustomizer previewOnly 模式） */}
-                  <div
-                    className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center"
-                    style={{ backgroundColor: "var(--color-accent-500)" }}
-                  >
-                    {savedAuth.avatarSelection ? (
-                      <AvatarCustomizer value={savedAuth.avatarSelection} previewOnly onChange={() => {}} />
-                    ) : (
-                      <User className="w-10 h-10" style={{ color: "var(--color-accent-foreground)" }} />
-                    )}
+                  {/* Spine 头像预览（头部超出圆圈的画框效果：圆环背景 + 底对齐超高头像层） */}
+                  <div className="relative w-24 h-24">
+                    <div
+                      className="absolute inset-0 rounded-full"
+                      style={{ backgroundColor: "var(--color-accent-500)" }}
+                    />
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-28 flex items-center justify-center">
+                      {savedAuth.avatarSelection ? (
+                        <AvatarCustomizer value={savedAuth.avatarSelection} previewOnly onChange={() => {}} />
+                      ) : (
+                        <User className="w-10 h-10" style={{ color: "var(--color-accent-foreground)" }} />
+                      )}
+                    </div>
                   </div>
                   <div>
                     <div className="text-lg font-medium" style={{ color: "var(--color-text-primary)" }}>

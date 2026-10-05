@@ -1,11 +1,11 @@
 import Matter from 'matter-js'
 import * as PIXI from 'pixi.js'
-import type { Spine } from '@esotericsoftware/spine-pixi-v8'
 import type { PhysicsSystem } from '../physics/PhysicsSystem'
 import type { GardenManager } from '../world/GardenManager'
 import type { AvatarActivity, AvatarMood } from '../world/types'
 import { SpeechBubbleSystem } from './SpeechBubbleSystem'
 import { NameTag, NAME_TAG_Y } from './NameTag'
+import type { AvatarAnimTarget } from './DollAvatar'
 
 /** 化身缩放比例（与 UserAvatar.AVATAR_SCALE 保持一致，本地定义以避免循环依赖） */
 const AVATAR_SCALE = 0.6
@@ -42,7 +42,7 @@ type BehaviorAction =
  * 有访客时：减少外出探索，增加 greeting/playing
  */
 export class AvatarBehaviorController {
-  private spine: Spine
+  private spine: AvatarAnimTarget
   private physicsSystem: PhysicsSystem
   private body: Matter.Body
   private gardenManager: GardenManager | null
@@ -79,7 +79,7 @@ export class AvatarBehaviorController {
   private onArrivedCallback: (() => void) | null = null
 
   constructor(
-    spine: Spine,
+    spine: AvatarAnimTarget,
     physicsSystem: PhysicsSystem,
     body: Matter.Body,
     gardenManager?: GardenManager,

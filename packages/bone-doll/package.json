@@ -1,0 +1,29 @@
+{
+  "name": "@ai00-x/bone-doll",
+  "version": "0.1.0",
+  "private": true,
+  "description": "骨骼纸娃娃运行时：chibi 分层部件 + 骨骼关键帧插值（Px2d 风美术路线 v2.0）。纯 TS + Canvas2D，无框架依赖。红线：不做装配图逆拆解 / 不做 IK·网格·权重 / 不自动绑骨。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "demo": "vite --port 5198 --open",
+    "gen:base": "node scripts/gen-base-parts.mjs",
+    "gen:spine": "node scripts/gen-spine-skeleton.mjs",
+    "type-check": "tsc --noEmit",
+    "test": "node --import tsx --test src/math.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.22.4",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4"
+  },
+  "dependencies": {
+    "@esotericsoftware/spine-canvas": "^4.3.7",
+    "@esotericsoftware/spine-core": "^4.3.7"
+  }
+}

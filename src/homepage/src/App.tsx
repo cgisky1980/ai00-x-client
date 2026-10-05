@@ -231,8 +231,10 @@ export default function App() {
         <div className="hp-footer__links">
           <a href="https://github.com/GCWing/Ai00-X" target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href="/ui/" title="Ai00-X 统一设计系统组件套件演示">Ai00-UI 组件库</a>
-          <a href="#">隐私</a>
-          <a href="#">服务条款</a>
+          <a href="/privacy/">隐私</a>
+          <a href="/terms/">服务条款</a>
+          <a href="/aup/">使用规范</a>
+          <a href="mailto:admin@ai00-x.com">admin@ai00-x.com</a>
         </div>
         <span className="hp-footer__beian">
           <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">苏ICP备2024073659号</a>

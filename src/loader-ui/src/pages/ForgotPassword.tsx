@@ -109,7 +109,7 @@ export function ForgotPasswordPage() {
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-transparent p-5">
       <div
-        className="w-full h-full relative overflow-hidden rounded-xl border loader-card"
+        className="w-full h-full relative overflow-hidden rounded-lg border loader-card"
         style={{ borderColor: "var(--border-base)", backgroundColor: "var(--color-bg-card)" }}
       >
         <div className="absolute top-0 left-0 right-0 h-10 z-0" data-tauri-drag-region />

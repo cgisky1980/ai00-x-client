@@ -160,7 +160,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
 
         {/* 形象预览（实体沉底表面，层次靠墨阶） */}
         <div
-          className={`flex-1 rounded-2xl border flex items-center justify-center relative overflow-hidden ${editMode && canEnter ? 'cursor-pointer group' : ''}`}
+          className={`flex-1 rounded-md border flex items-center justify-center relative overflow-hidden ${editMode && canEnter ? 'cursor-pointer group' : ''}`}
           style={{
             borderColor: editMode && canEnter ? 'var(--color-accent-500)' : 'var(--border-subtle)',
             background: 'var(--color-bg-sunken)',
@@ -217,7 +217,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
         {/* 左下：资料填写（仅首次设置时显示，editMode 下隐藏） */}
         {!editMode && (
         <div
-          className="rounded-2xl border p-4"
+          className="rounded-md border p-4"
           style={{
             borderColor: 'var(--border-base)',
             backgroundColor: 'var(--element-bg-base)',
@@ -234,7 +234,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder={t('nicknamePlaceholder')}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-all focus:border-[var(--color-accent-500)]"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none transition-all focus:border-[var(--color-accent-500)]"
                 style={inputStyle}
                 maxLength={32}
               />
@@ -251,7 +251,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
                     key={g}
                     type="button"
                     onClick={() => setGender(g)}
-                    className="flex-1 rounded-lg border py-2 text-xs font-medium transition-all"
+                    className="flex-1 rounded-md border py-2 text-xs font-medium transition-all"
                     style={{
                       borderColor: gender === g ? 'var(--color-accent-500)' : 'var(--border-base)',
                       backgroundColor: gender === g
@@ -290,7 +290,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
             <button
               type="button"
               onClick={handleRandom}
-              className="flex-1 rounded-lg border py-2 text-sm font-medium transition-all hover:opacity-80"
+              className="flex-1 rounded-md border py-2 text-sm font-medium transition-all hover:opacity-80"
               style={{ borderColor: 'var(--border-base)', color: 'var(--color-text-muted)' }}
               disabled={saving}
             >
@@ -299,7 +299,7 @@ export function OnboardingPanel({ initialProfile, onComplete, saving, editMode, 
             <button
               type="button"
               onClick={handleSave}
-              className="flex-1 rounded-lg py-2 text-sm font-bold transition-all duration-(--motion-base)"
+              className="flex-1 rounded-md py-2 text-sm font-bold transition-all duration-(--motion-base)"
               style={{
                 background: canSave
                   ? 'var(--color-accent-500)'
@@ -375,7 +375,7 @@ function ProgressInfoBlock({ info }: { info: ProgressInfo }) {
 
   return (
     <div
-      className="rounded-2xl border px-4 py-3 flex flex-col gap-2"
+      className="rounded-md border px-4 py-3 flex flex-col gap-2"
       style={{
         borderColor: 'var(--border-base)',
         backgroundColor: 'var(--element-bg-base)',
@@ -503,7 +503,7 @@ function BirthdatePicker({
     notify(year, month, d);
   };
 
-  const selectClass = 'rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-[var(--color-accent-500)]';
+  const selectClass = 'rounded-sm border px-2 py-1.5 text-xs outline-none focus:border-[var(--color-accent-500)]';
 
   return (
     <div className="flex gap-1">

@@ -1,0 +1,63 @@
+
+doll.png
+size:128,64
+filter:Nearest,Nearest
+pma:false
+head.base@down
+  bounds: 1, 1, 28, 24
+head.base@up
+  bounds: 54, 1, 28, 24
+head.base@right
+  bounds: 30, 1, 23, 24
+face.base@down
+  bounds: 59, 44, 14, 8
+face.base@right
+  bounds: 54, 44, 4, 10
+torso.base@down
+  bounds: 1, 44, 12, 14
+torso.base@up
+  bounds: 26, 44, 12, 14
+torso.base@right
+  bounds: 14, 44, 11, 14
+armL.base@down
+  bounds: 98, 26, 4, 14
+armL.base@up
+  bounds: 108, 26, 4, 14
+armL.base@right
+  bounds: 103, 26, 4, 14
+armR.base@down
+  bounds: 113, 26, 4, 14
+armR.base@up
+  bounds: 123, 26, 4, 14
+armR.base@right
+  bounds: 118, 26, 4, 14
+legL.base@down
+  bounds: 74, 44, 6, 7
+legL.base@up
+  bounds: 88, 44, 6, 7
+legL.base@right
+  bounds: 81, 44, 6, 7
+legR.base@down
+  bounds: 95, 44, 6, 7
+legR.base@up
+  bounds: 109, 44, 6, 7
+legR.base@right
+  bounds: 102, 44, 6, 7
+hat.kerchief@down
+  bounds: 83, 1, 28, 17
+hat.kerchief@up
+  bounds: 29, 26, 28, 17
+hat.kerchief@right
+  bounds: 1, 26, 27, 17
+weapon.sword-wood@down
+  bounds: 39, 44, 4, 13
+weapon.sword-wood@up
+  bounds: 49, 44, 4, 13
+weapon.sword-wood@right
+  bounds: 44, 44, 4, 13
+cape.red@down
+  bounds: 58, 26, 14, 15
+cape.red@up
+  bounds: 83, 26, 14, 15
+cape.red@right
+  bounds: 73, 26, 9, 15

@@ -1,0 +1,19 @@
+{
+  "name": "@ai00-x/paper-doll",
+  "version": "0.1.0",
+  "private": true,
+  "description": "纸娃娃分层动画运行时：LPC 部件条带图按槽位 zPos 叠层、全层同帧号播放，换装 = 换某层条带图，零烘焙实时生效。纯 TS + Canvas2D，无框架依赖。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "demo": "vite --port 5199 --open"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4"
+  }
+}

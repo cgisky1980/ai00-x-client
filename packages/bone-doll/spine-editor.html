@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>bone-doll Spine 动作编辑器</title>
+    <style>
+      body { background: #1b1b22; color: #d6d6dc; font-family: Consolas, monospace; margin: 10px; font-size: 13px; }
+      h3 { margin: 8px 0 4px; font-weight: normal; color: #8f9bb3; }
+      button { margin: 2px; padding: 3px 9px; background: #2b2b36; color: #d6d6dc; border: 1px solid #454555; cursor: pointer; }
+      button.on { background: #4f7396; border-color: #6a8fb0; }
+      button:disabled { opacity: 0.4; cursor: default; }
+      input[type='number'] { width: 62px; background: #2b2b36; color: #d6d6dc; border: 1px solid #454555; }
+      select { background: #2b2b36; color: #d6d6dc; border: 1px solid #454555; max-width: 180px; }
+      .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+      .hint { color: #6f7a90; }
+      .panel { border: 1px solid #3a3a46; background: #23232c; padding: 6px 8px; }
+      /* 三栏主体：骨骼树 | 舞台 | 属性 */
+      #main { display: flex; gap: 8px; align-items: stretch; }
+      #bones { width: 150px; max-height: 460px; overflow-y: auto; user-select: none; }
+      #bones div { padding: 1px 4px; cursor: pointer; white-space: nowrap; }
+      #bones div:hover { background: #2b2b36; }
+      #bones div.on { background: #4f7396; color: #fff; }
+      #stageWrap { position: relative; width: 448px; height: 448px; flex: none; }
+      #stage, #gizmoCv { position: absolute; inset: 0; width: 448px; height: 448px; }
+      #stage { image-rendering: pixelated; border: 1px solid #3a3a46; background: #23232c; touch-action: none; }
+      #gizmoCv { pointer-events: auto; touch-action: none; }
+      #props { width: 210px; }
+      #props .pr { display: flex; align-items: center; gap: 4px; margin: 2px 0; }
+      #props .pr .hint { width: 52px; flex: none; }
+      /* 时间轴 / 曲线容器 */
+      #timelineBox, #graphBox { height: 180px; overflow: auto; border: 1px solid #3a3a46; background: #23232c; margin-top: 6px; position: relative; }
+      #graphBox { height: 150px; }
+      .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #6f7a90; z-index: 1; pointer-events: none; }
+      #status { color: #9fd49f; }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <strong>Spine 动作编辑器</strong>
+      <select id="animSel"></select>
+      <button id="editBtn">进入编辑</button>
+      <button id="exitBtn" disabled>退出编辑</button>
+      <button id="newAnim">＋空动画</button>
+      <button id="dupAnim">⧉ 复制当前</button>
+      <span class="hint">时长</span><input id="duration" type="number" min="0.1" step="0.1" value="1.6" disabled />
+      <button id="playBtn">⏸</button>
+      <span class="hint">方向</span>
+      <span id="dirs" class="row"></span>
+      <button id="undoBtn" disabled>↩</button>
+      <button id="redoBtn" disabled>↪</button>
+      <button id="saveBtn" disabled>💾 保存动作</button>
+      <button id="exportBtn">⬇ 导出 doll.json</button>
+      <button id="importBtn">⬆ 导入</button>
+      <input id="importFile" type="file" accept=".json" style="display: none" />
+      <span class="hint">缩放</span><input id="zoom" type="range" min="1" max="8" step="0.5" value="4" style="width: 90px" />
+      <span id="status"></span>
+    </div>
+    <div id="main">
+      <div>
+        <h3>骨骼</h3>
+        <div id="bones" class="panel"></div>
+        <div class="hint" style="margin-top: 6px">gizmo 模式</div>
+        <div class="row" id="gizmoModes"></div>
+      </div>
+      <div>
+        <div id="stageWrap">
+          <canvas id="stage" width="448" height="448"></canvas>
+          <canvas id="gizmoCv" width="448" height="448"></canvas>
+        </div>
+        <div class="row" style="margin-top: 4px">
+          <span class="hint">←/→ 逐帧 · 空格 播放 · 双击轨道打帧 · 右键删帧 · Delete 删除 · Ctrl+Z/Y</span>
+        </div>
+      </div>
+      <div id="props" class="panel">
+        <h3>关键帧属性</h3>
+        <div id="propsBody" style="display: none">
+          <div class="pr"><span class="hint">骨骼/槽</span><b id="prBone"></b></div>
+          <div class="pr"><span class="hint">时间(s)</span><input id="prTime" type="number" step="0.01" min="0" /></div>
+          <div class="pr" id="prRotateRow"><span class="hint">旋转°</span><input id="prRotate" type="number" step="1" /></div>
+          <div class="pr" id="prTranslateRow"><span class="hint">位置</span><input id="prTx" type="number" step="1" /><input id="prTy" type="number" step="1" /></div>
+          <div class="pr" id="prScaleRow"><span class="hint">缩放</span><input id="prSx" type="number" step="0.05" /><input id="prSy" type="number" step="0.05" /></div>
+          <div class="pr" id="prShearRow"><span class="hint">剪切</span><input id="prHx" type="number" step="1" /><input id="prHy" type="number" step="1" /></div>
+          <div class="pr" id="prSlotRow"><span class="hint">附件</span><select id="prAttachment" style="max-width: 150px"></select></div>
+        </div>
+        <div class="hint" id="propsEmpty">未选中关键帧</div>
+      </div>
+    </div>
+    <div id="timelineBox"><div class="empty" id="timelineEmpty">进入编辑后显示时间轴</div></div>
+    <div id="graphBox"><div class="empty" id="graphEmpty">选中关键帧后显示曲线</div></div>
+    <p><a href="/" style="color: #6a8fb0">← playground</a> <a href="/spine-preview.html" style="color: #6a8fb0">→ Spine 预览比对台</a></p>
+    <script type="module" src="./demo/spine-editor.ts"></script>
+  </body>
+</html>

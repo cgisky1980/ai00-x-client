@@ -455,79 +455,11 @@ export function HomePage() {
           warnInit("start_global_voice_input_service", e);
         }
 
-        // Step 6: Initialize TTS engine
-        setStatus(t("homeInitTts"));
-        try {
-          const modelDir = modelsDir + "/tts";
-          console.log("[HomePage] TTS model directory:", modelDir);
-          await invoke("init_tts_engine", {
-            modelDir,
-            quant: "q4km",
-          });
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          console.error("[HomePage] TTS init failed:", msg);
-          setDownloadStatus(`TTS 初始化失败: ${msg}`);
-        }
-
-        // Step 7: Initialize LLM engine
-        setStatus(t("homeInitLlm"));
-        let llm_init_done = false;
-        for (let attempt = 0; attempt < 2; attempt++) {
-          if (attempt > 0) {
-            setDownloadStatus(
-              `LLM 初始化失败，${5}秒后重试 (第${attempt + 1}次)...`,
-            );
-            await new Promise((r) => setTimeout(r, 5000));
-            setStatus(t("homeInitLlm"));
-          }
-          try {
-            await invoke("init_llm_engine", {
-              modelPath: null,
-              vocabPath: null,
-            });
-            llm_init_done = true;
-            break;
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            console.error("[HomePage] LLM init failed (attempt", attempt + 1, "):", msg);
-            if (attempt === 1) {
-              setDownloadStatus(
-                `LLM 初始化失败: ${msg}。请关闭其他 GPU 应用后重启程序`,
-              );
-            }
-          }
-        }
-        if (!llm_init_done) {
-          warnInit(t("homeInitLlm"), "LLM init failed after 2 attempts");
-        }
-
-        // Step 8: Initialize Embedding engine (non-fatal)
-        setStatus(t("homeInitEmbedding"));
-        try {
-          await invoke("init_embedding_engine");
-        } catch (e) {
-          warnInit(t("homeInitEmbedding"), e);
-        }
-
-        // Step 9: Initialize Audio Gen engine (non-fatal)
-        try {
-          const gpuInfo = await invoke<{ cuda_available: boolean; vulkan_available: boolean; recommended_backend: number }>('detect_mnn_gpu');
-          const mnnGpu = gpuInfo.recommended_backend;
-          console.log(`[Audio Gen] GPU detect: cuda=${gpuInfo.cuda_available}, vulkan=${gpuInfo.vulkan_available}, using=${mnnGpu}`);
-          await invoke("init_audio_gen_engine", {
-            modelDir: modelsDir + "/sa3",
-            variant: "sm-music",
-            mnnGpu,
-            mnnInt8: true,
-            defaultDuration: 10.0,
-          });
-        } catch (e) {
-          warnInit("Audio Gen", e);
-        }
-
-        // Step 10: 初始化完成（不在此处打开主窗口，由独立 useEffect 在
-        // 初始化完成 + 个人信息已保存 两个条件都满足时才 open_overlay_force）
+        // Step 6: 初始化完成。TTS / LLM / Embedding / AudioGen 不再在启动时
+        // 加载（首次使用时由 Rust 侧懒加载兜底自动拉起），启动只需 ASR +
+        // 模型检查下载，进主界面的等待大幅缩短。
+        // （不在此处打开主窗口，由独立 useEffect 在初始化完成 + 个人信息
+        // 已保存 两个条件都满足时才 open_overlay_force）
         if (!cancelled()) {
           setStatus(t("homeInitComplete"));
           setDownloadProgress(100);
@@ -549,7 +481,7 @@ export function HomePage() {
   return (
     <div className="h-screen w-screen flex flex-col bg-transparent">
       <div
-        className="flex-1 flex flex-col items-center justify-center relative overflow-hidden rounded-xl border loader-card m-5"
+        className="flex-1 flex flex-col items-center justify-center relative overflow-hidden rounded-lg border loader-card m-5"
         style={{ borderColor: 'var(--border-base)', backgroundColor: 'var(--color-bg-card)' }}
       >
         {/* 统一页头：可拖拽 + 语言切换，始终在最上层 */}

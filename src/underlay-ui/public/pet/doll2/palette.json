@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "note": "chibi 素体 v3 调色板锁（肤色取自用户手绘素体；19 色，随手工终审迭代）",
+  "colors": {
+    "skin": "#f6caa8",
+    "skinShade": "#e3ab8a",
+    "eye": "#28150d",
+    "hair": "#4a5568",
+    "hairShade": "#39445a",
+    "hairHi": "#5d6b82",
+    "top": "#4f7396",
+    "topShade": "#3c5a78",
+    "bottom": "#565668",
+    "bottomShade": "#434353",
+    "shoe": "#8a5a44",
+    "shoeShade": "#6d4636",
+    "wood": "#b98d5f",
+    "woodHi": "#d3ab7c",
+    "woodShade": "#956c44",
+    "hat": "#c25e5e",
+    "hatShade": "#9e4646",
+    "pompom": "#f0e6d2"
+  }
+}

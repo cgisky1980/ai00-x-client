@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>bone-doll 关键帧编辑器</title>
+    <style>
+      body { background: #1b1b22; color: #d6d6dc; font-family: Consolas, monospace; margin: 12px; font-size: 13px; }
+      canvas { image-rendering: pixelated; border: 1px solid #3a3a46; background: #23232c; touch-action: none; }
+      h3 { margin: 8px 0 4px; font-weight: normal; color: #8f9bb3; }
+      button { margin: 2px; padding: 3px 9px; background: #2b2b36; color: #d6d6dc; border: 1px solid #454555; cursor: pointer; }
+      button.on { background: #4f7396; border-color: #6a8fb0; }
+      button.danger { border-color: #8a4444; }
+      input[type='range'] { width: 420px; }
+      input[type='number'] { width: 60px; background: #2b2b36; color: #d6d6dc; border: 1px solid #454555; }
+      select { background: #2b2b36; color: #d6d6dc; border: 1px solid #454555; }
+      .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+      .hint { color: #6f7a90; }
+      #keys { max-width: 900px; }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <canvas id="stage" width="384" height="384"></canvas>
+      <div>
+        <h3>动画</h3>
+        <div class="row">
+          <select id="animSel"></select>
+          <button id="newAnim">＋新建</button>
+          <span class="hint">时长(s)</span>
+          <input id="duration" type="number" min="0.1" step="0.1" value="1.6" />
+        </div>
+        <h3>方向轨道</h3>
+        <div class="row" id="dirs"></div>
+        <h3>时间轴</h3>
+        <div class="row">
+          <button id="playBtn">⏸</button>
+          <input id="scrub" type="range" min="0" max="1.6" step="0.01" value="0" />
+          <span id="timeVal">0.00s</span>
+          <button id="addKey">＋打帧（当前姿态）</button>
+        </div>
+        <div class="row" id="keys"></div>
+        <h3>选中骨骼</h3>
+        <div class="row">
+          <select id="boneSel"></select>
+          <span class="hint">x</span><input id="bx" type="number" step="1" />
+          <span class="hint">y</span><input id="by" type="number" step="1" />
+          <span class="hint">r°</span><input id="br" type="number" step="1" />
+        </div>
+        <p class="hint">拖拽骨骼 = 旋转（自动打帧）；Shift+拖拽 = 平移；点击轴上圆点切换选中骨骼。</p>
+        <h3>导出</h3>
+        <div class="row">
+          <button id="exportBtn">⬇ 下载 skeleton.json</button>
+          <button id="copyBtn">⧉ 复制 JSON</button>
+          <span id="msg"></span>
+        </div>
+      </div>
+    </div>
+    <p><a href="/" style="color:#6a8fb0">← playground</a> <a href="/sucai.html" style="color:#6a8fb0">→ 素体工坊（切图绑骨）</a></p>
+    <script type="module" src="./demo/editor.ts"></script>
+  </body>
+</html>

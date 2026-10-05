@@ -1,0 +1,41 @@
+{
+  "block": 8,
+  "left": 30,
+  "top": 37,
+  "gw": 18,
+  "gh": 26,
+  "bg": "252,196,168",
+  "palette": {
+    "A": "#e0e0e0",
+    "B": "#1c1c1c",
+    "C": "#381c1c"
+  },
+  "grid": [
+    "AAAA.........AAAAA",
+    "AAA...........AAAA",
+    "AAA...........AAAA",
+    "AAA...........AAAA",
+    "AA............AAAA",
+    "................AA",
+    ".....BC...CB....AA",
+    ".....BC...CC....AA",
+    "A....B....B.....AA",
+    "AAA...........AAAA",
+    "AAA...........AAAA",
+    "AAA...........AAAA",
+    "AAA...........AAAA",
+    "AAAAA.......AAAAAA",
+    "AAA..........AAAAA",
+    "AAA...........AAAA",
+    "AAA...........AAAA",
+    "AAA...........AAAA",
+    "AAA...........AAAA",
+    "AAA...........AAAA",
+    "AAA..........AAAAA",
+    "AAAAA...A...AAAAAA",
+    "AAAAA...A...AAAAAA",
+    "AAAAA...A...AAAAAA",
+    "AAAA....A...AAAAAA",
+    "AAAA....A....AAAAA"
+  ]
+}

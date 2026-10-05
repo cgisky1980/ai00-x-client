@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>bone-doll playground</title>
+    <style>
+      body { background: #1b1b22; color: #d6d6dc; font-family: Consolas, monospace; margin: 16px; }
+      canvas { image-rendering: pixelated; border: 1px solid #3a3a46; background: #23232c; }
+      h3 { margin: 8px 0 4px; font-weight: normal; color: #8f9bb3; }
+      button { margin: 2px; padding: 4px 10px; background: #2b2b36; color: #d6d6dc; border: 1px solid #454555; cursor: pointer; }
+      button.on { background: #4f7396; border-color: #6a8fb0; }
+      .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    </style>
+  </head>
+  <body>
+    <h3>bone-doll playground（Px2d 风 chibi · 草案素体）</h3>
+    <canvas id="stage" width="256" height="256"></canvas>
+    <h3>动画</h3>
+    <div class="row" id="anims"></div>
+    <h3>方向（left = right 镜像）</h3>
+    <div class="row" id="dirs"></div>
+    <h3>换装</h3>
+    <div class="row" id="parts"></div>
+    <h3>缩放 <span id="scaleVal">4×</span></h3>
+    <input id="scale" type="range" min="1" max="8" step="1" value="4" />
+    <p id="status"></p>
+    <p><a href="/editor.html" style="color:#6a8fb0">→ 关键帧编辑器</a> <a href="/sucai.html" style="color:#6a8fb0">→ 素体工坊（切图绑骨）</a> <a href="/spine-editor.html" style="color:#6a8fb0">→ Spine 动作编辑器</a> <a href="/spine-preview.html" style="color:#6a8fb0">→ Spine 比对台</a></p>
+    <script type="module" src="./demo/main.ts"></script>
+  </body>
+</html>
