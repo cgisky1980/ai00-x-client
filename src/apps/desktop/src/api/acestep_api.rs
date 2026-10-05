@@ -28,6 +28,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::StreamExt;
 use once_cell::sync::{Lazy, OnceCell};
@@ -46,6 +47,7 @@ use ai00_x_inference::runtime::get_app_root_dir;
 use ai00_x_inference::runtime::get_runtime_dir;
 
 use crate::api::app_state::AppState;
+use crate::audio_capture::AudioCaptureSession;
 
 // ---- Global state ----
 
@@ -164,6 +166,9 @@ pub struct AceStepGenerateRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AceStepGenerateResult {
     pub output_path: String,
+    /// Lego tasks only: the unmixed generated stem, saved next to the mix so
+    /// the track editor can keep per-track audio. None for other tasks.
+    pub stem_path: Option<String>,
     pub duration_seconds: f32,
     pub sample_rate: u32,
     pub channels: u32,
@@ -282,33 +287,6 @@ fn resolve_lib_dir() -> Result<PathBuf, String> {
     ))
 }
 
-/// Read a wav file as interleaved f32 samples.
-/// Returns (samples, sample_rate, channels).
-fn read_wav_interleaved(path: &str) -> Result<(Vec<f32>, u32, u16), String> {
-    let mut reader = hound::WavReader::open(path)
-        .map_err(|e| format!("Failed to open wav file '{path}': {e}"))?;
-    let spec = reader.spec();
-    let sample_rate = spec.sample_rate;
-    let channels = spec.channels;
-
-    let samples: Vec<f32> = match spec.sample_format {
-        hound::SampleFormat::Float => reader
-            .samples::<f32>()
-            .collect::<Result<_, _>>()
-            .map_err(|e| format!("Failed to read float samples: {e}"))?,
-        hound::SampleFormat::Int => {
-            let max = (1i64 << (spec.bits_per_sample - 1)) as f32;
-            reader
-                .samples::<i32>()
-                .map(|s| s.map(|v| v as f32 / max))
-                .collect::<Result<_, _>>()
-                .map_err(|e| format!("Failed to read int samples: {e}"))?
-        }
-    };
-
-    Ok((samples, sample_rate, channels))
-}
-
 /// Write interleaved f32 samples to a 32-bit float wav file.
 fn write_wav_interleaved(path: &Path, samples: &[f32], sample_rate: u32) -> Result<(), String> {
     let spec = hound::WavSpec {
@@ -328,6 +306,76 @@ fn write_wav_interleaved(path: &Path, samples: &[f32], sample_rate: u32) -> Resu
         .finalize()
         .map_err(|e| format!("Failed to finalize wav: {e}"))?;
     Ok(())
+}
+
+/// Decode an audio file of any supported format (wav / mp3 / flac / ogg /
+/// m4a / …) and normalise it for the engine: 48 kHz stereo interleaved f32.
+/// Mono is duplicated; more than 2 channels keep the first two.
+fn read_audio_stereo_48k(path: &str) -> Result<Vec<f32>, String> {
+    let (samples, sample_rate, channels) =
+        crate::audio_playback::decoder::decode_audio_file(Path::new(path))
+            .map_err(|e| format!("Failed to decode audio '{path}': {e}"))?;
+    if samples.is_empty() {
+        return Err(format!("Audio file '{path}' contains no samples"));
+    }
+    let stereo: Vec<f32> = match channels {
+        0 => return Err(format!("Audio file '{path}' reports 0 channels")),
+        1 => samples.iter().flat_map(|&s| [s, s]).collect(),
+        2 => samples,
+        n => {
+            let n = n as usize;
+            samples
+                .chunks(n)
+                .flat_map(|frame| [frame[0], frame[1]])
+                .collect()
+        }
+    };
+    if sample_rate == 48_000 {
+        return Ok(stereo);
+    }
+    Ok(crate::audio_playback::decoder::resample_audio(
+        &stereo,
+        sample_rate,
+        48_000,
+        2,
+    ))
+}
+
+/// Official ACE-Step reference-audio preprocessing:
+/// - reject fully silent input,
+/// - shorter than 30 s → repeat-fill up to 30 s,
+/// - otherwise concatenate ~10 s segments from the front / middle / back.
+///
+/// The engine VAE-encodes the reference into a single pooled timbre embedding,
+/// so capping the length costs nothing in fidelity and saves compute.
+fn prepare_reference_audio(samples: &[f32]) -> Result<Vec<f32>, String> {
+    const TARGET_SECS: usize = 30;
+    const SEG_SECS: usize = 10;
+    const FRAME: usize = 48_000 * 2; // stereo frames per second
+    let target_len = TARGET_SECS * FRAME;
+
+    let sum_sq: f64 = samples.iter().map(|s| (*s as f64) * (*s as f64)).sum();
+    let rms = (sum_sq / samples.len().max(1) as f64).sqrt();
+    if rms < 1e-4 {
+        return Err("Reference audio has no audible content (silence)".to_string());
+    }
+
+    if samples.len() < target_len {
+        let mut out = Vec::with_capacity(target_len);
+        while out.len() < target_len {
+            let take = (target_len - out.len()).min(samples.len());
+            out.extend_from_slice(&samples[..take]);
+        }
+        return Ok(out);
+    }
+
+    let seg = (SEG_SECS * FRAME).min(samples.len() / 3);
+    let mut out = Vec::with_capacity(seg * 3);
+    out.extend_from_slice(&samples[..seg]);
+    let mid_start = samples.len() / 2 - seg / 2;
+    out.extend_from_slice(&samples[mid_start..mid_start + seg]);
+    out.extend_from_slice(&samples[samples.len() - seg..]);
+    Ok(out)
 }
 
 /// Mix two interleaved audio buffers (element-wise addition with clamping).
@@ -600,37 +648,16 @@ pub async fn acestep_generate(
         output_dir,
     } = request;
 
-    // Read source audio if provided.
+    // Read source audio if provided (any format → 48 kHz stereo).
     let src_audio = match &src_audio_path {
-        Some(path) => {
-            let (samples, sr, ch) = read_wav_interleaved(path)?;
-            if sr != 48000 {
-                return Err(format!(
-                    "Source audio must be 48kHz, got {sr}Hz. Please resample first."
-                ));
-            }
-            if ch != 2 {
-                return Err(format!("Source audio must be stereo, got {ch} channels"));
-            }
-            Some(samples)
-        }
+        Some(path) => Some(read_audio_stereo_48k(path)?),
         None => None,
     };
 
-    // Read reference audio if provided.
+    // Read reference audio if provided, applying the official 30 s reference
+    // segment preprocessing (silence check / repeat-fill / 3×10 s selection).
     let ref_audio = match &ref_audio_path {
-        Some(path) => {
-            let (samples, sr, ch) = read_wav_interleaved(path)?;
-            if sr != 48000 {
-                return Err(format!(
-                    "Reference audio must be 48kHz, got {sr}Hz. Please resample first."
-                ));
-            }
-            if ch != 2 {
-                return Err(format!("Reference audio must be stereo, got {ch} channels"));
-            }
-            Some(samples)
-        }
+        Some(path) => Some(prepare_reference_audio(&read_audio_stereo_48k(path)?)?),
         None => None,
     };
 
@@ -688,16 +715,16 @@ pub async fn acestep_generate(
     let output_dir = output_dir
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    let output_file = output_dir.join(format!(
-        "acestep_{}.wav",
-        chrono::Utc::now().timestamp_millis()
-    ));
+    let base_name = format!("acestep_{}", chrono::Utc::now().timestamp_millis());
+    let output_file = output_dir.join(format!("{base_name}.wav"));
 
     let interleaved = audio_output.to_interleaved();
 
     // Lego post-processing: the DiT generates only the new stem (e.g. vocals),
     // not a merged track. Mix the generated stem with the source audio (previous
-    // layers) so the output is a progressive layered mix.
+    // layers) so the output is a progressive layered mix. The unmixed stem is
+    // also written next to the mix so per-track editing stays possible.
+    let mut stem_path: Option<String> = None;
     let final_audio: Vec<f32> = if task_type == "lego" {
         if let Some(src) = src_audio.as_ref() {
             log::info!(
@@ -705,6 +732,11 @@ pub async fn acestep_generate(
                 interleaved.len(),
                 src.len()
             );
+            let stem_file = output_dir.join(format!("{base_name}.stem.wav"));
+            match write_wav_interleaved(&stem_file, &interleaved, audio_output.sample_rate) {
+                Ok(()) => stem_path = Some(stem_file.display().to_string()),
+                Err(e) => log::warn!("[AceStep] Lego stem save failed (mix continues): {e}"),
+            }
             mix_audio(&interleaved, src)
         } else {
             interleaved
@@ -717,6 +749,7 @@ pub async fn acestep_generate(
 
     let result = AceStepGenerateResult {
         output_path: output_file.display().to_string(),
+        stem_path,
         duration_seconds: audio_output.duration_seconds(),
         sample_rate: audio_output.sample_rate,
         channels: 2,
@@ -745,6 +778,136 @@ pub async fn acestep_cancel() -> Result<bool, String> {
     } else {
         Ok(false)
     }
+}
+
+// ---- Recording (hum / sing input for the remix workflow) ----
+
+/// Controlled capture session state. The global voice-input service owns its
+/// own cpal sessions driven by a mouse hook — this one is start/stop from a
+/// window (music creation), one session at a time.
+struct AceRecordingState {
+    session: std::sync::Mutex<Option<AudioCaptureSession>>,
+    /// Watchdog exit signal: sending lets the auto-stop thread return early.
+    stop_tx: std::sync::Mutex<Option<std::sync::mpsc::Sender<()>>>,
+}
+
+static RECORDING: OnceCell<AceRecordingState> = OnceCell::new();
+
+fn recording() -> &'static AceRecordingState {
+    RECORDING.get_or_init(|| AceRecordingState {
+        session: std::sync::Mutex::new(None),
+        stop_tx: std::sync::Mutex::new(None),
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AceStepRecordingResult {
+    pub path: String,
+    pub duration_seconds: f32,
+}
+
+/// Start a controlled recording on the default input device at the device's
+/// own sample rate (mono, full band — no ASR downsampling).
+///
+/// `max_duration_sec` (default 120, clamped 1..600) arms a watchdog that
+/// detaches the capture stream when it elapses; the next
+/// `acestep_stop_recording` then returns whatever was captured.
+#[tauri::command]
+pub async fn acestep_start_recording(max_duration_sec: Option<f32>) -> Result<(), String> {
+    let max = max_duration_sec.unwrap_or(120.0).clamp(1.0, 600.0);
+    {
+        let guard = recording().session.lock().map_err(|e| e.to_string())?;
+        if guard.is_some() {
+            return Err("Recording already in progress".to_string());
+        }
+    }
+
+    let session = AudioCaptureSession::start_default_input()?;
+    let (tx, rx) = std::sync::mpsc::channel::<()>();
+    *recording().stop_tx.lock().map_err(|e| e.to_string())? = Some(tx);
+    *recording().session.lock().map_err(|e| e.to_string())? = Some(session);
+
+    std::thread::spawn(move || {
+        if rx.recv_timeout(Duration::from_secs_f32(max)).is_ok() {
+            return; // explicit stop won the race
+        }
+        if let Ok(mut guard) = recording().session.lock() {
+            if let Some(session) = guard.as_mut() {
+                session.detach_stream();
+                log::info!("[AceStep] recording auto-stopped after {max}s");
+            }
+        }
+    });
+    log::info!("[AceStep] recording started (max {max}s)");
+    Ok(())
+}
+
+/// Stop the current recording and save it as a 16-bit mono WAV under
+/// `<songs_dir>/.cache/hum/`. Fully silent captures are rejected.
+#[tauri::command]
+pub async fn acestep_stop_recording() -> Result<AceStepRecordingResult, String> {
+    if let Ok(tx) = recording().stop_tx.lock() {
+        if let Some(tx) = tx.as_ref() {
+            let _ = tx.send(());
+        }
+    }
+    let session = recording()
+        .session
+        .lock()
+        .map_err(|e| e.to_string())?
+        .take();
+    let Some(mut session) = session else {
+        return Err("No recording in progress".to_string());
+    };
+
+    let (samples, sample_rate) = session.stop_and_take_raw()?;
+    if samples.is_empty() {
+        return Err("Recording captured no audio".to_string());
+    }
+    let sum_sq: f64 = samples.iter().map(|s| (*s as f64) * (*s as f64)).sum();
+    let rms = (sum_sq / samples.len() as f64).sqrt();
+    if rms < 5e-4 {
+        return Err("Recording is silent — check the input device".to_string());
+    }
+
+    let duration_seconds = samples.len() as f32 / sample_rate.max(1) as f32;
+    let dir = ai00_x_core::infrastructure::get_path_manager_arc()
+        .songs_dir()
+        .join(".cache")
+        .join("hum");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create hum dir: {e}"))?;
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let path = dir.join(format!("hum_{ts}.wav"));
+
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut writer = hound::WavWriter::create(&path, spec)
+        .map_err(|e| format!("Failed to create wav file '{}': {e}", path.display()))?;
+    for &s in &samples {
+        writer
+            .write_sample((s * i16::MAX as f32) as i16)
+            .map_err(|e| format!("Failed to write sample: {e}"))?;
+    }
+    writer
+        .finalize()
+        .map_err(|e| format!("Failed to finalize wav: {e}"))?;
+    log::info!(
+        "[AceStep] recording saved: {} ({:.1}s @ {sample_rate}Hz, rms {rms:.4})",
+        path.display(),
+        duration_seconds
+    );
+    Ok(AceStepRecordingResult {
+        path: path.to_string_lossy().to_string(),
+        duration_seconds,
+    })
 }
 
 // ---- LLM completion (for lyrics/caption writing) ----
@@ -1125,7 +1288,8 @@ pub async fn acestep_web_search(
         limit
     );
 
-    let tool = ai00_x_core::websearch::WebSearchTool::new();
+    // SearXNG 自建实例（s.ai00-x.com）开启同款降级链（2026-10-02）
+    let tool = ai00_x_core::websearch::WebSearchTool::new().with_searxng_enabled(true);
     let items = tool
         .search_simple(&query, &lang, limit)
         .await
@@ -2388,6 +2552,8 @@ fn resolve_sessions_dir() -> PathBuf {
 }
 
 /// Lightweight session metadata for list views (no message bodies).
+/// `mode` / `output_count` power the work-list status badges (草稿/N首/分层);
+/// both default so older frontend callers stay compatible.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AceStepSessionMeta {
@@ -2395,6 +2561,10 @@ pub struct AceStepSessionMeta {
     pub title: String,
     pub created_at: i64,
     pub updated_at: i64,
+    #[serde(default = "default_session_mode")]
+    pub mode: String,
+    #[serde(default)]
+    pub output_count: usize,
 }
 
 /// Default session mode for old sessions without the `mode` field.
@@ -2444,11 +2614,14 @@ pub async fn acestep_session_list() -> Result<Vec<AceStepSessionMeta>, String> {
             Err(_) => continue,
         };
         if let Ok(session) = serde_json::from_str::<AceStepSessionData>(&data) {
+            let output_count = session.outputs.as_array().map(|arr| arr.len()).unwrap_or(0);
             metas.push(AceStepSessionMeta {
                 id: session.id,
                 title: session.title,
                 created_at: session.created_at,
                 updated_at: session.updated_at,
+                mode: session.mode,
+                output_count,
             });
         }
     }

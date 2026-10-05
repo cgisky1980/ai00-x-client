@@ -13,8 +13,9 @@
  */
 
 import { emit, listen } from '@tauri-apps/api/event';
-import { usePlayerStore } from '../store/playerStore';
+import { usePlayerStore, type PlaylistItem } from '../store/playerStore';
 import { useMusicSourceStore } from '../../music-source/musicSourceStore';
+import { useBgmPlayerStore } from '../../island/store/bgmPlayer';
 import type { PlayMode } from '../store/playerStore';
 import type { SongEntry } from '../types';
 import type { OnlineSong } from '../../music-source/types';
@@ -61,6 +62,12 @@ export interface AceStepPlayerState {
   currentOnlineId: string | null;
   /** 当前正在播放的歌曲绝对路径（null 表示无播放）。用于本地作品组高亮。 */
   currentEntryPath: string | null;
+  /** 完整播放列表（队列面板 / LibraryView 消费）。权威端随事件广播。 */
+  playlist: PlaylistItem[];
+  /** 正在解包的 .a00m 路径（null = 无）。LibraryView 解包进度 UI 消费。 */
+  unpackingPath: string | null;
+  /** 本地播放当前条目（LibraryView 大播放条消费）。 */
+  currentEntry: SongEntry | null;
 }
 
 // ---- Command schema (Main → AceStep) ----
@@ -75,13 +82,22 @@ export interface AceStepPlayerCommand {
     | 'toggleLyrics'
     | 'playSong'
     | 'playShare'
-    | 'playOnline';
+    | 'playOnline'
+    // ---- 队列/播放条操作（音乐窗口降级为遥控后，权威端执行）----
+    | 'setPlaylist'
+    | 'appendToPlaylist'
+    | 'removeFromPlaylist'
+    | 'clearPlaylist'
+    | 'queueJumpTo'
+    | 'closePlayer';
   payload?: {
     time?: number;
     volume?: number;
     entry?: SongEntry;
     shareId?: string;
     song?: OnlineSong;
+    index?: number;
+    items?: PlaylistItem[];
   };
 }
 
@@ -135,6 +151,9 @@ function serializeState(): AceStepPlayerState {
     currentShareId: s.currentShareId,
     currentOnlineId: s.currentOnlineId,
     currentEntryPath: s.currentEntry?.path ?? null,
+    playlist: s.playlist,
+    unpackingPath: s.unpackingPath,
+    currentEntry: s.currentEntry,
   };
 }
 
@@ -174,7 +193,11 @@ function emitLyricsState(): void {
 }
 
 /**
- * Handle a command from the main window.
+ * Handle a command from any window.
+ *
+ * 播放权威端在常驻 overlay webview；音乐窗口（可关可开）只是遥控。
+ * play 类命令在权威端补 bgm 仲裁（requestActive），保持与旧
+ * 「音乐窗口本地调用 requestActive」行为一致。
  */
 function handleCommand(cmd: AceStepPlayerCommand): void {
   const store = usePlayerStore.getState();
@@ -218,18 +241,48 @@ function handleCommand(cmd: AceStepPlayerCommand): void {
       break;
     case 'playSong':
       if (cmd.payload?.entry) {
+        void useBgmPlayerStore.getState().requestActive('acestep').catch(() => {});
         void store.playSong(cmd.payload.entry);
       }
       break;
     case 'playShare':
       if (cmd.payload?.shareId) {
+        void useBgmPlayerStore.getState().requestActive('acestep').catch(() => {});
         void store.playShare(cmd.payload.shareId);
       }
       break;
     case 'playOnline':
       if (cmd.payload?.song) {
+        void useBgmPlayerStore.getState().requestActive('acestep').catch(() => {});
         void store.playOnline(cmd.payload.song);
       }
+      break;
+    case 'setPlaylist':
+      if (cmd.payload?.items) {
+        void useBgmPlayerStore.getState().requestActive('acestep').catch(() => {});
+        void store.setPlaylist(cmd.payload.items, cmd.payload.index);
+      }
+      break;
+    case 'appendToPlaylist':
+      if (cmd.payload?.items) {
+        store.appendToPlaylist(cmd.payload.items);
+      }
+      break;
+    case 'removeFromPlaylist':
+      if (cmd.payload?.index !== undefined) {
+        store.removeFromPlaylist(cmd.payload.index);
+      }
+      break;
+    case 'clearPlaylist':
+      store.clearPlaylist();
+      break;
+    case 'queueJumpTo':
+      if (cmd.payload?.index !== undefined) {
+        store.jumpTo(cmd.payload.index);
+      }
+      break;
+    case 'closePlayer':
+      store.closePlayer();
       break;
   }
 }

@@ -81,6 +81,16 @@ fn main() {
     }
     ensure_ggml_link(&acestep_ggml, &shared_ggml);
 
+    // Guard: the shared ggml must have GGML_MAX_NAME >= 128.
+    //
+    // llama.cpp is a git submodule — updating it resets ggml.h to the upstream
+    // default of 64. ACE-Step GGUFs contain tensor names up to 67 chars (e.g.
+    // "tokenizer.attention_pooler.layers.0.post_attention_layernorm.weight"),
+    // which makes gguf_init_from_file fail with the misleading runtime error
+    // "ace_synth_load failed (check model paths and GGUF files)".
+    // Re-apply the patch in <llama.cpp>/ggml/include/ggml.h after upgrades.
+    assert_ggml_max_name(&shared_ggml.join("include").join("ggml.h"));
+
     // Backend selection — supports `+`-combined backends and `auto`.
     //   cpu | cuda | vulkan | metal | cuda+vulkan | auto
     // `auto` detects SDKs and picks cuda > vulkan > cpu.
@@ -178,6 +188,55 @@ fn main() {
 
 fn log(msg: &str) {
     println!("cargo:warning=[acestep] {}", msg);
+}
+
+/// Fail the build if the shared ggml.h has GGML_MAX_NAME < 128.
+///
+/// See the call-site comment above; this turns a silent, misleading runtime
+/// failure into an explicit build error pointing at the exact fix.
+fn assert_ggml_max_name(ggml_h: &std::path::Path) {
+    const MIN_NAME: usize = 128;
+    let content = match std::fs::read_to_string(ggml_h) {
+        Ok(c) => c,
+        Err(e) => panic!(
+            "cannot read {}: {e}. The shared ggml source is incomplete; \
+             run `git submodule update --init --recursive`.",
+            ggml_h.display()
+        ),
+    };
+    let mut current = None;
+    let mut in_ifndef_block = false;
+    for line in content.lines() {
+        let t = line.trim();
+        if t.starts_with("#ifndef GGML_MAX_NAME") {
+            in_ifndef_block = true;
+        } else if in_ifndef_block && t.starts_with("#endif") {
+            in_ifndef_block = false;
+        } else if in_ifndef_block {
+            // Tokenize so both `#define GGML_MAX_NAME 64` and the upstream
+            // `#   define GGML_MAX_NAME        64` style parse correctly.
+            let tokens: Vec<&str> = t.split_whitespace().collect();
+            if tokens.len() >= 4
+                && tokens[0] == "#"
+                && tokens[1] == "define"
+                && tokens[2] == "GGML_MAX_NAME"
+            {
+                current = tokens[3].parse::<usize>().ok();
+            }
+        }
+    }
+    match current {
+        Some(v) if v >= MIN_NAME => {}
+        other => panic!(
+            "GGML_MAX_NAME is {:?} but ACE-Step requires >= {MIN_NAME}.\n\
+             Fix: set `#define GGML_MAX_NAME 128` in {}.\n\
+             Why: llama.cpp submodule updates reset this to 64, and ACE-Step\n\
+             GGUFs carry tensor names up to 67 chars — with 64 the synth\n\
+             pipeline fails at runtime with \"ace_synth_load failed\".",
+            other,
+            ggml_h.display()
+        ),
+    }
 }
 
 /// Ensure `link` is a symlink/junction pointing to `target`.

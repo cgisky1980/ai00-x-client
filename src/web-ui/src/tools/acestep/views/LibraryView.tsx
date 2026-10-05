@@ -29,7 +29,8 @@ import {
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { confirmDanger } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
-import { usePlayerStore, type PlaylistItem } from '../store/playerStore';
+import { type PlaylistItem } from '../store/playerStore';
+import { usePlayerRemoteStore } from '../../music-window/usePlayerRemoteStore';
 import { useShareStore } from '../store/shareStore';
 import { aceStepService } from '../services/AceStepService';
 import { ArchiveShareDialog } from '../components/ArchiveShareDialog';
@@ -38,6 +39,7 @@ import { ScoreBadge } from '../components/ScoreBadge';
 import { formatTimeDisplay } from '../utils/lrcParser';
 import type { SongEntry } from '../types';
 import './LibraryView.scss';
+import './views.scss';
 
 /** Format a Unix-ms timestamp as a localized date (e.g. `2026-07-18`). */
 function formatDate(ts: number): string {
@@ -71,16 +73,16 @@ function cacheDirFor(songsDir: string, entryPath: string): string {
  */
 const LibraryPreviewBar: React.FC = () => {
   const { t } = useI18n('acestep');
-  const currentEntry = usePlayerStore((s) => s.currentEntry);
-  const currentSong = usePlayerStore((s) => s.currentSong);
-  const coverPath = usePlayerStore((s) => s.coverPath);
-  const isPlaying = usePlayerStore((s) => s.isPlaying);
-  const currentTime = usePlayerStore((s) => s.currentTime);
-  const duration = usePlayerStore((s) => s.duration);
-  const unpackingPath = usePlayerStore((s) => s.unpackingPath);
-  const togglePlay = usePlayerStore((s) => s.togglePlay);
-  const seek = usePlayerStore((s) => s.seek);
-  const closePlayer = usePlayerStore((s) => s.closePlayer);
+  const currentEntry = usePlayerRemoteStore((s) => s.currentEntry);
+  const currentSong = usePlayerRemoteStore((s) => s.currentSong);
+  const coverPath = usePlayerRemoteStore((s) => s.coverPath);
+  const isPlaying = usePlayerRemoteStore((s) => s.isPlaying);
+  const currentTime = usePlayerRemoteStore((s) => s.currentTime);
+  const duration = usePlayerRemoteStore((s) => s.duration);
+  const unpackingPath = usePlayerRemoteStore((s) => s.unpackingPath);
+  const togglePlay = usePlayerRemoteStore((s) => s.togglePlay);
+  const seek = usePlayerRemoteStore((s) => s.seek);
+  const closePlayer = usePlayerRemoteStore((s) => s.closePlayer);
 
   if (!currentEntry) return null;
 
@@ -166,11 +168,12 @@ const LibraryPreviewBar: React.FC = () => {
 const LibraryView: React.FC = () => {
   const { t } = useI18n('acestep');
 
-  // Player store — archives launch playback through the shared engine.
-  const setPlaylist = usePlayerStore((s) => s.setPlaylist);
-  const togglePlay = usePlayerStore((s) => s.togglePlay);
-  const playingPath = usePlayerStore((s) => s.currentEntry?.path ?? null);
-  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  // Player store — archives launch playback through the shared engine
+  // (权威在常驻 overlay，这里用遥控镜像).
+  const setPlaylist = usePlayerRemoteStore((s) => s.setPlaylist);
+  const togglePlay = usePlayerRemoteStore((s) => s.togglePlay);
+  const playingPath = usePlayerRemoteStore((s) => s.currentEntry?.path ?? null);
+  const isPlaying = usePlayerRemoteStore((s) => s.isPlaying);
 
   // ---- Archive list state ----
   const [archives, setArchives] = useState<SongEntry[]>([]);
@@ -270,8 +273,8 @@ const LibraryView: React.FC = () => {
         await removeArchiveMapping(entry.path, true);
         await aceStepService.deleteSong(entry.path);
         // 正在播放该归档 → 关闭播放器
-        if (usePlayerStore.getState().currentEntry?.path === entry.path) {
-          usePlayerStore.getState().closePlayer();
+        if (usePlayerRemoteStore.getState().currentEntry?.path === entry.path) {
+          usePlayerRemoteStore.getState().closePlayer();
         }
       } catch (e) {
         setArchivesError(e instanceof Error ? e.message : String(e));

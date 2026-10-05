@@ -41,6 +41,7 @@ fn http_client() -> &'static reqwest::Client {
             .user_agent(BROWSER_UA)
             .timeout(Duration::from_secs(30))
             .connect_timeout(Duration::from_secs(10))
+            .redirect(ai00_x_core::util::net_guard::safe_redirect_policy(5))
             .build()
             .expect("failed to build online media http client")
     })
@@ -133,9 +134,12 @@ pub async fn musicfree_download_media(
         }
     }
 
+    // 3.5 P1-A SSRF 加固：URL 过 net_guard（私网/回环/假 IP 段封网）
+    let parsed_url = ai00_x_core::util::net_guard::assert_url_allowed(&url).await?;
+
     // 4. 下载（下载超时放宽到 120s）
     let mut req = http_client()
-        .request(reqwest::Method::GET, &url)
+        .request(reqwest::Method::GET, parsed_url)
         .timeout(Duration::from_secs(120));
     if let Some(headers) = &headers {
         req = req.headers(build_header_map(headers)?);
@@ -163,9 +167,9 @@ pub async fn musicfree_download_media(
     let final_path = cache_dir.join(format!("{safe_key}.{ext}"));
     let tmp_path = cache_dir.join(format!("{safe_key}.{ext}.tmp"));
 
-    // 6. 落盘（先写临时文件再原子重命名）
-    let bytes = resp
-        .bytes()
+    // 6. 落盘（先写临时文件再原子重命名）；200MB 上限（P1-A，防异常大响应）
+    const MEDIA_BODY_CAP: usize = 200 * 1024 * 1024;
+    let bytes = ai00_x_core::util::net_guard::read_capped(resp, MEDIA_BODY_CAP)
         .await
         .map_err(|e| format!("failed to read media body: {e}"))?;
     if bytes.is_empty() {

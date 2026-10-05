@@ -193,42 +193,61 @@ fn score_clipping(samples: &[f32]) -> f32 {
     (100.0 - fraction * 10000.0).max(0.0)
 }
 
-/// Estimate tempo stability via autocorrelation on the low-frequency
-/// energy envelope. Returns a confidence score (0-100) based on the
-/// strength of the autocorrelation peak.
+/// Estimate tempo stability via autocorrelation on the RMS energy envelope.
+///
+/// 原实现直接对原始波形做自相关并按 `corr/energy` 归一——多谐波音乐波形
+/// 的归一化峰值只有 0.02-0.05，映射后恒为个位数（bug）。正确做法：
+/// 先取 RMS 包络（~23ms/帧，分离出节拍尺度的能量起伏），去均值后做
+/// 包络自相关，再按 lag=0 能量归一；周期性节拍在 60-180 BPM 的 lag 上
+/// 会给出 0.3-0.7 的峰值 → 60-100 分。计算量也从 O(samples×lags)
+/// 降为 O(envelope×lags)（约低 3 个数量级）。
 fn score_tempo_stability(samples: &[f32], sample_rate: u32) -> f32 {
-    // BPM search range: 60-180 BPM.
     const BPM_MIN: f32 = 60.0;
     const BPM_MAX: f32 = 180.0;
 
-    let min_lag = ((60.0 / BPM_MAX) * sample_rate as f32) as usize;
-    let max_lag = ((60.0 / BPM_MIN) * sample_rate as f32) as usize;
-
-    if samples.len() < max_lag + 1 {
+    // 1. RMS energy envelope (~23ms per frame).
+    let frame_len = ((sample_rate as f32) * 0.023).max(1.0) as usize;
+    let envelope: Vec<f32> = samples
+        .chunks(frame_len)
+        .map(|c| (c.iter().map(|x| x * x).sum::<f32>() / c.len().max(1) as f32).sqrt())
+        .collect();
+    if envelope.len() < 8 {
         return 50.0; // Not enough data for reliable tempo estimation.
     }
 
-    // Compute autocorrelation in the BPM lag range.
+    // 2. Zero-mean (DC removal) so the autocorrelation measures periodicity.
+    let mean = envelope.iter().sum::<f32>() / envelope.len() as f32;
+    let env: Vec<f32> = envelope.iter().map(|x| x - mean).collect();
+
+    // 3. Lag range in envelope frames for 60-180 BPM.
+    let env_rate = (sample_rate as f32) / frame_len as f32;
+    let min_lag = ((1.0 / BPM_MAX) * env_rate).floor().max(1.0) as usize;
+    let max_lag = ((1.0 / BPM_MIN) * env_rate).ceil() as usize;
+    if env.len() < max_lag + 1 {
+        return 50.0;
+    }
+
+    // 4. Autocorrelation normalized by the lag-0 energy.
+    let energy0: f32 = env.iter().map(|x| x * x).sum();
+    if energy0 <= f32::EPSILON {
+        return 50.0; // Flat envelope (silence/drone) — no tempo to speak of.
+    }
     let mut best_corr: f32 = 0.0;
-    let mut total_energy: f32 = 0.0;
     for lag in min_lag..=max_lag {
-        let mut corr: f32 = 0.0;
-        let mut energy: f32 = 0.0;
-        for i in 0..(samples.len() - lag) {
-            corr += samples[i] * samples[i + lag];
-            energy += samples[i] * samples[i];
-        }
-        total_energy = total_energy.max(energy);
-        if energy > 0.0 {
-            let normalized = corr / energy;
-            if normalized > best_corr {
-                best_corr = normalized;
-            }
+        let corr: f32 = env[lag..]
+            .iter()
+            .zip(env.iter())
+            .map(|(a, b)| a * b)
+            .sum::<f32>()
+            / (env.len() - lag) as f32;
+        let normalized = corr / (energy0 / env.len() as f32);
+        if normalized > best_corr {
+            best_corr = normalized;
         }
     }
 
-    // best_corr is in [0, 1] range; map to 0-100.
-    // A correlation of 0.5+ indicates a strong, stable tempo.
+    // Peak normalized autocorrelation of a steady beat lands in ~0.3-0.8;
+    // map so 0.5 → 100, consistent with the original design intent.
     (best_corr * 200.0).clamp(0.0, 100.0)
 }
 

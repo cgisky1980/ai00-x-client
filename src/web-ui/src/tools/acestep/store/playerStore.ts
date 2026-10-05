@@ -645,6 +645,9 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
         error: null,
         currentShareId: null,
         currentOnlineId: onlineId,
+        // 单曲挂列表：footer 收藏心形/队列镜像依赖 playlist 条目取完整 song 对象
+        playlist: [{ kind: 'online' as const, song }],
+        currentIndex: 0,
       });
       // 播放成功后后台预取队列中接下来几首在线歌的音频（不抢当前曲带宽）
       void prefetchOnlineAudio();

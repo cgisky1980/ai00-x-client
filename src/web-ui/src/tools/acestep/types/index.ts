@@ -180,6 +180,19 @@ export interface CreationPlan {
   vocal_language: string;
   /** Brief explanation of creative choices. */
   reasoning: string;
+  // ---- Task mode & source-audio editing (manual compose, optional) ----
+  /** Compose task: text2music (default) | cover | repaint. */
+  taskMode?: 'text2music' | 'cover' | 'repaint';
+  /** Absolute path of the source audio for cover/repaint. */
+  sourceAudioPath?: string;
+  /** Cover: fraction of DiT steps using source context (0-1, default 1). */
+  coverStrength?: number;
+  /** Cover: closeness to source, 0=noise → 1=source (default 0). */
+  coverNoiseStrength?: number;
+  /** Repaint region start (seconds; 0 = source start). */
+  repaintStart?: number;
+  /** Repaint region end (seconds; -1 = source end). */
+  repaintEnd?: number;
 }
 
 // ---- DTOs (camelCase, Tauri convention) ----
@@ -240,6 +253,8 @@ export interface AceStepGenerateRequest {
 
 export interface AceStepGenerateResult {
   outputPath: string;
+  /** Lego tasks only: the unmixed generated stem saved next to the mix. */
+  stemPath?: string | null;
   durationSeconds: number;
   sampleRate: number;
   channels: number;
@@ -578,6 +593,10 @@ export interface AceStepSessionMeta {
   title: string;
   createdAt: number;
   updatedAt: number;
+  /** Session mode (drives the 分层 badge). Absent in older metas. */
+  mode?: SessionMode;
+  /** Number of persisted outputs (drives the N首 badge). Absent in older metas. */
+  outputCount?: number;
 }
 
 /** Full session data persisted as JSON on disk (mirrors Rust DTO). */
