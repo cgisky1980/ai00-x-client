@@ -195,7 +195,12 @@ export const LyricParticles: React.FC<{ active: boolean; className?: string }> =
 };
 
 /** 环形频谱：24 根梯形光柱围一圈（电台唱片外圈；仅限不透明窗口——canvas 在透明窗口会破坏 alpha） */
-export const SpectrumRing: React.FC<{ active: boolean; className?: string }> = ({ active, className }) => {
+export const SpectrumRing: React.FC<{
+  active: boolean;
+  className?: string;
+  /** 光柱颜色（封面主色）；缺省或取色失败时回退主题黛青 accentColor() */
+  color?: string | null;
+}> = ({ active, className, color }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorRef = useRef<string>('#60a5fa');
   const smoothRef = useRef<number[]>(new Array(BANDS).fill(0));
@@ -203,8 +208,8 @@ export const SpectrumRing: React.FC<{ active: boolean; className?: string }> = (
   const geomRef = useRef<{ discR: number; maxLen: number }>({ discR: 1, maxLen: 1 });
 
   useEffect(() => {
-    colorRef.current = accentColor();
-  }, []);
+    colorRef.current = color || accentColor();
+  }, [color]);
 
   useEffect(() => {
     if (!active) return;

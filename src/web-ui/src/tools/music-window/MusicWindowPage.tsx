@@ -43,6 +43,7 @@ import { useShareCover } from '../acestep/hooks/useShareCover'
 import { useBgmPlayerStore } from '../island/store/bgmPlayer'
 import { useShareStore } from '../acestep/store/shareStore'
 import { parseEnhancedLrc, findCurrentLineIndex } from '../acestep/utils/lrcParser'
+import { extractDominantColor } from '@/app/member-chat/community/colorExtract'
 import { useP2pStore } from '../acestep/store/p2pStore'
 import { useProfileStore, parseSongTags } from '../acestep/store/profileStore'
 import { useRecommendStore } from '../acestep/store/recommendStore'
@@ -406,6 +407,25 @@ export const MusicWindowPage: React.FC = () => {
   const radioSkip = useMusicSourceRadioRemote((s) => s.skip)
   const radioError = useMusicSourceRadioRemote((s) => s.error)
   const radioClearError = useMusicSourceRadioRemote((s) => s.clearError)
+
+  // ---- 电台封面主色：频谱环光柱 + 辉光取色 ----
+  // 复用造物集的封面主色提取（fetch → blob → bitmap → 32×32 饱和度加权主色，自带缓存）。
+  // 跨域受限（无 CORS 头）/加载失败返回 null → 环回退主题黛青；取色是增强层，不阻塞播放。
+  const radioCoverUrl = msRadioCurrent?.coverUrl ?? null
+  const [radioCoverColor, setRadioCoverColor] = useState<string | null>(null)
+  useEffect(() => {
+    if (!radioCoverUrl) {
+      setRadioCoverColor(null)
+      return
+    }
+    let alive = true
+    void extractDominantColor(radioCoverUrl).then((c) => {
+      if (alive) setRadioCoverColor(c)
+    })
+    return () => {
+      alive = false
+    }
+  }, [radioCoverUrl])
 
   // ---- 电台歌词解析 + 当前行（仅电台激活时参与渲染）----
   const radioParsed = useMemo(
@@ -1671,7 +1691,16 @@ export const MusicWindowPage: React.FC = () => {
                   <div className="music-popup__online-radio-stage">
                     <div className="music-popup__online-radio-side">
                       {/* 唱片：圆形封面播放时旋转（黑胶样式）；外圈环形频谱随音乐跳动 */}
-                      <span className="music-popup__online-radio-vinyl-wrap">
+                      <span
+                        className="music-popup__online-radio-vinyl-wrap"
+                        // 辉光色随封面主色；取色失败/null 时不注入该变量，
+                        // CSS 的 var(..., 主题黛青) 兜底才会生效（空字符串会使声明失效）
+                        style={
+                          radioCoverColor
+                            ? ({ '--ring-glow': radioCoverColor } as React.CSSProperties)
+                            : undefined
+                        }
+                      >
                         <span
                           className={`music-popup__online-radio-vinyl${acestepIsPlaying ? ' is-playing' : ''}`}
                         >
@@ -1684,6 +1713,7 @@ export const MusicWindowPage: React.FC = () => {
                         </span>
                         <SpectrumRing
                           active={acestepIsPlaying}
+                          color={radioCoverColor}
                           className="music-popup__online-radio-vinyl-ring"
                         />
                       </span>

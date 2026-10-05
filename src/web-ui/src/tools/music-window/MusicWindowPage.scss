@@ -1203,6 +1203,15 @@
     height: calc(100% + var(--vinyl-ring-margin) * 2);
     pointer-events: none;
     z-index: 1;
+    // 辉光：优先封面主色（--ring-glow，由 JS 按当前封面注入），未取到则回退主题黛青。
+    // 用 drop-shadow（一次 GPU 合成）而非每帧 ctx.shadowBlur —— 后者在 24 柱 × 30fps
+    // 下是典型性能坑；drop-shadow 作用在已绘制的透明画布像素上，观感等价。
+    filter: drop-shadow(0 0 6px var(--ring-glow, var(--color-accent-400)));
+  }
+
+  // 亮色（宣纸）底上高饱和辉光会发飘，压一档强度（与 atmo 层同思路）
+  [data-theme-type='light'] &__online-radio-vinyl-ring {
+    filter: drop-shadow(0 0 4px var(--ring-glow, var(--color-accent-400)));
   }
 
   // 黑胶唱片：圆形封面播放时匀速旋转，中心孔洞点睛
