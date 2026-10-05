@@ -1,0 +1,22 @@
+{
+  "title": "Tool authorization allowlist",
+  "subtitle": "Persisted \"always allow\" records — matching approvals are auto-approved instead of prompting every time.",
+  "section": {
+    "list": {
+      "title": "Granted",
+      "description": "Keyed by workspace + tool name. A read-only tool granted \"always allow\" in any session stays granted across sessions; removing it makes the next run ask again."
+    }
+  },
+  "empty": "No persisted grants yet",
+  "hint": "For safety, only read-only tools (read / read_image / glob / grep / web_fetch / web_search) are persisted. Write and execution tools (edit / write / bash / pwsh, etc.) only apply to the current session and are never written to disk.",
+  "actions": {
+    "remove": "Revoke grant",
+    "clear": "Clear all",
+    "clearConfirm": "Confirm clear",
+    "cancel": "Cancel"
+  },
+  "messages": {
+    "removed": "Revoked the persisted grant for \"{{tool}}\"",
+    "cleared": "All persisted grants cleared"
+  }
+}

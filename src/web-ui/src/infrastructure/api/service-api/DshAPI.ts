@@ -28,6 +28,7 @@
 
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { listen as tauriListen } from '@tauri-apps/api/event';
+import { noteSessionWorkspace } from '../../../shared/agent-approval-rules';
 
 /** dsh 代理基址（同源：内嵌 Salvo 2100 的 /dsh-api 反向代理；dev 下显式指向 2100）。 */
 const DSH_BASE = import.meta.env.DEV ? 'http://127.0.0.1:2100/dsh-api' : '/dsh-api';
@@ -142,21 +143,23 @@ interface WireModelCatalog {
 }
 
 /** WS mux 下行帧（适配层产出的旧 events.mux 语义，UI 零改动）。 */
+/** 后台作业条目（session/control 流 jobs 帧；子代理/工作流等后台执行单元）。 */
+export interface DshJobItem {
+  id: string;
+  kind?: string;
+  label?: string;
+  status: string;
+  startedAt?: number;
+  finishedAt?: number;
+}
+
 export type DshMuxFrame =
-  | { type: 'session/event'; sessionId: string; event: DshSessionEvent; view?: unknown }
-  | { type: 'session/subscribed'; sessionId: string; lastSeq: number }
+  | { type: 'session/event'; sessionId: string; event: DshSessionEvent; view?: unknown }  | { type: 'session/subscribed'; sessionId: string; lastSeq: number }
   /** 后台任务注册表快照（来自 session/control 流的 jobs 帧 / baseline） */
   | {
       type: 'session/jobs';
       sessionId?: string;
-      jobs: Array<{
-        id: string;
-        kind?: string;
-        label?: string;
-        status: string;
-        startedAt?: number;
-        finishedAt?: number;
-      }>;
+      jobs: DshJobItem[];
     }
   /** 投影单元更新（key: subagent/subagentTiming/title 等） */
   | { type: 'session/projection'; sessionId: string; key: string; value: unknown; seq: number }
@@ -478,6 +481,120 @@ export const dshPlugins = {
 };
 
 // ---------------------------------------------------------------------------
+// 引擎 checkpoint（P1-B：三槽位健康快照 + 恢复）
+// ---------------------------------------------------------------------------
+
+/** checkpoint 槽位卡片（设置页「引擎健康」分区）。 */
+export interface DshCheckpointInfo {
+  slot: number;
+  timestamp_unix_secs: number;
+  engine_version: string;
+  file_count: number;
+}
+
+export const dshCheckpoints = {
+  list: () => tauriInvoke<DshCheckpointInfo[]>('dsh_checkpoints_list'),
+  /** 恢复槽位并重启引擎（Rust 侧 stop→start 串行化）。 */
+  restore: (slot: number) => tauriInvoke<unknown>('dsh_checkpoint_restore', { slot }),
+};
+
+// ---------------------------------------------------------------------------
+// Slash 命令（commands/list + commands/execute；plan mode 等引擎能力经此驱动）
+// ---------------------------------------------------------------------------
+
+/** 引擎已注册的 slash 命令（agent 作用域，含全局注册；description 供面板展示）。 */
+export interface DshCommandInfo {
+  name: string;
+  description: string;
+  input?: { hint: string; attachments?: boolean };
+}
+
+/** 命令执行 settled 结果（无效语法/未知命令返回 undefined）。 */
+export interface DshCommandExecutionResult {
+  commandId?: string;
+  result?: { kind: 'success'; text?: string } | { kind: 'error'; text: string };
+}
+
+export const dshCommands = {
+  /** 列出某会话可用的 slash 命令（agent-scoped，含 agent 内遮蔽解析）。 */
+  list: (sessionId: string) => rpc<DshCommandInfo[]>('commands/list', { agent: sessionId }),
+  /**
+   * 执行一条命令行（如 `/plan`、`/plan off`、`/compact`）。命令不产生模型消息，
+   * 但会记入会话日志；结果在返回值里（UI 层提示）。
+   */
+  execute: (sessionId: string, line: string) =>
+    rpc<DshCommandExecutionResult | undefined>('commands/execute', {
+      agent: sessionId,
+      line,
+      submittedAttachments: [],
+    }),
+};
+
+/** 引擎权限档（DSH_PERMISSION_MODE：read-only / workspace-write / danger-full-access）。 */
+export const dshPermission = {
+  /** 当前档（null = 引擎默认 workspace-write）。 */
+  get: () => tauriInvoke<string | null>('get_dsh_permission_mode'),
+  /** 设置档（持久化，重启引擎后生效）。 */
+  set: (mode: string | null) => tauriInvoke<void>('set_dsh_permission_mode', { mode }),
+};
+
+// ---------------------------------------------------------------------------
+// Agent 编排：帮手定义（<DSH_HOME>/agent-workers/*.md）+ Claude Code 兼容 hooks
+// ---------------------------------------------------------------------------
+
+/** 帮手定义摘要（编辑器列表行）。 */
+export interface DshWorkerSummary {
+  fileName: string;
+  name: string;
+  description: string;
+  model: string;
+  background: string;
+  tools: string[];
+}
+
+/** 帮手定义管理（改动重启引擎生效；删空回退内嵌默认两件套）。 */
+export const dshWorkers = {
+  list: () => tauriInvoke<DshWorkerSummary[]>('dsh_workers_list'),
+  read: (fileName: string) => tauriInvoke<string>('dsh_worker_read', { fileName }),
+  save: (fileName: string, content: string) =>
+    tauriInvoke<void>('dsh_worker_save', { fileName, content }),
+  delete: (fileName: string) => tauriInvoke<void>('dsh_worker_delete', { fileName }),
+};
+
+/** Claude Code 兼容 hooks（<DSH_HOME>/hooks.json；空串 = 未配置）。 */
+export const dshHooks = {
+  get: () => tauriInvoke<string>('dsh_hooks_config_get'),
+  set: (content: string) => tauriInvoke<void>('dsh_hooks_config_set', { content }),
+};
+
+// ---------------------------------------------------------------------------
+// 志·快照时间线（agent 签名快照；libgit2 纯库）
+// ---------------------------------------------------------------------------
+
+/** 单条快照记录。 */
+export interface DshSnapshotEntry {
+  commit: string;
+  message: string;
+  time: number;
+}
+
+/** 快照时间线（工作区 = 当前打开的工作区路径）。 */
+export const dshSnapshots = {
+  list: (dir: string, limit?: number) =>
+    tauriInvoke<DshSnapshotEntry[]>('git_snapshots_list', { request: { dir, limit } }),
+  now: (dir: string, message?: string) =>
+    tauriInvoke<{ initialized: boolean; commit: string | null; message: string }>(
+      'git_snapshot_now',
+      { request: { dir, message } },
+    ),
+  rollback: (dir: string, commit: string) =>
+    tauriInvoke<{ initialized: boolean; commit: string | null; message: string }>(
+      'git_snapshot_rollback',
+      { request: { dir, commit } },
+    ),
+};
+
+// ---------------------------------------------------------------------------
 // 会话 API（HTTP unary；history/models 由 follow cursor + 目录拼装）
 // ---------------------------------------------------------------------------
 
@@ -532,6 +649,8 @@ export const dshSession = {
     rpc<{ items: DshSessionSummary[] }>('session/list', { _request: {} }).then(({ items }) => {
       for (const s of items) {
         cacheProjectionValues(s.sessionId, s.projections?.values);
+        // R2-11b：回填「会话 → 工作区」映射，供审批「总是允许」的持久判定用
+        noteSessionWorkspace(s.sessionId, s.cwd);
       }
       return { items };
     }),
@@ -543,6 +662,10 @@ export const dshSession = {
         ...(opts?.cwd ? { cwd: opts.cwd } : {}),
         ...(opts?.agentPreset ? { agentPreset: opts.agentPreset } : {}),
       },
+    }).then(res => {
+      // R2-11b：新建会话即刻登记工作区（list 尚未含该会话时也能命中持久白名单）
+      noteSessionWorkspace(res.sessionId, opts?.cwd);
+      return res;
     }),
 
   prompt: (sessionId: string, text: string) =>
@@ -1006,6 +1129,8 @@ export interface DshUsageSummary {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
+  /** 是否有任一请求上报了缓存用量。false = 供应商未上报，UI 不应显示命中率（避免误导为 0%）。 */
+  cacheReported: boolean;
 }
 
 interface StreamChunkShape {
@@ -1177,6 +1302,7 @@ export function aggregateUsage(events: DshSessionEvent[]): DshUsageSummary | nul
   let inputTokens = 0;
   let outputTokens = 0;
   let cacheReadTokens = 0;
+  let cacheReported = false;
   for (const event of events) {
     if (event.type !== 'assistant/message') continue;
     const usage = (event.data as { usage?: UsageShape } | undefined)?.usage;
@@ -1185,7 +1311,189 @@ export function aggregateUsage(events: DshSessionEvent[]): DshUsageSummary | nul
     inputTokens += usage.inputTokens ?? 0;
     outputTokens += usage.outputTokens ?? 0;
     cacheReadTokens += usage.cacheReadTokens ?? 0;
+    if (typeof usage.cacheReadTokens === 'number') cacheReported = true;
   }
   if (requests === 0) return null;
-  return { requests, inputTokens, outputTokens, cacheReadTokens };
+  return { requests, inputTokens, outputTokens, cacheReadTokens, cacheReported };
+}
+
+/**
+ * 缓存命中率文本（R2-8）。命中率 = 缓存读 / 输入总 token（OpenAI 语义下
+ * prompt_tokens 已含缓存部分）。供应商未上报返回 null——UI 不显示，避免
+ * 把「没数据」误读成「命中率 0%」。
+ */
+export function formatCacheHitRate(usage: DshUsageSummary | null): string | null {
+  if (!usage || !usage.cacheReported || usage.inputTokens <= 0) return null;
+  const rate = (usage.cacheReadTokens / usage.inputTokens) * 100;
+  return `${rate.toFixed(0)}%`;
+}
+
+// ---------------------------------------------------------------------------
+// 执行过程统计（R1-6 仪表盘）：事件流水账里都有，只是没人数——这里数出来。
+// ---------------------------------------------------------------------------
+
+/** 执行过程统计（R1-6）。口径：压缩按 compaction/end 结算；轮耗时按
+ *  turn/start→turn/end 的 event.time 差；工具失败判定与 foldEvents 一致
+ *  （事件级 error 或结果块 isError）。 */
+export interface DshSessionStats {
+  /** 成功完成的上下文压缩次数（compaction/end 无 error） */
+  compactions: number;
+  /** 失败的压缩次数（compaction/end 带 error） */
+  compactionFailures: number;
+  rounds: {
+    /** 完整配对（start+end 均有 time）的轮数 */
+    count: number;
+    /** 最近一轮耗时（ms） */
+    lastMs: number | null;
+    /** 平均轮耗时（ms） */
+    avgMs: number | null;
+  };
+  tools: {
+    /** 已返回结果（按 callId 去重） */
+    total: number;
+    failures: number;
+    /** 已请求未返回（callId 无对应 result） */
+    pending: number;
+    /** 失败率 = failures / total（total=0 时 null） */
+    failureRate: number | null;
+  };
+}
+
+/** 从会话事件流水账统计压缩次数/轮耗时/工具失败率（R1-6；纯函数每渲染重算）。 */
+export function aggregateSessionStats(events: DshSessionEvent[]): DshSessionStats {
+  let compactions = 0;
+  let compactionFailures = 0;
+  let openTurnAt: number | null = null;
+  const roundMs: number[] = [];
+  const calledIds = new Set<string>();
+  const failedIds = new Set<string>();
+  const resultIds = new Set<string>();
+
+  for (const event of events) {
+    const data = event.data as Record<string, unknown> | undefined;
+    switch (event.type) {
+      case 'compaction/end': {
+        if (data?.error) compactionFailures += 1;
+        else compactions += 1;
+        break;
+      }
+      case 'turn/start': {
+        openTurnAt = typeof event.time === 'number' ? event.time : null;
+        break;
+      }
+      case 'turn/end': {
+        if (openTurnAt != null && typeof event.time === 'number') {
+          roundMs.push(Math.max(0, event.time - openTurnAt));
+        }
+        openTurnAt = null;
+        break;
+      }
+      case 'tool/call': {
+        const callId = String(data?.callId ?? '');
+        if (callId) calledIds.add(callId);
+        break;
+      }
+      case 'tool/result': {
+        const message = data?.message as
+          | { content?: Array<{ type?: string; text?: string; isError?: boolean; toolCallId?: string }> }
+          | undefined;
+        const first = message?.content?.[0] as { toolCallId?: string; isError?: boolean } | undefined;
+        if (first?.toolCallId) {
+          resultIds.add(first.toolCallId);
+          const eventError = data?.error as { name?: string; code?: string } | undefined;
+          if (Boolean(eventError) || first.isError === true) failedIds.add(first.toolCallId);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  const total = resultIds.size;
+  const failures = failedIds.size;
+  const lastMs = roundMs.length ? roundMs[roundMs.length - 1] : null;
+  const avgMs = roundMs.length ? roundMs.reduce((a, b) => a + b, 0) / roundMs.length : null;
+  return {
+    compactions,
+    compactionFailures,
+    rounds: { count: roundMs.length, lastMs, avgMs },
+    tools: {
+      total,
+      failures,
+      pending: calledIds.size - resultIds.size,
+      failureRate: total > 0 ? failures / total : null,
+    },
+  };
+}
+
+/**
+ * 会话运行态（R2-9）——从事件流水账重放派生，替代「读历史尾找 error」启发式。
+ *
+ * 判定依据全部是引擎权威事件的闭合性，不依赖消息折叠规则：
+ * - `openTurn`：最后一个轮次未闭合（turn/start 之后没有 turn/end）——被中断的确定性信号；
+ * - `pendingTools`：工具调用未返回数（tool/call 无对应 tool/result）——含「卡在审批上」；
+ * - `lastTurnErrored`：最后一个轮次以错误收尾（assistant/chunk 的 finish.reason.kind === 'error'），
+ *   每遇 turn/start 重置，故只看最后一轮。
+ *
+ * 注意：审批/提问是 $events 瀑布流信号（不进会话事件日志），但它们发生时必然
+ * 表现为「轮次未闭合 + 工具未返回」，故本函数已覆盖，无需单独判定。
+ */
+export interface DshSessionRunState {
+  openTurn: boolean;
+  pendingTools: number;
+  lastTurnErrored: boolean;
+}
+
+export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunState {
+  let openTurn = false;
+  let turnErrored = false;
+  const calledIds = new Set<string>();
+  const resultIds = new Set<string>();
+
+  for (const event of events) {
+    const data = event.data as Record<string, unknown> | undefined;
+    switch (event.type) {
+      case 'turn/start': {
+        openTurn = true;
+        turnErrored = false;
+        break;
+      }
+      case 'turn/end': {
+        openTurn = false;
+        break;
+      }
+      case 'assistant/chunk': {
+        const chunk = data?.chunk as
+          | { type?: string; reason?: { kind?: string } }
+          | undefined;
+        if (chunk?.type === 'finish' && chunk.reason?.kind === 'error') {
+          turnErrored = true;
+        }
+        break;
+      }
+      case 'tool/call': {
+        const callId = String(data?.callId ?? '');
+        if (callId) calledIds.add(callId);
+        break;
+      }
+      case 'tool/result': {
+        const message = data?.message as
+          | { content?: Array<{ toolCallId?: string }> }
+          | undefined;
+        const callId = message?.content?.[0]?.toolCallId;
+        if (callId) resultIds.add(callId);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  let pendingTools = 0;
+  for (const id of calledIds) {
+    if (!resultIds.has(id)) pendingTools += 1;
+  }
+
+  return { openTurn, pendingTools, lastTurnErrored: turnErrored };
 }

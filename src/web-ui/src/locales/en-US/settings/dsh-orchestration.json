@@ -1,0 +1,37 @@
+{
+  "title": "Agent orchestration",
+  "subtitle": "Worker (subagent) type definitions and Claude Code-compatible hooks",
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "workers": {
+    "sectionTitle": "Worker definitions",
+    "sectionDesc": "The orchestrator spawns helpers from these markdown files (the engine tool name comes from the frontmatter `name`). Defaults (research_worker / code_worker) are seeded on first start.",
+    "new": "New",
+    "edit": "Edit",
+    "delete": "Delete",
+    "empty": "No worker definitions yet (built-in defaults are in effect; they appear here after you save one)",
+    "loadFailed": "Failed to load worker definitions",
+    "saved": "Saved {{file}}; takes effect after engine restart",
+    "deleted": "Deleted {{name}}",
+    "newPrompt": "Definition file name (lowercase, ends with .md):",
+    "editorTitle": "Edit definition: {{file}}",
+    "editorHint": "Frontmatter: name (tool name, lowercase letters/digits/_/-), description (the orchestrator picks helpers by it), model (ai00-auto / ai00-salvo / other ref), background (continuable / one-shot), tools (tool allowlist); body is the helper persona.",
+    "deleteTitle": "Delete worker: {{name}}",
+    "deleteConfirm": "The helper disappears from the orchestrator's dispatch list; takes effect after engine restart. Deleting all falls back to the built-in defaults."
+  },
+  "hooks": {
+    "sectionTitle": "Claude Code-compatible Hooks",
+    "sectionDesc": "The engine bridge (dsh-hooks-claude-code) reads this hooks.json (Claude Code format), supporting SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Stop / SubagentStart / SubagentStop: block prompts or tools, inject context, force continuation. Save empty to disable. Read once at engine startup.",
+    "fillTemplate": "Insert example",
+    "clear": "Clear (disable hooks)",
+    "saved": "Hooks config saved; takes effect after engine restart"
+  },
+  "restart": {
+    "hint": "Changes above are read once at engine startup —",
+    "button": "Restart engine to apply",
+    "done": "Engine restarted"
+  }
+}

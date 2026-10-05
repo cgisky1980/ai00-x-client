@@ -76,5 +76,19 @@
     "toggleFailed": "Operation failed: {{error}}",
     "marketInstallSuccess": "\"{{title}}\" installed, engine restarting",
     "noApprovedVersion": "No server-approved version found"
+  },
+  "engineHealth": {
+    "engineHealth": {
+      "title": "Engine health",
+      "description": "Key engine config is snapshotted automatically on every healthy start (up to 3 slots); restore to a known-good point if the engine/orchestration/plugins break.",
+      "empty": "No snapshots yet — created automatically after the first healthy engine start.",
+      "restore": "Restore",
+      "restoreTitle": "Restore engine snapshot",
+      "restoreMessage": "Engine config (orchestration patch / profile / settings) will roll back to this point and the engine restarts. Unsaved current changes will be lost. Continue?",
+      "restored": "Snapshot restored, engine restarting",
+      "restoreFailed": "Restore failed: {{error}}",
+      "filesCount": "{{count}} files"
+    },
+    "slotLabel": "Slot {{slot}} · {{time}}"
   }
 }

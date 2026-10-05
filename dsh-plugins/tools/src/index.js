@@ -20,6 +20,12 @@
  * 本插件只做协议薄壳：业务逻辑在宿主侧（D7 决策）。
  * 不 import @deepseek-ai/dsh-tools（pnpm 严格解析下不可达），用原始
  * ToolDefinition 形状注册——参数校验自行完成，输出声明仍由注册表强制校验。
+ *
+ * 提示词归属（R1-5 收口边界，2026-09-12）：web-ui 侧提示词统一收口在
+ * src/web-ui/src/tools/todo/ai/prompts.ts。本插件是独立 npm 包（独立构建，
+ * 无法 import web-ui 模块），故本文件内的 ai00_task_complete 验收拒绝文案与
+ * 「完工三步」口径留原地——调整验收口径时，须与 prompts.ts 的
+ * DELEGATE_COMPLETION_THREE_STEP 同步修改，勿只改一处。
  */
 
 import { exec } from "node:child_process";

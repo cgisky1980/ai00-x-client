@@ -8,7 +8,8 @@
     "empty": "No sessions yet",
     "rename": "Rename session",
     "fork": "Fork session (copy history into a new one)",
-    "usage": "Session cumulative usage (↑input ↓output · requests)"
+    "usage": "Session cumulative usage (↑input ↓output · requests · cache hit rate)",
+    "cacheHit": "cache"
   },
   "tool": {
     "result": "Result",
@@ -35,6 +36,39 @@
     "allow": "Allow once",
     "reject": "Reject",
     "allowAlways": "Always allow"
+  },
+  "plan": {
+    "cardTitle": "Plan review",
+    "approve": "Approve plan",
+    "reject": "Request changes"
+  },
+  "command": {
+    "unknown": "Unknown command: {{line}}"
+  },
+  "snapshots": {
+    "title": "Snapshot timeline",
+    "refresh": "Refresh",
+    "now": "Snapshot now",
+    "rollback": "Roll back here",
+    "rollbackTitle": "Roll back to snapshot {{commit}}",
+    "rollbackConfirm": "Confirm rollback",
+    "cancel": "Cancel",
+    "rollbackWarn": "Rollback = reset --hard to that snapshot: everything after it (including later agent snapshots) is discarded and unrecoverable. Take a snapshot first to preserve the current state.",
+    "taken": "Snapshot {{commit}} created",
+    "noChanges": "No changes; no new snapshot",
+    "rolledBack": "Rolled back to {{commit}}",
+    "noWorkspace": "No workspace open — snapshots apply to the currently open workspace.",
+    "loading": "Loading…",
+    "empty": "No snapshots yet. Task completions and \"Snapshot now\" are recorded here."
+  },
+  "permMode": {
+    "title": "Engine permission mode (takes effect after engine restart)",
+    "default": "Permissions: default (workspace write)",
+    "readOnly": "Permissions: read-only",
+    "workspaceWrite": "Permissions: workspace write",
+    "dangerFull": "Permissions: full access",
+    "saved": "Permission mode set to {{mode}}; takes effect after engine restart",
+    "savedDefault": "Permission mode reset to default; takes effect after engine restart"
   },
   "models": {
     "loading": "Loading models…"

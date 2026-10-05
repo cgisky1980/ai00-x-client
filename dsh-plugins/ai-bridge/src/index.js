@@ -180,13 +180,10 @@ async function* translateStream(sseObjects, model) {
       }
     }
     if (event.error) {
-      yield {
-        type: "finish",
-        reason: {
-          kind: "error",
-          failure: { message: event.error.message ?? "gateway error", code: "AI00X_GATEWAY" },
-        },
-      };
+      yield* yieldTransportError("AI00X_GATEWAY", {
+        message: event.error.message ?? "gateway error",
+        code: "AI00X_GATEWAY",
+      });
       return;
     }
     const choice = event.choices?.[0];
@@ -285,9 +282,18 @@ async function* translateStream(sseObjects, model) {
       };
     }
     if (event.usage) {
+      // R2-8：缓存用量透传（原先只取 prompt/completion，上游的缓存命中数被丢掉）。
+      // 各家命名不一，按 OpenAI → DeepSeek → Anthropic 兼容名依次兜底；
+      // 供应商未上报时**不带该字段**（引擎侧据此区分「未上报」与「命中 0」）。
+      const cached =
+        event.usage.prompt_tokens_details?.cached_tokens ??
+        event.usage.cached_tokens ??
+        event.usage.prompt_cache_hit_tokens ??
+        event.usage.cache_read_input_tokens;
       pendingUsage = {
         inputTokens: event.usage.prompt_tokens ?? 0,
         outputTokens: event.usage.completion_tokens ?? 0,
+        ...(typeof cached === "number" ? { cacheReadTokens: cached } : {}),
       };
     }
     const finishReason = choice?.finish_reason ?? event.finish_reason;
@@ -334,16 +340,41 @@ async function* translateStream(sseObjects, model) {
   }
   const reason = pendingFinish ?? { kind: "stop" };
   if (reason.kind === "stop" && order.length === 0) {
-    yield {
-      type: "finish",
-      reason: {
-        kind: "error",
-        failure: { message: "gateway returned no content", code: "AI00X_EMPTY" },
-      },
-    };
+    yield* yieldTransportError(
+      "AI00X_EMPTY",
+      { message: "gateway returned no content", code: "AI00X_EMPTY" },
+      "网关本轮没有返回任何内容（上游可能被截断或异常）。这是服务端抖动，与任务本身无关：请直接就刚才的请求重试一次，不要修改计划或向用户提问。"
+    );
     return;
   }
   yield { type: "finish", reason };
+}
+
+// ---------------------------------------------------------------------------
+// 传输层错误回灌（R2-7）
+// ---------------------------------------------------------------------------
+
+/**
+ * 先发一个文本块把错误写进助手消息，再以 error 收尾。
+ *
+ * 背景（12FA Factor 9「压缩错误回灌」缺口）：此前 bridge 只发
+ * finish{kind:'error'}，错误本身不进会话上下文——模型下一轮看不到发生过
+ * 什么，无法自纠，只能等看门狗 5 分钟静默兜底。这里把错误作为助手消息正文
+ * 落进历史，模型收到下一步提示时即可自行重试。
+ *
+ * 语义不变：finish 仍以 kind:'error' 收尾（失败判定、UI 表现、看门狗链路
+ * 都不受影响），只是额外多了一段可被模型读到的正文。
+ */
+function* yieldTransportError(code, failure, hint) {
+  const text = [
+    `【上游传输错误 · ${code}】${failure.message}`,
+    hint ??
+      "这是网络/服务端的临时抖动，与任务本身无关：请直接就刚才的请求重试一次——不要修改计划、不要向用户提问、不要放弃当前步骤。若连续两次仍失败，再向用户说明情况并停下。",
+  ].join("\n");
+  yield { type: "block-start", index: 0, blockType: "text" };
+  yield { type: "text-delta", index: 0, text };
+  yield { type: "block-end", index: 0, block: { type: "text", text } };
+  yield { type: "finish", reason: { kind: "error", failure } };
 }
 
 // ---------------------------------------------------------------------------
@@ -456,32 +487,24 @@ class Ai00XAdapter {
         signal: options.signal,
       });
     } catch (error) {
-      yield {
-        type: "finish",
-        reason: {
-          kind: "error",
-          failure: {
-            message: `Ai00-X gateway unreachable (${baseURL}): ${error.message}. Is the Ai00-X desktop client running?`,
-            code: "AI00X_UNREACHABLE",
-          },
+      yield* yieldTransportError(
+        "AI00X_UNREACHABLE",
+        {
+          message: `Ai00-X gateway unreachable (${baseURL}): ${error.message}. Is the Ai00-X desktop client running?`,
+          code: "AI00X_UNREACHABLE",
         },
-      };
+        "本地 AI 网关（Ai00-X 客户端内嵌服务）暂时连不上。若你正在桌面客户端里运行，这通常是瞬时的：请直接就刚才的请求重试一次；若连续两次仍失败，再向用户说明并停下。"
+      );
       return;
     }
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      yield {
-        type: "finish",
-        reason: {
-          kind: "error",
-          failure: {
-            message: `Ai00-X gateway HTTP ${response.status}: ${text.slice(0, 500)}`,
-            code: "AI00X_HTTP",
-            status: response.status,
-          },
-        },
-      };
+      yield* yieldTransportError("AI00X_HTTP", {
+        message: `Ai00-X gateway HTTP ${response.status}: ${text.slice(0, 500)}`,
+        code: "AI00X_HTTP",
+        status: response.status,
+      });
       return;
     }
 

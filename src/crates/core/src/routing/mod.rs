@@ -4,19 +4,25 @@
 //! Pipeline: rule short-circuit (trivial ack) -> RWKV local classification
 //! -> post-processing rule stack (safety upgrade / sticky tier) -> tier-to-model
 //! mapping from `AIConfig.router`.
+//!
+//! Since 2026-09 the pure routing logic lives in the standalone `rwkv-router`
+//! crate (top-level `rwkv-router/`); this module re-exports it and keeps only
+//! the client-side SmartRouter orchestration (engine bridge + sticky table).
 
-pub mod head;
-pub mod postprocess;
-pub mod rules;
 pub mod summary;
-pub mod tier;
-pub mod training;
 
-pub use postprocess::{
-    fallback_decision, postprocess, softmax, trivial_ack_decision, DecisionSource, RoutingDecision,
+pub use rwkv_router::head;
+// `postprocess` 名字同时绑定模块（type ns）与同名函数（value ns）。
+pub use rwkv_router::postprocess;
+pub use rwkv_router::rules;
+pub use rwkv_router::tier;
+pub use rwkv_router::training;
+
+pub use rwkv_router::postprocess::{
+    fallback_decision, softmax, trivial_ack_decision, DecisionSource, RoutingDecision,
 };
-pub use rules::{is_short_message, is_trivial_ack};
-pub use tier::RouteClass;
+pub use rwkv_router::rules::{is_short_message, is_trivial_ack};
+pub use rwkv_router::tier::RouteClass;
 
 use crate::service::config::RouterConfig;
 use ai00_x_ai_adapters::providers::rwkv::engine::get_rwkv_engine;

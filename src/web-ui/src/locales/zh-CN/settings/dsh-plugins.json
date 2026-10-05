@@ -76,5 +76,19 @@
     "toggleFailed": "操作失败：{{error}}",
     "marketInstallSuccess": "「{{title}}」安装成功，引擎重启中",
     "noApprovedVersion": "未找到服务端已审核的版本信息"
+  },
+  "engineHealth": {
+    "engineHealth": {
+      "title": "引擎健康",
+      "description": "每次健康启动自动轮转保存引擎关键配置（最多 3 份）；引擎/编排/插件配置损坏时可回到某个健康时点。",
+      "empty": "尚无快照——引擎首次健康启动后会自动生成。",
+      "restore": "恢复此快照",
+      "restoreTitle": "恢复引擎快照",
+      "restoreMessage": "将把引擎配置（编排 patch / profile / 设置）回滚到该时点并重启引擎，当前未快照的改动会丢失。确定继续？",
+      "restored": "快照已恢复，引擎重启中",
+      "restoreFailed": "恢复失败：{{error}}",
+      "filesCount": "{{count}} 个文件"
+    },
+    "slotLabel": "槽位 {{slot}} · {{time}}"
   }
 }

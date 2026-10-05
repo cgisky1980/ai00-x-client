@@ -19,6 +19,7 @@ import {
   dshSession,
   foldEvents,
   type DshApproval,
+  type DshJobItem,
   type DshMessage,
   type DshMuxConnection,
   type DshMuxFrame,
@@ -33,7 +34,7 @@ import {
   type DshStatus,
   type DshUsageSummary,
 } from '@/infrastructure/api/service-api/DshAPI';
-import { isSessionAllowed } from '@/shared/agent-approval-rules';
+import { isApprovalAllowed } from '@/shared/agent-approval-rules';
 import { reportRuntimeFailure } from '@/infrastructure/api/service-api/DshMarketApi';
 
 export interface DshChatState {
@@ -58,6 +59,8 @@ export interface DshChatState {
   permissionRequests: DshPermissionRequest[];
   /** 当前会话累计用量（assistant/message usage 聚合；null = 无数据）。 */
   usage: DshUsageSummary | null;
+  /** 后台作业注册表（session/control 流的 jobs 帧；键 = sessionId，'*' = 全局）。 */
+  jobsBySession: Record<string, DshJobItem[]>;
 }
 
 export function useDshChat() {
@@ -77,6 +80,7 @@ export function useDshChat() {
     pluginError: null,
     permissionRequests: [],
     usage: null,
+    jobsBySession: {},
   });
   /** 当前会话的实时事件累积（含 history 拉取的基线）。 */
   const liveEventsRef = useRef<DshSessionEvent[]>([]);
@@ -398,9 +402,16 @@ export function useDshChat() {
             }
           } else if (frame.type === 'session/subscribed') {
             refreshSessions();
+          } else if (frame.type === 'session/jobs') {
+            // 后台作业注册表（baseline 全量替换 + 增量帧）：按会话入 state 供 UI 渲染
+            const key = frame.sessionId ?? '*';
+            setState(prev => ({
+              ...prev,
+              jobsBySession: { ...prev.jobsBySession, [key]: frame.jobs },
+            }));
           } else if (frame.type === 'approval/requested') {
             // 「总是允许」记忆命中：自动应答放行，不进待处理列表
-            if (isSessionAllowed(frame.sessionId, frame.toolName)) {
+            if (isApprovalAllowed(frame.sessionId, frame.toolName)) {
               void dshApproval.respond(rpcId, frame.sessionId, frame.approvalId, 'allowed-once');
               return;
             }

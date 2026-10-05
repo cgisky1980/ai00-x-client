@@ -8,7 +8,8 @@
     "empty": "暂无会话",
     "rename": "重命名会话",
     "fork": "派生会话（复制历史到新会话）",
-    "usage": "本会话累计用量（↑输入 ↓输出 · 请求数）"
+    "usage": "本会话累计用量（↑输入 ↓输出 · 请求数 · 缓存命中率）",
+    "cacheHit": "缓存"
   },
   "tool": {
     "result": "结果",
@@ -35,6 +36,39 @@
     "allow": "允许一次",
     "reject": "拒绝",
     "allowAlways": "总是允许"
+  },
+  "plan": {
+    "cardTitle": "执行计划评审",
+    "approve": "批准计划",
+    "reject": "打回重议"
+  },
+  "command": {
+    "unknown": "未知命令：{{line}}"
+  },
+  "snapshots": {
+    "title": "快照时间线",
+    "refresh": "刷新",
+    "now": "立即快照",
+    "rollback": "回滚到此",
+    "rollbackTitle": "回滚到快照 {{commit}}",
+    "rollbackConfirm": "确认回滚",
+    "cancel": "取消",
+    "rollbackWarn": "回滚 = reset --hard 到该快照：它之后的所有变更（含之后的 agent 快照）将被丢弃且不可恢复。建议先「立即快照」保住当前状态再回滚。",
+    "taken": "已生成快照 {{commit}}",
+    "noChanges": "无变更，未生成新快照",
+    "rolledBack": "已回滚到 {{commit}}",
+    "noWorkspace": "未打开工作区——快照功能面向当前打开的工作区。",
+    "loading": "加载中…",
+    "empty": "暂无快照。委托任务完成时或点击「立即快照」会自动记录。"
+  },
+  "permMode": {
+    "title": "引擎权限档（重启引擎后生效）",
+    "default": "权限：默认（工作区可写）",
+    "readOnly": "权限：只读",
+    "workspaceWrite": "权限：工作区可写",
+    "dangerFull": "权限：完全访问",
+    "saved": "权限档已设为 {{mode}}，重启引擎后生效",
+    "savedDefault": "权限档已恢复默认，重启引擎后生效"
   },
   "models": {
     "loading": "模型加载中…"

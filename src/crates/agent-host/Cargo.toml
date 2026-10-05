@@ -1,0 +1,31 @@
+[package]
+name = "ai00-x-agent-host"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "Ai00-X Agent Host — dsh 引擎宿主层（sidecar 自动安装/守护/同源反代），desktop 与 marketing/mkt-agent 共用"
+
+[lib]
+name = "agent_host"
+
+[dependencies]
+# Internal crates
+ai00-x-core = { path = "../core" }
+
+# ai00-run：自维护 node 运行时（DshManager 自动安装链使用）
+ai00-run = { workspace = true }
+
+# Tauri（AppHandle 事件推送与 #[tauri::command] 命令面）
+tauri = { workspace = true }
+
+# Inherited from workspace
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+dirs = { workspace = true }
+futures = { workspace = true }
+salvo = { workspace = true }
+tokio-tungstenite = { workspace = true }
+reqwest = { workspace = true }
+win32job = { workspace = true }

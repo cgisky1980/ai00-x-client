@@ -22,8 +22,12 @@ use tokio_tungstenite::tungstenite::Message as UpMessage;
 
 use crate::dsh_manager;
 
-const DSH_HTTP_ORIGIN: &str = "http://127.0.0.1:3210";
-const DSH_WS_UPSTREAM: &str = "ws://127.0.0.1:3210/api/remote.mux";
+fn dsh_http_origin() -> String {
+    format!("http://127.0.0.1:{}", dsh_manager::dsh_port())
+}
+fn dsh_ws_upstream() -> String {
+    format!("ws://127.0.0.1:{}/api/remote.mux", dsh_manager::dsh_port())
+}
 
 /// 挂到主 router 的代理子路由。
 pub fn router() -> Router {
@@ -55,7 +59,7 @@ async fn proxy_rpc(req: &mut Request, res: &mut Response) {
         res.status_code(StatusCode::NOT_FOUND);
         return;
     };
-    let url = format!("{DSH_HTTP_ORIGIN}/api/{path}");
+    let url = format!("{}/api/{path}", dsh_http_origin());
 
     let body: Vec<u8> = match req.payload().await {
         Ok(bytes) => bytes.to_vec(),
@@ -129,7 +133,7 @@ async fn proxy_ws(req: &mut Request, res: &mut Response) -> Result<(), StatusErr
 /// 把一侧 WS 与引擎 remote.mux 互连（全双工转发，任一侧断开即结束）。
 async fn pump_websocket(client_ws: WebSocket) {
     // 0.1.5 鉴权：握手请求注入签名 cookie（remote.mux 与 /api 同一鉴权门）
-    let mut upstream_req = match DSH_WS_UPSTREAM.into_client_request() {
+    let mut upstream_req = match dsh_ws_upstream().into_client_request() {
         Ok(r) => r,
         Err(e) => {
             log::warn!("[dsh-proxy] upstream ws request build failed: {e}");

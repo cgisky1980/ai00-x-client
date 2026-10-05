@@ -1,0 +1,37 @@
+{
+  "title": "Agent 编排",
+  "subtitle": "帮手（子代理）类型定义与 Claude Code 兼容 hooks",
+  "common": {
+    "loading": "加载中…",
+    "save": "保存",
+    "cancel": "取消"
+  },
+  "workers": {
+    "sectionTitle": "帮手定义",
+    "sectionDesc": "主对话按这些 markdown 定义生成派发帮手（文件名即定义，frontmatter 的 name 是引擎工具名）。首次启动会播种 research_worker / code_worker 两个默认。",
+    "new": "新建",
+    "edit": "编辑",
+    "delete": "删除",
+    "empty": "暂无帮手定义（已回退内置默认，保存后即显示）",
+    "loadFailed": "帮手定义加载失败",
+    "saved": "已保存 {{file}}，重启引擎后生效",
+    "deleted": "已删除 {{name}}",
+    "newPrompt": "定义文件名（英文小写，.md 结尾）：",
+    "editorTitle": "编辑定义：{{file}}",
+    "editorHint": "frontmatter：name（工具名，小写英文/数字/_/-）、description（编排器按此选帮手）、model（ai00-auto / ai00-salvo / 其他引用）、background（continuable / one-shot）、tools（工具白名单列表）；正文为帮手 persona。",
+    "deleteTitle": "删除帮手：{{name}}",
+    "deleteConfirm": "删除后该帮手不再出现在编排器可派发列表中；重启引擎后生效。全部删空会回退内置默认两件套。"
+  },
+  "hooks": {
+    "sectionTitle": "Claude Code 兼容 Hooks",
+    "sectionDesc": "引擎桥（dsh-hooks-claude-code）读取此 hooks.json（Claude Code 格式），支持 SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Stop / SubagentStart / SubagentStop 七类事件：可拦截提示与工具、注入上下文、强制续跑。保存为空即关闭。引擎启动时读取一次。",
+    "fillTemplate": "填入示例",
+    "clear": "清空（关闭 hooks）",
+    "saved": "hooks 配置已保存，重启引擎后生效"
+  },
+  "restart": {
+    "hint": "以上改动均在引擎启动时读取一次——",
+    "button": "重启引擎生效",
+    "done": "引擎已重启"
+  }
+}

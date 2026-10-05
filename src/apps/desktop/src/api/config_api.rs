@@ -384,3 +384,29 @@ pub async fn get_runtime_logging_info(
     let logging_info = crate::logging::get_runtime_logging_info();
     to_json_value(logging_info, "runtime logging info")
 }
+
+// ---------------------------------------------------------------------------
+// dsh 引擎权限档（DSH_PERMISSION_MODE）
+// ---------------------------------------------------------------------------
+
+/// 当前 dsh 引擎权限档：read-only / workspace-write / danger-full-access；
+/// None = 引擎默认（workspace-write）。随下次引擎启动注入。
+#[tauri::command]
+pub async fn get_dsh_permission_mode() -> Result<Option<String>, String> {
+    Ok(crate::dsh_manager::permission_mode())
+}
+
+/// 设置 dsh 引擎权限档（持久化到 UI 偏好，重启引擎后生效）。
+#[tauri::command]
+pub async fn set_dsh_permission_mode(mode: Option<String>) -> Result<(), String> {
+    let normalized = mode.map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
+    match normalized.as_deref() {
+        Some("read-only") | Some("workspace-write") | Some("danger-full-access") | None => {}
+        Some(other) => return Err(format!("Unknown dsh permission mode: {other}")),
+    }
+    crate::dsh_manager::set_permission_mode(normalized.clone());
+    crate::kv_store::pref_set_value("dsh.permission_mode", normalized.as_deref().unwrap_or(""))
+        .await?;
+    info!("dsh permission mode set to {:?}", normalized);
+    Ok(())
+}

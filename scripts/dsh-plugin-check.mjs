@@ -93,11 +93,19 @@ function resolveNodeDir() {
 }
 
 const NODE_DIR = resolveNodeDir();
-const DSH_BIN = process.platform === 'win32' ? path.join(NODE_DIR, 'dsh.cmd') : path.join(NODE_DIR, 'dsh');
+// 引擎 token/cookie 与子进程句柄：waitEngineReady（模块级）也要访问，故挂模块级
+let engineChild = null;
+let engineToken = null;
+let engineCookie = null;
+// Windows 弃用 dsh.cmd shim（实测 0.2.0 长驻 web boot 经 cmd shim 静默挂起，
+// dump-config 短命无碍）——与生产 dsh_manager::spawn_sidecar 同款 node 直跑。
+const DSH_NODE = process.platform === 'win32' ? path.join(NODE_DIR, 'node.exe') : path.join(NODE_DIR, 'bin', 'node');
+const DSH_ENTRY = path.join(NODE_DIR, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+const DSH_BIN = DSH_NODE;
 const PORT = Number(process.env.AI00X_CHECK_PORT || 3937);
 
-if (!fs.existsSync(DSH_BIN)) {
-  console.error(`error: dsh CLI not found at ${DSH_BIN}`);
+if (!fs.existsSync(DSH_NODE) || !fs.existsSync(DSH_ENTRY)) {
+  console.error(`error: managed node/dsh not found (${DSH_NODE} / ${DSH_ENTRY})`);
   process.exit(2);
 }
 
@@ -227,10 +235,10 @@ function collectStaticChecks(packageDir, manifest) {
 
 function runDsh(argsList, opts) {
   return new Promise((resolve, reject) => {
-    const child = spawn(DSH_BIN, argsList, {
+    const child = spawn(DSH_NODE, [DSH_ENTRY, ...argsList], {
       env: { ...opts.env },
       cwd: opts.cwd,
-      shell: process.platform === 'win32',
+      shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -267,7 +275,10 @@ async function enginePost(method, payload, timeoutMs = 4000) {
   try {
     const resp = await fetch(`http://127.0.0.1:${PORT}/api/${method}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...(engineCookie ? { cookie: engineCookie } : {}),
+      },
       body: JSON.stringify({
         type: 'client-request',
         rpcId: `dsh-plugin-check-${Date.now()}`,
@@ -284,9 +295,33 @@ async function enginePost(method, payload, timeoutMs = 4000) {
 
 async function waitEngineReady(deadlineMs) {
   const start = Date.now();
+  const dbg = !!process.env.AI00X_CHECK_DEBUG;
+  let outBytes = 0;
+  if (dbg) {
+    engineChild.stdout.on('data', d => { outBytes += d.length; });
+    engineChild.stderr.on('data', d => { outBytes += d.length; });
+  }
   while (Date.now() - start < deadlineMs) {
+    if (dbg) {
+      const el = Math.round((Date.now() - start) / 1000);
+      console.error(`[tick] t=${el}s pid=${engineChild?.pid ?? 'n/a'} exitCode=${engineChild?.exitCode ?? 'running'} killed=${engineChild?.killed} out=${outBytes}B token=${!!engineToken} cookie=${!!engineCookie}`);
+    }
+    if (engineToken && !engineCookie) {
+      try {
+        const r = await fetch(`http://127.0.0.1:${PORT}/?token=${engineToken}`, {
+          redirect: 'manual',
+          signal: AbortSignal.timeout(2500),
+        });
+        const setCookie = r.headers.getSetCookie?.()[0];
+        if (setCookie) engineCookie = setCookie.split(';')[0];
+      } catch {
+        /* port not accepting yet */
+      }
+    }
     try {
-      const r = await enginePost('host.describe', {}, 2500);
+      // host.describe 已随引擎 0.1.5 移除；settings/describe 是现行健康面
+      //（0.2.0 起 /api 全量鉴权，enginePost 会带上面换好的 cookie）。
+      const r = await enginePost('settings/describe', {}, 2500);
       if (r.status === 200) return true;
     } catch {
       /* not up yet */
@@ -340,7 +375,6 @@ async function main() {
   const profile = path.join(home, 'profiles', 'ai00x-check');
   fs.mkdirSync(profile, { recursive: true });
 
-  let engineChild = null;
   try {
     // 1. 最小 profile（只挂 dsh-base，装轻量、加载快）
     fs.writeFileSync(
@@ -350,7 +384,8 @@ async function main() {
           name: 'dsh-profile-ai00x-check',
           private: true,
           dependencies: {},
-          dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } },
+          // 0.2.0 起 web 服务端从 dsh-base 拆出为显式 bundle（缺它 boot 静默挂起）
+          dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } },
         },
         null,
         2,
@@ -399,20 +434,39 @@ async function main() {
     report.staticChecks.push(...collectStaticChecks(nmPkgDir, manifest));
 
     // 4. 启动引擎 headless（泵空管道防缓冲写满阻塞）
+    const debugBoot = !!process.env.AI00X_CHECK_DEBUG;
     engineChild = spawn(
       DSH_BIN,
-      ['web', '--no-open', '--host', '127.0.0.1', '--port', String(PORT)],
+      // 0.2.0 CLI 变更：`web` 子命令取消，改为内置 shipped profile "web"；
+      // 启动被检 profile 必须用 `dsh --profile <name> [options]` 形式，
+      // 且不能在 options 后再跟 "web"（会被当作 profile 的 app 参数挂起）。
+      [DSH_ENTRY, '--profile', 'ai00x-check', '--no-open', '--host', '127.0.0.1', '--port', String(PORT)],
       {
         env,
         cwd: profile,
-        shell: process.platform === 'win32',
-        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        // debug 模式直连控制台：引擎秒退时错误信息直接可见（pipe 下会丢）
+        stdio: debugBoot ? ['ignore', 'inherit', 'inherit'] : ['ignore', 'pipe', 'pipe'],
       },
     );
     const errChunks = [];
-    engineChild.stdout.on('data', () => {});
+    engineChild.on('error', e => {
+      console.error('[dsh-plugin-check] engine spawn error:', String(e));
+    });
+    engineChild.on('exit', (code, sig) => {
+      if (debugBoot) console.error(`[dsh-plugin-check] engine exited early: code=${code} sig=${sig}`);
+    });
+    // 0.2.0 起 /api 全量鉴权（无按方法 loopback 豁免）：从 stdout 抓一次性
+    // 启动 token，GET /?token= 换签名 cookie 后随探测请求携带（0.1.5 亦兼容）。
+    engineChild.stdout.on('data', d => {
+      const text = String(d);
+      if (debugBoot) console.error('[engine-out]', text.trimEnd());
+      const m = text.match(/\?token=([A-Za-z0-9_-]+)/);
+      if (m && !engineToken) engineToken = m[1];
+    });
     engineChild.stderr.on('data', d => {
       const text = String(d);
+      if (debugBoot) console.error('[engine-err]', text.trimEnd());
       errChunks.push(text);
       for (const marker of TREE_FAIL_MARKERS) {
         if (text.includes(marker) && !report.stderrMarkers.includes(marker)) {

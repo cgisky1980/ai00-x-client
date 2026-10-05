@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ChevronDown,
   Download,
+  History,
   PackagePlus,
   Pause,
   Play,
@@ -20,8 +21,10 @@ import {
 } from './common';
 import { useNotification } from '@/shared/notification-system';
 import {
+  dshCheckpoints,
   dshPlugins,
   pluginInventoryList,
+  type DshCheckpointInfo,
   type DshPluginInventoryEntry,
   type DshPluginManifestEntry,
 } from '@/infrastructure/api/service-api/DshAPI';
@@ -76,6 +79,11 @@ const DshPluginsConfig: React.FC = () => {
   /** 来自 Agent 场景横幅「前往插件设置」的高亮目标（自动消退）。 */
   const [highlightName, setHighlightName] = useState<string | null>(null);
 
+  // 引擎健康（P1-B checkpoint）
+  const [checkpoints, setCheckpoints] = useState<DshCheckpointInfo[]>([]);
+  const [restoringSlot, setRestoringSlot] = useState<number | null>(null);
+  const [confirmSlot, setConfirmSlot] = useState<number | null>(null);
+
   // 插件市场
   const [marketItems, setMarketItems] = useState<DshMarketItem[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
@@ -117,8 +125,36 @@ const DshPluginsConfig: React.FC = () => {
     }
   }, []);
 
+  /** checkpoint 槽位列表（失败静默降级为空态）。 */
+  const loadCheckpoints = useCallback(async () => {
+    try {
+      setCheckpoints(await dshCheckpoints.list());
+    } catch {
+      setCheckpoints([]);
+    }
+  }, []);
+
+  /** 恢复槽位（确认对话框之后）：Rust 侧回滚文件并 stop→start 引擎。 */
+  const doRestore = useCallback(async (slot: number) => {
+    setRestoringSlot(slot);
+    try {
+      await dshCheckpoints.restore(slot);
+      notification.success(t('engineHealth.restored'));
+      await Promise.all([load(), loadCheckpoints()]);
+    } catch (err) {
+      notification.error(
+        t('engineHealth.restoreFailed', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    } finally {
+      setRestoringSlot(null);
+    }
+  }, [notification, t, load, loadCheckpoints]);
+
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadMarket(); }, [loadMarket]);
+  useEffect(() => { loadCheckpoints(); }, [loadCheckpoints]);
 
   // Agent 场景横幅「前往插件设置」跨组件高亮信号（window 事件，避免 app↔infra 循环依赖）
   useEffect(() => {
@@ -288,6 +324,41 @@ const DshPluginsConfig: React.FC = () => {
           title={t('title')}
           subtitle={t('subtitle')}
         />
+
+        <ConfigPageSection
+          title={t('engineHealth.title')}
+          description={t('engineHealth.description')}
+        >
+          <div className="dsh-plugins-config">
+            {checkpoints.length === 0 ? (
+              <p className="dsh-plugins-config__empty">{t('engineHealth.empty')}</p>
+            ) : (
+              checkpoints.map(cp => (
+                <div key={cp.slot} className="dsh-plugins-config__toolbar">
+                  <History size={14} />
+                  <span>
+                    {t('engineHealth.slotLabel', {
+                      slot: cp.slot + 1,
+                      time: new Date(cp.timestamp_unix_secs * 1000).toLocaleString(),
+                    })}
+                  </span>
+                  <span className="dsh-plugins-config__empty">
+                    v{cp.engine_version} · {t('engineHealth.filesCount', { count: cp.file_count })}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    disabled={restoringSlot !== null}
+                    onClick={() => setConfirmSlot(cp.slot)}
+                  >
+                    <RefreshCw size={13} className={restoringSlot === cp.slot ? 'is-spinning' : undefined} />
+                    {t('engineHealth.restore')}
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </ConfigPageSection>
 
         <ConfigPageSection
           title={t('market.title')}
@@ -603,6 +674,19 @@ const DshPluginsConfig: React.FC = () => {
           )}
         </ConfigPageSection>
       </ConfigPageContent>
+
+      {/* 引擎快照恢复确认：回滚文件 + 重启引擎，不可轻点 */}
+      <ConfirmDialog
+        isOpen={confirmSlot !== null}
+        onClose={() => setConfirmSlot(null)}
+        onConfirm={() => {
+          const slot = confirmSlot;
+          setConfirmSlot(null);
+          if (slot !== null) void doRestore(slot);
+        }}
+        title={t('engineHealth.restoreTitle')}
+        message={t('engineHealth.restoreMessage')}
+      />
 
       {/* 权限确认：市场插件声明了宿主能力（通知/壁纸/待办/XP/工具），装机前明示 */}
       <ConfirmDialog

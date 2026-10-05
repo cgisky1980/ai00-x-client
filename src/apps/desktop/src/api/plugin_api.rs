@@ -402,8 +402,15 @@ async fn install_from_zip(app: &AppHandle, zip_path: &Path) -> Result<PluginInfo
 async fn resolve_github_url(source: &str) -> Result<String> {
     let s = source.trim().trim_end_matches('/');
     if s.starts_with("http://") || s.starts_with("https://") {
-        if s.contains("github.com") {
-            return Ok(s.to_string());
+        // P1-A：精确 host 白名单（contains 会被 evil.com/github.com 绕过），
+        // 放行 github.com 与 release 资产跳转目标 objects.githubusercontent.com
+        if let Ok(parsed) = reqwest::Url::parse(s) {
+            if matches!(
+                parsed.host_str(),
+                Some("github.com") | Some("api.github.com") | Some("objects.githubusercontent.com")
+            ) {
+                return Ok(s.to_string());
+            }
         }
         return Err(anyhow!("Only GitHub URLs are supported: {}", s));
     }
@@ -843,21 +850,27 @@ pub async fn set_plugin_enabled(
 
 /// HTTP proxy for sandboxed iframe plugins (opaque origin cannot fetch
 /// cross-origin directly).
+///
+/// P1-A SSRF 加固：URL 过 net_guard（scheme 白名单 + 私网/回环/假 IP 段
+/// 封网 + 域名解析后校验）；响应体 2MB 流式上限（防内存打爆）。
 #[tauri::command]
 pub async fn proxy_http_request(
     url: String,
     method: String,
     headers: Option<HashMap<String, String>>,
 ) -> Result<serde_json::Value, String> {
+    const PROXY_BODY_CAP: usize = 2 * 1024 * 1024;
+    let parsed = ai00_x_core::util::net_guard::assert_url_allowed(&url).await?;
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
+        .redirect(ai00_x_core::util::net_guard::safe_redirect_policy(3))
         .build()
         .map_err(|e| e.to_string())?;
     let mut req = match method.to_uppercase().as_str() {
-        "GET" => client.get(&url),
-        "POST" => client.post(&url),
-        "PUT" => client.put(&url),
-        "DELETE" => client.delete(&url),
+        "GET" => client.get(parsed.clone()),
+        "POST" => client.post(parsed.clone()),
+        "PUT" => client.put(parsed.clone()),
+        "DELETE" => client.delete(parsed),
         other => return Err(format!("Unsupported method: {}", other)),
     };
     if let Some(hdrs) = headers {
@@ -867,7 +880,8 @@ pub async fn proxy_http_request(
     }
     let resp = req.send().await.map_err(|e| e.to_string())?;
     let status = resp.status().as_u16();
-    let body = resp.text().await.map_err(|e| e.to_string())?;
+    let body_bytes = ai00_x_core::util::net_guard::read_capped(resp, PROXY_BODY_CAP).await?;
+    let body = String::from_utf8_lossy(&body_bytes).to_string();
     let data = serde_json::from_str(&body).unwrap_or(serde_json::Value::String(body));
     Ok(serde_json::json!({ "status": status, "data": data }))
 }

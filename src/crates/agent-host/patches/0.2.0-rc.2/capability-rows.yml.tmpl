@@ -1,0 +1,11 @@
+# 能力包挂载行（版本限定资产，insert 段）。
+# 意图：P2 能力吸纳——computer-use（Cua 驱动，桌面对象检视与操作）。
+# 说明：
+# - 两包没有 dsh.bundle 声明，挂成 profile bundle 是空贡献（实测 dump 无差异），
+#   必须以 patch 行进组合；包本体由 install_capability_packages 全局安装
+#   （registry 降级链，best-effort，缺席=能力缺席但引擎正常）。
+# - 工具执行受引擎权限档 + 审批卡约束；截图走 image-capable 路由（远端模型）。
+# - experimental：native SDK 与引擎同进程，native 崩溃会带崩引擎进程
+#   （崩溃监控会自动重启，见 dsh_manager monitor）。
+    - name: '@deepseek-ai/dsh-computer-use'
+    - name: '@deepseek-ai/dsh-experimental-computer-use-cua-driver-native'

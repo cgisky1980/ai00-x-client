@@ -94,21 +94,28 @@ export const MessageBubble: React.FC<{ message: DshMessage }> = ({ message }) =>
   );
 };
 
-/** 待处理审批卡片（工具执行确认）。 */
+/** 待处理审批卡片（工具执行确认；exit_plan_mode 渲染为计划评审卡）。 */
 export const ApprovalCard: React.FC<{
   approval: DshApproval;
   onRespond: (rpcId: string, outcome: 'allowed-once' | 'rejected') => void;
-}> = ({ approval, onRespond }) => {
+  /** exit_plan_mode 的计划正文（由调用方从会话工具调用参数提取）。 */
+  planText?: string;
+}> = ({ approval, onRespond, planText }) => {
   const { t } = useTranslation('scenes/dsh');
+  const isPlan = approval.toolName === 'exit_plan_mode';
   return (
     <div className="ai00-x-dsh-scene__approval">
       <div className="ai00-x-dsh-scene__approval-head">
         <ShieldQuestion size={14} />
-        <span className="ai00-x-dsh-scene__approval-tool">{approval.toolName}</span>
+        <span className="ai00-x-dsh-scene__approval-tool">
+          {isPlan ? t('plan.cardTitle') : approval.toolName}
+        </span>
         <span className="ai00-x-dsh-scene__approval-label">{t('approval.pending')}</span>
       </div>
-      {approval.reason && (
-        <p className="ai00-x-dsh-scene__approval-reason">{approval.reason}</p>
+      {isPlan && planText ? (
+        <pre className="ai00-x-dsh-scene__approval-plan">{planText}</pre>
+      ) : (
+        approval.reason && <p className="ai00-x-dsh-scene__approval-reason">{approval.reason}</p>
       )}
       <div className="ai00-x-dsh-scene__approval-actions">
         <Button
@@ -117,26 +124,28 @@ export const ApprovalCard: React.FC<{
           onClick={() => {
             // 「允许」= 本卡放行；「总是允许」= 额外记住本会话+该工具，
             // 后续同类审批帧由客户端自动放行（引擎词汇仅 allowed-once）
-            rememberSessionAllow(approval.sessionId, approval.toolName);
+            if (!isPlan) rememberSessionAllow(approval.sessionId, approval.toolName);
             onRespond(approval.rpcId, 'allowed-once');
           }}
         >
-          {t('approval.allow')}
+          {isPlan ? t('plan.approve') : t('approval.allow')}
         </Button>
-        <Button
-          variant="secondary"
-          size="small"
-          onClick={() => onRespond(approval.rpcId, 'allowed-once')}
-          title="本会话内该工具不再询问（客户端记忆，引擎仍逐次确认）"
-        >
-          {t('approval.allowAlways', { defaultValue: '总是允许' })}
-        </Button>
+        {!isPlan && (
+          <Button
+            variant="secondary"
+            size="small"
+            onClick={() => onRespond(approval.rpcId, 'allowed-once')}
+            title="本会话内该工具不再询问（客户端记忆，引擎仍逐次确认）"
+          >
+            {t('approval.allowAlways', { defaultValue: '总是允许' })}
+          </Button>
+        )}
         <Button
           variant="secondary"
           size="small"
           onClick={() => onRespond(approval.rpcId, 'rejected')}
         >
-          {t('approval.reject')}
+          {isPlan ? t('plan.reject') : t('approval.reject')}
         </Button>
       </div>
     </div>

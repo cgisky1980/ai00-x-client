@@ -1,18 +1,29 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Bot,
   GitFork,
+  History,
+  Loader2,
   Pencil,
   Plus,
   RefreshCw,
   X,
   Zap,
 } from 'lucide-react';
-import { Button, ModelSelector, PromptInput } from '@/component-library';
+import { Button, Modal, ModelSelector, PromptInput } from '@/component-library';
 import { useNotification } from '@/shared/notification-system';
 import { createConfigCenterTab } from '@/shared/utils/tabUtils';
-import { dshPlugins } from '@/infrastructure/api/service-api/DshAPI';
+import {
+  dshCommands,
+  dshPermission,
+  dshPlugins,
+  dshSnapshots,
+  formatCacheHitRate,
+  type DshCommandInfo,
+  type DshSnapshotEntry,
+} from '@/infrastructure/api/service-api/DshAPI';
+import { useWorkspaceManagerSync } from '@/infrastructure/hooks/useWorkspaceManagerSync';
 import { useDshChat } from './hooks/useDshChat';
 import {
   ApprovalCard,
@@ -61,6 +72,7 @@ const DshScene: React.FC = () => {
     grantPermission,
     dismissPermission,
     clearPluginError,
+    jobsBySession,
   } = useDshChat();
 
   // 工灵剧场（AgentTheater）：开关 + 会话卡片点击联动（设计 §3.5）
@@ -81,6 +93,70 @@ const DshScene: React.FC = () => {
     if (pending) void openSession(pending);
     return () => window.removeEventListener('dsh:open-session', onOpenSession);
   }, [openSession]);
+
+  // ---- 后台作业（session/control jobs 帧：子代理/工作流等后台执行单元） ----
+  const runningJobs = useMemo(() => {
+    const list = jobsBySession[currentSessionId ?? '*'] ?? [];
+    return list.filter(j => !j.finishedAt && !['done', 'completed', 'failed', 'cancelled'].includes(j.status));
+  }, [jobsBySession, currentSessionId]);
+
+  // ---- 快照时间线（当前工作区；agent 签名快照） ----
+  const { workspacePath, hasWorkspace } = useWorkspaceManagerSync();
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [snapshots, setSnapshots] = useState<DshSnapshotEntry[]>([]);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [snapBusy, setSnapBusy] = useState(false);
+  const [rollbackTarget, setRollbackTarget] = useState<DshSnapshotEntry | null>(null);
+
+  const loadSnapshots = useCallback(async () => {
+    if (!workspacePath) return;
+    try {
+      setSnapshotsLoading(true);
+      setSnapshots(await dshSnapshots.list(workspacePath, 100));
+    } catch {
+      // 无 git 历史/目录不可读 → 空时间线
+      setSnapshots([]);
+    } finally {
+      setSnapshotsLoading(false);
+    }
+  }, [workspacePath]);
+
+  useEffect(() => {
+    if (snapshotsOpen) void loadSnapshots();
+  }, [snapshotsOpen, loadSnapshots]);
+
+  const handleSnapshotNow = async (): Promise<void> => {
+    if (!workspacePath || snapBusy) return;
+    try {
+      setSnapBusy(true);
+      const result = await dshSnapshots.now(workspacePath);
+      notification.success(
+        result.commit
+          ? t('snapshots.taken', { commit: result.commit.slice(0, 8) })
+          : t('snapshots.noChanges'),
+      );
+      await loadSnapshots();
+    } catch (err) {
+      notification.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSnapBusy(false);
+    }
+  };
+
+  const handleRollback = async (): Promise<void> => {
+    if (!workspacePath || !rollbackTarget || snapBusy) return;
+    try {
+      setSnapBusy(true);
+      await dshSnapshots.rollback(workspacePath, rollbackTarget.commit);
+      notification.success(t('snapshots.rolledBack', { commit: rollbackTarget.commit.slice(0, 8) }));
+      setRollbackTarget(null);
+      await loadSnapshots();
+    } catch (err) {
+      notification.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSnapBusy(false);
+    }
+  };
 
   /** 一键停用归因插件的进行中标记。 */
   const [disablingPlugin, setDisablingPlugin] = useState(false);
@@ -112,11 +188,17 @@ const DshScene: React.FC = () => {
     }
   };
 
-  /** 用量摘要（M2.2）：紧凑格式化 tokens。 */
+  /** 用量摘要（M2.2）：紧凑格式化 tokens；R2-8 追加缓存命中率（未上报则不显示）。 */
   const usageLabel: string | null = (() => {
     if (!usage) return null;
     const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
-    return `↑${fmt(usage.inputTokens)} ↓${fmt(usage.outputTokens)} · ${usage.requests}`;
+    const cacheRate = formatCacheHitRate(usage);
+    return [
+      `↑${fmt(usage.inputTokens)} ↓${fmt(usage.outputTokens)} · ${usage.requests}`,
+      cacheRate ? `${t('sessions.cacheHit')} ${cacheRate}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
   })();
 
   /** 一键停用：停掉归因插件（bundles 摘除 + 引擎重启），成功后清横幅。 */
@@ -146,6 +228,23 @@ const DshScene: React.FC = () => {
   const currentApprovals = approvals.filter(a => a.sessionId === currentSessionId);
   const currentQuestions = questions.filter(q => q.sessionId === currentSessionId);
 
+  /** exit_plan_mode 审批卡的计划正文（从会话里匹配 callId 的工具调用参数提取）。 */
+  const planTextFor = (callId?: string): string | undefined => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      for (const tc of messages[i].toolCalls) {
+        if (tc.name !== 'exit_plan_mode') continue;
+        if (callId && tc.id !== callId) continue;
+        try {
+          const args = JSON.parse(tc.arguments) as { plan?: unknown };
+          if (typeof args?.plan === 'string' && args.plan.trim()) return args.plan;
+        } catch {
+          // 参数非 JSON 时回退 reason 文本
+        }
+      }
+    }
+    return undefined;
+  };
+
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -154,12 +253,93 @@ const DshScene: React.FC = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
+  // ---- Slash 命令（commands/list + commands/execute；plan mode 等经此驱动）----
+  const [commands, setCommands] = useState<DshCommandInfo[]>([]);
+
+  // 会话切换后拉命令目录（引擎可能未就绪/版本不支持 → 静默失败，面板退化为纯文本输入）
+  useEffect(() => {
+    if (!currentSessionId) {
+      setCommands([]);
+      return;
+    }
+    let cancelled = false;
+    dshCommands.list(currentSessionId).then(
+      list => {
+        if (!cancelled) setCommands(list);
+      },
+      () => {
+        if (!cancelled) setCommands([]);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSessionId]);
+
+  /** 输入以 / 开头时给出候选面板（首个 token 前缀过滤）。 */
+  const commandSuggestions = (() => {
+    if (!input.startsWith('/') || input.includes('\n') || commands.length === 0) return [];
+    const token = input.slice(1).split(/\s/, 1)[0]?.toLowerCase() ?? '';
+    return commands.filter(cmd => cmd.name.startsWith(token));
+  })();
+
+  const executeCommand = async (line: string): Promise<void> => {
+    if (!currentSessionId) return;
+    try {
+      const settled = await dshCommands.execute(currentSessionId, line);
+      const result = settled?.result;
+      if (!settled || !result) {
+        notification.warning(t('command.unknown', { line }));
+      } else if (result.kind === 'error') {
+        notification.error(result.text);
+      } else if (result.text) {
+        notification.success(result.text);
+      }
+    } catch (err) {
+      notification.error(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const handleSend = () => {
     const text = input.trim();
     if (!text || sending) return;
     setInput('');
+    // 斜杠行走引擎命令通道（不产生模型消息）；其余进会话
+    if (text.startsWith('/')) {
+      void executeCommand(text);
+      return;
+    }
     send(text);
   };
+
+  const handleSuggestionPick = (cmd: DshCommandInfo) => {
+    // 带 input 提示的命令（如 /plan <message>）回填编辑框让用户补参数；裸命令直接执行
+    if (cmd.input?.hint) {
+      setInput(`/${cmd.name} `);
+      return;
+    }
+    setInput('');
+    void executeCommand(`/${cmd.name}`);
+  };
+
+  // ---- 权限档（DSH_PERMISSION_MODE；重启引擎生效）----
+  const [permMode, setPermMode] = useState<string>('');
+  useEffect(() => {
+    dshPermission.get().then(
+      mode => setPermMode(mode ?? ''),
+      () => {},
+    );
+  }, []);
+  const handlePermModeChange = async (mode: string): Promise<void> => {
+    setPermMode(mode);
+    try {
+      await dshPermission.set(mode || null);
+      notification.info(mode ? t('permMode.saved', { mode }) : t('permMode.savedDefault'));
+    } catch (err) {
+      notification.error(err instanceof Error ? err.message : String(err));
+    }
+  };
+
 
   const phaseLabel = (() => {
     switch (phase?.phase) {
@@ -230,6 +410,16 @@ const DshScene: React.FC = () => {
         <div className="ai00-x-dsh-scene__sidebar-header">
           <span className="ai00-x-dsh-scene__sidebar-title">{t('sessions.title')}</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Button
+              variant="ghost"
+              size="small"
+              onClick={() => setSnapshotsOpen(true)}
+              aria-label={t('snapshots.title')}
+              title={t('snapshots.title')}
+              disabled={!hasWorkspace}
+            >
+              <History size={14} />
+            </Button>
             <Button
               variant="ghost"
               size="small"
@@ -353,6 +543,18 @@ const DshScene: React.FC = () => {
             title={wsConnected ? t('status.wsOn') : t('status.wsOff')}
           />
           <span className="ai00-x-dsh-scene__phase">{phaseLabel}</span>
+          <select
+            className="ai00-x-dsh-scene__perm-select"
+            value={permMode}
+            title={t('permMode.title')}
+            aria-label={t('permMode.title')}
+            onChange={e => void handlePermModeChange(e.target.value)}
+          >
+            <option value="">{t('permMode.default')}</option>
+            <option value="read-only">{t('permMode.readOnly')}</option>
+            <option value="workspace-write">{t('permMode.workspaceWrite')}</option>
+            <option value="danger-full-access">{t('permMode.dangerFull')}</option>
+          </select>
           {usageLabel && (
             <span className="ai00-x-dsh-scene__usage" title={t('sessions.usage')}>
               <Zap size={10} />
@@ -399,7 +601,12 @@ const DshScene: React.FC = () => {
             {currentApprovals.length > 0 && (
               <div className="ai00-x-dsh-scene__approvals">
                 {currentApprovals.map(a => (
-                  <ApprovalCard key={a.rpcId} approval={a} onRespond={respondApproval} />
+                  <ApprovalCard
+                    key={a.rpcId}
+                    approval={a}
+                    onRespond={respondApproval}
+                    planText={a.toolName === 'exit_plan_mode' ? planTextFor(a.callId) : undefined}
+                  />
                 ))}
               </div>
             )}
@@ -415,7 +622,39 @@ const DshScene: React.FC = () => {
                 ))}
               </div>
             )}
+            {runningJobs.length > 0 && (
+              <div className="ai00-x-dsh-scene__jobs">
+                {runningJobs.map(job => (
+                  <span key={job.id} className="ai00-x-dsh-scene__job" title={job.id}>
+                    <Loader2 size={11} className="ai00-x-dsh-scene__job-spin" />
+                    {job.label || job.kind || job.id.slice(0, 8)}
+                  </span>
+                ))}
+              </div>
+            )}
             {error && <div className="ai00-x-dsh-scene__error">{error}</div>}
+            {commandSuggestions.length > 0 && (
+              <div className="ai00-x-dsh-scene__command-palette" role="listbox">
+                {commandSuggestions.map(cmd => (
+                  <button
+                    key={cmd.name}
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    className="ai00-x-dsh-scene__command-item"
+                    onClick={() => handleSuggestionPick(cmd)}
+                  >
+                    <span className="ai00-x-dsh-scene__command-name">
+                      /{cmd.name}
+                      {cmd.input?.hint && (
+                        <span className="ai00-x-dsh-scene__command-hint"> {cmd.input.hint}</span>
+                      )}
+                    </span>
+                    <span className="ai00-x-dsh-scene__command-desc">{cmd.description}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {/* 标准对话输入框（design-system PromptInput + ModelSelector） */}
             <div className="ai00-x-dsh-scene__composer">
               <PromptInput
@@ -446,6 +685,78 @@ const DshScene: React.FC = () => {
           </>
         )}
       </section>
+
+      <Modal
+        isOpen={snapshotsOpen}
+        onClose={() => setSnapshotsOpen(false)}
+        title={t('snapshots.title')}
+      >
+        <div className="ai00-x-dsh-scene__snapshots">
+          {!hasWorkspace && <p className="ai00-x-dsh-scene__snapshots-hint">{t('snapshots.noWorkspace')}</p>}
+          {hasWorkspace && snapshotsLoading && (
+            <p className="ai00-x-dsh-scene__snapshots-hint">{t('snapshots.loading')}</p>
+          )}
+          {hasWorkspace && !snapshotsLoading && snapshots.length === 0 && (
+            <p className="ai00-x-dsh-scene__snapshots-hint">{t('snapshots.empty')}</p>
+          )}
+          {hasWorkspace &&
+            snapshots.map(snap => (
+              <div key={snap.commit} className="ai00-x-dsh-scene__snapshot">
+                <div className="ai00-x-dsh-scene__snapshot-main">
+                  <code className="ai00-x-dsh-scene__snapshot-hash">{snap.commit.slice(0, 8)}</code>
+                  <span className="ai00-x-dsh-scene__snapshot-msg">{snap.message}</span>
+                  <span className="ai00-x-dsh-scene__snapshot-time">
+                    {new Date(snap.time * 1000).toLocaleString()}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="small"
+                  disabled={snapBusy}
+                  onClick={() => setRollbackTarget(snap)}
+                >
+                  {t('snapshots.rollback')}
+                </Button>
+              </div>
+            ))}
+          <div className="ai00-x-dsh-scene__modal-actions">
+            <Button variant="secondary" size="small" onClick={() => void loadSnapshots()}>
+              <RefreshCw size={13} />
+              {t('snapshots.refresh')}
+            </Button>
+            <Button
+              variant="primary"
+              size="small"
+              disabled={snapBusy || !hasWorkspace}
+              onClick={() => void handleSnapshotNow()}
+            >
+              <Plus size={13} />
+              {t('snapshots.now')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={rollbackTarget !== null}
+        onClose={() => setRollbackTarget(null)}
+        title={t('snapshots.rollbackTitle', { commit: rollbackTarget?.commit.slice(0, 8) ?? '' })}
+      >
+        <p className="ai00-x-dsh-scene__snapshots-hint">{t('snapshots.rollbackWarn')}</p>
+        <div className="ai00-x-dsh-scene__modal-actions">
+          <Button variant="secondary" size="small" onClick={() => setRollbackTarget(null)}>
+            {t('snapshots.cancel')}
+          </Button>
+          <Button
+            variant="primary"
+            size="small"
+            disabled={snapBusy}
+            onClick={() => void handleRollback()}
+          >
+            {t('snapshots.rollbackConfirm')}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -1,0 +1,22 @@
+{
+  "title": "工具授权白名单",
+  "subtitle": "「总是允许」的持久记录——命中后同类工具审批自动放行，不再逐次弹卡。",
+  "section": {
+    "list": {
+      "title": "已授权",
+      "description": "按「工作区 + 工具名」记录。只读工具在任一会话中被「总是允许」后跨会话生效；移除后下次执行会重新询问。"
+    }
+  },
+  "empty": "暂无持久授权记录",
+  "hint": "出于安全考虑，只有只读工具（read / read_image / glob / grep / web_fetch / web_search）会被持久记住；写类与执行类工具（edit / write / bash / pwsh 等）只在当前会话内生效，永不落盘。",
+  "actions": {
+    "remove": "移除授权",
+    "clear": "清空全部",
+    "clearConfirm": "确认清空",
+    "cancel": "取消"
+  },
+  "messages": {
+    "removed": "已移除「{{tool}}」的持久授权",
+    "cleared": "已清空全部持久授权"
+  }
+}

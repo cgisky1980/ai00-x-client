@@ -1,0 +1,92 @@
+//! DshOrchestrationConfig — Agent 编排设置页样式。
+
+.ai00-x-dsh-orch {
+  &__hint {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__worker {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-3);
+    padding: var(--spacing-3);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-base);
+    background: var(--color-bg-secondary);
+  }
+
+  &__worker-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    min-width: 0;
+    flex: 1;
+  }
+
+  &__worker-name {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  &__worker-meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__worker-desc {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+  }
+
+  &__worker-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-1);
+
+    code {
+      padding: var(--size-gap-0-25, 1px) var(--spacing-1);
+      border-radius: var(--radius-sm);
+      background: var(--element-bg-subtle);
+      font-family: var(--font-family-mono);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+    }
+  }
+
+  &__worker-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    flex-shrink: 0;
+  }
+
+  &__hooks-editor {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+  }
+
+  &__hooks-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-2);
+    margin-top: var(--spacing-2);
+  }
+
+  &__editor-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+
+  &__restart {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-2);
+    margin-top: var(--spacing-2);
+  }
+}
