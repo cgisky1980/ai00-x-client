@@ -90,19 +90,29 @@ cargo test --release --all               # Run all tests
 
 **改前端 ≠ 重编 Rust**：前端资产（main.zip / loader.zip / underlay.zip）是运行时从 exe 旁边读取的（`src/apps/desktop/src/zip_serve.rs`，优先 exe 同目录），不嵌入 exe。`desktop:build` 全量（重链 168MB exe + MSI/NSIS + 签名，5–10 分钟）只在**发布安装包**时需要。
 
-**前端改动快速循环（~1 分钟）**：
+**前端改动快速循环（~1.5 分钟）**：
 
 ```powershell
-pnpm --dir src/web-ui build                          # 构建前端（~40s）
-node scripts/zip-dir.mjs dist/main dist/main.zip     # 重打 zip
+pnpm run build:web:quick                              # Vditor(增量跳过) + vite build（~80s）
+node scripts/zip-dir.mjs dist/main dist/main.zip     # 重打 zip（~7s）
 copy dist\main.zip target\release\main.zip           # 替换 exe 旁资产
 # 重启客户端（zip 为 Lazy 缓存，必须重启才生效）
 ```
 
+分段耗时参考（实测）：`lint:style` 5s → `type-check:web` 20s → `build:vditor` 增量跳过 4s（全量 23s）→ `vite build` 76s → `verify:monaco-assets` 2s。完整 `build:web` 约 135s（含 prebuild 的 copy-assets / generate-all）。
+
 硬性注意：
 1. **编译/链接前必须先关闭客户端进程**（Windows exe 占用导致链接失败）。
-2. dev 运行若报 `llama.dll not found`（TTS/模型初始化失败）：把 `client\.llama-build\bin\Release\` 的 llama/llama-common/ggml*/qwen3_fa/mtmd dll 复制到 `target\release\runtime\llama\<版本>-cuda-12.4\`，ggml*/qwen3_fa 另复制到 `runtime\gguf\`。
-3. 进程"静默退出"（无崩溃日志/事件记录）= panic hook `process::exit(1)`；抓法：前台启动重定向 stderr + `RUST_BACKTRACE=1`，panic 会打 `[PANIC] file:line:col: message`。WER LocalDumps 对主动 exit 无效。约束：`rwkv_llm.rs` 推理池线程是 `std::thread::spawn`（无 tokio 上下文），禁止调用 `block_on`/`tokio::time::*`。
+2. **`packages/vditor/dist/` 是被 gitignore 的构建产物**（`.gitignore: **/dist`），webpack 的 `CleanWebpackPlugin` 每次构建先清空 dist，再靠 `CopyPlugin` 从 `src/js/` 拷回 387+ 个运行时资源。**若构建被中断，`dist/js/` 会留下空目录**，vite 随后在 `@ai00-x/vditor/dist/js/lute/lute.min.js?url` 上解析失败——症状是"跑很久然后构建失败"，极易误判为前端变慢。
+   - 预防：用 `pnpm run build:vditor`（`scripts/build-vditor-guard.mjs`）代替裸 `webpack`，它会在构建前检查关键产物、缺失则重建、重建后仍缺则立即报错。
+   - 强制重建：`pnpm run build:vditor:force`。
+3. dev 运行若报 `llama.dll not found`（TTS/模型初始化失败）：把 `client\.llama-build\bin\Release\` 的 llama/llama-common/ggml*/qwen3_fa/mtmd dll 复制到 `target\release\runtime\llama\<版本>-cuda-12.4\`，ggml*/qwen3_fa 另复制到 `runtime\gguf\`。
+4. 进程"静默退出"（无崩溃日志/事件记录）= panic hook `process::exit(1)`；抓法：前台启动重定向 stderr + `RUST_BACKTRACE=1`，panic 会打 `[PANIC] file:line:col: message`。WER LocalDumps 对主动 exit 无效。约束：`rwkv_llm.rs` 推理池线程是 `std::thread::spawn`（无 tokio 上下文），禁止调用 `block_on`/`tokio::time::*`。
+5. **"启动后进程就消失"多半不是崩溃，是单实例机制**：Tauri single-instance 下新实例检测到已有实例，把参数转给它后自己 `exit(0)`。判断存活别看自己启动的 pid，用 `tasklist /FI "IMAGENAME eq ai00-x-desktop.exe"` 找真正的实例（其窗口含 `com.ai00-x.desktop-siw`）。
+   - GUI 子系统 exe 不 attach console，`> log 2>&1` 恒为 0 字节，别指望它。要日志用环境变量 `AI00_X_LOG_DIR=<path>` 覆盖（见 `src/apps/desktop/src/logging.rs`）。
+   - 命令行启动想不被回收：Python `subprocess.Popen(..., creationflags=0x00000008|0x00000200)`（DETACHED_PROCESS）。
+6. WebView2 弹 `msedgewebview2 has stopped working` / `Error launching CrashSender.exe`：多为 Runtime 自动升级后旧缓存不兼容。**修法**：重命名 `%LOCALAPPDATA%\com.ai00-x.desktop\EBWebView`（如加 `.bak-<日期>`），客户端会自动重建。
+   - 主窗口 label 是 **`loader`**（title "Ai00-X"），不是 `main`（`main` 只是 vite entry 名）。客户端正常运行时主窗口关闭，只留 overlay 浮层（title 为空格、铺满显示器）+ `siw` 单实例窗口。
 
 ### 服务器环境（2026-08-28 起）
 
@@ -318,6 +328,8 @@ When developing frontend features, reuse existing infrastructure:
 >
 > **Agent 硬规则**：黛青 `--color-accent` 是唯一交互色；朱砂 `--color-brand-seal` 一屏一处（灵印或唯一 CTA）；LOGO=`<BrandMark>` 灵印（包组件）；品牌名一律 "Ai00-X"；表面走墨阶 token；门面大标题衬线（`--font-family-serif`）；机器输出 mono+tabular；backdrop-blur 仅浮层；签名动效（brush-reveal/ink-ripple）仅白名单五场景；禁止硬编码色值/px/z-index。
 >
+> **风格包（v0.16 第九节，2026-10-06）**：上述四签名纪律是**默认风格（新东方极简）**的纪律。设计系统已支持**可插拔风格包**——两轴正交 `data-theme-type`（明/暗）× `data-style`（风格包 id，默认 `xindongfang`）。风格包 = `packages/design-system/styles/<id>/`，构建期双通道产出；非默认风格以「风格包契约」（对比度 ≥4.5/≥3、交互三态可辨识、focus ring 不可移除、色值只许出现在风格包内、只能覆盖既有 token）替代四签名约束。现有风格包：`xindongfang`（默认）、`comic`（漫画风）。形态差异一律走 `--style-stroke-width` / `--style-focus-ring`（或覆盖既有 token），组件不得写死形态字面值。
+>
 > 下表为 web-ui 存量 SCSS 编译期体系（`tokens.scss` 仍服务于 web-ui 编译期变量与 mixin；CSS 变量层与 design-system 同名兼容，新代码优先用包 token/组件）。新页面/新前端接入按规范第八节 checklist 逐项检查。
 
 All UI MUST follow the design tokens defined in `src/web-ui/src/component-library/styles/tokens.scss`. Never hardcode spacing, radius, color, or z-index values — always use the corresponding CSS variable or SCSS token.
@@ -461,6 +473,28 @@ All UI MUST follow the design tokens defined in `src/web-ui/src/component-librar
 ## AI Agent 栈（dsh）
 
 老自研 agent 栈（CoreAgent/RouterAgent/工具管线/会话持久化等，`core/src/agent/`）已于 2026-09 退役删除；agent 执行由 **dsh 栈** 承担：dsh 前端场景 + dsh 插件运行时 + AI 网关 + MCP + Skills。
+
+### 决策档案纪律
+
+重大架构决策（方向取舍、多文件改动、红线确立）完成后，落
+`参考/决策档案/`（四段：背景问题/决策/否决备选及理由/后果与复核条件，
+模板见同目录 `_模板.md`，命名 `YYYY-MM-DD-主题.md`）。
+
+### 引擎版本跟进 SOP（上游更新快，按此机制追）
+
+1. **版本雷达**：`node scripts/dsh-version-watch.mjs`——查 npmmirror dist-tags 与钉版差距、
+   主包运行时依赖清单 diff、dsh-desktop 前哨钉版（他们 stable 跟进了 = 生产级背书）。
+2. **触点验证**：`node scripts/dsh-upgrade-check.mjs <目标版本>`——18 项耦合触点自动检查
+  （token 行/CLI 参数/patch 触点包/配置键）。**全绿走快速通道**（bump → generate →
+   沙箱 dump-config + 双插件门禁 → exe，约 1 小时）；有红只人工聚焦红项。
+3. **节奏纪律**：跟 rc 不跟 alpha；minor 里程碑必跟，rc.N 看雷达决定；前哨未跟时优先等前哨。
+4. patch 资产：检查全绿且行为无变化 → 复制版本目录改名即可；有变化才逐行核对。
+
+### 引擎编排 patch 纪律（版本限定资产，必读）
+
+- 编排 patch 的静态模板在 `src/crates/agent-host/patches/<引擎版本>/`（编译期内嵌；`dsh_manager::load_patch_asset` 按 `dsh_versions.gen.rs` 钉的引擎版本取目录，**目录缺失=启动期显式报错，不静默回退**）。
+- **patch 行为变更与引擎版本升级分开提交**；升级引擎版本时新建对应版本目录、对照上游变更逐行核对后重建（意图与红线见各目录 `INTENT.md`；新增条目一律走 `insert:` 列表，顶层裸行=覆写；persona 只覆写 system-prompt 行）。
+- 改动组合后验证：`dsh --profile ai00x --dump-config`（DSH_HOME 指向 dsh_home()）+ 引擎 boot 门禁 `node scripts/dsh-plugin-check.mjs ./dsh-plugins/ai-bridge`。
 
 ### Architecture Overview
 
