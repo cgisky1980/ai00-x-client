@@ -184,10 +184,6 @@ pub async fn open_overlay_force(app: tauri::AppHandle) -> Result<(), String> {
             .build()
             .map_err(|e| format!("build overlay failed: {}", e))?;
 
-        // Open devtools for debugging overlay (remove after debugging)
-        window.open_devtools();
-        log::info!("Overlay devtools opened");
-
         crate::overlay::fit_overlay_to_monitor(&window);
         crate::overlay::spawn_overlay_thread(app);
         Ok(())

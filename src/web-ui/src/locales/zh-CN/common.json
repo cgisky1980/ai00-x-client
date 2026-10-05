@@ -808,7 +808,13 @@
   },
   "theme": {
     "dark": "深色",
-    "light": "浅色"
+    "light": "浅色",
+    "style": "视觉风格",
+    "styleTooltip": "切换视觉风格",
+    "stylePacks": {
+      "xindongfang": "新东方极简",
+      "comic": "漫画风"
+    }
   },
   "mcpDialog": {
     "server": "服务器：",
@@ -821,5 +827,15 @@
   "wallpaper": {
     "somethingWentWrong": "出了点问题",
     "unknownError": "未知错误"
+  },
+  "update": {
+    "available": "新版本 v{{version}} 已发布",
+    "installNow": "立即更新",
+    "later": "忽略",
+    "installing": "正在下载安装…",
+    "autoRestart": "完成后自动重启"
+  },
+  "engine": {
+    "envInstallFailed": "引擎环境安装失败，可在 设置 → dsh 扩展 → 引擎健康 中尝试恢复快照"
   }
 }

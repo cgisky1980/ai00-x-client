@@ -1,0 +1,53 @@
+[
+  {
+    "id": "community",
+    "label": "community",
+    "title": "社区",
+    "page": "community",
+    "width": 1100,
+    "height": 720,
+    "minWidth": 860,
+    "minHeight": 540,
+    "resizable": true,
+    "center": true,
+    "decorations": false,
+    "transparent": false,
+    "alwaysOnTop": false,
+    "skipTaskbar": false,
+    "injectTheme": true
+  },
+  {
+    "id": "music",
+    "label": "music",
+    "title": "乐",
+    "page": "music",
+    "width": 1000,
+    "height": 680,
+    "minWidth": 860,
+    "minHeight": 560,
+    "resizable": true,
+    "center": true,
+    "decorations": false,
+    "transparent": false,
+    "alwaysOnTop": false,
+    "skipTaskbar": false,
+    "injectTheme": true
+  },
+  {
+    "id": "tasks",
+    "label": "tasks",
+    "title": "策",
+    "page": "tasks",
+    "width": 900,
+    "height": 640,
+    "minWidth": 640,
+    "minHeight": 480,
+    "resizable": true,
+    "center": true,
+    "decorations": false,
+    "transparent": false,
+    "alwaysOnTop": false,
+    "skipTaskbar": false,
+    "injectTheme": true
+  }
+]

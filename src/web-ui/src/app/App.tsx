@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useI18n } from '@/infrastructure/i18n';
 import { ChatProvider } from '../infrastructure';
 import { ViewModeProvider } from '../infrastructure/contexts/ViewModeProvider';
 import { SSHRemoteProvider } from '../features/ssh-remote';
@@ -8,14 +9,16 @@ import { NotificationContainer } from '../shared/notification-system';
 import { ConfirmDialogRenderer } from '../component-library';
 import { InteractionOverlay } from '../tools/vrm/components/InteractionOverlay';
 import { DynamicIsland, LyricsOverlay } from '../tools/island';
+import { AceStepPlaybackHost } from '../tools/acestep/components/AceStepPlaybackHost';
 import { TodoOverlay } from '../tools/todo';
-import { PlayerEngine } from '@/tools/acestep/components/PlayerEngine';
-import { startPlayerBridge } from '@/tools/acestep/services/PlayerBridge';
+import { startAudioCommandBridge } from '@/tools/vrm/services/AudioCommandBridge';
 import { AgentTheaterWidget } from './components/AgentTheater/AgentTheaterWidget';
 import { SessionChatPanels } from './components/AgentTheater/SessionChatPanels';
 import { TranslatePopup } from './components/Translate/TranslatePopup';
+import { UpdatePromptBar } from './components/UpdatePromptBar/UpdatePromptBar';
 
 function App() {
+  const { t } = useI18n('common');
   const mainWindowShownRef = useRef(false);
 
   useEffect(() => {
@@ -118,14 +121,37 @@ function App() {
     return () => disposePluginRuntime();
   }, []);
 
-  // The .a00m playback engine + player bridge live at the overlay window root,
-  // which is always resident in the background (transparent click-through shell
-  // hosting DynamicIsland / MusicPopup / LyricsOverlay). This lets music play
-  // in the background without ever needing to open the task/chat window.
+  // 音频命令桥（乐窗 Step 3）：`music://audio-command` 远程驱动 audioPlaybackStore，
+  // 状态变化 debounce 广播 `music://audio-state` 快照给音乐窗。
+  // （.a00m 播放本体 PlayerEngine + PlayerBridge 已随乐窗 Step 4 迁入 MusicWindowApp。）
   useEffect(() => {
-    const cleanup = startPlayerBridge();
-    return cleanup;
+    let cleanup: (() => void) | undefined;
+    void startAudioCommandBridge().then((fn) => {
+      cleanup = fn;
+    });
+    return () => cleanup?.();
   }, []);
+
+  // P1-B：引擎环境安装失败 → 全局 toast 引导「设置 → dsh 扩展 → 引擎健康」恢复
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      try {
+        if (typeof window === 'undefined' || !('__TAURI__' in window)) return;
+        const [{ listen }, { notificationService }] = await Promise.all([
+          import('@tauri-apps/api/event'),
+          import('@/shared/notification-system'),
+        ]);
+        const un = await listen('dsh://env-install-failed', () => {
+          notificationService.error(t('engine.envInstallFailed'));
+        });
+        unlisten = un;
+      } catch {
+        /* 事件桥不可用时静默 */
+      }
+    })();
+    return () => unlisten?.();
+  }, [t]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -148,11 +174,13 @@ function App() {
           <div id="ai00-plugin-layer" style={{ position: 'fixed', inset: 0, zIndex: 50000, pointerEvents: 'none' }} />
           <TodoOverlay />
           <DynamicIsland />
+          {/* 播放权威常驻挂载（仅 overlay 窗口生效，组件内按 window label 门控） */}
+          <AceStepPlaybackHost />
           <LyricsOverlay />
           <AgentTheaterWidget />
           <SessionChatPanels />
           <TranslatePopup />
-          <PlayerEngine />
+          <UpdatePromptBar />
           <ContextMenuRenderer />
           <NotificationContainer />
           <ConfirmDialogRenderer />

@@ -807,7 +807,13 @@
   },
   "theme": {
     "dark": "Dark",
-    "light": "Light"
+    "light": "Light",
+    "style": "Visual style",
+    "styleTooltip": "Switch visual style",
+    "stylePacks": {
+      "xindongfang": "Neo-Oriental Minimal",
+      "comic": "Comic"
+    }
   },
   "mcpDialog": {
     "server": "Server:",
@@ -820,5 +826,15 @@
   "wallpaper": {
     "somethingWentWrong": "Something went wrong",
     "unknownError": "Unknown error"
+  },
+  "update": {
+    "available": "New version v{{version}} is available",
+    "installNow": "Update now",
+    "later": "Later",
+    "installing": "Downloading & installing…",
+    "autoRestart": "App restarts automatically when done"
+  },
+  "engine": {
+    "envInstallFailed": "Engine environment install failed — try restoring a snapshot in Settings → dsh Plugins → Engine health"
   }
 }

@@ -142,12 +142,14 @@ export default defineConfig(({ mode, command }) => {
     // 禁用 modulePreload — 避免初始加载 12.6MB JS 文件
     // 懒加载的 chunk 会在实际使用时才下载
     modulePreload: false,
-    // Multi-page application: main app + chat window + preview window
+    // Multi-page application: main app + community window + tasks window + design
+    // （原 preview.html 壁纸预览窗口已于 2026-09-12 移除，后期做壁纸 agent 时重建）
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
-        preview: path.resolve(__dirname, 'preview.html'),
-        'member-chat': path.resolve(__dirname, 'member-chat.html'),
+        community: path.resolve(__dirname, 'community.html'),
+        tasks: path.resolve(__dirname, 'tasks.html'),
+        music: path.resolve(__dirname, 'music.html'),
         design: path.resolve(__dirname, 'design.html'),
       },
       // v9 重构：原 webtorrent external 配置已移除。

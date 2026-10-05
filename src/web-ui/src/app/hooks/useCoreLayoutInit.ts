@@ -186,19 +186,13 @@ export function useCoreLayoutInit(): CoreLayoutInitResult {
 
   useEffect(() => {
     let unlistenFn: (() => void) | null = null;
-    let unlistenAceStepFn: (() => void) | null = null;
     let unlistenDshFn: (() => void) | null = null;
     void (async () => {
       try {
         const { listen } = await import('@tauri-apps/api/event');
         const { useSceneStore } = await import('@/app/stores/sceneStore');
-        const { useModeStore } = await import('@/app/stores/modeStore');
         unlistenFn = await listen('open-settings-scene', () => {
           useSceneStore.getState().openScene('settings');
-        });
-        unlistenAceStepFn = await listen('open-acestep-scene', () => {
-          useModeStore.getState().setActiveMode('music');
-          useSceneStore.getState().openScene('acestep');
         });
         // dsh Agent 场景唤起（策窗口委托交付链路）
         unlistenDshFn = await listen('open-dsh-scene', () => {
@@ -208,7 +202,6 @@ export function useCoreLayoutInit(): CoreLayoutInitResult {
     })();
     return () => {
       if (unlistenFn) unlistenFn();
-      if (unlistenAceStepFn) unlistenAceStepFn();
       if (unlistenDshFn) unlistenDshFn();
     };
   }, []);

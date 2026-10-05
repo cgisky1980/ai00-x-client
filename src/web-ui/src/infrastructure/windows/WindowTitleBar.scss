@@ -1,0 +1,86 @@
+/**
+ * WindowTitleBar styles — 无边框窗口的统一自绘标题栏。
+ *
+ * 布局：窗口 = 标题栏（40px）+ 内容区；无系统边框，DWM 阴影由 Tauri
+ * builder 默认 shadow(true) 提供。灵印（动态）常驻标题栏左端品牌位。
+ */
+@use '../../component-library/styles/tokens.scss' as *;
+
+.app-window-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-bg-primary);
+
+  // 内容区：窗口内容（Root）渲染处。relative 为 absolute 定位的子内容
+  // （如 .todo-panel--window 的 inset:0）提供包含块，防止其盖出标题栏
+  &__content {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+}
+
+.app-window-titlebar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 $size-gap-2;
+  gap: $size-gap-1;
+  user-select: none;
+  background-color: var(--color-bg-secondary);
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
+
+  // 灵印品牌位（动态 seal，一屏一朱）
+  &__brand {
+    flex-shrink: 0;
+  }
+
+  &__title {
+    font-size: var(--font-size-base);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+  }
+
+  // 标题后跟随的左侧元信息（如 Lv/积分徽标）
+  &__leading {
+    display: flex;
+    align-items: center;
+    gap: $size-gap-1;
+    flex-shrink: 0;
+  }
+
+  &__spacer {
+    flex: 1;
+    min-width: 0;
+    align-self: stretch;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: $size-gap-1;
+    flex-shrink: 0;
+  }
+
+  // 工具按钮区（钉住 / 明暗切换）
+  &__tools {
+    display: flex;
+    align-items: center;
+    gap: $size-gap-1;
+    flex-shrink: 0;
+  }
+
+  &__tool-btn.is-active {
+    color: var(--color-accent);
+  }
+
+  &__window-controls {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+}

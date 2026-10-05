@@ -11,17 +11,21 @@ pub mod auth;
 pub mod auth_vault;
 pub mod desktop;
 pub mod download_manager;
-pub mod dsh_manager;
-pub mod dsh_proxy;
+// 2026-09-19 笔阵 P0：dsh 宿主层平移至 crates/agent-host，此处再导出保持
+// `crate::dsh_manager` / `crate::dsh_proxy` 路径不变，调用方零改动。
+pub use agent_host::checkpoint;
+pub use agent_host::dsh_manager;
+pub use agent_host::dsh_proxy;
+pub mod dsh_grants;
 pub mod embedding;
 pub mod gguf_meta;
+pub mod headless_fetch;
 pub mod internal_api;
 pub mod kv_store;
 pub mod llama_server_manager;
 pub mod logging;
 pub mod machine_id;
 pub mod macos_menubar;
-pub mod member_chat_window;
 pub mod mirror_hosts;
 pub mod model_checker;
 pub mod model_init;
@@ -30,9 +34,10 @@ pub mod overlay;
 pub mod resource_manager;
 pub mod resource_p2p;
 pub mod router_evolution;
+pub mod shutdown;
+pub mod tray;
 pub use ai00_x_inference::runtime;
 pub mod chat_history_backup;
-pub mod preview_window;
 pub mod profile_sync;
 pub mod rwkv_engine_adapter;
 pub mod rwkv_llm;
@@ -49,6 +54,8 @@ pub mod vram_engines;
 pub mod vram_manager;
 pub mod vram_monitor;
 pub mod web_extract;
+pub mod window_registry;
+pub mod window_template;
 pub mod zip_serve;
 
 use ai00_x_core::infrastructure::ai::AIClientFactory;
@@ -57,10 +64,7 @@ use ai00_x_core::infrastructure::get_path_manager_arc;
 use ai00_x_core::service::workspace::get_global_workspace_service;
 use ai00_x_transport::TauriTransportAdapter;
 use serde::Deserialize;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 #[cfg(target_os = "macos")]
 use tauri::Emitter;
 use tauri::Manager;
@@ -119,6 +123,12 @@ pub async fn run() {
     if let Err(e) = ai00_x_core::service::config::initialize_global_config().await {
         eprintln!("[FATAL] Failed to initialize global config service: {}", e);
         return;
+    }
+
+    // 恢复引擎权限档偏好（spawn_sidecar 注入 DSH_PERMISSION_MODE，重启引擎生效）
+    {
+        let mode = crate::kv_store::pref_get_value("dsh.permission_mode").await;
+        crate::dsh_manager::set_permission_mode(mode.filter(|m| !m.is_empty()));
     }
 
     // Initialize global I18nService so bot/remote-connect language is always in sync.
@@ -238,6 +248,13 @@ pub async fn run() {
                     api::plugin_api::ensure_default_plugins(&handle).await;
                 });
             }
+            // 内置技能 → <DSH_HOME>/bundled-skills（引擎 bundledSkillDir 指向此根，
+            // rank 600 只读语义；失败只记日志不阻塞启动）
+            tokio::spawn(async {
+                if let Err(e) = api::skill_api::ensure_bundled_skills_installed().await {
+                    log::warn!("[setup] bundled skills sync failed: {e}");
+                }
+            });
             // Loader 窗口统一从内嵌 salvo 服务器加载（与正式环境一致，走目录/zip 服务），
             // 不再依赖 dev 模式的 Vite dev server，避免 dev/正式运行环境偏差。
             // 窗口在 tauri.conf.json 中设为 visible:false，此处等 salvo 就绪后
@@ -379,33 +396,23 @@ pub async fn run() {
 
             logging::spawn_log_cleanup_task();
 
+            // 系统托盘（P0-4.1）：状态灯/快捷开窗/显式退出
+            if let Err(e) = tray::init_tray(app.handle()) {
+                log::warn!("tray init failed (continue without tray): {e}");
+            }
+
             log::info!("Ai00-X Desktop started successfully");
             Ok(())
         })
         .on_window_event({
-            static CLEANUP_DONE: AtomicBool = AtomicBool::new(false);
-
             move |window, event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     let label = window.label();
                     if label == "overlay" {
-                        if CLEANUP_DONE
-                            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-                            .is_ok()
-                        {
-                            log::info!("Overlay window close requested, cleaning up");
-                            shutdown_usage_stats(window.app_handle());
-                            underlay::cleanup(window.app_handle());
-                            if let Some(win) = window.app_handle().get_webview_window("underlays") {
-                                let _ = win.close();
-                            }
-                            preview_window::close_all_preview_windows(window.app_handle());
-                            ai00_x_core::util::process_manager::cleanup_all_processes();
-
-                            window.app_handle().exit(0);
-                        } else {
-                            api.prevent_close();
-                        }
+                        // overlay 常驻主面，关闭=全量退出（与托盘「退出」共用
+                        // shutdown_app，清理语义唯一，幂等）。
+                        shutdown::shutdown_app(window.app_handle());
+                        api.prevent_close();
                     } else if label == "loader" {
                         let overlay_exists = window
                             .app_handle()
@@ -413,27 +420,10 @@ pub async fn run() {
                             .is_some();
                         if overlay_exists {
                             log::info!("Loader window close requested, overlay window exists, closing loader only");
-                        } else if CLEANUP_DONE
-                            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-                            .is_ok()
-                        {
-                            log::info!("Loader window close requested, no overlay window, cleaning up");
-                            shutdown_usage_stats(window.app_handle());
-                            underlay::cleanup(window.app_handle());
-                            if let Some(win) = window.app_handle().get_webview_window("underlays") {
-                                let _ = win.close();
-                            }
-                            preview_window::close_all_preview_windows(window.app_handle());
-                            ai00_x_core::util::process_manager::cleanup_all_processes();
-
-                            window.app_handle().exit(0);
                         } else {
+                            shutdown::shutdown_app(window.app_handle());
                             api.prevent_close();
                         }
-                    } else if label == "task-window" {
-                        log::info!("Task window close requested, closing task window only");
-                    } else if label == "preview" {
-                        log::info!("Preview window close requested, closing window only");
                     } else if label == "underlays" {
                         log::info!("Underlay window close requested, ignoring");
                         api.prevent_close();
@@ -442,28 +432,33 @@ pub async fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            dsh_manager::open_dsh_terminal,
+            checkpoint::dsh_checkpoints_list,
+            checkpoint::dsh_checkpoint_restore,
             dsh_manager::dsh_status,
             dsh_manager::dsh_ensure_ready,
             dsh_manager::dsh_stop,
             dsh_manager::dsh_restart,
+            dsh_manager::dsh_workers_list,
+            dsh_manager::dsh_worker_read,
+            dsh_manager::dsh_worker_save,
+            dsh_manager::dsh_worker_delete,
+            dsh_manager::dsh_hooks_config_get,
+            dsh_manager::dsh_hooks_config_set,
             dsh_manager::dsh_plugins_list,
             dsh_manager::dsh_plugin_set_enabled,
             dsh_manager::dsh_plugin_remove,
             dsh_manager::dsh_plugin_install,
-            dsh_manager::dsh_plugin_grants_list,
-            dsh_manager::dsh_plugin_grant,
-            dsh_manager::dsh_plugin_revoke,
+            dsh_grants::dsh_plugin_grants_list,
+            dsh_grants::dsh_plugin_grant,
+            dsh_grants::dsh_plugin_revoke,
             theme::open_overlay_force,
             theme::show_main_window,
             theme::hide_loader_window,
-            member_chat_window::open_member_chat_window,
-            member_chat_window::close_member_chat_window,
-            member_chat_window::focus_member_chat_window,
-            member_chat_window::is_member_chat_window_open,
-            preview_window::open_preview_window,
-            preview_window::close_preview_window,
-            preview_window::focus_preview_window,
-            preview_window::is_preview_window_open,
+            window_template::open_app_window,
+            window_template::close_app_window,
+            window_template::focus_app_window,
+            window_template::is_app_window_open,
             overlay::set_no_penetrate_regions,
             overlay::init_overlay,
             underlay::open_underlay_force,
@@ -630,6 +625,11 @@ pub async fn run() {
             api::config_api::get_router_status,
             api::config_api::test_router_classification,
             api::config_api::reload_router_head,
+            api::config_api::get_dsh_permission_mode,
+            api::config_api::set_dsh_permission_mode,
+            api::git_api::git_snapshots_list,
+            api::git_api::git_snapshot_now,
+            api::git_api::git_snapshot_rollback,
             router_evolution::router_capture_stats,
             router_evolution::router_capture_list,
             router_evolution::router_capture_label,
@@ -646,6 +646,13 @@ pub async fn run() {
             get_global_config_health,
             get_runtime_logging_info,
             get_runtime_capabilities,
+            api::skill_api::get_skill_configs,
+            api::skill_api::validate_skill_path,
+            api::skill_api::add_skill,
+            api::skill_api::delete_skill,
+            api::skill_api::list_skill_market,
+            api::skill_api::search_skill_market,
+            api::skill_api::download_skill_market,
             acestep_get_status,
             acestep_list_local_models,
             acestep_load_synth,
@@ -653,6 +660,8 @@ pub async fn run() {
             acestep_unload,
             acestep_generate,
             acestep_cancel,
+            acestep_start_recording,
+            acestep_stop_recording,
             acestep_llm_complete,
             acestep_llm_chat_stream,
             acestep_web_search,
@@ -1033,7 +1042,7 @@ fn init_mcp_servers(app_handle: tauri::AppHandle) {
 /// Send shutdown signal to the usage-stats collector (if running) so it can
 /// flush the in-flight segment + end the session before app exit. Safe to
 /// call multiple times — the second call finds `None` and no-ops.
-fn shutdown_usage_stats(app_handle: &tauri::AppHandle) {
+pub(crate) fn shutdown_usage_stats(app_handle: &tauri::AppHandle) {
     use std::sync::Arc as StdArc;
     use std::sync::Mutex as StdMutex;
     type ShutdownHolder = StdArc<StdMutex<Option<tokio::sync::broadcast::Sender<()>>>>;

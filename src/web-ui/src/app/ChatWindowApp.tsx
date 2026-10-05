@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useWorkspaceContext } from '../infrastructure/contexts/WorkspaceContext';
 import { useSceneStore } from './stores/sceneStore';
-import { useModeStore } from './stores/modeStore';
+import { WindowAPI } from '../infrastructure/windows/WindowAPI';
 import { useCoreLayoutInit } from './hooks/useCoreLayoutInit';
 import WorkspaceBody from './layout/WorkspaceBody';
 import DialogOverlay from './layout/DialogOverlay';
@@ -37,12 +37,9 @@ const ChatWindowApp: React.FC<ChatWindowAppProps> = (props) => {
 
   useEffect(() => {
     if (!openMusic) return;
-    const timer = setTimeout(() => {
-      useModeStore.getState().setActiveMode('music');
-      openScene('acestep');
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [openMusic, openScene]);
+    // 音乐已迁独立「乐」窗口（乐窗 Step 4）：不再切 overlay 场景
+    void WindowAPI.open('music');
+  }, [openMusic]);
 
   // dsh Agent 场景直开（策窗口委托交付唤起）
   useEffect(() => {

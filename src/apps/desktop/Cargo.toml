@@ -28,9 +28,13 @@ ai00-x-inference = { path = "../../crates/inference" }
 ai00-x-events = { path = "../../crates/events" }
 ai00-x-acestep = { path = "../../crates/acestep" }
 sa3-rs = { path = "../../crates/sa3" }
+ai00-x-agent-host = { path = "../../crates/agent-host" }
 
 # 划词翻译：源语言检测（纯 Rust，离线）
 whatlang = "0.16"
+
+# 内置技能嵌入（skill_api：编译期打包 core/builtin_skills，启动同步到 bundled 根）
+include_dir = { workspace = true }
 
 # Tauri
 tauri = { workspace = true }
@@ -68,6 +72,9 @@ text-splitter = "0.30.1"
 async-trait = { workspace = true }
 salvo = { workspace = true }
 ai00-run = { workspace = true }
+
+# 无头浏览器抓取（headless_fetch.rs）
+chromiumoxide = { workspace = true }
 bytes = "1"
 win32job = "2"
 tokio-tungstenite = "0.24"
