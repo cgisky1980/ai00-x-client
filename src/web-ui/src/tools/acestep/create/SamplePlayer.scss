@@ -1,0 +1,148 @@
+/**
+ * SamplePlayer — 样例自定义播放器（收起紧凑条 + 播放态覆盖层卡拉OK）。
+ * 覆盖层定位锚 = 样例卡 .ai00-x-quick__sample（position:relative）。
+ * 实体表面，不用 backdrop-blur（非浮层白名单场景）。
+ */
+
+@use '../../../component-library/styles/tokens' as *;
+
+.acestep-sample-player {
+  width: 100%;
+  min-width: 0;
+
+  &__bar {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  &__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: var(--size-gap-7);
+    height: var(--size-gap-7);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
+    border-radius: var(--radius-full);
+    background: var(--element-bg-base);
+    color: var(--color-accent-500);
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--color-accent-500);
+      background: var(--element-bg-subtle);
+    }
+
+    &--lg {
+      width: var(--size-gap-8);
+      height: var(--size-gap-8);
+    }
+  }
+
+  &__track {
+    flex: 1;
+    min-width: 0;
+    height: var(--size-gap-1);
+    border-radius: var(--radius-full);
+    background: var(--element-bg-strong);
+    cursor: pointer;
+  }
+
+  &__fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: var(--color-accent-500);
+    transition: width 80ms linear;
+  }
+
+  &__time {
+    flex-shrink: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    border-radius: var(--radius-base);
+    background: var(--color-bg-secondary);
+  }
+
+  &__lyrics {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    /* 上下淡出遮罩，当前行居中阅读 */
+    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  }
+
+  &__line {
+    margin: 0;
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    transition: color var(--motion-fast) var(--easing-standard);
+
+    &.is-sung {
+      color: var(--color-text-secondary);
+    }
+
+    &.is-active {
+      font-size: var(--font-size-base);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-accent-500);
+
+      /* 逐字扫色：已唱字保持 accent，未唱字回落柔和色 */
+      span.is-sung {
+        color: var(--color-accent-500);
+      }
+
+      span:not(.is-sung) {
+        color: var(--color-text-muted);
+      }
+    }
+  }
+
+  &__nolyrics {
+    flex: 1;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  &__controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  &__collapse {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--size-gap-0-5);
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+  }
+}

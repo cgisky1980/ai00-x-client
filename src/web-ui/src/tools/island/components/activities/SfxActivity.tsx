@@ -18,10 +18,10 @@ import './SfxActivity.scss'
  *   - BGM 切换不影响 SFX 播放
  */
 interface SfxActivityProps {
-  onOpenPopup: () => void
+  onOpenWindow: () => void
 }
 
-export const SfxActivity: React.FC<SfxActivityProps> = ({ onOpenPopup }) => {
+export const SfxActivity: React.FC<SfxActivityProps> = ({ onOpenWindow }) => {
   const audio = useAudioPlayback()
   const { t } = useI18n('vrm')
   const masterVolume = useAudioPlaybackStore((s) => s.masterVolume)
@@ -96,7 +96,7 @@ export const SfxActivity: React.FC<SfxActivityProps> = ({ onOpenPopup }) => {
       </button>
       <button
         className="sfx-activity__row-btn"
-        onClick={(e) => { e.stopPropagation(); onOpenPopup() }}
+        onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
         title={t('audio.island.expand', { defaultValue: '展开' })}
       >
         <Maximize2 size={13} />

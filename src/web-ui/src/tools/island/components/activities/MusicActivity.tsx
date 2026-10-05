@@ -56,10 +56,10 @@ interface AceStepLyricsState {
 }
 
 interface MusicActivityProps {
-  onOpenPopup: () => void
+  onOpenWindow: () => void
 }
 
-export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenPopup }) => {
+export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) => {
   const { t } = useI18n('vrm')
   const audio = useAudioPlayback()
   const masterVolume = useAudioPlaybackStore((s) => s.masterVolume)
@@ -77,7 +77,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenPopup }) => 
   // ---- AceStep lyrics state (for hasLyrics check in expanded layer) ----
   const [lyricsState, setLyricsState] = useState<AceStepLyricsState | null>(null)
 
-  // ---- Fetch local AceStep songs (count only — full UI moved to MusicPopup) ----
+  // ---- Fetch local AceStep songs (count only — full UI moved to the music window) ----
   const fetchAcestepSongs = useCallback(async () => {
     try {
       const list = await aceStepService.listSongs()
@@ -393,7 +393,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenPopup }) => 
             ) : (
               <button
                 className="music-activity__btn music-activity__btn--play"
-                onClick={(e) => { e.stopPropagation(); onOpenPopup() }}
+                onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
                 title={t('audio.island.music.browseSongs', { defaultValue: '点击展开选歌' })}
               >
                 <ListMusic size={14} />
@@ -446,10 +446,10 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenPopup }) => 
                 <ListMusic size={13} />
               </button>
             )}
-            {/* Open playlist popup */}
+            {/* Open music window */}
             <button
               className="music-activity__btn music-activity__btn--expand"
-              onClick={(e) => { e.stopPropagation(); onOpenPopup() }}
+              onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
               title={t('audio.island.expand', { defaultValue: '展开' })}
             >
               <Maximize2 size={13} />

@@ -19,6 +19,7 @@
 import { create } from 'zustand'
 import { emit } from '@tauri-apps/api/event'
 import { useAudioPlaybackStore } from '../../vrm/store/audioPlaybackStore'
+import { useMusicSourceStore } from '../../music-source/musicSourceStore'
 
 /** BGM 播放源类型 */
 export type BgmSource = 'vrm-radio' | 'acestep' | null
@@ -61,8 +62,13 @@ export const useBgmPlayerStore = create<BgmPlayerState>((set, get) => ({
       if (source !== 'vrm-radio' && activeSource === 'vrm-radio') {
         useAudioPlaybackStore.getState().stopRadio()
       }
-      // 2. 如果当前是 AceStep，且新源不是 AceStep → 暂停 AceStep（跨窗口）
+      // 2. 如果当前是 AceStep，且新源不是 AceStep → 停止 AceStep（跨窗口）
       if (source !== 'acestep' && activeSource === 'acestep') {
+        // 歌曲电台在跑时必须真正停电台（radioActive 状态清零）：
+        // 只 emit togglePlay 仅暂停音频，msRadioActive 会残留 → 菜单双电台指示灯同亮
+        if (useMusicSourceStore.getState().radioActive) {
+          useMusicSourceStore.getState().stopRadio()
+        }
         await emit('acestep://player-command', { action: 'togglePlay' }).catch((e) =>
           console.warn('[BgmPlayer] emit togglePlay to acestep failed:', e),
         )

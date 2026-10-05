@@ -1,0 +1,14 @@
+// ComposeSection — 创作分区容器（AceStepWorkspace 嵌入适配）。
+// 内容区（.music-popup__content）是滚动容器；创作工作台自带内部滚动，
+// 这里整体撑满内容区可视高度，避免双层滚动。
+
+.compose-section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  .ai00-x-create {
+    flex: 1;
+  }
+}

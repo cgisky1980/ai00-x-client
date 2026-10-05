@@ -1,0 +1,239 @@
+/**
+ * AudioSourcePicker — 音频来源选择器弹层样式。
+ * 全部走 design token（spacing/radius/颜色），随主题明暗自适应。
+ */
+
+@use '../../../component-library/styles/tokens' as *;
+
+.ai00-x-audio-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4, 16px);
+}
+
+// ---- 页签行 ----
+
+.ai00-x-audio-picker__tabs {
+  display: flex;
+  gap: var(--spacing-2, 8px);
+  flex-wrap: wrap;
+}
+
+.ai00-x-audio-picker__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  border-radius: var(--radius-full, 9999px);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle, rgba(255, 255, 255, 0.26));
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm, 13px);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast, 0.15s) var(--easing-standard),
+    color var(--motion-fast, 0.15s) var(--easing-standard),
+    border-color var(--motion-fast, 0.15s) var(--easing-standard);
+
+  &:hover {
+    background: var(--element-bg-subtle, rgba(255, 255, 255, 0.1));
+    color: var(--color-text-primary);
+  }
+
+  &.is-active {
+    background: var(--element-bg-medium, rgba(255, 255, 255, 0.28));
+    border-color: var(--border-strong, rgba(255, 255, 255, 0.6));
+    color: var(--color-text-primary);
+  }
+}
+
+// ---- 内容区 ----
+
+.ai00-x-audio-picker__body {
+  min-height: 240px;
+  max-height: 46vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai00-x-audio-picker__hint {
+  margin: 0 0 var(--spacing-3, 12px);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm, 13px);
+  line-height: 1.5;
+}
+
+// ---- 上传 ----
+
+.ai00-x-audio-picker__upload {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2, 8px);
+  padding: var(--spacing-4, 16px);
+  border: 1px dashed var(--border-base, rgba(255, 255, 255, 0.35));
+  border-radius: var(--radius-lg, 12px);
+}
+
+// ---- 录音 ----
+
+.ai00-x-audio-picker__record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3, 12px);
+}
+
+.ai00-x-audio-picker__record-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+  padding: var(--spacing-5, 20px) 0;
+}
+
+.ai00-x-audio-picker__record-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full, 9999px);
+  border: var(--style-stroke-width, 1px) solid var(--border-base, rgba(255, 255, 255, 0.35));
+  background: var(--element-bg-base, rgba(255, 255, 255, 0.19));
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast, 0.15s) var(--easing-standard),
+    box-shadow var(--motion-base, 0.3s) var(--easing-standard);
+
+  &:hover {
+    background: var(--element-bg-medium, rgba(255, 255, 255, 0.28));
+  }
+
+  &.is-recording {
+    background: var(--color-error-bg, rgba(220, 38, 38, 0.2));
+    border-color: var(--color-error, #ef4444);
+    color: var(--color-error, #ef4444);
+    animation: ai00-x-record-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes ai00-x-record-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--color-error-bg, rgba(239, 68, 68, 0.35));
+  }
+  50% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+
+.ai00-x-audio-picker__record-time {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-xl, 16px);
+  color: var(--color-text-primary);
+}
+
+.ai00-x-audio-picker__record-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--color-error, #ef4444);
+  animation: ai00-x-record-pulse 1.6s ease-in-out infinite;
+}
+
+.ai00-x-audio-picker__record-state {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm, 13px);
+}
+
+.ai00-x-audio-picker__record-done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3, 12px);
+}
+
+.ai00-x-audio-picker__preview {
+  width: 100%;
+  border-radius: var(--radius-sm, 6px);
+}
+
+.ai00-x-audio-picker__record-actions {
+  display: flex;
+  gap: var(--spacing-2, 8px);
+  justify-content: flex-end;
+}
+
+// ---- 列表（收藏 / 作品） ----
+
+.ai00-x-audio-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+  overflow-y: auto;
+}
+
+.ai00-x-audio-picker__list-loading,
+.ai00-x-audio-picker__empty {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm, 13px);
+  padding: var(--spacing-4, 16px) 0;
+}
+
+.ai00-x-audio-picker__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  width: 100%;
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  border: none;
+  border-radius: var(--radius-base, 8px);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm, 13px);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-instant, 0.1s) var(--easing-standard);
+
+  &:hover:not(:disabled) {
+    background: var(--element-bg-subtle, rgba(255, 255, 255, 0.1));
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+
+  &.is-failed {
+    color: var(--color-text-muted);
+  }
+}
+
+.ai00-x-audio-picker__item-icon {
+  display: inline-flex;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.ai00-x-audio-picker__item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai00-x-audio-picker__item-meta {
+  flex-shrink: 0;
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs, 12px);
+}

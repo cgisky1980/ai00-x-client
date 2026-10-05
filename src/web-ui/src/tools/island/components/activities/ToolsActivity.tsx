@@ -6,7 +6,7 @@ import {
   MonitorSmartphone,
 } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
-import { useTodoStore } from '../../../todo'
+import { WindowAPI } from '@/infrastructure/windows/WindowAPI'
 import { useHorizontalScroll } from '../../hooks/useHorizontalScroll'
 import './ToolsActivity.scss'
 
@@ -49,15 +49,17 @@ export const ToolsActivity: React.FC = () => {
       icon: MessageCircle,
       label: '聊天',
       onClick: () => {
-        invoke('open_member_chat_window').catch(() => {})
+        WindowAPI.open('community').catch(() => {})
       },
     },
     {
-      key: 'todo',
+      key: 'tasks',
       icon: ListTodo,
       label: '待办清单',
       onClick: () => {
-        useTodoStore.getState().togglePanel()
+        // 「策」已是独立窗口：这里是轻量入口，完整看板在 tasks 窗口里。
+        // 到点提醒不依赖本入口——提醒由常驻 overlay 的策运行时（TodoOverlay）驱动。
+        WindowAPI.open('tasks').catch(() => {})
       },
     },
   ]

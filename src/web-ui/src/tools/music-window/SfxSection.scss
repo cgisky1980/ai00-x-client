@@ -1,6 +1,5 @@
-// === SfxPopup — 完整音效库独立浮层 ===
-// 非模态：无 backdrop，可拖动，点击外部不关闭
-// z-index 与 MusicPopup 一致 (50020)
+// === SfxSection — 「乐」窗口音效分区（原 SfxPopup，去弹层壳） ===
+// 根块填满内容分区（定位交给 music-popup__content），窗口 chrome 由 WindowTitleBar 承担
 
 @keyframes sfxPopupIn {
   from {
@@ -19,114 +18,16 @@
 }
 
 .sfx-popup {
-  position: fixed;
-  // left/top/width/height 由 useDraggable + usePopupResize 通过 inline style 控制
-  z-index: var(--z-chrome-overlay);
-  pointer-events: auto;
+  // 分区内填满：分区标题下方占据剩余高度，网格自身滚动
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
-  border-radius: var(--size-radius-lg);
-  // 实体墨面（规范 4.7：面板不做玻璃，与策窗 TodoPanel 同配方）。
-  // 暗色 = card 档浮起；亮色 = 宣纸本纸 base（与页面同纸色，靠边框+阴影分层）
-  background-color: var(--color-bg-card);
-  [data-theme-type='light'] & {
-    background-color: var(--color-bg-base);
-  }
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-xl);
   animation: sfxPopupIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
   color: var(--color-text-primary);
 
-  &.is-dragging,
-  &.is-resizing {
-    animation: none;
-    transition: none;
-    user-select: none;
-  }
-  &.is-dragging {
-    box-shadow: var(--shadow-xl);
-  }
-
   // Popup uses theme color variables (follows global light/dark theme)
-
-  // ===== Resize handles (8 directions) =====
-  &__resize-handle {
-    position: absolute;
-    z-index: 1;
-    pointer-events: auto;
-    transition: background 0.15s ease;
-
-    &:hover {
-      background: color-mix(in oklch, var(--color-accent-400) 35%, transparent);
-    }
-
-    &--n  { top: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
-    &--s  { bottom: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
-    &--e  { right: -3px; top: 8px; bottom: 8px; width: 6px; cursor: ew-resize; }
-    &--w  { left: -3px; top: 8px; bottom: 8px; width: 6px; cursor: ew-resize; }
-    &--ne { top: -3px; right: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
-    &--nw { top: -3px; left: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
-    &--se { bottom: -3px; right: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
-    &--sw { bottom: -3px; left: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
-  }
-
-  // ===== Header (drag handle) =====
-  &__header {
-    flex-shrink: 0;
-    padding: var(--size-gap-3) var(--size-gap-4);
-    // 沉一档的标题带（与策窗 TodoPanel header 同配方：sunken 深于内容面）
-    background-color: var(--color-bg-sunken);
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: var(--size-gap-2);
-    border-bottom: 1px solid var(--element-bg-subtle);
-    cursor: grab;
-    user-select: none;
-
-    &:hover .sfx-popup__drag-handle {
-      color: var(--color-text-secondary);
-    }
-
-    .is-dragging & {
-      cursor: grabbing;
-    }
-  }
-
-  &__drag-handle {
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-    opacity: 0.4;
-    transition: color 0.15s ease, opacity 0.15s ease;
-    cursor: grab;
-  }
-
-  &__title {
-    flex: 1;
-    font-size: var(--font-size-base);
-    font-weight: 600;
-    color: var(--color-text-primary);
-  }
-
-  &__close {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: all 0.15s ease;
-
-    &:hover {
-      background: var(--element-bg-medium);
-      color: var(--color-text-primary);
-    }
-  }
 
   // ===== Category tabs =====
   &__categories {
@@ -218,7 +119,7 @@
     gap: var(--size-gap-1);
     padding: var(--size-gap-2-5) var(--size-gap-1) var(--size-gap-2);
     // 规范卡片：实体墨面沉底 + border-base（与 MusicPopup 电台卡一致）
-    border: 1px solid var(--border-base);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: var(--size-radius-base);
     background: var(--color-bg-sunken);
     color: var(--color-text-secondary);
@@ -350,7 +251,7 @@
   &__footer {
     flex-shrink: 0;
     padding: var(--size-gap-2-5) var(--size-gap-4) var(--size-gap-3);
-    border-top: 1px solid var(--element-bg-subtle);
+    border-top: var(--style-stroke-width, 1px) solid var(--element-bg-subtle);
     display: flex;
     flex-direction: column;
     gap: var(--size-gap-2);

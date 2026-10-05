@@ -1,0 +1,51 @@
+// SendToRemixButton — 送去改歌/重绘按钮（自包含样式，跨分区使用）。
+
+@use '../../../component-library/styles/tokens' as *;
+
+.ai00-x-send-remix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm, 6px);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    color var(--motion-fast, 0.15s) var(--easing-standard),
+    background var(--motion-fast, 0.15s) var(--easing-standard);
+
+  &:hover {
+    color: var(--color-text-primary);
+    background: var(--element-bg-subtle, rgba(255, 255, 255, 0.1));
+  }
+}
+
+.ai00-x-send-remix__menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+  min-width: 132px;
+}
+
+.ai00-x-send-remix__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm, 13px);
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  transition: background var(--motion-instant, 0.1s) var(--easing-standard);
+
+  &:hover {
+    background: var(--element-bg-subtle, rgba(255, 255, 255, 0.1));
+  }
+}

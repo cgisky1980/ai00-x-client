@@ -1,0 +1,484 @@
+// CreateSection — 音乐创作分区（乐窗口内子分区）。
+// 全部走 design tokens：黛青唯一交互色，禁止硬编码色值/px 间距/z-index。
+
+@use '../../../component-library/styles/tokens' as *;
+
+.ai00-x-create {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--color-text-primary);
+
+  /* 生成进行中：整个创作分区模态化（不可点 + 灵印动画 + DiT 进度） */
+  &__busy {
+    &-progress {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--spacing-1);
+      width: min(60%, 20rem);
+    }
+
+    &-progress-track {
+      width: 100%;
+      height: 4px;
+      border-radius: var(--radius-full);
+      background: var(--element-bg-base);
+      overflow: hidden;
+    }
+
+    &-progress-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      background: var(--color-accent-500);
+      transition: width 0.3s linear;
+    }
+
+    &-progress-text {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  &__busy {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    background: var(--color-bg-secondary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
+  &__spin {
+    animation: ai00-x-create-spin 1s linear infinite;
+  }
+
+
+
+
+
+
+  &__empty-actions {
+    display: flex;
+    gap: var(--spacing-2);
+  }
+
+
+  &__error {
+    margin: var(--spacing-2) var(--spacing-3) 0;
+    padding: var(--spacing-2) var(--spacing-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    font-size: var(--font-size-sm);
+  }
+
+  &__body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  &__editor {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  &__list-expand {
+    width: 1.6rem;
+    flex-shrink: 0;
+    border: none;
+    border-right: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    background: none;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-base);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--element-bg-subtle);
+      color: var(--color-text-primary);
+    }
+  }
+
+  &__loading,
+  &__empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-3);
+    color: var(--color-text-muted);
+  }
+
+  &__empty-actions {
+    gap: var(--spacing-2);
+  }
+}
+
+.ai00-x-create-list {
+  width: 13rem;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: var(--style-stroke-width, 1px) solid var(--border-subtle);
+  min-height: 0;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-2);
+    padding: var(--spacing-3);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    letter-spacing: 0.08em;
+  }
+
+  &__new {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-0-5);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    letter-spacing: normal;
+    padding: var(--size-gap-0-5) var(--spacing-2);
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      border-color: var(--border-strong);
+      color: var(--color-text-primary);
+    }
+  }
+
+  &__items {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: background var(--motion-instant) var(--easing-standard);
+
+    &:hover {
+      background: var(--element-bg-subtle);
+
+      .ai00-x-create-list__delete {
+        opacity: 1;
+      }
+    }
+
+    &.is-active {
+      background: var(--element-bg-base);
+      border-left-color: var(--color-accent-500);
+    }
+  }
+
+  &__icon {
+    color: var(--color-text-muted);
+    display: flex;
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-0-5);
+  }
+
+  &__title {
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__badge {
+    padding: 0 var(--spacing-1);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-2xs);
+    line-height: 1.6;
+
+    &--quick {
+      background: var(--element-bg-medium);
+      color: var(--color-accent-500);
+    }
+
+    &--track {
+      background: var(--element-bg-medium);
+      color: var(--color-purple-500);
+    }
+  }
+
+  &__collapse {
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--size-gap-0-5);
+    border-radius: var(--radius-sm);
+
+    &:hover {
+      background: var(--element-bg-subtle);
+      color: var(--color-text-primary);
+    }
+  }
+
+  &__delete {
+    opacity: 0;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--spacing-1);
+    border-radius: var(--radius-sm);
+
+    &:hover {
+      color: var(--color-error);
+      background: var(--element-bg-subtle);
+    }
+  }
+}
+
+.ai00-x-create__new-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 8rem;
+  padding: var(--spacing-1);
+  gap: var(--size-gap-0-5);
+}
+
+.ai00-x-create__new-item {
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--element-bg-subtle);
+  }
+}
+
+@keyframes ai00-x-create-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ModelSelector — 本地音乐合成模型（DiT 档位）选择器
+.ai00-x-model-select {
+  &__trigger {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
+    border-radius: var(--radius-sm);
+    background: var(--element-bg-subtle);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    padding: var(--size-gap-0-5) var(--spacing-2);
+    cursor: pointer;
+    min-width: 7.5rem;
+
+    &:hover {
+      border-color: var(--border-strong);
+    }
+  }
+
+  &__label {
+    flex: 1;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  &__progress {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-0-5);
+    font-size: var(--font-size-2xs);
+    color: var(--color-accent-500);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__menu {
+    display: flex;
+    flex-direction: column;
+    min-width: 14rem;
+    gap: var(--size-gap-0-5);
+  }
+
+  &__hint {
+    margin: 0;
+    padding: var(--spacing-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    border-radius: var(--radius-sm);
+
+    &.is-missing .ai00-x-model-select__option {
+      color: var(--color-text-muted);
+    }
+
+    &:hover {
+      background: var(--element-bg-subtle);
+    }
+  }
+
+  &__option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    padding: var(--spacing-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+
+  &__name {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+  }
+
+  &__badge {
+    font-size: var(--font-size-2xs);
+    padding: 0 var(--spacing-1);
+    border-radius: var(--radius-sm);
+    background: var(--element-bg-medium);
+    color: var(--color-text-secondary);
+  }
+
+  &__meta {
+    flex: 1;
+    text-align: right;
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__download {
+    border: none;
+    background: none;
+    color: var(--color-accent-500);
+    cursor: pointer;
+    padding: var(--spacing-1);
+    border-radius: var(--radius-sm);
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--element-bg-subtle);
+    }
+  }
+}
+
+// 生成物（样例）竖排卡片——Quick 与 Track 编辑器共用。
+// 两个编辑器都是懒加载 chunk，共用样式必须随常驻的分区容器加载。
+.ai00-x-quick__sample {
+  position: relative; /* 播放器覆盖层定位锚 */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+  border-radius: var(--radius-base);
+  background: var(--color-bg-primary);
+
+  /* 生成中占位卡：spinner + 进度文案 */
+  &--pending {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+    border-style: dashed;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-4);
+  }
+}
+
+.ai00-x-quick__sample-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.ai00-x-quick__sample-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai00-x-quick__sample-player {
+  width: 100%;
+  min-width: 0;
+
+  audio {
+    width: 100%;
+    height: 2rem;
+  }
+}
+
+.ai00-x-quick__sample-actions {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}

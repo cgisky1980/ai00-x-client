@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
-import { createPortal } from 'react-dom'
 import {
+  AudioLines,
   Music,
   Pause,
   Play,
@@ -17,7 +17,6 @@ import {
   Globe,
   Loader2,
   X,
-  GripVertical,
   Share2,
   Trash2,
   Pencil,
@@ -29,36 +28,48 @@ import {
   HardDrive,
   Square,
   Plus,
+  Wand2,
+  MessageCircle,
 } from 'lucide-react'
 import { listen, emit } from '@tauri-apps/api/event'
-import { invoke, convertFileSrc } from '@tauri-apps/api/core'
-import { useAudioPlaybackStore, RADIO_PRESETS } from '../../../vrm/store/audioPlaybackStore'
-import { useAudioPlayback } from '../../../vrm/hooks/useAudioPlayback'
-import { useIslandStore } from '../../store/islandStore'
-import { useI18n } from '../../../../infrastructure/i18n'
-import { useDraggable } from '../../../../infrastructure/overlay/useDraggable'
-import { usePopupResize } from '../../hooks/usePopupResize'
-import { aceStepService } from '../../../acestep/services/AceStepService'
-import { shareService } from '../../../acestep/services/ShareService'
-import { useShareCover } from '../../../acestep/hooks/useShareCover'
-import { useBgmPlayerStore } from '../../store/bgmPlayer'
-import { useShareStore } from '../../../acestep/store/shareStore'
-import { usePlayerStore } from '../../../acestep/store/playerStore'
-import { useP2pStore } from '../../../acestep/store/p2pStore'
-import { useProfileStore, parseSongTags } from '../../../acestep/store/profileStore'
-import { useRecommendStore } from '../../../acestep/store/recommendStore'
-import { useMusicSourceStore } from '../../../music-source/musicSourceStore'
-import { useFavoritesStore } from '../../../music-source/favoritesStore'
-import { songKey, sourceDisplayName, formatDuration } from '../../../music-source/types'
-import type { OnlineSong } from '../../../music-source/types'
-import type { PlaylistItem } from '../../../acestep/store/playerStore'
-import { confirmDanger } from '../../../../component-library'
-import { ArchiveShareDialog } from '../../../acestep/components/ArchiveShareDialog'
-import { SongMetaEditDialog } from '../../../acestep/components/SongMetaEditDialog'
-import type { SongEntry } from '../../../acestep/types'
-import type { SharedSongListItem, ShareMeta } from '../../../acestep/services/ShareService'
-import type { P2pProgress } from '../../../acestep/services/P2PClient'
-import './MusicPopup.scss'
+import { convertFileSrc } from '@tauri-apps/api/core'
+import { RADIO_PRESETS } from '../vrm/store/audioPlaybackStore'
+import { useAudioRemote, ensureAudioRemoteInit } from './useAudioRemoteStore'
+import { useI18n } from '../../infrastructure/i18n'
+import { aceStepService } from '../acestep/services/AceStepService'
+import SendToRemixButton from '../acestep/create/SendToRemixButton'
+import { shareService } from '../acestep/services/ShareService'
+import { useShareCover } from '../acestep/hooks/useShareCover'
+import { useBgmPlayerStore } from '../island/store/bgmPlayer'
+import { useShareStore } from '../acestep/store/shareStore'
+import { parseEnhancedLrc, findCurrentLineIndex } from '../acestep/utils/lrcParser'
+import { useP2pStore } from '../acestep/store/p2pStore'
+import { useProfileStore, parseSongTags } from '../acestep/store/profileStore'
+import { useRecommendStore } from '../acestep/store/recommendStore'
+import { useMusicSourceStore } from '../music-source/musicSourceStore'
+import { useFavoritesStore } from '../music-source/favoritesStore'
+import { songKey, sourceDisplayName, formatDuration } from '../music-source/types'
+import type { OnlineSong } from '../music-source/types'
+import type { PlaylistItem } from '../acestep/store/playerStore'
+import { usePlayerRemoteStore, ensurePlayerRemoteInit } from './usePlayerRemoteStore'
+import { useMusicSourceRadioRemote, ensureMusicSourceRadioRemoteInit } from './useMusicSourceRadioRemote'
+import { SpectrumRing, useRhythmDriver } from './LyricParticles'
+import { confirmDanger } from '../../component-library'
+import { ArchiveShareDialog } from '../acestep/components/ArchiveShareDialog'
+import { SongMetaEditDialog } from '../acestep/components/SongMetaEditDialog'
+import { SongCommentsDialog } from './SongCommentsDialog'
+import type { SongEntry } from '../acestep/types'
+import type { SharedSongListItem, ShareMeta } from '../acestep/services/ShareService'
+import type { P2pProgress } from '../acestep/services/P2PClient'
+import './MusicWindowPage.scss'
+import { SfxSection } from './SfxSection'
+import { ComposeSection } from './ComposeSection'
+
+// 挂载音频命令桥监听（幂等单例）：快照 + 命令通道在本模块加载时即就绪
+ensureAudioRemoteInit()
+// 播放权威/电台会话镜像（权威常驻 overlay，本窗只收快照+发命令）
+ensurePlayerRemoteInit()
+ensureMusicSourceRadioRemoteInit()
 
 // ---- AceStep bridge types (mirrored from PlayerBridge.ts) ----
 interface AceStepPlayerState {
@@ -88,6 +99,9 @@ interface AceStepPlayerState {
 }
 
 const EVENT_PLAYER_STATE = 'acestep://player-state'
+const EVENT_LYRICS_STATE = 'acestep://lyrics-state'
+/** 歌词时间补偿（秒）：解码位置 → 实际听感位置的输出链路延迟，与桌面歌词浮窗一致 */
+const LYRICS_OFFSET_S = 2.5
 const EVENT_PLAYER_COMMAND = 'acestep://player-command'
 
 type PlayMode = AceStepPlayerState['playMode']
@@ -102,9 +116,11 @@ const CommunityCard: React.FC<{
   /** 该歌曲在 p2pStore 中的实时进度（下载中/做种，无则 undefined） */
   p2pProgress?: P2pProgress
   onPlay: (shareId: string) => void
+  /** 打开歌曲讨论（迁移 030：评论统一到社区帖） */
+  onDiscuss?: (shareId: string) => void
   formatPlays: (n: number) => string
   formatBytes: (n: number) => string
-}> = ({ share, isPlaying, isLoading, p2pProgress, onPlay, formatPlays, formatBytes }) => {
+}> = ({ share, isPlaying, isLoading, p2pProgress, onPlay, onDiscuss, formatPlays, formatBytes }) => {
   const { t } = useI18n('vrm')
   const coverUrl = useShareCover(share.shareId, share.coverUrl)
   const isDownloading = p2pProgress != null && (p2pProgress.status === 'downloading' || p2pProgress.status === 'connecting')
@@ -159,6 +175,16 @@ const CommunityCard: React.FC<{
         </span>
       </button>
       <span className="music-popup__community-extra">
+        {onDiscuss && (
+          <button
+            type="button"
+            className="music-popup__community-discuss"
+            onClick={(e) => { e.stopPropagation(); onDiscuss(share.shareId) }}
+            title={t('acestep.songDiscuss', { defaultValue: '歌曲讨论' })}
+          >
+            <MessageCircle size={12} />
+          </button>
+        )}
         {isDownloading && (
           <span className="music-popup__community-rate" title={p2pProgress ? `${formatBytes(p2pProgress.downloadRate)}/s` : ''}>
             {p2pProgress && p2pProgress.downloadRate > 0 ? `${formatBytes(p2pProgress.downloadRate)}/s` : ''}
@@ -269,52 +295,69 @@ const RecommendCard: React.FC<{
   )
 }
 
-export const MusicPopup: React.FC = () => {
+// ============================================================================
+// MarqueeText — 长标题溢出容器时 hover 触发横向循环滚动（Spotube 4.0 定式），
+// 未溢出/未 hover 保持静态截断。仅用于 NowPlayingBar（列表行密度区维持截断）。
+// ============================================================================
+const MarqueeText: React.FC<{ text: string; className?: string }> = ({ text, className }) => {
+  const innerRef = useRef<HTMLSpanElement>(null)
+  const [overflow, setOverflow] = useState(false)
+
+  useEffect(() => {
+    const el = innerRef.current
+    if (!el) return
+    const check = () => setOverflow(el.scrollWidth > el.offsetWidth + 1)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [text])
+
+  return (
+    <span className={`music-popup__marquee${overflow ? ' is-overflow' : ''}${className ? ` ${className}` : ''}`}>
+      <span ref={innerRef} className="music-popup__marquee-inner" data-text={text}>
+        {text}
+      </span>
+    </span>
+  )
+}
+
+export const MusicWindowPage: React.FC = () => {
   const { t } = useI18n('vrm')
-  const audio = useAudioPlayback()
-  const closePopup = useIslandStore((s) => s.closePopup)
-  const playMode = useAudioPlaybackStore((s) => s.playMode)
-  const setPlayMode = useAudioPlaybackStore((s) => s.setPlayMode)
-  const masterVolume = useAudioPlaybackStore((s) => s.masterVolume)
-  const setMasterVolume = useAudioPlaybackStore((s) => s.setMasterVolume)
-  const radioActive = useAudioPlaybackStore((s) => s.radioActive)
-  const radioStyle = useAudioPlaybackStore((s) => s.radioStyle)
+  // 音频引擎远程版：SSOT 在 overlay（audioPlaybackStore），本窗通过命令桥驱动
+  const audio = useAudioRemote()
+  const {
+    masterVolume,
+    setMasterVolume,
+    radioActive,
+    radioStyle,
+  } = audio
 
   // ---- Active sidebar section (left menu) ----
-  type Section = 'radio' | 'local' | 'community' | 'recommend' | 'seeding' | 'online' | 'favorites'
-  const [activeSection, setActiveSection] = useState<Section>('radio')
+  type Section = 'compose' | 'radio' | 'local' | 'community' | 'recommend' | 'seeding' | 'online' | 'favorites' | 'sfx'
+  const [activeSection, setActiveSection] = useState<Section>('online')
 
-  // ---- Open the task window and switch to the music creation (AceStep) scene ----
-  const handleOpenCreator = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'acestep' } }))
+  // ---- 跨窗分区导航（动态岛 SFX 入口：开窗后定位音效分区）----
+  useEffect(() => {
+    const sections: Section[] = ['compose', 'radio', 'local', 'community', 'recommend', 'seeding', 'online', 'favorites', 'sfx']
+    const unlisten = listen<{ section: string }>('music://navigate', (event) => {
+      const s = event.payload?.section
+      if (s && sections.includes(s as Section)) setActiveSection(s as Section)
+    })
+    return () => { void unlisten.then((fn) => fn()) }
   }, [])
-
-  // ---- Draggable, non-modal popup ----
-  // Initial position: centered horizontally below the dynamic island
-  const POPUP_WIDTH = 600
-  const POPUP_HEIGHT = 480
-  const POPUP_MIN_WIDTH = 480
-  const POPUP_MIN_HEIGHT = 360
-  const POPUP_INITIAL_X = Math.max(8, (window.innerWidth - POPUP_WIDTH) / 2)
-  const POPUP_INITIAL_Y = 56
-  const { position, setPosition, elementRef, handleMouseDown, isDragging } = useDraggable({
-    initialPosition: { x: POPUP_INITIAL_X, y: POPUP_INITIAL_Y },
-    excludeSelector: 'button, input, .music-popup__close, .music-popup__nav-item, .music-popup__volume-slider, .music-popup__progress, .music-popup__resize-handle',
-  })
-
-  // ---- Resizable popup (8-direction edges + corners) ----
-  const { size, activeResize, handleResizeMouseDown } = usePopupResize({
-    initialSize: { width: POPUP_WIDTH, height: POPUP_HEIGHT },
-    minWidth: POPUP_MIN_WIDTH,
-    minHeight: POPUP_MIN_HEIGHT,
-    getPosition: useCallback(() => position, [position]),
-    setPosition,
-    elementRef,
-  })
 
   // ---- AceStep state (from cross-window event) ----
   const [acestepState, setAcestepState] = useState<AceStepPlayerState | null>(null)
   const acestepTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ---- 电台歌词：电台舞台下方的滚动歌词区（消费 lyrics-state 事件的 lrcText）----
+  const [radioLrcText, setRadioLrcText] = useState<string | null>(null)
+  const radioLyricsRef = useRef<HTMLDivElement | null>(null)
+
+  // ---- 歌词特效已固化（黛青 + 呼吸 + 模糊聚焦 + 星尘粒子），不再提供选择 ----
+  const radioAtmoRef = useRef<HTMLDivElement | null>(null)
+  const radioPulseRef = useRef<HTMLDivElement | null>(null)
 
   // ---- AceStep local song list ----
   const [acestepSongs, setAcestepSongs] = useState<SongEntry[]>([])
@@ -342,21 +385,48 @@ export const MusicPopup: React.FC = () => {
   const msEnsureReady = useMusicSourceStore((s) => s.ensureReady)
   const [loadingOnlineId, setLoadingOnlineId] = useState<string | null>(null)
 
-  // ---- 播放列表（队列）面板：同窗口直读 playerStore ----
+  // ---- 播放列表（队列）面板：播放权威常驻 overlay，这里用遥控镜像 ----
   const [queueOpen, setQueueOpen] = useState(false)
-  const queuePlaylist = usePlayerStore((s) => s.playlist)
-  const queueIndex = usePlayerStore((s) => s.currentIndex)
-  const queueJumpTo = usePlayerStore((s) => s.jumpTo)
-  const queueRemove = usePlayerStore((s) => s.removeFromPlaylist)
-  const queueClear = usePlayerStore((s) => s.clearPlaylist)
-  const queueAppend = usePlayerStore((s) => s.appendToPlaylist)
+  const queuePlaylist = usePlayerRemoteStore((s) => s.playlist)
+  const queueIndex = usePlayerRemoteStore((s) => s.currentIndex)
+  const queueJumpTo = usePlayerRemoteStore((s) => s.queueJumpTo)
+  const queueRemove = usePlayerRemoteStore((s) => s.removeFromPlaylist)
+  const queueClear = usePlayerRemoteStore((s) => s.clearPlaylist)
+  const queueAppend = usePlayerRemoteStore((s) => s.appendToPlaylist)
 
-  const msRadioActive = useMusicSourceStore((s) => s.radioActive)
-  const msRadioCurrent = useMusicSourceStore((s) => s.radioCurrent)
-  const msRadioCurrentSong = useMusicSourceStore((s) => s.radioCurrentSong)
-  const msStartRadio = useMusicSourceStore((s) => s.startRadio)
-  const msRadioNext = useMusicSourceStore((s) => s.radioNext)
-  const msStopRadio = useMusicSourceStore((s) => s.stopRadio)
+  // ---- 歌曲讨论（迁移 030：评论统一到社区帖）----
+  const [discussing, setDiscussing] = useState<{ shareId: string; title: string } | null>(null)
+
+  // ---- 歌曲电台会话：权威在常驻 overlay，镜像 + 遥控 ----
+  const msRadioActive = useMusicSourceRadioRemote((s) => s.radioActive)
+  const msRadioCurrent = useMusicSourceRadioRemote((s) => s.radioCurrent)
+  const msRadioCurrentSong = useMusicSourceRadioRemote((s) => s.radioCurrentSong)
+  const radioStart = useMusicSourceRadioRemote((s) => s.start)
+  const radioStop = useMusicSourceRadioRemote((s) => s.stop)
+  const radioSkip = useMusicSourceRadioRemote((s) => s.skip)
+  const radioError = useMusicSourceRadioRemote((s) => s.error)
+  const radioClearError = useMusicSourceRadioRemote((s) => s.clearError)
+
+  // ---- 电台歌词解析 + 当前行（仅电台激活时参与渲染）----
+  const radioParsed = useMemo(
+    () => (msRadioActive && radioLrcText?.trim() ? parseEnhancedLrc(radioLrcText) : null),
+    [msRadioActive, radioLrcText],
+  )
+  const radioLyricTime = Math.max(0, (acestepState?.currentTime ?? 0) - LYRICS_OFFSET_S)
+  const radioLyricIndex = radioParsed
+    ? findCurrentLineIndex(radioParsed.lines, radioLyricTime)
+    : -1
+
+  // 当前行滚动居中：手动算偏移只滚歌词面板自身。禁用 scrollIntoView——
+  // 它会连带滚动所有可滚动祖先（__content），把整个弹窗一起滚走
+  useEffect(() => {
+    const container = radioLyricsRef.current
+    if (!container || radioLyricIndex < 0) return
+    const el = container.querySelector<HTMLElement>(`[data-line-idx="${radioLyricIndex}"]`)
+    if (!el) return
+    const target = el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2
+    container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' })
+  }, [radioLyricIndex, radioParsed])
 
   // ---- 在线歌曲收藏 ----
   const favorites = useFavoritesStore((s) => s.favorites)
@@ -447,7 +517,7 @@ export const MusicPopup: React.FC = () => {
       for (const [p, c] of entries) map[p] = c
       setCoverPaths(map)
     } catch (e) {
-      console.warn('[MusicPopup] failed to list AceStep songs:', e)
+      console.warn('[MusicWindow] failed to list AceStep songs:', e)
     } finally {
       setAcestepSongsLoading(false)
     }
@@ -460,7 +530,7 @@ export const MusicPopup: React.FC = () => {
       const result = await shareService.listRecent(50)
       setCommunityShares(result.songs)
     } catch (e) {
-      console.warn('[MusicPopup] failed to load community shares:', e)
+      console.warn('[MusicWindow] failed to load community shares:', e)
     } finally {
       setCommunityLoading(false)
     }
@@ -478,6 +548,16 @@ export const MusicPopup: React.FC = () => {
     return () => {
       unlisten.then((fn) => fn())
       if (acestepTimeoutRef.current) clearTimeout(acestepTimeoutRef.current)
+    }
+  }, [])
+
+  // ---- Subscribe to AceStep lyrics state（歌词文本，电台歌词区消费）----
+  useEffect(() => {
+    const unlisten = listen<{ lrcText: string | null }>(EVENT_LYRICS_STATE, (event) => {
+      setRadioLrcText(event.payload.lrcText)
+    })
+    return () => {
+      unlisten.then((fn) => fn())
     }
   }, [])
 
@@ -515,6 +595,8 @@ export const MusicPopup: React.FC = () => {
   // acestep 播放误判成电台导致灵动岛在电台/音乐间跳动。
   const vrmIsPlaying = radioActive && bgmChannel?.state === 'Playing'
   const acestepIsPlaying = acestepState?.isPlaying ?? false
+  // 低音驱动：电台氛围层呼吸 + 歌词当前行 --pulse 脉冲（直写 style，不经 re-render）
+  useRhythmDriver(msRadioActive && acestepIsPlaying, radioAtmoRef, radioPulseRef)
 
   // ---- Sync BgmPlayer.activeSource with AceStep state ----
   useEffect(() => {
@@ -649,11 +731,39 @@ export const MusicPopup: React.FC = () => {
   const topBarDuration = activeSource === 'acestep' ? (acestepState?.duration ?? 0) : (bgmChannel?.duration_secs ?? 0)
   const topBarCurrent = activeSource === 'acestep' ? (acestepState?.currentTime ?? 0) : (bgmChannel?.position_secs ?? 0)
 
+  // ---- NowPlayingBar 封面（当前播放条目，与 renderQueueRow 同源解析）----
+  // local=coverPaths / online=song.coverUrl / 歌曲电台=msRadioCurrent.coverUrl；
+  // share 与 VRM 电台无封面 → 图标占位。
+  const currentQueueItem = activeSource === 'acestep' && queueIndex >= 0 ? queuePlaylist[queueIndex] : null
+  const footerCover: string | null =
+    activeSource === 'acestep'
+      ? (msRadioActive && msRadioCurrent?.coverUrl
+          ? msRadioCurrent.coverUrl
+          : currentQueueItem
+            ? currentQueueItem.kind === 'local'
+              ? (coverPaths[currentQueueItem.entry.path] ? convertFileSrc(coverPaths[currentQueueItem.entry.path]!) : null)
+              : currentQueueItem.kind === 'online'
+                ? (currentQueueItem.song.coverUrl ?? null)
+                : null
+            : null)
+      : null
+
+  // 无封面时氛围兜底色相：歌名+艺人哈希出稳定值（每首固定，不随渲染闪变）
+  const footerHue = useMemo(() => {
+    const s = `${topBarTitle}|${topBarArtist}`
+    let h = 0
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360
+    return h
+  }, [topBarTitle, topBarArtist])
+
+  // 缓冲态（vibrdrome 定式：⏯ 位置换 spinner，防「点了没反应」误判）
+  const isBuffering = activeSource === 'acestep' && acestepState?.playbackState === 'loading'
+
   // ---- AceStep command helpers ----
   const sendAceStepCommand = useCallback(
     (action: string, payload?: Record<string, unknown>) => {
       emit(EVENT_PLAYER_COMMAND, { action, payload }).catch((e) =>
-        console.warn('[MusicPopup] emit player-command failed:', e),
+        console.warn('[MusicWindow] emit player-command failed:', e),
       )
     },
     [],
@@ -671,10 +781,10 @@ export const MusicPopup: React.FC = () => {
     async (entry: SongEntry) => {
       await useBgmPlayerStore.getState().requestActive('acestep')
       lastPlayErrorRef.current = null
-      // 整页入列 + 从点击曲开始播（播放引擎与本弹窗同在主窗口，
-      // 直接调 store；setPlaylist 内部 playItem 分发播放）
+      // 整页入列 + 从点击曲开始播（播放权威在常驻 overlay，发遥控命令；
+      // setPlaylist 内部 playItem 分发播放）
       const index = acestepSongs.findIndex((e) => e.path === entry.path)
-      await usePlayerStore
+      usePlayerRemoteStore
         .getState()
         .setPlaylist(
           acestepSongs.map((e) => ({ kind: 'local' as const, entry: e })),
@@ -708,11 +818,12 @@ export const MusicPopup: React.FC = () => {
       try {
         await removeArchiveMapping(entry.path, true)
         await aceStepService.deleteSong(entry.path)
-        if (usePlayerStore.getState().currentEntry?.path === entry.path) {
-          usePlayerStore.getState().closePlayer()
+        const ps = usePlayerRemoteStore.getState()
+        if (ps.currentEntry?.path === entry.path) {
+          ps.closePlayer()
         }
       } catch (e) {
-        console.warn('[MusicPopup] Failed to delete song:', e)
+        console.warn('[MusicWindow] Failed to delete song:', e)
       } finally {
         setDeletingPath(null)
         void fetchAcestepSongs()
@@ -738,17 +849,17 @@ export const MusicPopup: React.FC = () => {
       setCurrentShareId(shareId)
       setLoadingShareId(shareId)
       // 整页入列（community/recommend 页传 sourceList）+ 从点击曲播；
-      // 引擎与本弹窗同窗口，直接调 store
+      // 播放权威在常驻 overlay，这里发遥控命令
       if (sourceList && sourceList.length > 0) {
         const index = Math.max(0, sourceList.findIndex((s) => s.shareId === shareId))
-        await usePlayerStore
+        usePlayerRemoteStore
           .getState()
           .setPlaylist(
             sourceList.map((s) => ({ kind: 'share' as const, shareId: s.shareId, meta: s })),
             index,
           )
       } else {
-        await usePlayerStore.getState().setPlaylist([
+        usePlayerRemoteStore.getState().setPlaylist([
           { kind: 'share', shareId, meta: undefined },
         ])
       }
@@ -777,7 +888,7 @@ export const MusicPopup: React.FC = () => {
       setLoadingOnlineId(onlineId)
       const list = songList && songList.length > 0 ? songList : [song]
       const index = Math.max(0, list.findIndex((s) => songKey(s) === onlineId))
-      await usePlayerStore
+      usePlayerRemoteStore
         .getState()
         .setPlaylist(list.map((s) => ({ kind: 'online' as const, song: s })), index)
       // flac 全曲下载可能较慢，loading 超时放宽到 60s
@@ -788,40 +899,47 @@ export const MusicPopup: React.FC = () => {
     [sendAceStepCommand, acestepState?.source, acestepState?.isPlaying, acestepState?.currentOnlineId],
   )
 
-  // ---- musicdl 电台：启动 / 下一首 / 停止 ----
+  // ---- musicdl 电台：启动 / 下一首 / 停止（遥控命令，权威在常驻 overlay）----
   const radioStartingRef = useRef(false)
   const handleRadioToggle = useCallback(
     async () => {
       if (msRadioActive) {
-        msStopRadio()
+        // 权威端 stop：复位电台会话并暂停当前歌（状态与听觉一致）
+        radioStop()
         return
       }
       if (radioStartingRef.current) return
       radioStartingRef.current = true
       try {
         await useBgmPlayerStore.getState().requestActive('acestep')
-        const song = await msStartRadio()
-        if (song) await handlePlayOnline(song)
-      } catch (e) {
-        setToastMsg(t('audio.island.music.online.radioError', {
-          defaultValue: '电台启动失败：{{msg}}',
-          msg: e instanceof Error ? e.message : String(e),
-        }))
+        radioStart()
       } finally {
         radioStartingRef.current = false
       }
     },
-    [msRadioActive, msStopRadio, msStartRadio, handlePlayOnline, t],
+    [msRadioActive, radioStop, radioStart],
   )
 
   const handleRadioSkip = useCallback(
     async () => {
-      const song = await msRadioNext()
-      if (song) await handlePlayOnline(song)
-      else setToastMsg(t('audio.island.music.online.radioEnd', { defaultValue: '电台已停止（暂无可播曲目）' }))
+      radioSkip()
     },
-    [msRadioNext, handlePlayOnline, t],
+    [radioSkip],
   )
+
+  // 电台遥控错误反馈（启动失败 / 池尽 radio-end）
+  useEffect(() => {
+    if (!radioError) return
+    if (radioError === 'radio-end') {
+      setToastMsg(t('audio.island.music.online.radioEnd', { defaultValue: '电台已停止（暂无可播曲目）' }))
+    } else {
+      setToastMsg(t('audio.island.music.online.radioError', {
+        defaultValue: '电台启动失败：{{msg}}',
+        msg: radioError,
+      }))
+    }
+    radioClearError()
+  }, [radioError, radioClearError, t])
 
   // ---- 电台播放中强制收起播放列表面板（电台不用列表） ----
   useEffect(() => {
@@ -927,16 +1045,6 @@ export const MusicPopup: React.FC = () => {
     })
   }, [queuePlaylist.length, queueClear, t])
 
-  // ---- musicdl：清空在线缓存（释放磁盘）----
-  const handleClearOnlineCache = useCallback(() => {
-    void invoke<number>('musicfree_clear_cache').then((freed) => {
-      setToastMsg(t('audio.island.music.online.cacheCleared', {
-        defaultValue: '已清理在线缓存（{{size}}）',
-        size: formatBytes(freed),
-      }))
-    })
-  }, [t, formatBytes])
-
   // ---- VRM radio handlers ----
   const handleRadioSelect = async (styleId: string) => {
     if (audio.radioActive && audio.radioStyle === styleId) {
@@ -1035,13 +1143,17 @@ export const MusicPopup: React.FC = () => {
   const hasSong = activeSource === 'acestep' ? !!acestepState?.currentSong : !!bgmChannel
 
   // 当前在线播放歌曲的收藏状态（currentOnlineId 即 songKey 格式）：
-  // 优先从正在播的 playlist 条目取完整对象（收藏列表未含时仍可收藏）
+  // 取歌对象的三级兜底：播放列表条目 → 电台镜像当前曲 → 已收藏列表
   const currentOnlineSong =
     acestepState?.source === 'online' && queueIndex >= 0 && queuePlaylist[queueIndex]?.kind === 'online'
       ? queuePlaylist[queueIndex].song
       : null
-  const currentOnlineFavSong = currentOnlineSong
-    ?? (acestepState?.currentOnlineId ? useFavoritesStore.getState().findByKey(acestepState.currentOnlineId) : null)
+  const currentOnlineFavSong =
+    currentOnlineSong
+    ?? (msRadioActive ? msRadioCurrentSong : null)
+    ?? (acestepState?.currentOnlineId
+        ? favorites.find((s) => songKey(s) === acestepState.currentOnlineId) ?? null
+        : null)
   const currentOnlineFavored = currentOnlineFavSong
     ? favorites.some((s) => songKey(s) === songKey(currentOnlineFavSong))
     : false
@@ -1090,43 +1202,10 @@ export const MusicPopup: React.FC = () => {
     }
   }
 
-  return createPortal(
+  return (
     <div
-      ref={elementRef}
-      className={`music-popup no-penetrate${isDragging ? ' is-dragging' : ''}${activeResize ? ' is-resizing' : ''}${!hasSong ? ' music-popup--no-player' : ''}`}
-      style={{ left: position.x, top: position.y, width: size.width, height: size.height }}
-      onClick={(e) => e.stopPropagation()}
+      className={`music-popup${!hasSong ? ' music-popup--no-player' : ''}`}
     >
-      {/* ===== Resize handles (8 directions) ===== */}
-      <div className="music-popup__resize-handle music-popup__resize-handle--n" onMouseDown={handleResizeMouseDown('n')} />
-      <div className="music-popup__resize-handle music-popup__resize-handle--s" onMouseDown={handleResizeMouseDown('s')} />
-      <div className="music-popup__resize-handle music-popup__resize-handle--e" onMouseDown={handleResizeMouseDown('e')} />
-      <div className="music-popup__resize-handle music-popup__resize-handle--w" onMouseDown={handleResizeMouseDown('w')} />
-      <div className="music-popup__resize-handle music-popup__resize-handle--ne" onMouseDown={handleResizeMouseDown('ne')} />
-      <div className="music-popup__resize-handle music-popup__resize-handle--nw" onMouseDown={handleResizeMouseDown('nw')} />
-      <div className="music-popup__resize-handle music-popup__resize-handle--se" onMouseDown={handleResizeMouseDown('se')} />
-      <div className="music-popup__resize-handle music-popup__resize-handle--sw" onMouseDown={handleResizeMouseDown('sw')} />
-
-      {/* ===== Header: drag handle + close ===== */}
-      <div
-        className="music-popup__header"
-        onMouseDown={handleMouseDown}
-      >
-        <GripVertical size={14} className="music-popup__drag-handle" />
-        <Music size={14} className="music-popup__header-icon" />
-        <span className="music-popup__header-title">
-          AI00-Music
-        </span>
-        <button
-          className="music-popup__close"
-          onClick={(e) => { e.stopPropagation(); closePopup('music') }}
-          onMouseDown={(e) => e.stopPropagation()}
-          title={t('audio.island.collapse', { defaultValue: '收起' })}
-        >
-          <X size={16} />
-        </button>
-      </div>
-
         {toastMsg && (
           <div className="music-popup__toast" role="status">
             <span className="music-popup__toast-icon"><Copy size={11} /></span>
@@ -1137,21 +1216,8 @@ export const MusicPopup: React.FC = () => {
         {/* ===== Body: left nav + right content ===== */}
         <div className="music-popup__body">
           {/* ---- Left sidebar: navigation menu ---- */}
+          {/* 分组：电台（歌曲/纯音）｜ 我的（作品/推荐/热门/收藏）｜ 工具（音效/创作） */}
           <nav className="music-popup__nav">
-            <button
-              type="button"
-              className={`music-popup__nav-item${activeSection === 'radio' ? ' is-active' : ''}`}
-              onClick={(e) => { e.stopPropagation(); setActiveSection('radio') }}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <Radio size={14} className="music-popup__nav-icon" />
-              <span className="music-popup__nav-label">
-                {t('audio.mode.radio', { defaultValue: '电台' })}
-              </span>
-              {radioActive && (
-                <span className="music-popup__nav-indicator" />
-              )}
-            </button>
             <button
               type="button"
               className={`music-popup__nav-item${activeSection === 'online' ? ' is-active' : ''}`}
@@ -1169,13 +1235,28 @@ export const MusicPopup: React.FC = () => {
             </button>
             <button
               type="button"
+              className={`music-popup__nav-item${activeSection === 'radio' ? ' is-active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setActiveSection('radio') }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <Radio size={14} className="music-popup__nav-icon" />
+              <span className="music-popup__nav-label">
+                {t('audio.mode.radio', { defaultValue: '纯音电台' })}
+              </span>
+              {radioActive && (
+                <span className="music-popup__nav-indicator" />
+              )}
+            </button>
+            <div className="music-popup__nav-divider" role="separator" />
+            <button
+              type="button"
               className={`music-popup__nav-item${activeSection === 'local' ? ' is-active' : ''}`}
               onClick={(e) => { e.stopPropagation(); setActiveSection('local') }}
               onMouseDown={(e) => e.stopPropagation()}
             >
               <Music size={14} className="music-popup__nav-icon" />
               <span className="music-popup__nav-label">
-                {t('acestep.library', { defaultValue: '本地作品' })}
+                {t('acestep.library', { defaultValue: '我的作品' })}
               </span>
               <span className="music-popup__nav-count">{acestepSongs.length}</span>
             </button>
@@ -1216,12 +1297,42 @@ export const MusicPopup: React.FC = () => {
               </span>
               <span className="music-popup__nav-count">{favorites.length + profile.likedIds.length}</span>
             </button>
+            <div className="music-popup__nav-divider" role="separator" />
+            <button
+              type="button"
+              className={`music-popup__nav-item${activeSection === 'sfx' ? ' is-active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setActiveSection('sfx') }}
+              onMouseDown={(e) => e.stopPropagation()}
+              title={t('audio.island.collapse', { defaultValue: '音效库' })}
+            >
+              <AudioLines size={14} className="music-popup__nav-icon" />
+              <span className="music-popup__nav-label">
+                {t('island.activity.sfx', { defaultValue: '音效' })}
+              </span>
+              {audio.sfxChannels.length > 0 && (
+                <span className="music-popup__nav-indicator" />
+              )}
+            </button>
+            <button
+              type="button"
+              className={`music-popup__nav-item${activeSection === 'compose' ? ' is-active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setActiveSection('compose') }}
+              onMouseDown={(e) => e.stopPropagation()}
+              title={t('acestep.openCreator', { defaultValue: '创作（AI 音乐生成工作台）' })}
+            >
+              <Wand2 size={14} className="music-popup__nav-icon" />
+              <span className="music-popup__nav-label">
+                {t('acestep.tab.compose', { defaultValue: '创作' })}
+              </span>
+            </button>
             {/* 做种管理：nav 隐藏（P2P 做种后台自动进行；seeding section
                 保留，activeSection 状态仍可达，仅无入口） */}
           </nav>
 
           {/* ---- Right content: section body ---- */}
           <div className="music-popup__content">
+          {/* ---- 创作分区（AceStep 工作台，Step 4 迁入） ---- */}
+          {activeSection === 'compose' && <ComposeSection />}
           {/* ---- 电台组 ---- */}
           {activeSection === 'radio' && (
             <section className="music-popup__section">
@@ -1275,12 +1386,12 @@ export const MusicPopup: React.FC = () => {
           <section className="music-popup__section">
             <h3 className="music-popup__section-title">
               <Music size={12} />
-              <span>{t('acestep.library', { defaultValue: '本地作品' })}</span>
+              <span>{t('acestep.library', { defaultValue: '我的作品' })}</span>
               <span className="music-popup__section-count">{acestepSongs.length}</span>
               <button
                 type="button"
                 className="music-popup__create-btn"
-                onClick={(e) => { e.stopPropagation(); handleOpenCreator() }}
+                onClick={(e) => { e.stopPropagation(); setActiveSection('compose') }}
                 onMouseDown={(e) => e.stopPropagation()}
                 title={t('acestep.openCreator', { defaultValue: '打开音乐创作' })}
               >
@@ -1355,6 +1466,11 @@ export const MusicPopup: React.FC = () => {
                             <Share2 size={10} />
                           </span>
                         )}
+                        <SendToRemixButton
+                          entry={entry}
+                          name={meta?.title ?? entry.filename}
+                          durationSeconds={meta?.durationSeconds ?? 0}
+                        />
                         <button
                           type="button"
                           className="music-popup__song-action"
@@ -1488,6 +1604,10 @@ export const MusicPopup: React.FC = () => {
                       isLoading={loadingShareId === share.shareId}
                       p2pProgress={p2pProgressMap[share.shareId]}
                       onPlay={(id: string) => void handlePlayShare(id, communityShares)}
+                      onDiscuss={(id: string) => {
+                        const s = communityShares.find((x) => x.shareId === id)
+                        setDiscussing({ shareId: id, title: s?.title ?? '' })
+                      }}
                       formatPlays={formatPlays}
                       formatBytes={formatBytes}
                     />
@@ -1500,22 +1620,29 @@ export const MusicPopup: React.FC = () => {
 
           {/* ---- 在线音源组（musicdl sidecar）---- */}
           {activeSection === 'online' && (
-          <section className="music-popup__section music-popup__section--online">
+          <section className={`music-popup__section music-popup__section--online${msRadioActive ? ' is-radio-live' : ''}`}>
+            {/* AMLL 式封面氛围层：铺满整个电台分区（外扩盖住内容区留白），随低音呼吸 */}
+            {msRadioActive && (
+              <div className="music-popup__online-radio-atmo" aria-hidden="true">
+                <div ref={radioAtmoRef} className="music-popup__online-radio-atmo-inner">
+                  {msRadioCurrent?.coverUrl ? (
+                    <div
+                      key={msRadioCurrent.coverUrl}
+                      className="music-popup__online-radio-atmo-img"
+                      style={{ backgroundImage: `url("${msRadioCurrent.coverUrl}")` }}
+                    />
+                  ) : (
+                    <div
+                      className="music-popup__online-radio-atmo-fallback"
+                      style={{ '--atmo-hue': footerHue } as React.CSSProperties}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
             <h3 className="music-popup__section-title">
               <Globe size={12} />
               <span>{t('audio.island.music.online.title', { defaultValue: '在线音源' })}</span>
-              <span className="music-popup__section-actions">
-                <button
-                  type="button"
-                  className="music-popup__section-action"
-                  onClick={(e) => { e.stopPropagation(); void handleClearOnlineCache() }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  title={t('audio.island.music.online.clearCache', { defaultValue: '清空在线缓存' })}
-                >
-                  <Trash2 size={11} />
-                  <span>{t('audio.island.music.online.clearCache', { defaultValue: '清缓存' })}</span>
-                </button>
-              </span>
             </h3>
             {msPhase?.phase === 'installing' && (
               <div className="music-popup__online-degraded" role="status">
@@ -1538,65 +1665,104 @@ export const MusicPopup: React.FC = () => {
                 </button>
               </div>
             )}
-            {/* ---- 电台视图（多榜单曲池随机播放，不显示榜单） ---- */}
-            <div className="music-popup__community-list music-popup__online-list">
+            {/* ---- 电台视图：左侧唱片+信息+控制 / 右侧全高歌词 ---- */}
+            <div className={`music-popup__community-list music-popup__online-list${msRadioActive ? ' is-radio-live' : ''}`}>
                 {msRadioActive ? (
-                  <>
-                    <div className="music-popup__online-radio-nowplaying">
-                      <span className="music-popup__online-radio-cover">
-                        {msRadioCurrent?.coverUrl ? (
-                          <img src={msRadioCurrent.coverUrl} alt="" loading="lazy" />
-                        ) : (
-                          <Radio size={22} />
+                  <div className="music-popup__online-radio-stage">
+                    <div className="music-popup__online-radio-side">
+                      {/* 唱片：圆形封面播放时旋转（黑胶样式）；外圈环形频谱随音乐跳动 */}
+                      <span className="music-popup__online-radio-vinyl-wrap">
+                        <span
+                          className={`music-popup__online-radio-vinyl${acestepIsPlaying ? ' is-playing' : ''}`}
+                        >
+                          {msRadioCurrent?.coverUrl ? (
+                            <img src={msRadioCurrent.coverUrl} alt="" loading="lazy" />
+                          ) : (
+                            <Radio size={44} />
+                          )}
+                          <span className="music-popup__online-radio-vinyl-hole" aria-hidden="true" />
+                        </span>
+                        <SpectrumRing
+                          active={acestepIsPlaying}
+                          className="music-popup__online-radio-vinyl-ring"
+                        />
+                      </span>
+                      <span className="music-popup__online-radio-title" title={msRadioCurrent?.name || ''}>
+                        {msRadioCurrent?.name || t('audio.island.music.online.radioLoading', { defaultValue: '正在选曲...' })}
+                      </span>
+                      <span className="music-popup__online-radio-artist" title={msRadioCurrent?.singers || ''}>
+                        {msRadioCurrent?.singers || ''}
+                      </span>
+                      <div className="music-popup__online-radio-controls">
+                        {msRadioCurrentSong && (
+                          <button
+                            type="button"
+                            className={`music-popup__online-radio-fav${favorites.some((f) => songKey(f) === songKey(msRadioCurrentSong)) ? ' is-favored' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); handleToggleFavorite(msRadioCurrentSong) }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            title={t('audio.island.music.online.favorite', { defaultValue: '收藏' })}
+                          >
+                            <Heart size={18} fill={favorites.some((f) => songKey(f) === songKey(msRadioCurrentSong)) ? 'currentColor' : 'none'} />
+                          </button>
                         )}
-                        <span className="music-popup__online-radio-wave" aria-hidden="true">
-                          <i /><i /><i /><i />
-                        </span>
-                      </span>
-                      <span className="music-popup__online-radio-meta">
-                        <span className="music-popup__online-radio-title" title={msRadioCurrent?.name || ''}>
-                          {msRadioCurrent?.name || t('audio.island.music.online.radioLoading', { defaultValue: '正在选曲...' })}
-                        </span>
-                        <span className="music-popup__online-radio-artist" title={msRadioCurrent?.singers || ''}>
-                          {msRadioCurrent?.singers || ''}
-                        </span>
-                      </span>
-                      {msRadioCurrentSong && (
                         <button
                           type="button"
-                          className={`music-popup__online-radio-fav${favorites.some((f) => songKey(f) === songKey(msRadioCurrentSong)) ? ' is-favored' : ''}`}
-                          onClick={(e) => { e.stopPropagation(); handleToggleFavorite(msRadioCurrentSong) }}
+                          className="music-popup__online-radio-btn"
+                          onClick={(e) => { e.stopPropagation(); sendAceStepCommand('togglePlay') }}
                           onMouseDown={(e) => e.stopPropagation()}
-                          title={t('audio.island.music.online.favorite', { defaultValue: '收藏' })}
+                          title={acestepIsPlaying
+                            ? t('acestep.pause', { defaultValue: '暂停' })
+                            : t('acestep.play', { defaultValue: '播放' })}
                         >
-                          <Heart size={16} fill={favorites.some((f) => songKey(f) === songKey(msRadioCurrentSong)) ? 'currentColor' : 'none'} />
+                          {acestepIsPlaying ? <Pause size={20} /> : <Play size={20} />}
                         </button>
-                      )}
+                        <button
+                          type="button"
+                          className="music-popup__online-radio-btn"
+                          onClick={(e) => { e.stopPropagation(); void handleRadioSkip() }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          title={t('audio.island.music.online.radioSkip', { defaultValue: '下一首' })}
+                        >
+                          <SkipForward size={20} />
+                        </button>
+                        <button
+                          type="button"
+                          className="music-popup__online-radio-btn music-popup__online-radio-btn--stop"
+                          onClick={(e) => { e.stopPropagation(); void handleRadioToggle() }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          title={t('audio.island.music.online.radioStop', { defaultValue: '停止电台' })}
+                        >
+                          <Square size={16} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="music-popup__online-radio-controls">
-                      <button
-                        type="button"
-                        className="music-popup__online-radio-btn"
-                        onClick={(e) => { e.stopPropagation(); void handleRadioSkip() }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        title={t('audio.island.music.online.radioSkip', { defaultValue: '下一首' })}
+                    {/* 歌词区：右侧定高面板，当前行黛青高亮自动居中；无歌词显示占位 */}
+                    <div
+                      className="music-popup__online-radio-lyrics-wrap"
+                      ref={radioPulseRef}
+                    >
+                      <div
+                        className="music-popup__online-radio-lyrics"
+                        ref={radioLyricsRef}
                       >
-                        <SkipForward size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        className="music-popup__online-radio-btn music-popup__online-radio-btn--stop"
-                        onClick={(e) => { e.stopPropagation(); msStopRadio() }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        title={t('audio.island.music.online.radioStop', { defaultValue: '停止电台' })}
-                      >
-                        <Square size={14} />
-                      </button>
+                        {radioParsed && radioParsed.lines.length > 0 ? (
+                          radioParsed.lines.map((line, i) => (
+                            <div
+                              key={i === radioLyricIndex ? `c-${i}` : `l-${i}`}
+                              data-line-idx={i}
+                              className={`music-popup__online-radio-lyric-line${i === radioLyricIndex ? ' is-current' : ''}`}
+                            >
+                              {line.rawText}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="music-popup__online-radio-lyric-line is-empty">
+                            {t('audio.island.music.online.radioNoLyrics', { defaultValue: '暂无歌词' })}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <p className="music-popup__online-radio-desc">
-                      {t('audio.island.music.online.radioDesc', { defaultValue: '随机播放全球榜单歌曲，喜欢的歌点 ♥ 收藏（含音频）' })}
-                    </p>
-                  </>
+                  </div>
                 ) : (
                   <div className="music-popup__online-radio-start">
                     <button
@@ -1605,12 +1771,9 @@ export const MusicPopup: React.FC = () => {
                       onClick={(e) => { e.stopPropagation(); void handleRadioToggle() }}
                       onMouseDown={(e) => e.stopPropagation()}
                     >
-                      <Radio size={22} />
+                      <Radio size={30} />
                       <span>{t('audio.island.music.online.radioStart', { defaultValue: '启动全球电台' })}</span>
                     </button>
-                    <p className="music-popup__online-radio-subtitle">
-                      {t('audio.island.music.online.radioSubtitle', { defaultValue: '随机播放多国榜单歌曲，喜欢的歌可收藏' })}
-                    </p>
                   </div>
                 )}
             </div>
@@ -1895,6 +2058,7 @@ export const MusicPopup: React.FC = () => {
             </div>
           </section>
           )}
+          {activeSection === 'sfx' && <SfxSection />}
           </div>
         </div>
 
@@ -1947,43 +2111,29 @@ export const MusicPopup: React.FC = () => {
           </>
         )}
 
-        {/* ===== Footer: player controls (hidden when nothing is playing) ===== */}
+        {/* ===== Footer: NowPlayingBar 三栏定式（左信息/中传输/右工具）+ 封面氛围层 ===== */}
         {hasSong && (
         <div className="music-popup__footer">
-          {/* Compact now-playing info + progress */}
-          <div className="music-popup__footer-info">
-            <span className="music-popup__footer-title" title={topBarTitle}>{topBarTitle}</span>
-            {topBarArtist && (
-              <span className="music-popup__footer-artist" title={topBarArtist}>{topBarArtist}</span>
-            )}
-            <span className="music-popup__footer-time">
-              {formatTime(topBarCurrent)} / {formatTime(topBarDuration)}
-            </span>
-          </div>
-          {topBarDuration > 0 && (
-            <div
-              className={`music-popup__progress${activeSource === 'acestep' ? ' music-popup__progress--clickable' : ''}`}
-              onClick={handleTopBarSeek}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
+          {/* 封面氛围层：封面即主题（Cider Simple Artwork 同构），色相沉入墨阶；
+              无封面时用歌名哈希色相的柔光渐变兜底（磨砂玻璃透出的色彩来源） */}
+          <div
+            className="music-popup__atmo"
+            aria-hidden="true"
+            style={footerCover ? undefined : ({ '--atmo-hue': footerHue } as React.CSSProperties)}
+          >
+            {footerCover ? (
               <div
-                className="music-popup__progress-fill"
-                style={{ width: `${Math.min(100, topBarProgress)}%` }}
+                key={footerCover}
+                className="music-popup__atmo-img"
+                style={{ backgroundImage: `url("${footerCover}")` }}
               />
-            </div>
-          )}
-          <div className="music-popup__footer-controls">
-            {/* 播放模式按钮：歌曲电台播放中隐藏（电台不使用列表模式） */}
-            {activeSource === 'acestep' && !(msRadioActive && acestepState?.source === 'online') && (
-              <button
-                className="music-popup__footer-btn"
-                onClick={(e) => { e.stopPropagation(); handleAceStepTogglePlayMode() }}
-                onMouseDown={(e) => e.stopPropagation()}
-                title={t(`acestep.playMode.${acestepState?.playMode}`, { defaultValue: acestepState?.playMode })}
-              >
-                {acestepState && getPlayModeIcon(acestepState.playMode)}
-              </button>
+            ) : (
+              <div className="music-popup__atmo-fallback" />
             )}
+          </div>
+          {/* 左：封面 + 标题/艺人（marquee）+ 收藏/喜欢 */}
+          <div className="music-popup__footer-left">
+            {/* 收藏/喜欢：置于歌曲封面之前（用户定稿） */}
             {/* 在线歌曲收藏（当前播放为在线源时） */}
             {activeSource === 'acestep' && acestepState?.source === 'online' && currentOnlineFavSong && (
               <button
@@ -2016,53 +2166,76 @@ export const MusicPopup: React.FC = () => {
                 </button>
               </>
             )}
-            {activeSource === 'vrm' && (
-              <>
-                <button
-                  className={`music-popup__footer-btn${playMode === 'radio' ? ' is-active' : ''}`}
-                  onClick={(e) => { e.stopPropagation(); setPlayMode('radio') }}
+            <div className="music-popup__footer-cover">
+              {footerCover ? <img key={footerCover} src={footerCover} alt="" /> : <Music size={16} />}
+            </div>
+            <div className="music-popup__footer-meta">
+              {/* key=歌名/艺人：换歌时重挂触发淡入上滑过渡 */}
+              <MarqueeText key={topBarTitle} text={topBarTitle} className="music-popup__footer-title" />
+              {topBarArtist && <MarqueeText key={topBarArtist} text={topBarArtist} className="music-popup__footer-artist" />}
+            </div>
+          </div>
+          {/* 中：传输控件真居中 + 进度 + mono 时间戳 */}
+          <div className="music-popup__footer-center">
+            <div className="music-popup__footer-transport">
+              <button
+                className="music-popup__footer-btn"
+                onClick={(e) => { e.stopPropagation(); handleFooterPrev() }}
+                onMouseDown={(e) => e.stopPropagation()}
+                disabled={activeSource !== 'acestep'}
+                title={t('acestep.prev', { defaultValue: '上一首' })}
+              >
+                <SkipForward size={14} style={{ transform: 'scaleX(-1)' }} />
+              </button>
+              <button
+                className="music-popup__footer-btn music-popup__footer-btn--glow"
+                onClick={(e) => { e.stopPropagation(); handleFooterTogglePlay() }}
+                onMouseDown={(e) => e.stopPropagation()}
+                disabled={!hasSong}
+                title={isFooterPlaying ? t('acestep.pause', { defaultValue: '暂停' }) : t('acestep.play', { defaultValue: '播放' })}
+              >
+                {isBuffering ? <Loader2 size={24} className="music-popup__footer-spin" /> : isFooterPlaying ? <Pause size={24} /> : <Play size={24} />}
+              </button>
+              <button
+                className="music-popup__footer-btn"
+                onClick={(e) => { e.stopPropagation(); handleFooterNext() }}
+                onMouseDown={(e) => e.stopPropagation()}
+                disabled={activeSource === 'vrm' && audio.radioGenerating}
+                title={t('acestep.next', { defaultValue: '下一首' })}
+              >
+                <SkipForward size={14} />
+              </button>
+            </div>
+            <div className="music-popup__footer-timeline">
+              <span className="music-popup__footer-time">{formatTime(topBarCurrent)}</span>
+              {topBarDuration > 0 && (
+                <div
+                  className={`music-popup__progress${activeSource === 'acestep' ? ' music-popup__progress--clickable' : ''}`}
+                  onClick={handleTopBarSeek}
                   onMouseDown={(e) => e.stopPropagation()}
-                  title={t('audio.mode.radio')}
                 >
-                  <Radio size={14} />
-                </button>
-                <button
-                  className={`music-popup__footer-btn${playMode === 'list' ? ' is-active' : ''}`}
-                  onClick={(e) => { e.stopPropagation(); setPlayMode('list') }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  title={t('audio.mode.list')}
-                >
-                  <ListMusic size={14} />
-                </button>
-              </>
+                  <div
+                    className="music-popup__progress-fill"
+                    style={{ width: `${Math.min(100, topBarProgress)}%` }}
+                  />
+                </div>
+              )}
+              <span className="music-popup__footer-time">{formatTime(topBarDuration)}</span>
+            </div>
+          </div>
+          {/* 右：播放模式/音量/歌词/队列/P2P */}
+          <div className="music-popup__footer-right">
+            {/* 播放模式按钮：歌曲电台播放中隐藏（电台不使用列表模式） */}
+            {activeSource === 'acestep' && !(msRadioActive && acestepState?.source === 'online') && (
+              <button
+                className="music-popup__footer-btn"
+                onClick={(e) => { e.stopPropagation(); handleAceStepTogglePlayMode() }}
+                onMouseDown={(e) => e.stopPropagation()}
+                title={t(`acestep.playMode.${acestepState?.playMode}`, { defaultValue: acestepState?.playMode })}
+              >
+                {acestepState && getPlayModeIcon(acestepState.playMode)}
+              </button>
             )}
-            <button
-              className="music-popup__footer-btn"
-              onClick={(e) => { e.stopPropagation(); handleFooterPrev() }}
-              onMouseDown={(e) => e.stopPropagation()}
-              disabled={activeSource !== 'acestep'}
-              title={t('acestep.prev', { defaultValue: '上一首' })}
-            >
-              <SkipForward size={14} style={{ transform: 'scaleX(-1)' }} />
-            </button>
-            <button
-              className="music-popup__footer-btn music-popup__footer-btn--glow"
-              onClick={(e) => { e.stopPropagation(); handleFooterTogglePlay() }}
-              onMouseDown={(e) => e.stopPropagation()}
-              disabled={!hasSong}
-              title={isFooterPlaying ? t('acestep.pause', { defaultValue: '暂停' }) : t('acestep.play', { defaultValue: '播放' })}
-            >
-              {isFooterPlaying ? <Pause size={16} /> : <Play size={16} />}
-            </button>
-            <button
-              className="music-popup__footer-btn"
-              onClick={(e) => { e.stopPropagation(); handleFooterNext() }}
-              onMouseDown={(e) => e.stopPropagation()}
-              disabled={activeSource === 'vrm' && audio.radioGenerating}
-              title={t('acestep.next', { defaultValue: '下一首' })}
-            >
-              <SkipForward size={14} />
-            </button>
             <div className="music-popup__volume-group">
               <button
                 className="music-popup__footer-btn music-popup__footer-btn--volume"
@@ -2133,7 +2306,13 @@ export const MusicPopup: React.FC = () => {
           onSuccess={() => { void fetchAcestepSongs() }}
         />
       )}
-    </div>,
-    document.body,
+      {/* 歌曲讨论弹窗（迁移 030：评论统一到社区帖） */}
+      <SongCommentsDialog
+        open={discussing != null}
+        shareId={discussing?.shareId ?? ''}
+        songTitle={discussing?.title ?? ''}
+        onClose={() => setDiscussing(null)}
+      />
+    </div>
   )
 }

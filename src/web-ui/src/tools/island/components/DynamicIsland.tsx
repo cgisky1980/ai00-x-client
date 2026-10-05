@@ -1,20 +1,18 @@
 import React, { useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { emit } from '@tauri-apps/api/event'
 import { useIslandStore } from '../store/islandStore'
 import { useAudioPlaybackStore } from '../../vrm/store/audioPlaybackStore'
 import { MusicActivity } from './activities/MusicActivity'
 import { SfxActivity } from './activities/SfxActivity'
 import { ToolsActivity } from './activities/ToolsActivity'
-import { MusicPopup } from './MusicPopup/MusicPopup'
-import { SfxPopup } from './SfxPopup/SfxPopup'
+import { WindowAPI } from '@/infrastructure/windows/WindowAPI'
 import { refreshRegions } from '../../../infrastructure/overlay'
 import './DynamicIsland.scss'
 
 export const DynamicIsland: React.FC = () => {
   const state = useIslandStore((s) => s.state)
   const setState = useIslandStore((s) => s.setState)
-  const popups = useIslandStore((s) => s.popups)
-  const openPopup = useIslandStore((s) => s.openPopup)
   const setOverlayExpanded = useAudioPlaybackStore(
     (s) => s.setOverlayExpanded
   )
@@ -35,7 +33,7 @@ export const DynamicIsland: React.FC = () => {
   useEffect(() => {
     const timer = setTimeout(() => refreshRegions(), 500)
     return () => clearTimeout(timer)
-  }, [state, popups])
+  }, [state])
 
   // Hover to expand (compact -> expanded after 300ms)
   const onMouseEnter = useCallback(() => {
@@ -85,9 +83,22 @@ export const DynamicIsland: React.FC = () => {
     }
   }, [state, setState])
 
-  // Per-row popup openers (each row owns its own expand target)
-  const openMusicPopup = useCallback(() => openPopup('music'), [openPopup])
-  const openSfxPopup = useCallback(() => openPopup('sfx'), [openPopup])
+  // Per-row window openers（音乐独立窗口：弹层已退役，按钮直接开「乐」窗）。
+  // SFX 入口开窗后广播分区导航，音乐窗 listen `music://navigate` 定位音效分区。
+  const openMusicWindow = useCallback(() => {
+    WindowAPI.open('music').catch((e) =>
+      console.error('[DynamicIsland] open music window failed:', e),
+    )
+  }, [])
+  const openSfxWindow = useCallback(() => {
+    WindowAPI.open('music')
+      // 窗口创建后前端还需 bootstrap + 懒加载，延迟广播确保监听已就绪
+      .then(() => new Promise((resolve) => setTimeout(resolve, 800)))
+      .then(() => emit('music://navigate', { section: 'sfx' }))
+      .catch((e) =>
+        console.error('[DynamicIsland] open sfx window failed:', e),
+      )
+  }, [])
 
   const stateClass = `dynamic-island--${state}`
   const playingClass = isPlaying ? ' dynamic-island--playing' : ''
@@ -108,10 +119,10 @@ export const DynamicIsland: React.FC = () => {
         <div className="dynamic-island__content">
           <div className="dynamic-island__rows">
             <div className="dynamic-island__row dynamic-island__row--music">
-              <MusicActivity onOpenPopup={openMusicPopup} />
+              <MusicActivity onOpenWindow={openMusicWindow} />
             </div>
             <div className="dynamic-island__row dynamic-island__row--sfx">
-              <SfxActivity onOpenPopup={openSfxPopup} />
+              <SfxActivity onOpenWindow={openSfxWindow} />
             </div>
             <div className="dynamic-island__row dynamic-island__row--tools">
               <ToolsActivity />
@@ -119,8 +130,6 @@ export const DynamicIsland: React.FC = () => {
           </div>
         </div>
       </div>
-      {popups.includes('music') && <MusicPopup />}
-      {popups.includes('sfx') && <SfxPopup />}
     </>,
     document.body
   )

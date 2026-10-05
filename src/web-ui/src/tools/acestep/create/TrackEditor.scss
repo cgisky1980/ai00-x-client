@@ -1,0 +1,284 @@
+// TrackEditor — 分轨创作时间轴编辑器。
+
+@use '../../../component-library/styles/tokens' as *;
+
+.ai00-x-track {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 23rem;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'transport transport'
+    'timeline samples'
+    'footer samples';
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  overflow: hidden;
+
+  &__transport {
+    grid-area: transport;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  &__time {
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
+  &__transport-spacer,
+  &__footer-spacer {
+    flex: 1;
+  }
+
+  &__duration {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+
+    input {
+      width: 4rem;
+      background: var(--element-bg-subtle);
+      border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-primary);
+      font-family: var(--font-family-mono);
+      font-size: var(--font-size-xs);
+      padding: var(--size-gap-0-5) var(--spacing-1);
+    }
+  }
+
+  &__timeline {
+    grid-area: timeline;
+    position: relative;
+    min-height: 6rem;
+    min-width: 0;
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-secondary);
+    padding: var(--spacing-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    cursor: crosshair;
+    overflow-y: auto;
+  }
+
+  &__ruler {
+    position: relative;
+    height: 1.1rem;
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    margin-bottom: var(--spacing-1);
+  }
+
+  &__ruler-mark {
+    position: absolute;
+    transform: translateX(-50%);
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: 11rem 1fr;
+    gap: var(--spacing-2);
+    align-items: stretch;
+
+    &.is-busy {
+      opacity: 0.7;
+    }
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+  }
+
+  &__head-name {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__gain {
+    width: 4rem;
+    accent-color: var(--color-accent-500);
+  }
+
+  &__ms {
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: var(--radius-sm);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
+    background: none;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+    cursor: pointer;
+
+    &.is-on {
+      background: var(--color-accent-500);
+      border-color: var(--color-accent-500);
+      color: var(--color-bg-primary);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__op {
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--spacing-1);
+    border-radius: var(--radius-sm);
+
+    &:hover:not(:disabled) {
+      color: var(--color-text-primary);
+      background: var(--element-bg-subtle);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__lane {
+    position: relative;
+    min-height: 2.5rem;
+    border-radius: var(--radius-sm);
+    background: var(--element-bg-subtle);
+    overflow: hidden;
+  }
+
+  &__clip {
+    position: absolute;
+    inset: 0 auto 0 0;
+  }
+
+  &__wave {
+    width: 100%;
+    height: 100%;
+    min-height: 2.5rem;
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  &__lane-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 var(--spacing-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-error);
+  }
+
+  &__playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--color-text-primary);
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  &__base-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    padding: var(--spacing-3);
+    border: 1px dashed var(--border-base);
+    border-radius: var(--radius-base);
+
+    p {
+      margin: 0;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+    }
+  }
+
+  &__footer {
+    grid-area: footer;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  &__samples {
+    grid-area: samples;
+    min-height: 0;
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-secondary);
+    padding: var(--spacing-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    overflow: hidden;
+  }
+
+  &__samples-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+
+  &__samples-head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    letter-spacing: 0.08em;
+    margin-bottom: var(--spacing-2);
+  }
+
+  &__samples-count {
+    background: var(--element-bg-base);
+    border-radius: var(--radius-full);
+    min-width: 1.25rem;
+    text-align: center;
+    padding: 0 var(--spacing-1);
+  }
+}
+
+// ---- 响应式：窄窗时成品样例移到时间轴下方 ----
+@media (max-width: 1100px) {
+  .ai00-x-track {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'transport'
+      'timeline'
+      'samples'
+      'footer';
+    overflow-y: auto;
+  }
+
+  .ai00-x-track__samples {
+    max-height: 14rem;
+  }
+}

@@ -1,28 +1,15 @@
 import { create } from 'zustand'
 
 export type IslandState = 'compact' | 'expanded'
-export type IslandPopup = 'none' | 'music' | 'sfx'
 
+// 音乐/音效弹层已升级为独立「乐」窗口（music-window），islandStore 仅剩
+// 动态岛展开态管理；原 popups 机制随 MusicPopup/SfxPopup 一并退役。
 interface IslandStore {
   state: IslandState
-  popups: IslandPopup[]
-
   setState: (s: IslandState) => void
-  openPopup: (p: IslandPopup) => void
-  closePopup: (p: IslandPopup) => void
-  isPopupOpen: (p: IslandPopup) => boolean
 }
 
-export const useIslandStore = create<IslandStore>((set, get) => ({
+export const useIslandStore = create<IslandStore>((set) => ({
   state: 'compact',
-  popups: [],
-
   setState: (s) => set({ state: s }),
-  openPopup: (p) =>
-    set((s) =>
-      s.popups.includes(p) ? s : { popups: [...s.popups, p] },
-    ),
-  closePopup: (p) =>
-    set((s) => ({ popups: s.popups.filter((x) => x !== p) })),
-  isPopupOpen: (p) => get().popups.includes(p),
 }))

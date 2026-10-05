@@ -1,0 +1,486 @@
+// RemixEditor — 改歌 / 局部重绘编辑器样式。
+
+@use '../../../component-library/styles/tokens' as *;
+
+.ai00-x-remix {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4, 16px);
+  overflow-y: auto;
+}
+
+.ai00-x-remix__field-label {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-muted);
+}
+
+// ---- 源音频 + 模式 ----
+
+.ai00-x-remix__source-row {
+  display: flex;
+  gap: var(--spacing-4, 16px);
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.ai00-x-remix__source {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2, 8px);
+  padding: var(--spacing-3, 12px) var(--spacing-4, 16px);
+  border: 1px dashed var(--border-base, rgba(255, 255, 255, 0.35));
+  border-radius: var(--radius-lg, 12px);
+  min-width: 220px;
+  justify-content: center;
+}
+
+.ai00-x-remix__source-picked {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm, 13px);
+}
+
+.ai00-x-remix__source-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai00-x-remix__source-duration {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs, 12px);
+}
+
+.ai00-x-remix__modes {
+  flex: 1;
+  min-width: 260px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-2, 8px);
+}
+
+.ai00-x-remix__mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+  padding: var(--spacing-3, 12px);
+  border-radius: var(--radius-base, 8px);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle, rgba(255, 255, 255, 0.26));
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--motion-fast, 0.15s) var(--easing-standard),
+    border-color var(--motion-fast, 0.15s) var(--easing-standard);
+
+  &:hover {
+    background: var(--element-bg-subtle, rgba(255, 255, 255, 0.1));
+  }
+
+  &.is-active {
+    background: var(--element-bg-base, rgba(255, 255, 255, 0.19));
+    border-color: var(--color-accent, #60a5fa);
+  }
+}
+
+.ai00-x-remix__mode-title {
+  font-size: var(--font-size-sm, 13px);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.ai00-x-remix__mode-desc {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+// ---- 强度 ----
+
+.ai00-x-remix__strength {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+}
+
+.ai00-x-remix__strength-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+
+  input[type='range'] {
+    flex: 1;
+    max-width: 320px;
+    accent-color: var(--color-accent, #60a5fa);
+  }
+}
+
+.ai00-x-remix__strength-value {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-text-primary);
+}
+
+.ai00-x-remix__strength-hint {
+  margin: 0;
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-muted);
+}
+
+// ---- 重绘区间 ----
+
+.ai00-x-remix__region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2, 8px);
+}
+
+.ai00-x-remix__region-inputs {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+  flex-wrap: wrap;
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1, 4px);
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-muted);
+  }
+
+  input[type='number'] {
+    width: 84px;
+    padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+    border-radius: var(--radius-sm, 6px);
+    border: var(--style-stroke-width, 1px) solid var(--border-base, rgba(255, 255, 255, 0.35));
+    background: var(--element-bg-subtle, rgba(255, 255, 255, 0.1));
+    color: var(--color-text-primary);
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-sm, 13px);
+  }
+}
+
+.ai00-x-remix__region-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs, 12px);
+}
+
+.ai00-x-remix__region-presets {
+  display: flex;
+  gap: var(--spacing-2, 8px);
+  flex-wrap: wrap;
+}
+
+.ai00-x-remix__region-hint {
+  margin: 0;
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-muted);
+
+  &.is-invalid {
+    color: var(--color-error, #ef4444);
+  }
+}
+
+// ---- 描述 / 歌词卡 ----
+
+.ai00-x-remix__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3, 12px);
+  padding: var(--spacing-4, 16px);
+  border-radius: var(--radius-lg, 12px);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle, rgba(255, 255, 255, 0.26));
+  background: var(--color-bg-secondary);
+
+  &.is-disabled {
+    opacity: 0.6;
+  }
+}
+
+.ai00-x-remix__card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+
+  h3 {
+    margin: 0;
+    font-size: var(--font-size-base, 14px);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+}
+
+.ai00-x-remix__card-loading {
+  position: absolute;
+  inset: 0;
+  z-index: $z-header;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2, 8px);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--color-bg-secondary) 82%, transparent);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm, 13px);
+}
+
+.ai00-x-remix__param-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-muted);
+}
+
+.ai00-x-remix__lyrics-spacer {
+  flex: 1;
+}
+
+.ai00-x-remix__optional-hint {
+  margin: 0;
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-text-muted);
+}
+
+.ai00-x-remix__accepted {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+}
+
+.ai00-x-remix__accepted-en {
+  margin: 0;
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
+.ai00-x-remix__accepted-zh {
+  margin: 0;
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.ai00-x-remix__accepted-clear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-1, 4px);
+  border-radius: var(--radius-sm, 6px);
+
+  &:hover {
+    color: var(--color-text-primary);
+    background: var(--element-bg-subtle, rgba(255, 255, 255, 0.1));
+  }
+}
+
+.ai00-x-remix__optimization {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2, 8px);
+  padding: var(--spacing-3, 12px);
+  border-radius: var(--radius-base, 8px);
+  border: var(--style-stroke-width, 1px) solid var(--border-base, rgba(255, 255, 255, 0.35));
+  background: var(--element-bg-subtle, rgba(255, 255, 255, 0.1));
+}
+
+.ai00-x-remix__optimization-actions {
+  display: flex;
+  gap: var(--spacing-2, 8px);
+}
+
+.ai00-x-remix__lyrics-preview {
+  margin: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.ai00-x-remix__lyrics-body {
+  min-height: 120px;
+}
+
+// ---- 描述输入行 ----
+
+.ai00-x-remix__style-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-2, 8px);
+}
+
+.ai00-x-remix__style-input {
+  flex: 1;
+}
+
+.ai00-x-remix__style-send {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full, 9999px);
+  border: var(--style-stroke-width, 1px) solid var(--border-base, rgba(255, 255, 255, 0.35));
+  background: var(--element-bg-base, rgba(255, 255, 255, 0.19));
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--motion-fast, 0.15s) var(--easing-standard);
+
+  &:hover:not(:disabled) {
+    background: var(--element-bg-medium, rgba(255, 255, 255, 0.28));
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+// ---- 生成行 ----
+
+.ai00-x-remix__gen-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3, 12px);
+  flex-wrap: wrap;
+}
+
+.ai00-x-remix__gen-params {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4, 16px);
+  flex-wrap: wrap;
+}
+
+.ai00-x-remix__param {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-muted);
+}
+
+.ai00-x-remix__counts {
+  display: flex;
+  gap: var(--spacing-1, 4px);
+}
+
+.ai00-x-remix__count {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm, 6px);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle, rgba(255, 255, 255, 0.26));
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs, 12px);
+  cursor: pointer;
+
+  &.is-active {
+    background: var(--element-bg-medium, rgba(255, 255, 255, 0.28));
+    border-color: var(--border-strong, rgba(255, 255, 255, 0.6));
+    color: var(--color-text-primary);
+  }
+}
+
+.ai00-x-remix__generate {
+  min-width: 120px;
+}
+
+// ---- 样例组 ----
+
+.ai00-x-remix__samples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3, 12px);
+}
+
+.ai00-x-remix__samples-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  font-size: var(--font-size-sm, 13px);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.ai00-x-remix__samples-count {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.ai00-x-remix__samples-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3, 12px);
+}
+
+.ai00-x-remix__sample {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2, 8px);
+  padding: var(--spacing-3, 12px);
+  border-radius: var(--radius-base, 8px);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle, rgba(255, 255, 255, 0.26));
+
+  &--pending {
+    align-items: center;
+    flex-direction: row;
+    justify-content: center;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm, 13px);
+  }
+}
+
+.ai00-x-remix__sample-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2, 8px);
+}
+
+.ai00-x-remix__sample-label {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-text-muted);
+}
+
+.ai00-x-remix__sample-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+}
+
+.ai00-x-remix__samples-empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm, 13px);
+  text-align: center;
+  padding: var(--spacing-4, 16px) 0;
+}
