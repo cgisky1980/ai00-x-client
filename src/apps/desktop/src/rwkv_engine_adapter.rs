@@ -1,4 +1,4 @@
-use ai00_x_ai_adapters::providers::rwkv::engine::RwkvInferenceEngine;
+use ai00_x_ai_adapters::providers::rwkv::engine::{RwkvChoiceScore, RwkvInferenceEngine};
 use async_trait::async_trait;
 
 use crate::rwkv_llm;
@@ -67,6 +67,24 @@ impl RwkvInferenceEngine for DesktopRwkvEngine {
         capture: bool,
     ) -> Result<Vec<f32>, String> {
         rwkv_llm::rwkv_classify(request, prev_tier, capture).await
+    }
+
+    async fn choose(
+        &self,
+        prompt: String,
+        choices: Vec<String>,
+        calibrate: bool,
+    ) -> Result<Vec<RwkvChoiceScore>, String> {
+        let rows = rwkv_llm::rwkv_choose(prompt, choices, calibrate).await?;
+        Ok(rows
+            .iter()
+            .map(|r| RwkvChoiceScore {
+                index: r.index,
+                rank: r.rank,
+                choice: r.choice.clone(),
+                perplexity: r.perplexity,
+            })
+            .collect())
     }
 
     fn is_initialized(&self) -> bool {

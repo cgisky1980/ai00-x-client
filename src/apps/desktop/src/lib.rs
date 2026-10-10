@@ -39,6 +39,7 @@ pub mod tray;
 pub use ai00_x_inference::runtime;
 pub mod chat_history_backup;
 pub mod profile_sync;
+pub mod rwkv_choose;
 pub mod rwkv_engine_adapter;
 pub mod rwkv_llm;
 pub mod selection_translate;
@@ -555,6 +556,7 @@ pub async fn run() {
             crate::rwkv_llm::rwkv_chat,
             crate::rwkv_llm::rwkv_chat_stream,
             crate::rwkv_llm::rwkv_chat_stream_cancel,
+            crate::rwkv_llm::rwkv_choose_cmd,
             crate::rwkv_llm::rwkv_clear_session_cache,
             crate::rwkv_llm::rwkv_get_default_paths,
             crate::rwkv_llm::list_rwkv_models,

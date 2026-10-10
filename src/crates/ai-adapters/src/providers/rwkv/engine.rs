@@ -2,6 +2,18 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
+#[derive(Debug, Clone)]
+pub struct RwkvChoiceScore {
+    /// 在入参 `choices` 里的下标（升序排列后仍可回溯）。
+    pub index: usize,
+    /// 升序名次（`0` = 最优）。
+    pub rank: usize,
+    /// 候选原文本。
+    pub choice: String,
+    /// 平均 NLL，**越小越优**（字段名沿用 `/v1/chooses` 的 `perplexity`）。
+    pub perplexity: f32,
+}
+
 #[async_trait]
 pub trait RwkvInferenceEngine: Send + Sync {
     #[allow(clippy::too_many_arguments)]
@@ -36,6 +48,24 @@ pub trait RwkvInferenceEngine: Send + Sync {
         _capture: bool,
     ) -> Result<Vec<f32>, String> {
         Err("classify not supported by this engine".to_string())
+    }
+
+    /// Candidate scoring (Jev-style: one forward pass, zero generated tokens):
+    /// mean NLL per candidate, ascending (`rank = 0` is the best). `prompt` and
+    /// every candidate are tokenized **verbatim** — no chat template — which is
+    /// what makes the scores comparable across hosts (desktop engine, mytown's
+    /// `model-server`, the reference `ai00-server`).
+    ///
+    /// Requires logits access, so only the local RWKV engine implements it;
+    /// remote/other engines keep the default error and callers fall back to
+    /// `infer`. Not wired into SmartRouter this round.
+    async fn choose(
+        &self,
+        _prompt: String,
+        _choices: Vec<String>,
+        _calibrate: bool,
+    ) -> Result<Vec<RwkvChoiceScore>, String> {
+        Err("choose not supported by this engine".to_string())
     }
 
     fn cancel(&self) -> Result<(), String>;

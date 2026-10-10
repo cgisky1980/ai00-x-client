@@ -25,6 +25,8 @@ use tokio::sync::{mpsc, oneshot};
 use rwkv_rsv::gpu_model::{Bundle, GpuModel, ModelBuilder, SamplerParams, State};
 use rwkv_rsv::tokenizer::Tokenizer;
 
+use crate::rwkv_choose::{Candidate, ChoiceScore};
+
 const DEBUG_LOG_LLM: bool = false;
 macro_rules! debug_print {
     ($($arg:tt)*) => {
@@ -137,6 +139,15 @@ enum PoolRequest {
         prev_tier: Option<u8>,
         capture: bool,
         reply: oneshot::Sender<Result<Vec<f32>, String>>,
+    },
+    /// 候选打分（Jev 式：单次前向、零生成 token）：逐候选算平均 NLL，升序回表。
+    /// 口径与三处 quirk 见 [`crate::rwkv_choose`]。只走主引擎——router_mini 是
+    /// 分类专用小模型，能分类不代表会打分。
+    Choose {
+        prompt: String,
+        choices: Vec<String>,
+        calibrate: bool,
+        reply: oneshot::Sender<Result<Vec<ChoiceScore>, String>>,
     },
     /// 查询当前可用分类骨干的 hidden 维度（router_mini 优先，主模型回退）；
     /// 两者皆未加载时 None。进化流程用于样本维度过滤。
@@ -785,6 +796,33 @@ fn handle_request(
             ));
             true
         }
+        PoolRequest::Choose {
+            prompt,
+            choices,
+            calibrate,
+            reply,
+        } => {
+            // 打分与分类同律：pool 线程内同步跑完再回通道（几十次单 token 前向，
+            // 短于一次生成）。router_mini 不参与——只有主模型会打分。
+            let Some(engine) = engine.as_mut() else {
+                let _ = reply.send(Err("LLM engine not initialized".to_string()));
+                return true;
+            };
+            // 打分计入主模型 keep_alive（与主模型回退分类同一条）。
+            LLM_LAST_USED_MS.store(now_ms(), Ordering::Relaxed);
+            let result = choose_with_engine(engine, &prompt, &choices, calibrate);
+            match &result {
+                Ok(rows) => log::debug!(
+                    "[rwkv] choose: {} choices, best={:?} ppl={:.4}",
+                    rows.len(),
+                    rows.first().map(|r| r.choice.as_str()),
+                    rows.first().map(|r| r.perplexity).unwrap_or(f32::NAN)
+                ),
+                Err(e) => log::warn!("[rwkv] choose failed: {e}"),
+            }
+            let _ = reply.send(result);
+            true
+        }
         PoolRequest::RouterDim { reply } => {
             let dim = router_mini
                 .as_ref()
@@ -979,6 +1017,56 @@ fn classify_with_engine(
     Ok((probs.to_vec(), hidden))
 }
 
+/// 候选打分（Jev 式：单次前向、零生成 token）。口径与三处 quirk 见
+/// [`crate::rwkv_choose`]，语义与 mytown `model-server` 的 `/v1/chooses` 逐位对齐
+/// （那份是同一套打分数学的拷贝）。
+///
+/// prompt 与每个候选都**原样分词**：不套聊天模板、不注入前导空格——参照实现
+/// （`ai00-core/src/run.rs`）就是直接 `encode(prompt)`，套了模板分数会整体漂移，
+/// 两侧对拍也就失去可比性。
+///
+/// 复用 `classify_state`（单序列状态，与生成槽位/prefill 状态隔离）；打分入口会
+/// 先把该状态清零，因此既不继承上一次打分、也不影响在飞的生成。
+fn choose_with_engine(
+    engine: &mut PoolEngine,
+    prompt: &str,
+    choices: &[String],
+    calibrate: bool,
+) -> Result<Vec<ChoiceScore>, String> {
+    let prompt_tokens = engine
+        .tokenizer
+        .encode(prompt.as_bytes())
+        .map_err(|e| format!("failed to encode choose prompt: {}", e))?;
+    if prompt_tokens.is_empty() {
+        return Err("choose prompt encoded to zero tokens".to_string());
+    }
+    // 先全部编码再拼引用：Candidate 借的是这里的 token 缓冲，两者都活到打分结束。
+    let mut toks: Vec<Vec<u32>> = Vec::with_capacity(choices.len());
+    for t in choices {
+        toks.push(
+            engine
+                .tokenizer
+                .encode(t.as_bytes())
+                .map_err(|e| format!("failed to encode choice: {}", e))?,
+        );
+    }
+    let cands: Vec<Candidate> = choices
+        .iter()
+        .zip(&toks)
+        .map(|(text, tokens)| Candidate {
+            text: text.as_str(),
+            tokens,
+        })
+        .collect();
+    crate::rwkv_choose::score_candidates_on_model(
+        &mut engine.model,
+        &mut engine.classify_state,
+        &prompt_tokens,
+        &cands,
+        calibrate,
+    )
+}
+
 /// 按模型规模动态核减生成槽位数：RWKV state 显存随模型规模线性放大，
 /// 大模型少开槽位避免 OOM。int8 下参数量≈文件字节数：
 /// ≤6GB（3B 级）→ 16 槽；≤11GB（7B 级）→ 8 槽；更大（13B 级）→ 4 槽。
@@ -1018,7 +1106,10 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
     let use_batch_decode = model.supports_batch_decode();
     // 回落串行时把**原因**记一行：裸 bool 让事后无从判断是「模型是 fp16」还是「后端缺算子」。
     if let Some(reason) = model.batch_decode_blocker() {
-        log::info!("[rwkv] batch decode unavailable, falling back to per-slot serial: {}", reason);
+        log::info!(
+            "[rwkv] batch decode unavailable, falling back to per-slot serial: {}",
+            reason
+        );
     }
     // 兜底路径（fp16 模型无 batch 层 kernel）才需要每槽单序列状态。
     let mut slot_states = Vec::new();
@@ -1574,6 +1665,7 @@ fn migrate_slot(engine: &mut PoolEngine, from: usize, to: usize) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn sample_token(
     logits: &[f32],
     top_p: f32,
@@ -1731,6 +1823,65 @@ pub async fn rwkv_classify(
         Ok(Err(_)) => Err("classify reply channel closed".to_string()),
         Err(_) => Err("classify request timed out after 30s".to_string()),
     }
+}
+
+/// 候选打分（Jev 式：单次前向、零生成 token）：对 `choices` 逐个算平均 NLL，
+/// 返回**升序**表（`rank=0` 最优）。与 `/v1/chat/completions` 不同，`prompt` 原样
+/// 分词、不经模板渲染（口径见 [`crate::rwkv_choose`]）。
+///
+/// 走主引擎：未加载即 Err（上游自行回落生成）。30s 超时与 [`rwkv_classify`] 同一条。
+pub async fn rwkv_choose(
+    prompt: String,
+    choices: Vec<String>,
+    calibrate: bool,
+) -> Result<Vec<ChoiceScore>, String> {
+    let pool = get_inference_pool().ok_or("inference pool not started")?;
+    let (reply_tx, reply_rx) = oneshot::channel::<Result<Vec<ChoiceScore>, String>>();
+    pool.tx
+        .send(PoolRequest::Choose {
+            prompt,
+            choices,
+            calibrate,
+            reply: reply_tx,
+        })
+        .map_err(|e| format!("failed to send choose request: {}", e))?;
+    match tokio::time::timeout(Duration::from_secs(30), reply_rx).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => Err("choose reply channel closed".to_string()),
+        Err(_) => Err("choose request timed out after 30s".to_string()),
+    }
+}
+
+/// Tauri 侧的响应包装：`ChoiceScore` 是打分内核的中性类型，前端/HTTP 只需要这四个字段
+/// （与 mytown `/v1/chooses` 的 `data` 行同形）。
+#[derive(Debug, Clone, Serialize)]
+pub struct RwkvChoice {
+    pub index: usize,
+    pub rank: usize,
+    pub choice: String,
+    pub perplexity: f32,
+}
+
+impl From<&ChoiceScore> for RwkvChoice {
+    fn from(r: &ChoiceScore) -> Self {
+        Self {
+            index: r.index,
+            rank: r.rank,
+            choice: r.choice.clone(),
+            perplexity: r.perplexity,
+        }
+    }
+}
+
+/// 候选打分的前端入口（打分是本地能力，远端 provider 不参与）。
+#[tauri::command]
+pub async fn rwkv_choose_cmd(
+    prompt: String,
+    choices: Vec<String>,
+    calibrate: Option<bool>,
+) -> Result<Vec<RwkvChoice>, String> {
+    let rows = rwkv_choose(prompt, choices, calibrate.unwrap_or(false)).await?;
+    Ok(rows.iter().map(RwkvChoice::from).collect())
 }
 
 /// 查询当前分类骨干 hidden 维度（router_mini 优先，主模型回退；未就绪 = None）。

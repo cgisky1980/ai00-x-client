@@ -2,6 +2,7 @@
 //!
 //! 端点（挂本地内嵌 Salvo 2100，仅本机监听）：
 //! - `POST /ai00-internal/llm/v1/chat/completions` — OpenAI 兼容（含 SSE 流式）
+//! - `POST /ai00-internal/llm/v1/chooses` — 候选 NLL 打分（仅本地 RWKV，零生成 token）
 //! - `GET  /ai00-internal/llm/v1/models` — 逻辑模型列表
 //!
 //! 分流策略（按请求 `model` 字段）：
@@ -61,6 +62,7 @@ pub fn router() -> Router {
                 .hoop(no_cache)
                 .post(chat_completions),
         )
+        .push(Router::with_path("v1/chooses").hoop(no_cache).post(chooses))
 }
 
 #[handler]
@@ -96,6 +98,94 @@ async fn list_models(res: &mut Response) {
         }
     }
     res.body(json!({"object": "list", "data": data}).to_string());
+}
+
+/// 候选打分（Jev 式：单次前向、零生成 token）。请求体与 mytown `model-server` 的
+/// `/v1/chooses` 同形（照参照 `ai00-server/src/api/oai/choose.rs`）：
+/// `{"input":["prompt 分段…"] | "prompt":"…", "choices":[…], "calibrate":false}`，
+/// 响应 `{"object":"list","model":…,"data":[{"object":"choice","index","rank",
+/// "choice","perplexity"}]}`，`data` 按分数**升序**（`rank=0` 最优；`perplexity`
+/// 其实是平均 NLL，越小越优）。
+///
+/// ⚠ 只走本地 RWKV：打分要读 logits，远端 provider 无此能力；引擎未加载即 502，
+/// 上游自行决定回落（SmartRouter 本轮不接这条路）。
+#[handler]
+async fn chooses(req: &mut Request, res: &mut Response) {
+    let expected = ai00_s_internal_token();
+    let provided = req
+        .headers()
+        .get(INTERNAL_TOKEN_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if provided != expected {
+        res.status_code(StatusCode::UNAUTHORIZED);
+        res.body(json!({"error": {"message": "invalid internal token"}}).to_string());
+        return;
+    }
+
+    let body: Value = match req.parse_json().await {
+        Ok(v) => v,
+        Err(e) => {
+            res.status_code(StatusCode::BAD_REQUEST);
+            res.body(json!({"error": {"message": format!("invalid json: {e}")}}).to_string());
+            return;
+        }
+    };
+    // `input` 是分段数组（参照口径，拼接即 prompt）；也接受 `prompt` 单串方便 curl。
+    let prompt = match body.get("input") {
+        Some(Value::Array(parts)) => parts
+            .iter()
+            .filter_map(|p| p.as_str())
+            .collect::<Vec<_>>()
+            .join(""),
+        _ => body
+            .get("prompt")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+    };
+    let choices: Vec<String> = body
+        .get("choices")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|c| c.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let calibrate = body
+        .get("calibrate")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if prompt.is_empty() || choices.is_empty() {
+        res.status_code(StatusCode::BAD_REQUEST);
+        res.body(json!({"error": {"message": "input/prompt 与 choices 均不能为空"}}).to_string());
+        return;
+    }
+
+    match crate::rwkv_llm::rwkv_choose(prompt, choices, calibrate).await {
+        Ok(rows) => {
+            let data: Vec<Value> = rows
+                .iter()
+                .map(|r| {
+                    json!({
+                        "object": "choice",
+                        "index": r.index,
+                        "rank": r.rank,
+                        "choice": r.choice,
+                        "perplexity": r.perplexity,
+                    })
+                })
+                .collect();
+            res.body(json!({"object": "list", "model": MODEL_RWKV, "data": data}).to_string());
+        }
+        Err(e) => {
+            log::warn!("[ai-gateway] choose failed: {e}");
+            res.status_code(StatusCode::BAD_GATEWAY);
+            res.body(json!({"error": {"message": e}}).to_string());
+        }
+    }
 }
 
 /// 从破损 JSON 字符串里抢救第一个平衡的对象/数组（处理 `{...}{...}` 拼接、
