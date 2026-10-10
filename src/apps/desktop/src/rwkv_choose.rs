@@ -4,7 +4,12 @@
 //! 是独立仓库，path 依赖 mytown 会让它的 CI 断链（`rwkv-rsv` 靠 workflow clone 才成立，
 //! mytown 不在其列）。两份实现**必须同语义**——防漂移的闸不是自觉，是
 //! `参考/` 里那份两侧对拍（同 prompt 同候选，排名一致、分数差 <5e-3）。
-//! 改动数学口径请先改 mytown 那份，再原样同步过来。
+//! 改动数学口径请先改 mytown 那份，再原样同步过来。同步后两份**只允许**差两处：
+//! 措辞（那边自称 crate、这里自称模块）与测试模块上本仓惯例的
+//! `#[allow(clippy::unwrap_used)]`。校验：
+//! 校验（在 `client/` 根目录跑，输出只应有上面那几行）：
+//! `diff <(sed -n '/^use rwkv_rsv/,$p' ../mytown/rwkv-choose/src/lib.rs) \`
+//! `<(sed -n '/^use rwkv_rsv/,$p' src/apps/desktop/src/rwkv_choose.rs)`
 //!
 //! 语义规格照抄 `ai00_server/crates/ai00-core/src/run.rs` 的 choose 驱动，**含它的三处
 //! quirk**（见 [`Candidate`] 上方与 [`score_candidates`] 的 ⚠ 列表）——这里不做「顺手改进」，
