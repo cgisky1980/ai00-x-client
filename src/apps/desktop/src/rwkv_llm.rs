@@ -1016,6 +1016,10 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
         .write_u32(hist_buf, &vec![0u32; HIST_STRIDE * slot_count])
         .map_err(|e| format!("failed to zero hist buf: {}", e))?;
     let use_batch_decode = model.supports_batch_decode();
+    // 回落串行时把**原因**记一行：裸 bool 让事后无从判断是「模型是 fp16」还是「后端缺算子」。
+    if let Some(reason) = model.batch_decode_blocker() {
+        log::info!("[rwkv] batch decode unavailable, falling back to per-slot serial: {}", reason);
+    }
     // 兜底路径（fp16 模型无 batch 层 kernel）才需要每槽单序列状态。
     let mut slot_states = Vec::new();
     if !use_batch_decode {
