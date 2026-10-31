@@ -2248,8 +2248,8 @@ const BUILTIN_RWKV: &[BuiltinRwkvModel] = &[
     BuiltinRwkvModel {
         key: "rwkv-3b",
         display: "RWKV 3B",
-        // g1j 2.9b（20260831，ctx16384）int8；档位统一命名 rwkv7-(3/7/13)B-int8.st
-        //（7B/13B 待 g1j 权重就绪后跟进统一；13B 文件尚未上传仓库）
+        // g1l 2.9b（20261031，ctx34304）int8；档位统一命名 rwkv7-(3/7/13)B-int8.st
+        //（7B/13B 待权重就绪后跟进统一；13B 文件尚未上传仓库，7B 档位已于 2026-10-31 退役）
         st_rel: "rwkv/rwkv7-3B-int8.st",
         vocab_rel: "rwkv/vocab.json",
         size_bytes: 3_295_783_296,
