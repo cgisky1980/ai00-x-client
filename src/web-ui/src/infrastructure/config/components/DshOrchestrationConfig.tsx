@@ -3,7 +3,8 @@
  *
  * 两个区块：
  * 1. 帮手定义（<DSH_HOME>/agent-workers/*.md）：主对话的派发帮手（dsh-tool-subagent），
- *    markdown frontmatter（name/description/model/background/tools）+ 正文 persona；
+ *    markdown frontmatter（name/description/model/tools）+ 正文 persona；
+ *    Rust 侧把每个帮手编译成一个 agent preset（persona + 工具子集）供委派工具选中；
  * 2. Claude Code 兼容 hooks（<DSH_HOME>/hooks.json）：引擎 dsh-hooks-claude-code 桥。
  *
  * 两者都在引擎启动时读取一次——改动后需重启引擎生效（页面提供一键重启入口）。
@@ -42,7 +43,6 @@ const NEW_WORKER_TEMPLATE = `---
 name: my_worker
 description: 在这里写帮手定位（编排器按 description 选择派发）
 model: ai00-auto
-background: continuable
 tools:
   - read
   - glob
@@ -186,9 +186,7 @@ export const DshOrchestrationConfig: React.FC = () => {
             <div key={worker.fileName} className="ai00-x-dsh-orch__worker">
               <div className="ai00-x-dsh-orch__worker-main">
                 <span className="ai00-x-dsh-orch__worker-name">{worker.name}</span>
-                <span className="ai00-x-dsh-orch__worker-meta">
-                  {worker.model} · {worker.background}
-                </span>
+                <span className="ai00-x-dsh-orch__worker-meta">{worker.model}</span>
                 <span className="ai00-x-dsh-orch__worker-desc">{worker.description}</span>
                 <div className="ai00-x-dsh-orch__worker-tools">
                   {worker.tools.map(tool => (

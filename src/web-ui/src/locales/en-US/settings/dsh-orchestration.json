@@ -18,7 +18,7 @@
     "deleted": "Deleted {{name}}",
     "newPrompt": "Definition file name (lowercase, ends with .md):",
     "editorTitle": "Edit definition: {{file}}",
-    "editorHint": "Frontmatter: name (tool name, lowercase letters/digits/_/-), description (the orchestrator picks helpers by it), model (ai00-auto / ai00-salvo / other ref), background (continuable / one-shot), tools (tool allowlist); body is the helper persona.",
+    "editorHint": "Frontmatter: name (tool name, lowercase letters/digits/_/-), description (the orchestrator picks helpers by it), model (ai00-auto / ai00-api / ai00s:<sub-model> or another ref), background (continuable / one-shot), tools (tool allowlist); body is the helper persona.",
     "deleteTitle": "Delete worker: {{name}}",
     "deleteConfirm": "The helper disappears from the orchestrator's dispatch list; takes effect after engine restart. Deleting all falls back to the built-in defaults."
   },

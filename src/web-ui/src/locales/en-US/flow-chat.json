@@ -976,6 +976,7 @@
       "required": "This model requires {{tier}} plan",
       "locked": "Not available on your current plan",
       "current": "Your current plan is {{tier}}",
+      "paidOnly": "This model isn't included in your current plan; it needs a paid quota or membership",
       "comingSoon": "Upgrade feature coming soon",
       "close": "Got it",
       "inviteHint": "Or invite friends to earn credits for membership coupons"
@@ -1015,7 +1016,10 @@
       "notReady": "Model not downloaded, click to start downloading",
       "notReadyShort": "Not ready",
       "downloadNow": "Download",
-      "downloading": "Downloading"
+      "downloading": "Downloading",
+      "defaultBadge": "Default",
+      "downloaded": "Downloaded",
+      "unavailable": "Not available yet"
     },
     "customModels": {
       "sectionTitle": "Custom Model APIs",

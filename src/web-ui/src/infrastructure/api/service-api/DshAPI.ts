@@ -1,7 +1,16 @@
 /**
  * DshAPI — dsh 引擎（sidecar, 127.0.0.1:3210）的前端客户端。
  *
- * 0.1.5 协议（dsh 0.1.5-rc.2）：
+ * 协议版本：钉版 dsh 0.2.2（dsh_versions.gen.rs 决定）。
+ * 与 0.1.5 的关键差异（本文件已按新版适配）：
+ * - session/control 的 baseline 只有 `projections`；增量是
+ *   `{ sessionId, seq, changes:[{key,val}] }`，不再有独立 queue/jobs 帧；
+ * - 待处理队列以 `inbox` 投影（next-turn / next-step）为权威来源；
+ * - session/prompt 带 `mode:'queue'|'steer'` 与客户端铸造的 requestId，
+ *   `session/updateQueue` 支持 edit/remove/steer（无排序）；
+ * - `session/state` 提供 running/live 队列快照，用于回合结束与重连对账。
+ *
+ * 0.1.5 基础协议：
  * 我们自己的 UI 经内嵌服务器（2100）的同源反向代理访问 dsh：
  * - unary RPC：POST /dsh-api/<endpoint>（endpoint 斜杠路径如 session/list、
  *   $events/result；信封 {type:'client-request', rpcId, method, payload:{args}}，
@@ -12,7 +21,7 @@
  *   {type:'error'|'end', streamId}。本文件用三条逻辑流拼出旧版 events.mux 语义：
  *     · $events        —— 元事件流：ready 帧 + waterfall（approval/request、
  *       user-questions/request）+ emit + cancel；应答走 $events/result RPC
- *     · session/control —— 全局控制流：baseline + queue/jobs/projection 帧
+ *     · session/control —— 全局控制流：baseline + projection 增量（含 inbox）
  *     · session/follow  —— 每会话一条：snapshot（含 cursor）+ event 增量
  * - 会话历史：session/page（throughSeq = follow 快照的 cursor，-1 是空页不是
  *   「最新」）；模型目录：session/modelCatalog（当前选择从投影 modelSelection 取）。
@@ -153,8 +162,50 @@ export interface DshJobItem {
   finishedAt?: number;
 }
 
+/** 队列项的权威位置：next-turn=本轮结束后执行，next-step=当前步骤结束后插话。 */
+export type DshQueuePlacement = 'queued' | 'steering';
+
+/** 归一化后的待处理输入项（来源：inbox 投影 / session/state.queue）。 */
+export interface DshQueueItem {
+  /** 引擎 MessageId：updateQueue 的目标。 */
+  itemId: string;
+  text: string;
+  /** 提交时客户端铸造的 requestId（用于与本地 echo 对账）。 */
+  requestId?: string;
+  placement: DshQueuePlacement;
+}
+
+/** 会话待处理输入（Host 权威）。 */
+export interface DshInbox {
+  items: DshQueueItem[];
+  /** 产生本次投影的事件 seq（基线取 asOfSeq）。 */
+  seq: number;
+}
+
+/** 队列项变更动作（引擎词汇，无排序）。 */
+export type DshQueueAction =
+  | { kind: 'edit'; text: string }
+  | { kind: 'remove' }
+  | { kind: 'steer' };
+
+/** 会话被动状态快照（session/state）。 */
+export interface DshSessionState {
+  cursor: number;
+  active: boolean;
+  running: boolean;
+  /** 待应答的转发事件分类（approval/question/other）。 */
+  pendingInput: string[];
+  /** live Agent 的待处理队列；无 live Agent 时为 null（未知，不是空）。 */
+  queue: DshQueueItem[] | null;
+}
+
 export type DshMuxFrame =
   | { type: 'session/event'; sessionId: string; event: DshSessionEvent; view?: unknown }  | { type: 'session/subscribed'; sessionId: string; lastSeq: number }
+  /**
+   * 实时 assistant 流（session/follow 的 assistant-stream 帧折叠结果）。
+   * 已提交事件只在回合结束落盘，逐字刷新必须靠这条进程内流。
+   */
+  | { type: 'session/assistant-stream'; sessionId: string; live: DshLiveAssistant }
   /** 后台任务注册表快照（来自 session/control 流的 jobs 帧 / baseline） */
   | {
       type: 'session/jobs';
@@ -163,6 +214,11 @@ export type DshMuxFrame =
     }
   /** 投影单元更新（key: subagent/subagentTiming/title 等） */
   | { type: 'session/projection'; sessionId: string; key: string; value: unknown; seq: number }
+  /**
+   * 会话待处理输入（inbox 投影归一化结果，Host 权威）。
+   * 每次都是该会话的完整列表：直接替换，不做增量合并。
+   */
+  | { type: 'session/inbox'; sessionId: string; items: DshQueueItem[]; seq: number }
   | {
       type: 'approval/requested';
       sessionId: string;
@@ -179,7 +235,12 @@ export type DshMuxFrame =
       questionRpcId: string;
       outcome: 'answered' | 'cancelled';
     }
-  | { type: 'stream/error'; error: { code: string; message: string } };
+  | {
+      type: 'stream/error';
+      /** follow 流失败时带上所属会话；全局流（$events/control）没有 sessionId。 */
+      sessionId?: string;
+      error: { code: string; message: string };
+    };
 
 /** 待处理审批（UI 模型；rpcId 用于回显响应）。 */
 export interface DshApproval {
@@ -228,6 +289,18 @@ let rpcSeq = 0;
 
 function nextRpcId(): string {
   return `ui-${Date.now()}-${rpcSeq++}`;
+}
+
+let promptSeq = 0;
+
+/**
+ * 铸造一条 prompt 的 requestId。
+ *
+ * 必须在调用 `dshSession.prompt` **之前**生成：UI 先用它建立本地即时回显，
+ * 之后按 durable `user/message.source.rpcId` 与 inbox 行退休回显。
+ */
+export function createDshRequestId(): string {
+  return `ui-prompt-${Date.now()}-${promptSeq++}`;
 }
 
 interface WireRpcEnvelope<T> {
@@ -548,7 +621,6 @@ export interface DshWorkerSummary {
   name: string;
   description: string;
   model: string;
-  background: string;
   tools: string[];
 }
 
@@ -602,14 +674,55 @@ export const dshSnapshots = {
 const sessionCursors = new Map<string, number>();
 /** 全局 modelSelection 投影缓存（models() 的 current 来源）。 */
 const sessionModelSelection = new Map<string, DshModelSelectionProjection | undefined>();
+/** 全局 inbox 投影缓存（Host 权威待处理输入；断线重连后仍可读最后已知值）。 */
+const sessionInbox = new Map<string, DshInbox>();
 /** 等 cursor 的 waiter（新会话创建后立即拉历史时的竞态兜底）。 */
 const cursorWaiters = new Map<string, Array<(cursor: number) => void>>();
 
-function cacheProjectionValues(sessionId: string, values?: Record<string, unknown>): void {
+/** inbox 投影 wire 值 → UI 待处理项（next-turn=排队 / next-step=待插话）。 */
+function normalizeInboxValue(value: unknown): DshQueueItem[] {
+  const wire = (value ?? {}) as Record<string, unknown>;
+  const items: DshQueueItem[] = [];
+  const collect = (raw: unknown, placement: DshQueuePlacement): void => {
+    if (!Array.isArray(raw)) return;
+    for (const entry of raw) {
+      const msg = (entry ?? {}) as Record<string, unknown>;
+      const itemId = typeof msg.id === 'string' ? msg.id : '';
+      if (!itemId) continue;
+      const content = Array.isArray(msg.content) ? msg.content : [];
+      const text = content
+        .filter(b => (b as { type?: string })?.type === 'text')
+        .map(b => String((b as { text?: string }).text ?? ''))
+        .join('');
+      const source = (msg.source ?? {}) as { rpcId?: unknown; form?: unknown };
+      // 引擎注入的上下文（form 标记）不进用户可见队列
+      if (typeof source.form === 'string') continue;
+      items.push({
+        itemId,
+        text,
+        placement,
+        ...(typeof source.rpcId === 'string' ? { requestId: source.rpcId } : {}),
+      });
+    }
+  };
+  collect(wire['next-turn'], 'queued');
+  collect(wire['next-step'], 'steering');
+  return items;
+}
+
+function cacheProjectionValues(sessionId: string, values?: Record<string, unknown>, seq = 0): void {
   const sel = values?.modelSelection;
   if (sel && typeof sel === 'object') {
     sessionModelSelection.set(sessionId, sel as DshModelSelectionProjection);
   }
+  if (values && 'inbox' in values) {
+    sessionInbox.set(sessionId, { items: normalizeInboxValue(values.inbox), seq });
+  }
+}
+
+/** 读取最近一次 inbox 投影（Host 权威；未收到过返回空列表）。 */
+export function readSessionInbox(sessionId: string): DshInbox {
+  return sessionInbox.get(sessionId) ?? { items: [], seq: -1 };
 }
 
 function resolveCursor(sessionId: string): Promise<number> {
@@ -668,27 +781,84 @@ export const dshSession = {
       return res;
     }),
 
-  prompt: (sessionId: string, text: string) =>
+  /**
+   * 提交一条用户输入。
+   *
+   * - `mode:'queue'`（默认）：空闲时直接开始新回合；运行中进入待处理队列。
+   * - `mode:'steer'`：在 Agent 下一个可接收输入的安全边界插话，不取消当前回合；
+   *   安全窗口关闭时由引擎回落为队列项（不是硬中断）。
+   *
+   * `requestId` 由调用方在调用前铸造，用于本地即时回显与 durable
+   * `user/message.source.rpcId` / inbox 行对账；未传时内部生成（旧调用方）。
+   */
+  prompt: (
+    sessionId: string,
+    text: string,
+    opts?: { mode?: 'queue' | 'steer'; requestId?: string },
+  ) =>
     rpc<{ accepted: true }>('session/prompt', {
       request: {
-        // 0.1.5 起必填：客户端铸造的 prompt 关联 id（乐观回执对账用）
-        requestId: nextRpcId(),
+        requestId: opts?.requestId ?? createDshRequestId(),
         sessionId,
-        mode: 'queue',
+        mode: opts?.mode ?? 'queue',
         content: [{ type: 'text', text }],
       },
     }),
 
+  /**
+   * 修改仍待处理（尚未被领取）的队列项。
+   * 引擎只支持 edit/remove/steer，没有排序；清空队列由调用方逐项 remove 实现。
+   */
+  updateQueue: (sessionId: string, itemId: string, action: DshQueueAction) =>
+    rpc<{ accepted: true }>('session/updateQueue', {
+      request: {
+        sessionId,
+        itemId,
+        action:
+          action.kind === 'edit'
+            ? { kind: 'edit', content: [{ type: 'text', text: action.text }] }
+            : { kind: action.kind },
+      },
+    }),
+
+  /** 会话被动状态（cursor/running/队列快照）；无 live Agent 时 queue 为 null。 */
+  state: (sessionId: string): Promise<DshSessionState> =>
+    rpc<WireSessionState>('session/state', { request: { sessionId } }).then(wire => ({
+      cursor: wire.cursor,
+      active: wire.active,
+      running: wire.running,
+      pendingInput: Array.isArray(wire.pendingInput) ? wire.pendingInput : [],
+      queue:
+        wire.queue == null
+          ? null
+          : wire.queue
+              .filter(q => q.placement !== 'context')
+              .map(q => ({
+                itemId: q.id,
+                text: (q.content ?? [])
+                  .filter(b => (b as { type?: string })?.type === 'text')
+                  .map(b => String((b as { text?: string }).text ?? ''))
+                  .join(''),
+                placement: q.placement === 'steering' ? 'steering' : 'queued',
+                ...(q.rpcId ? { requestId: q.rpcId } : {}),
+              })),
+    })),
+
   cancel: (sessionId: string) =>
     rpc<{ accepted: true }>('session/cancel', { request: { sessionId } }),
 
-  /** 全量历史：session/page，throughSeq = follow 快照 cursor（-1 是空页）。 */
+  /**
+   * 全量历史：session/page（省略 throughSeq = 引擎观测到的日志末端）。
+   *
+   * 不能用 follow 快照的 cursor 当截止点——快照只在订阅时取一次，之后
+   * 新写入的事件都大于它，导致「回合结束后重拉历史」永远拿不到新内容。
+   * 先等 cursor 就绪仍保留（保证事件流已连上，与实时流同源）。
+   */
   history: async (sessionId: string) => {
-    const throughSeq = await resolveCursor(sessionId);
+    await resolveCursor(sessionId);
     const page = await rpc<{ records: WirePageRecord[]; hasMore: boolean }>('session/page', {
       request: {
         address: { kind: 'session', sessionId },
-        throughSeq,
         maxMessages: 100_000,
       },
     });
@@ -745,6 +915,13 @@ export const dshSession = {
 
 export interface DshMuxConnection {
   close: () => void;
+  /**
+   * 主动重连（不改变连接生命周期）：用于「WS 没报关闭、但后端已换进程」的
+   * 静默脱节——引擎重启后代理侧上游已死，浏览器收不到 close，事件永久断流。
+   */
+  restart: () => void;
+  /** 最近一次收到帧的时间戳（ms）；调用方据此判断事件流是否已静默。 */
+  lastActivity: () => number;
 }
 
 /** mux 逻辑流注册表条目。 */
@@ -790,11 +967,28 @@ interface WireFollowSnapshot {
   records: WirePageRecord[];
   hasMore: boolean;
   projections?: { asOfSeq: number; values?: Record<string, unknown> };
+  /** assistantStream=true 时的重连基线（进行中的 attempt 及其已产出片段）。 */
+  assistantStream?: {
+    revision: number;
+    activeAttempt?: {
+      attemptId: string;
+      stream?: Array<{ type?: string; texts?: string[] }>;
+    };
+  };
+}
+
+/** 实时 assistant 流增量帧（session/follow 的 assistant-stream item）。 */
+interface WireAssistantStreamFrame {
+  type?: string;
+  revision?: number;
+  attemptId?: string;
+  chunk?: StreamChunkShape;
 }
 
 type WireFollowItem =
   | WireFollowSnapshot
   | { type: 'event'; event: DshSessionEvent }
+  | { type: 'assistant-stream'; frame: WireAssistantStreamFrame }
   | { type: string };
 
 // ---- session/control 流的 item 值形状 ----
@@ -808,25 +1002,48 @@ interface WireJob {
   finishedAt?: number;
 }
 
+/**
+ * session/control（Host 全局控制流）帧。
+ *
+ * 钉版 dsh 0.2.2 的形状：baseline 只带 `projections`，增量是
+ * `changes[{ key, val }]`（一次事件可能改动多个投影）。
+ * 旧的独立 `queue` / `jobs` 帧已不存在——队列统一从 `inbox` 投影读取。
+ */
 interface WireControlBaseline {
   type: 'baseline';
   value: {
+    projections?: Record<string, { asOfSeq: number; values?: Record<string, unknown> }>;
+    /** 0.2.1 及更早的遗留字段（保留容错，不再依赖）。 */
     queues?: Record<string, unknown[]>;
     jobs?: Record<string, WireJob[]>;
-    projections?: Record<string, { asOfSeq: number; values?: Record<string, unknown> }>;
   };
 }
 
 type WireControlItem =
   | WireControlBaseline
   | {
-      type: 'jobs' | 'projection' | 'queue';
+      type: 'projection';
       sessionId?: string;
-      jobs?: WireJob[];
+      seq?: number;
+      changes?: Array<{ key?: string; val?: unknown }>;
+      /** 旧协议单值形状（容错）。 */
       key?: string;
       value?: unknown;
-      seq?: number;
     };
+
+/** session/state 的 wire 形状。 */
+interface WireSessionState {
+  cursor: number;
+  active: boolean;
+  running: boolean;
+  pendingInput?: string[];
+  queue?: Array<{
+    id: string;
+    placement: 'queued' | 'steering' | 'context';
+    rpcId?: string;
+    content?: unknown[];
+  }> | null;
+}
 
 /** 订阅 mux 事件流（自动重连）。返回连接句柄。rpcId 供可应答帧（approval 等）回显。 */
 export function connectMux(
@@ -836,6 +1053,8 @@ export function connectMux(
   let ws: WebSocket | null = null;
   let closed = false;
   let retry = 0;
+  /** 最近一次收到帧的时间：判断事件流是否已静默（引擎换进程后 WS 不会报 close）。 */
+  let lastFrameAt = Date.now();
 
   let nextStreamId = 1;
   const streams = new Map<string, MuxStreamEntry>();
@@ -861,13 +1080,14 @@ export function connectMux(
     openStream(
       'session/follow',
       // 0.1.5：follow 的 wire 参数名是 request（严格 codec）
-      { request: { address: { kind: 'session', sessionId }, maxMessages: 1 } },
+      // assistantStream: true → 引擎附带进程内 assistant-stream 帧（逐字刷新）
+      { request: { address: { kind: 'session', sessionId }, maxMessages: 1, assistantStream: true } },
       { kind: 'follow', sessionId },
     );
   };
 
   /** 初始拉全会话列表逐个 follow（复刻旧 events.mux「全量推送」语义）。 */
-  const followAllSessions = async (): Promise<void> => {
+  const followAllSessions = async (attempt = 0): Promise<void> => {
     try {
       const { items } = await rpc<{ items: DshSessionSummary[] }>('session/list', { _request: {} });
       if (closed) return;
@@ -876,7 +1096,10 @@ export function connectMux(
         followSession(s.sessionId);
       }
     } catch {
-      // 引擎未就绪/暂时不可达：等下一轮重连再拉
+      // 引擎未就绪/暂时不可达（重连时最常见：WS 端口先通、HTTP 还没就绪）：
+      // 必须重试，否则所有会话都不被 follow，界面再也收不到事件直到手动刷新。
+      if (closed || attempt >= 4) return;
+      setTimeout(() => void followAllSessions(attempt + 1), 1500 * (attempt + 1));
     }
   };
 
@@ -972,37 +1195,143 @@ export function connectMux(
     onFrame({ type: 'session/projection', sessionId, key, value, seq }, '');
   };
 
+  const emitInbox = (sessionId: string, seq: number): void => {
+    const inbox = readSessionInbox(sessionId);
+    onFrame({ type: 'session/inbox', sessionId, items: inbox.items, seq }, '');
+  };
+
+  /**
+   * 应用一条投影变更：写缓存 + 广播。inbox 走独立的完整列表帧，
+   * 其余（modelSelection/title/subagent…）继续走单值投影帧。
+   */
+  const applyProjection = (sessionId: string, key: string, val: unknown, seq: number): void => {
+    cacheProjectionValues(sessionId, { [key]: val }, seq);
+    if (key === 'inbox') {
+      emitInbox(sessionId, seq);
+      return;
+    }
+    emitProjection(sessionId, key, val, seq);
+  };
+
   const handleControlItem = (value: WireControlItem): void => {
     if (!value || typeof value !== 'object') return;
     const v = value as Record<string, unknown>;
     if (v.type === 'baseline') {
       const baseline = (v.value ?? {}) as NonNullable<WireControlBaseline['value']>;
+      // 0.2.1 及更早才有独立 jobs 帧：保留容错，钉版不会走到
       for (const [sessionId, jobs] of Object.entries(baseline.jobs ?? {})) {
         emitJobs(sessionId, jobs);
       }
-      for (const [sessionId, proj] of Object.entries(baseline.projections ?? {})) {
-        cacheProjectionValues(sessionId, proj.values);
+      const projections = baseline.projections ?? {};
+      // 基线是完整快照：不在基线里的会话说明其 live 状态已不存在，清空旧队列
+      for (const cachedId of [...sessionInbox.keys()]) {
+        if (!(cachedId in projections)) {
+          sessionInbox.delete(cachedId);
+          onFrame({ type: 'session/inbox', sessionId: cachedId, items: [], seq: 0 }, '');
+        }
+      }
+      for (const [sessionId, proj] of Object.entries(projections)) {
+        const seq = typeof proj.asOfSeq === 'number' ? proj.asOfSeq : 0;
+        // 基线同样是一次完整替换：没有 inbox 键就按空队列处理
+        cacheProjectionValues(sessionId, { inbox: proj.values?.inbox ?? {} }, seq);
+        emitInbox(sessionId, seq);
         for (const [key, val] of Object.entries(proj.values ?? {})) {
-          emitProjection(sessionId, key, val, proj.asOfSeq);
+          if (key === 'inbox') continue;
+          cacheProjectionValues(sessionId, { [key]: val }, seq);
+          emitProjection(sessionId, key, val, seq);
         }
       }
       return;
     }
-    if (v.type === 'jobs' && typeof v.sessionId === 'string') {
-      emitJobs(v.sessionId, Array.isArray(v.jobs) ? (v.jobs as WireJob[]) : []);
-      return;
-    }
-    if (v.type === 'projection' && typeof v.sessionId === 'string' && typeof v.key === 'string') {
-      if (v.key === 'modelSelection') {
-        cacheProjectionValues(v.sessionId, { modelSelection: v.value });
+    if (v.type !== 'projection' || typeof v.sessionId !== 'string') return;
+    const seq = typeof v.seq === 'number' ? v.seq : 0;
+    const changes = Array.isArray(v.changes) ? v.changes : [];
+    if (changes.length > 0) {
+      for (const change of changes) {
+        if (!change || typeof change.key !== 'string') continue;
+        applyProjection(v.sessionId, change.key, change.val, seq);
       }
-      emitProjection(v.sessionId, v.key, v.value, typeof v.seq === 'number' ? v.seq : 0);
       return;
     }
-    // queue 帧：旧 UI 无消费方，忽略
+    // 旧协议单值形状（容错）
+    if (typeof v.key === 'string') {
+      applyProjection(v.sessionId, v.key, v.value, seq);
+    }
   };
 
   // ---- session/follow 流帧处理 ----
+
+  /** 每会话实时流折叠状态（attemptId 用于丢弃上一轮迟到的增量）。 */
+  const liveStreams = new Map<
+    string,
+    { attemptId: string | null; text: string; reasoning: string; active: boolean }
+  >();
+
+  const emitLive = (sessionId: string): void => {
+    const live = liveStreams.get(sessionId);
+    if (!live) return;
+    onFrame(
+      {
+        type: 'session/assistant-stream',
+        sessionId,
+        live: { text: live.text, reasoning: live.reasoning, active: live.active },
+      },
+      '',
+    );
+  };
+
+  /** 把紧凑记录（text-chunks / reasoning-chunks）拼回文本（重连基线用）。 */
+  const joinRecords = (
+    stream: Array<{ type?: string; texts?: string[] }> | undefined,
+    kind: 'text-chunks' | 'reasoning-chunks',
+  ): string =>
+    (stream ?? [])
+      .filter(r => r?.type === kind)
+      .map(r => (r.texts ?? []).join(''))
+      .join('');
+
+  const handleAssistantStream = (sessionId: string, frame: WireAssistantStreamFrame): void => {
+    if (!frame || typeof frame.type !== 'string') return;
+    let live = liveStreams.get(sessionId);
+    if (frame.type === 'start') {
+      live = { attemptId: frame.attemptId ?? null, text: '', reasoning: '', active: true };
+      liveStreams.set(sessionId, live);
+      emitLive(sessionId);
+      return;
+    }
+    if (!live) {
+      live = { attemptId: frame.attemptId ?? null, text: '', reasoning: '', active: true };
+      liveStreams.set(sessionId, live);
+    }
+    // 迟到的旧 attempt 增量：丢弃（否则会串到新回合的文本里）
+    if (frame.attemptId && live.attemptId && frame.attemptId !== live.attemptId) return;
+    if (frame.type === 'end') {
+      live.active = false;
+      emitLive(sessionId);
+      return;
+    }
+    const chunk = frame.chunk;
+    if (!chunk) return;
+    switch (chunk.type) {
+      case 'text-delta':
+        live.text += chunk.text ?? '';
+        break;
+      case 'reasoning-delta':
+        live.reasoning += chunk.text ?? '';
+        break;
+      case 'block-end':
+        if (chunk.block?.type === 'tool-call') {
+          // 工具调用以提交事件为准；实时只标记仍在产出
+        }
+        break;
+      case 'finish':
+        live.active = false;
+        break;
+      default:
+        break;
+    }
+    emitLive(sessionId);
+  };
 
   const handleFollowItem = (sessionId: string, value: WireFollowItem): void => {
     if (!value || typeof value !== 'object') return;
@@ -1010,7 +1339,21 @@ export function connectMux(
     if (v.type === 'snapshot') {
       const snap = value as WireFollowSnapshot;
       settleCursor(sessionId, snap.cursor);
-      cacheProjectionValues(sessionId, snap.projections?.values);
+      const asOfSeq = typeof snap.projections?.asOfSeq === 'number' ? snap.projections.asOfSeq : 0;
+      cacheProjectionValues(sessionId, snap.projections?.values, asOfSeq);
+      // follow 快照是会话级完整投影：inbox 也要以它为准重置（重连/挂载时补齐队列）
+      emitInbox(sessionId, asOfSeq);
+      // 重连基线：进行中的 attempt 已产出的片段先垫上，后续增量再续
+      const attempt = snap.assistantStream?.activeAttempt;
+      if (attempt) {
+        liveStreams.set(sessionId, {
+          attemptId: attempt.attemptId,
+          text: joinRecords(attempt.stream, 'text-chunks'),
+          reasoning: joinRecords(attempt.stream, 'reasoning-chunks'),
+          active: true,
+        });
+        emitLive(sessionId);
+      }
       onFrame({ type: 'session/subscribed', sessionId, lastSeq: snap.cursor }, '');
       return;
     }
@@ -1018,7 +1361,10 @@ export function connectMux(
       onFrame({ type: 'session/event', sessionId, event: v.event as DshSessionEvent }, '');
       return;
     }
-    // assistant-stream 帧未订阅（assistantStream 未开），忽略
+    if (v.type === 'assistant-stream') {
+      handleAssistantStream(sessionId, (value as { frame: WireAssistantStreamFrame }).frame);
+      return;
+    }
   };
 
   // ---- WS 生命周期 ----
@@ -1028,9 +1374,12 @@ export function connectMux(
     // 同源代理：WS URL 按当前页面协议推导（http → ws）；dev 下显式指向 2100
     const base = import.meta.env.DEV ? 'http://127.0.0.1:2100' : window.location.origin;
     const wsUrl = base.replace(/^http/, 'ws') + '/dsh-ws/remote.mux';
-    ws = new WebSocket(wsUrl);
-    ws.onopen = () => {
+    const sock = new WebSocket(wsUrl);
+    ws = sock;
+    sock.onopen = () => {
+      if (ws !== sock) return;
       retry = 0;
+      lastFrameAt = Date.now();
       onStateChange?.(true);
       // 三条逻辑流：元事件 + 全局控制 + 每会话 follow
       nextStreamId = 1;
@@ -1039,7 +1388,9 @@ export function connectMux(
       openStream('session/control', {}, { kind: 'control' });
       void followAllSessions();
     };
-    ws.onmessage = (ev) => {
+    sock.onmessage = (ev) => {
+      if (ws !== sock) return;
+      lastFrameAt = Date.now();
       try {
         const msg = JSON.parse(ev.data as string) as {
           type: string;
@@ -1056,10 +1407,16 @@ export function connectMux(
             handleFollowItem(entry.sessionId, msg.value as WireFollowItem);
           }
         } else if (msg.type === 'error' && msg.streamId) {
-          // 流级错误（如 session 不存在）：清理注册，等下轮重连
+          // 流级错误（如 session 不存在）：清理注册，等下轮重连。
+          // 必须带上所属会话：子代理/其它会话的 follow 失败不应被当成本会话中断。
+          const entry = streams.get(msg.streamId);
           streams.delete(msg.streamId);
           onFrame(
-            { type: 'stream/error', error: { code: msg.error?.code ?? 'unknown', message: msg.error?.message ?? 'stream error' } },
+            {
+              type: 'stream/error',
+              sessionId: entry?.sessionId,
+              error: { code: msg.error?.code ?? 'unknown', message: msg.error?.message ?? 'stream error' },
+            },
             '',
           );
         } else if (msg.type === 'end' && msg.streamId) {
@@ -1069,10 +1426,13 @@ export function connectMux(
         // 忽略无法解析的帧
       }
     };
-    ws.onclose = () => {
+    sock.onclose = () => {
+      // 已被 restart() 替换掉的旧 socket：不得再触发重连（否则会开两条流）
+      if (ws !== sock) return;
       onStateChange?.(false);
       streams.clear();
       followed.clear();
+      liveStreams.clear();
       eventsClientId = null;
       if (!closed) {
         retry += 1;
@@ -1080,7 +1440,7 @@ export function connectMux(
         setTimeout(open, delay);
       }
     };
-    ws.onerror = () => ws?.close();
+    sock.onerror = () => sock.close();
   };
   open();
 
@@ -1093,6 +1453,25 @@ export function connectMux(
       muxFrameBroadcast.delete(broadcastFn);
       ws?.close();
     },
+    restart: () => {
+      if (closed) return;
+      retry = 0;
+      // 直接换一条新 socket 并立刻重连：旧 socket 可能早已处于 CLOSED（代理侧
+      // 上游死掉时浏览器不一定会回调 close），单纯 close() 不会再触发重连。
+      const old = ws;
+      ws = null;
+      // 旧 socket 的流注册全部作废（onopen 会按新 socket 重新订阅）
+      streams.clear();
+      followed.clear();
+      liveStreams.clear();
+      try {
+        old?.close();
+      } catch {
+        // 忽略：旧 socket 已不可用
+      }
+      open();
+    },
+    lastActivity: () => lastFrameAt,
   };
 }
 
@@ -1112,6 +1491,26 @@ export interface DshToolCallView {
   pending?: boolean;
 }
 
+/** 单条助手消息的 token 用量（与 `aggregateUsage` 的会话累计区分开）。 */
+export interface DshMessageUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens?: number;
+}
+
+/** 文本形式的工具调用标记（`[工具] name(…)` / `<tool_call>` / `<arg_value>`）。 */
+const UNPARSED_TOOL_CALL = /\[工具\]\s*[\w.-]+\(|<\/?(?:tool_call|arg_value|function_call)\b/i;
+
+/** 引擎上下文压缩 checkpoint（伪 user/message，只给模型看，不能进对话区）。 */
+const CHECKPOINT_USER_MESSAGE =
+  /automatically generated checkpoint|condensing an earlier span of the conversation/i;
+
+/** 气泡内的时序片段：一次模型响应 = 一段（工具调用 + 该段正文）。 */
+export interface DshMessageSegment {
+  text: string;
+  toolCalls: DshToolCallView[];
+}
+
 /** 折叠后的 UI 消息。 */
 export interface DshMessage {
   id: string;
@@ -1119,8 +1518,36 @@ export interface DshMessage {
   text: string;
   reasoning?: string;
   toolCalls: DshToolCallView[];
+  /**
+   * 按时间顺序排列的片段（仅按回合合并后的助手消息有）。
+   * 渲染用它保证「工具 → 中间说明 → 工具 → 结论」的先后不被压平。
+   */
+  segments?: DshMessageSegment[];
   streaming: boolean;
   error?: string;
+  /** 本条助手消息的 token 用量（引擎在 assistant/message 事件上报；历史回放可能没有）。 */
+  usage?: DshMessageUsage;
+  /**
+   * 用户消息的提交关联 id（`source.rpcId`）。
+   * 工作台用它在本地即时回显与落盘消息之间精确退休，避免误清其他提交。
+   */
+  rpcId?: string;
+  /**
+   * 引擎把工具调用写成了文本（`[工具] name({…})` / `<tool_call>`）却没有真正执行：
+   * 内容已被 UI 过滤，但需要明确告诉用户「本回合什么都没做」。
+   */
+  toolCallUnparsed?: boolean;
+}
+
+/**
+ * 进程内实时 assistant 流（未落盘）。回合结束、已提交的 assistant/message
+ * 事件到达后由消费者清空，避免与历史基线重复。
+ */
+export interface DshLiveAssistant {
+  text: string;
+  reasoning: string;
+  /** 当前 attempt 仍在产出（false = 已结束/未开始）。 */
+  active: boolean;
 }
 
 /** 会话累计用量（M2.2：assistant/message usage 聚合）。 */
@@ -1139,6 +1566,18 @@ interface StreamChunkShape {
   text?: string;
   block?: { type: string; text?: string; id?: string; name?: string; arguments?: string };
   reason?: { kind: string; failure?: { message: string } };
+}
+
+/** 读取 assistant/message 事件自带的 token 用量；全零/缺失返回 null（UI 不显示空用量）。 */
+function readMessageUsage(data: Record<string, unknown> | undefined): DshMessageUsage | null {
+  const usage = (data as { usage?: UsageShape } | undefined)?.usage;
+  if (!usage) return null;
+  const inputTokens = usage.inputTokens ?? 0;
+  const outputTokens = usage.outputTokens ?? 0;
+  if (inputTokens <= 0 && outputTokens <= 0) return null;
+  const result: DshMessageUsage = { inputTokens, outputTokens };
+  if (typeof usage.cacheReadTokens === 'number') result.cacheReadTokens = usage.cacheReadTokens;
+  return result;
 }
 
 /**
@@ -1187,28 +1626,84 @@ export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
     return view;
   };
 
+  /**
+   * 回合边界收口：把还挂着的工具调用标记为完成。
+   *
+   * `session/history` 只回放消息级事件（不含 tool/result），刷新/重启后若不收口，
+   * 已完成的历史工具会永远显示「运行中」。工具必然在该回合的落盘助手消息前返回，
+   * 因此「收到 assistant/message」或「turn/end」即代表此前工具都已结束。
+   */
+  const settleToolCalls = (): void => {
+    for (const view of callViews.values()) {
+      view.pending = false;
+    }
+  };
+
+  /** 本回合是否真的执行过工具调用（用于识别「只写了文本形式工具调用」。 */
+  let turnHasToolCall = false;
+  /** 本回合最后一条落盘助手消息（回合结束时判定是否需要提示）。 */
+  let lastAssistant: DshMessage | null = null;
+
   for (const event of events) {
     const data = event.data as Record<string, unknown> | undefined;
     switch (event.type) {
       case 'user/message': {
+        // 引擎注入的上下文消息只给模型看，不进对话显示（agent-instructions/
+        // runtime-context/skill-catalog/time-context/model-switch notice，统一按
+        // source.form 过滤；真实用户输入 source.kind='user' 无 form，不受影响）。
+        // 过滤不改变分组状态。
+        const source = data?.source as { form?: string; rpcId?: unknown } | undefined;
+        if (
+          source?.form === 'snapshot' ||
+          source?.form === 'instructions' ||
+          source?.form === 'catalog' ||
+          source?.form === 'notice'
+        ) {
+          break;
+        }
         current = null;
         const msg = newText('user');
+        if (typeof source?.rpcId === 'string') msg.rpcId = source.rpcId;
         const content = data?.content as Array<{ type: string; text?: string }> | undefined;
         msg.text = (content ?? [])
           .filter(b => b.type === 'text')
           .map(b => b.text ?? '')
           .join('');
+        // 引擎上下文压缩的 checkpoint 也是 user/message，但内容是给模型看的摘要：
+        // 直接用英文长段落在对话里冒充「用户发言」（实测触发后满屏
+        // "This is an automatically generated checkpoint …"）。按内容特征丢弃。
+        if (CHECKPOINT_USER_MESSAGE.test(msg.text)) {
+          messages.pop();
+          break;
+        }
         break;
       }
       case 'turn/start': {
         // 新一轮：开启下一条 assistant 消息的流式累积
+        turnHasToolCall = false;
+        lastAssistant = null;
         break;
       }
       case 'turn/end': {
         if (current) {
           current.streaming = false;
         }
+        settleToolCalls();
         current = null;
+        // 整回合没有任何真实工具执行，但最后一条助手文本里带着工具调用标记：
+        // 模型/适配层没走工具协议，引擎不会执行——明确告警，避免「说了要做却没动静」。
+        if (!turnHasToolCall && lastAssistant && UNPARSED_TOOL_CALL.test(lastAssistant.text)) {
+          lastAssistant.toolCallUnparsed = true;
+        }
+        // 回合级失败（缺凭据/切模型失败等）也要有一条可见的助手气泡，
+        // 否则界面上只剩用户自己那句话，看起来像卡死。
+        const reason = (data as {
+          reason?: { kind?: string; error?: { message?: string; code?: string } };
+        } | undefined)?.reason;
+        if (reason?.kind === 'error') {
+          const failed = newText('assistant');
+          failed.error = reason.error?.message ?? 'turn failed';
+        }
         break;
       }
       case 'assistant/chunk': {
@@ -1229,6 +1724,7 @@ export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
           }
           case 'block-end': {
             if (chunk.block?.type === 'tool-call') {
+              turnHasToolCall = true;
               upsertToolCall(
                 chunk.block.id ?? 'call',
                 chunk.block.name ?? '',
@@ -1254,16 +1750,27 @@ export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
         const callId = String(data?.callId ?? '');
         const name = String(data?.name ?? '');
         if (callId) {
+          turnHasToolCall = true;
           upsertToolCall(callId, name, String(data?.arguments ?? '{}'));
         }
         break;
       }
       case 'tool/result': {
-        // 工具结果：按 callId 回填（message.content 的 text 块拼接）
+        // 工具结果：按 callId 回填（message.content 的 text 块拼接）。
+        // callId 在 0.2.2 的落盘形状里位于 message.toolCallId / source.callId，
+        // 而不是 content[0].toolCallId —— 三处都要兼容，否则结果永远挂不回工具卡。
         const message = data?.message as
-          | { content?: Array<{ type?: string; text?: string }> }
+          | {
+            content?: Array<{ type?: string; text?: string; toolCallId?: string; isError?: boolean }>;
+            toolCallId?: string;
+            isError?: boolean;
+            source?: { kind?: string; callId?: string };
+          }
           | undefined;
-        const callId = (message?.content?.[0] as { toolCallId?: string } | undefined)?.toolCallId;
+        const callId =
+          message?.toolCallId ??
+          message?.content?.[0]?.toolCallId ??
+          message?.source?.callId;
         const view = callId ? callViews.get(callId) : undefined;
         if (!view) break;
         const resultText = (message?.content ?? [])
@@ -1273,10 +1780,37 @@ export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
         view.result = resultText;
         view.pending = false;
         const eventError = data?.error as { name?: string; code?: string } | undefined;
-        const blockError = (
-          message?.content?.[0] as { isError?: boolean } | undefined
-        )?.isError;
+        const blockError =
+          message?.isError ??
+          (message?.content?.[0] as { isError?: boolean } | undefined)?.isError;
         view.isError = Boolean(eventError) || blockError === true;
+        break;
+      }
+      case 'assistant/message': {
+        // 已提交的助手消息（durable）：text/reasoning 块拼成一条完整消息。
+        // 这是回合结束后唯一可回放的助手文本来源（assistant/chunk 只存在于
+        // assistant/attempt 的紧凑 stream 里，不逐条落盘）。
+        const message = (data as {
+          message?: { content?: Array<{ type?: string; text?: string }> };
+        } | undefined)?.message;
+        const blocks = message?.content ?? [];
+        const text = blocks
+          .filter(b => b?.type === 'text')
+          .map(b => b.text ?? '')
+          .join('');
+        const reasoning = blocks
+          .filter(b => b?.type === 'reasoning')
+          .map(b => b.text ?? '')
+          .join('');
+        const usage = readMessageUsage(data);
+        if (!text && !reasoning && !usage) break;
+        settleToolCalls();
+        current = null;
+        const msg = newText('assistant');
+        msg.text = text;
+        if (reasoning) msg.reasoning = reasoning;
+        if (usage) msg.usage = usage;
+        lastAssistant = msg;
         break;
       }
       default:

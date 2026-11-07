@@ -88,6 +88,19 @@
       opacity: 0.4;
       cursor: default;
     }
+
+    // 运行中：按钮语义变为「加入排队」——描边而非实底，
+    // 与旁边仍在呼吸的停止按钮形成「主操作 vs 打断操作」的层级
+    &.is-queue {
+      background: transparent;
+      color: var(--color-accent-500);
+      border: var(--style-stroke-width, 1px) solid var(--color-accent-400);
+
+      &:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--color-accent-500) 10%, transparent);
+        color: var(--color-accent-600);
+      }
+    }
   }
 
   &__stop {
@@ -101,11 +114,22 @@
       height: 11px;
     }
 
-    &:hover {
+    &:hover:not(:disabled) {
       color: var(--color-error);
       border-color: var(--color-error-border);
       animation-play-state: paused;
     }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.6;
+      animation-play-state: paused;
+    }
+  }
+
+  // 运行中两个按钮并存：停止在左、排队/发送在右（操作收尾固定在右下角）
+  &__stop + &__send {
+    margin-left: calc(var(--size-gap-1) * -0.5);
   }
 
   // ---- footer：左（模型选择/工具）右（辅助信息）分区 ----
@@ -144,5 +168,11 @@
   }
   50% {
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent-500) 8%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-prompt-input__stop {
+    animation: none;
   }
 }

@@ -12,11 +12,31 @@ import './PromptInput.scss';
 export interface PromptInputProps {
   value: string;
   onChange(v: string): void;
-  /** Enter 触发（非 IME 合成中）；提供 onStop 时 Enter 常规发送 */
-  onSubmit?(): void;
-  /** 提供后 loading 态按钮变「停止」 */
+  /**
+   * Enter 触发（非 IME 合成中）。
+   *
+   * 传了 `running` 时回调会带上提交意图：常规 Enter 为 `'queue'`，
+   * Ctrl/Cmd+Enter 为 `'steer'`；旧调用方不传 running，回调无参数。
+   */
+  onSubmit?(intent?: PromptSubmitIntent): void;
+  /** 停止当前回合（与发送并存：不替换发送按钮）。 */
   onStop?(): void;
+  /**
+   * 有提交 RPC 未完成。
+   *
+   * 旧契约（未传 running）：loading 同时禁用发送并把发送按钮换成停止。
+   * 新契约（传了 running）：loading 只表达提交中，不阻止继续排队。
+   */
   loading?: boolean;
+  /**
+   * Agent 当前回合仍在运行（启用「发送 + 停止并存、运行中可排队/插话」契约）。
+   * 不传则保持旧行为，避免其他场景被静默改变。
+   */
+  running?: boolean;
+  /** 正在停止当前回合（停止按钮防重入，发送仍可用）。 */
+  stopping?: boolean;
+  /** 排队与插话的提示文案是否显示（默认 true；窄栏可关闭）。 */
+  showShortcutHint?: boolean;
   placeholder?: string;
   disabled?: boolean;
   /** px，默认 200；超出内滚 */
@@ -29,6 +49,9 @@ export interface PromptInputProps {
   footerRight?: React.ReactNode;
   className?: string;
 }
+
+/** 提交意图：排队（默认）或在安全边界插话。 */
+export type PromptSubmitIntent = 'queue' | 'steer';
 
 /** 圆形发送按钮（ArrowUp）。 */
 const SendIcon = () => (
@@ -51,6 +74,19 @@ const StopIcon = () => (
   </svg>
 );
 
+/** 排队图标（列表 + 加号，示意「加入队列」）。 */
+const QueueIcon = () => (
+  <svg viewBox="0 0 16 16" aria-hidden="true">
+    <path
+      d="M2.5 4.5h7M2.5 8h7M2.5 11.5h4.5M12 9.5v4M10 11.5h4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
   (
     {
@@ -59,6 +95,9 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
       onSubmit,
       onStop,
       loading = false,
+      running,
+      stopping = false,
+      showShortcutHint = true,
       placeholder,
       disabled = false,
       maxHeight = 200,
@@ -91,7 +130,23 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
       el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
     }, [value, maxHeight]);
 
-    const canSend = !disabled && !loading && value.trim().length > 0;
+    /** 新契约（显式传 running）：运行中仍可提交。旧契约保持 loading 禁发。 */
+    const isRunningContract = running !== undefined;
+    const hasText = value.trim().length > 0;
+    const canSend = isRunningContract
+      ? !disabled && hasText
+      : !disabled && !loading && hasText;
+    /** 旧契约里「停止替换发送」只在运行态成立。 */
+    const showStopInsteadOfSend = !isRunningContract && loading && Boolean(onStop);
+
+    const submit = useCallback(
+      (intent: PromptSubmitIntent) => {
+        if (!canSend || !onSubmit) return;
+        if (isRunningContract) onSubmit(intent);
+        else onSubmit();
+      },
+      [canSend, isRunningContract, onSubmit],
+    );
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key !== 'Enter') return;
@@ -99,10 +154,20 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
       if (composingRef.current || composing || e.nativeEvent.isComposing) return;
       if (e.shiftKey) return; // Shift+Enter 换行
       e.preventDefault();
-      if (canSend && onSubmit) onSubmit();
+      // Ctrl/Cmd+Enter = 在安全边界插话；空闲时由调用方按普通发送处理
+      const accelerated = (e.ctrlKey || e.metaKey) && isRunningContract;
+      submit(accelerated ? 'steer' : 'queue');
     };
 
-    const hasFooter = footer != null || footerLeft != null || footerRight != null;
+    // 旧调用方没有任何 footer 槽时不新增 footer（避免悄悄改变既有场景布局）
+    const hasContainers = footer != null || footerLeft != null || footerRight != null;
+    const hasFooter = hasContainers || (showShortcutHint && isRunningContract);
+    const defaultHint = isRunningContract && running
+      ? label(
+          'components.ai.runningHint',
+          'Enter 排队 · Ctrl/Cmd+Enter 插话',
+        )
+      : label('components.ai.idleHint', 'Enter 发送 · Shift+Enter 换行');
 
     return (
       <div className={['ai-prompt-input', disabled && 'is-disabled', className].filter(Boolean).join(' ')}>
@@ -125,7 +190,27 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
               setComposing(false);
             }}
           />
-          {loading && onStop ? (
+          {isRunningContract && onStop && running && (
+            <button
+              type="button"
+              className="ai-prompt-input__stop"
+              onClick={onStop}
+              disabled={stopping}
+              aria-label={
+                stopping
+                  ? label('components.ai.stopping', '正在停止…')
+                  : label('components.ai.stopTurn', '停止当前回合')
+              }
+              title={
+                stopping
+                  ? label('components.ai.stopping', '正在停止…')
+                  : label('components.ai.stopTurn', '停止当前回合')
+              }
+            >
+              <StopIcon />
+            </button>
+          )}
+          {showStopInsteadOfSend ? (
             <button
               type="button"
               className="ai-prompt-input__stop"
@@ -138,13 +223,21 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
           ) : (
             <button
               type="button"
-              className="ai-prompt-input__send"
+              className={`ai-prompt-input__send${isRunningContract && running ? ' is-queue' : ''}`}
               disabled={!canSend}
-              onClick={() => onSubmit?.()}
-              aria-label={label('components.ai.send', '发送')}
-              title={label('components.ai.send', '发送')}
+              onClick={() => submit('queue')}
+              aria-label={
+                isRunningContract && running
+                  ? label('components.ai.queue', '加入排队')
+                  : label('components.ai.send', '发送')
+              }
+              title={
+                isRunningContract && running
+                  ? label('components.ai.queueHint', '加入排队（Enter），Ctrl/Cmd+Enter 在安全边界插话')
+                  : label('components.ai.send', '发送')
+              }
             >
-              <SendIcon />
+              {isRunningContract && running ? <QueueIcon /> : <SendIcon />}
             </button>
           )}
         </div>
@@ -153,7 +246,10 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
             {footer ?? (
               <>
                 <div className="ai-prompt-input__footer-left">{footerLeft}</div>
-                <div className="ai-prompt-input__footer-right">{footerRight}</div>
+                <div className="ai-prompt-input__footer-right">
+                  {footerRight ??
+                    (showShortcutHint && isRunningContract ? <span>{defaultHint}</span> : null)}
+                </div>
               </>
             )}
           </div>

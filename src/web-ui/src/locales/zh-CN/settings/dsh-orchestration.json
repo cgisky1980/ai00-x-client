@@ -18,7 +18,7 @@
     "deleted": "已删除 {{name}}",
     "newPrompt": "定义文件名（英文小写，.md 结尾）：",
     "editorTitle": "编辑定义：{{file}}",
-    "editorHint": "frontmatter：name（工具名，小写英文/数字/_/-）、description（编排器按此选帮手）、model（ai00-auto / ai00-salvo / 其他引用）、background（continuable / one-shot）、tools（工具白名单列表）；正文为帮手 persona。",
+    "editorHint": "frontmatter：name（工具名，小写英文/数字/_/-）、description（编排器按此选帮手）、model（ai00-auto / ai00-api / ai00s:<子模型> 等引用）、background（continuable / one-shot）、tools（工具白名单列表）；正文为帮手 persona。",
     "deleteTitle": "删除帮手：{{name}}",
     "deleteConfirm": "删除后该帮手不再出现在编排器可派发列表中；重启引擎后生效。全部删空会回退内置默认两件套。"
   },

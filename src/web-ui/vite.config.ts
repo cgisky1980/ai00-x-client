@@ -150,6 +150,7 @@ export default defineConfig(({ mode, command }) => {
         community: path.resolve(__dirname, 'community.html'),
         tasks: path.resolve(__dirname, 'tasks.html'),
         music: path.resolve(__dirname, 'music.html'),
+        workbench: path.resolve(__dirname, 'workbench.html'),
         design: path.resolve(__dirname, 'design.html'),
       },
       // v9 重构：原 webtorrent external 配置已移除。

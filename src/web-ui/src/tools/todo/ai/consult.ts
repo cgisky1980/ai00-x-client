@@ -1,7 +1,7 @@
 /**
  * todo 规划对话 AI 通道（拆解 / 规划对话 / 拟策 / 日终回顾）——走 `plugin_ai_complete`
  * 命令，核心 id `com.ai00x.core.todo` 豁免插件 gate（plugin_api.rs
- * CORE_FEATURE_IDS）。讨论/规划默认远程主模型（ai00-salvo），可在
+ * CORE_FEATURE_IDS）。讨论/规划默认远程主模型（AI00-API 主模型槽 `ai00-api`），可在
  * ModelSelector 手切本地（auto = 本地 RWKV 优先 + primary 回退；
  * Instruction 格式 + few-shot 示范 + T≈0.6/P≈0.1）。
  * model 引用可选透传（'auto' 不传 = 本地 RWKV 优先；其余引用见

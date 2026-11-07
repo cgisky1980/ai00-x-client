@@ -15,6 +15,8 @@ pub fn init_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let status = MenuItem::with_id(app, "tray-status", "引擎：初始化…", false, None::<&str>)?;
     let open_tasks = MenuItem::with_id(app, "open-tasks", "策窗口", true, None::<&str>)?;
     let open_community = MenuItem::with_id(app, "open-community", "社区", true, None::<&str>)?;
+    // 插件工作台的宿主窗口（左侧列表 / 右侧 scene:page）
+    let open_workbench = MenuItem::with_id(app, "open-workbench", "工作台", true, None::<&str>)?;
     let engine_terminal =
         MenuItem::with_id(app, "engine-terminal", "引擎终端", true, None::<&str>)?;
     let check_update = MenuItem::with_id(app, "check-update", "检查更新", true, None::<&str>)?;
@@ -26,6 +28,7 @@ pub fn init_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             &PredefinedMenuItem::separator(app)?,
             &open_tasks,
             &open_community,
+            &open_workbench,
             &engine_terminal,
             &PredefinedMenuItem::separator(app)?,
             &check_update,
@@ -45,7 +48,7 @@ pub fn init_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "open-tasks" | "open-community" => {
+            "open-tasks" | "open-community" | "open-workbench" => {
                 let id = event.id().as_ref().trim_start_matches("open-").to_string();
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {

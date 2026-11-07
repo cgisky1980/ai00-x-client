@@ -974,6 +974,7 @@
       "required": "该模型需要 {{tier}} 套餐",
       "locked": "当前套餐不可用，升级后可用",
       "current": "您当前是 {{tier}} 套餐",
+      "paidOnly": "该模型不含在当前套餐内，需要单独的付费额度或会员权益",
       "comingSoon": "升级功能即将开放，敬请期待",
       "close": "知道了",
       "inviteHint": "或邀请好友得分红，兑换会员打折券"
@@ -1013,7 +1014,10 @@
       "notReady": "模型未下载，点击开始下载",
       "notReadyShort": "未就绪",
       "downloadNow": "下载",
-      "downloading": "下载中"
+      "downloading": "下载中",
+      "defaultBadge": "默认",
+      "downloaded": "已下载",
+      "unavailable": "暂未提供"
     },
     "customModels": {
       "sectionTitle": "自定义模型API",

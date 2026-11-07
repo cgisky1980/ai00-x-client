@@ -29,7 +29,7 @@ use ai00_x_core::util::process_manager;
 #[path = "dsh_versions.gen.rs"]
 pub mod dsh_versions_gen;
 
-use dsh_versions_gen::{BUNDLED_PLUGINS, DSH_NPM_SPEC, NODE_VERSION};
+use dsh_versions_gen::{BUNDLED_PLUGINS, DSH_NPM_SPEC, NODE_VERSION, NPM_REGISTRY};
 
 /// sidecar 专用 profile 名（bundles: base + web-app + ai-bridge）。
 const DSH_PROFILE: &str = "ai00x";
@@ -582,6 +582,45 @@ const DSH_CAPABILITY_PACKAGES: &[&str] = &[
     "@deepseek-ai/dsh-experimental-computer-use-cua-driver-native",
 ];
 
+/// 由编排 patch 行挂载、但已不在引擎主包依赖里的插件包（插件本体, peer 清单）。
+///
+/// 引擎按 **profile 目录**解析 patch 行里的插件名，全局安装（node_dir）对它不可见，
+/// 必须 `dsh plugin add` 装进 profile。0.2.2 起 `dsh-hooks-claude-code` 被移出主包
+/// 依赖，故在此显式补装；pnpm 侧 `autoInstallPeers: false` 不会代装 peer，一并显式列出
+/// （版本与引擎同钉，cordis 取引擎声明的主版本范围）。
+const PROFILE_PLUGIN_PACKAGES: &[(&str, &[&str])] = &[(
+    "@deepseek-ai/dsh-hooks-claude-code",
+    &[
+        "@deepseek-ai/dsh-hook-protocol",
+        "@deepseek-ai/dsh-llm",
+        "@deepseek-ai/dsh-agent",
+        "@deepseek-ai/dsh-tools",
+        "@deepseek-ai/dsh-session",
+        "@deepseek-ai/dsh-subagent",
+        "@deepseek-ai/dsh-working-directory",
+        "@deepseek-ai/cordis",
+    ],
+)];
+
+/// 引擎声明的 cordis 版本范围（peer 安装用；读不到时回退 `~4.1.0`）。
+fn engine_cordis_spec() -> String {
+    let manifest = node_dir()
+        .join("node_modules")
+        .join("@deepseek-ai")
+        .join("dsh")
+        .join("package.json");
+    std::fs::read_to_string(manifest)
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| {
+            v.get("dependencies")
+                .and_then(|d| d.get("@deepseek-ai/cordis"))
+                .and_then(|s| s.as_str())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "~4.1.0".to_string())
+}
+
 /// 全局安装能力包（best-effort）：已存在跳过；失败告警继续——引擎 boot 对
 /// 不可解析的 bundle 只 warn+skip，能力缺席但无碍运行。
 async fn install_capability_packages() -> Result<(), String> {
@@ -599,6 +638,55 @@ async fn install_capability_packages() -> Result<(), String> {
         mgr_install_global(&npm, &spec).await.unwrap_or_else(|e| {
             log::warn!("[DshManager] capability package install failed ({spec}): {e}");
         });
+    }
+    Ok(())
+}
+
+/// 把 patch 行挂载的第三方插件装进 profile（best-effort）：已声明跳过；失败告警
+/// 继续——对应行在引擎里激活失败（warn + 跳过），不影响其余编排。
+async fn ensure_profile_plugin_packages() -> Result<(), String> {
+    let manifest_path = profile_dir().join("package.json");
+    let manifest: serde_json::Value = std::fs::read_to_string(&manifest_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(default_profile_manifest);
+    let version = dsh_version()?;
+    for (pkg, peers) in PROFILE_PLUGIN_PACKAGES {
+        let declared = manifest
+            .get("dependencies")
+            .and_then(|d| d.as_object())
+            .is_some_and(|d| d.contains_key(*pkg));
+        if declared {
+            continue;
+        }
+        let mut specs: Vec<String> = vec![format!("{pkg}@{version}")];
+        for peer in *peers {
+            let spec = if *peer == "@deepseek-ai/cordis" {
+                format!("{peer}@{}", engine_cordis_spec())
+            } else {
+                format!("{peer}@{version}")
+            };
+            specs.push(spec);
+        }
+        let dsh = dsh_cmd();
+        let mut cmd = process_manager::create_tokio_command(&dsh);
+        cmd.args(["plugin", "--profile"])
+            .arg(dsh_profile())
+            .arg("add")
+            .args(&specs)
+            .arg(format!("--registry={NPM_REGISTRY}"))
+            .env("DSH_HOME", dsh_home())
+            .env("PATH", prepend_path(node_dir()));
+        match cmd.output().await {
+            Ok(output) if output.status.success() => {
+                log::info!("[DshManager] profile plugins installed ({pkg})");
+            }
+            Ok(output) => log::warn!(
+                "[DshManager] profile plugin install failed ({pkg}): {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+            Err(e) => log::warn!("[DshManager] profile plugin install spawn failed ({pkg}): {e}"),
+        }
     }
     Ok(())
 }
@@ -817,6 +905,8 @@ async fn ensure_profile() -> Result<(), String> {
         dsh_profile(),
         dir.display()
     );
+    // patch 行挂载、但不在引擎主包依赖里的插件（hooks 桥等）
+    ensure_profile_plugin_packages().await?;
     ensure_orchestration_patch().await?;
     Ok(())
 }
@@ -833,16 +923,38 @@ fn default_profile_manifest() -> serde_json::Value {
     })
 }
 
-/// 确保 DSH_HOME/settings.yaml 的默认模型指向 Ai00-X 网关远端（ai00-x/ai00-salvo）。
+/// 主会话默认模型：跟随用户配置的 AI00-API 具体子模型（`ai00s:<sub>`）。
 ///
-/// 编排架构约定：主会话（含 plan 模式——plan 跟随会话模型）一律远端强模型；
+/// 配置不可用 / 主模型是本地或自定义 API 时回落到网关入口 `ai00-api`
+/// （AI00-API = 远端主模型槽，具体模型由配置与 SmartRouter 决定）。
+async fn preferred_remote_model() -> String {
+    if let Ok(service) = ai00_x_core::service::config::get_global_config_service() {
+        if let Ok(config) = service
+            .get_config::<ai00_x_core::service::config::GlobalConfig>(None)
+            .await
+        {
+            if let Some(primary) = config.ai.default_models.primary {
+                let p = primary.trim();
+                if p.starts_with("ai00s:") && p.len() > "ai00s:".len() {
+                    return p.to_string();
+                }
+            }
+        }
+    }
+    "ai00-api".to_string()
+}
+
+/// 确保 DSH_HOME/settings.yaml 的默认模型指向 AI00-API 的具体模型。
+///
+/// 编排架构约定：主会话（含 plan 模式——plan 跟随会话模型）一律远端模型；
 /// 本地 RWKV 只服务子代理智能路由（research_worker 经 ai00-auto 由网关分流）。
-/// - 无 agent-default-model 键 → 写入默认；
-/// - 已有键且为 ai00-auto / rwkv-local → 一次性迁移到 ai00-salvo（2026-09
-///   编排改造：此前默认 ai00-auto，存量安装可能停留在旧默认或用户手选本地）；
-/// - 其他值（用户明确选择的远端子模型等）→ 尊重不动。
+/// - 无 agent-default-model 键 → 写入默认（用户配置的 ai00s 子模型）；
+/// - 已有键且为逻辑 id（ai00-auto / rwkv-local）或旧入口 id（ai00-salvo）
+///   → 一次性迁移到当前目标（存量安装升级）；
+/// - 其他具体子模型引用 → 尊重不动。
 async fn ensure_default_model_setting() -> Result<(), String> {
-    const REMOTE_ENTRY: &str = "agent-default-model:\n  provider: ai00-x\n  model: ai00-salvo\n";
+    let target = preferred_remote_model().await;
+    let remote_entry = format!("agent-default-model:\n  provider: ai00-x\n  model: {target}\n");
     let path = dsh_home().join("settings.yaml");
     let raw = if path.exists() {
         std::fs::read_to_string(&path).map_err(|e| e.to_string())?
@@ -851,15 +963,15 @@ async fn ensure_default_model_setting() -> Result<(), String> {
     };
     if !raw.contains("agent-default-model") {
         let next = if raw.trim().is_empty() {
-            REMOTE_ENTRY.to_string()
+            remote_entry
         } else {
-            format!("{raw}\n{REMOTE_ENTRY}")
+            format!("{raw}\n{remote_entry}")
         };
         std::fs::create_dir_all(dsh_home()).map_err(|e| e.to_string())?;
         return std::fs::write(&path, next).map_err(|e| format!("write settings failed: {e}"));
     }
-    // 旧默认/本地默认 → 远端（逐行解析：只命中 agent-default-model 块内的
-    // model 行，不依赖精确缩进与尾换行——文件末尾无换行的存量文件也能迁移）
+    // 旧默认/本地默认 → 远端具体模型（逐行解析：只命中 agent-default-model
+    // 块内的 model 行，不依赖精确缩进与尾换行——文件末尾无换行的存量文件也能迁移）
     let mut in_default_block = false;
     let mut changed = false;
     let lines: Vec<String> = raw
@@ -874,13 +986,17 @@ async fn ensure_default_model_setting() -> Result<(), String> {
             if in_default_block && !trimmed.is_empty() && !trimmed.starts_with([' ', '#']) {
                 in_default_block = false;
             }
-            if in_default_block
-                && trimmed.trim_start().starts_with("model:")
-                && (trimmed.ends_with("ai00-auto") || trimmed.ends_with("rwkv-local"))
-            {
-                changed = true;
-                let indent = &line[..line.len() - line.trim_start().len()];
-                return format!("{indent}model: ai00-salvo");
+            if in_default_block && trimmed.trim_start().starts_with("model:") {
+                let current = trimmed.trim_start().trim_start_matches("model:").trim();
+                let stale = matches!(
+                    current,
+                    "ai00-auto" | "rwkv-local" | "ai00-salvo" | "ai00-api"
+                ) && current != target;
+                if stale {
+                    changed = true;
+                    let indent = &line[..line.len() - line.trim_start().len()];
+                    return format!("{indent}model: {target}");
+                }
             }
             line.to_string()
         })
@@ -888,7 +1004,7 @@ async fn ensure_default_model_setting() -> Result<(), String> {
     if changed {
         let migrated = lines.join("\n");
         std::fs::write(&path, &migrated).map_err(|e| format!("write settings failed: {e}"))?;
-        log::info!("[DshManager] agent-default-model migrated to ai00-salvo (remote)");
+        log::info!("[DshManager] agent-default-model migrated to {target}");
     }
     Ok(())
 }
@@ -906,7 +1022,7 @@ async fn ensure_default_model_setting() -> Result<(), String> {
 /// 模型分工（与 ai_gateway.rs 白名单同源约定，见 LOCAL_TOOL_WHITELIST 注释）：
 /// - research_worker：只读六件套 + model=ai00-auto → 网关 SmartRouter/
 ///   hybrid_tool_loop 判后 R0/R1 走本地 RWKV（零成本），本地失败自动远端；
-/// - code_worker：执行类工具 + model=ai00-salvo → 远端强模型。
+/// - code_worker：执行类工具 + model=ai00-api → 远端强模型。
 ///
 /// 工具名为 dsh 引擎注册名（dsh-tool-fs: read/read_image/edit/write、
 /// dsh-tool-fs-search: glob/grep、dsh-tool-pwsh: pwsh、dsh-tool-bash: bash、
@@ -920,6 +1036,55 @@ async fn ensure_default_model_setting() -> Result<(), String> {
 ///   （桌面端启动时从内嵌资源同步内置技能，见 desktop skill_api）；
 /// - MCP 桥接行：已启用的 MCP server 逐一生成 dsh-mcp-client 配置
 ///   （工具以 mcp__<server>__<tool> 注入 loop；改 MCP 配置需重启引擎生效）。
+///
+/// 工作台专用 preset：从引擎自带 `standard.patch.yml` 生成 `preset-workbench`
+/// （插件链随引擎版本走、不手工复制，仅两处改动）：
+/// - `agent-instructions` 的 `projectRootMarkers` 改为 `['AGENTS.local.md']`——
+///   根发现止于工程自身（宿主建会话前已写入该文件），不再向上递归收集宿主
+///   仓库的 AGENTS.md；工作台工程只用自己的默认约定，coding 会话的 standard
+///   preset 不受影响。
+/// - preset id 与行 id 改为 `workbench` / `preset-workbench`，order 置 2。
+fn build_workbench_preset_row() -> Result<String, String> {
+    let path = node_dir()
+        .join("node_modules")
+        .join("@deepseek-ai")
+        .join("dsh")
+        .join("node_modules")
+        .join("@deepseek-ai")
+        .join("dsh-web-app")
+        .join("presets")
+        .join("standard.patch.yml");
+    let text = std::fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "读取引擎 standard.patch.yml 失败（{}）: {e}",
+            path.display()
+        )
+    })?;
+    let mut doc: serde_yaml::Value =
+        serde_yaml::from_str(&text).map_err(|e| format!("解析 standard.patch.yml 失败: {e}"))?;
+    let Some(row) = doc
+        .get_mut(0)
+        .and_then(|entry| entry.get_mut("insert"))
+        .and_then(|insert| insert.get_mut(0))
+    else {
+        return Err("standard.patch.yml 结构不符（缺 insert[0]）".into());
+    };
+    row["id"] = serde_yaml::Value::from("preset-workbench");
+    row["config"]["id"] = serde_yaml::Value::from("workbench");
+    row["config"]["order"] = serde_yaml::Value::from(2);
+    let Some(plugins) = row["config"]["plugins"].as_sequence_mut() else {
+        return Err("standard.patch.yml 结构不符（缺 plugins）".into());
+    };
+    for plugin in plugins.iter_mut() {
+        if plugin["id"].as_str() == Some("agent-instructions") {
+            plugin["config"]["projectRootMarkers"] =
+                serde_yaml::Value::from(vec![serde_yaml::Value::from("AGENTS.local.md")]);
+        }
+    }
+    let insert_doc = serde_yaml::Value::from(vec![doc[0].clone()]);
+    serde_yaml::to_string(&insert_doc).map_err(|e| format!("序列化 workbench preset 失败: {e}"))
+}
+
 async fn ensure_orchestration_patch() -> Result<(), String> {
     // 独立宿主覆盖（营销中心等）：AI00X_DSH_PATCH 指向自备 cordis.patch.yml，
     // 整文件幂等覆写 profile patch——不套用桌面端编排架构（子代理路由面向
@@ -964,6 +1129,13 @@ async fn ensure_orchestration_patch() -> Result<(), String> {
     } else {
         format!("{head}- insert:\n{insert_body}")
     };
+    // 追加工作台专用 preset（独立 insert 行，不影响 standard）
+    let workbench_row = build_workbench_preset_row()?;
+    let mut content = content;
+    if !content.ends_with('\n') {
+        content.push('\n');
+    }
+    content.push_str(&workbench_row);
     let file = profile_dir().join("cordis.patch.yml");
     let need_write = match std::fs::read_to_string(&file) {
         Ok(existing) => existing != content,
@@ -993,17 +1165,17 @@ pub(crate) fn dsh_version() -> Result<&'static str, String> {
 fn load_patch_asset(file: &str) -> Result<&'static str, String> {
     let version = dsh_version()?;
     match (version, file) {
-        ("0.2.0-rc.2", "orchestration-head.patch.yml") => Ok(include_str!(
-            "../patches/0.2.0-rc.2/orchestration-head.patch.yml"
+        ("0.2.2-rc.1", "orchestration-head.patch.yml") => Ok(include_str!(
+            "../patches/0.2.2-rc.1/orchestration-head.patch.yml"
         )),
-        ("0.2.0-rc.2", "hooks-row.yml.tmpl") => {
-            Ok(include_str!("../patches/0.2.0-rc.2/hooks-row.yml.tmpl"))
+        ("0.2.2-rc.1", "hooks-row.yml.tmpl") => {
+            Ok(include_str!("../patches/0.2.2-rc.1/hooks-row.yml.tmpl"))
         }
-        ("0.2.0-rc.2", "mcp-row.yml.tmpl") => {
-            Ok(include_str!("../patches/0.2.0-rc.2/mcp-row.yml.tmpl"))
+        ("0.2.2-rc.1", "mcp-row.yml.tmpl") => {
+            Ok(include_str!("../patches/0.2.2-rc.1/mcp-row.yml.tmpl"))
         }
-        ("0.2.0-rc.2", "capability-rows.yml.tmpl") => Ok(include_str!(
-            "../patches/0.2.0-rc.2/capability-rows.yml.tmpl"
+        ("0.2.2-rc.1", "capability-rows.yml.tmpl") => Ok(include_str!(
+            "../patches/0.2.2-rc.1/capability-rows.yml.tmpl"
         )),
         (v, f) => Err(format!(
             "patch 资产缺失: agent-host/patches/{v}/{f}——引擎版本 {v} 尚无版本限定 \
@@ -1017,7 +1189,7 @@ fn load_patch_asset(file: &str) -> Result<&'static str, String> {
 // ---------------------------------------------------------------------------
 
 /// 帮手定义文件目录：`<DSH_HOME>/agent-workers/*.md`。
-/// 格式：YAML frontmatter（name/description/model/background/tools）+ 正文 persona。
+/// 格式：YAML frontmatter（name/description/model/tools）+ 正文 persona。
 /// 首次运行播种默认两个（research_worker / code_worker），用户可改可增；
 /// 全部非法/删空时回退内嵌默认（空编排无法派发，兜底）。
 fn workers_dir() -> PathBuf {
@@ -1029,7 +1201,6 @@ struct WorkerDef {
     tool_name: String,
     description: String,
     model: String,
-    background: String,
     tools: Vec<String>,
     persona: String,
     file_name: String,
@@ -1039,7 +1210,6 @@ const DEFAULT_WORKER_RESEARCH_MD: &str = r#"---
 name: research_worker
 description: 只读调研帮手：读文件、搜索、网络查证（智能路由，低成本）
 model: ai00-auto
-background: continuable
 tools:
   - read
   - read_image
@@ -1056,8 +1226,7 @@ You are a research worker dispatched by the Ai00-X orchestrator.
 const DEFAULT_WORKER_CODE_MD: &str = r#"---
 name: code_worker
 description: 执行帮手：写码、改文件、跑命令、产出交付物（远端强模型）
-model: ai00-salvo
-background: continuable
+model: ai00-api
 tools:
   - read
   - read_image
@@ -1087,7 +1256,6 @@ fn parse_worker_md(file_name: &str, content: &str) -> Option<WorkerDef> {
     let mut name = None;
     let mut description = String::new();
     let mut model = "ai00-auto".to_string();
-    let mut background = "continuable".to_string();
     let mut tools: Vec<String> = Vec::new();
     let mut in_tools = false;
     for line in frontmatter.lines() {
@@ -1108,7 +1276,6 @@ fn parse_worker_md(file_name: &str, content: &str) -> Option<WorkerDef> {
             "name" if !value.is_empty() => name = Some(value.to_string()),
             "description" => description = value.to_string(),
             "model" if !value.is_empty() => model = value.to_string(),
-            "background" if !value.is_empty() => background = value.to_string(),
             "tools" => in_tools = true,
             _ => {}
         }
@@ -1126,7 +1293,6 @@ fn parse_worker_md(file_name: &str, content: &str) -> Option<WorkerDef> {
         tool_name,
         description,
         model,
-        background,
         tools,
         persona: body.to_string(),
         file_name: file_name.to_string(),
@@ -1192,34 +1358,132 @@ fn fallback_worker_defs() -> Vec<WorkerDef> {
     .collect()
 }
 
-/// 帮手定义 → dsh-tool-subagent 编排行（insert 列表层级，YAML）。
+/// 帮手定义 → 编排 insert 行（YAML）。
+///
+/// 引擎 0.2.2 起 `dsh-tool-subagent` 的配置不再接受 `persona` / `toolFilter` /
+/// `backgroundMode`（出现即加载报迁移错误，后台委派已是唯一形态）：
+/// 每个帮手改声明一个 `@deepseek-ai/dsh-agent-preset`（persona + 工具子集 +
+/// compaction），subagent 行用 `agentPreset` 选中它。
+/// 行结构与映射表见 patches/<引擎版本>/INTENT.md。
 fn build_worker_rows(defs: &[WorkerDef]) -> String {
     let mut rows = String::new();
-    for def in defs {
+    for (index, def) in defs.iter().enumerate() {
         let id_suffix: String = def
             .tool_name
             .chars()
             .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
             .collect();
+        let preset_id = format!("ai00x-{id_suffix}");
+
+        // 1) agent preset：persona + 内置指令 + 工具子集 + 压缩
         rows.push_str(&format!(
-            "    - id: tool-subagent-{id_suffix}\n      name: '@deepseek-ai/dsh-tool-subagent'\n      config:\n        provider: spawn\n        toolName: {}\n        backgroundMode: {}\n        agentOptions:\n          provider: ai00-x\n          model: {}\n",
+            "    - id: preset-{preset_id}\n      name: '@deepseek-ai/dsh-agent-preset'\n      config:\n        id: {preset_id}\n        name: {}\n        description: {}\n        order: {}\n        plugins:\n",
             yaml_quote(&def.tool_name),
-            yaml_quote(&def.background),
-            yaml_quote(&def.model),
+            yaml_quote(&def.description),
+            100 + index,
         ));
-        if !def.tools.is_empty() {
-            rows.push_str("        toolFilter:\n          allow:\n");
-            for tool in &def.tools {
-                rows.push_str(&format!("            - {}\n", yaml_quote(tool)));
-            }
-        }
-        rows.push_str("        persona: |-\n");
+        rows.push_str(
+            "          - id: persona\n            name: '@deepseek-ai/dsh-persona'\n            config:\n              prefix: |-\n",
+        );
         for line in def.persona.lines() {
             if line.trim().is_empty() {
                 rows.push('\n');
             } else {
-                rows.push_str(&format!("          {line}\n"));
+                rows.push_str(&format!("                {line}\n"));
             }
+        }
+        rows.push_str(
+            "          - id: agent-instructions\n            name: '@deepseek-ai/dsh-agent-instructions'\n            config:\n              maxBytes: 65536\n",
+        );
+        rows.push_str(&build_worker_tool_rows(&def.tools));
+        rows.push_str(WORKER_COMPACTION_GROUP);
+
+        // 2) 委派工具：选中上面的 preset（模型由 agentOptions 固定）
+        rows.push_str(&format!(
+            "    - id: tool-subagent-{id_suffix}\n      name: '@deepseek-ai/dsh-tool-subagent'\n      config:\n        provider: spawn\n        toolName: {}\n        agentPreset: {preset_id}\n        agentOptions:\n          provider: ai00-x\n          model: {}\n",
+            yaml_quote(&def.tool_name),
+            yaml_quote(&def.model),
+        ));
+    }
+    rows
+}
+
+/// 帮手 frontmatter 里可映射为工具插件行的工具名。
+const WORKER_TOOL_NAMES: &[&str] = &[
+    "read",
+    "read_image",
+    "write",
+    "edit",
+    "glob",
+    "grep",
+    "bash",
+    "pwsh",
+    "skill",
+    "todo_write",
+    "web_fetch",
+    "web_search",
+];
+
+/// 子代理 preset 的压缩组（与 web-app standard preset 同构：每 agent 独立实例）。
+const WORKER_COMPACTION_GROUP: &str = "          - id: compaction\n            name: cordis:group\n            group: true\n            isolate:\n              compaction: true\n            config:\n              - id: compaction-basic\n                name: '@deepseek-ai/dsh-compaction-basic'\n              - id: command-compact\n                name: '@deepseek-ai/dsh-command-compact'\n";
+
+/// 帮手声明的工具名 → preset 内工具插件行（固定顺序，13/15 空格缩进）。
+/// preset 机制只能按插件行粗粒度挂载，故未知工具名记 warn 后忽略。
+fn build_worker_tool_rows(tools: &[String]) -> String {
+    let has = |name: &str| tools.iter().any(|t| t == name);
+    let mut rows = String::new();
+
+    let fs_flags = [
+        ("read", has("read")),
+        ("readImage", has("read_image")),
+        ("write", has("write")),
+        ("edit", has("edit")),
+    ];
+    if fs_flags.iter().any(|(_, on)| *on) {
+        rows.push_str(
+            "          - id: tool-fs\n            name: '@deepseek-ai/dsh-tool-fs'\n            config:\n",
+        );
+        for (key, on) in fs_flags {
+            rows.push_str(&format!("              {key}: {on}\n"));
+        }
+    }
+    if has("glob") || has("grep") {
+        rows.push_str(
+            "          - id: tool-fs-search\n            name: '@deepseek-ai/dsh-tool-fs-search'\n            config:\n              sampleOverCapGlobResults: false\n",
+        );
+    }
+    if has("bash") {
+        rows.push_str(
+            "          - id: tool-bash\n            name: '@deepseek-ai/dsh-tool-bash'\n            disabled: !!js process.platform === 'win32'\n",
+        );
+    }
+    if has("pwsh") {
+        rows.push_str(
+            "          - id: tool-pwsh\n            name: '@deepseek-ai/dsh-tool-pwsh'\n            disabled: !!js process.platform !== 'win32'\n",
+        );
+    }
+    if has("skill") {
+        rows.push_str(
+            "          - id: tool-skill\n            name: '@deepseek-ai/dsh-tool-skill'\n",
+        );
+    }
+    if has("todo_write") {
+        rows.push_str(
+            "          - id: tool-todo\n            name: '@deepseek-ai/dsh-tool-todo'\n            config:\n              allowParallelInProgress: true\n",
+        );
+    }
+    if has("web_fetch") || has("web_search") {
+        rows.push_str(
+            "          - id: tool-web\n            name: '@deepseek-ai/dsh-tool-web'\n            config:\n              fetch: true\n              searchTimeoutMs: 60000\n",
+        );
+    }
+
+    for tool in tools {
+        if !WORKER_TOOL_NAMES.contains(&tool.as_str()) {
+            log::warn!(
+                "[DshManager] worker tool `{tool}` has no preset row mapping; ignored (supported: {})",
+                WORKER_TOOL_NAMES.join("/")
+            );
         }
     }
     rows
@@ -2042,7 +2306,6 @@ pub async fn dsh_workers_list() -> Result<Vec<serde_json::Value>, String> {
                 "name": d.tool_name,
                 "description": d.description,
                 "model": d.model,
-                "background": d.background,
                 "tools": d.tools,
             })
         })
@@ -2151,13 +2414,12 @@ mod tests {
             .expect("default research worker must parse");
         assert_eq!(research.tool_name, "research_worker");
         assert_eq!(research.model, "ai00-auto");
-        assert_eq!(research.background, "continuable");
         assert!(research.tools.contains(&"grep".to_string()));
         assert!(research.persona.contains("research worker"));
 
         let code = parse_worker_md("code_worker.md", DEFAULT_WORKER_CODE_MD)
             .expect("default code worker must parse");
-        assert_eq!(code.model, "ai00-salvo");
+        assert_eq!(code.model, "ai00-api");
         assert!(code.tools.contains(&"edit".to_string()));
     }
 
@@ -2177,10 +2439,19 @@ mod tests {
     fn worker_rows_are_well_formed_yaml_entries() {
         let defs = fallback_worker_defs();
         let rows = build_worker_rows(&defs);
-        assert!(rows.contains("toolName: \"research_worker\""));
-        assert!(rows.contains("backgroundMode: \"continuable\""));
-        assert!(rows.contains("            - \"read\"\n"));
+        // preset 声明：persona 走 @deepseek-ai/dsh-persona，工具走插件行
+        assert!(rows.contains("    - id: preset-ai00x-research-worker\n"));
+        assert!(rows
+            .contains("          - id: persona\n            name: '@deepseek-ai/dsh-persona'\n"));
         // persona block scalar 缩进比键深
-        assert!(rows.contains("        persona: |-\n          You are a research worker"));
+        assert!(
+            rows.contains("              prefix: |-\n                You are a research worker")
+        );
+        // 委派工具用 agentPreset 选中 preset，且不再带已移除的配置键
+        assert!(rows.contains("        toolName: \"research_worker\"\n"));
+        assert!(rows.contains("        agentPreset: ai00x-research-worker\n"));
+        assert!(!rows.contains("backgroundMode"));
+        assert!(!rows.contains("toolFilter"));
+        assert!(!rows.contains("persona: |-"));
     }
 }

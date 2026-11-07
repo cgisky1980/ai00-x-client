@@ -2227,6 +2227,10 @@ pub struct BuiltinRwkvEntry {
     pub resolved_model_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolved_vocab_path: Option<String>,
+    /// 必需档位：启动期自动下载，作为本地协同（智能路由/工具轮）的默认模型。
+    pub required: bool,
+    /// 仓库是否已上架权重（false = 仅占位展示，不能下载）。
+    pub available: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -2242,6 +2246,10 @@ struct BuiltinRwkvModel {
     /// 就绪匹配区间（字节）：按 int8 实际体积紧凑匹配。
     min_bytes: u64,
     max_bytes: u64,
+    /// 必需档位（启动期自动下载）；其余为可选档位，只在模型选择器里按需下载。
+    required: bool,
+    /// 权重是否已上架仓库（13B 尚未上传，仅占位）。
+    available: bool,
 }
 
 const BUILTIN_RWKV: &[BuiltinRwkvModel] = &[
@@ -2249,15 +2257,39 @@ const BUILTIN_RWKV: &[BuiltinRwkvModel] = &[
         key: "rwkv-3b",
         display: "RWKV 3B",
         // g1l 2.9b（20261031，ctx34304）int8；档位统一命名 rwkv7-(3/7/13)B-int8.st
-        //（7B/13B 待权重就绪后跟进统一；13B 文件尚未上传仓库，7B 档位已于 2026-10-31 退役）
         st_rel: "rwkv/rwkv7-3B-int8.st",
         vocab_rel: "rwkv/vocab.json",
         size_bytes: 3_295_783_296,
         min_bytes: 2_500_000_000,
         max_bytes: 4_500_000_000,
+        required: true,
+        available: true,
     },
-    // 7B/13B 内置支持已收窄移除（2026-09-10）：本地对话模型仅保留 RWKV 3B，
-    // 已下载文件保留但不再出现在目录/下载列表。
+    // 可选档位：不在启动期自动下载，用户可在模型选择器「本地模型」里按需下载。
+    // 下载后不会自动改变引擎默认模型（scan_model_file 恒优先必需档位）。
+    BuiltinRwkvModel {
+        key: "rwkv-7b",
+        display: "RWKV 7B",
+        st_rel: "rwkv/rwkv7-7B-int8.st",
+        vocab_rel: "rwkv/vocab.json",
+        size_bytes: 7_898_815_456,
+        min_bytes: 7_000_000_000,
+        max_bytes: 9_000_000_000,
+        required: false,
+        available: true,
+    },
+    // 13B 权重尚未上传统一仓库：保留目录占位，UI 显示「暂未提供」，不提供下载。
+    BuiltinRwkvModel {
+        key: "rwkv-13b",
+        display: "RWKV 13B",
+        st_rel: "rwkv/rwkv7-13B-int8.st",
+        vocab_rel: "rwkv/vocab.json",
+        size_bytes: 0,
+        min_bytes: 12_000_000_000,
+        max_bytes: 16_000_000_000,
+        required: false,
+        available: false,
+    },
 ];
 
 const RWKV_UNIFIED_REPO: &str = "cgisky/ai00-x";
@@ -2299,6 +2331,8 @@ pub fn rwkv_builtin_catalog() -> Vec<BuiltinRwkvEntry> {
                 downloaded: hit.is_some(),
                 resolved_model_path: hit.map(|h| h.model_path.clone()),
                 resolved_vocab_path: hit.map(|h| h.vocab_path.clone()),
+                required: m.required,
+                available: m.available,
             }
         })
         .collect()
@@ -2312,6 +2346,12 @@ pub async fn rwkv_builtin_download(key: String) -> Result<Vec<String>, String> {
         .iter()
         .find(|m| m.key == key)
         .ok_or_else(|| format!("unknown builtin rwkv model: {key}"))?;
+    if !entry.available {
+        return Err(format!(
+            "{} is not available for download yet",
+            entry.display
+        ));
+    }
     let models_dir = crate::runtime::get_models_dir();
     let mut task_ids = Vec::new();
 
@@ -2353,9 +2393,18 @@ pub async fn rwkv_builtin_download(key: String) -> Result<Vec<String>, String> {
     Ok(task_ids)
 }
 
-/// 扫描模型目录，返回第一个 .st / .safetensors 模型文件（跳过路由小模型）。
+/// 扫描模型目录，返回默认 RWKV 模型文件（跳过路由小模型）。
+///
+/// 优先必需档位（3B）：可选档位（7B/13B）下载后不得悄悄改变本地协同模型的
+/// 实际加载文件（否则同一台机器行为随下载历史漂移）。
 fn scan_model_file() -> Option<String> {
     let models_dir = assets_models_dir();
+    for builtin in BUILTIN_RWKV.iter().filter(|m| m.required) {
+        let path = models_dir.join(builtin.st_rel);
+        if path.is_file() {
+            return Some(path.to_string_lossy().into_owned());
+        }
+    }
     let entries = std::fs::read_dir(&models_dir).ok()?;
     for entry in entries.flatten() {
         let path = entry.path();

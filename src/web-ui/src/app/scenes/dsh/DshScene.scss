@@ -334,12 +334,48 @@
     min-width: 0;
   }
 
+  /** 气泡内片段：一次模型响应一段（工具 → 正文），段间留白 */
+  &__msg-segment + &__msg-segment {
+    margin-top: var(--spacing-2);
+  }
+
   &__msg-text {
     font-size: var(--font-size-sm);
     line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-word;
     color: var(--color-text-primary);
+
+    // 助手正文走 MarkdownRenderer：块级排版由 markdown 接管，
+    // 标题按气泡尺度压缩（默认 h1/h2 在 360px 侧栏里过大）
+    &.is-markdown {
+      white-space: normal;
+
+      .markdown-renderer {
+        font-size: var(--font-size-sm);
+        line-height: 1.65;
+      }
+
+      .markdown-renderer p {
+        font-size: var(--font-size-sm);
+      }
+
+      .markdown-renderer h1,
+      .markdown-renderer h2,
+      .markdown-renderer h3,
+      .markdown-renderer h4,
+      .markdown-renderer h5,
+      .markdown-renderer h6 {
+        font-size: var(--font-size-base);
+        margin: var(--spacing-3) 0 var(--spacing-2);
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+
+      .markdown-renderer h1 {
+        font-size: var(--font-size-lg);
+      }
+    }
 
     &.is-streaming::after {
       content: '';
@@ -385,25 +421,59 @@
     &[open] summary::before {
       content: '▾';
     }
-
-    pre {
-      margin: var(--spacing-1) 0 0;
-      padding: var(--spacing-2);
-      background: var(--color-bg-primary);
-      border-radius: var(--radius-sm);
-      font-family: var(--font-family-mono);
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-      overflow-x: auto;
-      max-height: 200px;
-    }
   }
 
-  &__msg-reasoning div {
+  // 工具卡参数/结果：等宽 + 就地换行。
+  // 只作用于工具卡——推理区走 markdown，其代码块由 Markdown.scss 负责。
+  //
+  // ★ 不能用 overflow-x: auto：带横向滚动的子元素在 intrinsic sizing 里贡献为 0，
+  // 助手气泡是 align-self: flex-start（宽度 = fit-content），会被压成只有 summary
+  // 那么宽（实测 79px），正文按单字折行、整个对话区还出现横向滚动。
+  &__msg-tool pre {
+    margin: var(--spacing-1) 0 0;
+    padding: var(--spacing-2);
+    background: var(--color-bg-primary);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-family-mono);
     font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  // 推理过程同样是 markdown：紧凑排版 + 区域内滚动，原始 ## / 反引号不再裸露
+  &__msg-reasoning-body {
     padding: var(--spacing-1) 0;
+    max-height: 280px;
+    overflow-y: auto;
+
+    .markdown-renderer {
+      font-size: var(--font-size-xs);
+      line-height: 1.6;
+      color: var(--color-text-muted);
+    }
+
+    .markdown-renderer p,
+    .markdown-renderer li {
+      font-size: var(--font-size-xs);
+      line-height: 1.6;
+      color: var(--color-text-muted);
+    }
+
+    .markdown-renderer h1,
+    .markdown-renderer h2,
+    .markdown-renderer h3,
+    .markdown-renderer h4,
+    .markdown-renderer h5,
+    .markdown-renderer h6 {
+      font-size: var(--font-size-sm);
+      margin: var(--spacing-2) 0 var(--spacing-1);
+      padding-bottom: 0;
+      border-bottom: none;
+      color: var(--color-text-secondary);
+    }
   }
 
   // 工具卡状态（M0.3：pending 旋转 / 错误红色 / 结果块）
@@ -447,6 +517,70 @@
     padding: var(--spacing-1) var(--spacing-4);
     font-size: var(--font-size-xs);
     color: var(--color-error);
+  }
+
+  // 助手消息操作条：默认淡出，悬停/聚焦时浮现（不干扰阅读）
+  &__msg-actions {
+    display: flex;
+    gap: var(--spacing-1);
+    margin-top: var(--spacing-1);
+    opacity: 0;
+    transition: opacity var(--motion-fast) ease;
+  }
+
+  /** 气泡底部元信息行：用量常显，复制按钮悬停/聚焦才出现 */
+  &__msg-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-2);
+    margin-top: var(--spacing-1);
+    min-height: var(--spacing-6);
+  }
+
+  &__msg-meta &__msg-actions {
+    margin-top: 0;
+  }
+
+  /** 本回合 token 用量（机器输出：mono + 等宽数字 + 次级色） */
+  &__msg-usage {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  &__msg:hover &__msg-actions,
+  &__msg:focus-within &__msg-actions {
+    opacity: 1;
+  }
+
+  &__msg-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-0-5) var(--spacing-1-5);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    transition: color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+
+    &:hover {
+      color: var(--color-accent);
+      border-color: var(--color-accent);
+    }
+
+    &.is-copied {
+      color: var(--color-success);
+      border-color: var(--color-success);
+    }
   }
 
   // ---- 审批卡（工具执行确认） ----

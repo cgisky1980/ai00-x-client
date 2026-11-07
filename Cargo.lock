@@ -153,6 +153,7 @@ dependencies = [
  "salvo",
  "serde",
  "serde_json",
+ "serde_yaml",
  "tauri",
  "tokio",
  "tokio-tungstenite 0.24.0",

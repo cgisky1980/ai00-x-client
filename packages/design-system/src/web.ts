@@ -132,7 +132,7 @@ export { Tree, type TreeNodeData, type TreeProps } from './components/tree';
 
 /* ==== AI 系组件（v0.15）：antd X 对位，纯 UI / props 数据注入 / 零 store 依赖 ==== */
 export { ChatMessage, type ChatMessageProps } from './components/web/ai/ChatMessage';
-export { PromptInput, type PromptInputProps } from './components/web/ai/PromptInput';
+export { PromptInput, type PromptInputProps, type PromptSubmitIntent } from './components/web/ai/PromptInput';
 export {
   ModelSelector,
   type ModelSelectorProps,

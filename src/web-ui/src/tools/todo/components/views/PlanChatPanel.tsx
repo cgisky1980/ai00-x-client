@@ -10,7 +10,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { HelpCircle, Send } from 'lucide-react';
-import { PromptInput } from '@/component-library';
+import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import ModelSelector from '@/shared/components/ModelSelector';
 import { useTodoStore } from '../../store/todoStore';
 import { planChatReplyWithTools, generateBoardPlan, DELEGATION_RE } from '../../ai/consult';
@@ -424,13 +424,14 @@ export const PlanChatPanel: React.FC<{
         {pendingQ && pendingQ.length > 0 ? (
           <PlanQuestionCard questions={pendingQ} onSend={(t) => void send(t)} />
         ) : (
-          <PromptInput
+          <AgentComposer
             value={input}
             onChange={setInput}
             onSubmit={() => void send(input)}
             loading={busy}
             placeholder={task.status === 'planning' || isDoing ? '对计划提出修改意见，或自由讨论…' : '补充需求、点选上面的选项，或自由回答…'}
             maxHeight={120}
+            showModelSelector={false}
             footerLeft={
               <ModelSelector
                 currentMode="plan-discuss"

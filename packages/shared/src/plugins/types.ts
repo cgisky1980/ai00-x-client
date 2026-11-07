@@ -54,6 +54,42 @@ export interface PluginManifest {
   repository?: string
   /** Hook id -> hook config. */
   hooks: Record<string, HookConfig>
+  /**
+   * Workbench declaration. Only meaningful together with a module
+   * `scene:page` hook; validated on install by the Rust side.
+   */
+  workbench?: WorkbenchDeclaration
+}
+
+/**
+ * Workbench declaration (`manifest.workbench`).
+ *
+ * A workbench is a plugin that owns a full scene page: installing it adds a
+ * left-nav entry and a closable scene. See
+ * `client/参考/2026-11-06-工作台体系计划.md`.
+ */
+export interface WorkbenchDeclaration {
+  /** Globally unique id (`[a-z0-9-]`), used in the scene id `workbench:{id}`. */
+  id: string
+  /** Display title in the left nav. */
+  title: string
+  /** Reserved data dir name; defaults to `id` when absent. */
+  dataDir?: string
+  /** Agent tool names this workbench references (declaration only). */
+  agentTools?: string[]
+  /** Whether opening the workbench binds a session to it. */
+  bindsSession?: boolean
+  /**
+   * 这一类工作台自己的 agent.md 内容（markdown）。
+   *
+   * 宿主首次运行此类工作台时写入工作台总目录的 `AGENTS.md`；已存在则不再
+   * 覆盖（用户可自行编辑）。缺省时宿主写入通用骨架。
+   */
+  agentInstructions?: string
+  /**
+   * 空会话时展示的示例任务（宿主最多显示 3 条；点击只填入输入框，不自动发送）。
+   */
+  starterPrompts?: string[]
 }
 
 /** Plugin info returned by the `get_plugins` command. */

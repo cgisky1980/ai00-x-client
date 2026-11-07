@@ -219,7 +219,10 @@
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 5px;
   font-family: var(--markdown-font-mono);
-  white-space: nowrap;
+  // 行内代码允许换行：`<meta name="viewport" content="…">` 这类长串若不换行，
+  // 会把窄对话栏（工作台 360px AI 区）整条撑出横向滚动（实测 698px vs 218px）。
+  white-space: normal;
+  overflow-wrap: anywhere;
   vertical-align: baseline;
   line-height: 1.45;
   user-select: text !important;
@@ -528,7 +531,11 @@
 .table-wrapper table {
   border-spacing: 0;
   border-collapse: collapse;
-  width: 100%;
+  // 按内容展开、由 .table-wrapper 横向滚动。
+  // 用 width:100% 时，窄面板（工作台 360px AI 区）会把每列压到一两个字宽，
+  // 中文被折成一字一行（"楼梯"），表格高度暴涨且完全不可读。
+  width: max-content;
+  min-width: 100%;
   font-size: 0.85rem;
 }
 

@@ -14,7 +14,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { GripHorizontal, X } from 'lucide-react';
-import { PromptInput } from '@/component-library';
+import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import {
   connectMux,
   dshApproval,
@@ -32,6 +32,7 @@ import { useDraggable, refreshRegions, setDragging } from '../../../infrastructu
 import { usePopupResize } from '../../../tools/island/hooks/usePopupResize';
 import { isApprovalAllowed } from '@/shared/agent-approval-rules';
 import { ApprovalCard, MessageBubble, QuestionCard } from '../../scenes/dsh/DshChatPieces';
+import { groupMessagesForDisplay } from '../../scenes/dsh/messageGroups';
 // 消息/输入区样式类来自策场景（__msg* / __composer），必须引入该样式表
 import '../../scenes/dsh/DshScene.scss';
 import type { ChatPanelInfo } from './theaterStore';
@@ -281,7 +282,7 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
           {!loading && messages.length === 0 && !error && (
             <div className="ai00-x-dsh-scene__messages-empty">{tDsh('chat.empty')}</div>
           )}
-          {messages.map(m => (
+          {groupMessagesForDisplay(messages).map(m => (
             <MessageBubble key={m.id} message={m} />
           ))}
           {error && <div className="ai00-x-dsh-scene__error">{error}</div>}
@@ -306,15 +307,16 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
           </div>
         )}
 
-        {/* 标准对话输入框（design-system PromptInput；模型选择以策窗口 DshScene 为准，此处不放选择器） */}
+        {/* 统一 AI 对话输入组件（AgentComposer，内置模型选择，非受控接线） */}
         <div className="ai00-x-dsh-scene__composer">
-          <PromptInput
+          <AgentComposer
             value={draft}
             onChange={setDraft}
             onSubmit={() => void handleSend()}
             onStop={() => void handleStop()}
             loading={sending}
             placeholder={tDsh('chat.inputPlaceholder')}
+            sessionId={sessionId}
           />
         </div>
       </div>

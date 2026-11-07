@@ -43,6 +43,7 @@ const KNOWN_HOOKS: &[&str] = &[
     "sys:click",
     "sys:scheduler",
     "sys:clipboard",
+    "scene:page",
 ];
 
 /// Hooks carried by a sandboxed iframe (all other known hooks use ESM modules).
@@ -126,6 +127,43 @@ pub struct PluginManifest {
     pub repository: Option<String>,
     #[serde(default)]
     pub hooks: HashMap<String, HookConfig>,
+    /// Workbench declaration. Only meaningful together with a `scene:page`
+    /// module hook; validated at install time (see `validate_workbench`).
+    #[serde(default)]
+    pub workbench: Option<WorkbenchDecl>,
+}
+
+/// Workbench declaration (`manifest.workbench`).
+///
+/// A workbench is a plugin that owns a full scene page in the main workbench
+/// (see `参考/2026-11-06-工作台体系计划.md`). Phase 1 only validates and
+/// surfaces these fields to the frontend; the reserved data dir is not yet
+/// created on disk.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkbenchDecl {
+    /// Globally unique workbench id (`[a-z0-9-]`, used in the scene id).
+    pub id: String,
+    /// Display title in the left nav.
+    pub title: String,
+    /// Reserved data dir name under `{data_dir}/Ai00-X/workbenches/`.
+    /// Defaults to `id` when absent.
+    #[serde(default)]
+    pub data_dir: Option<String>,
+    /// Agent tool names this workbench references (declaration only — no
+    /// tools are registered on install).
+    #[serde(default)]
+    pub agent_tools: Vec<String>,
+    /// Whether opening the workbench binds a session to it.
+    #[serde(default)]
+    pub binds_session: bool,
+    /// 这一类工作台自己的 agent.md（markdown）。宿主首次运行时写入工作台
+    /// 总目录的 `AGENTS.md`；已存在则不覆盖。缺省时宿主写入通用骨架。
+    #[serde(default)]
+    pub agent_instructions: Option<String>,
+    /// 空会话时展示的示例任务（最多 3 条，点击只填入输入框）。
+    #[serde(default)]
+    pub starter_prompts: Vec<String>,
 }
 
 /// Plugin info returned to the frontend.
@@ -318,6 +356,98 @@ fn extract_zip_to(
 // Core install/uninstall logic
 // ---------------------------------------------------------------------------
 
+/// Workbench ids are slugs: lowercase letters, digits and `-`.
+fn is_valid_workbench_slug(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// Validate `manifest.workbench` (no-op when absent).
+///
+/// Rules: id is a slug, title is non-empty, the plugin declares a module
+/// `scene:page` hook, and `dataDir` (when set) stays a single relative path
+/// segment set (no absolute paths, no `..`, no drive letters).
+fn validate_workbench(manifest: &PluginManifest) -> Result<()> {
+    let Some(wb) = manifest.workbench.as_ref() else {
+        return Ok(());
+    };
+    if !is_valid_workbench_slug(&wb.id) {
+        return Err(anyhow!(
+            "Invalid workbench id '{}' (expected [a-z0-9-])",
+            wb.id
+        ));
+    }
+    if wb.title.trim().is_empty() {
+        return Err(anyhow!("Workbench '{}' has an empty title", wb.id));
+    }
+    match manifest.hooks.get("scene:page") {
+        Some(HookConfig::Module { .. }) => {}
+        Some(HookConfig::Iframe { .. }) => {
+            return Err(anyhow!(
+                "Workbench '{}' must declare 'scene:page' as a module hook",
+                wb.id
+            ));
+        }
+        None => {
+            return Err(anyhow!(
+                "Workbench '{}' declares no 'scene:page' hook",
+                wb.id
+            ));
+        }
+    }
+    if let Some(data_dir) = wb.data_dir.as_deref() {
+        let path = Path::new(data_dir);
+        let safe = !data_dir.trim().is_empty()
+            && path
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)));
+        if !safe {
+            return Err(anyhow!(
+                "Invalid workbench dataDir '{}' (must be a relative path)",
+                data_dir
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Reject a workbench id already claimed by another installed plugin.
+async fn ensure_workbench_id_unique(workbench_id: &str, own_plugin_id: &str) -> Result<()> {
+    let dir = plugins_dir();
+    let Ok(mut entries) = fs::read_dir(&dir).await else {
+        return Ok(());
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(id) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if id.starts_with('.') || id == own_plugin_id {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(path.join("manifest.json")).await else {
+            continue;
+        };
+        let Ok(other) = serde_json::from_str::<PluginManifest>(&content) else {
+            continue;
+        };
+        if other.workbench.as_ref().map(|w| w.id.as_str()) == Some(workbench_id) {
+            return Err(anyhow!(
+                "Workbench id '{}' is already used by plugin '{}'",
+                workbench_id,
+                id
+            ));
+        }
+    }
+    Ok(())
+}
+
 async fn install_from_zip(app: &AppHandle, zip_path: &Path) -> Result<PluginInfo> {
     let file =
         std::fs::File::open(zip_path).with_context(|| format!("open {}", zip_path.display()))?;
@@ -353,6 +483,11 @@ async fn install_from_zip(app: &AppHandle, zip_path: &Path) -> Result<PluginInfo
                 }
             }
         }
+    }
+
+    validate_workbench(&manifest)?;
+    if let Some(wb) = manifest.workbench.as_ref() {
+        ensure_workbench_id_unique(&wb.id, &manifest.id).await?;
     }
 
     let plugin_dir = plugins_dir().join(&manifest.id);
@@ -490,19 +625,29 @@ struct BundledPlugin {
 /// (todo 已于 2026-08-25 从插件提升为 overlay 核心功能——React 重写于
 /// web-ui `tools/todo/`，本地数据走 todo_api.rs，游戏化走服务器
 /// member_xp_events。源码保留在 plugins/todo/ 供参考。)
-const BUNDLED_PLUGINS: &[BundledPlugin] = &[BundledPlugin {
-    manifest: include_str!("../../../../../../plugins/sticky-notes/manifest.json"),
-    files: &[
-        (
-            "overlay.mjs",
-            include_str!("../../../../../../plugins/sticky-notes/overlay.mjs"),
-        ),
-        (
-            "island.mjs",
-            include_str!("../../../../../../plugins/sticky-notes/island.mjs"),
-        ),
-    ],
-}];
+const BUNDLED_PLUGINS: &[BundledPlugin] = &[
+    BundledPlugin {
+        manifest: include_str!("../../../../../../plugins/sticky-notes/manifest.json"),
+        files: &[
+            (
+                "overlay.mjs",
+                include_str!("../../../../../../plugins/sticky-notes/overlay.mjs"),
+            ),
+            (
+                "island.mjs",
+                include_str!("../../../../../../plugins/sticky-notes/island.mjs"),
+            ),
+        ],
+    },
+    // 首个官方工作台样板：声明 `workbench` + `scene:page` module 钩子。
+    BundledPlugin {
+        manifest: include_str!("../../../../../../plugins/wallpaper-workbench/manifest.json"),
+        files: &[(
+            "ui/index.js",
+            include_str!("../../../../../../plugins/wallpaper-workbench/ui/index.js"),
+        )],
+    },
+];
 
 /// Default plugins retired from the bundle. Any installed copy is removed at
 /// startup (files + registry entries) and recorded in `removed_defaults` so

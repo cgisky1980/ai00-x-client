@@ -140,7 +140,12 @@ async function fetchTarball(pkgName, version, destDir) {
   fs.writeFileSync(tgzPath, buf);
   const posix = tgzPath.split('\\').join('/');
   const posixDir = destDir.split('\\').join('/');
-  sh('tar', ['--force-local', '-xzf', posix, '-C', posixDir]);
+  // --force-local 是 GNU tar 专属（规避 "C:" 被当主机名）；Windows 自带 bsdtar
+  // 不认该选项，但也无需它——直接按路径解包即可
+  const tarArgs = process.platform === 'win32'
+    ? ['-xzf', posix, '-C', posixDir]
+    : ['--force-local', '-xzf', posix, '-C', posixDir];
+  sh('tar', tarArgs);
   return path.join(destDir, 'package');
 }
 

@@ -1,13 +1,16 @@
 # Ai00-X 编排架构 patch 静态头（版本限定资产，详见同目录 INTENT.md）。
 # 由 dsh_manager::ensure_orchestration_patch 装配并幂等覆写 profile
 # cordis.patch.yml；组合预览：dsh --profile ai00x --dump-config。
-# 纪律：新增条目必须放 insert 列表（顶层裸行 = 覆盖既有条目）；persona
-# 只能覆写 system-prompt 行（"deployment:persona" 槽全局唯一，另插会
-# 重复注册 boot 崩，2026-09-11 实测）。
+# 纪律：新增条目必须放 insert 列表（顶层裸行 = 覆盖既有条目）；编排者
+# persona 只能覆写 system-prompt 行的 config.personaPrefix（部署级槽；
+# 0.2.2 起 system-prompt 的 config 已无 `persona` 键，写它会被静默忽略）。
+# 注意：agent preset 里的 @deepseek-ai/dsh-persona 行会以 scoped
+# "deployment:persona-prefix" 覆盖本行——默认 standard preset 带自己的
+# persona，故实际生效的是 preset 那份（见 INTENT.md「persona 归属」）。
 # 占位符：{BUNDLED_SKILLS_DIR} / {WORKER_NAMES}（装配期替换）。
 - id: system-prompt
   config:
-    persona: |-
+    personaPrefix: |-
       You are the Ai00-X orchestrator, powered by the {{model}} model. Your working directory is {{cwd}}.
 
       你的职责：规划与派发，不亲自执行。

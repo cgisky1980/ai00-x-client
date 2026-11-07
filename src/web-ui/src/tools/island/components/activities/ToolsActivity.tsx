@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import {
   AppWindow,
+  LayoutGrid,
   ListTodo,
   MessageCircle,
   MonitorSmartphone,
@@ -60,6 +61,15 @@ export const ToolsActivity: React.FC = () => {
         // 「策」已是独立窗口：这里是轻量入口，完整看板在 tasks 窗口里。
         // 到点提醒不依赖本入口——提醒由常驻 overlay 的策运行时（TodoOverlay）驱动。
         WindowAPI.open('tasks').catch(() => {})
+      },
+    },
+    {
+      key: 'workbench',
+      icon: LayoutGrid,
+      label: '工作台',
+      onClick: () => {
+        // 插件工作台的宿主窗口（左侧列表 / 右侧 scene:page）。
+        WindowAPI.open('workbench').catch(() => {})
       },
     },
   ]

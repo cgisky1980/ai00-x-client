@@ -287,6 +287,45 @@ pub struct ApplyToDesktopRequest {
     pub monitor_id: Option<u32>,
 }
 
+/// 恢复桌面默认背景（内置渐变，离线可用）。
+///
+/// 与 apply 对称：只改 underlay 背景并广播，不动工程目录。工作台删除
+/// 「已应用」工程前必须先调用它——否则桌面会继续加载一个已被删除的页面。
+#[tauri::command]
+pub async fn clear_workspace_wallpaper_from_desktop(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let current_config: serde_json::Value = state
+        .config_service
+        .get_config(Some("app.underlay"))
+        .await
+        .unwrap_or(serde_json::json!({}));
+    let is_enabled = current_config
+        .get("enabled")
+        .and_then(|e| e.as_bool())
+        .unwrap_or(true);
+
+    let background = serde_json::json!({
+        "mode": "single",
+        "default": { "type": "gradient", "config": {} }
+    });
+    let full_config = serde_json::json!({
+        "enabled": is_enabled,
+        "background": &background
+    });
+
+    state
+        .config_service
+        .set_config("app.underlay", full_config.clone())
+        .await
+        .map_err(|e| format!("persist underlay config failed: {e}"))?;
+
+    let _ = app.emit("underlay_background_change", &background);
+    info!("Restored default desktop background (gradient)");
+    Ok(())
+}
+
 /// Apply a wallpaper project to the desktop underlay.
 /// Reads the current underlay config, preserves the user's mode choice,
 /// updates the appropriate slot, and persists the change.

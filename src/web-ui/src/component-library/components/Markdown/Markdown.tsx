@@ -869,7 +869,9 @@ export const Markdown = React.memo<MarkdownProps>(({
       );
     },
 
-    details({ children, open, ...props }: any) {
+    // ⚠️ 必须把 react-markdown 注入的 `node` 摘掉：它会被 ...props 铺到真实 DOM 上，
+    // 渲染出 `<p node="[object Object]">` 这类垃圾属性（React 还会告警）。
+    details({ children, open, node: _node, ...props }: any) {
       return (
         <details {...props} open={open ?? expandDetailsByDefault}>
           {children}
@@ -886,19 +888,19 @@ export const Markdown = React.memo<MarkdownProps>(({
       return <blockquote className="custom-blockquote">{children}</blockquote>;
     },
     
-    ul({ children, ...props }: any) {
+    ul({ children, node: _node, ...props }: any) {
       return <ul {...props}>{children}</ul>;
     },
     
-    ol({ children, ...props }: any) {
+    ol({ children, node: _node, ...props }: any) {
       return <ol {...props}>{children}</ol>;
     },
     
-    li({ children, ...props }: any) {
+    li({ children, node: _node, ...props }: any) {
       return <li {...props}>{children}</li>;
     },
     
-    p({ children, align, style, ...props }: any) {
+    p({ children, align, style, node: _node, ...props }: any) {
       return (
         <p
           {...props}

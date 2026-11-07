@@ -1108,6 +1108,18 @@ impl AIConfig {
         if model_ref == "rwkv-local" {
             return Some("rwkv-local".to_string());
         }
+        // 网关入口别名：`ai00-api`（及旧名 `ai00-salvo`）代表「AI00-API 主模型」
+        // 槽位，解析为当前 primary 绑定（通常是 `ai00s:<子模型>`）。网关分流、
+        // 讨论通道（plugin_ai_complete）与会话模型引用共用同一语义——否则在
+        // 模型选择器里选「AI00-API」会报 Model configuration not found。
+        if model_ref == "ai00-api" || model_ref == "ai00-salvo" {
+            return self
+                .default_models
+                .primary
+                .as_deref()
+                .filter(|primary| *primary != model_ref)
+                .and_then(|primary| self.resolve_model_reference(primary));
+        }
         if let Some(sub_model) = model_ref.strip_prefix("ai00s:") {
             if !sub_model.trim().is_empty() {
                 return Some(model_ref.to_string());

@@ -69,8 +69,53 @@
     },
     "sections": {
       "workspace": "工作区",
+      "workbench": "工作台",
       "extensions": "定制",
       "shell": "Shell"
+    },
+    "workbenchScene": {
+      "notInstalled": "工作台「{{id}}」未安装或未启用",
+      "loading": "正在加载工作台「{{title}}」…",
+      "loadFailed": "工作台「{{title}}」加载失败：插件页面模块不可用",
+      "loadFailedHint": "可以重试重新挂载；若持续失败，请检查插件是否完整、是否已启用。",
+      "retry": "重试",
+      "chat": {
+        "title": "对话",
+        "noProject": "在左侧选择或创建一个工程后，即可在这里让它动手改",
+        "binding": "正在准备工作台会话…",
+        "bindFailed": "会话准备失败：{{message}}",
+        "dismiss": "关闭",
+        "reconnecting": "与引擎的连接中断，正在重连…",
+        "turnInterrupted": "与引擎的连接已中断，当前回合未完成（引擎可能已重启）。可重试同一句话。",
+        "pluginUnavailable": "该工作台页面加载失败，AI 对话已暂停。请在上方错误面板重试，或检查插件是否启用。"
+      }
+    },
+    "workbenchWindow": {
+      "empty": "还没有安装任何工作台",
+      "collapseRail": "收起导航",
+      "expandRail": "展开导航",
+      "showChat": "显示 AI 对话",
+      "hideChat": "隐藏 AI 对话",
+      "resizeChat": "拖动调整 AI 对话宽度（双击复位）",
+      "resizePageRail": "拖动调整侧栏宽度（双击复位）",
+      "home": {
+        "subtitle": "有序组织专属界面、会话与资料",
+        "create": "制作我的工作台",
+        "learnCreate": "了解工作台开发",
+        "searchPlaceholder": "搜索名称、作者或分类",
+        "clearSearch": "清空搜索",
+        "market": "市场",
+        "favorites": "我的收藏",
+        "installed": "已安装",
+        "marketEmpty": "市场对接中，敬请期待。已安装的工作台可在「已安装」页签使用。",
+        "favoritesEmpty": "收藏功能随市场上线，敬请期待。",
+        "filterType": "全部类型",
+        "filterSort": "Star 数量",
+        "noMatch": "没有匹配的工作台",
+        "railHome": "首页",
+        "createDialogTitle": "制作我的工作台",
+        "createDialogBody": "图形化制作即将开放。现在已可按《工作台插件规范》手写工作台插件（manifest.workbench + scene:page 钩子），安装后即可出现在这里。"
+      }
     },
     "modes": {
       "code": "CODE",

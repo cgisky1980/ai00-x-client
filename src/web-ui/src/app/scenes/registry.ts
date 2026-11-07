@@ -15,6 +15,7 @@ import {
   FileCode2,
   CircleUserRound,
   Puzzle,
+  LayoutGrid,
   Boxes,
   Globe,
   Network,
@@ -31,6 +32,7 @@ import {
   Coins,
 } from 'lucide-react';
 import type { SceneTabDef, SceneTabId } from '../components/SceneBar/types';
+import { getWorkbenchById } from '../../infrastructure/plugins/workbenchRegistry';
 
 /** Upper bound for concurrent open scene tabs (top bar); oldest closable tab is evicted when exceeded. */
 export const MAX_OPEN_SCENES = 3;
@@ -269,6 +271,27 @@ export function getMiniAppSceneDef(appId: string, appName?: string): SceneTabDef
     fixed: false,
     closable: true,
     singleton: false,
+    defaultOpen: false,
+  };
+}
+
+/**
+ * Dynamic scene def for a workbench page (`workbench:{id}`).
+ *
+ * Workbenches are plugin-provided pages registered at install time, so unlike
+ * the static registry they are resolved on demand. Label falls back to the raw
+ * id when the registry has not loaded yet.
+ */
+export function getWorkbenchSceneDef(workbenchId: string): SceneTabDef {
+  const id = `workbench:${workbenchId}` as SceneTabId;
+  return {
+    id,
+    label: getWorkbenchById(workbenchId)?.title ?? workbenchId,
+    Icon: LayoutGrid,
+    pinned: false,
+    fixed: false,
+    closable: true,
+    singleton: true,
     defaultOpen: false,
   };
 }

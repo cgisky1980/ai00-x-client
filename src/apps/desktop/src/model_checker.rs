@@ -89,6 +89,19 @@ struct HostSpeed {
     throughput_bps: u64,
 }
 
+/// 启动期不自动下载的档位：远端 manifest 仍列着这些历史条目，但客户端只把
+/// RWKV 3B 当必需档位（`rwkv_llm::BUILTIN_RWKV` 的 `required`）；7B/13B 改为
+/// 在模型选择器「本地模型」里按需下载，避免每次启动拉 7.9GB。
+/// 已存在的本地文件保留不删。
+const AUTO_DOWNLOAD_SKIP: &[(&str, &str)] =
+    &[("rwkv", "rwkv7-7B-int8"), ("rwkv", "rwkv7-13B-int8")];
+
+fn is_optional_tier(component: &str, key: &str) -> bool {
+    AUTO_DOWNLOAD_SKIP
+        .iter()
+        .any(|(c, k)| *c == component && *k == key)
+}
+
 pub struct ModelChecker {
     client: reqwest::Client,
     host_speeds: Arc<Mutex<Vec<HostSpeed>>>,
@@ -185,6 +198,14 @@ impl ModelChecker {
                 component.models.len()
             );
             for (model_name, remote_info) in &component.models {
+                if is_optional_tier(component_name, model_name) {
+                    log::info!(
+                        "[model_checker] skip optional tier {}/{} (download on demand from the model selector)",
+                        component_name,
+                        model_name
+                    );
+                    continue;
+                }
                 let local_path = models_dir.join(&remote_info.url);
                 let cached_hash = cached_manifest.as_ref().and_then(|cm| {
                     cm.components

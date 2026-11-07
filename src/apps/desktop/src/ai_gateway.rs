@@ -7,11 +7,11 @@
 //!
 //! 分流策略（按请求 `model` 字段）：
 //! - `ai00-auto`（默认）→ SmartRouter（本地 RWKV classify R0-R3）：
-//!   R0/R1 → 本地 RWKV；R2/R3 → ai00-salvo（primary 模型转发）
+//!   R0/R1 → 本地 RWKV；R2/R3 → AI00-API（primary 模型转发）
 //! - 带 tools 且全部在本地白名单 → 混合工具循环（M1.3，默认开）：工具轮
 //!   本地 RWKV 零状态临时会话，收敛后远端基于折叠历史合成终答
 //! - `rwkv-local`  → 强制本地 RWKV
-//! - `ai00-salvo`  → 强制远程转发（primary 模型）
+//! - `ai00-api`    → 强制远程转发（AI00-API primary 模型；旧 id 仅作兼容别名）
 //! - 其他引用（`ai00s:<子模型>` / `gguf-local:<路径>` / 自定义 id）→ 按引用
 //!   经 client_factory 解析转发——与讨论通道（plugin_ai_complete）同一解析链，
 //!   dsh 执行会话可以和策讨论选到完全相同的模型，不再静默并入智能路由。
@@ -36,7 +36,10 @@ use crate::rwkv_llm::{pool_infer, InferenceEvent};
 /// 逻辑模型 id（对 dsh provider UI 暴露）。
 pub const MODEL_AUTO: &str = "ai00-auto";
 pub const MODEL_RWKV: &str = "rwkv-local";
-pub const MODEL_REMOTE: &str = "ai00-salvo";
+/// 远端网关（AI00-API）入口：按配置的 primary 槽转发。
+pub const MODEL_REMOTE: &str = "ai00-api";
+/// 旧入口 id 的兼容别名：仅接受，不再对外通告（存量会话/配置迁移用）。
+pub const MODEL_REMOTE_LEGACY: &str = "ai00-salvo";
 
 const INTERNAL_TOKEN_HEADER: &str = "x-ai00-internal-token";
 
@@ -65,6 +68,82 @@ pub fn router() -> Router {
         .push(Router::with_path("v1/chooses").hoop(no_cache).post(chooses))
 }
 
+/// 收集配置里出现的 `ai00s:<子模型>` 引用（去重、保序）。
+///
+/// 这些是 AI00-API 的真实模型（默认主模型 / 快速模型 / 各 agent 绑定），
+/// 通告给 dsh 后弹层显示具体模型名，而不是网关入口本身。
+fn configured_ai00s_refs(ai: &ai00_x_core::service::config::AIConfig) -> Vec<String> {
+    let mut refs: Vec<String> = Vec::new();
+    let mut push = |value: Option<&String>| {
+        if let Some(v) = value {
+            let v = v.trim();
+            if v.starts_with("ai00s:") && !refs.iter().any(|r| r == v) {
+                refs.push(v.to_string());
+            }
+        }
+    };
+    push(ai.default_models.primary.as_ref());
+    push(ai.default_models.fast.as_ref());
+    for v in ai.agent_models.values() {
+        push(Some(v));
+    }
+    for v in ai.func_agent_models.values() {
+        push(Some(v));
+    }
+    refs
+}
+
+/// 拉取服务端模型目录（公开端点 `/ai00-s/api/ai/models`），返回全部子模型。
+///
+/// 网关只做「补通告」：服务端有、本机配置里没绑定的子模型也要让引擎能选，
+/// 否则模型选择器可见但 `session/model-unavailable`。失败返回空，不影响列表。
+///
+/// 注意：**不再按 `locked` 过滤**（2026-11-08 用户要求「模型先都别上锁」）。
+/// 是否可用交由服务端在真正调用时判定（未授权会返回 401/额度错误，UI 有人话提示）；
+/// 过滤掉则引擎目录里根本没有该模型，选择器直接少项、用户误以为服务器没有。
+async fn fetch_remote_ai00s_models(base_url: &str) -> Vec<(String, String)> {
+    let url = format!("{}/ai00-s/api/ai/models", base_url.trim_end_matches('/'));
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let resp = match client.get(&url).send().await {
+        Ok(r) => r,
+        Err(_) => return Vec::new(),
+    };
+    if !resp.status().is_success() {
+        return Vec::new();
+    }
+    let body: Value = match resp.json().await {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    body.get("data")
+        .and_then(|d| d.get("data"))
+        .and_then(|d| d.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| {
+                    let id = m.get("id")?.as_str()?.trim().to_string();
+                    if id.is_empty() {
+                        return None;
+                    }
+                    let name = m
+                        .get("display_name")
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.trim().is_empty())
+                        .unwrap_or(&id)
+                        .to_string();
+                    Some((id, name))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 #[handler]
 async fn list_models(res: &mut Response) {
     // 静态逻辑模型 + 用户已配置的具体模型引用（讨论通道同源，dsh 侧
@@ -73,15 +152,55 @@ async fn list_models(res: &mut Response) {
     // 使用该 id 走 SmartRouter，分流语义保留（存量会话/aux 兼容）。
     let mut data = vec![
         json!({"id": MODEL_RWKV,   "object": "model", "name": "Ai00-X Local RWKV", "contextWindow": 16384, "owned_by": "ai00-x"}),
-        json!({"id": MODEL_REMOTE, "object": "model", "name": "Ai00-X Salvo (ai00-x.com)", "contextWindow": 128000, "owned_by": "ai00-x"}),
+        json!({"id": MODEL_REMOTE, "object": "model", "name": "AI00-API", "contextWindow": 128000, "owned_by": "ai00-x"}),
     ];
     if let Ok(service) = get_global_config_service() {
         if let Ok(config) = service
             .get_config::<ai00_x_core::service::config::GlobalConfig>(None)
             .await
         {
+            // AI00-API 的具体子模型（default_models / agent_models 里配置的
+            // `ai00s:<子模型>`）逐个通告——dsh 弹层里看到的是真实模型名，
+            // 而不是网关入口本身。contextWindow 不低于 AI00-API 入口的 128k：
+            // 引擎在「窗口变小」时会拒绝切换并保留原模型，本地 RWKV→远端
+            // 这类放大切换才不会卡住。
+            let ai00s_cw = config
+                .ai
+                .models
+                .iter()
+                .find(|m| m.id == "ai00s")
+                .and_then(|m| m.context_window)
+                .filter(|v| *v > 0)
+                .unwrap_or(128_000)
+                .max(128_000);
+            for sub in configured_ai00s_refs(&config.ai) {
+                let name = sub.strip_prefix("ai00s:").unwrap_or(&sub).to_string();
+                data.push(json!({
+                    "id": sub,
+                    "object": "model",
+                    "name": name,
+                    "contextWindow": ai00s_cw,
+                    "owned_by": "ai00-x",
+                }));
+            }
+            // 服务端目录补通告：本机配置没绑定的子模型（未锁定）也要可选，
+            // 否则选择器里看不到 / 引擎拒绝会话模型。失败静默沿用配置项。
+            let server_models = fetch_remote_ai00s_models(&config.app.ai00_s_base_url).await;
+            for (sub_id, display) in server_models {
+                let ref_id = format!("ai00s:{sub_id}");
+                if data.iter().any(|v| v["id"] == ref_id) {
+                    continue;
+                }
+                data.push(json!({
+                    "id": ref_id,
+                    "object": "model",
+                    "name": display,
+                    "contextWindow": ai00s_cw,
+                    "owned_by": "ai00-x",
+                }));
+            }
             for m in &config.ai.models {
-                // "ai00s" 裸别名条目与 ai00-salvo（primary 槽）语义重叠，不下发
+                // "ai00s" 裸别名条目与 AI00-API 入口语义重叠，不下发
                 if m.id.is_empty() || m.id == MODEL_RWKV || m.id == MODEL_AUTO || m.id == "ai00s" {
                     continue;
                 }
@@ -338,7 +457,7 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
     let is_specific_ref = !model.is_empty() && model != MODEL_AUTO;
     let use_local = match model.as_str() {
         MODEL_RWKV => true,
-        MODEL_REMOTE => false,
+        MODEL_REMOTE | MODEL_REMOTE_LEGACY => false,
         _ if is_specific_ref => false,
         _ if has_tools => {
             // M1.2 分层路由 v2：默认远程（本地 RWKV 结构化 tool-call 可靠性
@@ -425,7 +544,7 @@ fn local_tools_enabled() -> bool {
 }
 
 /// 混合工具循环入口判定（纯函数，便于单测）：仅智能路由语义（空 / ai00-auto）
-/// 才允许进入本地工具循环；显式选型（rwkv-local=强制本地 / ai00-salvo=强制远端 /
+/// 才允许进入本地工具循环；显式选型（rwkv-local=强制本地 / ai00-api=强制远端 /
 /// 具体模型引用）一律尊重，不被本地循环劫持（2026-09-11 审查 P0：原入口不查
 /// model，显式远端 + 全白名单工具会被本地接管终答，rwkv-local 会被远端接管）。
 fn hybrid_eligible(model: &str, body: &Value, has_tools: bool) -> bool {
@@ -922,11 +1041,11 @@ async fn compose_final_remote(body: Value, draft: Option<&str>, model: &str, res
 }
 
 // ---------------------------------------------------------------------------
-// 远程转发分支（ai00-salvo primary / 具体模型引用解析转发）
+// 远程转发分支（AI00-API primary / 具体模型引用解析转发）
 // ---------------------------------------------------------------------------
 
 /// 本地失败降级目标：不可解析为远端客户端的引用（本地/智能路由逻辑 id）
-/// 统一落到 primary 槽；具体远端引用（ai00s:xxx / 自定义 id / ai00-salvo）原样保留。
+/// 统一落到 primary 槽；具体远端引用（ai00s:xxx / 自定义 id / `ai00-api`）原样保留。
 fn remote_fallback_ref(model: &str) -> &str {
     match model {
         MODEL_RWKV | MODEL_AUTO => MODEL_REMOTE,
@@ -934,7 +1053,7 @@ fn remote_fallback_ref(model: &str) -> &str {
     }
 }
 
-/// 转发到指定模型引用（OpenAI 兼容 SSE 透传）：`ai00-salvo` → primary 槽；
+/// 转发到指定模型引用（OpenAI 兼容 SSE 透传）：`ai00-api` → primary 槽；
 /// 其他引用（ai00s:/gguf-local:/自定义 id）按 client_factory 同一解析链直达。
 /// 本地失败降级统一走此入口——逻辑 id（rwkv-local/ai00-auto）先经
 /// [`remote_fallback_ref`] 映射，保证「本地失败自动降级远端」真实成立。
@@ -955,7 +1074,7 @@ async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response, model_ref: &
         }
     }
     let resolve_key = match remote_fallback_ref(model_ref) {
-        MODEL_REMOTE => "primary",
+        MODEL_REMOTE | MODEL_REMOTE_LEGACY => "primary",
         other => other,
     };
     // 恢复登录态：dsh 侧请求可能先于任何前端登录流程到达，

@@ -11,8 +11,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Bot, Hourglass } from 'lucide-react';
-import { PromptInput } from '@/component-library';
-import ModelSelector from '@/shared/components/ModelSelector';
+import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import {
   aggregateSessionStats,
   aggregateUsage,
@@ -30,8 +29,8 @@ import {
   type DshSessionEvent,
 } from '@/infrastructure/api/service-api/DshAPI';
 import { ApprovalCard, MessageBubble, QuestionCard } from '@/app/scenes/dsh/DshChatPieces';
+import { groupMessagesForDisplay } from '@/app/scenes/dsh/messageGroups';
 import { isApprovalAllowed } from '@/shared/agent-approval-rules';
-import { MODEL_AUTO } from '../../ai/modelCatalog';
 import { WATCH_STALL_SOFT_MS, recoverSession } from '../../utils/watchdog';
 import { useTodoStore } from '../../store/todoStore';
 import type { TodoTask } from '../../api/types';
@@ -67,22 +66,6 @@ export const ExecChatPanel: React.FC<{
     const t = setInterval(() => setRenderTick(v => v + 1), 30_000);
     return () => clearInterval(t);
   }, []);
-  // 模型解耦：受控值 = 会话实际模型（挂载时拉取 dshSession.models 投影），
-  // 与讨论通道字段 discussModel 无关——主对话跟随引擎默认远端，委托不改写；
-  // 此处手动切换 = 显式用户覆盖（仅同步会话，不写卡片/讨论模型）。
-  const [sessionModel, setSessionModel] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    dshSession
-      .models(sessionId)
-      .then((m) => {
-        if (alive) setSessionModel(m.current?.model ?? null);
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [sessionId]);
   // 会话累计 token 用量（与 DshScene 同源；eventsRef 每次渲染重算，量级可忽略）
   const usage = aggregateUsage(eventsRef.current);
   // R2-8 缓存命中率：供应商未上报返回 null（不显示，避免误读成 0%）
@@ -277,14 +260,6 @@ export const ExecChatPanel: React.FC<{
     setQuestions(prev => prev.filter(q => q.rpcId !== rpcId));
   };
 
-  /** 手动切模型：仅同步到会话（显式用户覆盖），不写 discussModel（讨论通道专属字段）。 */
-  const handleSelectModel = (ref: string): void => {
-    setSessionModel(ref === MODEL_AUTO ? 'ai00-auto' : ref);
-    dshSession
-      .selectModel(sessionId, 'ai00-x', ref === MODEL_AUTO ? 'ai00-auto' : ref)
-      .catch(err => setError(err instanceof Error ? err.message : String(err)));
-  };
-
   // 执行五态（双段验收：模型自检提交后进入「待人类验收」，完成必须人类确认）
   // 子代理活跃（后台 job 或 subagent 投影）= continuable 派发后 worker 仍在跑，
   // 编排者会话虽非 running 也绝不能显示「已结束」或提供「继续执行」（防重复派发）
@@ -405,7 +380,7 @@ export const ExecChatPanel: React.FC<{
           {!loading && messages.length === 0 && !error && (
             <div className="ai00-x-dsh-scene__messages-empty">等待 agent 开始执行…（计划文档见右侧）</div>
           )}
-          {messages.map(m => (
+          {groupMessagesForDisplay(messages).map(m => (
             <MessageBubble key={m.id} message={m} />
           ))}
           {error && <div className="ai00-x-dsh-scene__error">{error}</div>}
@@ -430,22 +405,17 @@ export const ExecChatPanel: React.FC<{
           </div>
         )}
 
-        {/* 标准对话输入框（与计划讨论同款 PromptInput + ModelSelector，模型按卡存储） */}
+        {/* 统一 AI 对话输入组件（AgentComposer 内建模型选择器：仅同步会话，
+            与讨论通道 discussModel 字段解耦，并行任务可各用各的模型） */}
         <div className="ai00-x-dsh-scene__composer">
-          <PromptInput
+          <AgentComposer
             value={draft}
             onChange={setDraft}
             onSubmit={() => void handleSend()}
             onStop={() => void handleStop()}
             loading={sending}
             placeholder="执行中交流：需求/方案有变时 agent 会先改计划再继续（以计划文档为准）…"
-            footerLeft={
-              <ModelSelector
-                currentMode="plan-discuss"
-                controlledValue={sessionModel}
-                onControlledSelect={handleSelectModel}
-              />
-            }
+            sessionId={sessionId}
           />
         </div>
       </div>

@@ -34,6 +34,7 @@ const MermaidEditorScene = lazy(() => import('./mermaid/MermaidEditorScene'));
 const ShellScene      = lazy(() => import('./shell/ShellScene'));
 const WelcomeScene    = lazy(() => import('./welcome/WelcomeScene'));
 const MiniAppScene    = lazy(() => import('./miniapps/MiniAppScene'));
+const WorkbenchScene  = lazy(() => import('./workbench/WorkbenchScene'));
 const WallpaperDesignScene = lazy(() => import('./wallpaper/WallpaperDesignView'));
 const PanelViewScene  = lazy(() => import('./panel-view/PanelViewScene'));
 const UsageStatsScene = lazy(() => import('./usage-stats/UsageStatsScene'));
@@ -150,6 +151,9 @@ function renderScene(
     default:
       if (typeof id === 'string' && id.startsWith('miniapp:')) {
         return <MiniAppScene appId={id.slice('miniapp:'.length)} />;
+      }
+      if (typeof id === 'string' && id.startsWith('workbench:')) {
+        return <WorkbenchScene workbenchId={id.slice('workbench:'.length)} />;
       }
       return null;
   }

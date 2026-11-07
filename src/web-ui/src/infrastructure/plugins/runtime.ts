@@ -72,6 +72,13 @@ function emitBusEvent(event: string, data?: unknown): void {
   });
 }
 
+/**
+ * Host-side access to the shared plugin bus (e.g. the workbench scene
+ * exchanging `workbench:active-project` / `workbench:project-written` with
+ * the mounted plugin page). Plugins use `ctx.bus`; host code uses these.
+ */
+export { onBusEvent, emitBusEvent };
+
 // ---------------------------------------------------------------------------
 // Load / unload
 // ---------------------------------------------------------------------------
@@ -98,6 +105,34 @@ function makePluginStorage(pluginId: string): PluginStorage {
   };
 }
 
+/** Build the plugin context handed to `activate(ctx)`. */
+function createPluginContext(
+  pluginId: string,
+  hookId: string,
+  container: HTMLElement,
+): PluginContext {
+  return {
+    pluginId,
+    hook: hookId,
+    bus: { on: onBusEvent, emit: emitBusEvent },
+    mount: (el: HTMLElement) => {
+      container.appendChild(el);
+    },
+    invoke: (cmd: string, args?: Record<string, unknown>) => invoke(cmd, args),
+    storage: makePluginStorage(pluginId),
+    theme: { mode: themeMode() },
+  };
+}
+
+/** URL of a plugin module entry (versioned to bust the module cache). */
+function pluginModuleUrl(
+  pluginId: string,
+  modulePath: string,
+  installedAt: number,
+): string {
+  return `http://127.0.0.1:${EMBEDDED_SERVER_PORT}/plugins/${pluginId}/${modulePath.replace(/^\/+/, "")}?v=${installedAt}`;
+}
+
 async function loadHookModule(
   plugin: PluginInfo,
   hookId: string,
@@ -115,19 +150,17 @@ async function loadHookModule(
   container.className = "ai00-plugin-container";
   layerEl.appendChild(container);
 
-  const ctx: PluginContext = {
-    pluginId: plugin.manifest.id,
-    hook: hookId,
-    bus: { on: onBusEvent, emit: emitBusEvent },
-    mount: (el: HTMLElement) => {
-      container.appendChild(el);
-    },
-    invoke: (cmd: string, args?: Record<string, unknown>) => invoke(cmd, args),
-    storage: makePluginStorage(plugin.manifest.id),
-    theme: { mode: themeMode() },
-  };
+  const ctx: PluginContext = createPluginContext(
+    plugin.manifest.id,
+    hookId,
+    container,
+  );
 
-  const url = `http://127.0.0.1:${EMBEDDED_SERVER_PORT}/plugins/${plugin.manifest.id}/${modulePath.replace(/^\/+/, "")}?v=${plugin.installedAt}`;
+  const url = pluginModuleUrl(
+    plugin.manifest.id,
+    modulePath,
+    plugin.installedAt,
+  );
 
   try {
     const mod = (await import(/* @vite-ignore */ url)) as {
@@ -180,6 +213,80 @@ function unloadHookModule(key: string): void {
   }
   entry.container.remove();
   console.log(`[plugin-runtime] deactivated ${key}`);
+}
+
+/** Handle for a mounted `scene:page`; `dispose()` unmounts the page. */
+export interface ScenePageHandle {
+  dispose: () => void;
+  /** True when the module failed to load or export `activate`. */
+  failed: boolean;
+}
+
+/**
+ * Mount a plugin's `scene:page` hook into a host element owned by React.
+ *
+ * Overlay hooks discover their container from the DOM (`HOOK_CONTAINERS`);
+ * scene pages cannot — the workbench scene decides when to mount, so the
+ * caller passes the host element in. Everything else (context shape, module
+ * URL cache-busting, activate/deactivate contract) is shared with overlay
+ * hooks, so plugins use exactly one protocol.
+ */
+export async function mountScenePage(
+  pluginId: string,
+  modulePath: string,
+  installedAt: number,
+  host: HTMLElement,
+): Promise<ScenePageHandle> {
+  const container = document.createElement("div");
+  container.dataset.pluginId = pluginId;
+  container.dataset.hook = "scene:page";
+  container.className = "ai00-plugin-container";
+  host.appendChild(container);
+
+  const dispose = (cleanup: (() => void) | null) => {
+    try {
+      cleanup?.();
+    } catch (e) {
+      console.error(`[plugin-runtime] cleanup error for '${pluginId}::scene:page':`, e);
+    }
+    container.remove();
+  };
+
+  try {
+    const url = pluginModuleUrl(pluginId, modulePath, installedAt);
+    const mod = (await import(/* @vite-ignore */ url)) as {
+      activate?: unknown;
+      deactivate?: unknown;
+      default?: { activate?: unknown; deactivate?: unknown };
+    };
+    const impl =
+      typeof mod.activate === "function"
+        ? mod
+        : typeof mod.default?.activate === "function"
+          ? mod.default
+          : null;
+    if (!impl) {
+      throw new Error("module does not export activate(ctx)");
+    }
+    const ctx = createPluginContext(pluginId, "scene:page", container);
+    const result = (impl.activate as (c: PluginContext) => unknown)(ctx);
+    const deactivate = impl.deactivate as (() => void) | undefined;
+    const cleanup: (() => void) | null =
+      typeof result === "function"
+        ? (result as () => void)
+        : typeof deactivate === "function"
+          ? deactivate
+          : null;
+    console.log(`[plugin-runtime] mounted scene page for ${pluginId}`);
+    return { dispose: () => dispose(cleanup), failed: false };
+  } catch (e) {
+    console.error(
+      `[plugin-runtime] failed to mount scene page for '${pluginId}':`,
+      e,
+    );
+    container.remove();
+    return { dispose: () => {}, failed: true };
+  }
 }
 
 /** Collect the module hooks a plugin declares for this runtime. */

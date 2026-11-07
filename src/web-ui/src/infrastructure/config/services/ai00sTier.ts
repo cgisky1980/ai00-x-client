@@ -122,7 +122,16 @@ const MODEL_TIER_RANK: Record<string, number> = {
 /// - free 用户只能用 free 模型
 /// - cheap 用户可用 free + cheap 模型
 /// - expensive 用户可用所有模型
+/**
+ * 开发期开关（2026-11-08 用户要求「模型先都别上锁」）：
+ * 暂不按服务端 `locked` 拦选择，所有模型都可选，便于用 deepseek-v4.1-flash 联调。
+ * 真正不可用由服务端在调用时判定（401/额度错误，UI 已有错误人话化）。
+ * 恢复上锁：把此常量改回 `false` 即可（其余逻辑无需改动）。
+ */
+const IGNORE_MODEL_LOCK = true;
+
 export const canAccessModel = (model: Ai00sModelInfo, userTier?: string | null): boolean => {
+  if (IGNORE_MODEL_LOCK) return true;
   if (model.locked !== undefined) return !model.locked;
   const userRank = MODEL_TIER_RANK[userTier ?? 'free'] ?? 0;
   const modelRank = MODEL_TIER_RANK[model.tier] ?? 0;

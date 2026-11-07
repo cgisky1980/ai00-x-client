@@ -69,8 +69,53 @@
     },
     "sections": {
       "workspace": "Workspace",
+      "workbench": "Workbenches",
       "extensions": "Customize",
       "shell": "Shell"
+    },
+    "workbenchScene": {
+      "notInstalled": "Workbench \"{{id}}\" is not installed or not enabled",
+      "loading": "Loading workbench \"{{title}}\"…",
+      "loadFailed": "Failed to load workbench \"{{title}}\": plugin page module unavailable",
+      "loadFailedHint": "Retry to mount it again. If it keeps failing, check that the plugin is complete and enabled.",
+      "retry": "Retry",
+      "chat": {
+        "title": "Chat",
+        "noProject": "Pick or create a project on the left, then tell the agent what to change.",
+        "binding": "Preparing the workbench session…",
+        "bindFailed": "Failed to prepare the session: {{message}}",
+        "dismiss": "Dismiss",
+        "reconnecting": "Connection to the engine was lost. Reconnecting…",
+        "turnInterrupted": "The engine connection was lost, so this turn did not finish (the engine may have restarted). You can retry the same message.",
+        "pluginUnavailable": "This workbench page failed to load, so the AI chat is paused. Retry from the error panel above, or check whether the plugin is enabled."
+      }
+    },
+    "workbenchWindow": {
+      "empty": "No workbench installed yet",
+      "collapseRail": "Collapse navigation",
+      "expandRail": "Expand navigation",
+      "showChat": "Show AI chat",
+      "hideChat": "Hide AI chat",
+      "resizeChat": "Drag to resize AI chat (double-click to reset)",
+      "resizePageRail": "Drag to resize the sidebar (double-click to reset)",
+      "home": {
+        "subtitle": "Organize your custom pages, sessions and resources",
+        "create": "Create My Workbench",
+        "learnCreate": "Learn workbench development",
+        "searchPlaceholder": "Search by name, author or category",
+        "clearSearch": "Clear search",
+        "market": "Market",
+        "favorites": "Favorites",
+        "installed": "Installed",
+        "marketEmpty": "The market is on its way. Installed workbenches are available under the Installed tab.",
+        "favoritesEmpty": "Favorites arrive with the market. Stay tuned.",
+        "filterType": "All types",
+        "filterSort": "Star count",
+        "noMatch": "No matching workbench",
+        "railHome": "Home",
+        "createDialogTitle": "Create My Workbench",
+        "createDialogBody": "Visual authoring is coming soon. You can already hand-write a workbench plugin (manifest.workbench + scene:page hook) following the workbench plugin spec — it appears here once installed."
+      }
     },
     "modes": {
       "code": "CODE",

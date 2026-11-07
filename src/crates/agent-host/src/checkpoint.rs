@@ -261,6 +261,6 @@ mod tests {
     fn slot_rotation_math() {
         let last = SLOT_COUNT - 1;
         assert_eq!((last + 1) % SLOT_COUNT, 0);
-        assert_eq!((0 + 1) % SLOT_COUNT, 1);
+        assert_eq!(1 % SLOT_COUNT, 1);
     }
 }

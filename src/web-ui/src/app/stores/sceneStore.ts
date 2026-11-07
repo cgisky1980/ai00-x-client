@@ -17,7 +17,7 @@
  */
 
 import { create } from 'zustand';
-import { SCENE_TAB_REGISTRY, MAX_OPEN_SCENES, getSceneDef, getMiniAppSceneDef } from '../scenes/registry';
+import { SCENE_TAB_REGISTRY, MAX_OPEN_SCENES, getSceneDef, getMiniAppSceneDef, getWorkbenchSceneDef } from '../scenes/registry';
 import { getSceneNav } from '../scenes/nav-registry';
 import { useNavSceneStore } from './navSceneStore';
 import { useModeStore } from './modeStore';
@@ -32,6 +32,10 @@ function getSceneDefOrMiniapp(id: SceneTabId) {
   if (typeof id === 'string' && id.startsWith('miniapp:')) {
     const appId = (id as string).slice('miniapp:'.length);
     return getMiniAppSceneDef(appId);
+  }
+  if (typeof id === 'string' && id.startsWith('workbench:')) {
+    const workbenchId = (id as string).slice('workbench:'.length);
+    return getWorkbenchSceneDef(workbenchId);
   }
   return undefined;
 }

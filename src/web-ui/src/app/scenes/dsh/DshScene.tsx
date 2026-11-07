@@ -11,7 +11,8 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { Button, Modal, ModelSelector, PromptInput } from '@/component-library';
+import { Button, Modal } from '@/component-library';
+import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import { useNotification } from '@/shared/notification-system';
 import { createConfigCenterTab } from '@/shared/utils/tabUtils';
 import {
@@ -32,6 +33,7 @@ import {
   QuestionCard,
 } from './DshChatPieces';
 import { ImpVisual } from '@/app/components/AgentTheater/ImpVisual';
+import { groupMessagesForDisplay } from './messageGroups';
 import { useTheaterStore } from '@/app/components/AgentTheater/theaterStore';
 import { consumePendingDshSession } from '@/app/components/AgentTheater/dshNav';
 import { Sparkles } from 'lucide-react';
@@ -53,7 +55,6 @@ const DshScene: React.FC = () => {
     error,
     approvals,
     questions,
-    models,
     pluginError,
     permissionRequests,
     usage,
@@ -65,7 +66,6 @@ const DshScene: React.FC = () => {
     respondApproval,
     respondQuestion,
     cancelQuestion,
-    selectModel,
     renameSession,
     forkSession,
     restartEngine,
@@ -93,6 +93,9 @@ const DshScene: React.FC = () => {
     if (pending) void openSession(pending);
     return () => window.removeEventListener('dsh:open-session', onOpenSession);
   }, [openSession]);
+
+  /** 展示用消息：连续助手消息按回合合并成一个气泡（与工作台一致）。 */
+  const displayMessages = useMemo(() => groupMessagesForDisplay(messages), [messages]);
 
   // ---- 后台作业（session/control jobs 帧：子代理/工作流等后台执行单元） ----
   const runningJobs = useMemo(() => {
@@ -594,7 +597,7 @@ const DshScene: React.FC = () => {
               {messages.length === 0 && (
                 <div className="ai00-x-dsh-scene__messages-empty">{t('chat.empty')}</div>
               )}
-              {messages.map(m => (
+              {displayMessages.map(m => (
                 <MessageBubble key={m.id} message={m} />
               ))}
             </div>
@@ -655,31 +658,16 @@ const DshScene: React.FC = () => {
                 ))}
               </div>
             )}
-            {/* 标准对话输入框（design-system PromptInput + ModelSelector） */}
+            {/* 统一 AI 对话输入组件（AgentComposer，内置生产模型选择器） */}
             <div className="ai00-x-dsh-scene__composer">
-              <PromptInput
+              <AgentComposer
                 value={input}
                 onChange={setInput}
                 onSubmit={handleSend}
                 onStop={stop}
                 loading={sending}
                 placeholder={t('chat.inputPlaceholder')}
-                footerLeft={
-                  <ModelSelector
-                    groups={(models?.groups ?? []).map(g => ({
-                      id: g.id,
-                      name: g.name,
-                      models: g.models.map(m => ({
-                        id: m.id,
-                        name: m.name,
-                        description: m.description,
-                      })),
-                    }))}
-                    currentId={models?.current.model ?? null}
-                    onSelect={(groupId, modelId) => selectModel(groupId, modelId)}
-                    loading={!models}
-                  />
-                }
+                sessionId={currentSessionId}
               />
             </div>
           </>

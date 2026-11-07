@@ -291,6 +291,16 @@
       background: transparent;
     }
   }
+
+  // 可选档位（可下载 / 下载中）：行本身是动作入口，不能显示成禁用态。
+  &__option--downloadable {
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent);
+      outline-offset: -2px;
+    }
+  }
   
   &__ctx-usage {
     font-size: var(--font-size-xxs);

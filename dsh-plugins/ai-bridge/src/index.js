@@ -4,11 +4,12 @@
  * 把 dsh 的 LLM 调用转发给 Ai00-X 桌面客户端的本地 AI 网关：
  *   POST http://127.0.0.1:2100/ai00-internal/llm/v1/chat/completions
  *
- * 网关侧分流（SmartRouter + 本地 RWKV + ai00-x.com）：
+ * 网关侧分流（SmartRouter + 本地 RWKV + AI00-API）：
  *   - ai00-auto  → 智能路由（RWKV classify R0-R3 → 本地/远程）；
  *                  编排 worker 内部 id，不再进弹层（去 auto，分流语义保留）
  *   - rwkv-local → 强制本地 RWKV
- *   - ai00-salvo → 强制 ai00-x.com primary 模型
+ *   - ai00-api   → 强制 AI00-API primary 模型
+ *   - ai00s:<子模型> → AI00-API 里的具体模型（配置里出现过的会通告给引擎）
  *
  * 本插件只做协议翻译：GenerateOptions ↔ OpenAI chat completions，
  * StreamChunk ↔ OpenAI SSE chunks。业务智能全部在宿主（Rust）侧。
@@ -30,8 +31,15 @@ const TOKEN_ENV = "AI00_S_INTERNAL_TOKEN";
  * 内部路由 id——仍可解析（见 INTERNAL_MODELS），网关分流语义保留。 */
 const MODELS = [
   { id: "rwkv-local", name: "Ai00-X Local RWKV", contextWindow: 16384 },
-  { id: "ai00-salvo", name: "Ai00-X Salvo (ai00-x.com)", contextWindow: 128000 },
+  { id: "ai00-api", name: "AI00-API", contextWindow: 128000 },
 ];
+
+/** 旧入口 id：只做兼容映射，不再通告（存量会话/配置里可能还留着）。 */
+const LEGACY_REMOTE = "ai00-salvo";
+
+/** 网关目录下发的 contextWindow 备忘（id → 容量）：resolveModel 必须与
+ *  listModels 通告的值一致，否则引擎会按 32k 保守值判定「窗口变小」并拒绝切换。 */
+const ADVERTISED_CONTEXT = new Map();
 
 /** 内部保留 id：不在弹层通告，但 resolveModel 需要容量映射
  * （research_worker 经 agentOptions 钉 ai00-auto 走 SmartRouter）。 */
@@ -180,15 +188,27 @@ async function* translateStream(sseObjects, model) {
       }
     }
     if (event.error) {
-      yield* yieldTransportError("AI00X_GATEWAY", {
-        message: event.error.message ?? "gateway error",
-        code: "AI00X_GATEWAY",
-      });
+      // 上游错误形状不统一：可能是对象 `{message,code}`（网关本地失败 / OpenAI 风格），
+      // 也可能是裸字符串（远端代理透传，如
+      // `{"error":"error sending request for url (https://...)"}`）。
+      // 只读 `error.message` 会把字符串型错误退化成无信息的 "gateway error"，
+      // 用户与模型都无法据此自纠——这里统一取可读文案。
+      const failure =
+        typeof event.error === "string"
+          ? { message: event.error, code: "AI00X_GATEWAY" }
+          : {
+              message:
+                event.error.message ??
+                event.error.code ??
+                JSON.stringify(event.error).slice(0, 300),
+              code: event.error.code ?? "AI00X_GATEWAY",
+            };
+      yield* yieldTransportError("AI00X_GATEWAY", failure);
       return;
     }
     const choice = event.choices?.[0];
     const delta = choice?.delta;
-    // ai00-salvo 自有格式兼容：顶层 text / reasoning / tool_call 字段（无 choices 包装）
+    // AI00-API 自有格式兼容：顶层 text / reasoning / tool_call 字段（无 choices 包装）
     const flatContent =
       typeof event.text === "string"
         ? event.text
@@ -262,7 +282,7 @@ async function* translateStream(sseObjects, model) {
         };
       }
     }
-    // ai00-salvo 自有格式：tool_call（单数，一次性完整对象）——每个对象独立成块
+    // AI00-API 自有格式：tool_call（单数，一次性完整对象）——每个对象独立成块
     if (flatToolCall) {
       const tb = {
         index: order.length,
@@ -395,6 +415,23 @@ class Ai00XAdapter {
     return undefined;
   }
 
+  /**
+   * 引擎 adapter 契约：本路由自有的图片计价。
+   *
+   * 必须显式实现——引擎在切换模型做上下文压缩时会直接调用
+   * `adapter.imageRequestPricing(...)`，缺方法会抛
+   * `is not a function` 并让整个回合失败（MODEL_SWITCH_COMPACTION_FAILED）。
+   * 返回 undefined = 不声明自有计价，交给引擎中性估算。
+   */
+  imageRequestPricing(_provider, _model) {
+    return undefined;
+  }
+
+  /** 引擎 adapter 契约：请求图片投影（默认保留归一化尺寸与字节数）。 */
+  imageRequestTarget(_provider, _model, image) {
+    return { width: image.width, height: image.height, maxBytes: image.bytes };
+  }
+
   async listModels() {
     const base = MODELS.map((model) => ({
       provider: PROVIDER,
@@ -413,13 +450,16 @@ class Ai00XAdapter {
         const knownIds = new Set([...MODELS, ...INTERNAL_MODELS].map((m) => m.id));
         const extra = (data.data ?? [])
           .filter((m) => m.id && !knownIds.has(m.id))
-          .map((m) => ({
-            provider: PROVIDER,
-            id: m.id,
-            name: m.name || m.id,
-            inputModalities: ["text"],
-            ...(m.contextWindow ? { contextWindow: m.contextWindow } : {}),
-          }));
+          .map((m) => {
+            if (m.contextWindow) ADVERTISED_CONTEXT.set(m.id, m.contextWindow);
+            return {
+              provider: PROVIDER,
+              id: m.id,
+              name: m.name || m.id,
+              inputModalities: ["text"],
+              ...(m.contextWindow ? { contextWindow: m.contextWindow } : {}),
+            };
+          });
         return [...base, ...extra];
       }
     } catch {
@@ -432,13 +472,19 @@ class Ai00XAdapter {
     // 未知引用（ai00s:<子模型>/gguf-local:<路径>/自定义 id）原样透传——
     // 网关按 client_factory 同源解析；此前未知 id 静默回落 ai00-auto，
     // 导致执行会话总是走智能路由（与讨论选型不一致）
-    const known = [...MODELS, ...INTERNAL_MODELS].find((m) => m.id === model);
-    const id = known ? known.id : model;
-    const name = known ? known.name : String(model ?? "");
-    // contextWindow = 引擎压缩预算的容量来源（缺失则压缩对该路由不生效）
-    const contextWindow =
-      known?.contextWindow ??
-      (typeof id === "string" && id.startsWith("gguf-local:") ? 16384 : 32768);
+    const normalized = model === LEGACY_REMOTE ? "ai00-api" : model;
+    const known = [...MODELS, ...INTERNAL_MODELS].find((m) => m.id === normalized);
+    const id = known ? known.id : normalized;
+    const name = known ? known.name : String(normalized ?? "");
+    // contextWindow = 引擎压缩预算的容量来源（缺失则压缩对该路由不生效）。
+    // 具体引用优先用网关目录通告过的容量；目录还没拉到时按远端 128k 兜底，
+    // 避免按 32k 保守值把「窗口」判小导致引擎拒绝切换。
+    const fallbackContext = id.startsWith("gguf-local:")
+      ? 16384
+      : id.startsWith("ai00s:")
+        ? 128000
+        : 32768;
+    const contextWindow = known?.contextWindow ?? ADVERTISED_CONTEXT.get(id) ?? fallbackContext;
     return {
       provider,
       id,

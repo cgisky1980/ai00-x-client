@@ -64,6 +64,23 @@ interface ModelSelectorProps {
    */
   controlledValue?: string | null;
   onControlledSelect?: (ref: string) => void;
+  /** 整体禁用（Agent 回合运行中不允许切换模型）。 */
+  disabled?: boolean;
+  /**
+   * 受控值在本组件模型域里解析不出时的展示名。
+   *
+   * 典型场景：dsh 会话模型（如 `ai00s:<子模型>`）属于引擎目录，而本组件列出的是
+   * 应用配置里的模型；此时用引擎目录里的可读名展示，避免露出裸 id。
+   */
+  displayLabel?: string | null;
+  /**
+   * 引擎目录里真正可用的模型引用（受控模式下用）。
+   *
+   * 服务端模型目录包含「服务器有、本机引擎还没配置路由」的条目；受控模式会把选择
+   * 写进 dsh 会话，选到这类条目必然被 `session/model-unavailable` 拒绝。
+   * 传了该列表就只展示引擎可用的子模型（`ai00s:<id>` 或裸 id 均可匹配）。
+   */
+  allowedModelRefs?: string[] | null;
 }
 
 interface ModelInfo {
@@ -174,6 +191,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   maxTokens = 0,
   controlledValue,
   onControlledSelect,
+  disabled = false,
+  displayLabel = null,
+  allowedModelRefs = null,
 }) => {
   const { t } = useTranslation('flow-chat');
   // 受控模式（策窗口复用）：选择只回调，不写全局配置
@@ -186,9 +206,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const [userPlan, setUserPlan] = useState<UserPlanInfo | null>(null);
   const [ai00ApiModels, setAi00ApiModels] = useState<Ai00sModelInfo[]>([]);
   const [upgradeDialog, setUpgradeDialog] = useState<{ modelName: string; requiredTier: string } | null>(null);
-  // 本地模型目录（就绪/进度/解析路径，来自 Rust 内置目录：仅 RWKV 3B）
+  // 本地模型目录（就绪/进度/解析路径，来自 Rust 内置目录：3B 必需 + 7B/13B 可选）
   const [localCatalog, setLocalCatalog] = useState<Record<string, {
-    ready: boolean; progress: number | null;
+    ready: boolean; progress: number | null; required?: boolean; available?: boolean;
     resolvedModelPath?: string; resolvedVocabPath?: string; resolvedGgufPath?: string;
   }>>({});
   const localDownloadPollRef = useRef<number | null>(null);
@@ -200,7 +220,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     try {
       const [rwkvCat, ggufCat] = await Promise.all([
         invoke<{
-          key: string; downloaded: boolean;
+          key: string; display?: string; downloaded: boolean; required?: boolean; available?: boolean;
           resolved_model_path?: string; resolved_vocab_path?: string;
         }[]>('rwkv_builtin_catalog'),
         invoke<{ key: string; downloaded: boolean; resolved_path?: string }[]>('gguf_builtin_catalog'),
@@ -211,6 +231,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           next[e.key] = {
             ready: e.downloaded,
             progress: e.downloaded ? null : (prev[e.key]?.progress ?? null),
+            required: e.required ?? false,
+            available: e.available ?? true,
             resolvedModelPath: e.resolved_model_path,
             resolvedVocabPath: e.resolved_vocab_path,
           };
@@ -399,7 +421,19 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       };
     }
     const model = allModels.find(m => m.id === ref);
-    if (!model) return null;
+    if (!model) {
+      // 引擎侧模型（如 ai00-api）：用调用方给的目录展示名，别露出裸 id
+      if (isControlled && displayLabel) {
+        return {
+          id: ref,
+          configName: displayLabel,
+          modelName: displayLabel,
+          providerName: 'Ai00-X',
+          provider: 'ai00-x',
+        };
+      }
+      return null;
+    }
     return {
       id: ref,
       configName: model.name,
@@ -410,7 +444,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       enableThinking: isReasoningVisiblyEnabled(getEffectiveReasoningMode(model)),
       reasoningEffort: model.reasoning_effort,
     };
-  }, [primaryModelId, allModels, ai00ApiModels, t]);
+  }, [primaryModelId, allModels, ai00ApiModels, t, isControlled, displayLabel]);
 
   const availableModels = useMemo((): ModelInfo[] => {
     return allModels
@@ -436,12 +470,16 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return availableModels.filter(m => !isAi00sModel(m.id));
   }, [availableModels]);
 
-  /// 用户自定义远程 API 模型（排除本地模型）；ai00s 作为 Ai00-API 入口，不在此列表
+  /// 用户自定义远程 API 模型（排除本地模型）；ai00s 作为 Ai00-API 入口，不在此列表。
+  /// 受控模式 = 写入 dsh 会话模型：引擎只认识网关通告的 `ai00-api` / `rwkv-local` /
+  /// `ai00s:<子模型>`，选自定义 API 模型必然被 `session/model-unavailable` 拒绝，
+  /// 因此在这种场景不展示（避免「点了没反应 / 报错」的假选项）。
   const customApiModels = useMemo((): ModelInfo[] => {
+    if (isControlled) return [];
     return customModels.filter(m =>
       !((m.provider || '').trim().toLowerCase() === 'rwkv' || m.id.startsWith('gguf-local:'))
     );
-  }, [customModels]);
+  }, [customModels, isControlled]);
 
   const handleSelectModel = useCallback(async (modelId: string) => {
     if (loading) return;
@@ -487,18 +525,45 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return null;
   }, [primaryModelId, allModels]);
 
-  /// 本地模型固定槽位（仅 RWKV 3B——其余档位支持已收窄移除，2026-09-10）。
-  /// 常驻引擎（智能路由 R0/R1、本地工具轮、混合循环共用），恒勾选、
-  /// 首次初始化自动下载；未就绪可手动点行重试下载。
+  /// 本地模型槽位：RWKV 3B 为必需档位（本地协同默认模型，首次初始化自动下载）；
+  /// 7B/13B 为可选档位，只在这里按需下载，不影响引擎默认加载的 3B。
   const localSlots = useMemo(() => {
-    const cat = (key: string) => localCatalog[key] ?? { ready: false, progress: null as number | null };
-    const rwkvSlot = (key: string, label: string) => {
-      const { ready, progress } = cat(key);
-      return { key, label, ready, progress, ref: ready ? 'rwkv-local' : null };
+    const cat = (key: string) =>
+      localCatalog[key] ?? { ready: false, progress: null as number | null, required: false, available: true };
+    const slot = (key: string, label: string) => {
+      const { ready, progress, required, available } = cat(key);
+      return {
+        key,
+        label,
+        ready,
+        progress,
+        required: required ?? false,
+        available: available ?? true,
+        ref: ready && required ? 'rwkv-local' : null,
+      };
     };
 
-    return [{ ...rwkvSlot('rwkv-3b', 'RWKV 3B') }];
+    return [
+      slot('rwkv-3b', 'RWKV 3B'),
+      slot('rwkv-7b', 'RWKV 7B'),
+      slot('rwkv-13b', 'RWKV 13B'),
+    ];
   }, [localCatalog]);
+
+  /// 实际可选的 Ai00-API 子模型：受控模式只保留引擎目录里可路由的条目。
+  /// 例外：服务端标记 `locked` 的模型仍然展示（灰显 + 锁 + 升级提示）。
+  /// 引擎侧只通告未锁定的子模型，若把 locked 一并过滤掉，用户会以为「服务器没有
+  /// 这个模型」（实测测试服 deepseek-v4.1-flash 就是 locked=true 被静默隐藏）；
+  /// 展示出来点击走升级引导，不会切到引擎不可路由的模型。
+  const routableApiModels = useMemo(() => {
+    if (!isControlled || !allowedModelRefs || allowedModelRefs.length === 0) {
+      return ai00ApiModels;
+    }
+    const allowed = new Set(allowedModelRefs);
+    return ai00ApiModels.filter(
+      m => m.locked === true || allowed.has(`ai00s:${m.id}`) || allowed.has(m.id),
+    );
+  }, [ai00ApiModels, allowedModelRefs, isControlled]);
 
   /// Phase 5.1: 是否免费层用户（用于显示升级提示）
   const isFreeUser = useMemo(() => {
@@ -511,13 +576,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const handleSelectAi00ApiModel = useCallback(async (apiModel: Ai00sModelInfo) => {
     if (loading) return;
 
-    // 受控模式：只回调复合引用，不写全局配置
-    if (isControlled) {
-      onControlledSelect?.(`ai00s:${apiModel.id}`);
-      setDropdownOpen(false);
-      return;
-    }
-
     // 额度用完阻止选择
     if (!isModelSelectable(apiModel)) {
       log.info('Free model quota exhausted, selection blocked', { modelId: apiModel.id });
@@ -525,11 +583,20 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
 
     // locked：当前套餐不可用（新体系后端下发 locked；旧体系兜底按 tier rank）→ 弹升级提示
+    // 受控模式（工作台/策等引擎会话）同样先拦：locked 模型网关不会通告给引擎，
+    // 直接下发切换只会拿到 session/model-unavailable，界面还得回滚。
     if (!canAccessModel(apiModel, userTier)) {
       setUpgradeDialog({
         modelName: apiModel.displayName,
         requiredTier: apiModel.tier,
       });
+      return;
+    }
+
+    // 受控模式：只回调复合引用，不写全局配置
+    if (isControlled) {
+      onControlledSelect?.(`ai00s:${apiModel.id}`);
+      setDropdownOpen(false);
       return;
     }
 
@@ -649,7 +716,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           <PopoverTrigger asChild>
             <button
               className={`ai00-x-model-selector__trigger ${dropdownOpen ? 'ai00-x-model-selector__trigger--open' : ''}`}
-              disabled={loading}
+              disabled={loading || disabled}
             >
               <Cpu size={10} className="ai00-x-model-selector__icon" />
               <span className="ai00-x-model-selector__name">
@@ -679,31 +746,55 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           sideOffset={6}
           className="ai00-x-model-selector__dropdown"
         >
-          {/* 本地模型：固定槽位 RWKV 3B——常驻引擎（智能路由/本地工具共用），
-              恒勾选、首次初始化自动下载；未就绪可点行手动重试下载 */}
+          {/* 本地模型：RWKV 3B 为必需档位（本地协同默认，自动下载），
+              7B/13B 为可选档位，点行按需下载；未上架档位只做占位说明 */}
           <div className="ai00-x-model-selector__section-title">
             {t('modelSelector.localModels.sectionTitle')}
           </div>
           <div className="ai00-x-model-selector__list">
             {localSlots.map(slot => {
               const downloading = !slot.ready && slot.progress !== null;
-              const slotTooltip = slot.ready
-                ? slot.label
+              const slotTooltip = !slot.available
+                ? `${slot.label} · ${t('modelSelector.localModels.unavailable')}`
+                : slot.ready
+                  ? slot.required
+                    ? `${slot.label} · ${t('modelSelector.localModels.defaultBadge')}`
+                    : `${slot.label} · ${t('modelSelector.localModels.downloaded')}`
+                  : downloading
+                    ? `${slot.label} · ${t('modelSelector.localModels.downloading')} ${slot.progress}%`
+                    : t('modelSelector.localModels.notReady');
+              const statusText = !slot.available
+                ? t('modelSelector.localModels.unavailable')
                 : downloading
-                  ? `${slot.label} · ${t('modelSelector.localModels.downloading')} ${slot.progress}%`
-                  : t('modelSelector.localModels.notReady');
-              const statusText = downloading
-                ? `${slot.progress}%`
-                : (slot.ready ? null : t('modelSelector.localModels.downloadNow'));
+                  ? `${slot.progress}%`
+                  : (slot.ready
+                    ? (slot.required ? null : t('modelSelector.localModels.downloaded'))
+                    : t('modelSelector.localModels.downloadNow'));
 
+              const actionable = slot.available && !slot.ready && !downloading;
               return (
                 <Tooltip key={slot.key} content={slotTooltip} placement="right">
                   <div
-                    className={`ai00-x-model-selector__option ${!slot.ready ? 'ai00-x-model-selector__option--disabled' : ''}`}
+                    className={`ai00-x-model-selector__option ${
+                      !slot.available
+                        ? 'ai00-x-model-selector__option--disabled'
+                        : actionable || downloading
+                          ? 'ai00-x-model-selector__option--downloadable'
+                          : ''
+                    }`}
+                    role={actionable ? 'button' : undefined}
+                    tabIndex={actionable ? 0 : -1}
+                    aria-disabled={!actionable || undefined}
                     onClick={() => {
                       // 本地模型是常驻引擎状态行（非对话模型候选）：
-                      // 未就绪且未在下载 → 点行手动拉起下载；就绪态恒勾选、点击无操作
-                      if (!slot.ready && !downloading) void startLocalDownload(slot.key);
+                      // 可选档位未就绪时点行拉起下载；已就绪/未上架点击无操作
+                      if (actionable) void startLocalDownload(slot.key);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!actionable) return;
+                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                      e.preventDefault();
+                      void startLocalDownload(slot.key);
                     }}
                   >
                     <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
@@ -714,6 +805,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         <span className="ai00-x-model-selector__option-name">
                           {slot.label}
                         </span>
+                        {slot.required && (
+                          <span className="ai00-x-model-selector__option-tag">
+                            {t('modelSelector.localModels.defaultBadge')}
+                          </span>
+                        )}
                       </div>
                     </div>
                     {statusText && (
@@ -721,7 +817,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         {statusText}
                       </span>
                     )}
-                    <Check size={14} className="ai00-x-model-selector__option-check" />
+                    {slot.required && (
+                      <Check size={14} className="ai00-x-model-selector__option-check" />
+                    )}
                   </div>
                 </Tooltip>
               );
@@ -729,13 +827,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           </div>
 
           {/* Ai00-API：服务器下发的模型列表 + 消耗倍率（远程模型必须选一个） */}
-          {ai00ApiModels.length > 0 && (
+          {routableApiModels.length > 0 && (
             <>
               <div className="ai00-x-model-selector__section-title">
                 {t('modelSelector.xfModels.sectionTitle')}
               </div>
               <div className="ai00-x-model-selector__list">
-                {ai00ApiModels.map(apiModel => {
+                {routableApiModels.map(apiModel => {
                         const isSelected = currentAi00ApiModelId === apiModel.id;
                         const isLocked = !canAccessModel(apiModel, userTier);
                         const isExhausted = apiModel.isUpstreamFree && getFreeQuotaStatus(apiModel.freeQuota) === 'exhausted';

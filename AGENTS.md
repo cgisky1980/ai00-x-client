@@ -493,7 +493,9 @@ All UI MUST follow the design tokens defined in `src/web-ui/src/component-librar
 ### 引擎编排 patch 纪律（版本限定资产，必读）
 
 - 编排 patch 的静态模板在 `src/crates/agent-host/patches/<引擎版本>/`（编译期内嵌；`dsh_manager::load_patch_asset` 按 `dsh_versions.gen.rs` 钉的引擎版本取目录，**目录缺失=启动期显式报错，不静默回退**）。
-- **patch 行为变更与引擎版本升级分开提交**；升级引擎版本时新建对应版本目录、对照上游变更逐行核对后重建（意图与红线见各目录 `INTENT.md`；新增条目一律走 `insert:` 列表，顶层裸行=覆写；persona 只覆写 system-prompt 行）。
+- **patch 行为变更与引擎版本升级分开提交**；升级引擎版本时新建对应版本目录、对照上游变更逐行核对后重建（意图与红线见各目录 `INTENT.md`；新增条目一律走 `insert:` 列表，顶层裸行=覆写；persona 只能覆写 system-prompt 行的 `personaPrefix`）。
+- **帮手（worker）→ agent preset**：0.2.2 起 `dsh-tool-subagent` 不再接受 `persona`/`toolFilter`/`backgroundMode`（带上即加载报迁移错误）。`dsh_manager::build_worker_rows` 把每个 `<DSH_HOME>/agent-workers/*.md` 编译成「`@deepseek-ai/dsh-agent-preset` 声明 + 用 `agentPreset` 选它的委派工具行」；工具子集按插件行映射（映射表见 `patches/<版本>/INTENT.md`）。
+- **不在引擎主包依赖里的 patch 行插件**（如 0.2.2 起被移出的 `dsh-hooks-claude-code`）必须由 `dsh_manager::ensure_profile_plugin_packages` 装进 **profile**（含 peer）——引擎按 profile 目录解析 patch 行插件，全局（node_dir）安装对它不可见。
 - 改动组合后验证：`dsh --profile ai00x --dump-config`（DSH_HOME 指向 dsh_home()）+ 引擎 boot 门禁 `node scripts/dsh-plugin-check.mjs ./dsh-plugins/ai-bridge`。
 
 ### Architecture Overview
@@ -519,7 +521,7 @@ dsh 插件运行时 (plugin_api: install/enable/proxy/plugin_data_*)
 按请求 `model` 字段分流：
 - `ai00-auto`（默认）→ SmartRouter 分级转发
 - `rwkv-local` → 强制本地 RWKV
-- `ai00-salvo` → 强制远程转发（primary 模型）
+- `ai00-api` → 强制远程转发（AI00-API primary 模型；`ai00-salvo` 仅为兼容别名，不再通告）
 - 其他引用（`ai00s:<子模型>` / `gguf-local:<路径>` / 自定义 id）→ client_factory 解析转发（与讨论通道 plugin_ai_complete 同一解析链）
 
 ### SmartRouter（core/src/routing/）

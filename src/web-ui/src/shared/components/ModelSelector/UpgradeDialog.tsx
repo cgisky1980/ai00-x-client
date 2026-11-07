@@ -37,6 +37,12 @@ export const UpgradeDialog: React.FC<UpgradeDialogProps> = ({
 
   const requiredName = TIER_NAME[requiredTier] || requiredTier;
   const currentName = currentTier ? TIER_NAME[currentTier] || currentTier : '-';
+  /**
+   * 后端把「不含在套餐内的付费模型」也标成 locked，其 tier 仍是 free，
+   * 于是会出现「需要无忧版 / 你当前是无忧版」的自相矛盾文案。
+   * 这种同档位锁定改说人话：不是升级档位，而是要付费额度。
+   */
+  const sameTier = Boolean(currentTier) && requiredName === currentName;
 
   return (
     <Modal
@@ -72,12 +78,16 @@ export const UpgradeDialog: React.FC<UpgradeDialogProps> = ({
         <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>{modelName}</h3>
 
         <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
-          {t('modelSelector.upgrade.required', { tier: requiredName })}
+          {sameTier
+            ? t('modelSelector.upgrade.paidOnly')
+            : t('modelSelector.upgrade.required', { tier: requiredName })}
         </p>
 
-        <p style={{ margin: 0, color: 'var(--text-tertiary)', fontSize: '13px' }}>
-          {t('modelSelector.upgrade.current', { tier: currentName })}
-        </p>
+        {!sameTier && (
+          <p style={{ margin: 0, color: 'var(--text-tertiary)', fontSize: '13px' }}>
+            {t('modelSelector.upgrade.current', { tier: currentName })}
+          </p>
+        )}
 
         <p
           style={{
