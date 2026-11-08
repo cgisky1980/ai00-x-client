@@ -56,22 +56,24 @@
       left: 50%;
       width: 1px;
       transform: translateX(-50%);
-      background-color: var(--border-base);
+      background-color: var(--border-medium);
       transition: background-color var(--motion-fast) var(--easing-standard),
         width var(--motion-fast) var(--easing-standard);
     }
 
     // 中部握把：把「这里能拖」直接画出来，不依赖悬停
+    // 用 text-muted（≈L 52%）而不是 border-strong（36% 墨），1x 下才真的看得见
     &::before {
       content: '';
       position: absolute;
       top: 50%;
       left: 50%;
-      width: 2px;
-      height: var(--spacing-8);
+      width: 3px;
+      height: var(--spacing-10);
       transform: translate(-50%, -50%);
       border-radius: var(--radius-full);
-      background-color: var(--border-strong);
+      background-color: var(--color-text-muted);
+      box-shadow: 0 0 0 2px var(--color-bg-scene);
       transition: background-color var(--motion-fast) var(--easing-standard);
     }
 

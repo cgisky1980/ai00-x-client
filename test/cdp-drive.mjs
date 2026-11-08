@@ -170,6 +170,16 @@ try {
     const c = await attach(target);
     console.log(JSON.stringify(await c.ev(expr), null, 1));
     c.close();
+  } else if (step === 'shot-main') {
+    // 截取主窗口（http://127.0.0.1:2100/main/）：shot-main <file>
+    const { writeFileSync } = await import('node:fs');
+    const target = await findTarget((t) => t.url.endsWith('/main/'));
+    if (!target) throw new Error('no main page');
+    const c = await attach(target);
+    const r = await c.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(arg, Buffer.from(r.data, 'base64'));
+    console.log('saved:', arg);
+    c.close();
   } else if (step === 'shot-at') {
     // 截取指定页面：shot-at <urlSubstring> <file>
     const { writeFileSync } = await import('node:fs');
