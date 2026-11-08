@@ -516,80 +516,319 @@ fn copy_dir_recursive(src: &Path, dst: &Path, name: &str) -> io::Result<()> {
 // ── Template file contents (embedded at compile time) ──────────────
 
 const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{project_name}</title>
   <style>
+    /*
+     * Ai00-X 「灵」— 默认动态背景
+     * 视觉：墨为骨（深墨底）、青为神（黛青墨雾/墨痕）、朱为印（灵印）、白为息（字与留白）。
+     * 开销纪律（改这个文件前必读）：
+     *   1) 纯 CSS 动画，只动 transform / opacity —— 全程合成器处理，不触发布局与重绘；
+     *   2) 禁止 canvas、requestAnimationFrame、逐帧 JS；本文只保留一个 20s 的时钟节拍；
+     *   3) 动画元素 ≤ 6 个，无 filter / blur / 大阴影，避免 GPU 持续满载；
+     *   4) 尊重 prefers-reduced-motion（只保留最慢档雾漂移）与 visibilitychange（不可见即暂停）。
+     */
+    :root {
+      --ink-0: #06080a;
+      --ink-1: #0c1116;
+      --ink-2: #131b22;
+      --daiqing: 92, 141, 162;   /* 黛青 rgb */
+      --zhusha: 176, 66, 46;     /* 朱砂 rgb */
+      --paper: 242, 239, 232;    /* 宣纸白 */
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100vw; height: 100vh; overflow: hidden; background: #0a0a1a; }
-    canvas { display: block; }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #06080a;
+      color: rgb(var(--paper));
+      font-family: "Ai00 X Serif", "Noto Serif SC", "Songti SC", serif;
+      -webkit-font-smoothing: antialiased;
+      cursor: default;
+      user-select: none;
+    }
+
+    /* 墨底：一层静态径向渐变（不参与动画） */
+    .stage {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(120% 90% at 50% 12%, #16202a 0%, #0d1218 52%, #06080a 100%);
+    }
+
+    /* ── 墨雾：两团大渐变，仅平移/缩放 ── */
+    .mist {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .mist--qing {
+      width: 78vmax;
+      height: 78vmax;
+      left: -22vmax;
+      top: -30vmax;
+      background: radial-gradient(circle at 50% 50%,
+        rgba(var(--daiqing), 0.38) 0%,
+        rgba(var(--daiqing), 0.12) 46%,
+        rgba(var(--daiqing), 0) 70%);
+      animation: drift-qing 96s ease-in-out infinite alternate;
+    }
+
+    /* 右上角第三团雾：静态，只为增加纵深，零动画开销 */
+    .mist--qing-2 {
+      width: 46vmax;
+      height: 46vmax;
+      right: -14vmax;
+      top: -16vmax;
+      background: radial-gradient(circle at 50% 50%,
+        rgba(var(--daiqing), 0.20) 0%,
+        rgba(var(--daiqing), 0.06) 50%,
+        rgba(var(--daiqing), 0) 72%);
+    }
+
+    /* 星尘：一次栅格化的静态点阵，不参与动画 */
+    .dust {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-repeat: no-repeat;
+      background-image:
+        radial-gradient(1px 1px at 11% 24%, rgba(var(--paper), 0.30) 50%, transparent 51%),
+        radial-gradient(1px 1px at 23% 68%, rgba(var(--daiqing), 0.45) 50%, transparent 51%),
+        radial-gradient(1px 1px at 34% 16%, rgba(var(--paper), 0.22) 50%, transparent 51%),
+        radial-gradient(1px 1px at 47% 82%, rgba(var(--daiqing), 0.38) 50%, transparent 51%),
+        radial-gradient(1px 1px at 58% 28%, rgba(var(--paper), 0.26) 50%, transparent 51%),
+        radial-gradient(1px 1px at 66% 74%, rgba(var(--daiqing), 0.34) 50%, transparent 51%),
+        radial-gradient(1px 1px at 74% 12%, rgba(var(--paper), 0.24) 50%, transparent 51%),
+        radial-gradient(1px 1px at 83% 56%, rgba(var(--paper), 0.30) 50%, transparent 51%),
+        radial-gradient(1px 1px at 91% 34%, rgba(var(--daiqing), 0.40) 50%, transparent 51%),
+        radial-gradient(1px 1px at 17% 88%, rgba(var(--paper), 0.18) 50%, transparent 51%),
+        radial-gradient(1px 1px at 52% 46%, rgba(var(--paper), 0.14) 50%, transparent 51%),
+        radial-gradient(1px 1px at 38% 92%, rgba(var(--daiqing), 0.28) 50%, transparent 51%);
+    }
+
+    .mist--shu {
+      width: 62vmax;
+      height: 62vmax;
+      right: -24vmax;
+      bottom: -28vmax;
+      background: radial-gradient(circle at 50% 50%,
+        rgba(var(--zhusha), 0.16) 0%,
+        rgba(var(--zhusha), 0.05) 44%,
+        rgba(var(--zhusha), 0) 70%);
+      animation: drift-shu 132s ease-in-out infinite alternate;
+    }
+
+    /* ── 墨痕：三道极细竖纹，只做透明度呼吸 ── */
+    .stroke {
+      position: absolute;
+      top: 8vh;
+      bottom: 8vh;
+      width: 1px;
+      background: linear-gradient(
+        to bottom,
+        rgba(var(--daiqing), 0) 0%,
+        rgba(var(--daiqing), 0.34) 38%,
+        rgba(var(--paper), 0.16) 62%,
+        rgba(var(--daiqing), 0) 100%);
+      opacity: 0;
+      animation: breathe 24s ease-in-out infinite;
+    }
+
+    .stroke--1 { left: 22vw; animation-duration: 21s; animation-delay: -3s; }
+    .stroke--2 { left: 50vw; animation-duration: 27s; animation-delay: -11s; }
+    .stroke--3 { left: 78vw; animation-duration: 33s; animation-delay: -7s; }
+
+    /* 地平线：一条静态极淡的横向留白分界 */
+    .horizon {
+      position: absolute;
+      left: 8vw;
+      right: 8vw;
+      top: 66vh;
+      height: 1px;
+      background: linear-gradient(
+        to right,
+        rgba(var(--paper), 0) 0%,
+        rgba(var(--paper), 0.10) 22%,
+        rgba(var(--daiqing), 0.22) 50%,
+        rgba(var(--paper), 0.10) 78%,
+        rgba(var(--paper), 0) 100%);
+    }
+
+    /* ── 灵印：朱砂方印，全屏唯一的朱色 ── */
+    .seal {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      width: 112px;
+      height: 112px;
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(var(--zhusha), 0.72);
+      border-radius: 10px;
+      background: rgba(var(--zhusha), 0.06);
+      box-shadow: inset 0 0 0 6px rgba(var(--zhusha), 0.05);
+      color: rgba(var(--zhusha), 0.92);
+      font-size: 62px;
+      line-height: 1;
+      letter-spacing: 0;
+      animation: seal-breathe 12s ease-in-out infinite;
+    }
+
+    /* 印章底光：静态渐变，不用 blur */
+    .seal-glow {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      width: 56vmin;
+      height: 56vmin;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      background: radial-gradient(circle at 50% 50%,
+        rgba(var(--zhusha), 0.12) 0%,
+        rgba(var(--zhusha), 0.04) 38%,
+        rgba(var(--zhusha), 0) 62%);
+    }
+
+    /* ── 字：左下品牌 + 右下时钟 ── */
+    .brand {
+      position: absolute;
+      left: 8vw;
+      bottom: 9vh;
+    }
+
+    .brand__name {
+      font-size: 30px;
+      letter-spacing: 0.16em;
+      color: rgba(var(--paper), 0.82);
+    }
+
+    .brand__tag {
+      margin-top: 10px;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 11px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: rgba(var(--paper), 0.34);
+    }
+
+    .clock {
+      position: absolute;
+      right: 8vw;
+      bottom: 9vh;
+      text-align: right;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+      color: rgba(var(--paper), 0.42);
+    }
+
+    .clock__time {
+      font-size: 26px;
+      letter-spacing: 0.08em;
+      color: rgba(var(--paper), 0.66);
+    }
+
+    .clock__date {
+      margin-top: 8px;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+    }
+
+    /* ── 动画：全部 transform / opacity ── */
+    @keyframes drift-qing {
+      from { transform: translate3d(0, 0, 0) scale(1); }
+      to   { transform: translate3d(6vmax, 4vmax, 0) scale(1.12); }
+    }
+
+    @keyframes drift-shu {
+      from { transform: translate3d(0, 0, 0) scale(1.06); }
+      to   { transform: translate3d(-5vmax, -3vmax, 0) scale(1); }
+    }
+
+    @keyframes breathe {
+      0%, 100% { opacity: 0; }
+      45%, 55% { opacity: 1; }
+    }
+
+    @keyframes seal-breathe {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.92; }
+      50%      { transform: translate(-50%, -50%) scale(1.03); opacity: 1; }
+    }
+
+    /* 减少动态效果：关掉呼吸类动画，墨雾降到最慢档（壁纸仍是「活的」，但不晃眼） */
+    @media (prefers-reduced-motion: reduce) {
+      .stroke, .seal { animation: none !important; }
+      .stroke { opacity: 0.6; }
+      .mist--qing { animation-duration: 240s; }
+      .mist--shu { animation-duration: 330s; }
+    }
+
+    /* 不可见时暂停（壁纸被覆盖/最小化时零渲染开销） */
+    body.is-idle .mist,
+    body.is-idle .stroke,
+    body.is-idle .seal {
+      animation-play-state: paused;
+    }
   </style>
 </head>
 <body>
-  <canvas id="bg"></canvas>
+  <div class="stage" aria-hidden="true">
+    <div class="dust"></div>
+    <div class="mist mist--qing-2"></div>
+    <div class="mist mist--qing"></div>
+    <div class="mist mist--shu"></div>
+    <div class="stroke stroke--1"></div>
+    <div class="stroke stroke--2"></div>
+    <div class="stroke stroke--3"></div>
+    <div class="seal-glow"></div>
+    <div class="horizon"></div>
+    <div class="seal">灵</div>
+    <div class="brand">
+      <div class="brand__name">Ai00-X</div>
+      <div class="brand__tag">Ink lives · 墨为骨 青为神</div>
+    </div>
+    <div class="clock">
+      <div class="clock__time" id="clock-time">--:--</div>
+      <div class="clock__date" id="clock-date"></div>
+    </div>
+  </div>
   <script>
-    // Particle network background — responsive, mouse-interactive
-    (function() {
-      const canvas = document.getElementById('bg');
-      const ctx = canvas.getContext('2d');
-      let w, h, particles = [];
-      const PARTICLE_COUNT = 80;
-      const LINK_DISTANCE = 120;
-      const PARTICLE_SPEED = 0.4;
+    // 唯一的 JS：每 20s 对一次表（分钟级显示），可见性变化时暂停动画。
+    (function () {
+      var timeEl = document.getElementById('clock-time');
+      var dateEl = document.getElementById('clock-date');
+      var WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
-      function resize() {
-        w = canvas.width = window.innerWidth;
-        h = canvas.height = window.innerHeight;
-      }
-      window.addEventListener('resize', resize);
-      resize();
-
-      class Particle {
-        constructor() {
-          this.x = Math.random() * w;
-          this.y = Math.random() * h;
-          this.vx = (Math.random() - 0.5) * PARTICLE_SPEED;
-          this.vy = (Math.random() - 0.5) * PARTICLE_SPEED;
-          this.r = Math.random() * 2 + 1;
-        }
-        update() {
-          this.x += this.vx; this.y += this.vy;
-          if (this.x < 0 || this.x > w) this.vx *= -1;
-          if (this.y < 0 || this.y > h) this.vy *= -1;
-        }
-        draw() {
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(102, 126, 234, 0.7)';
-          ctx.fill();
-        }
+      function tick() {
+        var now = new Date();
+        var hh = String(now.getHours()).padStart(2, '0');
+        var mm = String(now.getMinutes()).padStart(2, '0');
+        timeEl.textContent = hh + ':' + mm;
+        dateEl.textContent =
+          now.getFullYear() + '.' +
+          String(now.getMonth() + 1).padStart(2, '0') + '.' +
+          String(now.getDate()).padStart(2, '0') + '  ' +
+          WEEK[now.getDay()];
       }
 
-      for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
+      tick();
+      setInterval(tick, 20000);
 
-      function animate() {
-        ctx.clearRect(0, 0, w, h);
-        particles.forEach(p => { p.update(); p.draw(); });
-        for (let i = 0; i < particles.length; i++) {
-          for (let j = i + 1; j < particles.length; j++) {
-            const dx = particles[i].x - particles[j].x;
-            const dy = particles[i].y - particles[j].y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < LINK_DISTANCE) {
-              const opacity = 1 - dist / LINK_DISTANCE;
-              ctx.beginPath();
-              ctx.moveTo(particles[i].x, particles[i].y);
-              ctx.lineTo(particles[j].x, particles[j].y);
-              ctx.strokeStyle = 'rgba(102, 126, 234, ' + (opacity * 0.4) + ')';
-              ctx.stroke();
-            }
-          }
-        }
-        requestAnimationFrame(animate);
+      function syncIdle() {
+        document.body.classList.toggle('is-idle', document.hidden);
       }
-      animate();
+      document.addEventListener('visibilitychange', syncIdle);
+      syncIdle();
     })();
   </script>
 </body>
@@ -603,14 +842,14 @@ const TEMPLATE_CONFIG_JSON: &str = r##"{
   "author": "",
   "preview": "index.html",
   "settings": {
-    "fps": 60,
-    "interactive": true,
+    "fps": 30,
+    "interactive": false,
     "audio": false,
     "mouseTracking": false
   },
   "theme": {
-    "primaryColor": "#667eea",
-    "backgroundColor": "#0a0a1a"
+    "primaryColor": "#5c8da2",
+    "backgroundColor": "#06080a"
   }
 }"##;
 
@@ -634,7 +873,13 @@ See `wallpaper.config.json` for project settings.
 
 - Keep HTML self-contained — no CDN or external resources.
 - Use `body { margin: 0; overflow: hidden; width: 100vw; height: 100vh; }`.
-- Avoid heavy continuous animations — limit particle counts and `requestAnimationFrame` usage.
+- Cost discipline comes before "cool": a wallpaper runs for hours on the user's desktop.
+  - Prefer pure CSS animation on `transform` / `opacity` only (compositor work, no layout/paint).
+  - No large-area `filter: blur()` / `backdrop-filter` / big box shadows — use radial-gradient falloff instead.
+  - Avoid canvas + rAF loops; if unavoidable: particles <= 120, <= 30fps, O(n) per frame, stop when `document.hidden`, throttle resize.
+  - Keep animated elements <= 8 and cycles >= 20s; stagger starts with negative `animation-delay`.
+  - Always honor `prefers-reduced-motion` and pause on `visibilitychange`.
+  - Target: idle CPU < 1%, animated single-core < 5%, no dropped frames.
 - Use `window.Ai00Wallpaper` API for audio, mouse tracking, and system focus detection.
 "##;
 
