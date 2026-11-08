@@ -511,6 +511,7 @@ async fn wallpaper_create(req: &mut Request, res: &mut Response) {
         crate::api::wallpaper_api::CreateWorkspaceProjectRequest {
             name,
             dir_name: String::new(),
+            template: String::new(),
         },
     )
     .await

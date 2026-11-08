@@ -65,6 +65,9 @@ pub struct CreateWorkspaceProjectRequest {
     /// Optional directory name. If empty, a UUID will be generated automatically.
     #[serde(rename = "dirName", default)]
     pub dir_name: String,
+    /// 模板 id：`ink`（默认，东方极简）/ `comic`（漫画风）。
+    #[serde(default)]
+    pub template: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -223,8 +226,13 @@ pub async fn create_workspace_wallpaper_project(
     } else {
         request.dir_name.clone()
     };
-    service::create_workspace_project(&workspaces_root, &request.name, &dir_name)
-        .map_err(|e| e.to_string())
+    service::create_workspace_project(
+        &workspaces_root,
+        &request.name,
+        &dir_name,
+        &request.template,
+    )
+    .map_err(|e| e.to_string())
 }
 
 /// List all wallpaper projects under the exe's workspaces directory.

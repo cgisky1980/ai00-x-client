@@ -344,10 +344,13 @@ pub fn workspace_projects_dir(workspace_root: &Path) -> PathBuf {
 }
 
 /// Create a new wallpaper project under the workspace directory.
+///
+/// `template` 选择起始模板：`comic` 用漫画风模板，其余一律走东方极简（`ink`）。
 pub fn create_workspace_project(
     workspace_root: &Path,
     name: &str,
     dir_name: &str,
+    template: &str,
 ) -> io::Result<CreateProjectResult> {
     let project_dir = workspace_projects_dir(workspace_root).join(dir_name);
     if project_dir.exists() {
@@ -359,7 +362,7 @@ pub fn create_workspace_project(
     fs::create_dir_all(&project_dir)?;
 
     // Copy template files into the new project
-    copy_template_into(&project_dir, name)?;
+    copy_template_into(&project_dir, name, template)?;
 
     // Write meta.json
     let meta = WallpaperMeta {
@@ -457,30 +460,53 @@ pub fn delete_workspace_project(workspace_root: &Path, dir_name: &str) -> io::Re
 // Template system — starter files copied into new projects
 // ---------------------------------------------------------------------------
 
-/// Returns the path to the wallpaper template directory.
-fn template_dir() -> PathBuf {
-    wallpaper_root().join("template")
+/// 模板 id 归一化：只认 `comic`，其余一律东方极简。
+fn normalize_template(template: &str) -> &'static str {
+    if template.eq_ignore_ascii_case("comic") {
+        "comic"
+    } else {
+        "ink"
+    }
+}
+
+/// Returns the path to a template directory (每个模板一份，互不覆盖)。
+fn template_dir(template: &str) -> PathBuf {
+    wallpaper_root().join(format!("template-{}", normalize_template(template)))
 }
 
 /// Ensure the template directory exists and contains all template files.
 /// Creates the template on first use so it lives alongside wallpaper data.
-fn ensure_template_dir() -> io::Result<PathBuf> {
-    let dir = template_dir();
+fn ensure_template_dir(template: &str) -> io::Result<PathBuf> {
+    let dir = template_dir(template);
     fs::create_dir_all(dir.join("assets"))?;
+
+    let (index_html, config_json, readme_md) = if normalize_template(template) == "comic" {
+        (
+            TEMPLATE_COMIC_HTML,
+            TEMPLATE_COMIC_CONFIG_JSON,
+            TEMPLATE_COMIC_README_MD,
+        )
+    } else {
+        (
+            TEMPLATE_INDEX_HTML,
+            TEMPLATE_CONFIG_JSON,
+            TEMPLATE_README_MD,
+        )
+    };
 
     let index_path = dir.join("index.html");
     if !index_path.exists() {
-        fs::write(&index_path, TEMPLATE_INDEX_HTML)?;
+        fs::write(&index_path, index_html)?;
     }
 
     let config_path = dir.join("wallpaper.config.json");
     if !config_path.exists() {
-        fs::write(&config_path, TEMPLATE_CONFIG_JSON)?;
+        fs::write(&config_path, config_json)?;
     }
 
     let readme_path = dir.join("README.md");
     if !readme_path.exists() {
-        fs::write(&readme_path, TEMPLATE_README_MD)?;
+        fs::write(&readme_path, readme_md)?;
     }
 
     Ok(dir)
@@ -488,8 +514,8 @@ fn ensure_template_dir() -> io::Result<PathBuf> {
 
 /// Recursively copy the template directory into a new project directory,
 /// replacing `{project_name}` placeholders in text files.
-fn copy_template_into(project_dir: &Path, name: &str) -> io::Result<()> {
-    let template = ensure_template_dir()?;
+fn copy_template_into(project_dir: &Path, name: &str, template: &str) -> io::Result<()> {
+    let template = ensure_template_dir(template)?;
     copy_dir_recursive(&template, project_dir, name)?;
     Ok(())
 }
@@ -853,6 +879,343 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
   </script>
 </body>
 </html>"##;
+
+const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{project_name}</title>
+  <style>
+    /*
+     * Ai00-X 「灵」· 漫画风 — 与设计系统风格包 comic 对应的默认动态背景
+     * 视觉：暖奶油纸底 + 暖墨 #29261F + 珊瑚色 + 2px 描边 + 零模糊硬投影 + 药丸标签。
+     *
+     * 开销纪律：
+     *   1) 纯 CSS 动画，只动 transform / opacity；
+     *   2) 无 canvas / rAF，脚本只有 20s 时钟节拍；
+     *   3) 动画元素 ≤ 6，无 filter / blur；硬投影是 box-shadow 常量，不随帧重算；
+     *   4) prefers-reduced-motion 降最慢档，页面不可见即暂停。
+     *
+     * 版式纪律（underlay 有常驻动画层）：
+     *   5) 文字与关键元素只放顶部，底部 --safe-bottom（28vh）内留空；
+     *   6) 尺寸全部 clamp() + vmin/vh/vw；竖屏、超宽屏、矮屏各有收敛档。
+     */
+    :root {
+      --paper: #fff4dd;
+      --paper-2: #ffe9b8;
+      --ink: #29261f;
+      --ink-2: #4a4438;
+      --coral: #e8622e;
+      --coral-deep: #b8461a;
+      --safe-bottom: 28vh;
+      --edge-x: clamp(20px, 4vw, 72px);
+      --edge-y: clamp(20px, 5vh, 60px);
+      --stroke: 2px;
+      --shadow-hard: 4px 4px 0 var(--ink);
+      --shadow-soft: 6px 6px 0 rgba(41, 38, 31, 0.18);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: var(--paper);
+      color: var(--ink);
+      font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      cursor: default;
+      user-select: none;
+    }
+
+    .stage {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background-color: var(--paper);
+    }
+
+    /* 网点纸：静态点阵，一次栅格化 */
+    .halftone {
+      position: absolute;
+      inset: 0 0 var(--safe-bottom) 0;
+      pointer-events: none;
+      opacity: 0.5;
+      background-image: radial-gradient(var(--paper-2) 1.5px, transparent 1.6px);
+      background-size: 18px 18px;
+    }
+
+    /* 三块硬投影贴纸：只做极慢漂移 */
+    .sticker {
+      position: absolute;
+      border-radius: 18px;
+      border: var(--stroke) solid var(--ink);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .sticker--a {
+      width: 30vmin;
+      height: 30vmin;
+      right: -8vmin;
+      top: -10vmin;
+      background-color: var(--paper-2);
+      transform: rotate(-12deg);
+      animation: drift-a 110s ease-in-out infinite alternate;
+    }
+
+    .sticker--b {
+      width: 16vmin;
+      height: 16vmin;
+      left: -5vmin;
+      top: 34vh;
+      border-radius: 50%;
+      background-color: #ffd9c9;
+      animation: drift-b 140s ease-in-out infinite alternate;
+    }
+
+    /* 速度线：静态三条斜线，漫画动感 */
+    .speed {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 18vh;
+      height: 42vh;
+      pointer-events: none;
+      opacity: 0.14;
+      background-image: repeating-linear-gradient(
+        -22deg,
+        var(--ink) 0 2px,
+        transparent 2px 26px);
+      mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 70%, transparent);
+      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 70%, transparent);
+    }
+
+    /* ── 顶部信息带 ── */
+    .topbar {
+      position: absolute;
+      top: var(--edge-y);
+      left: var(--edge-x);
+      right: var(--edge-x);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: clamp(16px, 3vw, 48px);
+      pointer-events: none;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: clamp(10px, 1.4vmin, 18px);
+      min-width: 0;
+    }
+
+    /* 灵印贴纸：奶油印面 + 暖墨描边 + 珊瑚「灵」+ 硬投影 */
+    .seal {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: clamp(46px, 6.4vmin, 88px);
+      height: clamp(46px, 6.4vmin, 88px);
+      border: var(--stroke) solid var(--ink);
+      border-radius: clamp(8px, 1vmin, 12px);
+      background-color: #fffdf7;
+      box-shadow: var(--shadow-hard);
+      color: var(--coral-deep);
+      font-size: clamp(24px, 3.4vmin, 48px);
+      font-weight: 700;
+      line-height: 1;
+      transform: rotate(-4deg);
+      animation: seal-bob 14s ease-in-out infinite;
+    }
+
+    .brand__text { min-width: 0; }
+
+    .brand__name {
+      display: inline-block;
+      padding: clamp(2px, 0.5vmin, 6px) clamp(10px, 1.2vmin, 16px);
+      border: var(--stroke) solid var(--ink);
+      border-radius: 999px;
+      background-color: var(--ink);
+      color: var(--paper);
+      font-size: clamp(17px, 2vmin, 30px);
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    .brand__tag {
+      margin-top: clamp(6px, 0.9vmin, 12px);
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: clamp(9px, 0.95vmin, 12px);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-2);
+      white-space: nowrap;
+    }
+
+    .clock {
+      flex: 0 0 auto;
+      padding: clamp(6px, 0.9vmin, 12px) clamp(10px, 1.4vmin, 18px);
+      border: var(--stroke) solid var(--ink);
+      border-radius: 16px;
+      background-color: #fffdf7;
+      box-shadow: var(--shadow-hard);
+      text-align: right;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+    }
+
+    .clock__time {
+      font-size: clamp(16px, 2vmin, 30px);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .clock__date {
+      margin-top: clamp(2px, 0.4vmin, 6px);
+      font-size: clamp(9px, 0.95vmin, 12px);
+      letter-spacing: 0.16em;
+      color: var(--ink-2);
+      white-space: nowrap;
+    }
+
+    @keyframes drift-a {
+      from { transform: rotate(-12deg) translate3d(0, 0, 0); }
+      to   { transform: rotate(-9deg) translate3d(-4vmin, 5vmin, 0); }
+    }
+
+    @keyframes drift-b {
+      from { transform: translate3d(0, 0, 0) scale(1); }
+      to   { transform: translate3d(5vmin, -4vmin, 0) scale(1.08); }
+    }
+
+    @keyframes seal-bob {
+      0%, 100% { transform: rotate(-4deg) translateY(0); }
+      50%      { transform: rotate(-2deg) translateY(-4px); }
+    }
+
+    /* 竖屏 / 方屏 */
+    @media (max-aspect-ratio: 1/1) {
+      .topbar { flex-direction: column; align-items: flex-start; }
+      .clock { text-align: left; margin-top: clamp(10px, 2vh, 22px); }
+      .sticker--a { width: 46vmin; height: 46vmin; }
+    }
+
+    /* 超宽屏 */
+    @media (min-aspect-ratio: 21/9) {
+      .topbar { left: clamp(24px, 3vw, 96px); right: clamp(24px, 3vw, 96px); }
+    }
+
+    /* 矮屏 */
+    @media (max-height: 720px) {
+      :root { --edge-y: 16px; --safe-bottom: 30vh; }
+      .brand__tag { display: none; }
+      .speed { display: none; }
+    }
+
+    /* 减少动态效果：只留最慢漂移 */
+    @media (prefers-reduced-motion: reduce) {
+      .seal { animation: none !important; }
+      .sticker--a { animation-duration: 260s; }
+      .sticker--b { animation-duration: 340s; }
+    }
+
+    body.is-idle .sticker,
+    body.is-idle .seal {
+      animation-play-state: paused;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage" aria-hidden="true">
+    <div class="halftone"></div>
+    <div class="speed"></div>
+    <div class="sticker sticker--a"></div>
+    <div class="sticker sticker--b"></div>
+    <div class="topbar">
+      <div class="brand">
+        <div class="seal">灵</div>
+        <div class="brand__text">
+          <div class="brand__name">Ai00-X</div>
+          <div class="brand__tag">Ink lives · 墨为骨 青为神</div>
+        </div>
+      </div>
+      <div class="clock">
+        <div class="clock__time" id="clock-time">--:--</div>
+        <div class="clock__date" id="clock-date"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var timeEl = document.getElementById('clock-time');
+      var dateEl = document.getElementById('clock-date');
+      var WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+      function tick() {
+        var now = new Date();
+        timeEl.textContent =
+          String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        dateEl.textContent =
+          now.getFullYear() + '.' +
+          String(now.getMonth() + 1).padStart(2, '0') + '.' +
+          String(now.getDate()).padStart(2, '0') + '  ' + WEEK[now.getDay()];
+      }
+
+      tick();
+      setInterval(tick, 20000);
+
+      function syncIdle() {
+        document.body.classList.toggle('is-idle', document.hidden);
+      }
+      document.addEventListener('visibilitychange', syncIdle);
+      syncIdle();
+    })();
+  </script>
+</body>
+</html>"##;
+
+const TEMPLATE_COMIC_CONFIG_JSON: &str = r##"{
+  "version": "1.0",
+  "type": "live-wallpaper",
+  "name": "{project_name}",
+  "description": "Ai00-X 漫画风动态背景：暖奶油纸底、暖墨描边、零模糊硬投影。",
+  "author": "Ai00-X",
+  "preview": "index.html",
+  "settings": {
+    "fps": 30,
+    "interactive": false,
+    "audio": false,
+    "mouseTracking": false
+  },
+  "theme": {
+    "primaryColor": "#e8622e",
+    "backgroundColor": "#fff4dd"
+  }
+}"##;
+
+const TEMPLATE_COMIC_README_MD: &str = r##"# Wallpaper Project: {project_name}
+
+## Description
+
+Ai00-X 漫画风默认动态背景：暖奶油纸底 + 暖墨描边 + 零模糊硬投影 + 珊瑚色。
+
+## Configuration
+
+See `wallpaper.config.json` for project settings.
+
+## AI Agent Rules
+
+- Keep HTML self-contained — no CDN or external resources.
+- Cost discipline first: CSS-only `transform`/`opacity` animation, no canvas/rAF loops, no large blur/backdrop-filter, <= 8 animated elements, cycles >= 20s, pause when hidden.
+- Layout discipline: text only in the TOP band, keep the bottom 28vh empty (the underlay draws a garden there); size everything with `clamp()` + `vmin/vh/vw`.
+- Comic style contract: 2px ink stroke (`--stroke`), zero-blur hard shadows (`--shadow-hard`), warm cream surfaces, coral as the only accent.
+"##;
 
 const TEMPLATE_CONFIG_JSON: &str = r##"{
   "version": "1.0",
