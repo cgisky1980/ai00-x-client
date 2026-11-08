@@ -536,7 +536,7 @@ fn template_dir(template: &str) -> PathBuf {
 ///
 /// 内嵌常量改了就 +1：运行时的模板目录会整份刷新，避免旧模板继续被复制进新工程。
 /// 修订号放目录外，免得 `.rev` 被复制进用户工程。
-const TEMPLATE_REV: &str = "3";
+const TEMPLATE_REV: &str = "5";
 
 /// Ensure the template directory exists and contains all template files.
 /// Creates the template on first use so it lives alongside wallpaper data.
@@ -617,7 +617,7 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
      *   1) 纯 CSS 动画，只动 transform / opacity —— 全程合成器处理，不触发布局与重绘；
      *   2) 禁止 canvas、requestAnimationFrame、逐帧 JS；本文只保留一个 20s 的时钟节拍；
      *   3) 动画元素 ≤ 8 个，无 filter / blur / 大阴影，避免 GPU 持续满载；
-     *   4) 尊重 prefers-reduced-motion（降档不全停：雾 90/120s、墨痕 48s、灵印 36s）与 visibilitychange（不可见即暂停）。
+     *   4) 尊重 prefers-reduced-motion（降档不全停：雾 48/66s，墨痕 12/16/20s、灵印 9s、星尘 9s）与 visibilitychange（不可见即暂停）。
      *
      * 版式纪律（underlay 有自己的动画层）：
      *   5) 桌面是「壁纸 + underlay 动画层」叠加显示的：底部（花圃/地面/工具栏）会盖住画面，
@@ -676,7 +676,7 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
         rgba(var(--daiqing), 0.38) 0%,
         rgba(var(--daiqing), 0.12) 46%,
         rgba(var(--daiqing), 0) 70%);
-      animation: drift-qing 96s ease-in-out infinite alternate;
+      animation: drift-qing 32s ease-in-out infinite alternate;
     }
 
     /* 右上角第三团雾：静态，只为增加纵深，零动画开销 */
@@ -727,7 +727,7 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
         radial-gradient(1px 1px at 94% 48%, rgba(var(--daiqing), 0.30) 50%, transparent 51%),
         radial-gradient(1px 1px at 44% 6%, rgba(var(--paper), 0.16) 50%, transparent 51%);
       opacity: 0.6;
-      animation: dust-twinkle 44s ease-in-out infinite;
+      animation: dust-twinkle 6s ease-in-out infinite;
     }
 
     .mist--shu {
@@ -739,7 +739,7 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
         rgba(var(--zhusha), 0.16) 0%,
         rgba(var(--zhusha), 0.05) 44%,
         rgba(var(--zhusha), 0) 70%);
-      animation: drift-shu 132s ease-in-out infinite alternate;
+      animation: drift-shu 44s ease-in-out infinite alternate;
     }
 
     /* ── 墨痕：三道极细竖纹，只做透明度呼吸；底端停在安全区之上 ── */
@@ -755,12 +755,12 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
         rgba(var(--paper), 0.16) 62%,
         rgba(var(--daiqing), 0) 100%);
       opacity: 0;
-      animation: breathe 24s ease-in-out infinite;
+      animation: breathe 8s ease-in-out infinite;
     }
 
-    .stroke--1 { left: 22vw; animation-duration: 21s; animation-delay: -3s; }
-    .stroke--2 { left: 50vw; animation-duration: 27s; animation-delay: -11s; }
-    .stroke--3 { left: 78vw; animation-duration: 33s; animation-delay: -7s; }
+    .stroke--1 { left: 22vw; animation-duration: 8s; animation-delay: -3s; }
+    .stroke--2 { left: 50vw; animation-duration: 11s; animation-delay: -6s; }
+    .stroke--3 { left: 78vw; animation-duration: 14s; animation-delay: -9s; }
 
     /* ── 顶部信息带：全部文字只出现在这里（底部会被 underlay 动画层盖住） ── */
     .topbar {
@@ -784,11 +784,21 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
 
     /* 灵印：品牌字形（镂空圆脸擦 X），朱砂，全屏唯一的朱色；无框无底 */
     .seal {
+      position: relative;
       flex: 0 0 auto;
       width: clamp(44px, 6vmin, 84px);
       height: clamp(44px, 6vmin, 84px);
       color: rgba(var(--zhusha), 0.92);
-      animation: seal-breathe 12s ease-in-out infinite;
+      animation: seal-breathe 6s ease-in-out infinite;
+    }
+
+    /* 印面墨晕：一圈朱砂细环向外扩散淡出（画面「正在呼吸」的最直观线索） */
+    .seal__ripple {
+      position: absolute;
+      inset: 0;
+      border: 1.5px solid rgba(var(--zhusha), 0.55);
+      border-radius: 50%;
+      animation: ink-ripple 8s ease-out infinite;
     }
 
     .seal__glyph {
@@ -840,12 +850,12 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
     /* ── 动画：全部 transform / opacity ── */
     @keyframes drift-qing {
       from { transform: translate3d(0, 0, 0) scale(1); }
-      to   { transform: translate3d(6vmax, 4vmax, 0) scale(1.12); }
+      to   { transform: translate3d(9vmax, 6vmax, 0) scale(1.14); }
     }
 
     @keyframes drift-shu {
-      from { transform: translate3d(0, 0, 0) scale(1.06); }
-      to   { transform: translate3d(-5vmax, -3vmax, 0) scale(1); }
+      from { transform: translate3d(0, 0, 0) scale(1.08); }
+      to   { transform: translate3d(-8vmax, -5vmax, 0) scale(1); }
     }
 
     @keyframes breathe {
@@ -854,13 +864,19 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
     }
 
     @keyframes seal-breathe {
-      0%, 100% { transform: scale(1); opacity: 0.92; }
-      50%      { transform: scale(1.04); opacity: 1; }
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50%      { transform: scale(1.06); opacity: 1; }
     }
 
     @keyframes dust-twinkle {
-      0%, 100% { opacity: 0.35; }
-      50%      { opacity: 0.95; }
+      0%, 100% { opacity: 0.3; }
+      50%      { opacity: 1; }
+    }
+
+    @keyframes ink-ripple {
+      0%   { transform: scale(0.9); opacity: 0; }
+      15%  { opacity: 0.55; }
+      100% { transform: scale(1.9); opacity: 0; }
     }
 
     /* ── 分辨率适配 ── */
@@ -890,21 +906,23 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
       .brand__tag { display: none; }
     }
 
-    /* 减少动态效果：不「全停」，只降档——雾 90s/120s、墨痕 48s、灵印 36s，
-       动静仍可察觉但不晃眼（本机系统正是 reduce 档，全停会让壁纸像张静态图） */
+    /* 减少动态效果：氛围层再慢一档，点睛层（墨痕/灵印/星尘）仍保留可察觉的节奏 */
     @media (prefers-reduced-motion: reduce) {
-      .stroke { animation-duration: 48s; }
-      .seal { animation-duration: 36s; }
-      .dust--b { animation-duration: 96s; }
-      .mist--qing { animation-duration: 90s; }
-      .mist--shu { animation-duration: 120s; }
+      .stroke--1 { animation-duration: 12s; }
+      .stroke--2 { animation-duration: 16s; }
+      .stroke--3 { animation-duration: 20s; }
+      .seal { animation-duration: 9s; }
+      .dust--b { animation-duration: 9s; }
+      .mist--qing { animation-duration: 48s; }
+      .mist--shu { animation-duration: 66s; }
     }
 
     /* 不可见时暂停（壁纸被覆盖/最小化时零渲染开销） */
     body.is-idle .mist,
     body.is-idle .stroke,
     body.is-idle .dust--b,
-    body.is-idle .seal {
+    body.is-idle .seal,
+    body.is-idle .seal__ripple {
       animation-play-state: paused;
     }
   </style>
@@ -922,6 +940,7 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
     <div class="topbar">
       <div class="brand">
         <div class="seal">
+          <span class="seal__ripple"></span>
           <svg class="seal__glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <defs>
               <mask id="seal-mask">
@@ -996,7 +1015,7 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
      *   1) 纯 CSS 动画，只动 transform / opacity；
      *   2) 无 canvas / rAF，脚本只有 20s 时钟节拍；
      *   3) 动画元素 ≤ 6，无 filter / blur；硬投影是 box-shadow 常量，不随帧重算；
-     *   4) prefers-reduced-motion 降档不全停（贴纸 90/110s、网点 120s、速度线 150s、灵印 40s），页面不可见即暂停。
+     *   4) prefers-reduced-motion 降档不全停（贴纸 45/60s、网点 24s、速度线 12s、灵印 9s），页面不可见即暂停。
      *
      * 版式纪律（underlay 有常驻动画层）：
      *   5) 文字与关键元素只放顶部，底部 --safe-bottom（28vh）内留空；
@@ -1046,7 +1065,7 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       opacity: 0.5;
       background-image: radial-gradient(var(--paper-2) 1.5px, transparent 1.6px);
       background-size: 18px 18px;
-      animation: halftone-pan 80s ease-in-out infinite alternate;
+      animation: halftone-pan 16s ease-in-out infinite alternate;
     }
 
     /* 三块硬投影贴纸：只做极慢漂移 */
@@ -1064,7 +1083,7 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       top: -10vmin;
       background-color: var(--paper-2);
       transform: rotate(-12deg);
-      animation: drift-a 110s ease-in-out infinite alternate;
+      animation: drift-a 30s ease-in-out infinite alternate;
     }
 
     .sticker--b {
@@ -1074,7 +1093,7 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       top: 34vh;
       border-radius: 50%;
       background-color: #ffd9c9;
-      animation: drift-b 140s ease-in-out infinite alternate;
+      animation: drift-b 40s ease-in-out infinite alternate;
     }
 
     /* 速度线：缓慢横移，像画面在跑 */
@@ -1092,7 +1111,34 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
         transparent 2px 26px);
       mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 70%, transparent);
       -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 70%, transparent);
-      animation: speed-slide 70s ease-in-out infinite alternate;
+      animation: speed-slide 8s ease-in-out infinite alternate;
+    }
+
+    /* 漂浮气泡：两颗小圆，上升 + 淡出，只动 transform / opacity */
+    .spark {
+      position: absolute;
+      border-radius: 50%;
+      border: var(--stroke) solid var(--ink);
+      opacity: 0;
+      animation: spark-rise 14s linear infinite;
+    }
+
+    .spark--a {
+      left: 16vw;
+      top: 46vh;
+      width: clamp(10px, 1.4vmin, 18px);
+      height: clamp(10px, 1.4vmin, 18px);
+      background-color: var(--coral);
+    }
+
+    .spark--b {
+      right: 22vw;
+      top: 38vh;
+      width: clamp(7px, 1vmin, 13px);
+      height: clamp(7px, 1vmin, 13px);
+      background-color: #ffd9c9;
+      animation-duration: 19s;
+      animation-delay: -6s;
     }
 
     /* ── 顶部信息带 ── */
@@ -1130,7 +1176,7 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       box-shadow: var(--shadow-hard);
       color: var(--coral-deep);
       transform: rotate(-4deg);
-      animation: seal-bob 14s ease-in-out infinite;
+      animation: seal-bob 6s ease-in-out infinite;
     }
 
     .seal__glyph {
@@ -1193,27 +1239,35 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
 
     @keyframes drift-a {
       from { transform: rotate(-12deg) translate3d(0, 0, 0); }
-      to   { transform: rotate(-9deg) translate3d(-4vmin, 5vmin, 0); }
+      to   { transform: rotate(-8deg) translate3d(-9vmin, 9vmin, 0); }
     }
 
     @keyframes drift-b {
       from { transform: translate3d(0, 0, 0) scale(1); }
-      to   { transform: translate3d(5vmin, -4vmin, 0) scale(1.08); }
+      to   { transform: translate3d(10vmin, -9vmin, 0) scale(1.1); }
     }
 
     @keyframes seal-bob {
       0%, 100% { transform: rotate(-4deg) translateY(0); }
-      50%      { transform: rotate(-2deg) translateY(-4px); }
+      50%      { transform: rotate(-2deg) translateY(-8px); }
     }
 
     @keyframes halftone-pan {
       from { transform: translate3d(0, 0, 0); }
-      to   { transform: translate3d(-14px, 10px, 0); }
+      to   { transform: translate3d(-36px, 28px, 0); }
     }
 
     @keyframes speed-slide {
       from { transform: translate3d(0, 0, 0); }
-      to   { transform: translate3d(-26px, 0, 0); }
+      to   { transform: translate3d(-90px, 0, 0); }
+    }
+
+    /* 漂浮气泡：向上缓缓升起并淡出，给画面一个「在动」的明确线索 */
+    @keyframes spark-rise {
+      0%   { transform: translate3d(0, 12vmin, 0) scale(0.85); opacity: 0; }
+      20%  { opacity: 0.55; }
+      80%  { opacity: 0.4; }
+      100% { transform: translate3d(2vmin, -18vmin, 0) scale(1.15); opacity: 0; }
     }
 
     /* 竖屏 / 方屏 */
@@ -1235,18 +1289,21 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       .speed { display: none; }
     }
 
-    /* 减少动态效果：降档而非全停（贴纸 90s/110s、网点 120s、速度线 150s、灵印 40s） */
+    /* 减少动态效果：氛围层再慢一档，点睛层（灵印/速度线/网点/气泡）仍保留可察觉的节奏 */
     @media (prefers-reduced-motion: reduce) {
-      .seal { animation-duration: 40s; }
-      .halftone { animation-duration: 120s; }
-      .speed { animation-duration: 150s; }
-      .sticker--a { animation-duration: 90s; }
-      .sticker--b { animation-duration: 110s; }
+      .seal { animation-duration: 9s; }
+      .halftone { animation-duration: 24s; }
+      .speed { animation-duration: 12s; }
+      .sticker--a { animation-duration: 45s; }
+      .sticker--b { animation-duration: 60s; }
+      .spark--a { animation-duration: 22s; }
+      .spark--b { animation-duration: 28s; }
     }
 
     body.is-idle .sticker,
     body.is-idle .halftone,
     body.is-idle .speed,
+    body.is-idle .spark,
     body.is-idle .seal {
       animation-play-state: paused;
     }
@@ -1258,6 +1315,8 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
     <div class="speed"></div>
     <div class="sticker sticker--a"></div>
     <div class="sticker sticker--b"></div>
+    <div class="spark spark--a"></div>
+    <div class="spark spark--b"></div>
     <div class="topbar">
       <div class="brand">
         <div class="seal">
