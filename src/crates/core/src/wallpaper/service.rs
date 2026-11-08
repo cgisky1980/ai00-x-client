@@ -525,11 +525,17 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
     /*
      * Ai00-X 「灵」— 默认动态背景
      * 视觉：墨为骨（深墨底）、青为神（黛青墨雾/墨痕）、朱为印（灵印）、白为息（字与留白）。
+     *
      * 开销纪律（改这个文件前必读）：
      *   1) 纯 CSS 动画，只动 transform / opacity —— 全程合成器处理，不触发布局与重绘；
      *   2) 禁止 canvas、requestAnimationFrame、逐帧 JS；本文只保留一个 20s 的时钟节拍；
      *   3) 动画元素 ≤ 6 个，无 filter / blur / 大阴影，避免 GPU 持续满载；
      *   4) 尊重 prefers-reduced-motion（只保留最慢档雾漂移）与 visibilitychange（不可见即暂停）。
+     *
+     * 版式纪律（underlay 有自己的动画层）：
+     *   5) 桌面是「壁纸 + underlay 动画层」叠加显示的：底部（花圃/地面/工具栏）会盖住画面，
+     *      所以壁纸的**文字与关键元素只放顶部**，底部 --safe-bottom 高度内一律不放内容；
+     *   6) 所有尺寸用 clamp() + vmin/vh/vw，不写死 px；竖屏/超宽屏各有一档收敛规则。
      */
     :root {
       --ink-0: #06080a;
@@ -538,6 +544,10 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
       --daiqing: 92, 141, 162;   /* 黛青 rgb */
       --zhusha: 176, 66, 46;     /* 朱砂 rgb */
       --paper: 242, 239, 232;    /* 宣纸白 */
+      /* 底部安全区：underlay 的动画层（花圃/地面/工具栏）会覆盖这一带 */
+      --safe-bottom: 28vh;
+      --edge-x: clamp(20px, 4vw, 72px);
+      --edge-y: clamp(20px, 5vh, 64px);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -554,7 +564,7 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
       user-select: none;
     }
 
-    /* 墨底：一层静态径向渐变（不参与动画） */
+    /* 墨底：静态径向渐变，不参与动画 */
     .stage {
       position: fixed;
       inset: 0;
@@ -563,7 +573,7 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
         radial-gradient(120% 90% at 50% 12%, #16202a 0%, #0d1218 52%, #06080a 100%);
     }
 
-    /* ── 墨雾：两团大渐变，仅平移/缩放 ── */
+    /* ── 墨雾：两团漂移 + 一团静态 ── */
     .mist {
       position: absolute;
       border-radius: 50%;
@@ -597,7 +607,7 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
     /* 星尘：一次栅格化的静态点阵，不参与动画 */
     .dust {
       position: absolute;
-      inset: 0;
+      inset: 0 0 var(--safe-bottom) 0;
       pointer-events: none;
       background-repeat: no-repeat;
       background-image:
@@ -627,11 +637,11 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
       animation: drift-shu 132s ease-in-out infinite alternate;
     }
 
-    /* ── 墨痕：三道极细竖纹，只做透明度呼吸 ── */
+    /* ── 墨痕：三道极细竖纹，只做透明度呼吸；底端停在安全区之上 ── */
     .stroke {
       position: absolute;
       top: 8vh;
-      bottom: 8vh;
+      bottom: calc(var(--safe-bottom) + 2vh);
       width: 1px;
       background: linear-gradient(
         to bottom,
@@ -647,85 +657,65 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
     .stroke--2 { left: 50vw; animation-duration: 27s; animation-delay: -11s; }
     .stroke--3 { left: 78vw; animation-duration: 33s; animation-delay: -7s; }
 
-    /* 地平线：一条静态极淡的横向留白分界 */
-    .horizon {
+    /* ── 顶部信息带：全部文字只出现在这里（底部会被 underlay 动画层盖住） ── */
+    .topbar {
       position: absolute;
-      left: 8vw;
-      right: 8vw;
-      top: 66vh;
-      height: 1px;
-      background: linear-gradient(
-        to right,
-        rgba(var(--paper), 0) 0%,
-        rgba(var(--paper), 0.10) 22%,
-        rgba(var(--daiqing), 0.22) 50%,
-        rgba(var(--paper), 0.10) 78%,
-        rgba(var(--paper), 0) 100%);
+      top: var(--edge-y);
+      left: var(--edge-x);
+      right: var(--edge-x);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: clamp(16px, 3vw, 48px);
+      pointer-events: none;
     }
 
-    /* ── 灵印：朱砂方印，全屏唯一的朱色 ── */
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: clamp(10px, 1.2vmin, 18px);
+      min-width: 0;
+    }
+
+    /* 灵印：朱砂方印，全屏唯一的朱色 */
     .seal {
-      position: absolute;
-      left: 50%;
-      top: 46%;
-      width: 112px;
-      height: 112px;
-      transform: translate(-50%, -50%);
+      flex: 0 0 auto;
       display: flex;
       align-items: center;
       justify-content: center;
+      width: clamp(44px, 6vmin, 84px);
+      height: clamp(44px, 6vmin, 84px);
       border: 2px solid rgba(var(--zhusha), 0.72);
-      border-radius: 10px;
+      border-radius: clamp(6px, 0.8vmin, 10px);
       background: rgba(var(--zhusha), 0.06);
-      box-shadow: inset 0 0 0 6px rgba(var(--zhusha), 0.05);
+      box-shadow: inset 0 0 0 5px rgba(var(--zhusha), 0.05);
       color: rgba(var(--zhusha), 0.92);
-      font-size: 62px;
+      font-size: clamp(24px, 3.2vmin, 46px);
       line-height: 1;
-      letter-spacing: 0;
       animation: seal-breathe 12s ease-in-out infinite;
     }
 
-    /* 印章底光：静态渐变，不用 blur */
-    .seal-glow {
-      position: absolute;
-      left: 50%;
-      top: 46%;
-      width: 56vmin;
-      height: 56vmin;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      background: radial-gradient(circle at 50% 50%,
-        rgba(var(--zhusha), 0.12) 0%,
-        rgba(var(--zhusha), 0.04) 38%,
-        rgba(var(--zhusha), 0) 62%);
-    }
-
-    /* ── 字：左下品牌 + 右下时钟 ── */
-    .brand {
-      position: absolute;
-      left: 8vw;
-      bottom: 9vh;
-    }
+    .brand__text { min-width: 0; }
 
     .brand__name {
-      font-size: 30px;
+      font-size: clamp(18px, 2.1vmin, 32px);
       letter-spacing: 0.16em;
-      color: rgba(var(--paper), 0.82);
+      color: rgba(var(--paper), 0.84);
+      white-space: nowrap;
     }
 
     .brand__tag {
-      margin-top: 10px;
+      margin-top: clamp(4px, 0.6vmin, 10px);
       font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-      font-size: 11px;
-      letter-spacing: 0.28em;
+      font-size: clamp(9px, 0.95vmin, 12px);
+      letter-spacing: 0.26em;
       text-transform: uppercase;
       color: rgba(var(--paper), 0.34);
+      white-space: nowrap;
     }
 
     .clock {
-      position: absolute;
-      right: 8vw;
-      bottom: 9vh;
+      flex: 0 0 auto;
       text-align: right;
       font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
       font-variant-numeric: tabular-nums;
@@ -733,15 +723,16 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
     }
 
     .clock__time {
-      font-size: 26px;
+      font-size: clamp(16px, 2vmin, 30px);
       letter-spacing: 0.08em;
-      color: rgba(var(--paper), 0.66);
+      color: rgba(var(--paper), 0.68);
     }
 
     .clock__date {
-      margin-top: 8px;
-      font-size: 11px;
-      letter-spacing: 0.22em;
+      margin-top: clamp(4px, 0.6vmin, 8px);
+      font-size: clamp(9px, 0.95vmin, 12px);
+      letter-spacing: 0.2em;
+      white-space: nowrap;
     }
 
     /* ── 动画：全部 transform / opacity ── */
@@ -761,8 +752,35 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
     }
 
     @keyframes seal-breathe {
-      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.92; }
-      50%      { transform: translate(-50%, -50%) scale(1.03); opacity: 1; }
+      0%, 100% { transform: scale(1); opacity: 0.92; }
+      50%      { transform: scale(1.04); opacity: 1; }
+    }
+
+    /* ── 分辨率适配 ── */
+    /* 竖屏 / 方屏：顶部信息带改为纵向，避免左右两侧挤在一起 */
+    @media (max-aspect-ratio: 1/1) {
+      .topbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .clock {
+        text-align: left;
+        margin-top: clamp(8px, 2vh, 20px);
+      }
+      /* 竖屏下雾的面积按 vmax 会过大，收敛一档 */
+      .mist--qing { width: 110vmax; height: 110vmax; left: -40vmax; top: -50vmax; }
+      .mist--shu { width: 90vmax; height: 90vmax; }
+    }
+
+    /* 超宽屏（21:9 及以上）：文字不跟着拉太散，保持靠边 */
+    @media (min-aspect-ratio: 21/9) {
+      .topbar { left: clamp(24px, 3vw, 96px); right: clamp(24px, 3vw, 96px); }
+    }
+
+    /* 矮屏（如 1366×768 / 1024×600）：压缩顶部留白与字号 */
+    @media (max-height: 720px) {
+      :root { --edge-y: 18px; --safe-bottom: 30vh; }
+      .brand__tag { display: none; }
     }
 
     /* 减少动态效果：关掉呼吸类动画，墨雾降到最慢档（壁纸仍是「活的」，但不晃眼） */
@@ -790,16 +808,18 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
     <div class="stroke stroke--1"></div>
     <div class="stroke stroke--2"></div>
     <div class="stroke stroke--3"></div>
-    <div class="seal-glow"></div>
-    <div class="horizon"></div>
-    <div class="seal">灵</div>
-    <div class="brand">
-      <div class="brand__name">Ai00-X</div>
-      <div class="brand__tag">Ink lives · 墨为骨 青为神</div>
-    </div>
-    <div class="clock">
-      <div class="clock__time" id="clock-time">--:--</div>
-      <div class="clock__date" id="clock-date"></div>
+    <div class="topbar">
+      <div class="brand">
+        <div class="seal">灵</div>
+        <div class="brand__text">
+          <div class="brand__name">Ai00-X</div>
+          <div class="brand__tag">Ink lives · 墨为骨 青为神</div>
+        </div>
+      </div>
+      <div class="clock">
+        <div class="clock__time" id="clock-time">--:--</div>
+        <div class="clock__date" id="clock-date"></div>
+      </div>
     </div>
   </div>
   <script>
@@ -880,6 +900,10 @@ See `wallpaper.config.json` for project settings.
   - Keep animated elements <= 8 and cycles >= 20s; stagger starts with negative `animation-delay`.
   - Always honor `prefers-reduced-motion` and pause on `visibilitychange`.
   - Target: idle CPU < 1%, animated single-core < 5%, no dropped frames.
+- Layout discipline (the desktop is wallpaper + underlay animation layers):
+  - The bottom of the screen is covered by the underlay garden/ground/toolbar layers: put text and key elements in the TOP band only, keep the bottom 28vh (`--safe-bottom`) empty.
+  - Never assume 16:9: size everything with `clamp()` + `vmin/vh/vw` (no hard-coded px); add branches for portrait (`max-aspect-ratio: 1/1`), ultra-wide (`min-aspect-ratio: 21/9`) and short screens (`max-height: 720px`).
+  - Keep the middle band low-contrast (mists, dust) — desktop icons live there.
 - Use `window.Ai00Wallpaper` API for audio, mouse tracking, and system focus detection.
 "##;
 
