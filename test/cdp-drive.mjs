@@ -161,6 +161,26 @@ try {
     const c = await attach(target);
     console.log(JSON.stringify(await c.ev(arg), null, 1));
     c.close();
+  } else if (step === 'eval-at') {
+    // 在指定 URL 片段命中的页面里执行表达式：eval-at <urlSubstring> <expr>
+    const [urlPart, ...rest] = arg.split(/\s+/);
+    const expr = arg.slice(urlPart.length + 1);
+    const target = await findTarget((t) => t.url.includes(urlPart));
+    if (!target) throw new Error(`no page matching ${urlPart}`);
+    const c = await attach(target);
+    console.log(JSON.stringify(await c.ev(expr), null, 1));
+    c.close();
+  } else if (step === 'shot-at') {
+    // 截取指定页面：shot-at <urlSubstring> <file>
+    const { writeFileSync } = await import('node:fs');
+    const [urlPart, file] = arg.split(/\s+/);
+    const target = await findTarget((t) => t.url.includes(urlPart));
+    if (!target) throw new Error(`no page matching ${urlPart}`);
+    const c = await attach(target);
+    const r = await c.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(file, Buffer.from(r.data, 'base64'));
+    console.log('saved:', file);
+    c.close();
   } else if (step === 'shot') {
     // 截取工作台窗口：node test/cdp-drive.mjs shot <file> [x,y,w,h]
     const { writeFileSync } = await import('node:fs');
@@ -221,6 +241,35 @@ try {
       await sleep(300);
       console.log('dragged', selector, 'by', dx);
     }
+    c.close();
+  } else if (step === 'click') {
+    // 真实鼠标点击：click <selector>（在元素中心派发 mousePressed/Released）
+    const target = await findTarget((t) => t.url.includes('workbench.html'));
+    if (!target) throw new Error('no workbench window');
+    const c = await attach(target);
+    const rect = await c.ev(`(() => {
+      const el = document.querySelector(${JSON.stringify(arg)});
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    })()`);
+    if (!rect) throw new Error(`no element: ${arg}`);
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: rect.x, y: rect.y });
+    await c.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: rect.x,
+      y: rect.y,
+      button: 'left',
+      clickCount: 1,
+    });
+    await c.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: rect.x,
+      y: rect.y,
+      button: 'left',
+      clickCount: 1,
+    });
+    console.log('clicked', arg, 'at', Math.round(rect.x), Math.round(rect.y));
     c.close();
   } else if (step === 'probe-wb' || step === 'select' || step === 'chat-state' || step === 'send' || step === 'watch' || step === 'click-copy') {
     const target = await waitFor(

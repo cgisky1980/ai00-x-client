@@ -211,6 +211,19 @@ export const PlanChatPanel: React.FC<{
 
   // 引用稳定：task.chat 缺省时固定空数组，避免每次渲染新引用扰动 useMemo 依赖
   const chat = useMemo(() => task.chat ?? [], [task.chat]);
+  // 一回合一个气泡：连续同角色的文字合并（与工作台/执行对话区渲染形态一致）
+  const displayChat = useMemo(() => {
+    const out: typeof chat = [];
+    for (const m of chat) {
+      const prev = out[out.length - 1];
+      if (prev && prev.role === m.role) {
+        out[out.length - 1] = { ...prev, text: `${prev.text}\n\n${m.text}`.trim() };
+      } else {
+        out.push(m);
+      }
+    }
+    return out;
+  }, [chat]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -402,7 +415,7 @@ export const PlanChatPanel: React.FC<{
         {chat.length === 0 && !busy && (
           <div className="td-planchat__empty">说说你想怎么做这件事，AI 会帮你把需求聊清楚</div>
         )}
-        {chat.map((m, i) => (
+        {displayChat.map((m, i) => (
           <React.Fragment key={i}>
             <div className={`td-planchat__msg is-${m.role}`}>
               <div className="td-planchat__bubble">{m.text}</div>
