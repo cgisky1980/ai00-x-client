@@ -5,7 +5,7 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background-color: var(--color-bg-scene);
+  background-color: var(--color-bg-base);
 
   &__host {
     flex: 1;
@@ -131,7 +131,7 @@
     padding: var(--spacing-8);
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
-    background-color: var(--color-bg-scene);
+    background-color: var(--color-bg-base);
   }
 
   &__loading-bar {
@@ -163,7 +163,7 @@
     gap: var(--spacing-2);
     padding: var(--spacing-8);
     text-align: center;
-    background-color: var(--color-bg-scene);
+    background-color: var(--color-bg-base);
   }
 
   &__error-title {
@@ -227,7 +227,8 @@
   flex-shrink: 0;
   min-height: 0;
   border-left: var(--style-stroke-width, 1px) solid var(--color-border);
-  background-color: var(--color-bg-scene);
+  // 对话区与左侧项目栏同为「工作区」层（L2），中央预览留给更亮的纸面（L1）
+  background-color: var(--color-bg-secondary);
 
   &__head {
     display: flex;
@@ -453,7 +454,7 @@
   flex: 1;
   min-height: 0;
   width: 100%;
-  background-color: var(--color-bg-scene);
+  background-color: var(--color-bg-base);
 
   &__rail {
     display: flex;

@@ -2,7 +2,7 @@
   display: flex;
   height: 100%;
   min-height: 0;
-  background-color: var(--color-bg-scene);
+  background-color: var(--color-bg-base);
 
   // ---- 左侧固定侧边栏（首页入口 + 已安装工作台） ----
   &__rail {
