@@ -392,8 +392,65 @@ pub fn create_workspace_project(
     })
 }
 
+/// 早期内置模板用「灵」字方印，品牌字形（镂空圆脸擦 X）定稿后需要换掉。
+const LEGACY_SEAL_MARKER: &str = "class=\"seal\">灵";
+
+/// 把仍是旧「灵」字占位的内置工程（`Ai00-X · ` 前缀）刷成当前模板。
+///
+/// 只覆盖 `index.html` / `wallpaper.config.json` / `README.md`，且只在这些文件
+/// 还留着旧占位时动手——用户（或 AI）改过的内置工程不会被回退。每进程只跑一次。
+fn migrate_builtin_projects(workspace_root: &Path) -> io::Result<()> {
+    static DONE: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    if DONE.get().is_some() {
+        return Ok(());
+    }
+    let root = workspace_projects_dir(workspace_root);
+    if root.exists() {
+        for entry in fs::read_dir(&root)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let dir = entry.path();
+            let Ok(meta_raw) = fs::read_to_string(dir.join("meta.json")) else {
+                continue;
+            };
+            let Ok(meta) = serde_json::from_str::<WallpaperMeta>(&meta_raw) else {
+                continue;
+            };
+            if !meta.name.starts_with("Ai00-X · ") {
+                continue;
+            }
+            let Ok(html) = fs::read_to_string(dir.join("index.html")) else {
+                continue;
+            };
+            if !html.contains(LEGACY_SEAL_MARKER) {
+                continue;
+            }
+            let template = if meta.name.contains('漫') {
+                "comic"
+            } else {
+                "ink"
+            };
+            let tpl_dir = ensure_template_dir(template)?;
+            for file in ["index.html", "wallpaper.config.json", "README.md"] {
+                let Ok(content) = fs::read_to_string(tpl_dir.join(file)) else {
+                    continue;
+                };
+                fs::write(
+                    dir.join(file),
+                    content.replace("{project_name}", &meta.name),
+                )?;
+            }
+        }
+    }
+    let _ = DONE.set(());
+    Ok(())
+}
+
 /// List all wallpaper projects under the workspace.
 pub fn list_workspace_projects(workspace_root: &Path) -> io::Result<Vec<WallpaperProject>> {
+    migrate_builtin_projects(workspace_root)?;
     let root = workspace_projects_dir(workspace_root);
     if !root.exists() {
         return Ok(Vec::new());
@@ -474,6 +531,12 @@ fn template_dir(template: &str) -> PathBuf {
     wallpaper_root().join(format!("template-{}", normalize_template(template)))
 }
 
+/// 模板内容修订号（`template-<id>.rev` 里记当前值）。
+///
+/// 内嵌常量改了就 +1：运行时的模板目录会整份刷新，避免旧模板继续被复制进新工程。
+/// 修订号放目录外，免得 `.rev` 被复制进用户工程。
+const TEMPLATE_REV: &str = "2";
+
 /// Ensure the template directory exists and contains all template files.
 /// Creates the template on first use so it lives alongside wallpaper data.
 fn ensure_template_dir(template: &str) -> io::Result<PathBuf> {
@@ -494,20 +557,17 @@ fn ensure_template_dir(template: &str) -> io::Result<PathBuf> {
         )
     };
 
-    let index_path = dir.join("index.html");
-    if !index_path.exists() {
-        fs::write(&index_path, index_html)?;
+    let rev_path = wallpaper_root().join(format!("template-{}.rev", normalize_template(template)));
+    let rev = fs::read_to_string(&rev_path).unwrap_or_default();
+    let stale = rev.trim() != TEMPLATE_REV;
+    if !stale && dir.join("index.html").exists() {
+        return Ok(dir);
     }
 
-    let config_path = dir.join("wallpaper.config.json");
-    if !config_path.exists() {
-        fs::write(&config_path, config_json)?;
-    }
-
-    let readme_path = dir.join("README.md");
-    if !readme_path.exists() {
-        fs::write(&readme_path, readme_md)?;
-    }
+    fs::write(dir.join("index.html"), index_html)?;
+    fs::write(dir.join("wallpaper.config.json"), config_json)?;
+    fs::write(dir.join("README.md"), readme_md)?;
+    fs::write(&rev_path, TEMPLATE_REV)?;
 
     Ok(dir)
 }
@@ -703,22 +763,19 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
       min-width: 0;
     }
 
-    /* 灵印：朱砂方印，全屏唯一的朱色 */
+    /* 灵印：品牌字形（镂空圆脸擦 X），朱砂，全屏唯一的朱色；无框无底 */
     .seal {
       flex: 0 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       width: clamp(44px, 6vmin, 84px);
       height: clamp(44px, 6vmin, 84px);
-      border: 2px solid rgba(var(--zhusha), 0.72);
-      border-radius: clamp(6px, 0.8vmin, 10px);
-      background: rgba(var(--zhusha), 0.06);
-      box-shadow: inset 0 0 0 5px rgba(var(--zhusha), 0.05);
       color: rgba(var(--zhusha), 0.92);
-      font-size: clamp(24px, 3.2vmin, 46px);
-      line-height: 1;
       animation: seal-breathe 12s ease-in-out infinite;
+    }
+
+    .seal__glyph {
+      display: block;
+      width: 100%;
+      height: 100%;
     }
 
     .brand__text { min-width: 0; }
@@ -836,7 +893,23 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
     <div class="stroke stroke--3"></div>
     <div class="topbar">
       <div class="brand">
-        <div class="seal">灵</div>
+        <div class="seal">
+          <svg class="seal__glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <defs>
+              <mask id="seal-mask">
+                <rect width="24" height="24" fill="white" />
+                <circle cx="12" cy="12" r="8.5" fill="black" />
+              </mask>
+            </defs>
+            <g stroke="currentColor" stroke-width="4" stroke-linecap="round" mask="url(#seal-mask)">
+              <line x1="3" y1="3" x2="21" y2="21" />
+              <line x1="21" y1="3" x2="3" y2="21" />
+            </g>
+            <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6" />
+            <circle cx="8.5" cy="12" r="1.5" fill="currentColor" />
+            <circle cx="15.5" cy="12" r="1.5" fill="currentColor" />
+          </svg>
+        </div>
         <div class="brand__text">
           <div class="brand__name">Ai00-X</div>
           <div class="brand__tag">Ink lives · 墨为骨 青为神</div>
@@ -1012,7 +1085,7 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       min-width: 0;
     }
 
-    /* 灵印贴纸：奶油印面 + 暖墨描边 + 珊瑚「灵」+ 硬投影 */
+    /* 灵印贴纸：奶油印面 + 暖墨描边 + 珊瑚品牌字形（镂空圆脸擦 X）+ 硬投影 */
     .seal {
       flex: 0 0 auto;
       display: flex;
@@ -1020,16 +1093,20 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       justify-content: center;
       width: clamp(46px, 6.4vmin, 88px);
       height: clamp(46px, 6.4vmin, 88px);
+      padding: clamp(5px, 0.8vmin, 11px);
       border: var(--stroke) solid var(--ink);
       border-radius: clamp(8px, 1vmin, 12px);
       background-color: #fffdf7;
       box-shadow: var(--shadow-hard);
       color: var(--coral-deep);
-      font-size: clamp(24px, 3.4vmin, 48px);
-      font-weight: 700;
-      line-height: 1;
       transform: rotate(-4deg);
       animation: seal-bob 14s ease-in-out infinite;
+    }
+
+    .seal__glyph {
+      display: block;
+      width: 100%;
+      height: 100%;
     }
 
     .brand__text { min-width: 0; }
@@ -1139,7 +1216,23 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
     <div class="sticker sticker--b"></div>
     <div class="topbar">
       <div class="brand">
-        <div class="seal">灵</div>
+        <div class="seal">
+          <svg class="seal__glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <defs>
+              <mask id="comic-seal-mask">
+                <rect width="24" height="24" fill="white" />
+                <circle cx="12" cy="12" r="8.5" fill="black" />
+              </mask>
+            </defs>
+            <g stroke="currentColor" stroke-width="4" stroke-linecap="round" mask="url(#comic-seal-mask)">
+              <line x1="3" y1="3" x2="21" y2="21" />
+              <line x1="21" y1="3" x2="3" y2="21" />
+            </g>
+            <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6" />
+            <circle cx="8.5" cy="12" r="1.5" fill="currentColor" />
+            <circle cx="15.5" cy="12" r="1.5" fill="currentColor" />
+          </svg>
+        </div>
         <div class="brand__text">
           <div class="brand__name">Ai00-X</div>
           <div class="brand__tag">Ink lives · 墨为骨 青为神</div>
