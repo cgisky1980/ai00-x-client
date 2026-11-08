@@ -392,13 +392,14 @@ pub fn create_workspace_project(
     })
 }
 
-/// 早期内置模板用「灵」字方印，品牌字形（镂空圆脸擦 X）定稿后需要换掉。
-const LEGACY_SEAL_MARKER: &str = "class=\"seal\">灵";
+/// 内置工程里的模板修订号文件（只有内置工程写，用户自建工程不会被回刷）。
+const BUILTIN_REV_FILE: &str = ".template-rev";
 
-/// 把仍是旧「灵」字占位的内置工程（`Ai00-X · ` 前缀）刷成当前模板。
+/// 把内置工程（`Ai00-X · ` 前缀）刷成当前模板。
 ///
-/// 只覆盖 `index.html` / `wallpaper.config.json` / `README.md`，且只在这些文件
-/// 还留着旧占位时动手——用户（或 AI）改过的内置工程不会被回退。每进程只跑一次。
+/// 触发条件：工程里没有修订号（老工程）或修订号落后于 [`TEMPLATE_REV`]。
+/// 只覆盖 `index.html` / `wallpaper.config.json` / `README.md`；用户自建工程完全不受影响。
+/// 每进程只跑一次。
 fn migrate_builtin_projects(workspace_root: &Path) -> io::Result<()> {
     static DONE: std::sync::OnceLock<()> = std::sync::OnceLock::new();
     if DONE.get().is_some() {
@@ -421,10 +422,9 @@ fn migrate_builtin_projects(workspace_root: &Path) -> io::Result<()> {
             if !meta.name.starts_with("Ai00-X · ") {
                 continue;
             }
-            let Ok(html) = fs::read_to_string(dir.join("index.html")) else {
-                continue;
-            };
-            if !html.contains(LEGACY_SEAL_MARKER) {
+            let rev_path = dir.join(BUILTIN_REV_FILE);
+            let rev = fs::read_to_string(&rev_path).unwrap_or_default();
+            if rev.trim() == TEMPLATE_REV {
                 continue;
             }
             let template = if meta.name.contains('漫') {
@@ -442,6 +442,7 @@ fn migrate_builtin_projects(workspace_root: &Path) -> io::Result<()> {
                     content.replace("{project_name}", &meta.name),
                 )?;
             }
+            fs::write(&rev_path, TEMPLATE_REV)?;
         }
     }
     let _ = DONE.set(());
@@ -535,7 +536,7 @@ fn template_dir(template: &str) -> PathBuf {
 ///
 /// 内嵌常量改了就 +1：运行时的模板目录会整份刷新，避免旧模板继续被复制进新工程。
 /// 修订号放目录外，免得 `.rev` 被复制进用户工程。
-const TEMPLATE_REV: &str = "2";
+const TEMPLATE_REV: &str = "3";
 
 /// Ensure the template directory exists and contains all template files.
 /// Creates the template on first use so it lives alongside wallpaper data.
@@ -615,8 +616,8 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
      * 开销纪律（改这个文件前必读）：
      *   1) 纯 CSS 动画，只动 transform / opacity —— 全程合成器处理，不触发布局与重绘；
      *   2) 禁止 canvas、requestAnimationFrame、逐帧 JS；本文只保留一个 20s 的时钟节拍；
-     *   3) 动画元素 ≤ 6 个，无 filter / blur / 大阴影，避免 GPU 持续满载；
-     *   4) 尊重 prefers-reduced-motion（只保留最慢档雾漂移）与 visibilitychange（不可见即暂停）。
+     *   3) 动画元素 ≤ 8 个，无 filter / blur / 大阴影，避免 GPU 持续满载；
+     *   4) 尊重 prefers-reduced-motion（降档不全停：雾 90/120s、墨痕 48s、灵印 36s）与 visibilitychange（不可见即暂停）。
      *
      * 版式纪律（underlay 有自己的动画层）：
      *   5) 桌面是「壁纸 + underlay 动画层」叠加显示的：底部（花圃/地面/工具栏）会盖住画面，
@@ -709,6 +710,24 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
         radial-gradient(1px 1px at 17% 88%, rgba(var(--paper), 0.18) 50%, transparent 51%),
         radial-gradient(1px 1px at 52% 46%, rgba(var(--paper), 0.14) 50%, transparent 51%),
         radial-gradient(1px 1px at 38% 92%, rgba(var(--daiqing), 0.28) 50%, transparent 51%);
+    }
+
+    /* 第二层星尘：错位点阵，只做极慢明暗呼吸（给画面一点「还在呼吸」的活气） */
+    .dust--b {
+      background-image:
+        radial-gradient(1px 1px at 7% 42%, rgba(var(--paper), 0.26) 50%, transparent 51%),
+        radial-gradient(1px 1px at 19% 12%, rgba(var(--daiqing), 0.34) 50%, transparent 51%),
+        radial-gradient(1px 1px at 29% 56%, rgba(var(--paper), 0.20) 50%, transparent 51%),
+        radial-gradient(1px 1px at 41% 34%, rgba(var(--daiqing), 0.30) 50%, transparent 51%),
+        radial-gradient(1px 1px at 55% 66%, rgba(var(--paper), 0.24) 50%, transparent 51%),
+        radial-gradient(1px 1px at 63% 20%, rgba(var(--daiqing), 0.36) 50%, transparent 51%),
+        radial-gradient(1px 1px at 72% 88%, rgba(var(--paper), 0.18) 50%, transparent 51%),
+        radial-gradient(1px 1px at 81% 30%, rgba(var(--daiqing), 0.32) 50%, transparent 51%),
+        radial-gradient(1px 1px at 88% 72%, rgba(var(--paper), 0.26) 50%, transparent 51%),
+        radial-gradient(1px 1px at 94% 48%, rgba(var(--daiqing), 0.30) 50%, transparent 51%),
+        radial-gradient(1px 1px at 44% 6%, rgba(var(--paper), 0.16) 50%, transparent 51%);
+      opacity: 0.6;
+      animation: dust-twinkle 44s ease-in-out infinite;
     }
 
     .mist--shu {
@@ -839,6 +858,11 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
       50%      { transform: scale(1.04); opacity: 1; }
     }
 
+    @keyframes dust-twinkle {
+      0%, 100% { opacity: 0.35; }
+      50%      { opacity: 0.95; }
+    }
+
     /* ── 分辨率适配 ── */
     /* 竖屏 / 方屏：顶部信息带改为纵向，避免左右两侧挤在一起 */
     @media (max-aspect-ratio: 1/1) {
@@ -866,17 +890,20 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
       .brand__tag { display: none; }
     }
 
-    /* 减少动态效果：关掉呼吸类动画，墨雾降到最慢档（壁纸仍是「活的」，但不晃眼） */
+    /* 减少动态效果：不「全停」，只降档——雾 90s/120s、墨痕 48s、灵印 36s，
+       动静仍可察觉但不晃眼（本机系统正是 reduce 档，全停会让壁纸像张静态图） */
     @media (prefers-reduced-motion: reduce) {
-      .stroke, .seal { animation: none !important; }
-      .stroke { opacity: 0.6; }
-      .mist--qing { animation-duration: 240s; }
-      .mist--shu { animation-duration: 330s; }
+      .stroke { animation-duration: 48s; }
+      .seal { animation-duration: 36s; }
+      .dust--b { animation-duration: 96s; }
+      .mist--qing { animation-duration: 90s; }
+      .mist--shu { animation-duration: 120s; }
     }
 
     /* 不可见时暂停（壁纸被覆盖/最小化时零渲染开销） */
     body.is-idle .mist,
     body.is-idle .stroke,
+    body.is-idle .dust--b,
     body.is-idle .seal {
       animation-play-state: paused;
     }
@@ -885,6 +912,7 @@ const TEMPLATE_INDEX_HTML: &str = r##"<!DOCTYPE html>
 <body>
   <div class="stage" aria-hidden="true">
     <div class="dust"></div>
+    <div class="dust dust--b"></div>
     <div class="mist mist--qing-2"></div>
     <div class="mist mist--qing"></div>
     <div class="mist mist--shu"></div>
@@ -968,7 +996,7 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
      *   1) 纯 CSS 动画，只动 transform / opacity；
      *   2) 无 canvas / rAF，脚本只有 20s 时钟节拍；
      *   3) 动画元素 ≤ 6，无 filter / blur；硬投影是 box-shadow 常量，不随帧重算；
-     *   4) prefers-reduced-motion 降最慢档，页面不可见即暂停。
+     *   4) prefers-reduced-motion 降档不全停（贴纸 90/110s、网点 120s、速度线 150s、灵印 40s），页面不可见即暂停。
      *
      * 版式纪律（underlay 有常驻动画层）：
      *   5) 文字与关键元素只放顶部，底部 --safe-bottom（28vh）内留空；
@@ -1010,14 +1038,15 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       background-color: var(--paper);
     }
 
-    /* 网点纸：静态点阵，一次栅格化 */
+    /* 网点纸：点阵缓慢「印刷套位」漂移（放大出血后整层平移，不让边缘露白） */
     .halftone {
       position: absolute;
-      inset: 0 0 var(--safe-bottom) 0;
+      inset: -8vh -8vw calc(var(--safe-bottom) - 8vh) -8vw;
       pointer-events: none;
       opacity: 0.5;
       background-image: radial-gradient(var(--paper-2) 1.5px, transparent 1.6px);
       background-size: 18px 18px;
+      animation: halftone-pan 80s ease-in-out infinite alternate;
     }
 
     /* 三块硬投影贴纸：只做极慢漂移 */
@@ -1048,11 +1077,11 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       animation: drift-b 140s ease-in-out infinite alternate;
     }
 
-    /* 速度线：静态三条斜线，漫画动感 */
+    /* 速度线：缓慢横移，像画面在跑 */
     .speed {
       position: absolute;
-      left: 0;
-      right: 0;
+      left: -4vw;
+      right: -4vw;
       top: 18vh;
       height: 42vh;
       pointer-events: none;
@@ -1063,6 +1092,7 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
         transparent 2px 26px);
       mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 70%, transparent);
       -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 70%, transparent);
+      animation: speed-slide 70s ease-in-out infinite alternate;
     }
 
     /* ── 顶部信息带 ── */
@@ -1176,6 +1206,16 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       50%      { transform: rotate(-2deg) translateY(-4px); }
     }
 
+    @keyframes halftone-pan {
+      from { transform: translate3d(0, 0, 0); }
+      to   { transform: translate3d(-14px, 10px, 0); }
+    }
+
+    @keyframes speed-slide {
+      from { transform: translate3d(0, 0, 0); }
+      to   { transform: translate3d(-26px, 0, 0); }
+    }
+
     /* 竖屏 / 方屏 */
     @media (max-aspect-ratio: 1/1) {
       .topbar { flex-direction: column; align-items: flex-start; }
@@ -1195,14 +1235,18 @@ const TEMPLATE_COMIC_HTML: &str = r##"<!DOCTYPE html>
       .speed { display: none; }
     }
 
-    /* 减少动态效果：只留最慢漂移 */
+    /* 减少动态效果：降档而非全停（贴纸 90s/110s、网点 120s、速度线 150s、灵印 40s） */
     @media (prefers-reduced-motion: reduce) {
-      .seal { animation: none !important; }
-      .sticker--a { animation-duration: 260s; }
-      .sticker--b { animation-duration: 340s; }
+      .seal { animation-duration: 40s; }
+      .halftone { animation-duration: 120s; }
+      .speed { animation-duration: 150s; }
+      .sticker--a { animation-duration: 90s; }
+      .sticker--b { animation-duration: 110s; }
     }
 
     body.is-idle .sticker,
+    body.is-idle .halftone,
+    body.is-idle .speed,
     body.is-idle .seal {
       animation-play-state: paused;
     }
