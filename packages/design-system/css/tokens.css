@@ -144,6 +144,7 @@
   /* ==== semantic · 暗色默认「深墨」（墨阶/黛青/朱砂） ==== */
   --color-bg-base: oklch(0.27 calc(var(--chroma-surface, 0.012) * 0.5) var(--hue-ink, 240));
   --color-bg-sunken: oklch(0.31 calc(var(--chroma-surface, 0.012) * 0.55) var(--hue-ink, 240));
+  --color-bg-shell: oklch(0.22 calc(var(--chroma-surface, 0.012) * 0.42) var(--hue-ink, 240));
   --color-bg-card: oklch(0.35 calc(var(--chroma-surface, 0.012) * 0.67) var(--hue-ink, 240));
   --color-bg-overlay: oklch(0.40 calc(var(--chroma-surface, 0.012) * 0.75) var(--hue-ink, 240));
   --color-bg-modal: oklch(0.45 calc(var(--chroma-surface, 0.012) * 0.85) var(--hue-ink, 240));
@@ -389,6 +390,7 @@ html[data-theme-type='light'] {
   /* ==== semantic · 亮色·宣纸（规范 4.1/4.5） ==== */
   --color-bg-base: oklch(0.96 0.008 90);
   --color-bg-sunken: oklch(0.93 0.010 90);
+  --color-bg-shell: oklch(0.88 0.010 90);
   --color-bg-card: oklch(0.99 0.004 90);
   --color-bg-overlay: oklch(1.00 0 0);
   --color-bg-modal: oklch(1.00 0 0);

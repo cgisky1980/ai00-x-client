@@ -12,7 +12,8 @@
     min-height: 0;
     padding: var(--spacing-4) var(--spacing-2);
     border-right: var(--style-stroke-width, 1px) solid var(--color-border);
-    background-color: var(--color-bg-secondary);
+    // 主导航是应用外壳（L2-deep），比内容侧边栏（L2）再深一档，两者才分得开
+    background-color: var(--color-bg-shell);
     overflow-y: auto;
   }
 

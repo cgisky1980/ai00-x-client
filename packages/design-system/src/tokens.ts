@@ -134,6 +134,7 @@ export const tokens = {
   'style.focus.ring': "oklch(0.72 calc(var(--chroma, 0.12) * 0.72 * (1 - var(--gray-level, 0))) var(--hue, 235))",
   'color.bg.base': "oklch(0.27 calc(var(--chroma-surface, 0.012) * 0.5) var(--hue-ink, 240))",
   'color.bg.sunken': "oklch(0.31 calc(var(--chroma-surface, 0.012) * 0.55) var(--hue-ink, 240))",
+  'color.bg.shell': "oklch(0.22 calc(var(--chroma-surface, 0.012) * 0.42) var(--hue-ink, 240))",
   'color.bg.card': "oklch(0.35 calc(var(--chroma-surface, 0.012) * 0.67) var(--hue-ink, 240))",
   'color.bg.overlay': "oklch(0.40 calc(var(--chroma-surface, 0.012) * 0.75) var(--hue-ink, 240))",
   'color.bg.modal': "oklch(0.45 calc(var(--chroma-surface, 0.012) * 0.85) var(--hue-ink, 240))",

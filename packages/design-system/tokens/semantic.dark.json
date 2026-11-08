@@ -5,6 +5,7 @@
       "$description": "墨阶 5 级（规范 4.1，v0.12 松烟墨）：base 最深 → sunken 工作区 → card 卡片 → overlay 浮层 → modal 弹窗；hue 240 冷青（松烟墨，与黛青 235 同族一体）；L 定位 ≈ #262a2c 冷墨灰（高级深灰档，兼顾墨色质感与暗色可读性，对标 Notion/Discord 暗度量级）",
       "base": { "$value": "oklch(0.27 calc(var(--chroma-surface, 0.012) * 0.5) var(--hue-ink, 240))", "$type": "color", "$description": "L1 app 全局背景（≈ #262a2c）" },
       "sunken": { "$value": "oklch(0.31 calc(var(--chroma-surface, 0.012) * 0.55) var(--hue-ink, 240))", "$type": "color", "$description": "L2 工作区/侧栏" },
+      "shell": { "$value": "oklch(0.22 calc(var(--chroma-surface, 0.012) * 0.42) var(--hue-ink, 240))", "$type": "color", "$description": "L2-deep 应用外壳导航（主侧边栏；暗色下比 L1 更深一档）" },
       "card": { "$value": "oklch(0.35 calc(var(--chroma-surface, 0.012) * 0.67) var(--hue-ink, 240))", "$type": "color", "$description": "L3 卡片/面板" },
       "overlay": { "$value": "oklch(0.40 calc(var(--chroma-surface, 0.012) * 0.75) var(--hue-ink, 240))", "$type": "color", "$description": "L4 浮层（dropdown/popover）" },
       "modal": { "$value": "oklch(0.45 calc(var(--chroma-surface, 0.012) * 0.85) var(--hue-ink, 240))", "$type": "color", "$description": "L5 弹窗/最高层" },

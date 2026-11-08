@@ -4,6 +4,7 @@
     "bg": {
       "base": { "$value": "oklch(0.96 0.008 90)", "$type": "color", "$description": "L1 宣纸·app 全局背景（微暖白）" },
       "sunken": { "$value": "oklch(0.93 0.010 90)", "$type": "color", "$description": "L2 工作区/侧栏" },
+      "shell": { "$value": "oklch(0.88 0.010 90)", "$type": "color", "$description": "L2-deep 应用外壳导航（主侧边栏；比 L2 深 0.05，肉眼可辨的区隔）" },
       "card": { "$value": "oklch(0.99 0.004 90)", "$type": "color", "$description": "L3 卡片（亮色下卡片比背景更亮）" },
       "overlay": { "$value": "oklch(1.00 0 0)", "$type": "color", "$description": "L4 浮层" },
       "modal": { "$value": "oklch(1.00 0 0)", "$type": "color", "$description": "L5 弹窗（靠阴影分层）" },

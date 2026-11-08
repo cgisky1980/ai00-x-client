@@ -76,6 +76,7 @@ export const stylePackTokens: Record<string, StylePackTokenMap> = {
     "light": {
       "--color-bg-base": "#FFF4DD",
       "--color-bg-sunken": "#F7E9C9",
+      "--color-bg-shell": "#E9D3A8",
       "--color-bg-card": "#FFFDF7",
       "--color-bg-overlay": "#FFFEFB",
       "--color-bg-modal": "#FFFEFB",
@@ -154,6 +155,7 @@ export const stylePackTokens: Record<string, StylePackTokenMap> = {
     "dark": {
       "--color-bg-base": "#221C14",
       "--color-bg-sunken": "#1B1610",
+      "--color-bg-shell": "#150F0A",
       "--color-bg-card": "#2C251B",
       "--color-bg-overlay": "#332B20",
       "--color-bg-modal": "#3A3126",
