@@ -1111,10 +1111,15 @@ async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response, model_ref: &
     // 发送（401 时刷新 member token 重试一次——dsh 会话是长驻的，
     // access token 过期后不刷新会让所有 agent 请求永久 502）
     let mut upstream = None;
+    // 请求标识：一次逻辑请求生成一次，401 刷新重试复用同一 id（服务端据此关联请求日志与账单）
+    let request_id = format!("cli_{}", uuid::Uuid::new_v4().simple());
+    log::info!("[ai-gateway] request_id={request_id}");
+
     for attempt in 0..2 {
         let mut request = client
             .http_client()
             .post(&client.config.request_url)
+            .header("X-Request-Id", &request_id)
             .json(&body);
         if !client.config.api_key.is_empty() {
             request = request.bearer_auth(&client.config.api_key);
@@ -1196,6 +1201,10 @@ async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response, model_ref: &
         salvo::http::header::CACHE_CONTROL,
         salvo::http::HeaderValue::from_static("no-cache"),
     );
+    // 回写请求标识，便于前端/日志按 id 追同一次逻辑请求
+    if let Ok(val) = salvo::http::HeaderValue::from_str(&request_id) {
+        res.headers_mut().insert("x-request-id", val);
+    }
     res.stream(tokio_stream::wrappers::UnboundedReceiverStream::new(
         rx_body,
     ));

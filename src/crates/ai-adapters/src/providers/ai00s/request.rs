@@ -24,12 +24,20 @@ pub(crate) async fn send_stream(
     let request_body =
         openai::chat::build_request_body(client, &url, openai_messages, openai_tools, extra_body);
 
+    // 请求标识：一次逻辑请求生成一次；execute_sse_request 内部重试复用同一 id
+    // （服务端据此把请求日志与扣费记录串起来）
+    let request_id = format!("cli_{}", uuid::Uuid::new_v4().simple());
+    debug!("Ai00-S request_id={}", request_id);
+
     execute_sse_request(
         "Ai00-S Streaming API",
         &url,
         &request_body,
         max_tries,
-        || openai::common::apply_headers(client, client.client.post(&url)),
+        || {
+            openai::common::apply_headers(client, client.client.post(&url))
+                .header("X-Request-Id", &request_id)
+        },
         move |response, tx, tx_raw| {
             tokio::spawn(handle_ai00s_stream(response, tx, tx_raw));
         },
