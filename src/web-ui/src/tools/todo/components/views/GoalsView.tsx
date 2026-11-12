@@ -14,7 +14,7 @@ import { pickWorkspaceDir } from '../../ai/workspace';
 import { useGrowthStore } from '../../store/growthStore';
 import { assessGoal } from '../../ai/consult';
 import { collectProjectSummary } from '../../ai/projectSummary';
-import { queryLocalUsage, fetchServerUsage, fmtNum, type LocalUsage } from '../../ai/usageApi';
+import { queryLocalUsage, fmtNum, type LocalUsage } from '../../ai/usageApi';
 import { MiniBarChart, StackedTokenChart, StatChip } from './UsageCharts';
 import { XpKinds, type TodoGoal } from '../../api/types';
 
@@ -405,9 +405,8 @@ const GoalDetail: React.FC<GoalDetailProps> = ({
   const tasks = data.tasks.filter(t => t.goalId === goal.id);
   const tasksOpen = openTasks === goal.id;
 
-  // ===== 统计（本地 ledger 按志过滤 + 专注时间 + 服务端费用均价）=====
+  // ===== 统计（本地 ledger 按志过滤；积分口径只在积分中心按账号展示）=====
   const [usage, setUsage] = useState<LocalUsage | null>(null);
-  const [pricePerToken, setPricePerToken] = useState<number | null>(null);
   React.useEffect(() => {
     let cancelled = false;
     void queryLocalUsage(30)
@@ -415,11 +414,6 @@ const GoalDetail: React.FC<GoalDetailProps> = ({
         if (!cancelled) setUsage(u);
       })
       .catch(() => undefined);
-    void fetchServerUsage(30).then(s => {
-      if (cancelled || !s) return;
-      const tokens = s.totals.promptTokens + s.totals.completionTokens;
-      setPricePerToken(tokens > 0 && s.totals.credits > 0 ? s.totals.credits / tokens : null);
-    });
     return () => {
       cancelled = true;
     };
@@ -465,7 +459,8 @@ const GoalDetail: React.FC<GoalDetailProps> = ({
   // 用全局 days × 志占比近似不可行——直接展示该志 tag 合计 + 全局 7 日趋势）
   const tokenDays = useMemo(() => {
     if (!usage) return [];
-    return usage.days.slice(-7).map(d => ({ date: d.date, local: d.localTokens, remote: d.remoteTokens }));
+    // 积分不按志拆分，图里只画本地推理 token（估算），远端只作明细展示
+    return usage.days.slice(-7).map(d => ({ date: d.date, local: d.localTokens }));
   }, [usage]);
 
   const hasStats = focus.totalMin > 0 || goalUsage.local > 0 || goalUsage.remote > 0;
@@ -581,21 +576,15 @@ const GoalDetail: React.FC<GoalDetailProps> = ({
               />
               <StatChip
                 icon={<Zap size={11} />}
-                label="Token 消耗"
-                value={fmtNum(goalUsage.local + goalUsage.remote)}
-                sub={`本地 ${fmtNum(goalUsage.local)} · 远程 ${fmtNum(goalUsage.remote)}`}
+                label="本地 Token"
+                value={fmtNum(goalUsage.local)}
+                sub="估算 · 本机推理不扣积分"
               />
               <StatChip
                 icon={<Coins size={11} />}
-                label="费用"
-                value={
-                  goalUsage.remote > 0 && pricePerToken
-                    ? `≈${fmtNum(Math.round(goalUsage.remote * pricePerToken))}`
-                    : goalUsage.remote > 0
-                      ? '—'
-                      : '0'
-                }
-                sub={goalUsage.remote > 0 ? (pricePerToken ? 'credit · 按服务端均价估算' : '登录后可见费用估算') : '本地调用免费'}
+                label="远端 Token"
+                value={fmtNum(goalUsage.remote)}
+                sub="客户端网关记录 · 非账单"
               />
             </div>
             <div className="td-usage__charts">
@@ -604,7 +593,7 @@ const GoalDetail: React.FC<GoalDetailProps> = ({
                 <MiniBarChart data={focus.days} unit=" 分钟" />
               </div>
               <div className="td-usage__chart-block">
-                <span className="td-usage__chart-label">近 7 日 AI 消耗（token · 全部业务）</span>
+                <span className="td-usage__chart-label">近 7 日本地推理（token · 估算）</span>
                 <StackedTokenChart data={tokenDays} />
               </div>
             </div>

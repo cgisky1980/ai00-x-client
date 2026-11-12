@@ -40,8 +40,9 @@ export const GrowthView: React.FC = () => {
       cancelled = true;
     };
   }, []);
+  // 两类口径分开：本地 token 走本机 ledger（估算、不扣积分）；远端只看服务端真实账单
   const tokenDays = useMemo(
-    () => (localUsage ? localUsage.days.map(d => ({ date: d.date, local: d.localTokens, remote: d.remoteTokens })) : []),
+    () => (localUsage ? localUsage.days.map(d => ({ date: d.date, local: d.localTokens })) : []),
     [localUsage]
   );
 
@@ -110,7 +111,7 @@ export const GrowthView: React.FC = () => {
         近 7 日完成：{week.join(' · ')}
       </div>
 
-      {/* 消耗 CONSUMPTION：AI 用量（本地 ledger 全量 + 服务端真实账单） */}
+      {/* 消耗 CONSUMPTION：本地 token（估算）与远端积分（真实账单）分开，不做总额 */}
       <div className="td-growth-section" style={{ marginTop: 10 }}>消耗</div>
       <div className="td-usage td-usage--growth">
         <div className="td-usage__stats">
@@ -118,21 +119,21 @@ export const GrowthView: React.FC = () => {
           <StatChip
             label="本地 Token"
             value={fmtNum(localUsage?.totals.localTokens ?? 0)}
-            sub="近 7 日 · RWKV 免费推理"
+            sub="近 7 日 · 估算 · 不扣积分"
           />
           <StatChip
-            label="远程 Token"
-            value={fmtNum(localUsage?.totals.remoteTokens ?? 0)}
-            sub="近 7 日"
+            label="远端调用"
+            value={serverUsage ? fmtNum(serverUsage.totals.calls) : '—'}
+            sub={serverUsage ? '近 30 日 · 服务端账本' : '登录后同步账单'}
           />
           <StatChip
-            label="远程费用"
+            label="远端积分"
             value={serverUsage ? fmtNum(serverUsage.totals.credits) : '—'}
-            sub={serverUsage ? 'credit · 近 30 日真实账单' : '登录后同步账单'}
+            sub={serverUsage ? '近 30 日 · 服务端账本' : '登录后同步账单'}
           />
         </div>
         <div className="td-usage__chart-block">
-          <span className="td-usage__chart-label">近 7 日 AI 消耗（token）</span>
+          <span className="td-usage__chart-label">近 7 日本地推理（token · 估算）</span>
           <StackedTokenChart data={tokenDays} />
         </div>
       </div>

@@ -37,7 +37,6 @@ export interface MemberBalance {
     remaining: number;
   };
   total_remaining: number;
-  total_remaining_yuan: number;
 }
 
 /** 计费账本条目（GET /me/billing/ledger 返回） */
@@ -56,9 +55,31 @@ export interface BillingEntry {
   deducted_from_subscription: number;
   deducted_from_recharge: number;
   is_free_model: boolean;
-  status: string; // charged / pending / refunded
+  /** charged / pending / refunded / released */
+  status: string;
   request_log_id: number | null;
   created_at: string;
+  /** 服务端请求标识（与 credit_reservations.request_id 对应） */
+  request_id?: string | null;
+  /** 上游未返回 usage、按估算结算 */
+  is_estimated?: boolean;
+  /** 结算来源：usage / estimated / replay */
+  settled_from?: string | null;
+}
+
+/** 计费账本全量汇总（服务端全表统计，不受分页上限影响） */
+export interface BillingLedgerSummary {
+  /** 有效消费 = 已扣 + 待结清（refunded / released 不计） */
+  total_credits: number;
+  charged_credits: number;
+  pending_credits: number;
+}
+
+/** GET /me/billing/ledger 响应（items 为分页条目，summary 为全量汇总） */
+export interface MyLedgerResponse extends ListResponse<BillingEntry> {
+  /** 账本总条数 */
+  total?: number;
+  summary?: BillingLedgerSummary;
 }
 
 /** 充值订单（GET /me/recharge/orders 返回） */
@@ -192,8 +213,8 @@ export async function getMyBalance(): Promise<MemberBalance> {
 export async function listMyLedger(
   limit = 50,
   offset = 0
-): Promise<ListResponse<BillingEntry>> {
-  const resp = await fetchWithAuth<ApiResp<ListResponse<BillingEntry>>>(
+): Promise<MyLedgerResponse> {
+  const resp = await fetchWithAuth<ApiResp<MyLedgerResponse>>(
     `/api/v1/me/billing/ledger?limit=${limit}&offset=${offset}`
   );
   if (resp.code !== 0) {

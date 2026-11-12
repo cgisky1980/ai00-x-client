@@ -1,28 +1,44 @@
 /**
  * UsageView — 积分消耗页（积分中心首页）。
  *
- * 参考"使用统计"形态：
- * - 顶部统计条：当前积分 / 本月消耗 / 近 30 日消耗 / 今日消耗
- * - 每日消耗趋势（近 7 日 / 近 30 日切换，纯 SVG 折线，无图表库）
- * - 模型用量占比（按消耗积分聚合，横向比例条）
- * - 最近消耗记录（模型 + token 数 + 消耗积分 + 时间）
+ * 两个口径并列，绝不合并成「总用量」：
+ * - 本地推理：本机 RWKV/pool 推理的 token 数（客户端 ledger，含估算，不扣积分）
+ * - 远端消费：经 Ai00-X 云端计费的调用所扣积分（服务端账单，真实扣费）
  *
- * 数据：GET /me/billing/ledger（模型级计费明细）+ credits/summary。
+ * 数据（远端一律只读服务端字段，客户端不做分桶外的任何推算）：
+ * - 远端积分/趋势/模型占比：GET /me/ai/usage（服务端账本日桶 + 按模型聚合）
+ * - 最近记录/待结清：GET /me/billing/ledger（服务端分页明细 + 全量汇总）
+ * - 本地 token：`ai_usage_query`（客户端 ledger，近 30 日）
  * 视觉纪律（新东方极简）：墨阶 token 表面、黛青唯一交互色（折线/占比条）、
  * 数字一律 .ds-data（mono + tabular-nums）、零硬编码色值/px 间距。
- * 口径纪律：只展示积分与 token 数，严禁积分↔人民币换算。
+ * 口径纪律：只展示积分与 token 数，严禁积分↔人民币换算、严禁 token→积分换算。
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarCheck, RefreshCw } from 'lucide-react';
 import { Button, Skeleton, toast, toastSuccess, toastWarning } from '@/component-library';
-import { listMyLedger, type BillingEntry } from '@/infrastructure/api/service-api/BillingApi';
+import {
+  listMyLedger,
+  type MyLedgerResponse,
+} from '@/infrastructure/api/service-api/BillingApi';
+import {
+  fetchServerUsage,
+  queryLocalUsage,
+  type LocalUsage,
+  type ServerUsage,
+} from '@/tools/todo/ai/usageApi';
 import { useCreditsStore } from './creditsStore';
 import './UsageView.scss';
 
-/** 本地日期键（YYYY-MM-DD），按天聚合用 */
-function dayKey(iso: string): string {
-  return iso.slice(0, 10);
+/** 服务端聚合窗口（天数）；今日/本月/近 N 日均取自该窗口的日桶 */
+const USAGE_WINDOW_DAYS = 30;
+
+/** 最近记录条数（服务端分页上限 200，这里只需最近若干条） */
+const RECENT_LIMIT = 20;
+
+/** 本地日期键（YYYY-MM-DD） */
+function dayKeyOf(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 /** "MM-DD" 短日期 */
@@ -81,7 +97,7 @@ const UsageTrendChart: React.FC<{ series: { day: string; cost: number }[] }> = (
         className="ai00-x-credits-usage__chart"
         viewBox={`0 0 ${W} ${H}`}
         role="img"
-        aria-label={`近 ${series.length} 日每日积分消耗趋势`}
+        aria-label={`近 ${series.length} 日远端积分消耗趋势`}
         preserveAspectRatio="none"
       >
         <path className="ai00-x-credits-usage__chart-area" d={areaPath} />
@@ -118,23 +134,34 @@ const UsageView: React.FC = () => {
     loadSignin,
     doSignin,
   } = useCreditsStore();
-  const [entries, setEntries] = useState<BillingEntry[]>([]);
+  const [serverUsage, setServerUsage] = useState<ServerUsage | null>(null);
+  const [ledger, setLedger] = useState<MyLedgerResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [localUsage, setLocalUsage] = useState<LocalUsage | null>(null);
   const [range, setRange] = useState<RangeKey>(7);
   const [signingIn, setSigningIn] = useState(false);
 
   const load = React.useCallback(async () => {
     setLoading(true);
     setLoadFailed(false);
+    // 汇总走服务端账本（全量聚合，不受分页上限影响）；明细只取最近若干条
+    const [usage, myLedger] = await Promise.all([
+      fetchServerUsage(USAGE_WINDOW_DAYS),
+      listMyLedger(RECENT_LIMIT, 0).catch(() => null),
+    ]);
+    setServerUsage(usage);
+    setLedger(myLedger);
+    setLoadFailed(usage === null);
+    setLoading(false);
+  }, []);
+
+  /** 本地 ledger 独立加载：远端账单失败（未登录/断网）不影响本地 token 呈现。 */
+  const loadLocal = React.useCallback(async () => {
     try {
-      // 一次拉 500 条足够覆盖 30 日个人用量；服务端分页上限即此
-      const resp = await listMyLedger(500, 0);
-      setEntries((resp.items ?? []).filter(e => e.status === 'charged'));
+      setLocalUsage(await queryLocalUsage(30));
     } catch {
-      setLoadFailed(true);
-    } finally {
-      setLoading(false);
+      setLocalUsage(null);
     }
   }, []);
 
@@ -142,7 +169,8 @@ const UsageView: React.FC = () => {
     loadSummary();
     loadSignin();
     void load();
-  }, [load, loadSummary, loadSignin]);
+    void loadLocal();
+  }, [load, loadSummary, loadSignin, loadLocal]);
 
   const todaySigned = signinStatus?.today_signed ?? false;
 
@@ -154,13 +182,9 @@ const UsageView: React.FC = () => {
       if (result.already_signed) {
         toastWarning('今日已签到过啦');
       } else {
-        // 连签梯度（迁移 031）：展示连签天数与明日档位
-        const ladder = [30, 35, 40, 45, 50, 55, 65, 80];
-        const base = result.base_reward ?? 30;
-        const nextIdx = Math.min((result.streak ?? 1), ladder.length); // 明日档位（0-based）
-        const nextReward = Math.round((base * ladder[nextIdx]) / 30);
+        // 只展示服务端返回的实发积分与连签天数；不做「明日可领」预估（服务端唯一权威）
         toastSuccess(`签到成功，连签 ${result.streak ?? 1} 天，获得 ${result.credits_granted} 积分`, {
-          description: `明日可领约 ${nextReward} 积分 · 邀请好友充值，你也拿分红`,
+          description: '邀请好友充值，你也拿分红',
         });
       }
     } catch {
@@ -192,67 +216,62 @@ const UsageView: React.FC = () => {
     return { leadingBlanks: firstWeekday, cells };
   }, [signinStatus?.signed_dates]);
 
-  // ── 按本地时区日聚合（created_at 为 UTC ISO，转本地日期） ─────────────────
+  // ── 统计口径：全部取自服务端账本日桶/模型聚合，客户端只按日桶筛选与补零 ────
   const stats = useMemo(() => {
     const now = new Date();
-    const perDay = new Map<string, number>();
-    const perModel = new Map<string, number>();
-    let todayCost = 0;
-    let monthCost = 0;
-    let monthTokens = 0;
-
-    const todayKey = (() => {
-      const d = now;
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    })();
+    const todayKey = dayKeyOf(now);
     const monthPrefix = todayKey.slice(0, 7);
 
-    for (const e of entries) {
-      const localDay = (() => {
-        const d = new Date(e.created_at);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      })();
-      const cost = e.cost_credits;
-      if (localDay === todayKey) todayCost += cost;
-      if (localDay.startsWith(monthPrefix)) {
-        monthCost += cost;
-        monthTokens += e.prompt_tokens + e.completion_tokens;
-      }
-      perDay.set(localDay, (perDay.get(localDay) ?? 0) + cost);
-      perModel.set(e.model, (perModel.get(e.model) ?? 0) + cost);
+    // 服务端日桶（日期已按调用方时区折算）
+    const perDay = new Map<string, number>();
+    for (const d of serverUsage?.days ?? []) {
+      perDay.set(d.date, d.credits);
     }
 
-    // 趋势序列：range 天（含今日，无消耗补 0）
+    const todayCost = perDay.get(todayKey) ?? 0;
+    let monthCost = 0;
+    for (const [day, cost] of perDay) {
+      if (day.startsWith(monthPrefix)) monthCost += cost;
+    }
+
+    // 趋势序列：近 range 日（服务端日桶，无消耗的日补 0，仅补零不推算）
     const series: { day: string; cost: number }[] = [];
     for (let i = RANGE_DAYS[range] - 1; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const key = dayKeyOf(d);
       series.push({ day: key, cost: perDay.get(key) ?? 0 });
     }
 
-    const models = [...perModel.entries()]
-      .map(([model, cost]) => ({ model, cost }))
-      .sort((a, b) => b.cost - a.cost);
+    // 模型聚合：服务端 byModel（credits 降序）
+    const models = (serverUsage?.byModel ?? []).map(m => ({
+      model: m.model,
+      cost: m.credits,
+      tokens: m.promptTokens + m.completionTokens,
+      cachedTokens: m.cachedTokens,
+      calls: m.calls,
+    }));
     const modelTotal = models.reduce((s, m) => s + m.cost, 0);
 
-    const recent = [...entries]
-      .sort((a, b) => b.created_at.localeCompare(a.created_at))
-      .slice(0, 8);
+    // 最近记录：服务端已按时间倒序返回，取前 8 条（不参与任何汇总）
+    const recent = (ledger?.items ?? []).slice(0, 8);
 
     return {
       todayCost,
       monthCost,
-      monthTokens,
-      rangeCost: series.reduce((s, p) => s + p.cost, 0),
       series,
       models,
       modelTotal,
       recent,
+      cachedTokens: serverUsage?.totals.cachedTokens ?? 0,
+      hasRemoteData: (serverUsage?.totals.calls ?? 0) > 0 || (serverUsage?.totals.credits ?? 0) > 0,
     };
-  }, [entries, range]);
+  }, [serverUsage, ledger, range]);
 
-  const hasData = !loading && !loadFailed && entries.length > 0;
+  const hasData = !loading && !loadFailed && stats.hasRemoteData;
+  const pendingCredits = ledger?.summary?.pending_credits ?? 0;
+  const chargedCredits = ledger?.summary?.charged_credits ?? 0;
+  const ledgerTotal = ledger?.total ?? 0;
 
   const nextReset = summary?.next_reset_at ? summary.next_reset_at.slice(0, 10) : null;
   const expiringSoon = summary?.expiring?.[0] ?? null;
@@ -341,26 +360,39 @@ const UsageView: React.FC = () => {
         </div>
       </section>
 
-      {/* 顶部统计条 */}
-      <section className="ai00-x-credits-usage__stats" aria-label="消耗统计">
+      {/* 顶部统计条：本地推理 token 与远端积分并列，不做合并总量 */}
+      <section className="ai00-x-credits-usage__stats" aria-label="用量统计（本地推理与远端消费分开）">
         <div className="ai00-x-credits-usage__stat">
-          <span className="ai00-x-credits-usage__stat-value ds-data">{stats.monthCost}</span>
-          <span className="ai00-x-credits-usage__stat-label">本月消耗</span>
+          <span className="ai00-x-credits-usage__stat-value ds-data">
+            {loadFailed ? '—' : stats.monthCost}
+          </span>
+          <span className="ai00-x-credits-usage__stat-label">本月远端消耗（积分）</span>
+          <span className="ai00-x-credits-usage__stat-note">
+            {loadFailed ? '登录后同步' : '服务端账本 · 近 30 日窗口'}
+          </span>
         </div>
         <div className="ai00-x-credits-usage__stat">
-          <span className="ai00-x-credits-usage__stat-value ds-data">{fmtTokens(stats.monthTokens)}</span>
-          <span className="ai00-x-credits-usage__stat-label">本月 Token 数</span>
+          <span className="ai00-x-credits-usage__stat-value ds-data">
+            {localUsage ? fmtTokens(localUsage.totals.localTokens) : '—'}
+          </span>
+          <span className="ai00-x-credits-usage__stat-label">本地推理 Token · 近 30 日</span>
+          <span className="ai00-x-credits-usage__stat-note">
+            {localUsage ? `${localUsage.totals.localCalls} 次调用 · 估算` : '本机记录读取失败'}
+          </span>
         </div>
         <div className="ai00-x-credits-usage__stat">
-          <span className="ai00-x-credits-usage__stat-value ds-data">{stats.todayCost}</span>
-          <span className="ai00-x-credits-usage__stat-label">今日消耗</span>
+          <span className="ai00-x-credits-usage__stat-value ds-data">
+            {loadFailed ? '—' : stats.todayCost}
+          </span>
+          <span className="ai00-x-credits-usage__stat-label">今日远端消耗（积分）</span>
+          <span className="ai00-x-credits-usage__stat-note">本地推理不扣积分</span>
         </div>
       </section>
 
-      {/* 每日消耗趋势 */}
-      <section className="ai00-x-credits-usage__chart-card" aria-label="消耗趋势">
+      {/* 每日远端积分消耗趋势（本地推理不产生积分，不混入） */}
+      <section className="ai00-x-credits-usage__chart-card" aria-label="远端积分消耗趋势">
         <header className="ai00-x-credits-usage__card-head">
-          <h3 className="ai00-x-credits-usage__card-title">积分消耗趋势</h3>
+          <h3 className="ai00-x-credits-usage__card-title">远端积分消耗趋势</h3>
           <div className="ai00-x-credits-usage__range" role="tablist" aria-label="时间范围">
             {(Object.keys(RANGE_DAYS) as unknown as string[]).map(key => (
               <button
@@ -389,7 +421,9 @@ const UsageView: React.FC = () => {
             </Button>
           </div>
         ) : !hasData ? (
-          <p className="ai00-x-credits-usage__empty">还没有消耗记录，去对话或使用工具产生第一条用量吧。</p>
+          <p className="ai00-x-credits-usage__empty">
+            还没有远端计费记录。本地推理不扣积分，其 token 用量见上方统计。
+          </p>
         ) : (
           <UsageTrendChart series={stats.series} />
         )}
@@ -400,9 +434,10 @@ const UsageView: React.FC = () => {
           {/* 模型用量占比 */}
           <section className="ai00-x-credits-usage__chart-card" aria-label="模型用量">
             <header className="ai00-x-credits-usage__card-head">
-              <h3 className="ai00-x-credits-usage__card-title">模型用量</h3>
+              <h3 className="ai00-x-credits-usage__card-title">远端模型用量</h3>
               <span className="ai00-x-credits-usage__card-note ds-data">
-                累计 {stats.modelTotal} 积分
+                仅计费模型 · 近 {USAGE_WINDOW_DAYS} 日累计 {stats.modelTotal} 积分
+                {stats.cachedTokens > 0 && ` · 缓存命中 ${fmtTokens(stats.cachedTokens)} tokens`}
               </span>
             </header>
             <ul className="ai00-x-credits-usage__models">
@@ -412,7 +447,12 @@ const UsageView: React.FC = () => {
                   <li key={m.model} className="ai00-x-credits-usage__model">
                     <div className="ai00-x-credits-usage__model-row">
                       <span className="ai00-x-credits-usage__model-dot" data-rank={Math.min(i, 3)} />
-                      <span className="ai00-x-credits-usage__model-name" title={m.model}>{m.model}</span>
+                      <span
+                        className="ai00-x-credits-usage__model-name"
+                        title={`${m.model} · ${fmtTokens(m.tokens)} tokens${m.cachedTokens > 0 ? `（缓存 ${fmtTokens(m.cachedTokens)}）` : ''} · ${m.calls} 次调用`}
+                      >
+                        {m.model}
+                      </span>
                       <span className="ai00-x-credits-usage__model-cost ds-data">
                         {m.cost} 积分 · {pct.toFixed(pct < 10 && pct >= 1 ? 1 : 0)}%
                       </span>
@@ -434,11 +474,17 @@ const UsageView: React.FC = () => {
           <section className="ai00-x-credits-usage__chart-card" aria-label="最近消耗">
             <header className="ai00-x-credits-usage__card-head">
               <h3 className="ai00-x-credits-usage__card-title">最近消耗</h3>
+              <span className="ai00-x-credits-usage__card-note ds-data">
+                已扣 {chargedCredits}
+                {pendingCredits > 0 && ` · 待结清 ${pendingCredits}`}
+                {ledgerTotal > 0 && ` · 共 ${ledgerTotal} 条`}
+              </span>
               <Button
                 variant="ghost"
                 size="small"
                 onClick={() => {
                   void load();
+                  void loadLocal();
                   loadSummary();
                 }}
               >
@@ -446,20 +492,36 @@ const UsageView: React.FC = () => {
                 刷新
               </Button>
             </header>
-            <ul className="ai00-x-credits-usage__records">
-              {stats.recent.map(e => (
-                <li key={e.id} className="ai00-x-credits-usage__record">
-                  <span className="ai00-x-credits-usage__record-model" title={e.model}>{e.model}</span>
-                  <span className="ai00-x-credits-usage__record-tokens ds-data">
-                    {fmtTokens(e.prompt_tokens + e.completion_tokens)} tokens
-                  </span>
-                  <span className="ai00-x-credits-usage__record-time ds-data">
-                    {shortDate(dayKey(e.created_at))} {shortTime(e.created_at)}
-                  </span>
-                  <span className="ai00-x-credits-usage__record-cost ds-data">-{e.cost_credits}</span>
-                </li>
-              ))}
-            </ul>
+            {stats.recent.length === 0 ? (
+              <p className="ai00-x-credits-usage__empty">
+                {ledger === null ? '最近记录加载失败' : '最近没有计费记录。'}
+              </p>
+            ) : (
+              <ul className="ai00-x-credits-usage__records">
+                {stats.recent.map(e => (
+                  <li key={e.id} className="ai00-x-credits-usage__record">
+                    <span className="ai00-x-credits-usage__record-model" title={e.model}>{e.model}</span>
+                    {e.status === 'pending' && (
+                      <span className="ai00-x-credits-usage__flag ai00-x-credits-usage__flag--pending">待结清</span>
+                    )}
+                    {e.is_estimated && (
+                      <span className="ai00-x-credits-usage__flag ai00-x-credits-usage__flag--estimated">估算</span>
+                    )}
+                    <span className="ai00-x-credits-usage__record-tokens ds-data">
+                      {fmtTokens(e.prompt_tokens + e.completion_tokens)} tokens
+                      {e.cached_tokens > 0 && ` · 缓存 ${fmtTokens(e.cached_tokens)}`}
+                    </span>
+                    <span className="ai00-x-credits-usage__record-source ds-data">
+                      {e.deducted_from_subscription > 0 ? '套餐' : e.deducted_from_recharge > 0 ? '充值' : '—'}
+                    </span>
+                    <span className="ai00-x-credits-usage__record-time ds-data">
+                      {shortDate(e.created_at.slice(0, 10))} {shortTime(e.created_at)}
+                    </span>
+                    <span className="ai00-x-credits-usage__record-cost ds-data">-{e.cost_credits}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </>
       )}

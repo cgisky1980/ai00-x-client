@@ -179,6 +179,11 @@
     color: var(--color-text-muted);
   }
 
+  &__stat-note {
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
+  }
+
   // ── 通用卡片（趋势 / 模型用量 / 最近消耗） ───────────────────────────────
 
   &__chart-card {
@@ -413,6 +418,34 @@
     text-align: right;
     font-size: var(--font-size-sm);
     color: var(--color-text-primary);
+  }
+
+  // 扣款来源（套餐 / 充值），服务端 deducted_from_* 字段
+  &__record-source {
+    flex-shrink: 0;
+    min-width: 2.5em;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+
+  // 状态角标（待结清 / 估算），语义色只表状态
+  &__flag {
+    flex-shrink: 0;
+    padding: 0 var(--size-gap-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    line-height: 1.6;
+
+    &--pending {
+      background: var(--badge-warning-bg);
+      color: var(--badge-warning-text);
+    }
+
+    &--estimated {
+      background: var(--badge-info-bg);
+      color: var(--badge-info-text);
+    }
   }
 
   // ── 空态 / 失败态 ───────────────────────────────────────────────────────

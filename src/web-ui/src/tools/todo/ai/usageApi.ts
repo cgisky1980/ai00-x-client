@@ -1,11 +1,11 @@
 /**
- * Todo 用量统计 API — 客户端本地 ledger + 服务端账单双源。
+ * Todo 用量统计 API — 客户端本地 ledger + 服务端账本双源。
  *
- * - 本地：`ai_usage_query`（Rust 命令）聚合 plugin AI 调用（含本地 RWKV，
+ * 两本账互不相加、互不换算：
+ * - 本地账：`ai_usage_query`（Rust 命令）聚合 plugin AI 调用（含本地 RWKV，
  *   token 为启发式估算口径），按日/按 tag（todo:kind:{goalId}）分桶。
- * - 服务端：GET /api/v1/me/ai/usage 聚合远程调用真实扣费（credits，
- *   经 ai00s 代理落 ai_request_logs + ai_billing_ledger）。
- * 双源对齐：本地 remoteTokens（估算）与 totals.credits（真实）供 UI 换算均价。
+ * - 远端账：GET /api/v1/me/ai/usage（`source: server_ledger`），tokens/credits
+ *   全部为服务端账本聚合值，客户端只读不算。
  */
 import { invoke } from '@tauri-apps/api/core';
 import { fetchWithAuth } from '../../../infrastructure/auth/fetchWithAuth';
@@ -14,6 +14,8 @@ import { fetchWithAuth } from '../../../infrastructure/auth/fetchWithAuth';
 
 export interface LocalUsageTotals {
   calls: number;
+  /** 本地推理调用数（calls 含远端）。 */
+  localCalls: number;
   localTokens: number;
   remoteTokens: number;
   localPrompt: number;
@@ -47,24 +49,43 @@ export async function queryLocalUsage(days = 7): Promise<LocalUsage> {
   return invoke<LocalUsage>('ai_usage_query', { request: { days } });
 }
 
-// ===== 服务端账单（远程调用真实扣费）=====
+// ===== 服务端账本（远程调用真实扣费，服务端唯一权威）=====
 
 export interface ServerUsageDay {
+  /** 'YYYY-MM-DD'（服务端按调用方时区折算） */
   date: string;
   promptTokens: number;
   completionTokens: number;
+  cachedTokens: number;
+  credits: number;
+  calls: number;
+}
+
+export interface ServerUsageModel {
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  cachedTokens: number;
   credits: number;
   calls: number;
 }
 
 export interface ServerUsage {
+  /** 按日聚合（仅含有数据的日，升序） */
   days: ServerUsageDay[];
+  /** 窗口内按模型聚合（credits 降序） */
+  byModel: ServerUsageModel[];
   totals: {
     promptTokens: number;
     completionTokens: number;
+    cachedTokens: number;
     credits: number;
     calls: number;
   };
+  /** 数据来源标记（服务端账本） */
+  source: 'server_ledger';
+  /** 聚合窗口天数 */
+  windowDays: number;
   updatedAt?: string;
 }
 
@@ -77,8 +98,10 @@ interface ApiResp<T> {
 /** 服务端会员 AI 用量聚合（未登录/网络失败 → null，调用方降级）。 */
 export async function fetchServerUsage(days = 30): Promise<ServerUsage | null> {
   try {
+    // 日期桶按本地时区折算（东八区 = 480）
+    const tzOffsetMinutes = -new Date().getTimezoneOffset();
     const resp = await fetchWithAuth<ApiResp<ServerUsage>>(
-      `/api/v1/me/ai/usage?days=${days}`
+      `/api/v1/me/ai/usage?days=${days}&tz_offset_minutes=${tzOffsetMinutes}`
     );
     if (resp.code !== 0) return null;
     return resp.data;
