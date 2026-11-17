@@ -76,6 +76,36 @@ fn ensure_workbench_agents(
     Ok(content)
 }
 
+/// 统一交付流程（规划 → 执行 → 验收）规约段。
+///
+/// 与前端 `agent/orchestrator/promptParts.ts` 的 `WORKBENCH_LOOP_RULES` 同一份
+/// 语义：宿主写进 `AGENTS.local.md` 是为了让**每一轮**会话都受约束，而不只是
+/// 首条 prompt。文案定位是「在既有约定之上追加」，不覆盖工作台/插件自己的
+/// 工具说明（R2）。
+fn loop_rules_section(task_id: Option<&str>) -> String {
+    let plan_hint = match task_id {
+        Some(id) => format!("ai00_plan_write (taskId: \"{id}\")"),
+        None => "ai00_plan_write (taskId from the first task brief)".to_string(),
+    };
+    format!(
+        "## Delivery workflow (Ai00-X orchestration loop — additive to existing instructions)\n\n\
+Before any step, write the plan with {plan_hint} using exactly five sections: \"## Execution Policy\", \"## Goal\", \"## Steps\", \"## Acceptance\", \"## Deliverables\".\n\
+Write the plan body in the user's current UI language, but keep section headings and field keys exactly as shown (English keys).\n\
+Execution Policy has two lines: `- Execution: local-first` and `- Review: adaptive` (strict when the user asks for per-step cloud review).\n\
+Each entry under \"## Steps\":\n\
+- [ ] T1 title\n  - Depends on: none OR T0, T1\n  - Risk: low / medium / high\n  - Scope: comma separated paths\n  - Implementation: concrete instructions the local model can execute without follow-ups\n  - Acceptance: objectively checkable criteria {{cmd: whitelisted command}}\n\
+Never list planning or self-check as steps. Requirement or scope changes update the plan first and need human re-approval.\n\
+1. Plan approval (hard gate): stop after writing the plan, summarize key points and acceptance criteria only; continue after the user confirms.\n\
+2. Execution: dispatch to local_code_worker by default with goal, implementation, scope, dependency results, acceptance commands, working directory and a compact return format. Write every subagent brief in English (the plan body may stay in the user's language). Parallel only when dependency is none AND scopes do not overlap. Never call file/terminal/network tools yourself.\n\
+3. Evidence gate: after every local run call `ai00_task_verify` (taskId + snapshotDir + stepId); never trust worker self-reports. Pass includeDiff: true for strict, high risk and cloud fallback.\n\
+3.1 Search rule: use ai00_search (self-hosted, no key) for web search; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.\n\
+4. Tiered review: adaptive + low/medium risk + verdict=passed may be checked off directly; strict, risk=high or needs-review must go through review_worker with evidence (and diff when needed).\n\
+5. Rework and fallback: one local rework with review notes; if it still fails, switch to code_worker (cloud fallback), never loop locally. Fallback also passes the evidence gate and review.\n\
+6. Integration review: when all steps pass, call `ai00_task_verify` without stepId to re-run \"## Acceptance\"; reopen affected steps on failure.\n\
+7. Self-check and human acceptance: verify deliverables on disk, call `ai00_task_complete` with absolute deliverables, then report summary + deliverables + awaiting review. Completion is granted by the human.\n"
+    )
+}
+
 /// 项目级 `AGENTS.local.md`：宿主生成块 + 工作台约定的内联副本。
 ///
 /// 内联而非引用，是因为 workbench preset 把指令根发现止于工程子目录
@@ -94,13 +124,15 @@ fn compose_project_agents(opts: &ComposeOptions<'_>) -> String {
 - 写入范围约定：只允许读取/创建/修改该工程根路径之内的文件；任何越界写入都会被宿主自动拒绝（path_out_of_scope）。\n\
 - 需要工程之外的参考资料时请只读访问，并把产物写回工程根内。\n\n\
 ## 工作台约定\n\n\
-{workbench_agents}\n",
+{workbench_agents}\n\n\
+{loop_rules}\n",
         workbench_title = opts.workbench_title,
         workbench_id = opts.workbench_id,
         project_label = project_label,
         workbench_root = opts.workbench_root.display(),
         project_root = opts.project_root.display(),
         workbench_agents = opts.workbench_agents.trim(),
+        loop_rules = loop_rules_section(opts.task_id),
     )
 }
 
@@ -112,10 +144,15 @@ struct ComposeOptions<'a> {
     project_title: Option<&'a str>,
     project_root: &'a Path,
     workbench_agents: &'a str,
+    /// 工作台任务卡 id（内置任务场景有；插件工作台新建会话时由宿主补登）。
+    task_id: Option<&'a str>,
 }
 
 /// Resolve the workbench root and its project subdirectory, then make sure both
 /// the workbench-level `AGENTS.md` and the project-level `AGENTS.local.md` exist.
+// 参数逐个平铺是 Tauri 命令的惯例（前端按字段名 invoke），打包成结构体会让
+// 调用方多套一层；这里按既有约定豁免参数个数检查。
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn workbench_prepare_project(
     _state: State<'_, AppState>,
@@ -125,6 +162,10 @@ pub async fn workbench_prepare_project(
     agent_instructions: Option<String>,
     project_id: String,
     project_title: Option<String>,
+    task_id: Option<String>,
+    // 外部项目目录（工作台「项目」工作台）：给定时直接使用该已存在目录，
+    // 不建目录、不写 AGENTS.local.md——避免污染用户已有工程。
+    project_root: Option<String>,
 ) -> Result<WorkbenchProjectContext, String> {
     if !is_safe_slug(&project_id) {
         return Err(format!("Invalid project id '{project_id}'"));
@@ -132,6 +173,29 @@ pub async fn workbench_prepare_project(
     let title = workbench_title
         .filter(|t| !t.trim().is_empty())
         .unwrap_or_else(|| workbench_id.clone());
+
+    // 外部项目目录分支：完全跳过宿主目录生成与 AGENTS.local.md 落盘，
+    // loop 约束仍由会话首轮任务书注入。
+    if let Some(dir) = project_root.filter(|d| !d.trim().is_empty()) {
+        let external = PathBuf::from(dir.trim());
+        if !external.is_absolute() {
+            return Err(format!(
+                "Project root must be absolute: {}",
+                external.display()
+            ));
+        }
+        if !external.is_dir() {
+            return Err(format!(
+                "Project root does not exist or is not a directory: {}",
+                external.display()
+            ));
+        }
+        let shown = external.to_string_lossy().to_string();
+        return Ok(WorkbenchProjectContext {
+            workbench_root: shown.clone(),
+            project_root: shown,
+        });
+    }
 
     let (root, resolved_project) = if workbench_id == "wallpaper" {
         let workspaces_root = ai00_x_core::infrastructure::PathManager::exe_dir()
@@ -183,6 +247,7 @@ pub async fn workbench_prepare_project(
         project_title: project_title.as_deref(),
         project_root: &project_root,
         workbench_agents: &workbench_agents,
+        task_id: task_id.as_deref(),
     });
     let local = project_root.join("AGENTS.local.md");
     let unchanged = std::fs::read_to_string(&local)

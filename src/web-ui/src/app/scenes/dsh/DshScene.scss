@@ -87,6 +87,12 @@
     padding: var(--spacing-3) var(--spacing-3) var(--spacing-2);
   }
 
+  &__sidebar-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1);
+  }
+
   &__sidebar-title {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
@@ -268,6 +274,15 @@
     }
   }
 
+  // 消息区外壳：ScrollToBottom 浮钮的定位锚点
+  &__messages-wrap {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
   &__messages {
     flex: 1;
     overflow-y: auto;
@@ -277,6 +292,59 @@
     gap: var(--spacing-4);
   }
 
+  // 回到最新：上翻暂停跟随时浮现（浮层唯一玻璃免谈——实体表面）
+  &__scroll-latest {
+    position: absolute;
+    bottom: var(--spacing-3);
+    right: var(--spacing-4);
+    z-index: var(--z-floating);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1);
+    padding: var(--spacing-1) var(--spacing-3);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    background: var(--color-bg-elevated);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: var(--shadow-lg);
+    transition:
+      color var(--motion-fast) var(--easing-standard),
+      border-color var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      color: var(--color-accent);
+      border-color: var(--color-accent);
+    }
+  }
+
+  // 办结记录行：审批/提问批后塌缩为一行只读记录（细线 + 弱化字 + 时间戳）
+  &__logline {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-1);
+    padding-left: var(--spacing-2);
+    border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__logline-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__logline-time {
+    flex-shrink: 0;
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
   &__messages-empty {
     text-align: center;
     color: var(--color-text-muted);
@@ -284,59 +352,66 @@
     padding-top: var(--spacing-8);
   }
 
+  // 对话形态（2026-11 定稿，业界共识）：助手 = 无边框文档流（融入页面，
+  // 工具/推理走细线折叠块）；用户 = 右对齐气泡——全场唯一气泡，角色一眼可辨。
   &__msg {
-    display: flex;
-    gap: var(--spacing-2);
-    max-width: 86%;
-
-    &.is-user {
-      align-self: flex-end;
-      flex-direction: row-reverse;
-
-      .ai00-x-dsh-scene__msg-avatar {
-        background: var(--element-bg-medium);
-      }
-
-      .ai00-x-dsh-scene__msg-body {
-        background: var(--element-bg-base);
-      }
-    }
-
-    &.is-assistant {
-      align-self: flex-start;
-
-      .ai00-x-dsh-scene__msg-avatar {
-        background: var(--color-accent-500);
-        color: var(--btn-primary-color);
-      }
-
-      .ai00-x-dsh-scene__msg-body {
-        background: var(--color-bg-secondary);
-        border: var(--style-stroke-width, 1px) solid var(--border-subtle);
-      }
-    }
-  }
-
-  &__msg-avatar {
-    width: 22px;
-    height: 22px;
-    border-radius: var(--radius-full);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    color: var(--color-text-secondary);
+    min-width: 0;
   }
 
   &__msg-body {
-    border-radius: var(--radius-base);
-    padding: var(--spacing-2) var(--spacing-3);
     min-width: 0;
+  }
+
+  &__msg.is-user &__msg-body {
+    width: fit-content;
+    max-width: 80%;
+    margin-left: auto;
+    padding: var(--spacing-2) var(--spacing-3);
+    border-radius: var(--radius-base);
+    background: var(--element-bg-base);
   }
 
   /** 气泡内片段：一次模型响应一段（工具 → 正文），段间留白 */
   &__msg-segment + &__msg-segment {
     margin-top: var(--spacing-2);
+  }
+
+  // 子代理来源记录（relay / settled）：左侧细线 + 弱化抬头，绝不冒充用户发言
+  &__msg.is-origin {
+    padding-left: var(--spacing-3);
+    border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
+  }
+
+  &__msg-origin-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-2);
+    margin-bottom: var(--spacing-1);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__msg-origin-kind {
+    flex-shrink: 0;
+  }
+
+  &__msg-origin-who,
+  &__msg-origin-summary {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__msg-origin-who {
+    flex-shrink: 0;
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-secondary);
+  }
+
+  &__msg-origin-summary {
+    flex: 1;
   }
 
   &__msg-text {
@@ -394,9 +469,13 @@
     color: var(--color-text-muted);
   }
 
+  // 折叠块细线化（Claude/Linear 风）：左侧发丝线 + 内容缩进，不加盒。
+  // 线宽走 --style-stroke-width（漫画风包自动变 2px）。
   &__msg-reasoning,
   &__msg-tool {
     margin-bottom: var(--spacing-1);
+    border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    padding-left: var(--spacing-2);
 
     summary {
       display: flex;
@@ -407,6 +486,11 @@
       cursor: pointer;
       user-select: none;
       list-style: none;
+      transition: color var(--motion-fast) var(--easing-standard);
+
+      &:hover {
+        color: var(--color-text-secondary);
+      }
 
       &::-webkit-details-marker {
         display: none;
@@ -423,16 +507,21 @@
     }
   }
 
+  // 细线状态色：进行中黛青 / 错误朱红（语义色只表状态）
+  &__msg-tool.is-pending {
+    border-left-color: var(--color-accent-500);
+  }
+
+  &__msg-tool.is-error {
+    border-left-color: var(--color-error);
+  }
+
   // 工具卡参数/结果：等宽 + 就地换行。
   // 只作用于工具卡——推理区走 markdown，其代码块由 Markdown.scss 负责。
-  //
-  // ★ 不能用 overflow-x: auto：带横向滚动的子元素在 intrinsic sizing 里贡献为 0，
-  // 助手气泡是 align-self: flex-start（宽度 = fit-content），会被压成只有 summary
-  // 那么宽（实测 79px），正文按单字折行、整个对话区还出现横向滚动。
   &__msg-tool pre {
     margin: var(--spacing-1) 0 0;
     padding: var(--spacing-2);
-    background: var(--color-bg-primary);
+    background: var(--element-bg-subtle);
     border-radius: var(--radius-sm);
     font-family: var(--font-family-mono);
     font-size: var(--font-size-xs);
@@ -443,7 +532,71 @@
     overflow-y: auto;
   }
 
+  // 工具名 + 一句话摘要（description / message / path…），折叠时也能看懂做了什么
+  &__msg-tool-name {
+    flex: none;
+    color: var(--color-text-secondary);
+  }
+
+  &__msg-tool-brief {
+    flex: 1;
+    min-width: 0;
+    margin-left: var(--spacing-1);
+    overflow: hidden;
+    color: var(--color-text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // 参数按「键 → 值」摊开：值保留真实换行，不再展示转义 JSON
+  &__msg-tool-args {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    margin-top: var(--spacing-1);
+    padding: var(--spacing-2);
+    background-color: var(--element-bg-subtle);
+    border-radius: var(--radius-sm);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  &__msg-tool-field {
+    display: flex;
+    gap: var(--spacing-2);
+    min-width: 0;
+  }
+
+  &__msg-tool-key {
+    flex: 0 0 auto;
+    max-width: 30%;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__msg-tool-value {
+    flex: 1;
+    min-width: 0;
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   // 推理过程同样是 markdown：紧凑排版 + 区域内滚动，原始 ## / 反引号不再裸露
+  // 推理耗时：机器输出走 mono + tabular-nums
+  &__msg-reasoning-time {
+    margin-left: var(--spacing-1);
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
   &__msg-reasoning-body {
     padding: var(--spacing-1) 0;
     max-height: 280px;
@@ -563,7 +716,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--spacing-1);
-    padding: var(--spacing-0-5) var(--spacing-1-5);
+    padding: var(--spacing-1) var(--spacing-2);
     border: var(--style-stroke-width, 1px) solid var(--border-subtle);
     border-radius: var(--radius-sm);
     background: transparent;
@@ -814,7 +967,7 @@
     }
   }
 
-  // ---- 问题卡（ask_user_question 应答） ----
+  // ---- 问题卡（ask_user_question 应答；数字键直选 + Enter 提交） ----
   &__question {
     border: var(--style-stroke-width, 1px) solid var(--color-accent-500);
     border-radius: var(--radius-base);
@@ -823,6 +976,11 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-3);
+
+    // 卡片本体只做键盘容器（tabIndex=-1），焦点环留给内部控件
+    &:focus {
+      outline: none;
+    }
   }
 
   &__q-head {
@@ -834,6 +992,12 @@
 
   &__q-head-label {
     font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__q-keyhint {
+    font-size: var(--font-size-xs);
+    font-weight: 400;
     color: var(--color-text-muted);
   }
 
@@ -888,6 +1052,9 @@
   }
 
   &__q-option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1);
     border: var(--style-stroke-width, 1px) solid var(--border-base);
     border-radius: var(--radius-sm);
     background: transparent;
@@ -909,6 +1076,26 @@
       background: var(--element-bg-subtle);
       color: var(--color-accent-500);
     }
+
+    // 数字键徽标：激活态同强调色
+    &.is-active .ai00-x-dsh-scene__q-option-index {
+      border-color: var(--color-accent-500);
+      color: inherit;
+    }
+  }
+
+  &__q-option-index {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1em;
+    height: 1em;
+    border: var(--style-stroke-width, 1px) solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-family-mono);
+    color: var(--color-text-muted);
+    line-height: 1;
   }
 
   &__q-custom {
@@ -940,6 +1127,24 @@
   &__composer {
     padding: var(--spacing-3) var(--spacing-4) var(--spacing-4);
     border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
+  }
+
+  // 减弱动效偏好：流式光标/旋转指示器静态化，过渡直给（规范 9.2.3）
+  @media (prefers-reduced-motion: reduce) {
+    &__msg-text.is-streaming::after,
+    &__msg-tool-spin,
+    &__job-spin {
+      animation: none;
+    }
+
+    &__session-item,
+    &__session-action,
+    &__msg-actions,
+    &__msg-copy,
+    &__q-option,
+    &__q-cancel {
+      transition: none;
+    }
   }
 }
 

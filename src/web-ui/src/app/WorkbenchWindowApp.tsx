@@ -14,11 +14,25 @@
  * （plugin_data_* 命令）自持，窗口只是宿主。
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { House, LayoutGrid, PanelRight, PanelRightClose, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { CalendarClock, FolderKanban, House, LayoutGrid, MessageSquare, PanelRight, PanelRightClose, PanelLeftClose, PanelLeftOpen, SquareKanban } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useWorkbenches } from '@/infrastructure/plugins/workbenchRegistry';
+import {
+  WORKBENCH_OPEN_SESSION,
+  type WorkbenchOpenSessionIntent,
+} from '@/infrastructure/plugins/workbenchSession';
+import {
+  subscribeWindowMessage,
+  takePendingIntents,
+} from '@/infrastructure/windows/windowBus';
 import WorkbenchHome from './WorkbenchHome';
 import WorkbenchScene from './scenes/workbench/WorkbenchScene';
+import TaskScene from './scenes/tasks/TaskScene';
+import TaskBoardScene, { BOARD_SCENE_ID } from './scenes/tasks/TaskBoardScene';
+import { TASKS_SCENE_ID } from './scenes/tasks/taskSession';
+import ProjectsScene, { PROJECTS_SCENE_ID } from './scenes/projects/ProjectsScene';
+import AutomationsScene, { AUTOMATIONS_SCENE_ID } from './scenes/automations/AutomationsScene';
+import { initTodoWindowSync } from '@/tools/todo/sync/todoWindowSync';
 import './WorkbenchWindowApp.scss';
 
 /** 窄窗口断点：低于它 AI 区以浮层形式出现（与样式表保持一致）。 */
@@ -51,9 +65,9 @@ const WorkbenchWindowApp: React.FC = () => {
   const [activeId, setActiveId] = useState<string | null>(() => {
     try {
       const stored = window.localStorage.getItem('workbench.activeId');
-      return stored || null;
+      return stored || TASKS_SCENE_ID;
     } catch {
-      return null;
+      return TASKS_SCENE_ID;
     }
   });
   const [railCollapsed, setRailCollapsed] = useState(() => readFlag(RAIL_KEY, false));
@@ -61,14 +75,54 @@ const WorkbenchWindowApp: React.FC = () => {
   const [narrow, setNarrow] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(NARROW_QUERY).matches,
   );
+  /** 策看板移交的外部会话（P1）：优先于插件页的工程绑定。 */
+  const [externalSession, setExternalSession] = useState<WorkbenchOpenSessionIntent | null>(null);
+  /** 看板 →「任务」场景的任务交接（场景内 state，不走 windowBus）。 */
+  const [taskFocus, setTaskFocus] = useState<string | null>(null);
+
+  /** 接收外部会话：直接展开 AI 区，不建会话、不改 cwd。 */
+  const applyExternalSession = useCallback((intent: WorkbenchOpenSessionIntent | null): void => {
+    if (!intent?.sessionId) return;
+    // 即时广播路径也要清掉排队意图，否则本窗口关闭后在 TTL 内重开会被同一条复活
+    takePendingIntents<WorkbenchOpenSessionIntent>(WORKBENCH_OPEN_SESSION);
+    setExternalSession(intent);
+    setChatVisible(true);
+    writeFlag(CHAT_KEY, true);
+  }, []);
+
+  /**
+   * 外部会话入口（策 → 工作台）：
+   * 窗口未开时策侧已落成待处理意图（`queueWindowIntent`），启动时取走；
+   * 窗口已开时走总线广播即时到达。两种时序收敛到同一个 apply。
+   */
+  useEffect(() => {
+    const pending = takePendingIntents<WorkbenchOpenSessionIntent>(WORKBENCH_OPEN_SESSION);
+    if (pending[0]) applyExternalSession(pending[0]);
+    return subscribeWindowMessage((message) => {
+      if (message.type !== WORKBENCH_OPEN_SESSION) return;
+      applyExternalSession((message.payload as WorkbenchOpenSessionIntent | undefined) ?? null);
+    });
+  }, [applyExternalSession]);
+
+  const exitExternalSession = useCallback((): void => setExternalSession(null), []);
+
+  // 工作台窗口持有工作台任务（看板/任务场景）：订阅策的跨窗口数据广播，
+  // 别处（如插件工作台会话补登的任务卡、设置窗口）写入后这里能即时对齐。
+  useEffect(() => initTodoWindowSync('ui'), []);
 
   const activeEntry = activeId ? workbenches.find(w => w.id === activeId) : undefined;
 
   // 打开中的工作台被卸载/禁用 → 回首页。
   // 注意：registry 首帧是空数组，此时不能判定「已卸载」，否则重启恢复会被
-  // 立刻清掉（只有列表真正加载出条目后才做失效判定）。
+  // 立刻清掉（只有列表真正加载出条目后才做失效判定）。内置场景（`@` 前缀）
+  // 不属于插件列表，跳过判定。
   useEffect(() => {
-    if (activeId && workbenches.length > 0 && !workbenches.some(w => w.id === activeId)) {
+    if (
+      activeId &&
+      !activeId.startsWith('@') &&
+      workbenches.length > 0 &&
+      !workbenches.some(w => w.id === activeId)
+    ) {
       setActiveId(null);
     }
   }, [activeId, workbenches]);
@@ -148,10 +202,81 @@ const WorkbenchWindowApp: React.FC = () => {
         <div className="ai00-x-workbench-window__items">
           <button
             type="button"
-            className={`ai00-x-workbench-window__item${!activeEntry ? ' is-active' : ''}`}
-            aria-current={!activeEntry ? 'page' : undefined}
+            className={`ai00-x-workbench-window__item${activeId === PROJECTS_SCENE_ID ? ' is-active' : ''}`}
+            aria-current={activeId === PROJECTS_SCENE_ID ? 'page' : undefined}
+            title={t('nav.workbenchWindow.projects.title')}
+            onClick={() => {
+              setActiveId(PROJECTS_SCENE_ID);
+              setExternalSession(null);
+            }}
+          >
+            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
+              <FolderKanban size={15} />
+            </span>
+            <span className="ai00-x-workbench-window__item-label">
+              {t('nav.workbenchWindow.projects.rail')}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`ai00-x-workbench-window__item${activeId === TASKS_SCENE_ID ? ' is-active' : ''}`}
+            aria-current={activeId === TASKS_SCENE_ID ? 'page' : undefined}
+            title={t('nav.workbenchWindow.tasks.title')}
+            onClick={() => {
+              setActiveId(TASKS_SCENE_ID);
+              setExternalSession(null);
+            }}
+          >
+            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
+              <MessageSquare size={15} />
+            </span>
+            <span className="ai00-x-workbench-window__item-label">
+              {t('nav.workbenchWindow.tasks.rail')}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`ai00-x-workbench-window__item${activeId === AUTOMATIONS_SCENE_ID ? ' is-active' : ''}`}
+            aria-current={activeId === AUTOMATIONS_SCENE_ID ? 'page' : undefined}
+            title={t('nav.workbenchWindow.automations.title')}
+            onClick={() => {
+              setActiveId(AUTOMATIONS_SCENE_ID);
+              setExternalSession(null);
+            }}
+          >
+            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
+              <CalendarClock size={15} />
+            </span>
+            <span className="ai00-x-workbench-window__item-label">
+              {t('nav.workbenchWindow.automations.rail')}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`ai00-x-workbench-window__item${activeId === BOARD_SCENE_ID ? ' is-active' : ''}`}
+            aria-current={activeId === BOARD_SCENE_ID ? 'page' : undefined}
+            title={t('nav.workbenchWindow.board.title')}
+            onClick={() => {
+              setActiveId(BOARD_SCENE_ID);
+              setExternalSession(null);
+            }}
+          >
+            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
+              <SquareKanban size={15} />
+            </span>
+            <span className="ai00-x-workbench-window__item-label">
+              {t('nav.workbenchWindow.board.rail')}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`ai00-x-workbench-window__item${!activeId ? ' is-active' : ''}`}
+            aria-current={!activeId ? 'page' : undefined}
             title={t('nav.workbenchWindow.home.railHome')}
-            onClick={() => setActiveId(null)}
+            onClick={() => {
+              setActiveId(null);
+              setExternalSession(null);
+            }}
           >
             <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
               <House size={15} />
@@ -182,32 +307,61 @@ const WorkbenchWindowApp: React.FC = () => {
       </aside>
 
       <main className="ai00-x-workbench-window__stage">
-        {activeEntry ? (
-          <>
-            <WorkbenchScene workbenchId={activeEntry.id} chatVisible={chatVisible} />
-            {activeEntry.bindsSession && (
-              <button
-                type="button"
-                className={`ai00-x-workbench-window__chat-toggle${chatVisible ? ' is-on' : ''}`}
-                onClick={toggleChat}
-                aria-pressed={chatVisible}
-                aria-label={
-                  chatVisible
-                    ? t('nav.workbenchWindow.hideChat')
-                    : t('nav.workbenchWindow.showChat')
-                }
-                title={
-                  chatVisible
-                    ? t('nav.workbenchWindow.hideChat')
-                    : t('nav.workbenchWindow.showChat')
-                }
-              >
-                {chatVisible ? <PanelRightClose size={14} /> : <PanelRight size={14} />}
-              </button>
-            )}
-          </>
+        {activeId === PROJECTS_SCENE_ID ? (
+          <ProjectsScene />
+        ) : activeId === AUTOMATIONS_SCENE_ID ? (
+          <AutomationsScene />
+        ) : activeId === TASKS_SCENE_ID ? (
+          <TaskScene
+            focusTaskId={taskFocus}
+            onFocusHandled={() => setTaskFocus(null)}
+          />
+        ) : activeId === BOARD_SCENE_ID ? (
+          <TaskBoardScene
+            onOpenTask={(taskId) => {
+              setTaskFocus(taskId);
+              setActiveId(TASKS_SCENE_ID);
+            }}
+          />
+        ) : activeEntry ? (
+          <WorkbenchScene
+            workbenchId={activeEntry.id}
+            chatVisible={chatVisible}
+            externalSession={externalSession}
+            onExitExternalSession={exitExternalSession}
+          />
+        ) : externalSession ? (
+          <WorkbenchScene
+            chatVisible={chatVisible}
+            externalSession={externalSession}
+            onExitExternalSession={exitExternalSession}
+          />
         ) : (
           <WorkbenchHome workbenches={workbenches} onOpen={setActiveId} />
+        )}
+        {activeId !== TASKS_SCENE_ID &&
+          activeId !== BOARD_SCENE_ID &&
+          activeId !== PROJECTS_SCENE_ID &&
+          activeId !== AUTOMATIONS_SCENE_ID &&
+          (Boolean(externalSession) || Boolean(activeEntry?.bindsSession)) && (
+          <button
+            type="button"
+            className={`ai00-x-workbench-window__chat-toggle${chatVisible ? ' is-on' : ''}`}
+            onClick={toggleChat}
+            aria-pressed={chatVisible}
+            aria-label={
+              chatVisible
+                ? t('nav.workbenchWindow.hideChat')
+                : t('nav.workbenchWindow.showChat')
+            }
+            title={
+              chatVisible
+                ? t('nav.workbenchWindow.hideChat')
+                : t('nav.workbenchWindow.showChat')
+            }
+          >
+            {chatVisible ? <PanelRightClose size={14} /> : <PanelRight size={14} />}
+          </button>
         )}
       </main>
     </div>

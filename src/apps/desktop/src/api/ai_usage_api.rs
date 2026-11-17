@@ -80,12 +80,30 @@ pub struct AiUsageRecord {
     pub tag: Option<String>,
     /// 实际命中的模型名
     pub model: String,
-    /// 是否本地推理（rwkv-local）
+    /// 是否本地推理（rwkv-local / gguf-local）
     pub local: bool,
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
     /// 调用耗时（毫秒）
     pub latency_ms: u64,
+    /// dsh 会话 id（plugin AI 通道为空）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    /// 调用方请求的逻辑/具体模型，区别于实际命中模型。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requested_model: Option<String>,
+    /// 实际路由（remote/local/hybrid 等）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub route: Option<String>,
+    /// 本地失败后升级远端的原因；无回退时为空。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_reason: Option<String>,
+    /// 上游实际返回的缓存输入 token；未返回时为空。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cached_prompt_tokens: Option<u32>,
+    /// 是否有真实 usage。旧记录缺省视为历史口径已知；新记录缺 usage 必须显式 false。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_known: Option<bool>,
 }
 
 /// 追加一条记录（失败仅告警，不阻塞 AI 调用主链路）。
@@ -139,12 +157,19 @@ pub struct AiUsageQueryResponse {
 #[serde(rename_all = "camelCase")]
 pub struct AiUsageTotals {
     pub calls: u64,
+    /// 本地推理调用数（与 calls 的区别：calls 含远端）。
+    pub local_calls: u64,
     pub local_tokens: u64,
     pub remote_tokens: u64,
     pub local_prompt: u64,
     pub local_completion: u64,
     pub remote_prompt: u64,
     pub remote_completion: u64,
+    pub local_cached_prompt: u64,
+    pub remote_cached_prompt: u64,
+    /// 上游未提供 usage 的调用数；这些调用不计入 token 总量。
+    pub unknown_usage_calls: u64,
+    pub fallback_calls: u64,
     pub latency_ms_total: u64,
 }
 
@@ -163,6 +188,106 @@ pub struct AiUsageTagAgg {
     pub calls: u64,
     pub local_tokens: u64,
     pub remote_tokens: u64,
+}
+
+/// 单日/单会话的本地 + 远端用量分项。
+#[derive(Debug, Default, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiUsageSplit {
+    pub calls: u64,
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    pub cached_prompt_tokens: u64,
+    /// 上游未提供 usage 的调用数（token 不计入上面三项）。
+    pub unknown_usage_calls: u64,
+    /// 本地失败后升级远端的次数。
+    pub fallback_calls: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiUsageSessionResponse {
+    pub session_id: String,
+    pub since_ms: u64,
+    pub local: AiUsageSplit,
+    pub remote: AiUsageSplit,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiUsageSessionRequest {
+    pub session_id: String,
+    /// 只统计该时刻之后的记录（毫秒）；缺省最近 24 小时。
+    #[serde(default)]
+    pub since_ms: Option<u64>,
+}
+
+fn merge_split(split: &mut AiUsageSplit, record: &AiUsageRecord) {
+    split.calls += 1;
+    if record.usage_known.unwrap_or(true) {
+        split.prompt_tokens += record.prompt_tokens as u64;
+        split.completion_tokens += record.completion_tokens as u64;
+        split.cached_prompt_tokens += record.cached_prompt_tokens.unwrap_or(0) as u64;
+    } else {
+        split.unknown_usage_calls += 1;
+    }
+    if record.fallback_reason.is_some() {
+        split.fallback_calls += 1;
+    }
+}
+
+/// 按会话聚合本地/远端用量（工作台「本轮消耗」与按会话对账）。
+///
+/// 只读当月与上月账本，避免为一次增量查询扫描全部历史。
+#[tauri::command]
+pub async fn ai_usage_session_usage(
+    request: AiUsageSessionRequest,
+) -> Result<AiUsageSessionResponse, String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let since = request
+        .since_ms
+        .unwrap_or_else(|| now.saturating_sub(24 * 60 * 60 * 1000));
+
+    let mut response = AiUsageSessionResponse {
+        session_id: request.session_id.clone(),
+        since_ms: since,
+        local: AiUsageSplit::default(),
+        remote: AiUsageSplit::default(),
+    };
+
+    // 只读两个月的文件（当前月 + 上月），足以覆盖缺省 24h 与常见回合窗口
+    let mut seen = std::collections::BTreeSet::new();
+    for back in 0..=1u64 {
+        let at = now.saturating_sub(back * 31 * 86_400_000);
+        let path = month_file(at);
+        if !seen.insert(path.clone()) {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(&path).await else {
+            continue;
+        };
+        let Ok(list) = serde_json::from_str::<Vec<AiUsageRecord>>(&content) else {
+            continue;
+        };
+        for record in list {
+            if record.at < since {
+                continue;
+            }
+            if record.session_id.as_deref() != Some(request.session_id.as_str()) {
+                continue;
+            }
+            if record.local {
+                merge_split(&mut response.local, &record);
+            } else {
+                merge_split(&mut response.remote, &record);
+            }
+        }
+    }
+
+    Ok(response)
 }
 
 /// 天起始毫秒（本地时区）→ YYYY-MM-DD。
@@ -248,18 +373,33 @@ pub async fn ai_usage_query(request: AiUsageQueryRequest) -> Result<AiUsageQuery
     }
 
     for r in records.into_iter().filter(|r| r.at >= since) {
-        let tokens = (r.prompt_tokens + r.completion_tokens) as u64;
+        let usage_known = r.usage_known.unwrap_or(true);
+        let tokens = if usage_known {
+            (r.prompt_tokens + r.completion_tokens) as u64
+        } else {
+            0
+        };
+        let cached = r.cached_prompt_tokens.unwrap_or(0) as u64;
         let t = &mut resp.totals;
         t.calls += 1;
         t.latency_ms_total += r.latency_ms;
+        if !usage_known {
+            t.unknown_usage_calls += 1;
+        }
+        if r.fallback_reason.is_some() {
+            t.fallback_calls += 1;
+        }
         if r.local {
+            t.local_calls += 1;
             t.local_tokens += tokens;
             t.local_prompt += r.prompt_tokens as u64;
             t.local_completion += r.completion_tokens as u64;
+            t.local_cached_prompt += cached;
         } else {
             t.remote_tokens += tokens;
             t.remote_prompt += r.prompt_tokens as u64;
             t.remote_completion += r.completion_tokens as u64;
+            t.remote_cached_prompt += cached;
         }
         if let Some(day) = day_map.get_mut(&day_key(r.at)) {
             day.calls += 1;
@@ -286,6 +426,27 @@ pub async fn ai_usage_query(request: AiUsageQueryRequest) -> Result<AiUsageQuery
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn legacy_usage_record_keeps_optional_fields_compatible() {
+        let raw = json!({
+            "at": 1,
+            "pluginId": "legacy",
+            "model": "remote-model",
+            "local": false,
+            "promptTokens": 10,
+            "completionTokens": 5,
+            "latencyMs": 20
+        });
+        let record = serde_json::from_value::<AiUsageRecord>(raw).ok();
+        assert!(record.is_some());
+        if let Some(record) = record {
+            assert_eq!(record.prompt_tokens, 10);
+            assert_eq!(record.session_id, None);
+            assert_eq!(record.usage_known, None);
+        }
+    }
 
     #[test]
     fn year_month_roundtrip() {

@@ -1,0 +1,64 @@
+// 任务行「更多」触发键：行内低调，hover/focus 才明显。
+.ai00-x-task-actions__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-gap-6);
+  height: var(--size-gap-6);
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: var(--size-radius-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: background-color var(--motion-fast) var(--easing-standard),
+    color var(--motion-fast) var(--easing-standard),
+    opacity var(--motion-fast) var(--easing-standard);
+
+  &:hover,
+  &[data-state='open'] {
+    background-color: var(--element-bg-subtle);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--style-focus-ring, var(--color-accent-400));
+    outline-offset: 1px;
+  }
+}
+
+// 看板详情头部：常驻可见
+.ai00-x-task-board__detail-head .ai00-x-task-actions__trigger {
+  opacity: 1;
+}
+
+// 行 hover / 键盘聚焦 / 选中时露出
+.ai00-x-task-row,
+.ai00-x-projects-scene__task-row {
+  &:hover,
+  &:focus-within,
+  &:has(.is-active) {
+    .ai00-x-task-actions__trigger {
+      opacity: 1;
+    }
+  }
+}
+
+// 项目侧栏的任务树：行更窄、hover 目标更小，触发键给一个常驻的弱可见基线
+// （只靠 hover 露出的按钮在窄行里几乎发现不了）。
+.ai00-x-projects-scene__subitem-row {
+  .ai00-x-task-actions__trigger {
+    opacity: 0.55;
+  }
+
+  &:hover,
+  &:focus-within,
+  &:has(.is-active) {
+    .ai00-x-task-actions__trigger {
+      opacity: 1;
+    }
+  }
+}

@@ -1501,6 +1501,12 @@ pub async fn plugin_ai_complete(
         prompt_tokens: usage.as_ref().map(|u| u.prompt_tokens).unwrap_or(0),
         completion_tokens: usage.as_ref().map(|u| u.completion_tokens).unwrap_or(0),
         latency_ms: started.elapsed().as_millis() as u64,
+        session_id: None,
+        requested_model: None,
+        route: None,
+        fallback_reason: None,
+        cached_prompt_tokens: None,
+        usage_known: Some(usage.is_some()),
     })
     .await;
 

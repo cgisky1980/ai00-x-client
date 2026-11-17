@@ -1010,24 +1010,23 @@ async fn ensure_default_model_setting() -> Result<(), String> {
 }
 
 /// 编排架构 patch 层（profile cordis.patch.yml，客户端托管，整文件幂等覆写）：
-/// 主对话 = 规划者（persona 软约束：只规划+并发派发，不直接调工具）；
-/// 子代理 = 两类工人实例（同包 @deepseek-ai/dsh-tool-subagent 多行，
-/// 各自 toolName + toolFilter + agentOptions.model 硬约束）。
-///
-/// persona 挂点：覆盖 system-prompt 行的 config.persona（deployment persona
-/// 槽）。不能另插 @deepseek-ai/dsh-persona 行——"deployment:persona" 槽
-/// 全局唯一，重复注册 boot 即崩（2026-09-11 实测，症状=sidecar 起不来、
-/// dsh-api 全 502）。
+/// 主对话 = workbench preset 内的编排者（只规划+并发派发，不直接执行）；
+/// 子代理 = 叶子工人 preset（各自 persona + 工具子集 + agentOptions.model
+/// 硬约束）。部署级 personaPrefix 会被 preset 覆盖，编排 persona 必须直接
+/// 写入 workbench preset；worker 禁用 local 项目指令，避免继承主代理计划门禁。
 ///
 /// 模型分工（与 ai_gateway.rs 白名单同源约定，见 LOCAL_TOOL_WHITELIST 注释）：
 /// - research_worker：只读六件套 + model=ai00-auto → 网关 SmartRouter/
 ///   hybrid_tool_loop 判后 R0/R1 走本地 RWKV（零成本），本地失败自动远端；
-/// - code_worker：执行类工具 + model=ai00-api → 远端强模型。
+/// - local_code_worker：执行类工具 + model=rwkv-local → 默认本地执行与一次返工；
+/// - code_worker：执行类工具 + model=ai00-api → 云端兜底与明确的云端修正。
 ///
 /// 工具名为 dsh 引擎注册名（dsh-tool-fs: read/read_image/edit/write、
 /// dsh-tool-fs-search: glob/grep、dsh-tool-pwsh: pwsh、dsh-tool-bash: bash、
-/// dsh-tool-skill: skill、dsh-tool-todo: todo_write、dsh-tool-web:
-/// web_fetch/web_search）。改动组合后用
+/// dsh-tool-skill: skill、dsh-tool-todo: todo_write）。web 检索走全局插件
+/// @ai00-x/dsh-tools 的 ai00_search / ai00_web_extract（自托管免 key，2026-11-11
+/// 起替代 dsh-tool-web——引擎 web_search 需 DeepSeek key/登录，本部署不可用）。
+/// 改动组合后用
 /// `dsh --profile ai00x --dump-config` 验证（DSH_HOME 指向 dsh_home()）。
 /// 组合行为 boot 时装配——本文件变更需 sidecar 重启生效。
 ///
@@ -1038,13 +1037,21 @@ async fn ensure_default_model_setting() -> Result<(), String> {
 ///   （工具以 mcp__<server>__<tool> 注入 loop；改 MCP 配置需重启引擎生效）。
 ///
 /// 工作台专用 preset：从引擎自带 `standard.patch.yml` 生成 `preset-workbench`
-/// （插件链随引擎版本走、不手工复制，仅两处改动）：
+/// （插件链随引擎版本走、不手工复制，只做少量定向覆盖）：
+/// - `persona` 改为编排者角色，避免部署级 personaPrefix 被 preset 覆盖而空转；
 /// - `agent-instructions` 的 `projectRootMarkers` 改为 `['AGENTS.local.md']`——
 ///   根发现止于工程自身（宿主建会话前已写入该文件），不再向上递归收集宿主
 ///   仓库的 AGENTS.md；工作台工程只用自己的默认约定，coding 会话的 standard
 ///   preset 不受影响。
 /// - preset id 与行 id 改为 `workbench` / `preset-workbench`，order 置 2。
-fn build_workbench_preset_row() -> Result<String, String> {
+/// - 追加帮手委派工具行（`local_code_worker` / `code_worker` / `research_worker`）：工作台任务统一走
+///   「规划 → 派子代理执行 → 自检 → 人类验收」loop，而 standard 派生 preset 只有
+///   通用 `subagent`，没有编排者提示里点名的帮手工具（2026-11-08 实测：编排者
+///   只能口头说「派发 code_worker」，实际无此工具可调）。帮手 preset 本身在
+///   profile 层已注册，这里只补「工作台会话可见的委派工具」。
+const WORKBENCH_ORCHESTRATOR_PERSONA: &str = "You are the Ai00-X orchestrator, powered by the {{model}} model.\nYou plan, dispatch, triage reviews and accept results; you never execute. Dispatch research to research_worker (read-only); dispatch real file work and commands to local_code_worker by default, and switch to code_worker only after the second local failure or when a direct cloud fix is needed. Run tasks in parallel only when they are independent and their scopes do not overlap. Write every subagent brief in English (the plan body may follow the user's language). Never call file/terminal/network tools yourself; all tools must go through the tool-call channel, never simulated in text. A subagent finishing its turn does not mean success: always call ai00_task_verify for real evidence. Strict mode, high risk and insufficient evidence require cloud review; the second local failure must fall back to cloud. Run an integration review after all steps pass, then submit for human acceptance.";
+
+fn build_workbench_preset_row(worker_defs: &[WorkerDef]) -> Result<String, String> {
     let path = node_dir()
         .join("node_modules")
         .join("@deepseek-ai")
@@ -1060,8 +1067,15 @@ fn build_workbench_preset_row() -> Result<String, String> {
             path.display()
         )
     })?;
+    build_workbench_preset_row_from_standard(&text, worker_defs)
+}
+
+fn build_workbench_preset_row_from_standard(
+    text: &str,
+    worker_defs: &[WorkerDef],
+) -> Result<String, String> {
     let mut doc: serde_yaml::Value =
-        serde_yaml::from_str(&text).map_err(|e| format!("解析 standard.patch.yml 失败: {e}"))?;
+        serde_yaml::from_str(text).map_err(|e| format!("解析 standard.patch.yml 失败: {e}"))?;
     let Some(row) = doc
         .get_mut(0)
         .and_then(|entry| entry.get_mut("insert"))
@@ -1076,10 +1090,38 @@ fn build_workbench_preset_row() -> Result<String, String> {
         return Err("standard.patch.yml 结构不符（缺 plugins）".into());
     };
     for plugin in plugins.iter_mut() {
-        if plugin["id"].as_str() == Some("agent-instructions") {
-            plugin["config"]["projectRootMarkers"] =
-                serde_yaml::Value::from(vec![serde_yaml::Value::from("AGENTS.local.md")]);
+        match plugin["id"].as_str() {
+            Some("persona") => {
+                plugin["config"]["prefix"] =
+                    serde_yaml::Value::from(WORKBENCH_ORCHESTRATOR_PERSONA);
+            }
+            Some("agent-instructions") => {
+                plugin["config"]["projectRootMarkers"] =
+                    serde_yaml::Value::from(vec![serde_yaml::Value::from("AGENTS.local.md")]);
+            }
+            _ => {}
         }
+    }
+    // 帮手委派工具（与 profile 层同名行同构：provider=spawn + 固定 agent preset）
+    for def in worker_defs {
+        let id_suffix: String = def
+            .tool_name
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let mut config = serde_yaml::Mapping::new();
+        config.insert("provider".into(), "spawn".into());
+        config.insert("toolName".into(), def.tool_name.clone().into());
+        config.insert("agentPreset".into(), format!("ai00x-{id_suffix}").into());
+        let mut options = serde_yaml::Mapping::new();
+        options.insert("provider".into(), "ai00-x".into());
+        options.insert("model".into(), def.model.clone().into());
+        config.insert("agentOptions".into(), serde_yaml::Value::Mapping(options));
+        let mut row = serde_yaml::Mapping::new();
+        row.insert("id".into(), format!("tool-subagent-{id_suffix}").into());
+        row.insert("name".into(), "@deepseek-ai/dsh-tool-subagent".into());
+        row.insert("config".into(), serde_yaml::Value::Mapping(config));
+        plugins.push(serde_yaml::Value::Mapping(row));
     }
     let insert_doc = serde_yaml::Value::from(vec![doc[0].clone()]);
     serde_yaml::to_string(&insert_doc).map_err(|e| format!("序列化 workbench preset 失败: {e}"))
@@ -1107,22 +1149,11 @@ async fn ensure_orchestration_patch() -> Result<(), String> {
     // hooks 桥挂载 + MCP 桥接行，全部走 insert 列表。
     let worker_defs = ensure_workers_seeded().await;
     let worker_rows = build_worker_rows(&worker_defs);
-    let worker_names = if worker_defs.is_empty() {
-        "（无可用帮手，请检查 agent-workers 目录）".to_string()
-    } else {
-        worker_defs
-            .iter()
-            .map(|w| w.tool_name.as_str())
-            .collect::<Vec<_>>()
-            .join(" / ")
-    };
     let hooks_row = build_hooks_patch_row()?;
     let capability_rows = load_patch_asset("capability-rows.yml.tmpl")?;
     let mcp_rows = build_mcp_patch_rows().await?;
 
-    let head = orchestration_head
-        .replace("{BUNDLED_SKILLS_DIR}", &bundled_display)
-        .replace("{WORKER_NAMES}", &worker_names);
+    let head = orchestration_head.replace("{BUNDLED_SKILLS_DIR}", &bundled_display);
     let insert_body = format!("{capability_rows}{hooks_row}{worker_rows}{mcp_rows}");
     let content = if insert_body.is_empty() {
         head
@@ -1130,7 +1161,7 @@ async fn ensure_orchestration_patch() -> Result<(), String> {
         format!("{head}- insert:\n{insert_body}")
     };
     // 追加工作台专用 preset（独立 insert 行，不影响 standard）
-    let workbench_row = build_workbench_preset_row()?;
+    let workbench_row = build_workbench_preset_row(&worker_defs)?;
     let mut content = content;
     if !content.ends_with('\n') {
         content.push('\n');
@@ -1190,7 +1221,7 @@ fn load_patch_asset(file: &str) -> Result<&'static str, String> {
 
 /// 帮手定义文件目录：`<DSH_HOME>/agent-workers/*.md`。
 /// 格式：YAML frontmatter（name/description/model/tools）+ 正文 persona。
-/// 首次运行播种默认两个（research_worker / code_worker），用户可改可增；
+/// 首次运行播种默认三个（research_worker / local_code_worker / code_worker），用户可改可增；
 /// 全部非法/删空时回退内嵌默认（空编排无法派发，兜底）。
 fn workers_dir() -> PathBuf {
     dsh_home().join("agent-workers")
@@ -1215,12 +1246,50 @@ tools:
   - read_image
   - glob
   - grep
-  - web_fetch
-  - web_search
 ---
 You are a research worker dispatched by the Ai00-X orchestrator.
-只做只读调查（读文件 / 搜索 / 网络查证），不修改任何文件、不运行命令。
-严格按任务边界工作，完成后返回精炼结论 + 证据位置（文件:行号或 URL）。
+Read-only investigation only (read files / search / verify online). Never modify files or run commands.
+Stay strictly within the assigned task; return concise findings plus evidence locations (file:line or URL).
+Use ai00_search (Ai00-X self-hosted search, no key) for web search; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.
+"#;
+
+const DEFAULT_WORKER_LOCAL_CODE_MD: &str = r#"---
+name: local_code_worker
+description: 本地执行帮手：写码、改文件、跑命令、产出交付物（RWKV 本地优先）
+model: rwkv-local
+tools:
+  - read
+  - read_image
+  - glob
+  - grep
+  - edit
+  - write
+  - bash
+  - pwsh
+  - skill
+  - todo_write
+---
+You are a local code worker dispatched by the Ai00-X orchestrator.
+Implement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.
+Always use real tool calls; never simulate tools in text. Run the given acceptance commands before finishing.
+Use ai00_search (self-hosted, no key) for web lookup; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.
+Return compact evidence only: changed files, commands with exit codes, remaining risks/exceptions. No long narratives.
+"#;
+
+const DEFAULT_WORKER_REVIEW_MD: &str = r#"---
+name: review_worker
+description: 证据评审帮手：读计划、diff 与验证结果，判定通过或给出最小返工意见
+model: ai00-api
+tools:
+  - read
+  - read_image
+  - glob
+  - grep
+---
+You are an evidence reviewer dispatched by the Ai00-X orchestrator.
+Read-only review: never modify files or run commands. Check the diff and command evidence against the step acceptance criteria.
+Output exactly three parts: verdict (pass / reject), evidence gaps or problems (specific files and symbols), and minimal rework instructions (actionable and scoped).
+If the evidence is insufficient, reject explicitly; never approve on guesses.
 "#;
 
 const DEFAULT_WORKER_CODE_MD: &str = r#"---
@@ -1238,13 +1307,29 @@ tools:
   - pwsh
   - skill
   - todo_write
-  - web_fetch
-  - web_search
 ---
 You are a code worker dispatched by the Ai00-X orchestrator.
-只实现被派发的任务，不扩大范围；需要的事实自己去读。完成后报告：
-改了什么、如何验证、遗留风险。
+Implement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.
+Report: what changed, how it was verified, and remaining risks.
 "#;
+
+/// 帮手模型 id 归一：旧入口 id → 当前逻辑 id。
+///
+/// 存量 `<DSH_HOME>/agent-workers/code_worker.md`（2026-10 及更早播种）写的是
+/// `ai00-salvo`。引擎要求 `resolveModel` 返回的 id 与请求 id 严格一致，而
+/// ai-bridge 把 `ai00-salvo` 归一成 `ai00-api` 再返回——id 不一致会让 dsh-llm
+/// 抛 `INVALID_MODEL_INFO`，子代理 spawn 整条失败（2026-11-08 实测）。
+/// 解析期归一与桥的兼容映射同义：用户目录里的旧文件不改也能生效。
+fn normalize_worker_model(model: &str) -> String {
+    match model {
+        "ai00-salvo" => "ai00-api".to_string(),
+        // 2026-11-17：旧版内置组合/默认帮手 md 曾钉死上游具体模型 id；上游切换后
+        // 这些 id 可能已下架。统一回落到网关主模型槽——具体用哪个模型由服务端
+        // `/ai00-s/api/ai/models` 的 `is_default` 决定，客户端不写死模型名单。
+        "ai00s:deepseek-v4.1-flash" | "ai00s:glm-5.3-flash" => "ai00-api".to_string(),
+        other => other.to_string(),
+    }
+}
 
 /// 解析 worker 定义 md；name 非法或缺 persona 视为无效。
 fn parse_worker_md(file_name: &str, content: &str) -> Option<WorkerDef> {
@@ -1261,9 +1346,15 @@ fn parse_worker_md(file_name: &str, content: &str) -> Option<WorkerDef> {
     for line in frontmatter.lines() {
         let trimmed_line = line.trim();
         if trimmed_line.starts_with("- ") && in_tools {
-            let tool = trimmed_line[2..].trim().to_string();
+            let tool = trimmed_line[2..].trim();
+            // 2026-11-11 起引擎 web 工具退役（web_search 需 DeepSeek key/登录，
+            // 本部署不可用；网页抓取由全局插件 ai00_web_extract 承载）——
+            // 存量文件的旧名静默丢弃，不走 warn 刷屏
+            if matches!(tool, "web_fetch" | "web_search") {
+                continue;
+            }
             if !tool.is_empty() {
-                tools.push(tool);
+                tools.push(tool.to_string());
             }
             continue;
         }
@@ -1275,7 +1366,7 @@ fn parse_worker_md(file_name: &str, content: &str) -> Option<WorkerDef> {
         match key.trim() {
             "name" if !value.is_empty() => name = Some(value.to_string()),
             "description" => description = value.to_string(),
-            "model" if !value.is_empty() => model = value.to_string(),
+            "model" if !value.is_empty() => model = normalize_worker_model(value),
             "tools" => in_tools = true,
             _ => {}
         }
@@ -1294,9 +1385,26 @@ fn parse_worker_md(file_name: &str, content: &str) -> Option<WorkerDef> {
         description,
         model,
         tools,
-        persona: body.to_string(),
+        persona: normalize_worker_body(body),
         file_name: file_name.to_string(),
     })
+}
+
+/// 存量 worker 文件 persona 的搜索规则句归一（2026-11-11 工具换代：引擎
+/// web_fetch/web_search → 全局插件 ai00_search/ai00_web_extract）。
+/// 与 normalize_worker_model 同策略：解析期归一，不改用户目录文件；
+/// 只精确替换两句旧规则，自定义 persona 不受影响。
+fn normalize_worker_body(body: &str) -> String {
+    const LEGACY: [&str; 2] = [
+        "Prefer ai00_search (Ai00-X self-hosted search, no key) for web search; use web_fetch for page bodies; web_search is only a backup when ai00_search is unavailable.",
+        "Prefer ai00_search (self-hosted, no key) for web lookup; use web_fetch for page bodies; web_search is only a backup.",
+    ];
+    const CURRENT: &str = "Use ai00_search (self-hosted, no key) for web lookup; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.";
+    let mut out = body.to_string();
+    for legacy in LEGACY {
+        out = out.replace(legacy, CURRENT);
+    }
+    out
 }
 
 /// 首次运行播种默认定义；随后加载目录内全部有效定义。
@@ -1311,6 +1419,8 @@ async fn ensure_workers_seeded() -> Vec<WorkerDef> {
     }
     for (file, content) in [
         ("research_worker.md", DEFAULT_WORKER_RESEARCH_MD),
+        ("local_code_worker.md", DEFAULT_WORKER_LOCAL_CODE_MD),
+        ("review_worker.md", DEFAULT_WORKER_REVIEW_MD),
         ("code_worker.md", DEFAULT_WORKER_CODE_MD),
     ] {
         let path = dir.join(file);
@@ -1351,6 +1461,8 @@ async fn ensure_workers_seeded() -> Vec<WorkerDef> {
 fn fallback_worker_defs() -> Vec<WorkerDef> {
     [
         ("research_worker.md", DEFAULT_WORKER_RESEARCH_MD),
+        ("local_code_worker.md", DEFAULT_WORKER_LOCAL_CODE_MD),
+        ("review_worker.md", DEFAULT_WORKER_REVIEW_MD),
         ("code_worker.md", DEFAULT_WORKER_CODE_MD),
     ]
     .iter()
@@ -1365,6 +1477,8 @@ fn fallback_worker_defs() -> Vec<WorkerDef> {
 /// 每个帮手改声明一个 `@deepseek-ai/dsh-agent-preset`（persona + 工具子集 +
 /// compaction），subagent 行用 `agentPreset` 选中它。
 /// 行结构与映射表见 patches/<引擎版本>/INTENT.md。
+const WORKER_LEAF_RULES: &str = "You are a leaf worker, not an orchestrator.\n直接执行当前派发任务：不要制定或更新主计划，不要再次派发子代理，也不要等待用户或父代理确认。\n所有工具必须经工具调用通道，禁止在正文模拟“[工具] …”。缺少必要工具或权限时明确报告阻塞；不要用“我将……”或“准备……”代替实际完成。";
+
 fn build_worker_rows(defs: &[WorkerDef]) -> String {
     let mut rows = String::new();
     for (index, def) in defs.iter().enumerate() {
@@ -1385,7 +1499,7 @@ fn build_worker_rows(defs: &[WorkerDef]) -> String {
         rows.push_str(
             "          - id: persona\n            name: '@deepseek-ai/dsh-persona'\n            config:\n              prefix: |-\n",
         );
-        for line in def.persona.lines() {
+        for line in WORKER_LEAF_RULES.lines().chain(def.persona.lines()) {
             if line.trim().is_empty() {
                 rows.push('\n');
             } else {
@@ -1393,9 +1507,12 @@ fn build_worker_rows(defs: &[WorkerDef]) -> String {
             }
         }
         rows.push_str(
-            "          - id: agent-instructions\n            name: '@deepseek-ai/dsh-agent-instructions'\n            config:\n              maxBytes: 65536\n",
+            "          - id: agent-instructions\n            name: '@deepseek-ai/dsh-agent-instructions'\n            config:\n              maxBytes: 65536\n              localInstructionFileCandidates: []\n",
         );
         rows.push_str(&build_worker_tool_rows(&def.tools));
+        rows.push_str(
+            "          - id: tool-subagent-control\n            name: '@deepseek-ai/dsh-tool-subagent-control'\n",
+        );
         rows.push_str(WORKER_COMPACTION_GROUP);
 
         // 2) 委派工具：选中上面的 preset（模型由 agentOptions 固定）
@@ -1420,8 +1537,6 @@ const WORKER_TOOL_NAMES: &[&str] = &[
     "pwsh",
     "skill",
     "todo_write",
-    "web_fetch",
-    "web_search",
 ];
 
 /// 子代理 preset 的压缩组（与 web-app standard preset 同构：每 agent 独立实例）。
@@ -1472,12 +1587,6 @@ fn build_worker_tool_rows(tools: &[String]) -> String {
             "          - id: tool-todo\n            name: '@deepseek-ai/dsh-tool-todo'\n            config:\n              allowParallelInProgress: true\n",
         );
     }
-    if has("web_fetch") || has("web_search") {
-        rows.push_str(
-            "          - id: tool-web\n            name: '@deepseek-ai/dsh-tool-web'\n            config:\n              fetch: true\n              searchTimeoutMs: 60000\n",
-        );
-    }
-
     for tool in tools {
         if !WORKER_TOOL_NAMES.contains(&tool.as_str()) {
             log::warn!(
@@ -2345,6 +2454,70 @@ pub async fn dsh_worker_delete(file_name: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 按阶段应用「模型组合」：改写四个 worker 的 model 行并重建编排 patch。
+///
+/// 单一真源留在 Rust 默认定义：缺文件时先按默认播种（新装/升级后首次应用也能
+/// 落到 review_worker 等新增工人），只改 `model:` 行，不动用户改过的 persona/工具。
+/// 返回是否有改动——调用方据此决定是否重启引擎装载新 preset。
+#[tauri::command]
+pub async fn dsh_workers_apply_models(
+    execute: String,
+    review: String,
+    fallback: String,
+    research: String,
+) -> Result<bool, String> {
+    let wanted = [
+        ("local_code_worker.md", "local_code_worker", execute),
+        ("review_worker.md", "review_worker", review),
+        ("code_worker.md", "code_worker", fallback),
+        ("research_worker.md", "research_worker", research),
+    ];
+    // 先播种（幂等）：保证新增工人文件存在，再逐行改写
+    let _ = ensure_workers_seeded().await;
+    let mut changed = false;
+    for (file_name, expected_name, model) in wanted {
+        let model = normalize_worker_model(model.trim());
+        if model.is_empty() {
+            continue;
+        }
+        let path = workers_dir().join(file_name);
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            log::warn!("[DshManager] worker file missing while applying models: {file_name}");
+            continue;
+        };
+        let Some(def) = parse_worker_md(file_name, &content) else {
+            log::warn!("[DshManager] invalid worker skipped while applying models: {file_name}");
+            continue;
+        };
+        if def.tool_name != expected_name || def.model == model {
+            continue;
+        }
+        let mut replaced = false;
+        let next: Vec<String> = content
+            .lines()
+            .map(|line| {
+                if !replaced && line.trim_start().starts_with("model:") {
+                    replaced = true;
+                    format!("model: {model}")
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect();
+        if !replaced {
+            continue;
+        }
+        let next = format!("{}\n", next.join("\n").trim_end());
+        std::fs::write(&path, next).map_err(|e| format!("write worker {file_name}: {e}"))?;
+        changed = true;
+    }
+    if changed {
+        ensure_orchestration_patch().await?;
+        log::info!("[DshManager] agent model profile applied to worker definitions");
+    }
+    Ok(changed)
+}
+
 /// 读 Claude Code 兼容 hooks 配置（<DSH_HOME>/hooks.json；空串 = 未配置）。
 #[tauri::command]
 pub async fn dsh_hooks_config_get() -> Result<String, String> {
@@ -2409,6 +2582,25 @@ mod tests {
     }
 
     #[test]
+    fn normalize_worker_body_replaces_legacy_search_rule() {
+        let legacy = "Line before.\nPrefer ai00_search (self-hosted, no key) for web lookup; use web_fetch for page bodies; web_search is only a backup.\nLine after.";
+        let out = normalize_worker_body(legacy);
+        assert!(out.contains("ai00_web_extract with a url"), "{out}");
+        assert!(!out.contains("web_fetch"), "{out}");
+        assert!(out.contains("Line before.") && out.contains("Line after."));
+        // 自定义 persona（无旧句）原样保留
+        let custom = "My custom worker persona.";
+        assert_eq!(normalize_worker_body(custom), custom);
+    }
+
+    #[test]
+    fn parse_worker_md_drops_legacy_web_tools() {
+        let md = "---\nname: legacy_worker\ndescription: d\nmodel: ai00-auto\ntools:\n  - read\n  - web_fetch\n  - web_search\n---\nBody.";
+        let def = parse_worker_md("legacy_worker.md", md).expect("must parse");
+        assert_eq!(def.tools, vec!["read".to_string()]);
+    }
+
+    #[test]
     fn parse_worker_md_defaults_are_valid() {
         let research = parse_worker_md("research_worker.md", DEFAULT_WORKER_RESEARCH_MD)
             .expect("default research worker must parse");
@@ -2419,8 +2611,22 @@ mod tests {
 
         let code = parse_worker_md("code_worker.md", DEFAULT_WORKER_CODE_MD)
             .expect("default code worker must parse");
+        // 云端帮手走网关主模型槽：具体模型由服务端目录决定
         assert_eq!(code.model, "ai00-api");
         assert!(code.tools.contains(&"edit".to_string()));
+
+        let local = parse_worker_md("local_code_worker.md", DEFAULT_WORKER_LOCAL_CODE_MD)
+            .expect("default local code worker must parse");
+        assert_eq!(local.tool_name, "local_code_worker");
+        assert_eq!(local.model, "rwkv-local");
+        assert!(local.tools.contains(&"edit".to_string()));
+        assert!(local.tools.contains(&"pwsh".to_string()));
+
+        let review = parse_worker_md("review_worker.md", DEFAULT_WORKER_REVIEW_MD)
+            .expect("default review worker must parse");
+        assert_eq!(review.model, "ai00-api");
+        assert!(review.tools.contains(&"grep".to_string()));
+        assert!(!review.tools.contains(&"edit".to_string()));
     }
 
     #[test]
@@ -2436,17 +2642,67 @@ mod tests {
     }
 
     #[test]
+    fn workbench_preset_uses_orchestrator_persona() {
+        let standard = r#"- insert:
+    - id: preset-standard
+      config:
+        id: standard
+        plugins:
+          - id: persona
+            config:
+              prefix: You are a coding agent.
+          - id: agent-instructions
+            config: {}
+"#;
+        let generated = build_workbench_preset_row_from_standard(standard, &fallback_worker_defs())
+            .expect("workbench preset must generate");
+        let doc: serde_yaml::Value =
+            serde_yaml::from_str(&generated).expect("workbench preset must be valid YAML");
+        let row = &doc[0]["insert"][0];
+        assert_eq!(row["config"]["id"].as_str(), Some("workbench"));
+        let plugins = row["config"]["plugins"]
+            .as_sequence()
+            .expect("plugins must be a sequence");
+        let persona = plugins
+            .iter()
+            .find(|plugin| plugin["id"].as_str() == Some("persona"))
+            .expect("persona plugin must exist");
+        assert!(persona["config"]["prefix"]
+            .as_str()
+            .is_some_and(|prefix| prefix.contains("Ai00-X orchestrator")));
+        let instructions = plugins
+            .iter()
+            .find(|plugin| plugin["id"].as_str() == Some("agent-instructions"))
+            .expect("agent instructions must exist");
+        assert_eq!(
+            instructions["config"]["projectRootMarkers"][0].as_str(),
+            Some("AGENTS.local.md")
+        );
+        assert!(plugins.iter().any(|plugin| {
+            plugin["config"]["toolName"].as_str() == Some("code_worker")
+                && plugin["config"]["agentPreset"].as_str() == Some("ai00x-code-worker")
+        }));
+    }
+
+    #[test]
     fn worker_rows_are_well_formed_yaml_entries() {
         let defs = fallback_worker_defs();
         let rows = build_worker_rows(&defs);
+        let yaml = format!("- insert:\n{rows}");
+        let parsed: serde_yaml::Value =
+            serde_yaml::from_str(&yaml).expect("worker rows must compose as valid patch YAML");
+        assert!(parsed[0]["insert"].as_sequence().is_some());
         // preset 声明：persona 走 @deepseek-ai/dsh-persona，工具走插件行
         assert!(rows.contains("    - id: preset-ai00x-research-worker\n"));
         assert!(rows
             .contains("          - id: persona\n            name: '@deepseek-ai/dsh-persona'\n"));
         // persona block scalar 缩进比键深
-        assert!(
-            rows.contains("              prefix: |-\n                You are a research worker")
-        );
+        assert!(rows.contains("              prefix: |-\n                You are a leaf worker"));
+        assert!(rows.contains("                You are a research worker"));
+        assert!(rows.contains("              localInstructionFileCandidates: []\n"));
+        assert!(rows.contains(
+            "          - id: tool-subagent-control\n            name: '@deepseek-ai/dsh-tool-subagent-control'\n"
+        ));
         // 委派工具用 agentPreset 选中 preset，且不再带已移除的配置键
         assert!(rows.contains("        toolName: \"research_worker\"\n"));
         assert!(rows.contains("        agentPreset: ai00x-research-worker\n"));

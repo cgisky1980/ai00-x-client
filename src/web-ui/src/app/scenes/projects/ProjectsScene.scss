@@ -1,0 +1,551 @@
+// 项目工作台：左项目列表 + 右侧项目概览与「在此项目建任务」。
+.ai00-x-projects-scene {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--color-bg-base);
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 260px;
+    min-width: 0;
+    min-height: 0;
+    border-right: var(--style-stroke-width, 1px) solid var(--color-border);
+    background-color: var(--color-bg-shell);
+  }
+
+  &__list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-1);
+    flex-shrink: 0;
+    padding: var(--spacing-4) var(--spacing-3) var(--spacing-2);
+  }
+
+  &__list-title {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  &__icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--spacing-6);
+    height: var(--spacing-6);
+    flex-shrink: 0;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-accent);
+      background-color: var(--element-bg-subtle);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    flex: 1;
+    min-height: 0;
+    padding: var(--spacing-1) var(--spacing-2) var(--spacing-3);
+    overflow-y: auto;
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  // 项目行 = 折叠箭头 + 主按钮（整行选中态由容器承载）
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    width: 100%;
+    min-height: var(--spacing-8);
+    min-width: 0;
+    padding: 0 var(--spacing-1);
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+
+    &:hover {
+      background-color: var(--element-bg-subtle);
+    }
+
+    // 选中：只用一道左侧黛青，不做整块填充（列表更干净，也少一层灰）
+    &.is-active {
+      background-color: transparent;
+      box-shadow: inset 2px 0 0 var(--color-accent);
+    }
+  }
+
+  &__caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--spacing-4);
+    height: var(--spacing-4);
+    flex: none;
+    margin-left: var(--spacing-1);
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: transform var(--motion-fast) var(--easing-standard),
+      color var(--motion-fast) var(--easing-standard);
+
+    &.is-open {
+      transform: rotate(90deg);
+    }
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__item-main {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    flex: 1;
+    min-width: 0;
+    padding: var(--spacing-2) var(--spacing-1) var(--spacing-2) 0;
+    border: none;
+    border-radius: var(--radius-base);
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+
+    .is-active & {
+      color: var(--color-accent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  // 项目下的任务（树形子项）：一道竖线把任务挂在项目上
+  &__subitems {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    margin: 0 0 var(--spacing-1) var(--spacing-4);
+    padding-left: var(--spacing-2);
+    border-left: var(--style-stroke-width, 1px) solid var(--color-border);
+  }
+
+  &__subempty {
+    margin: 0;
+    padding: var(--spacing-1) 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  &__subitem-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    min-width: 0;
+    padding-right: var(--spacing-1);
+    border-radius: var(--radius-sm);
+
+    &:hover {
+      background-color: var(--element-bg-subtle);
+    }
+
+    &.is-active {
+      background-color: var(--element-bg-subtle);
+    }
+
+    &.is-active .ai00-x-projects-scene__subitem-title {
+      color: var(--color-accent);
+    }
+
+    .ai00-x-projects-scene__subitem {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__subitem {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    min-width: 0;
+    padding: var(--spacing-2) var(--spacing-2);
+    border: none;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-xs);
+    text-align: left;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__subitem-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__item-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__task-time {
+    flex: 0 0 auto;
+    color: var(--color-text-muted);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__empty {
+    margin: 0;
+    padding: var(--spacing-4) var(--spacing-2);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    line-height: 1.7;
+  }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+
+    // 对话模式：三栏自己滚（列表列 + 标签区 + 对话列）
+    &.is-conversation {
+      overflow: hidden;
+    }
+  }
+
+  // 三栏主体：中间标签区 + 右常驻对话
+  &__row {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  &__stage {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  &__chat {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    min-height: 0;
+    border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
+  }
+
+  &__chat-resizer {
+    flex: 0 0 var(--spacing-1);
+    cursor: col-resize;
+    background-color: transparent;
+    transition: background-color var(--motion-fast) var(--easing-standard);
+
+    &:hover,
+    &.is-dragging {
+      background-color: var(--color-accent);
+    }
+  }
+
+  &__chat .ai00-x-workbench-chat {
+    width: 100%;
+    max-width: none;
+    border-left: none;
+  }
+
+  &__back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--spacing-6);
+    height: var(--spacing-6);
+    flex-shrink: 0;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-accent);
+      background-color: var(--element-bg-subtle);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__preparing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+    margin: 0;
+    padding: var(--spacing-1) var(--spacing-5) var(--spacing-2);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  &__spin {
+    animation: ai00-x-projects-spin 0.9s linear infinite;
+  }
+
+  &__welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-3);
+    flex: 1;
+    padding: var(--spacing-8);
+    text-align: center;
+
+    h1 {
+      margin: 0;
+      color: var(--color-text-primary);
+      font-family: var(--font-family-serif);
+      font-size: var(--font-size-2xl);
+      font-weight: var(--font-weight-semibold);
+    }
+
+    p {
+      margin: 0;
+      max-width: 46ch;
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-base);
+      line-height: 1.7;
+    }
+  }
+
+  &__primary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-4);
+    border: var(--style-stroke-width, 1px) solid var(--color-accent);
+    border-radius: var(--radius-base);
+    background-color: transparent;
+    color: var(--color-accent);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    flex-shrink: 0;
+    padding: var(--spacing-3) var(--spacing-5);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--color-border);
+  }
+
+  &__title {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-serif);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  &__dir {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // 状态词：与任务场景同一套语义色
+  &__status {
+    flex: none;
+    padding: 0 var(--spacing-2);
+    border-radius: var(--radius-full);
+    background-color: var(--element-bg-subtle);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-2xs);
+    line-height: 1.8;
+
+    &.is-running {
+      color: var(--color-accent);
+    }
+
+    &.is-awaiting {
+      color: var(--color-warning);
+    }
+
+    &.is-failed {
+      color: var(--color-danger);
+    }
+  }
+
+  &__error {
+    margin: 0;
+    padding: var(--spacing-2) var(--spacing-5);
+    color: var(--color-danger);
+    font-size: var(--font-size-xs);
+  }
+
+  &__composer {
+    flex-shrink: 0;
+    width: min(100%, 72ch);
+    margin: 0 auto;
+    padding: var(--spacing-5) var(--spacing-5) var(--spacing-3);
+  }
+
+  &__tasks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    width: min(100%, 72ch);
+    margin: 0 auto;
+    padding: var(--spacing-2) var(--spacing-5) var(--spacing-8);
+  }
+
+  &__section-title {
+    margin: 0 0 var(--spacing-1);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0.06em;
+  }
+
+  &__section-empty {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  &__task-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    min-width: 0;
+
+    .ai00-x-projects-scene__task {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__task {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    width: 100%;
+    padding: var(--spacing-2) var(--spacing-3);
+    border: none;
+    border-radius: var(--radius-base);
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--element-bg-subtle);
+    }
+
+    &.is-active {
+      background-color: var(--element-bg-base);
+      color: var(--color-accent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__task-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__task-meta {
+    flex: 0 0 auto;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+}
+
+@keyframes ai00-x-projects-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .ai00-x-projects-scene__list {
+    flex-basis: 200px;
+  }
+}

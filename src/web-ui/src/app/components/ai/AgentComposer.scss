@@ -1,0 +1,294 @@
+/**
+ * AgentComposer 场景样式：composer 的工具行「+」、思考档位、候选浮层。
+ * composer 卡片本体在 design-system 的 PromptInput 里。
+ */
+.ai00-x-composer-root {
+  position: relative;
+}
+
+// ---- 「+」菜单入口（工具行最左，裸图标：不抢模型位/发送键的视觉重量）----
+.ai00-x-composer-add {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--size-radius-full);
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--easing-standard),
+    color var(--motion-fast) var(--easing-standard);
+
+  &:hover:not(:disabled) {
+    background-color: var(--element-bg-subtle);
+    color: var(--color-text-primary);
+  }
+
+  &.is-open {
+    background-color: var(--element-bg-subtle);
+    color: var(--color-text-primary);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+// ---- 权限档（全局，重启引擎生效）----
+.ai00-x-composer-perm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-gap-1);
+  height: var(--size-gap-7);
+  padding: 0 var(--size-gap-1) 0 var(--size-gap-2);
+  border: none;
+  border-radius: var(--size-radius-sm);
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--easing-standard),
+    color var(--motion-fast) var(--easing-standard);
+
+  &:hover {
+    background-color: var(--element-bg-subtle);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--style-focus-ring, var(--color-accent-400));
+  }
+
+  // 完全访问：语义警示色只表状态，不做装饰
+  &.is-warn {
+    color: var(--color-warning);
+  }
+}
+
+.ai00-x-composer-perm-menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-0-5);
+  min-width: 200px;
+  padding: var(--size-gap-1);
+
+  &__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-gap-2);
+    width: 100%;
+    min-height: var(--size-gap-7);
+    padding: var(--size-gap-1) var(--size-gap-2);
+    border: none;
+    border-radius: var(--size-radius-sm);
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &.is-active {
+      background-color: var(--element-bg-subtle);
+    }
+
+    &.is-active {
+      color: var(--color-accent-500);
+    }
+
+    &.is-warn {
+      color: var(--color-warning);
+    }
+  }
+
+  &__note {
+    margin: var(--size-gap-1) 0 0;
+    padding: var(--size-gap-1) var(--size-gap-2) 0;
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    line-height: 1.5;
+  }
+}
+
+// ---- 卡片上方上下文条：工作目录 + 分支 ----
+.ai00-x-composer-workspace {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-gap-1-5);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--size-gap-0-5) var(--size-gap-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+
+  &__icon {
+    flex: none;
+    color: var(--color-text-muted);
+  }
+
+  &__name,
+  &__branch {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__branch {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__divider {
+    flex: none;
+    width: var(--size-gap-0-5);
+    height: var(--size-gap-3);
+    margin: 0 var(--size-gap-1);
+    background-color: var(--border-subtle);
+  }
+}
+
+// ---- 思考档位（模型名后缀，纯文字：与模型位连读成「模型 档位」）----
+.ai00-x-composer-effort {
+  display: inline-flex;
+  align-items: center;
+  height: var(--size-gap-7);
+  padding: 0 var(--size-gap-1);
+  border: none;
+  border-radius: var(--size-radius-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--easing-standard),
+    color var(--motion-fast) var(--easing-standard);
+
+  &:hover:not(:disabled) {
+    background-color: var(--element-bg-subtle);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--style-focus-ring, var(--color-accent-400));
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+
+.ai00-x-composer-effort-menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-0-5);
+  min-width: 160px;
+  padding: var(--size-gap-1);
+
+  &__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-gap-2);
+    width: 100%;
+    min-height: var(--size-gap-7);
+    padding: var(--size-gap-1) var(--size-gap-2);
+    border: none;
+    border-radius: var(--size-radius-sm);
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &.is-active {
+      background-color: var(--element-bg-subtle);
+    }
+
+    &.is-active {
+      color: var(--color-accent-500);
+    }
+  }
+}
+
+// ---- 候选菜单（`@` 引用 / `/` 命令 / 「+」launcher）----
+// 开在卡片上方、撑满卡宽：不撑高输入框，也不把正文顶下去。
+.ai00-x-composer-pop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + var(--size-gap-1-5));
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  padding: var(--size-gap-1);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
+  border-radius: var(--size-radius-lg);
+  background-color: var(--color-bg-elevated);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+
+  &__group {
+    padding: var(--size-gap-1) var(--size-gap-2) var(--size-gap-0-5);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+    width: 100%;
+    min-height: var(--size-gap-8);
+    padding: var(--size-gap-1) var(--size-gap-2);
+    border: none;
+    border-radius: var(--size-radius-sm);
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &.is-active {
+      background-color: var(--element-bg-subtle);
+    }
+  }
+
+  &__label {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__alias {
+    flex: none;
+    color: var(--color-text-muted);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+  }
+
+  &__hint {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+}

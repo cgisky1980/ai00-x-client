@@ -1109,11 +1109,49 @@
     }
   }
 
-  &__chat {
+  // P1 起下半区只留只读摘要：执行对话与审批应答都在工作台 AI 区
+  &__summary {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: var(--size-gap-2, 8px);
+    padding: var(--size-gap-4, 16px);
+  }
+
+  &__summary-text {
+    margin: 0;
+    max-width: 52ch;
+    font-size: var(--font-size-xs, 12px);
+    line-height: 1.7;
+    color: var(--color-text-secondary);
+  }
+
+  &__open {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1, 4px);
+    padding: var(--size-gap-1, 4px) var(--size-gap-3, 12px);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--size-radius-base, 8px);
+    background-color: var(--color-bg-card);
+    color: var(--color-accent);
+    font-size: var(--font-size-xs, 12px);
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--color-accent);
+    }
+  }
+
+  &__summary-meta {
+    margin: 0;
+    font-family: var(--font-family-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-size-xs, 12px);
+    color: var(--color-text-muted);
   }
 }
 

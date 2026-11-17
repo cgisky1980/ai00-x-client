@@ -41,6 +41,99 @@ pub const MODEL_REMOTE: &str = "ai00-api";
 /// 旧入口 id 的兼容别名：仅接受，不再对外通告（存量会话/配置迁移用）。
 pub const MODEL_REMOTE_LEGACY: &str = "ai00-salvo";
 
+#[derive(Debug, Clone, Copy, Default)]
+struct GatewayTokenUsage {
+    prompt: u32,
+    completion: u32,
+    cached_prompt: Option<u32>,
+}
+
+impl GatewayTokenUsage {
+    fn from_openai(value: &Value) -> Option<Self> {
+        let usage = value.get("usage")?;
+        let prompt = usage.get("prompt_tokens")?.as_u64()?;
+        let completion = usage.get("completion_tokens")?.as_u64()?;
+        let cached = usage
+            .get("prompt_tokens_details")
+            .and_then(|v| v.get("cached_tokens"))
+            .and_then(Value::as_u64)
+            .or_else(|| usage.get("prompt_cache_hit_tokens").and_then(Value::as_u64));
+        Some(Self {
+            prompt: u32::try_from(prompt).unwrap_or(u32::MAX),
+            completion: u32::try_from(completion).unwrap_or(u32::MAX),
+            cached_prompt: cached.map(|v| u32::try_from(v).unwrap_or(u32::MAX)),
+        })
+    }
+}
+
+fn gateway_usage_from_sse_line(line: &str) -> Option<GatewayTokenUsage> {
+    let data = line.trim().strip_prefix("data:")?.trim();
+    if data == "[DONE]" {
+        return None;
+    }
+    let value = serde_json::from_str::<Value>(data).ok()?;
+    GatewayTokenUsage::from_openai(&value)
+}
+
+/// dsh 网关调用的计量上下文。只负责观测，不改变模型路由决策。
+#[derive(Clone)]
+struct GatewayUsage {
+    session_id: Option<String>,
+    requested_model: String,
+    route: String,
+    fallback_reason: Option<String>,
+    started: std::time::Instant,
+}
+
+impl GatewayUsage {
+    fn new(session_id: Option<String>, requested_model: String, route: &str) -> Self {
+        Self {
+            session_id,
+            requested_model,
+            route: route.to_string(),
+            fallback_reason: None,
+            started: std::time::Instant::now(),
+        }
+    }
+
+    fn with_route(&self, route: &str) -> Self {
+        let mut next = self.clone();
+        next.route = route.to_string();
+        next
+    }
+
+    fn with_fallback(&self, reason: String) -> Self {
+        let mut next = self.clone();
+        next.fallback_reason = Some(reason);
+        next
+    }
+
+    async fn record(&self, actual_model: &str, local: bool, usage: Option<GatewayTokenUsage>) {
+        let usage_known = usage.is_some();
+        let usage = usage.unwrap_or_default();
+        crate::api::ai_usage_api::record_usage(crate::api::ai_usage_api::AiUsageRecord {
+            at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0),
+            plugin_id: "dsh-agent".to_string(),
+            tag: None,
+            model: actual_model.to_string(),
+            local,
+            prompt_tokens: usage.prompt,
+            completion_tokens: usage.completion,
+            latency_ms: self.started.elapsed().as_millis() as u64,
+            session_id: self.session_id.clone(),
+            requested_model: Some(self.requested_model.clone()),
+            route: Some(self.route.clone()),
+            fallback_reason: self.fallback_reason.clone(),
+            cached_prompt_tokens: usage.cached_prompt,
+            usage_known: Some(usage_known),
+        })
+        .await;
+    }
+}
+
 const INTERNAL_TOKEN_HEADER: &str = "x-ai00-internal-token";
 
 /// 网关响应禁止缓存。
@@ -437,6 +530,7 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
         .get("x-ai00-session-id")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
+    let usage = GatewayUsage::new(session_id.clone(), model.clone(), "remote");
 
     // 分流决策
     let has_tools = body
@@ -450,7 +544,7 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
     // 全本地闭环工具（web 提取/长文总结）终答也本地直出（质量门把关）。
     // `AI00X_TOOL_LOOP_LOCAL=0` 回退旧路径（白名单 + SmartRouter / 强制远端）。
     if hybrid_eligible(&model, &body, has_tools) {
-        hybrid_tool_loop(body, &model, res).await;
+        hybrid_tool_loop(body, &model, res, usage).await;
         return;
     }
     // 具体模型引用（非三个保留逻辑 id）→ 按引用解析转发，不参与智能路由
@@ -504,12 +598,18 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
     if use_local {
         // 本地失败（引擎未就绪/推理错误，且发生在任何 SSE 字节写出之前）→
         // 自动降级远程，请求不失败——aux 误路由无感
-        if local_rwkv_sse(body.clone(), res).await.is_err() {
-            log::warn!("[ai-gateway] local branch failed -> fallback to remote");
-            forward_to_ai00_salvo(body, res, &model).await;
+        if let Err(error) = local_rwkv_sse(body.clone(), res, usage.with_route("local")).await {
+            log::warn!("[ai-gateway] local branch failed -> fallback to remote: {error}");
+            forward_to_ai00_salvo(
+                body,
+                res,
+                &model,
+                usage.with_route("local-fallback").with_fallback(error),
+            )
+            .await;
         }
     } else {
-        forward_to_ai00_salvo(body, res, &model).await;
+        forward_to_ai00_salvo(body, res, &model, usage).await;
     }
 }
 
@@ -517,22 +617,23 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
 /// 也不会产生破坏性副作用（写知行/换壁纸/XP 全部排除）。
 /// 两部分同源约定（改动须双向同步）：
 /// - ai00_*：桌面业务只读工具（M1.2）
-/// - dsh 只读六件套：与 dsh_manager.rs ORCHESTRATION_PATCH 的
-///   research_worker toolFilter.allow 完全一致——编排架构里调研 worker
-///   （model=ai00-auto）靠本白名单获得 hybrid_tool_loop 本地资格
+/// - dsh 只读套件：与 dsh_manager.rs research_worker 工具集完全一致——
+///   编排架构里调研 worker（model=ai00-auto）靠本白名单获得
+///   hybrid_tool_loop 本地资格。web 检索为全局插件 @ai00-x/dsh-tools 的
+///   ai00_search / ai00_web_extract（2026-11-11 起替代引擎 web_fetch/web_search）
 const LOCAL_TOOL_WHITELIST: &[&str] = &[
     "ai00_notify",
     "ai00_todo_read",
     "ai00_plan_read",
     "ai00_focus_log",
     "ai00_wallpaper_projects",
-    // dsh 只读六件套（research_worker 允许集）
+    // dsh 只读套件（research_worker 允许集）
     "read",
     "read_image",
     "glob",
     "grep",
-    "web_fetch",
-    "web_search",
+    "ai00_search",
+    "ai00_web_extract",
 ];
 
 /// 本地工具路径开关（env `AI00X_DSH_LOCAL_TOOLS=1`；默认关，M1.1 真机验证
@@ -621,7 +722,11 @@ fn last_user_text(body: &Value) -> String {
 ///
 /// 返回 `Err` = 尚未写出任何 SSE 字节的失败（引擎未就绪/推理错误）——
 /// 调用方据此降级远程；一旦开始流式输出则只能走流内错误事件，返回 `Ok`。
-async fn local_rwkv_sse(body: Value, res: &mut Response) -> Result<(), String> {
+async fn local_rwkv_sse(
+    body: Value,
+    res: &mut Response,
+    usage: GatewayUsage,
+) -> Result<(), String> {
     let messages = body
         .get("messages")
         .and_then(|v| v.as_array())
@@ -654,16 +759,7 @@ async fn local_rwkv_sse(body: Value, res: &mut Response) -> Result<(), String> {
     let prompt = openai_messages_to_rwkv_prompt(&messages, tools.as_deref());
     let is_instruction_format = prompt.starts_with("Instruction: ");
 
-    // stop 序列：沿用 ai-adapters RWKV provider 验证过的组合
-    let mut stop = vec![
-        "\n\nUser:".to_string(),
-        "\n\nSystem:".to_string(),
-        "\n\nInstruction:".to_string(),
-        "\n\nInput:".to_string(),
-    ];
-    if is_instruction_format {
-        stop.push("\n\n".to_string());
-    }
+    let stop = rwkv_stop_sequences(is_instruction_format, has_tools);
 
     let mut rx = match pool_infer(
         prompt.clone(),
@@ -762,6 +858,17 @@ async fn local_rwkv_sse(body: Value, res: &mut Response) -> Result<(), String> {
             let chunk = sse_finish(&model_name, "stop");
             let _ = tx.send(Ok(Bytes::from(chunk)));
         }
+        usage
+            .record(
+                MODEL_RWKV,
+                true,
+                Some(GatewayTokenUsage {
+                    prompt: u32::try_from(input_tokens).unwrap_or(u32::MAX),
+                    completion: u32::try_from(output_tokens).unwrap_or(u32::MAX),
+                    cached_prompt: None,
+                }),
+            )
+            .await;
         let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n")));
     });
 
@@ -794,7 +901,7 @@ enum ToolRoundOutcome {
 
 /// 混合工具循环编排：工具轮本地 RWKV（零状态临时会话），收敛后远端终答。
 /// 本地失败整轮降级远端循环（旧路径），请求不失败。
-async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response) {
+async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response, usage: GatewayUsage) {
     let rounds = crate::tool_session::count_turn_rounds(
         body.get("messages")
             .and_then(|v| v.as_array())
@@ -809,11 +916,19 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response) {
         log::warn!(
             "[ai-gateway] tool loop exceeded {max_rounds} rounds, handing off to remote loop"
         );
-        forward_to_ai00_salvo(body, res, model).await;
+        forward_to_ai00_salvo(
+            body,
+            res,
+            model,
+            usage
+                .with_route("hybrid-max-rounds")
+                .with_fallback(format!("tool loop exceeded {max_rounds} rounds")),
+        )
+        .await;
         return;
     }
 
-    match local_tool_round(&body, None).await {
+    match local_tool_round(&body, None, usage.with_route("hybrid-local")).await {
         Ok(ToolRoundOutcome::ToolCall { name, arguments }) => {
             log::info!("[ai-gateway] tool round {rounds}: local -> call {name}");
             let (tx, rx_body) =
@@ -853,14 +968,27 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response) {
                         "[ai-gateway] tool round {rounds}: local -> draft {} chars, composing remote final",
                         text.chars().count()
                     );
-                    compose_final_remote(body, Some(&text), model, res).await;
+                    compose_final_remote(
+                        body,
+                        Some(&text),
+                        model,
+                        res,
+                        usage.with_route("hybrid-final"),
+                    )
+                    .await;
                 }
                 Err(problems) => {
                     // 质量门拦截：换采样（top_p 0.5）本地重试一次，仍不合格升级远端（无草稿）
                     log::warn!(
                         "[ai-gateway] draft failed quality gate: {problems:?}, retrying top_p=0.5"
                     );
-                    let retry = match local_tool_round(&body, Some(0.5)).await {
+                    let retry = match local_tool_round(
+                        &body,
+                        Some(0.5),
+                        usage.with_route("hybrid-local-retry"),
+                    )
+                    .await
+                    {
                         Ok(ToolRoundOutcome::Draft {
                             text: retry_text,
                             hit_len: retry_hit,
@@ -878,13 +1006,29 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response) {
                             stream_local_final(res, &retry_text);
                         }
                         Some(retry_text) => {
-                            compose_final_remote(body, Some(&retry_text), model, res).await;
+                            compose_final_remote(
+                                body,
+                                Some(&retry_text),
+                                model,
+                                res,
+                                usage.with_route("hybrid-final-retry"),
+                            )
+                            .await;
                         }
                         None => {
                             log::warn!(
                                 "[ai-gateway] retry failed gate, upgrading to remote (no draft)"
                             );
-                            compose_final_remote(body, None, model, res).await;
+                            compose_final_remote(
+                                body,
+                                None,
+                                model,
+                                res,
+                                usage
+                                    .with_route("hybrid-quality-fallback")
+                                    .with_fallback("local draft failed quality gate".to_string()),
+                            )
+                            .await;
                         }
                     }
                 }
@@ -894,7 +1038,13 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response) {
             // 本地推理失败：整轮降级远端循环（forward 入口折叠闭合段，
             // 进行中段原样保留，远端续接工具循环），用户无感。
             log::warn!("[ai-gateway] local tool round failed ({e}), fallback to remote loop");
-            forward_to_ai00_salvo(body, res, model).await;
+            forward_to_ai00_salvo(
+                body,
+                res,
+                model,
+                usage.with_route("hybrid-error-fallback").with_fallback(e),
+            )
+            .await;
         }
     }
 }
@@ -906,6 +1056,7 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response) {
 async fn local_tool_round(
     body: &Value,
     top_p_override: Option<f32>,
+    usage: GatewayUsage,
 ) -> Result<ToolRoundOutcome, String> {
     let messages = body
         .get("messages")
@@ -925,12 +1076,7 @@ async fn local_tool_round(
     let prompt = openai_messages_to_rwkv_prompt(&folded, tools.as_deref());
 
     // stop 序列与 local_rwkv_sse 对齐（带工具时恒为对话格式，无 Instruction 分支）
-    let stop = vec![
-        "\n\nUser:".to_string(),
-        "\n\nSystem:".to_string(),
-        "\n\nInstruction:".to_string(),
-        "\n\nInput:".to_string(),
-    ];
+    let stop = rwkv_stop_sequences(false, true);
     let mut rx = pool_infer(
         prompt,
         max_tokens,
@@ -960,15 +1106,21 @@ async fn local_tool_round(
 
     let mut full_text = String::new();
     let mut hit_len = false;
+    let mut input_tokens = 0usize;
+    let mut output_tokens = 0usize;
     while let Some(event) = rx.recv().await {
         match event {
             InferenceEvent::Token(t) => full_text.push_str(&t),
             InferenceEvent::Done {
                 text,
                 stop_sequence,
+                input_tokens: it,
+                output_tokens: ot,
                 ..
             } => {
                 full_text = text;
+                input_tokens = it;
+                output_tokens = ot;
                 // stop_sequence 为 None = 因 max_tokens 收尾（截断），供质量门判定
                 hit_len = stop_sequence.is_none();
                 break;
@@ -976,6 +1128,17 @@ async fn local_tool_round(
             InferenceEvent::Error(e) => return Err(e),
         }
     }
+    usage
+        .record(
+            MODEL_RWKV,
+            true,
+            Some(GatewayTokenUsage {
+                prompt: u32::try_from(input_tokens).unwrap_or(u32::MAX),
+                completion: u32::try_from(output_tokens).unwrap_or(u32::MAX),
+                cached_prompt: None,
+            }),
+        )
+        .await;
 
     if let Some((name, arguments)) = try_extract_tool_call(&full_text) {
         Ok(ToolRoundOutcome::ToolCall { name, arguments })
@@ -1016,7 +1179,13 @@ fn stream_local_final(res: &mut Response, text: &str) {
 
 /// 远端终答合成：全部工具段折叠（tools 摘除，循环终止），本地草稿作为
 /// 组织语言的参考注入末位 user 消息。
-async fn compose_final_remote(body: Value, draft: Option<&str>, model: &str, res: &mut Response) {
+async fn compose_final_remote(
+    body: Value,
+    draft: Option<&str>,
+    model: &str,
+    res: &mut Response,
+    usage: GatewayUsage,
+) {
     let mut body = body;
     if let Some(obj) = body.as_object_mut() {
         let messages = obj
@@ -1037,7 +1206,7 @@ async fn compose_final_remote(body: Value, draft: Option<&str>, model: &str, res
         obj.remove("tools");
         obj.remove("tool_choice");
     }
-    forward_to_ai00_salvo(body, res, model).await;
+    forward_to_ai00_salvo(body, res, model, usage).await;
 }
 
 // ---------------------------------------------------------------------------
@@ -1057,7 +1226,12 @@ fn remote_fallback_ref(model: &str) -> &str {
 /// 其他引用（ai00s:/gguf-local:/自定义 id）按 client_factory 同一解析链直达。
 /// 本地失败降级统一走此入口——逻辑 id（rwkv-local/ai00-auto）先经
 /// [`remote_fallback_ref`] 映射，保证「本地失败自动降级远端」真实成立。
-async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response, model_ref: &str) {
+async fn forward_to_ai00_salvo(
+    mut body: Value,
+    res: &mut Response,
+    model_ref: &str,
+    usage: GatewayUsage,
+) {
     // 历史折叠（M1.3）：已闭合工具段 → 紧凑结论行（省 token、防长会话漂移）；
     // 进行中段原样保留——llama-server 需原始 tool 消息续接工具循环。幂等。
     if let Some(obj) = body.as_object_mut() {
@@ -1102,19 +1276,27 @@ async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response, model_ref: &
         }
     };
 
-    // 覆写 model 为 primary 配置的模型名，强制流式
+    let actual_model = client.config.model.clone();
+    let actual_local =
+        resolve_key.starts_with("gguf-local") || client.config.name.starts_with("gguf-local");
+
+    // 覆写 model 为 primary 配置的模型名，强制流式并请求真实 usage。
     if let Some(obj) = body.as_object_mut() {
-        obj.insert("model".to_string(), json!(client.config.model));
+        obj.insert("model".to_string(), json!(actual_model.clone()));
         obj.insert("stream".to_string(), json!(true));
+        let options = obj.entry("stream_options").or_insert_with(|| json!({}));
+        if let Some(options) = options.as_object_mut() {
+            options.insert("include_usage".to_string(), json!(true));
+        }
     }
 
-    // 发送（401 时刷新 member token 重试一次——dsh 会话是长驻的，
-    // access token 过期后不刷新会让所有 agent 请求永久 502）
-    let mut upstream = None;
     // 请求标识：一次逻辑请求生成一次，401 刷新重试复用同一 id（服务端据此关联请求日志与账单）
     let request_id = format!("cli_{}", uuid::Uuid::new_v4().simple());
     log::info!("[ai-gateway] request_id={request_id}");
 
+    // 发送（401 时刷新 member token 重试一次——dsh 会话是长驻的，
+    // access token 过期后不刷新会让所有 agent 请求永久 502）
+    let mut upstream = None;
     for attempt in 0..2 {
         let mut request = client
             .http_client()
@@ -1172,13 +1354,23 @@ async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response, model_ref: &
         return;
     }
 
-    // SSE 字节流透传
+    // SSE 字节流透传；旁路解析 usage，不改写下游内容。
     let (tx, rx_body) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
     tokio::spawn(async move {
         let mut stream = upstream.bytes_stream();
+        let mut pending = String::new();
+        let mut seen_usage = None;
         while let Some(chunk) = stream.next().await {
             match chunk {
                 Ok(bytes) => {
+                    pending.push_str(&String::from_utf8_lossy(&bytes));
+                    while let Some(end) = pending.find('\n') {
+                        let line = pending[..=end].to_string();
+                        pending.drain(..=end);
+                        if let Some(usage) = gateway_usage_from_sse_line(&line) {
+                            seen_usage = Some(usage);
+                        }
+                    }
                     if tx.send(Ok(bytes)).is_err() {
                         break;
                     }
@@ -1191,6 +1383,10 @@ async fn forward_to_ai00_salvo(mut body: Value, res: &mut Response, model_ref: &
                 }
             }
         }
+        if let Some(usage) = gateway_usage_from_sse_line(&pending) {
+            seen_usage = Some(usage);
+        }
+        usage.record(&actual_model, actual_local, seen_usage).await;
     });
 
     res.headers_mut().insert(
@@ -1237,24 +1433,47 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
         }
     }
 
+    // 官方 G1 只允许一个 System 块：先把所有 system 消息与工具清单合并成一个块，
+    // 再按顺序写 user / assistant / tool。多写一个 `System:` 会被 rwkv-pf 判
+    // MULTIPLE_SYSTEM / SYSTEM_THEN_ROLE（实测 RWKV 随后把工具调用当纯文本续写）。
+    let mut system_text = String::new();
+    for msg in messages {
+        if msg.get("role").and_then(|r| r.as_str()) != Some("system") {
+            continue;
+        }
+        if let Some(content) = message_text(msg) {
+            let text = sanitize(&content);
+            if text.is_empty() {
+                continue;
+            }
+            if !system_text.is_empty() {
+                system_text.push('\n');
+            }
+            system_text.push_str(&text);
+        }
+    }
+    if let Some(tool_defs) = tools.filter(|defs| !defs.is_empty()) {
+        if !system_text.is_empty() {
+            system_text.push('\n');
+        }
+        system_text.push_str(&tools_block(tool_defs));
+    }
+
     let mut prompt = String::new();
-    let mut tools_injected = false;
+    if !system_text.is_empty() {
+        prompt.push_str(&format!("System: {system_text}\n\n"));
+    }
+    if has_tools {
+        if let Some(fewshot) = tools.and_then(tool_fewshot_block) {
+            prompt.push_str(&fewshot);
+        }
+    }
 
     for msg in messages {
         let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
         match role {
-            "system" => {
-                if let Some(content) = message_text(msg) {
-                    prompt.push_str(&format!("System: {}\n\n", sanitize(&content)));
-                }
-            }
+            "system" => {} // 已在上面合并进唯一的 System 块
             "user" => {
-                if !tools_injected {
-                    if let Some(tool_defs) = tools {
-                        inject_tools(&mut prompt, tool_defs);
-                    }
-                    tools_injected = true;
-                }
                 if let Some(content) = message_text(msg) {
                     prompt.push_str(&format!("User: {}\n\n", sanitize(&content)));
                 }
@@ -1282,12 +1501,6 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
                 }
             }
             _ => {}
-        }
-    }
-
-    if !tools_injected {
-        if let Some(tool_defs) = tools {
-            inject_tools(&mut prompt, tool_defs);
         }
     }
 
@@ -1329,11 +1542,16 @@ pub(crate) fn message_text(msg: &Value) -> Option<String> {
 
 /// 工具定义注入（官方 RWKV-7 G1x function call 模板）。
 ///
-/// <https://www.rwkv.cn/docs/RWKV-Prompts/Prompt-Format#function-call>：
+/// 工具说明文本（**不含** `System:` 前缀）。
+///
+/// 格式见 <https://www.rwkv.cn/docs/RWKV-Prompts/Prompt-Format#function-call>：
 /// JSON 数组格式，每项带 name / description / arguments（参数名 → schema），
 /// 后跟 "Return only a JSON function call."。description 必须保留——
 /// 模型靠它判断何时调用哪个工具（丢失会导致模型把调用当纯文本续写）。
-fn inject_tools(prompt: &mut String, tools: &[Value]) {
+///
+/// 官方 G1 模板只允许一个 `System:` 块（`rwkv-pf` 规则 `MULTIPLE_SYSTEM` /
+/// `SYSTEM_THEN_ROLE`），所以工具清单必须拼进同一个 System 块内，不能另起块。
+fn tools_block(tools: &[Value]) -> String {
     let defs: Vec<Value> = tools
         .iter()
         .filter_map(|tool| {
@@ -1350,9 +1568,131 @@ fn inject_tools(prompt: &mut String, tools: &[Value]) {
             }))
         })
         .collect();
-    prompt.push_str("System: Tools:\n");
-    prompt.push_str(&serde_json::to_string_pretty(&defs).unwrap_or_default());
-    prompt.push_str("\nReturn only a JSON function call.\n\n");
+    format!(
+        "Tools:\n{}\nReturn only a JSON function call.",
+        serde_json::to_string_pretty(&defs).unwrap_or_default()
+    )
+}
+
+/// 一轮对话式 few-shot（2026-11-11 prompt_lab 实验：对话轮示例是 3B 工具
+/// 调用 JSON 合法性的决定性变量——零样本会多闭合括号，而把示例写进
+/// System 文本完全无效）。示例从当次工具表合成（优先首个能合成出非空
+/// 参数的工具），保证示例工具恒在表内；格式模仿可泛化到表内其他工具
+/// （三选一实测 3/3）。
+fn tool_fewshot_block(tools: &[Value]) -> Option<String> {
+    // 优先选能合成出非空参数的工具做示例：空参数（{}）示例会让模型在需要
+    // 填参数时把 JSON schema 结构当参数值复读（2026-11-11 实测 3/3 复现）。
+    let mut empty_candidate: Option<(&str, serde_json::Map<String, Value>)> = None;
+    for tool in tools {
+        let Some(function) = tool.get("function") else {
+            continue;
+        };
+        let Some(name) = function.get("name").and_then(|n| n.as_str()) else {
+            continue;
+        };
+        let name = name.trim();
+        if name.is_empty() {
+            continue;
+        }
+        let mut args = serde_json::Map::new();
+        if let Some(props) = function
+            .get("parameters")
+            .and_then(|p| p.get("properties"))
+            .and_then(|p| p.as_object())
+        {
+            for (key, schema) in props.iter().take(2) {
+                let ty = schema.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                // 示例值必须真实感且互异：占位符（"example"）会让模型丢失
+                // 参数绑定能力——复读 schema 结构或塌陷重复（p2/p4/p6 实测），
+                // 真实值则连工具选择都纠正（p5 错选 vs p7 全对）。
+                let value = match ty {
+                    "string" => {
+                        if key.contains("path") {
+                            json!("note.txt")
+                        } else if key.contains("query") {
+                            json!("latest AI news")
+                        } else if key.contains("url") {
+                            json!("https://www.rwkv.cn")
+                        } else if key.contains("title") {
+                            json!("Reminder")
+                        } else if key.contains("message") || key.contains("msg") {
+                            json!("Don't forget your meeting at 3 PM.")
+                        } else {
+                            json!("hello")
+                        }
+                    }
+                    "number" | "integer" => json!(1),
+                    "boolean" => json!(true),
+                    _ => continue,
+                };
+                args.insert(key.clone(), value);
+            }
+        }
+        if !args.is_empty() {
+            return Some(build_fewshot(name, args));
+        }
+        if empty_candidate.is_none() {
+            empty_candidate = Some((name, args));
+        }
+    }
+    let (name, args) = empty_candidate?;
+    Some(build_fewshot(name, args))
+}
+
+fn build_fewshot(name: &str, args: serde_json::Map<String, Value>) -> String {
+    // 手工拼串保证 name 在 arguments 前，且冒号后带空格——3B 逐字模仿示例
+    // 风格：无空格紧凑风格会让输出丢 arguments 包装（2026-11-11 实测 3/3
+    // 扁平化；带空格风格 3/3 正确），也不受 preserve_order feature 影响。
+    let call = format!(
+        "{{\"name\": {}, \"arguments\": {}}}",
+        serde_json::to_string(name).unwrap_or_default(),
+        spaced_json(&Value::Object(args))
+    );
+    format!("User: Use the {name} tool.\n\nAssistant: ```json\n{call}\n```\n\n")
+}
+
+/// 冒号后带空格的紧凑 JSON（`{"a": 1, "b": "x"}`）——few-shot 示例的
+/// 固定排版，模型精确模仿该风格输出。
+fn spaced_json(value: &Value) -> String {
+    match value {
+        Value::Object(map) => {
+            let entries: Vec<String> = map
+                .iter()
+                .map(|(k, v)| {
+                    format!(
+                        "{}: {}",
+                        serde_json::to_string(k).unwrap_or_default(),
+                        spaced_json(v)
+                    )
+                })
+                .collect();
+            format!("{{{}}}", entries.join(", "))
+        }
+        Value::Array(arr) => {
+            let items: Vec<String> = arr.iter().map(spaced_json).collect();
+            format!("[{}]", items.join(", "))
+        }
+        _ => serde_json::to_string(value).unwrap_or_default(),
+    }
+}
+
+/// 本地 RWKV 停止序列（local_rwkv_sse / hybrid 工具轮共用）：角色标记组，
+/// Instruction 格式加空行停，工具轮加围栏收尾（与 consult.ts FENCE_STOPS
+/// 对齐：遇闭合 ``` 即停，省 token 并减少 bleed 对提取的干扰）。
+fn rwkv_stop_sequences(is_instruction_format: bool, has_tools: bool) -> Vec<String> {
+    let mut stop = vec![
+        "\n\nUser:".to_string(),
+        "\n\nSystem:".to_string(),
+        "\n\nInstruction:".to_string(),
+        "\n\nInput:".to_string(),
+    ];
+    if is_instruction_format {
+        stop.push("\n\n".to_string());
+    }
+    if has_tools {
+        stop.push("\n```".to_string());
+    }
+    stop
 }
 
 fn sanitize(content: &str) -> String {
@@ -1516,6 +1856,64 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn parses_real_usage_from_sse() {
+        let line = format!(
+            "data: {}",
+            json!({
+                "usage": {
+                    "prompt_tokens": 123,
+                    "completion_tokens": 45,
+                    "prompt_tokens_details": {"cached_tokens": 100}
+                }
+            })
+        );
+        let usage = gateway_usage_from_sse_line(&line);
+        assert!(usage.is_some());
+        let usage = usage.unwrap_or_default();
+        assert_eq!(usage.prompt, 123);
+        assert_eq!(usage.completion, 45);
+        assert_eq!(usage.cached_prompt, Some(100));
+        assert!(gateway_usage_from_sse_line("data: [DONE]").is_none());
+    }
+
+    /// 官方 G1 模板只允许一个 System 块（rwkv-pf: MULTIPLE_SYSTEM / SYSTEM_THEN_ROLE）。
+    /// 工具清单必须并进同一个 System 块，否则 RWKV 会把工具调用当纯文本续写。
+    #[test]
+    fn single_system_block_with_tools() {
+        let messages = vec![
+            json!({"role": "system", "content": "You are a local code worker.\n\nBe brief."}),
+            json!({"role": "system", "content": "Workspace: C:/tmp/task"}),
+            json!({"role": "user", "content": "Create notes.md"}),
+        ];
+        let tools = vec![json!({
+            "type": "function",
+            "function": {"name": "write", "description": "Write a file", "parameters": {"properties": {"path": {"type": "string"}}}}
+        })];
+        let prompt = openai_messages_to_rwkv_prompt(&messages, Some(&tools));
+
+        assert_eq!(
+            prompt.matches("System:").count(),
+            1,
+            "must have exactly one System block: {prompt}"
+        );
+        // System 之后必须直接是 User
+        let after_system = prompt.split("System: ").nth(1).unwrap_or_default();
+        assert!(
+            after_system.contains("\n\nUser: Create notes.md"),
+            "System block must be followed by User: {prompt}"
+        );
+        // 工具说明合并在同一个块内，且 System 块内没有空行
+        let system_block = after_system.split("\n\nUser: ").next().unwrap_or_default();
+        assert!(system_block.contains("Tools:"));
+        assert!(system_block.contains("Return only a JSON function call."));
+        assert!(
+            !system_block.contains("\n\n"),
+            "System block must not contain blank lines"
+        );
+        assert!(prompt.ends_with("Assistant: ```json\n"));
+    }
+
+    #[test]
     fn instruction_format_for_single_turn() {
         let messages = vec![
             json!({"role": "system", "content": "Extract the name"}),
@@ -1577,6 +1975,40 @@ mod tests {
         assert!(prompt.contains("\"description\": \"Read a UTF-8 text file\""));
         assert!(prompt.contains("Return only a JSON function call."));
         assert!(prompt.ends_with("Assistant: ```json\n"));
+        // 对话式 few-shot：System 之后、真实 User 之前，示例工具来自工具表
+        assert!(prompt.contains(
+            "User: Use the Read tool.\n\nAssistant: ```json\n{\"name\": \"Read\", \"arguments\": {\"file_path\": \"note.txt\"}}\n```\n\n"
+        ));
+        // few-shot 必须先于真实用户轮出现
+        let fs = prompt.find("Use the Read tool.").unwrap();
+        let real = prompt.find("User: Read the file").unwrap();
+        assert!(fs < real);
+        // 无工具不注入
+        let plain = openai_messages_to_rwkv_prompt(&messages, None);
+        assert!(!plain.contains("Use the Read tool."));
+        // 工具轮停止序列带围栏收尾；纯文本不带
+        assert!(rwkv_stop_sequences(false, true)
+            .iter()
+            .any(|s| s == "\n```"));
+        assert!(!rwkv_stop_sequences(false, false)
+            .iter()
+            .any(|s| s == "\n```"));
+        assert!(rwkv_stop_sequences(true, false).iter().any(|s| s == "\n\n"));
+    }
+
+    #[test]
+    fn fewshot_prefers_tool_with_args() {
+        // 空参数工具排前时，示例必须跳过它选首个能合成出参数的工具——
+        // 空 {} 示例会教模型把 schema 当参数值复读（p2 实测）。
+        let messages = vec![json!({"role": "user", "content": "hi"})];
+        let tools = vec![
+            json!({"type":"function","function":{"name":"ai00_todo_read","parameters":{}}}),
+            json!({"type":"function","function":{"name":"ai00_notify","parameters":{"properties":{"title":{"type":"string"}}}}}),
+        ];
+        let prompt = openai_messages_to_rwkv_prompt(&messages, Some(&tools));
+        assert!(prompt.contains("User: Use the ai00_notify tool."));
+        assert!(prompt
+            .contains("{\"name\": \"ai00_notify\", \"arguments\": {\"title\": \"Reminder\"}}"));
     }
 
     #[test]

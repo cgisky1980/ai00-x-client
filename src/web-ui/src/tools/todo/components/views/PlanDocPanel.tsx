@@ -1,6 +1,9 @@
 /**
  * PlanDocPanel — 策下半区右列：计划窗（抽屉式）。
  *
+ * 归属：仅 overlay 运行时（TodoPanel → BoardView）使用；策窗口已撤为设置窗口。
+ * 工作台计划展示见 `app/scenes/workbench/WorkbenchPlanPage` + `WorkbenchTaskCards`。
+ *
  * 三个抽屉：① 步骤——执行到哪一步（✓ 完成 / ▶ 当前 / □ 未开始，默认展开）；
  * ② 验收——DoD 清单（可点击代勾，agent 提交自检后此处放「验收通过/打回」，
  * 未提交时是「标记完成」人工路径）；③ 原文——计划 MD 全文查看/编辑（默认折叠）。

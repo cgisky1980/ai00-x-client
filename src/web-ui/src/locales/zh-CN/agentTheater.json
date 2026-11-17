@@ -57,7 +57,8 @@
     "thinking": "💭 后台琢磨剧本",
     "acceptance": "🎬 候场待验收",
     "alert": "💥 台上出岔",
-    "idle_tool": ""
+    "idle_tool": "",
+    "subagents": "{{count}} 个子代理在跑"
   },
   "notifyTurnSuccess": "任务完成",
   "notifyTurnFailed": "任务失败"

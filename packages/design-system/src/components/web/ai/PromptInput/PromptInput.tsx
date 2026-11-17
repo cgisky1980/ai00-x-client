@@ -1,9 +1,13 @@
 /**
- * PromptInput —— AI 聊天输入框（v0.16 AI 系，antd X Sender 对位）
- * ChatInput 降耦重制：自增高 + Enter 发送（IME 合成中不触发）+
- * loading→停止按钮；footer slot 供业务扩展（模型选择走配套 ModelSelector）。
- * v0.16：发送/停止改圆形图标按钮（ArrowUp / 方点呼吸）；footer 左右分区
- * （footerLeft=模型选择等 / footerRight=辅助信息），footer 兜底整行。
+ * PromptInput —— AI 对话输入框（v0.17 对齐 DSH/ZCode composer 形态）
+ *
+ * 形态 = 一张卡片 + 卡下 dock：
+ *   card: [ 候选菜单锚点 ] [ textarea ] [ 工具行 = leading / controls / trailing + 提交键 ]
+ *   dock: 快捷键提示等辅助读数（窄容器隐藏）
+ *
+ * 与 v0.16 的差异：删除 footer 分隔线（footer/footerLeft/footerRight → 工具行槽位），
+ * 发送键从文本行移入工具行右端，候选浮层改为卡片上方绝对定位（不撑高输入框），
+ * 并给业务方提供菜单键盘拦截点（menuOpen + onMenuKeyDown）。
  */
 import React, { forwardRef, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { label } from '../../../../lib/labels';
@@ -30,23 +34,36 @@ export interface PromptInputProps {
   loading?: boolean;
   /**
    * Agent 当前回合仍在运行（启用「发送 + 停止并存、运行中可排队/插话」契约）。
-   * 不传则保持旧行为，避免其他场景被静默改变。
    */
   running?: boolean;
   /** 正在停止当前回合（停止按钮防重入，发送仍可用）。 */
   stopping?: boolean;
-  /** 排队与插话的提示文案是否显示（默认 true；窄栏可关闭）。 */
+  /** 快捷键提示是否显示（默认 true；窄容器自动隐藏）。 */
   showShortcutHint?: boolean;
   placeholder?: string;
   disabled?: boolean;
   /** px，默认 200；超出内滚 */
   maxHeight?: number;
-  /** 底部扩展条（旧整行 slot；与 footerLeft/footerRight 互斥优先） */
-  footer?: React.ReactNode;
-  /** 底部左侧（模型选择/工具入口等） */
-  footerLeft?: React.ReactNode;
-  /** 底部右侧（辅助信息：字数/快捷键提示等） */
-  footerRight?: React.ReactNode;
+  /** 工具行最左槽位（「+」菜单入口等）。 */
+  leading?: React.ReactNode;
+  /** 卡片上方的上下文条（工作目录 / 分支等；不参与卡片边框）。 */
+  above?: React.ReactNode;
+  /** 工具行中左槽位（计划/技能等常驻控件）。 */
+  controls?: React.ReactNode;
+  /** 提交键左侧槽位（模型位、思考档位）。 */
+  trailing?: React.ReactNode;
+  /** 卡片上方的候选浮层（`@` 引用、`/` 命令面板；由业务侧渲染内容）。 */
+  overlay?: React.ReactNode;
+  /** 候选浮层是否打开：打开时 Enter 交给 onMenuKeyDown，不直接发送。 */
+  menuOpen?: boolean;
+  /** 候选浮层键盘裁决（↑↓ / Enter / Tab / Esc）；返回 true 表示已消费。 */
+  onMenuKeyDown?(event: React.KeyboardEvent<HTMLTextAreaElement>): boolean;
+  /** 浮层高亮项 id（透传 textarea 的 aria-activedescendant）。 */
+  activeDescendantId?: string;
+  /** 光标附近的文本变化回调（用于 @ / 触发词检测；不改变输入值语义）。 */
+  onCaretContext?(context: { before: string; value: string }): void;
+  /** 视觉变体：hero = 首屏大输入（更矮的起始高度、两行占位）。 */
+  variant?: 'default' | 'hero';
   className?: string;
 }
 
@@ -101,9 +118,16 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
       placeholder,
       disabled = false,
       maxHeight = 200,
-      footer,
-      footerLeft,
-      footerRight,
+      leading,
+      above,
+      controls,
+      trailing,
+      overlay,
+      menuOpen = false,
+      onMenuKeyDown,
+      activeDescendantId,
+      onCaretContext,
+      variant = 'default',
       className = '',
     },
     ref,
@@ -149,6 +173,11 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
     );
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // 候选浮层优先：Enter/Tab/↑↓/Esc 由业务方裁决，采纳不触发发送
+      if (menuOpen && onMenuKeyDown && onMenuKeyDown(e)) {
+        e.preventDefault();
+        return;
+      }
       if (e.key !== 'Enter') return;
       // IME 合成中（含 keyCode 229 遗留行为）不拦截
       if (composingRef.current || composing || e.nativeEvent.isComposing) return;
@@ -159,19 +188,25 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
       submit(accelerated ? 'steer' : 'queue');
     };
 
-    // 旧调用方没有任何 footer 槽时不新增 footer（避免悄悄改变既有场景布局）
-    const hasContainers = footer != null || footerLeft != null || footerRight != null;
-    const hasFooter = hasContainers || (showShortcutHint && isRunningContract);
     const defaultHint = isRunningContract && running
-      ? label(
-          'components.ai.runningHint',
-          'Enter 排队 · Ctrl/Cmd+Enter 插话',
-        )
+      ? label('components.ai.runningHint', 'Enter 排队 · Ctrl/Cmd+Enter 插话')
       : label('components.ai.idleHint', 'Enter 发送 · Shift+Enter 换行');
+    const hasDock = showShortcutHint;
 
     return (
-      <div className={['ai-prompt-input', disabled && 'is-disabled', className].filter(Boolean).join(' ')}>
-        <div className="ai-prompt-input__row">
+      <div
+        className={[
+          'ai-prompt-input',
+          `ai-prompt-input--${variant}`,
+          disabled && 'is-disabled',
+          className,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {above && <div className="ai-prompt-input__above">{above}</div>}
+        <div className="ai-prompt-input__card">
+          {overlay}
           <textarea
             ref={setRefs}
             className="ai-prompt-input__textarea"
@@ -179,7 +214,19 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
             placeholder={placeholder ?? label('components.ai.placeholder', '给 AI 发送消息…')}
             disabled={disabled}
             rows={1}
-            onChange={(e) => onChange(e.target.value)}
+            aria-activedescendant={menuOpen ? activeDescendantId : undefined}
+            aria-expanded={menuOpen || undefined}
+            aria-autocomplete={menuOpen ? 'list' : undefined}
+            onChange={(e) => {
+              onChange(e.target.value);
+              if (onCaretContext) {
+                const el = e.currentTarget;
+                onCaretContext({
+                  before: e.target.value.slice(0, el.selectionStart ?? e.target.value.length),
+                  value: e.target.value,
+                });
+              }
+            }}
             onKeyDown={handleKeyDown}
             onCompositionStart={() => {
               composingRef.current = true;
@@ -190,68 +237,67 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
               setComposing(false);
             }}
           />
-          {isRunningContract && onStop && running && (
-            <button
-              type="button"
-              className="ai-prompt-input__stop"
-              onClick={onStop}
-              disabled={stopping}
-              aria-label={
-                stopping
-                  ? label('components.ai.stopping', '正在停止…')
-                  : label('components.ai.stopTurn', '停止当前回合')
-              }
-              title={
-                stopping
-                  ? label('components.ai.stopping', '正在停止…')
-                  : label('components.ai.stopTurn', '停止当前回合')
-              }
-            >
-              <StopIcon />
-            </button>
-          )}
-          {showStopInsteadOfSend ? (
-            <button
-              type="button"
-              className="ai-prompt-input__stop"
-              onClick={onStop}
-              aria-label={label('components.ai.stop', '停止')}
-              title={label('components.ai.stop', '停止')}
-            >
-              <StopIcon />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={`ai-prompt-input__send${isRunningContract && running ? ' is-queue' : ''}`}
-              disabled={!canSend}
-              onClick={() => submit('queue')}
-              aria-label={
-                isRunningContract && running
-                  ? label('components.ai.queue', '加入排队')
-                  : label('components.ai.send', '发送')
-              }
-              title={
-                isRunningContract && running
-                  ? label('components.ai.queueHint', '加入排队（Enter），Ctrl/Cmd+Enter 在安全边界插话')
-                  : label('components.ai.send', '发送')
-              }
-            >
-              {isRunningContract && running ? <QueueIcon /> : <SendIcon />}
-            </button>
-          )}
+          <div className="ai-prompt-input__tools">
+            {leading && <div className="ai-prompt-input__leading">{leading}</div>}
+            {controls && <div className="ai-prompt-input__controls">{controls}</div>}
+            <div className="ai-prompt-input__trailing">
+              {trailing}
+              {isRunningContract && onStop && running && (
+                <button
+                  type="button"
+                  className="ai-prompt-input__stop"
+                  onClick={onStop}
+                  disabled={stopping}
+                  aria-label={
+                    stopping
+                      ? label('components.ai.stopping', '正在停止…')
+                      : label('components.ai.stopTurn', '停止当前回合')
+                  }
+                  title={
+                    stopping
+                      ? label('components.ai.stopping', '正在停止…')
+                      : label('components.ai.stopTurn', '停止当前回合')
+                  }
+                >
+                  <StopIcon />
+                </button>
+              )}
+              {showStopInsteadOfSend ? (
+                <button
+                  type="button"
+                  className="ai-prompt-input__stop"
+                  onClick={onStop}
+                  aria-label={label('components.ai.stop', '停止')}
+                  title={label('components.ai.stop', '停止')}
+                >
+                  <StopIcon />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={`ai-prompt-input__send${isRunningContract && running ? ' is-queue' : ''}`}
+                  disabled={!canSend}
+                  onClick={() => submit('queue')}
+                  aria-label={
+                    isRunningContract && running
+                      ? label('components.ai.queue', '加入排队')
+                      : label('components.ai.send', '发送')
+                  }
+                  title={
+                    isRunningContract && running
+                      ? label('components.ai.queueHint', '加入排队（Enter），Ctrl/Cmd+Enter 在安全边界插话')
+                      : label('components.ai.send', '发送')
+                  }
+                >
+                  {isRunningContract && running ? <QueueIcon /> : <SendIcon />}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-        {hasFooter && (
-          <div className="ai-prompt-input__footer">
-            {footer ?? (
-              <>
-                <div className="ai-prompt-input__footer-left">{footerLeft}</div>
-                <div className="ai-prompt-input__footer-right">
-                  {footerRight ??
-                    (showShortcutHint && isRunningContract ? <span>{defaultHint}</span> : null)}
-                </div>
-              </>
-            )}
+        {hasDock && (
+          <div className="ai-prompt-input__dock">
+            <span className="ai-prompt-input__hint">{defaultHint}</span>
           </div>
         )}
       </div>

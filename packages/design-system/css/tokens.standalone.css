@@ -2,7 +2,7 @@
 /* ============================================================
  * @ai00-x/design-system tokens — AUTO-GENERATED（pnpm build 产物，勿手改）
  * 源：tokens/{primitives,semantic.dark,semantic.light,aliases}.json（DTCG 2025.10）
- * 规范：参考/前端视觉设计规范-新东方极简.md（token 命名 1:1 直出）
+ * 规范：参考/前端视觉设计规范.md（总则第二节：token 命名 1:1 直出）
  * 主题：:root 为暗色默认「深墨」；[data-theme-type="light"] 为亮色「宣纸」
  * 换肤：色值内嵌 var(--hue/--chroma/--chroma-surface/--gray-level) 回退公式，
  *       ThemeService 覆盖这些变量即整体换肤（朱砂不联动）
@@ -16,6 +16,7 @@
   --size-radius-lg: 12px;
   --size-radius-xl: 16px;
   --size-radius-2xl: 20px;
+  --size-radius-3xl: 28px;
   --size-radius-full: 9999px;
   --size-gap-1: 4px;
   --size-gap-2: 8px;
@@ -388,7 +389,7 @@
 html[data-theme-type='light'] {
   color-scheme: light;
 
-  /* ==== semantic · 亮色·宣纸（规范 4.1/4.5） ==== */
+  /* ==== semantic · 亮色·宣纸（规范分册一 10.6） ==== */
   --color-bg-base: oklch(0.96 0.008 90);
   --color-bg-sunken: oklch(0.93 0.010 90);
   --color-bg-shell: oklch(0.88 0.010 90);
@@ -1997,7 +1998,7 @@ html[data-style='comic'][data-theme-type='dark'] {
 
 /* ---- styles/comic/components.css（风格专属组件形态） ---- */
 /* ============================================================
- * 漫画风（comic）· 风格专属组件形态（规范第九节 9.5）
+ * 漫画风（comic）· 风格专属组件形态（规范总则 1.5；形态定义见分册二 11.5）
  *
  * 形态语言取自参考站 discuss.flarum.org.cn/extensions 的实测设计语言：
  *   「现代网格骨架 + 漫画贴纸细节」的克制派——
@@ -2008,7 +2009,7 @@ html[data-style='comic'][data-theme-type='dark'] {
  * css/style-packs/comic.css 末尾，在 components.css 与各 BEM SCSS 之后，
  * 故同特异性下可覆盖基座形态）。
  *
- * 分工纪律（规范 9.4/9.6）——能用 token 表达的绝不在本文件重复：
+ * 分工纪律（规范总则 1.4/1.6）——能用 token 表达的绝不在本文件重复：
  *   ✅ 描边色/宽   → tokens.json 覆盖 border.* + style.stroke.width = 2px
  *   ✅ 硬投影阶梯  → tokens.json 覆盖 shadow.*（2/3 → 8/9px，零模糊）
  *   ✅ 圆角        → tokens.json 覆盖 size.radius.* + radius.*（10/12/15/19/22px）
@@ -2163,7 +2164,7 @@ html[data-style='comic'][data-theme-type='dark'] {
   transform: rotate(45deg) skew(8deg, 8deg);
 }
 
-/* ==================== 9. 动效克制（规范 9.2 契约） ====================
+/* ==================== 9. 动效克制（规范总则 1.2 契约） ====================
  * 漫画风不加新动效；位移反馈在 reduce 模式下退化为纯颜色变化。 */
 @media (prefers-reduced-motion: reduce) {
   [data-style='comic'] .ds-card:hover,

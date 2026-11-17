@@ -36,6 +36,8 @@ interface SessionRuntime {
   category: AgentCategory;
   intensity: 0 | 1 | 2;
   hasImp: boolean;
+  /** 该会话正在运行的子代理数（角标；0 = 不显示） */
+  subagents: number;
   milestoneCount: number;
   /** 最近工具事件时间戳（强度统计用，保留窗口内） */
   toolTimestamps: number[];
@@ -49,6 +51,14 @@ interface SessionRuntime {
   transientTimer: (() => void) | null;
   /** thinking 间隙标记（一次长静默只记 1 次） */
   inThinkingGap: boolean;
+}
+
+/** 对账输入的一行运行中会话（workbench 的 session/list 投影）。 */
+export interface RunningSessionInput {
+  sessionId: string;
+  title?: string;
+  /** 子代理子会话：不单独占工灵，只计入父会话工灵的角标。 */
+  parentSessionId?: string;
 }
 
 interface ImpManagerOptions {
@@ -80,6 +90,8 @@ function extractTaskLabel(data: unknown): string {
 
 export class ImpManager {
   private readonly sessions = new Map<string, SessionRuntime>();
+  /** 已知的子代理子会话（不占工灵；事件一律忽略，只参与父会话角标计数）。 */
+  private readonly childSessions = new Set<string>();
   private readonly cb: ImpManagerCallbacks;
   private readonly getSessionTitle?: (sessionId: string) => string | undefined;
   private readonly now: () => number;
@@ -129,6 +141,8 @@ export class ImpManager {
 
   /** 消费一条会话事件（测试可直接喂） */
   handleSessionEvent(sessionId: string, event: DshSessionEvent): void {
+    // 子代理子会话不单独成灵：它的动静体现在父会话的角标上
+    if (this.childSessions.has(sessionId)) return;
     const now = this.now();
     switch (event.type) {
       case 'turn/start':
@@ -334,10 +348,26 @@ export class ImpManager {
   /**
    * 运行中会话对账：running 且尚无工灵的会话 → 补生成（错过 turn/start 的场景：
    * 中途开启剧场 / 会话先于订阅启动）。taskLabel 优先用会话标题。
+   *
+   * 带 `parentSessionId` 的行是子代理子会话：不生成工灵，只累加到父会话的角标；
+   * 历史上误建的子会话工灵在这里撤掉（早期事件先于对账到达时会短暂出现）。
    */
-  syncRunningSessions(running: Array<{ sessionId: string; title?: string }>): void {
+  syncRunningSessions(running: RunningSessionInput[]): void {
     const now = this.now();
-    for (const { sessionId, title } of running) {
+    const childCounts = new Map<string, number>();
+    const children: string[] = [];
+    for (const { sessionId, parentSessionId } of running) {
+      if (!parentSessionId) continue;
+      children.push(sessionId);
+      this.childSessions.add(sessionId);
+      childCounts.set(parentSessionId, (childCounts.get(parentSessionId) ?? 0) + 1);
+    }
+    for (const childId of children) {
+      if (this.sessions.has(childId)) this.dropSession(childId);
+    }
+
+    for (const { sessionId, title, parentSessionId } of running) {
+      if (parentSessionId) continue;
       if (this.sessions.has(sessionId)) {
         // 已有工灵：回填空的任务标签
         const rt = this.sessions.get(sessionId);
@@ -351,6 +381,14 @@ export class ImpManager {
       const rt: SessionRuntime = this.createRuntime(sessionId, title ?? '', now);
       this.sessions.set(sessionId, rt);
       this.scheduleTransient(sessionId, 'working');
+      this.emitState(sessionId);
+    }
+
+    // 角标对账：父工灵挂上「运行中的子代理数」，归零即摘掉
+    for (const [sessionId, rt] of this.sessions) {
+      const next = childCounts.get(sessionId) ?? 0;
+      if (rt.subagents === next) continue;
+      rt.subagents = next;
       this.emitState(sessionId);
     }
   }
@@ -385,6 +423,7 @@ export class ImpManager {
       category: 'general',
       intensity: 0,
       hasImp: this.countSlottedImps() < MAX_CONCURRENT_IMPS,
+      subagents: 0,
       milestoneCount: 0,
       toolTimestamps: [],
       lastEventAt: now,
@@ -490,6 +529,7 @@ export class ImpManager {
       toolCalls: rt.stats.toolCalls,
       errors: rt.stats.errors,
       maxConsecutiveErrors: rt.stats.maxConsecutiveErrors,
+      subagents: rt.subagents,
     };
   }
 

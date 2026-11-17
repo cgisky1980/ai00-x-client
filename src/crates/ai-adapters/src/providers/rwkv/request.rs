@@ -377,7 +377,10 @@ fn format_params(tool: &ToolDefinition) -> String {
     String::new()
 }
 
-fn estimate_prompt_tokens(text: &str) -> usize {
+/// RWKV 本地推理的 token 估算口径（无 tokenizer 计数时的统一出口：
+/// ASCII 0.3 / 非 ASCII 0.6 每字符）。各本地直连路径（打分/分类等）复用它，
+/// 避免出现第二套估算系数。
+pub fn estimate_prompt_tokens(text: &str) -> usize {
     if text.is_empty() {
         return 0;
     }

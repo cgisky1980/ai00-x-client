@@ -12,17 +12,17 @@ export interface AcceptanceItem {
   done: boolean;
 }
 
-/** 解析 MD 的「## 验收」段（无段/无项 → 空数组 = 免验收）。 */
+/** 解析 MD 的「## 验收」段（中英标题都认；无段/无项 → 空数组 = 免验收）。 */
 export function parseAcceptance(md: string | null): AcceptanceItem[] {
-  return parseSectionItems(md, '验收');
+  return parseSectionItems(md, ['验收', 'acceptance']);
 }
 
 /** 解析 MD 的「## 步骤」段（带行号；旧数字列表格式无 checkbox → 空数组）。 */
 export function parseStepItems(md: string | null): AcceptanceItem[] {
-  return parseSectionItems(md, '步骤');
+  return parseSectionItems(md, ['步骤', 'steps', 'step']);
 }
 
-function parseSectionItems(md: string | null, section: string): AcceptanceItem[] {
+function parseSectionItems(md: string | null, sections: string[]): AcceptanceItem[] {
   if (!md) return [];
   const lines = md.split('\n');
   const items: AcceptanceItem[] = [];
@@ -30,7 +30,7 @@ function parseSectionItems(md: string | null, section: string): AcceptanceItem[]
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (/^##\s/.test(line)) {
-      inSection = new RegExp(`^##\\s*${section}`).test(line);
+      inSection = sections.some((section) => new RegExp(`^##\\s*${section}`, 'i').test(line));
       continue;
     }
     if (!inSection) continue;

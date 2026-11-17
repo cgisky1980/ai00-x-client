@@ -155,6 +155,29 @@ pub async fn extract(query: &str, max_results: Option<usize>) -> Vec<PageExtract
     pages
 }
 
+/// url 直达模式：抓取指定单页 → 提正文（web_fetch 的本机替代）。
+///
+/// 与 query 模式不同：不做搜索、不做本地筛选——调用方已明确指定页面，
+/// 正文（≤ PAGE_MD_CHARS 清洗 Markdown）直接交还模型；需要摘要由调用方
+/// 再接 ai00_text_summarize，职责单一、延迟可控。
+/// 返回 None = 抓取/提取失败（SSRF 拦截、超时、空壳渲染失败等）。
+pub async fn extract_url(url: &str) -> Option<PageExtract> {
+    let markdown = fetch_page_markdown(url).await?;
+    // 标题：取正文首个一级标题；无则空串（调用方可从 URL 判断来源）
+    let title = markdown
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("# ").map(str::trim))
+        .filter(|t| !t.is_empty())
+        .map(|t| t.chars().take(120).collect())
+        .unwrap_or_default();
+    Some(PageExtract {
+        title,
+        url: url.to_string(),
+        summary: markdown,
+        degraded: false,
+    })
+}
+
 /// 空壳/SPA 判定：剥掉 script/style 与标签后的可见文本过短、而页面总体偏大
 /// （脚本密集）——典型的前端框架空壳特征。
 fn is_shell_page(html: &str) -> bool {
@@ -425,6 +448,7 @@ async fn screen_page(query: &str, page: &FetchedPage, markdown: &str) -> Option<
         turn("RWKV 是什么", "RWKV 是一种结合了 RNN 和 Transformer 优点的大模型架构，推理快速、节省显存，支持无限上下文。"),
         turn(&query_clean, markdown),
     );
+    let started = std::time::Instant::now();
     let infer = async {
         let mut rx = pool_infer(
             prompt,
@@ -442,16 +466,33 @@ async fn screen_page(query: &str, page: &FetchedPage, markdown: &str) -> Option<
         )
         .await?;
         let mut text = String::new();
+        let mut input_tokens = 0usize;
+        let mut output_tokens = 0usize;
         while let Some(event) = rx.recv().await {
             match event {
-                InferenceEvent::Done { text: t, .. } => {
+                InferenceEvent::Done {
+                    text: t,
+                    input_tokens: it,
+                    output_tokens: ot,
+                    ..
+                } => {
                     text = t;
+                    input_tokens = it;
+                    output_tokens = ot;
                     break;
                 }
                 InferenceEvent::Error(e) => return Err(e),
                 _ => {}
             }
         }
+        crate::rwkv_llm::record_local_usage(
+            "local-direct-extract",
+            "rwkv-local",
+            input_tokens,
+            output_tokens,
+            started.elapsed().as_millis() as u64,
+        )
+        .await;
         Ok(text)
     };
     let text = match tokio::time::timeout(Duration::from_secs(SCREEN_TIMEOUT_SECS), infer).await {
@@ -505,6 +546,7 @@ async fn summarize_once(
     max_tokens: usize,
     top_p: f32,
 ) -> Result<(String, bool), String> {
+    let started = std::time::Instant::now();
     let mut rx = pool_infer(
         prompt,
         max_tokens,
@@ -523,14 +565,19 @@ async fn summarize_once(
     .inspect_err(|e| maybe_lazy_init(e))?;
     let mut text = String::new();
     let mut hit_len = false;
+    let mut input_tokens = 0usize;
+    let mut output_tokens = 0usize;
     while let Some(event) = rx.recv().await {
         match event {
             InferenceEvent::Done {
                 text: t,
+                input_tokens: it,
+                output_tokens: ot,
                 stop_sequence,
-                ..
             } => {
                 text = t;
+                input_tokens = it;
+                output_tokens = ot;
                 hit_len = stop_sequence.is_none();
                 break;
             }
@@ -538,6 +585,14 @@ async fn summarize_once(
             _ => {}
         }
     }
+    crate::rwkv_llm::record_local_usage(
+        "local-direct-summarize",
+        "rwkv-local",
+        input_tokens,
+        output_tokens,
+        started.elapsed().as_millis() as u64,
+    )
+    .await;
     Ok((text.trim().to_string(), hit_len))
 }
 

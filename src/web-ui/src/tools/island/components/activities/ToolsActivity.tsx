@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import {
   AppWindow,
   LayoutGrid,
-  ListTodo,
   MessageCircle,
   MonitorSmartphone,
 } from 'lucide-react'
@@ -38,14 +37,6 @@ export const ToolsActivity: React.FC = () => {
       },
     },
     {
-      key: 'task',
-      icon: AppWindow,
-      label: '打开设置',
-      onClick: () => {
-        window.dispatchEvent(new CustomEvent('scene:open', { detail: { sceneId: 'settings' } }))
-      },
-    },
-    {
       key: 'chat',
       icon: MessageCircle,
       label: '聊天',
@@ -54,13 +45,14 @@ export const ToolsActivity: React.FC = () => {
       },
     },
     {
-      key: 'tasks',
-      icon: ListTodo,
-      label: '待办清单',
+      key: 'settings',
+      icon: AppWindow,
+      label: '设置',
       onClick: () => {
-        // 「策」已是独立窗口：这里是轻量入口，完整看板在 tasks 窗口里。
-        // 到点提醒不依赖本入口——提醒由常驻 overlay 的策运行时（TodoOverlay）驱动。
-        WindowAPI.open('tasks').catch(() => {})
+        // 「策」窗口已回退为设置窗口（label: settings，2026-11-08）：这里打开
+        // 独立设置窗口。到点提醒不依赖本入口——提醒由常驻 overlay 的策运行时
+        // （TodoOverlay）驱动。
+        WindowAPI.open('settings').catch(() => {})
       },
     },
     {

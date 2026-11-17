@@ -156,6 +156,41 @@ describe('ImpManager 状态机', () => {
   });
 });
 
+describe('ImpManager 子代理', () => {
+  it('子会话不占工灵，运行数挂到父工灵角标', () => {
+    const { manager, states } = makeManager();
+    manager.syncRunningSessions([
+      { sessionId: 'p1', title: '父任务' },
+      { sessionId: 'c1', parentSessionId: 'p1' },
+      { sessionId: 'c2', parentSessionId: 'p1' },
+    ]);
+    expect(states.has('c1')).toBe(false);
+    expect(states.get('p1')?.subagents).toBe(2);
+
+    // 子会话自己的事件不再生成工灵
+    manager.handleSessionEvent('c1', ev('turn/start', { userInput: '子代理活' }));
+    expect(states.has('c1')).toBe(false);
+
+    // 子代理结束：不再出现在运行列表 → 角标归零
+    manager.syncRunningSessions([{ sessionId: 'p1', title: '父任务' }]);
+    expect(states.get('p1')?.subagents).toBe(0);
+    manager.dispose();
+  });
+
+  it('子会话先被事件误建工灵 → 对账时撤掉并计入角标', () => {
+    const { manager, states } = makeManager();
+    manager.handleSessionEvent('c1', ev('turn/start', { userInput: 'x' }));
+    expect(states.has('c1')).toBe(true);
+    manager.syncRunningSessions([
+      { sessionId: 'p1' },
+      { sessionId: 'c1', parentSessionId: 'p1' },
+    ]);
+    expect(states.has('c1')).toBe(false);
+    expect(states.get('p1')?.subagents).toBe(1);
+    manager.dispose();
+  });
+});
+
 describe('ImpManager 结算', () => {
   it('turn/end 无失败 → success（deliver-big）；有失败 → failed', () => {
     const { manager, states, turnEndeds, clock } = makeManager();

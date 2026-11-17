@@ -12,24 +12,38 @@
  * See `client/参考/2026-11-06-工作台体系计划.md`.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LayoutGrid } from 'lucide-react';
 import { mountScenePage } from '@/infrastructure/plugins/runtime';
 import { useWorkbench } from '@/infrastructure/plugins/workbenchRegistry';
+import type { WorkbenchOpenSessionIntent } from '@/infrastructure/plugins/workbenchSession';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useResizablePane } from '@/hooks/useResizablePane';
 import { attachPageRailResizer } from './pageRailResizer';
 import { WorkbenchChatPanel } from './WorkbenchChatPanel';
+import { WorkbenchTabs, type WorkbenchTabItem } from './WorkbenchTabs';
+import { WorkbenchFilePreview } from './WorkbenchFilePreview';
+import { activeFilePath, useWorkbenchTabs } from './useWorkbenchTabs';
 import './WorkbenchScene.scss';
 
 interface WorkbenchSceneProps {
-  workbenchId: string;
+  /** 插件工作台 id；为空时只承载外部会话（策看板移交的会话）。 */
+  workbenchId?: string | null;
   /** 右侧 AI 区是否显示（宿主工具栏控制；窄窗口下为浮层）。 */
   chatVisible?: boolean;
+  /** 外部会话绑定（优先于插件页的工程绑定）。 */
+  externalSession?: WorkbenchOpenSessionIntent | null;
+  onExitExternalSession?: () => void;
 }
 
 type MountStatus = 'loading' | 'ready' | 'failed';
 
-export function WorkbenchScene({ workbenchId, chatVisible = true }: WorkbenchSceneProps) {
+export function WorkbenchScene({
+  workbenchId = null,
+  chatVisible = true,
+  externalSession = null,
+  onExitExternalSession,
+}: WorkbenchSceneProps) {
   const { t } = useI18n('common');
   const entry = useWorkbench(workbenchId);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -90,53 +104,128 @@ export function WorkbenchScene({ workbenchId, chatVisible = true }: WorkbenchSce
     });
   }, [entry, status, t]);
 
-  if (!entry) {
+  /** AI 区承载条件：外部会话，或插件声明了会话绑定。 */
+  const showChat = Boolean(externalSession) || Boolean(entry?.bindsSession);
+
+  // ---- 中间标签区：首页=插件页（不可关闭），其余=文件预览 ----
+  const tabs = useWorkbenchTabs(entry?.id ?? 'external-session');
+  const currentPath = activeFilePath(tabs.activeKey);
+  const tabItems = useMemo<WorkbenchTabItem[]>(
+    () => [
+      {
+        key: 'home',
+        kind: 'home',
+        title: entry?.title ?? t('nav.workbenchScene.externalTitle'),
+        icon: <LayoutGrid size={13} />,
+      },
+      ...tabs.fileTabs.map((tab) => ({
+        key: tab.key,
+        kind: 'file' as const,
+        title: tab.title,
+        tooltip: tab.path,
+        icon: <LayoutGrid size={13} />,
+      })),
+    ],
+    [entry?.title, tabs.fileTabs, t],
+  );
+
+  const pickFile = useCallback((): void => {
+    void import('@tauri-apps/plugin-dialog').then(({ open }) =>
+      open({
+        multiple: false,
+        directory: false,
+        title: t('nav.workbenchWindow.tabs.pickFile'),
+      }).then((picked) => {
+        if (typeof picked === 'string') tabs.openFile(picked);
+      }),
+    );
+  }, [tabs, t]);
+
+  if (!entry && !externalSession) {
     return (
       <div className="ai00-x-workbench-scene">
         <div className="ai00-x-workbench-scene__empty">
-          {t('nav.workbenchScene.notInstalled', { id: workbenchId })}
+          {t('nav.workbenchScene.notInstalled', { id: workbenchId ?? '' })}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="ai00-x-workbench-scene" data-workbench-id={entry.id}>
+    <div className="ai00-x-workbench-scene" data-workbench-id={entry?.id ?? 'external-session'}>
       <div
-        className={`ai00-x-workbench-scene__body${chatVisible ? ' is-chat-visible' : ''}`}
+        className={`ai00-x-workbench-scene__body${showChat && chatVisible ? ' is-chat-visible' : ''}`}
         style={{ '--workbench-chat-width': `${chat.width}px` } as React.CSSProperties}
       >
         <div className="ai00-x-workbench-scene__main">
-          <div className="ai00-x-workbench-scene__host" ref={hostRef} />
-          {status === 'loading' && (
-            <div className="ai00-x-workbench-scene__loading" role="status" aria-live="polite">
-              <span className="ai00-x-workbench-scene__loading-bar" aria-hidden="true" />
-              <span className="ai00-x-workbench-scene__loading-bar" aria-hidden="true" />
-              <span className="ai00-x-workbench-scene__loading-bar" aria-hidden="true" />
-              <p>{t('nav.workbenchScene.loading', { title: entry.title })}</p>
+          <WorkbenchTabs
+            tabs={tabItems}
+            activeKey={tabs.activeKey}
+            onChange={tabs.setActiveKey}
+            onClose={tabs.closeTab}
+            onPickFile={pickFile}
+          >
+            {/* 插件宿主保持挂载：切到文件标签只是隐藏，不卸载插件实例 */}
+            <div
+              className={`ai00-x-workbench-scene__home${currentPath ? ' is-hidden' : ''}`}
+            >
+              {entry ? (
+                <>
+                  <div className="ai00-x-workbench-scene__host" ref={hostRef} />
+                  {status === 'loading' && (
+                    <div className="ai00-x-workbench-scene__loading" role="status" aria-live="polite">
+                      <span className="ai00-x-workbench-scene__loading-bar" aria-hidden="true" />
+                      <span className="ai00-x-workbench-scene__loading-bar" aria-hidden="true" />
+                      <span className="ai00-x-workbench-scene__loading-bar" aria-hidden="true" />
+                      <p>{t('nav.workbenchScene.loading', { title: entry.title })}</p>
+                    </div>
+                  )}
+                  {status === 'failed' && (
+                    <div className="ai00-x-workbench-scene__error" role="alert">
+                      <p className="ai00-x-workbench-scene__error-title">
+                        {t('nav.workbenchScene.loadFailed', { title: entry.title })}
+                      </p>
+                      <p className="ai00-x-workbench-scene__error-hint">
+                        {t('nav.workbenchScene.loadFailedHint')}
+                      </p>
+                      <button type="button" className="ai00-x-workbench-scene__error-retry" onClick={retry}>
+                        {t('nav.workbenchScene.retry')}
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="ai00-x-workbench-scene__external">
+                  <p className="ai00-x-workbench-scene__external-title">
+                    {t('nav.workbenchScene.externalTitle')}
+                  </p>
+                  <p className="ai00-x-workbench-scene__external-hint">
+                    {t('nav.workbenchScene.externalHint')}
+                  </p>
+                  {externalSession?.cwd && (
+                    <p className="ai00-x-workbench-scene__external-cwd">
+                      <span>{t('nav.workbenchScene.externalCwd')}</span>
+                      <code>{externalSession.cwd}</code>
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-          {status === 'failed' && (
-            <div className="ai00-x-workbench-scene__error" role="alert">
-              <p className="ai00-x-workbench-scene__error-title">
-                {t('nav.workbenchScene.loadFailed', { title: entry.title })}
-              </p>
-              <p className="ai00-x-workbench-scene__error-hint">
-                {t('nav.workbenchScene.loadFailedHint')}
-              </p>
-              <button type="button" className="ai00-x-workbench-scene__error-retry" onClick={retry}>
-                {t('nav.workbenchScene.retry')}
-              </button>
-            </div>
-          )}
+            {currentPath && <WorkbenchFilePreview path={currentPath} />}
+          </WorkbenchTabs>
         </div>
-        {entry.bindsSession && chatVisible && (
+        {showChat && chatVisible && (
           <>
             <div
               className={`ai00-x-workbench-scene__chat-resizer${chat.dragging ? ' is-dragging' : ''}`}
               {...chat.handleProps}
             />
-            <WorkbenchChatPanel entry={entry} pluginUnavailable={status === 'failed'} />
+            <WorkbenchChatPanel
+              entry={entry}
+              pluginUnavailable={Boolean(entry) && status === 'failed'}
+              externalSession={externalSession}
+              {...(onExitExternalSession ? { onExitExternalSession } : {})}
+            />
           </>
         )}
       </div>

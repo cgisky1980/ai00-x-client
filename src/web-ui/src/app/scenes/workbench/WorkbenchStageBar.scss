@@ -1,0 +1,124 @@
+// 工作台流程条：计划 → 执行 → 审核。所有工作台同一套视觉。
+.ai00-x-stage-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    flex: none;
+    min-width: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+
+    &.is-active {
+      color: var(--color-text-primary);
+      font-weight: var(--font-weight-medium);
+    }
+
+    &.is-done {
+      color: var(--color-text-secondary);
+    }
+
+    &.is-failed {
+      color: var(--color-danger);
+      font-weight: var(--font-weight-medium);
+    }
+  }
+
+  &__node {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--spacing-3);
+    height: var(--spacing-3);
+    flex: none;
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
+    border-radius: var(--radius-full);
+    background-color: transparent;
+    color: var(--color-accent);
+
+    .is-done & {
+      border-color: var(--color-accent);
+      background-color: var(--color-accent);
+      color: var(--color-bg-base);
+    }
+
+    .is-active & {
+      border-color: var(--color-accent);
+      box-shadow: inset 0 0 0 var(--spacing-1) var(--color-accent);
+    }
+
+    .is-failed & {
+      border-color: var(--color-danger);
+      background-color: var(--color-danger);
+      color: var(--color-bg-base);
+    }
+  }
+
+  // 连接线：已完成段染成黛青，未到段保持弱边
+  &__line {
+    display: block;
+    width: var(--spacing-5);
+    height: var(--style-stroke-width, 1px);
+    margin: 0 var(--spacing-1);
+    background-color: var(--color-border);
+
+    .is-done & {
+      background-color: var(--color-accent);
+      opacity: 0.45;
+    }
+  }
+
+  &__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // 紧凑形态：只留节点，标签交给 title 提示（窄头部用）
+  &--compact {
+    .ai00-x-stage-bar__label {
+      display: none;
+    }
+
+    .ai00-x-stage-bar__line {
+      width: var(--spacing-3);
+    }
+  }
+}
+
+// 迷你形态：侧栏任务行里的三个小圆点
+.ai00-x-stage-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: none;
+
+  &__dot {
+    width: var(--spacing-1);
+    height: var(--spacing-1);
+    border-radius: var(--radius-full);
+    background-color: var(--color-border);
+
+    &.is-done {
+      background-color: var(--color-accent);
+      opacity: 0.55;
+    }
+
+    &.is-active {
+      background-color: var(--color-accent);
+      box-shadow: 0 0 0 var(--spacing-1) color-mix(in srgb, var(--color-accent) 25%, transparent);
+    }
+
+    &.is-failed {
+      background-color: var(--color-danger);
+    }
+  }
+}

@@ -1,0 +1,139 @@
+// 子代理汇总条：常驻在对话面板顶部，回答「现在有几个、谁在跑」。
+.ai00-x-wb-subagent-overview {
+  flex: none;
+  border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
+  /* 比对话底色亮一档：它是常驻工具条，不是消息内容 */
+  background-color: var(--color-bg-card);
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    width: 100%;
+    padding: var(--spacing-2) var(--spacing-4);
+    border: none;
+    background: none;
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-xs);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--element-bg-subtle);
+      color: var(--color-text-primary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: -2px;
+    }
+  }
+
+  &__icon {
+    flex: none;
+    color: var(--color-text-muted);
+  }
+
+  &__count {
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  &__running {
+    padding: 0 var(--spacing-2);
+    border-radius: var(--radius-full);
+    background-color: var(--element-bg-subtle);
+    color: var(--color-accent);
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__chevron {
+    flex: none;
+    margin-left: auto;
+    color: var(--color-text-muted);
+    transition: transform var(--motion-fast) var(--easing-standard);
+  }
+
+  &.is-open .ai00-x-wb-subagent-overview__chevron {
+    transform: rotate(180deg);
+  }
+
+  &__list {
+    max-height: calc(var(--spacing-12) * 4);
+    margin: 0;
+    padding: 0 0 var(--spacing-1);
+    overflow-y: auto;
+    list-style: none;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    width: 100%;
+    padding: var(--spacing-1) var(--spacing-4);
+    border: none;
+    background: none;
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-2xs);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--element-bg-subtle);
+      color: var(--color-text-primary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: -2px;
+    }
+  }
+
+  &__dot {
+    flex: none;
+    width: var(--spacing-1);
+    height: var(--spacing-1);
+    border-radius: var(--radius-full);
+    background-color: var(--color-text-muted);
+
+    .is-running & {
+      background-color: var(--color-accent);
+      animation: ai00-x-wb-subagent-overview-pulse 1.2s var(--easing-standard) infinite;
+    }
+  }
+
+  &__label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--color-text-primary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__state {
+    flex: none;
+    color: var(--color-text-muted);
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+
+    .is-running & {
+      color: var(--color-accent);
+    }
+  }
+}
+
+@keyframes ai00-x-wb-subagent-overview-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.25;
+  }
+}

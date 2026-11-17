@@ -93,8 +93,15 @@ struct HostSpeed {
 /// RWKV 3B 当必需档位（`rwkv_llm::BUILTIN_RWKV` 的 `required`）；7B/13B 改为
 /// 在模型选择器「本地模型」里按需下载，避免每次启动拉 7.9GB。
 /// 已存在的本地文件保留不删。
-const AUTO_DOWNLOAD_SKIP: &[(&str, &str)] =
-    &[("rwkv", "rwkv7-7B-int8"), ("rwkv", "rwkv7-13B-int8")];
+///
+/// `rwkv7-3B-int8` 是 3B 的历史文件名：自 g1m 起 3B 权重改由
+/// `rwkv_llm::RWKV_3B_MODEL_FILE` 版本化命名并从内置目录下载，旧条目只保留
+/// 本地文件用于回滚/兼容，不再参与启动期校验与重下。
+const AUTO_DOWNLOAD_SKIP: &[(&str, &str)] = &[
+    ("rwkv", "rwkv7-3B-int8"),
+    ("rwkv", "rwkv7-7B-int8"),
+    ("rwkv", "rwkv7-13B-int8"),
+];
 
 fn is_optional_tier(component: &str, key: &str) -> bool {
     AUTO_DOWNLOAD_SKIP

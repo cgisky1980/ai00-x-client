@@ -75,14 +75,15 @@ pub fn init_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            // 双击 = 策窗口（overlay 常驻可见，双击呼它无感知；策窗口有实感）
+            // 双击 = 设置窗口（overlay 常驻可见，双击呼它无感知；设置窗口有实感）
             if matches!(event, TrayIconEvent::DoubleClick { .. }) {
                 let app = tray.app_handle().clone();
                 tauri::async_runtime::spawn(async move {
                     if let Err(e) =
-                        crate::window_template::open_app_window(app.clone(), "tasks".into()).await
+                        crate::window_template::open_app_window(app.clone(), "settings".into())
+                            .await
                     {
-                        log::warn!("[tray] open tasks window failed: {e}");
+                        log::warn!("[tray] open settings window failed: {e}");
                     }
                 });
             }

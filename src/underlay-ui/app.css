@@ -1,5 +1,5 @@
 /* Ai00-X underlay-ui 样式入口
- * 设计令牌来源：@ai00-x/design-system（唯一事实来源，规范见 参考/前端视觉设计规范-新东方极简.md）
+ * 设计令牌来源：@ai00-x/design-system（唯一事实来源，规范见 参考/前端视觉设计规范.md）
  * - tokens/字体/纸纹/签名动效/组件样式：main.tsx 里 JS 导入 "@ai00-x/design-system/styles"
  *   （不走本文件 @import：tailwindcss/postcss 会内联 import 并使 url() 逃逸
  *    Vite 资产管线，自托管字体 woff2 无法解析——E4 实测）

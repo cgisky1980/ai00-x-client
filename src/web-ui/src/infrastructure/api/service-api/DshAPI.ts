@@ -84,6 +84,30 @@ export interface DshSessionSummary {
   };
 }
 
+/** 子代理（子会话）生命周期模式（引擎 `subagent` / `subagentCatalog` 投影词汇）。 */
+export type DshSubagentMode = 'one-shot' | 'external' | 'continuable' | 'unknown';
+
+/** 父会话的一条直接子会话发现记录（`subagentCatalog` 投影行）。 */
+export interface DshSubagentCatalogEntry {
+  /** 子会话 id。 */
+  id: string;
+  /** 子会话创建时刻（引擎毫秒时间戳，durable）。 */
+  createdAt: number;
+  mode: DshSubagentMode;
+  /** 创建时冻结的展示标签（continuable 必有）。 */
+  label?: string;
+}
+
+/** 子会话自身 turn 计时的 durable 投影（`subagentTiming`）。 */
+export interface DshSubagentTiming {
+  /** 已完成 turn 的累计耗时（毫秒）。 */
+  settledMs: number;
+  /** 当前未收口 turn 的时间窗（无开启 turn 时缺失）。 */
+  active?: { since: number; through: number };
+  /** 最近一个已收口 turn 是否正常完成（失败/取消为 false）。 */
+  lastTurnCompleted?: boolean;
+}
+
 /** 会话事件（SessionWireEvent 子集；ignorable 的 assistant/chunk 也走这里）。 */
 export interface DshSessionEvent {
   type: string;
@@ -679,6 +703,57 @@ const sessionInbox = new Map<string, DshInbox>();
 /** 等 cursor 的 waiter（新会话创建后立即拉历史时的竞态兜底）。 */
 const cursorWaiters = new Map<string, Array<(cursor: number) => void>>();
 
+/**
+ * 子会话 → 父会话地址。
+ *
+ * 引擎的 `SessionAddress` 有两种形态：普通会话 `{kind:'session'}`，以及
+ * **直接子代理子会话** `{kind:'subagent', parentSessionId, childSessionId, mode}`。
+ * 子会话用 `{kind:'session'}` 访问时引擎 `validateAddress()` 直接抛
+ * `session/agent-busy: subagent Sessions require their durable parent address`
+ * ——所以 follow 永远不出 snapshot（cursor 永不到手）、session/page 也拿不到历史。
+ * 这里从 `session/list`（parentSessionId + `subagent` 投影的 mode）登记父地址。
+ */
+const subagentLinks = new Map<string, { parentSessionId: string; mode: DshSubagentMode }>();
+
+/** `session/list` 一条 item 里子代理投影的 mode（坏值退化为 unknown，引擎接受）。 */
+function subagentModeOf(summary: DshSessionSummary): DshSubagentMode {
+  const raw = summary.projections?.values?.subagent as { mode?: unknown } | null | undefined;
+  const mode = raw?.mode;
+  return mode === 'one-shot' || mode === 'continuable' ? mode : 'unknown';
+}
+
+/** 登记一条子会话的父地址（`session/list` / 目录投影都能喂）。 */
+function rememberSubagentLink(summary: DshSessionSummary): void {
+  if (!summary.parentSessionId) return;
+  subagentLinks.set(summary.sessionId, {
+    parentSessionId: summary.parentSessionId,
+    mode: subagentModeOf(summary),
+  });
+}
+
+/** 会话地址（普通 / 直接子代理两形态；未知子会话尚未登记时按普通会话试一次）。 */
+function sessionAddress(sessionId: string): Record<string, unknown> {
+  const link = subagentLinks.get(sessionId);
+  if (!link) return { kind: 'session', sessionId };
+  return {
+    kind: 'subagent',
+    parentSessionId: link.parentSessionId,
+    childSessionId: sessionId,
+    mode: link.mode,
+  };
+}
+
+/** 子会话地址还没登记时补一次 `session/list`（冷启动直接展开子代理的路径）。 */
+async function ensureSubagentLink(sessionId: string): Promise<void> {
+  if (subagentLinks.has(sessionId)) return;
+  try {
+    const { items } = await rpc<{ items: DshSessionSummary[] }>('session/list', { _request: {} });
+    for (const s of items) rememberSubagentLink(s);
+  } catch {
+    // 引擎不可达：交给调用方的错误路径，不在地址解析里吞错
+  }
+}
+
 /** inbox 投影 wire 值 → UI 待处理项（next-turn=排队 / next-step=待插话）。 */
 function normalizeInboxValue(value: unknown): DshQueueItem[] {
   const wire = (value ?? {}) as Record<string, unknown>;
@@ -725,7 +800,7 @@ export function readSessionInbox(sessionId: string): DshInbox {
   return sessionInbox.get(sessionId) ?? { items: [], seq: -1 };
 }
 
-function resolveCursor(sessionId: string): Promise<number> {
+function resolveCursor(sessionId: string, timeoutMs = 3000): Promise<number> {
   const known = sessionCursors.get(sessionId);
   if (known !== undefined) return Promise.resolve(known);
   return new Promise<number>((resolve, reject) => {
@@ -738,7 +813,7 @@ function resolveCursor(sessionId: string): Promise<number> {
         cursorWaiters.set(sessionId, waiters.filter(w => w !== resolve));
       }
       reject(new Error('session history unavailable: engine event stream not connected'));
-    }, 3000);
+    }, timeoutMs);
   });
 }
 
@@ -762,6 +837,7 @@ export const dshSession = {
     rpc<{ items: DshSessionSummary[] }>('session/list', { _request: {} }).then(({ items }) => {
       for (const s of items) {
         cacheProjectionValues(s.sessionId, s.projections?.values);
+        rememberSubagentLink(s);
         // R2-11b：回填「会话 → 工作区」映射，供审批「总是允许」的持久判定用
         noteSessionWorkspace(s.sessionId, s.cwd);
       }
@@ -848,18 +924,27 @@ export const dshSession = {
     rpc<{ accepted: true }>('session/cancel', { request: { sessionId } }),
 
   /**
-   * 全量历史：session/page（省略 throughSeq = 引擎观测到的日志末端）。
+   * 历史页：session/page（省略 throughSeq = 引擎观测到的日志末端）。
    *
    * 不能用 follow 快照的 cursor 当截止点——快照只在订阅时取一次，之后
    * 新写入的事件都大于它，导致「回合结束后重拉历史」永远拿不到新内容。
-   * 先等 cursor 就绪仍保留（保证事件流已连上，与实时流同源）。
+   *
+   * 子代理子会话必须用 `{kind:'subagent', parentSessionId, childSessionId, mode}`
+   * 地址（普通会话地址会被引擎拒绝），也不用等 cursor——子会话不在主会话的
+   * follow 集合里，等它只会一直超时。
+   *
+   * `maxMessages` 默认取到日志末端（全量）；卡片内轮询实时进度时传小值只取尾部。
    */
-  history: async (sessionId: string) => {
-    await resolveCursor(sessionId);
+  history: async (sessionId: string, opts?: { maxMessages?: number }) => {
+    await ensureSubagentLink(sessionId);
+    if (!subagentLinks.has(sessionId)) {
+      // 普通会话：尽力等 follow 就绪（与实时流同源），拿不到就直接读。
+      await resolveCursor(sessionId, 800).catch(() => undefined);
+    }
     const page = await rpc<{ records: WirePageRecord[]; hasMore: boolean }>('session/page', {
       request: {
-        address: { kind: 'session', sessionId },
-        maxMessages: 100_000,
+        address: sessionAddress(sessionId),
+        maxMessages: opts?.maxMessages ?? 100_000,
       },
     });
     return { events: page.records.map(r => ({ event: r.event })) as DshHistoryEntry[], hasMore: page.hasMore };
@@ -868,7 +953,20 @@ export const dshSession = {
   /** 模型目录 = session/modelCatalog；current 从会话投影 modelSelection 取。 */
   models: async (sessionId: string): Promise<DshSessionModels> => {
     const catalog = await rpc<WireModelCatalog>('session/modelCatalog');
-    const sel = sessionModelSelection.get(sessionId);
+    let sel = sessionModelSelection.get(sessionId);
+    if (!sel) {
+      // 冷启动/新会话时投影缓存可能还没预热：先用 session/list 回填，
+      // 否则 current 会错落到 catalog.default（UI 显示成默认模型）。
+      try {
+        const { items } = await rpc<{ items: DshSessionSummary[] }>('session/list', {
+          _request: {},
+        });
+        for (const s of items) cacheProjectionValues(s.sessionId, s.projections?.values);
+        sel = sessionModelSelection.get(sessionId);
+      } catch {
+        // 拉取失败就退回目录默认值，不阻塞输入
+      }
+    }
     const current = sel?.next ?? sel?.lastUsed ?? catalog.default;
     return {
       current,
@@ -894,9 +992,14 @@ export const dshSession = {
     };
   },
 
-  selectModel: (sessionId: string, provider: string, model: string) =>
+  selectModel: (sessionId: string, provider: string, model: string, reasoningEffort?: string) =>
     rpc<{ selected: DshModelSelection }>('session/selectModel', {
-      request: { sessionId, provider, model },
+      request: {
+        sessionId,
+        provider,
+        model,
+        ...(reasoningEffort ? { reasoningEffort } : {}),
+      },
     }),
 
   rename: (sessionId: string, title: string) =>
@@ -908,6 +1011,46 @@ export const dshSession = {
   fork: (sessionId: string) =>
     rpc<{ sessionId: string }>('session/fork', { request: { sessionId } }),
 };
+
+// ---------------------------------------------------------------------------
+// 子代理控制面（引擎 0.2.2 的 subagents/* rpc，签名取自 dsh-subagent typert host）
+//
+// - 只对 continuable 子代理有效（后台派发的默认形态）。
+// - prompt 需要父会话在引擎侧仍 live，否则回 `subagent/parent-unavailable`；
+//   interrupt 对「不存在/空闲/已完成」是安全 no-op，可以无条件给出口。
+// ---------------------------------------------------------------------------
+
+/** 继续：给 continuable 子代理排队一条用户消息（目标下一回合）。 */
+export function subagentPrompt(
+  parentSessionId: string,
+  childSessionId: string,
+  text: string,
+): Promise<{ messageId: string }> {
+  const content = text.trim();
+  if (!content) return Promise.reject(new Error('subagent prompt is empty'));
+  return rpc<{ messageId: string }>('subagents/prompt', {
+    request: {
+      requestId: createDshRequestId(),
+      parentSessionId,
+      childSessionId,
+      mode: 'continuable',
+      delivery: 'queue',
+      content: [{ type: 'text', text: content }],
+    },
+  });
+}
+
+/** 停止：以父会话身份中断 continuable 子代理（已结束的子代理为无操作）。 */
+export function subagentInterrupt(
+  parentSessionId: string,
+  childSessionId: string,
+): Promise<{ accepted: true }> {
+  return rpc<{ accepted: true }>('subagents/interruptByParent', {
+    childSessionId,
+    parentSessionId,
+    mode: 'continuable',
+  });
+}
 
 // ---------------------------------------------------------------------------
 // WebSocket 事件流（remote.mux 适配层 → 旧 events.mux 帧语义）
@@ -1093,6 +1236,10 @@ export function connectMux(
       if (closed) return;
       for (const s of items) {
         cacheProjectionValues(s.sessionId, s.projections?.values);
+        rememberSubagentLink(s);
+        // 子会话不跟随：它们不在主会话列表里展示，历史由卡片按需读取，
+        // 逐条 follow 只会被引擎拒绝并刷一堆错误帧。
+        if (s.parentSessionId) continue;
         followSession(s.sessionId);
       }
     } catch {
@@ -1178,7 +1325,9 @@ export function connectMux(
         const summary = v.args[0] as DshSessionSummary | undefined;
         if (summary?.sessionId) {
           cacheProjectionValues(summary.sessionId, summary.projections?.values);
-          followSession(summary.sessionId);
+          rememberSubagentLink(summary);
+          // 子会话（子代理）不进 follow 集合；只有主会话需要实时流
+          if (!summary.parentSessionId) followSession(summary.sessionId);
         }
       }
       return;
@@ -1537,6 +1686,15 @@ export interface DshMessage {
    * 内容已被 UI 过滤，但需要明确告诉用户「本回合什么都没做」。
    */
   toolCallUnparsed?: boolean;
+  /**
+   * 非人类发言的记录来源：`agent` = 子代理经 `send_message` 转给主代理的消息；
+   * `system` = 引擎落盘的子代理结束通知。两者都不能渲染成用户气泡。
+   */
+  origin?: 'agent' | 'system';
+  /** 记录来源会话（子代理 id），用于反查 label。 */
+  senderSessionId?: string;
+  /** 来源侧的一句话说明（`subagent-settled` 的 summary）。 */
+  originLabel?: string;
 }
 
 /**
@@ -1651,24 +1809,71 @@ export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
         // 引擎注入的上下文消息只给模型看，不进对话显示（agent-instructions/
         // runtime-context/skill-catalog/time-context/model-switch notice，统一按
         // source.form 过滤；真实用户输入 source.kind='user' 无 form，不受影响）。
+        // working-directory 是无 form 的上下文注入（cwd 变更说明），同样按 kind 丢弃。
         // 过滤不改变分组状态。
-        const source = data?.source as { form?: string; rpcId?: unknown } | undefined;
+        const source = data?.source as
+          | {
+              kind?: string;
+              form?: string;
+              rpcId?: unknown;
+              summary?: string;
+              senderSessionId?: string;
+            }
+          | undefined;
         if (
           source?.form === 'snapshot' ||
           source?.form === 'instructions' ||
           source?.form === 'catalog' ||
-          source?.form === 'notice'
+          source?.kind === 'working-directory'
         ) {
           break;
         }
-        current = null;
-        const msg = newText('user');
-        if (typeof source?.rpcId === 'string') msg.rpcId = source.rpcId;
         const content = data?.content as Array<{ type: string; text?: string }> | undefined;
-        msg.text = (content ?? [])
+        const rawText = (content ?? [])
           .filter(b => b.type === 'text')
           .map(b => b.text ?? '')
           .join('');
+
+        // 子代理 → 主代理的中继消息（send_message）：不是用户发言，
+        // 以前直接进用户气泡（裸 uuid + 英文前缀），这里单列成一条来源记录。
+        if (source?.kind === 'agent-message') {
+          current = null;
+          const relay = newText('user');
+          relay.origin = 'agent';
+          relay.text = rawText.replace(/^Agent\s+\S+\s+sent a message:\s*/i, '').trim();
+          if (source.senderSessionId) relay.senderSessionId = source.senderSessionId;
+          if (!relay.text) messages.pop();
+          break;
+        }
+
+        // 子代理结束通知：以前整类被 form==='notice' 丢掉，
+        // 导致「它到底做完了什么/为什么结束」在对话里完全不可见。
+        if (source?.kind === 'subagent-settled') {
+          current = null;
+          const settled = newText('assistant');
+          settled.origin = 'system';
+          const closingRaw =
+            rawText.match(/Its closing message:\s*([\s\S]*)$/i)?.[1]?.trim() ?? '';
+          // 引擎在没有真实收尾内容时会塞一句固定英文：
+          // "Background subagent <uuid> finished and will do no further work unless you send it more."
+          // 直接展示＝中英混排 + uuid 截断，用户读不到信息。这里丢掉样板句，
+          // 回落到派发时的任务标题（originLabel 已带），正文留空由 UI 只显示标题。
+          const boilerplate =
+            /^Background subagent\s+\S+\s+finished and will do no further work unless you send it more\.?$/i;
+          const closing = boilerplate.test(closingRaw) ? '' : closingRaw;
+          settled.text = closing || (source.summary ? '' : rawText.trim());
+          if (source.summary) settled.originLabel = source.summary;
+          if (source.senderSessionId) settled.senderSessionId = source.senderSessionId;
+          break;
+        }
+
+        // 其余 notice（模型切换等）仍然不进对话。
+        if (source?.form === 'notice') break;
+
+        current = null;
+        const msg = newText('user');
+        if (typeof source?.rpcId === 'string') msg.rpcId = source.rpcId;
+        msg.text = rawText;
         // 引擎上下文压缩的 checkpoint 也是 user/message，但内容是给模型看的摘要：
         // 直接用英文长段落在对话里冒充「用户发言」（实测触发后满屏
         // "This is an automatically generated checkpoint …"）。按内容特征丢弃。
@@ -1818,6 +2023,36 @@ export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
     }
   }
   return messages;
+}
+
+/**
+ * 从会话事件流提取 `subagent/catalog` 增量（父会话「派发即落盘」的发现记录）。
+ *
+ * 真源是 `subagentCatalog` 投影（控制流 baseline + 增量）；事件侧是同一事实的
+ * durable 副本，用于投影尚未到达时先对齐 label/childId（重启回放尤其有用）。
+ * 不参与消息折叠——子代理不是一条对话消息。
+ */
+export function extractSubagentCatalog(events: DshSessionEvent[]): DshSubagentCatalogEntry[] {
+  const entries = new Map<string, DshSubagentCatalogEntry>();
+  for (const event of events) {
+    if (event.type !== 'subagent/catalog') continue;
+    const data = event.data as
+      | { childId?: unknown; childCreatedAt?: unknown; mode?: unknown; label?: unknown }
+      | undefined;
+    const id = typeof data?.childId === 'string' ? data.childId : '';
+    if (!id) continue;
+    const mode =
+      data?.mode === 'one-shot' || data?.mode === 'external' || data?.mode === 'continuable'
+        ? data.mode
+        : 'unknown';
+    entries.set(id, {
+      id,
+      createdAt: typeof data?.childCreatedAt === 'number' ? data.childCreatedAt : 0,
+      mode,
+      ...(typeof data?.label === 'string' && data.label ? { label: data.label } : {}),
+    });
+  }
+  return [...entries.values()];
 }
 
 interface UsageShape {

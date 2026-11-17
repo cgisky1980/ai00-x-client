@@ -202,13 +202,13 @@ const section = (title, vars) =>
     .join('\n');
 
 const lightBlock = semanticLight
-  ? `\n/* ---------- 亮色主题「宣纸」：[data-theme-type="light"] 覆盖（变量名与暗色一一对应；ThemeService 挂 data-theme-type 于 html） ---------- */\nhtml[data-theme-type='light'] {\n  color-scheme: light;\n\n${section('semantic · 亮色·宣纸（规范 4.1/4.5）', lightVars)}\n}\n`
+  ? `\n/* ---------- 亮色主题「宣纸」：[data-theme-type="light"] 覆盖（变量名与暗色一一对应；ThemeService 挂 data-theme-type 于 html） ---------- */\nhtml[data-theme-type='light'] {\n  color-scheme: light;\n\n${section('semantic · 亮色·宣纸（规范分册一 10.6）', lightVars)}\n}\n`
   : '';
 
 const tokensCss = `/* ============================================================
  * @ai00-x/design-system tokens — AUTO-GENERATED（pnpm build 产物，勿手改）
  * 源：tokens/{primitives,semantic.dark,semantic.light,aliases}.json（DTCG 2025.10）
- * 规范：参考/前端视觉设计规范-新东方极简.md（token 命名 1:1 直出）
+ * 规范：参考/前端视觉设计规范.md（总则第二节：token 命名 1:1 直出）
  * 主题：:root 为暗色默认「深墨」；[data-theme-type="light"] 为亮色「宣纸」
  * 换肤：色值内嵌 var(--hue/--chroma/--chroma-surface/--gray-level) 回退公式，
  *       ThemeService 覆盖这些变量即整体换肤（朱砂不联动）

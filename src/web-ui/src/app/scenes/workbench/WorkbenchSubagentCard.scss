@@ -1,0 +1,363 @@
+// 子代理内联卡：派发点的常驻记录。
+// 形态要点：它是「另一个代理在干活」，不是一次工具调用——所以用实体卡
+// （表面 + 边框 + 图标 + 状态徽标）与普通工具行拉开层级，两个出口常显。
+.ai00-x-wb-subagent {
+  margin: var(--spacing-2) 0;
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+  border-radius: var(--radius-base);
+  background-color: var(--color-bg-card);
+  overflow: hidden;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    list-style: none;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:hover {
+      background-color: var(--element-bg-subtle);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: -2px;
+    }
+  }
+
+  &__kind {
+    display: inline-flex;
+    flex: none;
+    color: var(--color-text-muted);
+  }
+
+  &__title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__preset {
+    flex: none;
+    padding: 0 var(--spacing-1);
+    border-radius: var(--radius-sm);
+    background-color: var(--element-bg-subtle);
+    color: var(--color-text-muted);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+  }
+
+  &__state {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    gap: var(--spacing-1);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+    white-space: nowrap;
+  }
+
+  &__time {
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__actions {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    gap: var(--spacing-1);
+  }
+
+  &__chevron {
+    flex: none;
+    color: var(--color-text-muted);
+    transition: transform var(--motion-fast) var(--easing-standard);
+  }
+
+  &[open] > .ai00-x-wb-subagent__head .ai00-x-wb-subagent__chevron {
+    transform: rotate(180deg);
+  }
+
+  &__spin {
+    animation: ai00-x-wb-subagent-spin 1s linear infinite;
+  }
+
+  &__stop {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-1) var(--spacing-2);
+    border: var(--style-stroke-width, 1px) solid transparent;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-2xs);
+    cursor: pointer;
+    transition: color var(--motion-fast) var(--easing-standard),
+      border-color var(--motion-fast) var(--easing-standard),
+      background-color var(--motion-fast) var(--easing-standard);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+      background-color: var(--element-bg-subtle);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__stop:hover:not(:disabled) {
+    border-color: var(--color-error);
+    color: var(--color-error);
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    padding: 0 var(--spacing-3) var(--spacing-3);
+  }
+
+  /**
+   * 展开后的过程区：卡内限高滚动，不把整条对话拉长。
+   * 子代理的一步可能很长（读文件/推理），限高比「无限展开」更可读。
+   */
+  &__transcript {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    max-height: calc(var(--spacing-12) * 5);
+    padding: var(--spacing-2) var(--spacing-2) var(--spacing-2) 0;
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    /* 下沉一层：卡头是「标题」，这里是「内容」，靠表面区分而不是靠加框 */
+    background-color: var(--element-bg-subtle);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* flex 子项的 min-height:auto 会顶穿 max-height，必须显式归零 */
+    min-height: 0;
+  }
+
+  /** 卡内工具行：一行一个，名字 + 一句摘要，点不开（原始参数回主对话看）。 */
+  &__tool {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    min-width: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+
+    &.is-error {
+      color: var(--color-error);
+    }
+  }
+
+  &__tool-name {
+    flex: none;
+    font-family: var(--font-family-mono);
+  }
+
+  &__tool-brief {
+    overflow: hidden;
+    color: var(--color-text-secondary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__hint {
+    padding: var(--spacing-2) 0;
+    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+
+    &.is-error {
+      color: var(--color-error);
+    }
+  }
+
+  &__foot {
+    display: flex;
+    gap: var(--spacing-2);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+  }
+
+  &__foot-id {
+    overflow: hidden;
+    font-family: var(--font-family-mono);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__continue {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-2);
+    margin-top: var(--spacing-1);
+  }
+
+  &__continue-open,
+  &__continue-send {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    flex-shrink: 0;
+    padding: var(--spacing-1) var(--spacing-2);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      color: var(--color-accent);
+      border-color: var(--color-accent);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__continue-input {
+    flex: 1;
+    min-width: 0;
+    padding: var(--spacing-1) var(--spacing-2);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background-color: var(--element-bg-subtle);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-xs);
+
+    &::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__note {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+  }
+
+  &__error {
+    color: var(--color-error);
+    font-size: var(--font-size-2xs);
+  }
+
+  &__field {
+    display: flex;
+    gap: var(--spacing-2);
+    font-size: var(--font-size-xs);
+  }
+
+  &__key {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+
+  &__value {
+    min-width: 0;
+    color: var(--color-text-secondary);
+    word-break: break-word;
+    white-space: pre-wrap;
+
+    &.is-mono {
+      font-family: var(--font-family-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    &.is-faint {
+      color: var(--color-text-muted);
+      font-size: var(--font-size-2xs);
+      word-break: break-all;
+    }
+  }
+
+  // 任务书：默认收起，避免把展开区变成 prompt dump
+  &__brief {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+
+    > summary {
+      list-style: none;
+      color: var(--color-text-muted);
+      font-size: var(--font-size-2xs);
+      cursor: pointer;
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      &:hover {
+        color: var(--color-accent);
+      }
+    }
+  }
+
+  &__brief-text {
+    max-height: 200px;
+    margin-top: var(--spacing-1);
+    padding-left: var(--spacing-2);
+    border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    overflow-y: auto;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+
+  &.is-running {
+    border-color: var(--color-accent);
+
+    .ai00-x-wb-subagent__kind,
+    .ai00-x-wb-subagent__state {
+      color: var(--color-accent);
+    }
+  }
+
+  &.is-abnormal {
+    .ai00-x-wb-subagent__state,
+    .ai00-x-wb-subagent__kind {
+      color: var(--color-error);
+    }
+  }
+}
+
+@keyframes ai00-x-wb-subagent-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

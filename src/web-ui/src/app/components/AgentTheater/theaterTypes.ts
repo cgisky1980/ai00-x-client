@@ -67,6 +67,11 @@ export interface ImpRuntimeState {
   toolCalls: number;
   errors: number;
   maxConsecutiveErrors: number;
+  /**
+   * 该会话正在运行的子代理数（角标）。子代理不再各占一只工灵，
+   * 统一挂到主工灵上；0 表示没有角标。
+   */
+  subagents: number;
 }
 
 /** turn 结束（桥事件 theater://turn-ended payload，§4.2） */

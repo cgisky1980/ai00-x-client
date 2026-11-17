@@ -191,7 +191,7 @@ html[data-style='comic'][data-theme-type='dark'] {
 
 /* ---- styles/comic/components.css（风格专属组件形态） ---- */
 /* ============================================================
- * 漫画风（comic）· 风格专属组件形态（规范第九节 9.5）
+ * 漫画风（comic）· 风格专属组件形态（规范总则 1.5；形态定义见分册二 11.5）
  *
  * 形态语言取自参考站 discuss.flarum.org.cn/extensions 的实测设计语言：
  *   「现代网格骨架 + 漫画贴纸细节」的克制派——
@@ -202,7 +202,7 @@ html[data-style='comic'][data-theme-type='dark'] {
  * css/style-packs/comic.css 末尾，在 components.css 与各 BEM SCSS 之后，
  * 故同特异性下可覆盖基座形态）。
  *
- * 分工纪律（规范 9.4/9.6）——能用 token 表达的绝不在本文件重复：
+ * 分工纪律（规范总则 1.4/1.6）——能用 token 表达的绝不在本文件重复：
  *   ✅ 描边色/宽   → tokens.json 覆盖 border.* + style.stroke.width = 2px
  *   ✅ 硬投影阶梯  → tokens.json 覆盖 shadow.*（2/3 → 8/9px，零模糊）
  *   ✅ 圆角        → tokens.json 覆盖 size.radius.* + radius.*（10/12/15/19/22px）
@@ -357,7 +357,7 @@ html[data-style='comic'][data-theme-type='dark'] {
   transform: rotate(45deg) skew(8deg, 8deg);
 }
 
-/* ==================== 9. 动效克制（规范 9.2 契约） ====================
+/* ==================== 9. 动效克制（规范总则 1.2 契约） ====================
  * 漫画风不加新动效；位移反馈在 reduce 模式下退化为纯颜色变化。 */
 @media (prefers-reduced-motion: reduce) {
   [data-style='comic'] .ds-card:hover,

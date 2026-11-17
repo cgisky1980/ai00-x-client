@@ -1,0 +1,84 @@
+/**
+ * ModelProfileDialog 样式（全部走设计令牌，禁止硬编码色值/px 刻度）。
+ */
+.ai00-x-model-profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+}
+
+.ai00-x-model-profile__name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.ai00-x-model-profile__name-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.ai00-x-model-profile__name-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-4);
+  border: var(--style-stroke-width, 1px) solid var(--border-base);
+  border-radius: var(--radius-base);
+  background-color: var(--color-bg-card);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--style-focus-ring);
+  }
+}
+
+.ai00-x-model-profile__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.ai00-x-model-profile__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 240px);
+  gap: var(--spacing-4);
+  align-items: center;
+}
+
+.ai00-x-model-profile__row-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.ai00-x-model-profile__row-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.ai00-x-model-profile__row-hint,
+.ai00-x-model-profile__note {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.ai00-x-model-profile__select {
+  width: 100%;
+}
+
+.ai00-x-model-profile__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+
+.ai00-x-model-profile__footer-actions {
+  display: flex;
+  gap: var(--spacing-2);
+}

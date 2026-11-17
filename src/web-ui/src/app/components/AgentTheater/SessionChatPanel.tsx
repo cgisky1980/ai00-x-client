@@ -31,7 +31,8 @@ import {
 import { useDraggable, refreshRegions, setDragging } from '../../../infrastructure/overlay';
 import { usePopupResize } from '../../../tools/island/hooks/usePopupResize';
 import { isApprovalAllowed } from '@/shared/agent-approval-rules';
-import { ApprovalCard, MessageBubble, QuestionCard } from '../../scenes/dsh/DshChatPieces';
+import { ApprovalCard, MessageBubble, QuestionCard, ResolutionLogLine } from '../../scenes/dsh/DshChatPieces';
+import type { DshResolutionEntry } from '../../scenes/dsh/hooks/useDshChat';
 import { groupMessagesForDisplay } from '../../scenes/dsh/messageGroups';
 // 消息/输入区样式类来自策场景（__msg* / __composer），必须引入该样式表
 import '../../scenes/dsh/DshScene.scss';
@@ -61,7 +62,13 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
   const [agentRunning, setAgentRunning] = useState(false);
   const [approvals, setApprovals] = useState<DshApproval[]>([]);
   const [questions, setQuestions] = useState<DshQuestion[]>([]);
+  /** 审批/提问办结记录（批后塌缩为一行只读记录，与主场景同形态）。 */
+  const [resolutionLog, setResolutionLog] = useState<DshResolutionEntry[]>([]);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+
+  const appendResolution = useCallback((entry: DshResolutionEntry): void => {
+    setResolutionLog(prev => [...prev, entry].slice(-100));
+  }, []);
   /** 基线 + 实时事件统一数组（foldEvents 的输入） */
   const eventsRef = useRef<DshSessionEvent[]>([]);
 
@@ -171,7 +178,20 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
         return;
       }
       if (frame.type === 'approval/resolved' && frame.sessionId === sessionId) {
-        setApprovals(prev => prev.filter(a => a.approvalId !== frame.approvalId));
+        setApprovals(prev => {
+          const target = prev.find(a => a.approvalId === frame.approvalId);
+          if (target) {
+            appendResolution({
+              kind: 'approval',
+              rpcId: target.rpcId,
+              sessionId,
+              subject: target.toolName,
+              outcome: 'cancelled',
+              at: Date.now(),
+            });
+          }
+          return prev.filter(a => a.approvalId !== frame.approvalId);
+        });
         return;
       }
       if (frame.type === 'question/requested' && frame.sessionId === sessionId) {
@@ -183,7 +203,20 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
         return;
       }
       if (frame.type === 'question/resolved' && frame.sessionId === sessionId) {
-        setQuestions(prev => prev.filter(q => q.rpcId !== frame.questionRpcId));
+        setQuestions(prev => {
+          const target = prev.find(q => q.rpcId === frame.questionRpcId);
+          if (target) {
+            appendResolution({
+              kind: 'question',
+              rpcId: target.rpcId,
+              sessionId,
+              subject: target.questions[0]?.question ?? '',
+              outcome: 'cancelled',
+              at: Date.now(),
+            });
+          }
+          return prev.filter(q => q.rpcId !== frame.questionRpcId);
+        });
         return;
       }
       if (frame.type !== 'session/event' || frame.sessionId !== sessionId) return;
@@ -197,13 +230,13 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
       setMessages(foldEvents(eventsRef.current));
     });
     return () => conn.close();
-  }, [sessionId, reloadBaseline, refreshRunning]);
+  }, [sessionId, reloadBaseline, refreshRunning, appendResolution]);
 
-  // 自动滚底
+  // 自动滚底（办结记录/审批/提问内联在消息流里，同样触发）
   useEffect(() => {
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages]);
+  }, [messages, approvals, questions, resolutionLog]);
 
   const handleSend = async (): Promise<void> => {
     const text = draft.trim();
@@ -232,18 +265,51 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
     const a = approvals.find(x => x.rpcId === rpcId);
     if (!a) return;
     const receipt = await dshApproval.respond(rpcId, sessionId, a.approvalId, outcome);
-    if (receipt.accepted) setApprovals(prev => prev.filter(x => x.rpcId !== rpcId));
+    if (receipt.accepted) {
+      setApprovals(prev => prev.filter(x => x.rpcId !== rpcId));
+      appendResolution({ kind: 'approval', rpcId, sessionId, subject: a.toolName, outcome, at: Date.now() });
+    }
   };
 
   const respondQuestion = async (rpcId: string, answers: DshQuestionAnswerItem[]): Promise<void> => {
+    const batch = questions.find(q => q.rpcId === rpcId);
     const receipt = await dshQuestion.respond(rpcId, sessionId, answers);
-    if (receipt.accepted) setQuestions(prev => prev.filter(q => q.rpcId !== rpcId));
+    if (receipt.accepted) {
+      setQuestions(prev => prev.filter(q => q.rpcId !== rpcId));
+      const summary = (batch?.questions ?? [])
+        .map(q => {
+          const a = answers.find(x => x.id === q.id);
+          const picked = a?.custom?.trim() || (a?.selected ?? []).join('、');
+          return picked ? `${q.question} → ${picked}` : '';
+        })
+        .filter(Boolean)
+        .join('；');
+      appendResolution({ kind: 'question', rpcId, sessionId, subject: summary, outcome: 'answered', at: Date.now() });
+    }
   };
 
   const cancelQuestion = (rpcId: string): void => {
     void dshQuestion.cancel(rpcId);
+    const batch = questions.find(q => q.rpcId === rpcId);
     setQuestions(prev => prev.filter(q => q.rpcId !== rpcId));
+    appendResolution({
+      kind: 'question',
+      rpcId,
+      sessionId,
+      subject: batch?.questions[0]?.question ?? '',
+      outcome: 'cancelled',
+      at: Date.now(),
+    });
   };
+
+  /** 引用回复：选中文字（无选中则整条正文）以 markdown 引用注入输入框。 */
+  const handleQuote = useCallback((text: string): void => {
+    const quoted = text
+      .split('\n')
+      .map(line => `> ${line}`)
+      .join('\n');
+    setDraft(prev => (prev.trim() ? `${prev}\n\n${quoted}\n\n` : `${quoted}\n\n`));
+  }, []);
 
   return createPortal(
     <div
@@ -283,29 +349,24 @@ export const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
             <div className="ai00-x-dsh-scene__messages-empty">{tDsh('chat.empty')}</div>
           )}
           {groupMessagesForDisplay(messages).map(m => (
-            <MessageBubble key={m.id} message={m} />
+            <MessageBubble key={m.id} message={m} onQuote={m.role === 'assistant' ? handleQuote : undefined} />
+          ))}
+          {/* 办结记录 + 待处理审批/提问：内联消息流尾部（与主场景同形态） */}
+          {resolutionLog.map(e => (
+            <ResolutionLogLine key={e.rpcId} entry={e} />
+          ))}
+          {approvals.map(a => (
+            <ApprovalCard
+              key={a.rpcId}
+              approval={a}
+              onRespond={(rpcId, outcome) => void respondApproval(rpcId, outcome)}
+            />
+          ))}
+          {questions.map(q => (
+            <QuestionCard key={q.rpcId} batch={q} onRespond={respondQuestion} onCancel={cancelQuestion} />
           ))}
           {error && <div className="ai00-x-dsh-scene__error">{error}</div>}
         </div>
-
-        {approvals.length > 0 && (
-          <div className="ai00-x-dsh-scene__approvals">
-            {approvals.map(a => (
-              <ApprovalCard
-                key={a.rpcId}
-                approval={a}
-                onRespond={(rpcId, outcome) => void respondApproval(rpcId, outcome)}
-              />
-            ))}
-          </div>
-        )}
-        {questions.length > 0 && (
-          <div className="ai00-x-dsh-scene__approvals">
-            {questions.map(q => (
-              <QuestionCard key={q.rpcId} batch={q} onRespond={respondQuestion} onCancel={cancelQuestion} />
-            ))}
-          </div>
-        )}
 
         {/* 统一 AI 对话输入组件（AgentComposer，内置模型选择，非受控接线） */}
         <div className="ai00-x-dsh-scene__composer">

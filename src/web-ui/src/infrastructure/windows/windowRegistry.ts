@@ -10,7 +10,7 @@
  * 本表只用于前端类型约束与展示信息（如标题）。
  */
 
-export type AppWindowId = 'community' | 'music' | 'workbench' | 'tasks'
+export type AppWindowId = 'community' | 'music' | 'workbench' | 'settings'
 
 export interface AppWindowDef {
   id: AppWindowId
@@ -49,14 +49,14 @@ export const APP_WINDOW_REGISTRY: Record<AppWindowId, AppWindowDef> = {
     width: 1100,
     height: 720,
   },
-  'tasks': {
-    id: 'tasks',
-    label: 'tasks',
-    title: '策',
-    page: 'tasks',
+  'settings': {
+    id: 'settings',
+    label: 'settings',
+    title: '设置',
+    page: 'settings',
     width: 900,
     height: 640,
   },
 }
 
-export const APP_WINDOW_IDS: readonly AppWindowId[] = ['community', 'music', 'workbench', 'tasks']
+export const APP_WINDOW_IDS: readonly AppWindowId[] = ['community', 'music', 'workbench', 'settings']

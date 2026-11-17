@@ -1,0 +1,10 @@
+// 「设置」独立窗口外壳：撑满窗口，内容交给 SettingsView（自带二级导航 + 内容区）。
+.ai00-x-settings-window {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--color-bg-base);
+}

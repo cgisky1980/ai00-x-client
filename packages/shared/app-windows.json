@@ -51,10 +51,10 @@
     "injectTheme": true
   },
   {
-    "id": "tasks",
-    "label": "tasks",
-    "title": "策",
-    "page": "tasks",
+    "id": "settings",
+    "label": "settings",
+    "title": "设置",
+    "page": "settings",
     "width": 900,
     "height": 640,
     "minWidth": 640,

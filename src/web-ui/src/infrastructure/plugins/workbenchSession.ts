@@ -14,9 +14,27 @@
 import { invoke } from '@tauri-apps/api/core';
 import { dshEngine, dshSession } from '@/infrastructure/api/service-api/DshAPI';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
+import { WORKBENCH_LOOP_RULES } from '@/agent/orchestrator';
+import { useTodoStore } from '@/tools/todo/store/todoStore';
 import type { WorkbenchEntry } from './workbenchRegistry';
 
 const STORAGE_KEY = 'ai00-x.workbench-sessions.v1';
+
+/**
+ * 跨窗口打开「外部会话」的总线消息类型（策看板 → 工作台 AI 区）。
+ *
+ * 只带会话引用与展示标题：会话本体、cwd 与历史一律留在 dsh 引擎侧，
+ * 宿主不复制、不迁移（P1 边界：只迁入口）。
+ */
+export const WORKBENCH_OPEN_SESSION = 'workbench:open-session';
+
+export interface WorkbenchOpenSessionIntent {
+  sessionId: string;
+  /** 会话工作目录（只读展示；缺失时宿主用 session/list 反查，仍不建会话）。 */
+  cwd?: string;
+  /** 展示用标题（如任务名）。 */
+  title?: string;
+}
 
 /**
  * 应用侧主模型引用 → dsh 引擎可用的模型引用。
@@ -101,6 +119,26 @@ export interface EnsuredWorkbenchSession {
 }
 
 /**
+ * 新建一个 workbench preset 的 dsh 会话（cwd 已由 `workbench_prepare_project` 准备好）。
+ *
+ * 默认模型跟随应用侧主模型（AI00-API 具体子模型 / 本地 RWKV），而不是把会话钉在
+ * 网关入口上——引擎默认（deepseek-official）未配 key 时每回合 MISSING_CREDENTIAL。
+ * 任务场景（内置「任务」）与会话绑定共用这一个创建口，避免两处各写一份。
+ */
+export async function createWorkbenchPresetSession(cwd: string): Promise<string> {
+  // workbench preset：指令根发现止于工程自身（AGENTS.local.md 作 rootMarker），
+  // 不向上递归收集宿主仓库的 AGENTS.md
+  const { sessionId } = await dshSession.create({ cwd, agentPreset: 'workbench' });
+  try {
+    const defaults = await configManager.getConfig<{ primary?: string }>('ai.default_models');
+    await dshSession.selectModel(sessionId, 'ai00-x', toEngineModelRef(defaults?.primary));
+  } catch {
+    // 配置或模型目录暂不可用时保持引擎默认，用户可在输入区自己选
+  }
+  return sessionId;
+}
+
+/**
  * Ensure a live dsh session is bound to (workbench, project):
  * prepare workbench root + project subdir + agent files → reuse or create the
  * session with `cwd = project root`.
@@ -114,19 +152,24 @@ async function doEnsureWorkbenchSession(
   await dshEngine.ensureReady();
 
   // 宿主侧准备目录与 agent 文件：工作台总目录 / 工作台 AGENTS.md /
-  // 项目子目录 / 项目 AGENTS.local.md（全部幂等）
-  const ctx = await invoke<{ workbenchRoot: string; projectRoot: string }>(
-    'workbench_prepare_project',
-    {
-      workbenchId: entry.id,
-      dataDirName: entry.dataDir,
-      workbenchTitle: entry.title,
-      agentInstructions: entry.agentInstructions ?? null,
-      projectId,
-      projectTitle: projectTitle ?? null,
-    },
-  );
-  const root = ctx.projectRoot;
+  // 项目子目录 / 项目 AGENTS.local.md（全部幂等）。
+  // 此时还不知道要复用还是新建会话，不传 taskId（新建分支会再写一次）。
+  const prepare = async (taskId: string | null): Promise<string> => {
+    const ctx = await invoke<{ workbenchRoot: string; projectRoot: string }>(
+      'workbench_prepare_project',
+      {
+        workbenchId: entry.id,
+        dataDirName: entry.dataDir,
+        workbenchTitle: entry.title,
+        agentInstructions: entry.agentInstructions ?? null,
+        projectId,
+        projectTitle: projectTitle ?? null,
+        taskId,
+      },
+    );
+    return ctx.projectRoot;
+  };
+  const root = await prepare(null);
 
   const bound = getBoundSession(entry.id, projectId);
   if (bound && bound.cwd === root) {
@@ -142,20 +185,31 @@ async function doEnsureWorkbenchSession(
     forgetBoundSession(entry.id, projectId);
   }
 
-  // workbench preset：指令根发现止于工程自身（AGENTS.local.md 作 rootMarker），
-  // 不向上递归收集宿主仓库的 AGENTS.md
-  const { sessionId } = await dshSession.create({ cwd: root, agentPreset: 'workbench' });
-  // 新建会话的默认模型：跟随应用侧主模型（AI00-API 具体子模型 / 本地 RWKV），
-  // 而不是把会话钉在网关入口上——用户看到的应是具体模型名。
-  // 引擎默认（deepseek-official）未配 key 时每回合 MISSING_CREDENTIAL，必须覆盖。
-  // 只对新会话设置；复用会话尊重用户已选模型。
-  try {
-    const defaults = await configManager.getConfig<{ primary?: string }>('ai.default_models');
-    await dshSession.selectModel(sessionId, 'ai00-x', toEngineModelRef(defaults?.primary));
-  } catch {
-    // 配置或模型目录暂不可用时保持引擎默认，用户可在输入区自己选
-  }
+  // 新建会话 = 工作台新任务：先补登任务卡（origin='workbench'），把 taskId
+  // 写进 AGENTS.local.md 的 loop 规约，再建会话并回填 agentSessionId。
+  // 外部会话（策移交）不走这里，它本就有 origin='todo' 的卡。
+  // ⚠️ 必须先 load：todoStore.save() 是「整份内存数据落盘」，没读过盘就建卡会
+  // 把文件里的旧任务全部覆盖掉（工作台窗口不一定会先访问任务场景）。
+  if (!useTodoStore.getState().loaded) await useTodoStore.getState().load();
+  const task = useTodoStore.getState().createWorkbenchTask({
+    title: projectTitle?.trim() || entry.title,
+    workbenchId: entry.id,
+  });
+  await prepare(task.id);
+
+  const sessionId = await createWorkbenchPresetSession(root);
   noteBoundSession(entry.id, projectId, { sessionId, cwd: root });
+  useTodoStore.getState().updateTask(task.id, { agentSessionId: sessionId });
+
+  // 首条任务简报：把任务卡与 loop 约束交到 agent 手里；用户还没提需求时
+  // 只要求它待命，不许自行开工（避免空需求就改文件）。
+  const brief = [
+    `本会话已被 Ai00-X 工作台「${entry.title}」登记为任务卡 ${task.id}（工程：${projectTitle ?? projectId}）。`,
+    WORKBENCH_LOOP_RULES(task.id),
+    '用户还没有提出具体需求时，只回复一句「已就绪，请描述要做什么」，不要创建或修改任何文件。',
+  ].join('\n\n');
+  await dshSession.prompt(sessionId, brief).catch(() => undefined);
+
   return { sessionId, cwd: root, created: true };
 }
 

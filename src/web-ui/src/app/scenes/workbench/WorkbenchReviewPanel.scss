@@ -1,0 +1,44 @@
+// 交付验收档位的内容排版（外壳由 ComposerInteraction 提供）。
+.ai00-x-review-line {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.ai00-x-review-deps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.ai00-x-review-item {
+  max-width: 24ch;
+  overflow: hidden;
+  padding: 0 var(--spacing-2);
+  border-radius: var(--radius-sm);
+  background-color: var(--element-bg-subtle);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-2xs);
+  line-height: 1.8;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai00-x-review-more,
+.ai00-x-review-empty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  line-height: 1.8;
+}

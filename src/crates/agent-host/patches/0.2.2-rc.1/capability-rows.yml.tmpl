@@ -9,3 +9,9 @@
 #   （崩溃监控会自动重启，见 dsh_manager monitor）。
     - name: '@deepseek-ai/dsh-computer-use'
     - name: '@deepseek-ai/dsh-experimental-computer-use-cua-driver-native'
+    # 定时任务（对齐 DeepSeek SuperAgent 的 Scheduled tasks）：
+    # - 这里只补宿主级 schedule 服务；模型工具行 `tool-schedule` 由 base 组合自带。
+    # - 服务负责持久化、调度与投递；客户端未运行时不会触发（UI 需如实说明）。
+    # - rrule 为 RFC 5545 子集；target 支持 this_session / new_once / new。
+    - id: schedule
+      name: '@deepseek-ai/dsh-schedule'

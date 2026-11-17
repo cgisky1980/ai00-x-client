@@ -1,45 +1,66 @@
 /**
- * PromptInput —— 聊天输入框样式（v0.16 AI 系）
- * 发送/停止 = 圆形图标按钮（发送黛青实底 / 停止描边呼吸）；
- * footer 左右分区（footerLeft=模型选择等 / footerRight=辅助信息）。
+ * PromptInput —— 聊天输入框样式（v0.17 对齐 DSH composer 形态）
+ *
+ * 一张卡片：文本区在下、工具行在最下（leading / controls / trailing+提交键），
+ * 卡片下方一行 dock 放快捷键等辅助读数（容器窄时隐藏）。
+ * 候选浮层由业务侧绝对定位在卡片上方（见 AgentComposer.scss）。
  */
 .ai-prompt-input {
   display: flex;
   flex-direction: column;
-  border: var(--style-stroke-width, 1px) solid var(--border-base);
-  border-radius: var(--size-radius-lg);
-  background: var(--element-bg-base);
-  transition: border-color var(--motion-fast) var(--easing-standard),
-    box-shadow var(--motion-fast) var(--easing-standard);
+  gap: var(--size-gap-1);
+  min-width: 0;
+  container-type: inline-size;
 
-  &:focus-within {
-    border-color: var(--color-accent-400);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-500) 12%, transparent);
+  // ---- 卡片上方上下文条（工作目录 / 分支等）----
+  &__above {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+    min-width: 0;
+    padding: 0 var(--size-gap-1) var(--size-gap-1);
   }
 
-  &.is-disabled {
+  // ---- 卡片本体 ----
+  &__card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-3);
+    min-width: 0;
+    padding: var(--size-gap-2) var(--size-gap-2) var(--size-gap-1-5);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--size-radius-3xl);
+    background-color: var(--color-bg-card);
+    box-shadow: var(--shadow-sm);
+    transition: border-color var(--motion-fast) var(--easing-standard),
+      box-shadow var(--motion-fast) var(--easing-standard);
+
+    &:focus-within {
+      border-color: var(--color-accent-400);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-500) 12%, transparent);
+    }
+  }
+
+  &.is-disabled &__card {
     opacity: var(--opacity-disabled);
   }
 
-  &__row {
-    display: flex;
-    align-items: flex-end;
-    gap: var(--size-gap-2);
-    padding: var(--size-gap-1-5) var(--size-gap-1-5) var(--size-gap-1-5) var(--size-gap-3-5);
-  }
-
+  // ---- 文本区 ----
   &__textarea {
-    flex: 1;
+    display: block;
+    width: 100%;
     min-width: 0;
+    min-height: var(--size-gap-8);
     border: none;
     outline: none;
     resize: none;
-    background: transparent;
+    background-color: transparent;
+    padding: var(--size-gap-1) var(--size-gap-1) 0 var(--size-gap-3-5);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-base);
     line-height: 1.6;
     color: var(--color-text-primary);
-    padding: var(--size-gap-1) 0;
     max-height: 200px;
 
     &::placeholder {
@@ -51,13 +72,54 @@
     }
   }
 
+  // 首屏大输入：起始更高，占位两行
+  &--hero &__textarea {
+    min-height: var(--size-gap-14);
+
+    &::placeholder {
+      white-space: normal;
+    }
+  }
+
+  // ---- 工具行 ----
+  &__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--size-gap-3);
+    min-width: 0;
+    padding: 0 var(--size-gap-1);
+  }
+
+  &__leading,
+  &__controls,
+  &__trailing {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  &__leading {
+    flex: none;
+  }
+
+  &__controls {
+    gap: var(--size-gap-2);
+    flex: 0 1 auto;
+    overflow: hidden;
+  }
+
+  &__trailing {
+    flex: none;
+    gap: var(--size-gap-1-5);
+    margin-left: auto;
+  }
+
   // ---- 圆形图标按钮（发送 / 停止）----
   &__send,
   &__stop {
     flex-shrink: 0;
     appearance: none;
-    width: 30px;
-    height: 30px;
     padding: 0;
     border: none;
     border-radius: var(--size-radius-full);
@@ -71,40 +133,46 @@
       opacity var(--motion-fast) var(--easing-standard);
 
     svg {
-      width: 15px;
-      height: 15px;
+      width: 16px;
+      height: 16px;
     }
   }
 
   &__send {
-    background: var(--color-accent-500);
+    width: 34px;
+    height: 34px;
+    background-color: var(--color-accent-500);
     color: var(--color-accent-foreground);
 
     &:hover:not(:disabled) {
-      background: var(--color-accent-600);
+      background-color: var(--color-accent-600);
     }
 
     &:disabled {
-      opacity: 0.4;
+      // 禁用 = 中性灰实底（不是淡化品牌色）：空输入时按钮更像「待命」而非「高亮」
+      background-color: var(--element-bg-medium);
+      color: var(--color-text-muted);
       cursor: default;
     }
 
     // 运行中：按钮语义变为「加入排队」——描边而非实底，
     // 与旁边仍在呼吸的停止按钮形成「主操作 vs 打断操作」的层级
     &.is-queue {
-      background: transparent;
+      background-color: transparent;
       color: var(--color-accent-500);
       border: var(--style-stroke-width, 1px) solid var(--color-accent-400);
 
       &:hover:not(:disabled) {
-        background: color-mix(in srgb, var(--color-accent-500) 10%, transparent);
+        background-color: color-mix(in srgb, var(--color-accent-500) 10%, transparent);
         color: var(--color-accent-600);
       }
     }
   }
 
   &__stop {
-    background: transparent;
+    width: 28px;
+    height: 28px;
+    background-color: transparent;
     color: var(--color-text-secondary);
     border: var(--style-stroke-width, 1px) solid var(--border-base);
     animation: ai-prompt-input-breath 1.6s ease-in-out infinite;
@@ -127,36 +195,35 @@
     }
   }
 
-  // 运行中两个按钮并存：停止在左、排队/发送在右（操作收尾固定在右下角）
-  &__stop + &__send {
-    margin-left: calc(var(--size-gap-1) * -0.5);
-  }
-
-  // ---- footer：左（模型选择/工具）右（辅助信息）分区 ----
-  &__footer {
-    border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
-    padding: var(--size-gap-1) var(--size-gap-2);
+  // ---- 卡片下方 dock：快捷键等辅助读数 ----
+  &__dock {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: var(--size-gap-2);
-    min-height: 38px;
-  }
-
-  &__footer-left {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-1-5);
-    min-width: 0;
-    flex: 1;
-  }
-
-  &__footer-right {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-1-5);
-    flex-shrink: 0;
+    min-height: var(--size-gap-5);
+    padding: 0 var(--size-gap-3);
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
+  }
+
+  &__hint {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @container (width < 560px) {
+    &__tools {
+      gap: var(--size-gap-2);
+    }
+  }
+
+  // 快捷键提示只在更窄的容器里让位（560px 宽的对话栏仍然显示）
+  @container (width < 480px) {
+    &__dock {
+      display: none;
+    }
   }
 }
 

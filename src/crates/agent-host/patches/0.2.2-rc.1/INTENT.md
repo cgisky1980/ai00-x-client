@@ -11,7 +11,7 @@
 
 | 文件 | 角色 | 占位符 |
 |---|---|---|
-| `orchestration-head.patch.yml` | 静态头：编排者 persona（部署级 `personaPrefix`）+ bundled-skills 挂载 | `{BUNDLED_SKILLS_DIR}` `{WORKER_NAMES}` |
+| `orchestration-head.patch.yml` | 静态头：bundled-skills 挂载；编排者 persona 由 workbench preset 生成层写入 | `{BUNDLED_SKILLS_DIR}` |
 | `hooks-row.yml.tmpl` | Claude Code 兼容 hooks 桥挂载行（insert 段） | `{CONFIG_PATH}` |
 | `mcp-row.yml.tmpl` | MCP 桥接行骨架（insert 段，transport 动态体由代码追加） | `{SERVER_NAME}` `{TRANSPORT_BODY}` |
 | `capability-rows.yml.tmpl` | 能力包挂载行：computer-use（Cua 驱动）；包本体由 install_capability_packages 全局安装 | 无 |
@@ -63,7 +63,8 @@
 ```
 - id: preset-<presetId>          name: @deepseek-ai/dsh-agent-preset
     config.id = <presetId>；config.plugins =
-      [persona(prefix=正文), agent-instructions, <工具行…>, compaction 组]
+      [persona(prefix=叶子规则+正文), agent-instructions(禁用 local 指令),
+       <工具行…>, subagent-control(send_message), compaction 组]
 - id: tool-subagent-<suffix>     name: @deepseek-ai/dsh-tool-subagent
     config = { provider: spawn, toolName, agentPreset: <presetId>,
                agentOptions: { provider: ai00-x, model } }
@@ -88,16 +89,20 @@ preset 机制只能按插件行粗粒度挂载）。
 
 1. **编排者 persona 归属**：`system-prompt.personaPrefix` 是**部署级**槽，
    会被 preset 内 `@deepseek-ai/dsh-persona` 以 scoped
-   `deployment:persona-prefix` **覆盖**。默认 `standard` preset 自带
-   "You are a coding agent…" 的 persona，所以本行的编排者 persona 在标准
-   会话里不生效（实测：会话日志里只有 standard 的 persona，无
-   "Ai00-X orchestrator"）。要让编排者 persona 生效，须另建一个与 standard
-   同构的 preset 并把 registry 的 `default` 指向它——属独立行为变更，
-   本次升级不夹带（见 `参考/2026-11-06-dsh-022升级-实施记录.md`）。
+   `deployment:persona-prefix` **覆盖**，因此静态头不再保留这份无效配置。
+   `build_workbench_preset_row` 直接把编排者 persona 写进 workbench preset；
+   standard 会话仍使用上游通用 coding persona。worker 同样使用 preset 内
+   persona，但固定前置叶子执行规则，并禁用 `AGENTS.local.md` 等 local 指令，
+   防止主代理的计划确认门禁泄漏到子代理。
 2. **模型分工**（与 ai_gateway.rs 白名单同源约定）：
    - research_worker：只读六件套 + model=ai00-auto → 网关 SmartRouter /
      hybrid_tool_loop 判级 R0/R1 走本地 RWKV（零成本），失败自动远端；
-   - code_worker：执行类工具 + model=ai00-salvo → 远端强模型。
+   - local_code_worker：执行类工具 + model=rwkv-local → 默认本地执行与一次返工；
+   - review_worker：只读证据 + model=ai00-api → 子任务评审（严格模式与高风险必经）；
+   - code_worker：执行类工具 + model=ai00-api → 云端兜底与明确的云端修正。
+
+   桌面端「模型组合」按阶段改写上述四个工人 md 的 `model:` 行（规划模型切主会话），
+   组合切换后需重启引擎装载新 preset；引擎空闲时宿主会自动重启。
 3. **工具名为引擎注册名**：dsh-tool-fs: read/read_image/edit/write、
    dsh-tool-fs-search: glob/grep、dsh-tool-pwsh: pwsh、dsh-tool-bash: bash、
    dsh-tool-skill: skill、dsh-tool-todo: todo_write、dsh-tool-web:

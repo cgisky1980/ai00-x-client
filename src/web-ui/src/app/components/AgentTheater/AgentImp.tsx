@@ -105,6 +105,15 @@ export const AgentImp: React.FC<AgentImpProps> = ({ state, focused, onLocate, on
       {bubble && <span className="ai00-agent-imp__bubble">{bubble}</span>}
       <span className="ai00-agent-imp__avatar">
         <ImpVisual sessionId={state.sessionId} category={state.category} size={30} />
+        {state.subagents > 0 && (
+          <span
+            className="ai00-agent-imp__badge"
+            title={t('live.subagents', { count: state.subagents })}
+            aria-label={t('live.subagents', { count: state.subagents })}
+          >
+            {state.subagents}
+          </span>
+        )}
       </span>
       <span className="ai00-agent-imp__label">{label}</span>
       {(state.phase === 'acceptance' || state.phase === 'alert') && (

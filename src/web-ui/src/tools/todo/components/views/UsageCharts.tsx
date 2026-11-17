@@ -105,23 +105,18 @@ export const MiniBarChart: React.FC<{
   </ResponsiveContainer>
 );
 
-// ---- 本地/远程堆叠柱图（token） ----
+// ---- 本地推理 token 柱图（估算；远端积分不进同一张图） ----
 
 export const StackedTokenChart: React.FC<{
-  data: { date: string; local: number; remote: number }[];
+  data: { date: string; local: number }[];
 }> = ({ data }) => {
   const localColor = 'color-mix(in oklch, var(--color-text-primary) 32%, transparent)';
-  const remoteColor = 'var(--color-accent)';
   return (
     <div className="td-usage__chart">
       <div className="td-usage__legend">
         <span className="td-usage__legend-item">
           <span className="td-usage__legend-dot" style={{ background: localColor }} />
-          本地
-        </span>
-        <span className="td-usage__legend-item">
-          <span className="td-usage__legend-dot" style={{ background: remoteColor }} />
-          远程
+          本地推理 token（估算）
         </span>
       </div>
       <ResponsiveContainer width="100%" height={96}>
@@ -144,13 +139,11 @@ export const StackedTokenChart: React.FC<{
                 label={String(label ?? '')}
                 items={[
                   { name: '本地 token', value: Number(payload?.[0]?.value ?? 0), color: localColor },
-                  { name: '远程 token', value: Number(payload?.[1]?.value ?? 0), color: remoteColor },
                 ]}
               />
             )}
           />
-          <Bar dataKey="local" stackId="t" fill={localColor} isAnimationActive={false} />
-          <Bar dataKey="remote" stackId="t" fill={remoteColor} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+          <Bar dataKey="local" fill={localColor} radius={[2, 2, 0, 0]} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </div>

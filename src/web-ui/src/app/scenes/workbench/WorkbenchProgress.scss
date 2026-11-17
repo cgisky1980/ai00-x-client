@@ -1,0 +1,140 @@
+// 紧凑徽标（头部用）：2/5，点击开详情抽屉。
+.ai00-x-progress-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 0 var(--spacing-2);
+  border: var(--style-stroke-width, 1px) solid var(--color-border);
+  border-radius: var(--radius-full);
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-2xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.8;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--style-focus-ring, var(--color-accent));
+    outline-offset: 1px;
+  }
+}
+
+// 标准进度模块：完成 / 进行中 / 待办三态一行一条。
+.ai00-x-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+
+  &__head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-2);
+    min-width: 0;
+  }
+
+  &__title {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  &__count {
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__hint {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__empty {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    line-height: 1.7;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-2);
+    padding: var(--spacing-1) var(--spacing-2);
+    border-radius: var(--radius-sm);
+    min-width: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+
+    &.is-active {
+      background-color: var(--element-bg-subtle);
+      color: var(--color-text-primary);
+      font-weight: var(--font-weight-medium);
+    }
+
+    &.is-todo {
+      color: var(--color-text-muted);
+    }
+  }
+
+  &__mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--spacing-4);
+    height: var(--spacing-4);
+    flex: none;
+    color: var(--color-text-muted);
+
+    .is-done & {
+      color: var(--color-success);
+    }
+
+    .is-active & {
+      color: var(--color-accent);
+    }
+  }
+
+  // 待办的空心圆（用伪元素，避免多引一个图标）
+  &__item.is-todo &__mark::before {
+    content: '';
+    width: var(--spacing-2);
+    height: var(--spacing-2);
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
+    border-radius: var(--radius-full);
+  }
+
+  &__text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+
+    .is-done & {
+      color: var(--color-text-muted);
+      text-decoration: line-through;
+    }
+  }
+}

@@ -129,7 +129,8 @@ const PromptInputDemo: React.FC = () => {
         loading={busy}
         onSubmit={() => { setBusy(true); setTimeout(() => setBusy(false), 2000); }}
         onStop={() => setBusy(false)}
-        footer={<span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Enter 发送 · Shift+Enter 换行 · 中文输入法安全</span>}
+        leading={<span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>+</span>}
+        trailing={<span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>模型</span>}
       />
     </div>
   );

@@ -11,7 +11,7 @@
 //! - `PUT  /ai00-internal/plan`            — 写卡片计划文档 `{taskId, markdown}`（广播 `todo-plan-updated`）
 //! - `POST /ai00-internal/git/snapshot`    — 工作区 git 快照（libgit2）
 //! - `POST /ai00-internal/xp`              — XP 事件转发远端（member JWT；服务端按 kind 幂等去重）
-//! - `POST /ai00-internal/web/extract`     — web 有效信息提取（全本地闭环：搜索→并发抓取→并发本地筛选）
+//! - `POST /ai00-internal/web/extract`     — web 有效信息提取（全本地闭环：query=搜索→并发抓取→并发本地筛选；url=直达抓单页提正文，web_fetch 替代）
 //! - `POST /ai00-internal/text/summarize`  — 长文总结（全本地闭环：≤6000 单次 / >6000 map-reduce）
 //!
 //! 鉴权分两层：
@@ -347,6 +347,25 @@ async fn web_extract(req: &mut Request, res: &mut Response) {
     let Some(body) = parse_body(req, res).await else {
         return;
     };
+    // url 直达模式（web_fetch 替代）：抓指定单页提正文；与 query 二选一
+    if let Some(url) = body
+        .get("url")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+    {
+        match crate::web_extract::extract_url(url).await {
+            Some(page) => {
+                res.body(json!({"pages": [page]}).to_string());
+            }
+            None => err(
+                res,
+                StatusCode::BAD_GATEWAY,
+                format!("fetch/extract failed: {url}"),
+            ),
+        }
+        return;
+    }
     let Some(query) = body
         .get("query")
         .and_then(|v| v.as_str())

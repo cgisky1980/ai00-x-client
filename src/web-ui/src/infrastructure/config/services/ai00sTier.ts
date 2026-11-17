@@ -33,16 +33,6 @@ export const isFreeTier = (planTier?: string | null): boolean => {
   return !planTier || planTier === 'free';
 };
 
-export const getAi00sTier = (id: string, userTier?: string | null): Ai00sTier | null => {
-  if (id === 'ai00s') {
-    return mapPlanTierToDisplay(userTier);
-  }
-  if (id.startsWith('ai00s-free')) return 'free';
-  if (id.startsWith('ai00s-vip')) return 'vip';
-  if (id.startsWith('ai00s-svip')) return 'svip';
-  return null;
-};
-
 export const TIER_DISPLAY: Record<Ai00sTier, string> = {
   free: 'Ai00-Free',
   vip: 'Ai00-VIP',
@@ -170,11 +160,12 @@ export interface FreeQuotaInfo {
 
 /// 后端返回的 Ai00-API 模型信息
 ///
-/// Phase 3.4 改造后字段：
-/// - id: 模型 ID（如 "GLM-4.7-Flash"）
+/// 线上模型目录完全由服务端决定：客户端不维护任何模型名单/默认模型常量，
+/// 只读这里下发的字段（`/ai00-s/api/ai/models`）。
+/// - id: 模型 ID（服务端模型目录里的 model 名，客户端原样回传）
 /// - displayName: 显示名
 /// - tier: 'free'（保留兼容字段）
-/// - isUpstreamFree: 是否上游免费模型（NoneLinear 不收平台费，仍按定价扣 credit）
+/// - isUpstreamFree: 是否上游免费模型（上游不收费，平台仍按定价扣 credit）
 /// - isDefault: 是否为默认模型（服务器指定，客户端默认选中）
 /// - modality: LLM/LMM/Image/Video
 /// - producer: 机构（OpenAI/Anthropic/Google/GLM/...）
@@ -185,7 +176,7 @@ export interface FreeQuotaInfo {
 /// - discountEligible: 该模型是否参与会员折扣
 /// - locked: 当前套餐是否不可用（免费用户看非免费模型 = true）
 export interface Ai00sModelInfo {
-  id: string;          // 模型名（如 "GLM-4.7-Flash"），作为 model 字段发给后端
+  id: string;          // 模型名（服务端下发），作为 model 字段发给后端
   displayName: string; // 显示名
   tier: string;        // 'free' | 'cheap' | 'expensive'（保留兼容字段）
   /** 是否上游免费模型 */
@@ -204,6 +195,8 @@ export interface Ai00sModelInfo {
   multiplier?: number;
   /** 当前用户套餐的模型折扣（1.0/0.8/0.6/0.5） */
   memberDiscount?: number;
+  /** 促销折扣（服务端手工配置，1=无促销；0.8=八折），与会员折扣叠加 */
+  promoDiscount?: number;
   /** 该模型是否参与会员折扣 */
   discountEligible?: boolean;
   /** 当前套餐是否不可用（true=锁定，需升级套餐） */
@@ -307,6 +300,8 @@ interface RawAi00sModel {
   multiplier?: number;
   /** 当前用户套餐的模型折扣（1.0/0.8/0.6/0.5） */
   member_discount?: number;
+  /** 促销折扣（1=无促销），服务端下发，只作用于售价 */
+  promo_discount?: number;
   /** 该模型是否参与会员折扣 */
   discount_eligible?: boolean;
   /** 当前套餐是否不可用（true=锁定） */
@@ -347,6 +342,7 @@ async function fetchAi00sModelsRemote(): Promise<Ai00sModelInfo[]> {
       if (m.producer !== undefined) info.producer = m.producer;
       if (m.multiplier !== undefined) info.multiplier = m.multiplier;
       if (m.member_discount !== undefined) info.memberDiscount = m.member_discount;
+      if (m.promo_discount !== undefined) info.promoDiscount = m.promo_discount;
       if (m.discount_eligible !== undefined) info.discountEligible = m.discount_eligible;
       if (m.locked !== undefined) info.locked = m.locked;
       if (m.pricing) {

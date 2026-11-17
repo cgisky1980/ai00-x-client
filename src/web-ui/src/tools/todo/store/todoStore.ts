@@ -13,7 +13,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { publishWindowMessage } from '@/infrastructure/windows/windowBus';
 import type { DshQuestionItem } from '@/infrastructure/api/service-api/DshAPI';
 import { TODO_DATA_CHANGED } from '../sync/todoSyncEvents';
-import type { BoardPlan, ChecklistItem, FocusSession, GoalCategory, PlanChatMessage, PlanChatQuestion, RepeatType, TaskStatus, TodoData, TodoGoal, TodoList, TodoTask } from '../api/types';
+import type { AutomationLink, BoardPlan, ChecklistItem, FocusSession, GoalCategory, PlanChatMessage, PlanChatQuestion, RepeatType, TaskStatus, TodoData, TodoGoal, TodoList, TodoTask, WorkbenchProject } from '../api/types';
 
 /** agent 提问批次（ask_user_question 一次 ask 的全部问题；rpcId 即问题逻辑 id）。 */
 export interface AgentQuestionBatch {
@@ -33,6 +33,8 @@ function emptyData(): TodoData {
     goals: [],
     goalCategories: [],
     tasks: [],
+    projects: [],
+    automations: [],
     focusSessions: [],
     rewards: [],
     lastStreakSettleDate: null,
@@ -42,6 +44,18 @@ function emptyData(): TodoData {
 
 function genId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+}
+
+/** 绝对路径判定（Windows 盘符/UNC 与 POSIX 根）。 */
+function isAbsolutePath(dir: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(dir) || dir.startsWith('\\\\') || dir.startsWith('/');
+}
+
+/** 目录名尾段（项目默认名）。 */
+function dirBaseName(dir: string): string {
+  const trimmed = dir.replace(/[\\/]+$/, '');
+  const index = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
+  return (index >= 0 ? trimmed.slice(index + 1) : trimmed) || dir;
 }
 
 /** BoardPlan 契约清洗：goal/acceptance 补空、截断（旧数据缺新字段兼容）。 */
@@ -234,8 +248,67 @@ function sanitize(raw: unknown): TodoData {
           agentCommit: typeof t.agentCommit === 'string' ? t.agentCommit : null,
           // 卡片级模型选择（讨论/委托执行同源；按卡存储——并行任务各用各的模型）
           discussModel: typeof t.discussModel === 'string' && t.discussModel.trim() ? t.discussModel.trim() : null,
+          // 来源隔离（工作台任务）：缺省=策任务，旧数据原样保留
+          ...(t.origin === 'workbench' ? { origin: 'workbench' as const } : {}),
+          ...(typeof t.workbenchId === 'string' && t.workbenchId ? { workbenchId: t.workbenchId } : {}),
+          ...(typeof t.projectId === 'string' && t.projectId ? { projectId: t.projectId } : {}),
+          ...(typeof t.automationId === 'string' && t.automationId
+            ? { automationId: t.automationId }
+            : {}),
+          // 归档（列表收起；卡片与会话保留）
+          archivedAt: typeof t.archivedAt === 'number' ? t.archivedAt : null,
+          // 隔离执行（每任务 worktree）：缺失=跑在项目目录里
+          branch: typeof t.branch === 'string' && t.branch ? t.branch : null,
+          worktreePath:
+            typeof t.worktreePath === 'string' && t.worktreePath ? t.worktreePath : null,
+          // 计划书确认时刻（工作台门禁；缺失=还没确认）
+          planApprovedAt: typeof t.planApprovedAt === 'number' ? t.planApprovedAt : null,
         }))
     : [];
+
+  // 工作台项目：目录必须是绝对路径，同目录去重（保留最早一条）
+  const seenDirs = new Set<string>();
+  const projects: WorkbenchProject[] = Array.isArray(r.projects)
+    ? (r.projects as WorkbenchProject[])
+        .filter((p) => p && typeof p === 'object')
+        .filter((p) => typeof p.dir === 'string' && isAbsolutePath(p.dir.trim()))
+        .map((p) => ({
+          id: typeof p.id === 'string' && p.id ? p.id : genId('p'),
+          name:
+            typeof p.name === 'string' && p.name.trim()
+              ? p.name.trim().slice(0, 80)
+              : dirBaseName(p.dir.trim()),
+          dir: p.dir.trim(),
+          createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
+          // 隔离执行（每任务一个 worktree）：缺省关闭
+          isolate: p.isolate === true,
+          // worktree 建好后自动装依赖：缺省关闭（会跑依赖的 postinstall）
+          autoDeps: p.autoDeps === true,
+        }))
+        .filter((p) => {
+          const key = p.dir.toLowerCase();
+          if (seenDirs.has(key)) return false;
+          seenDirs.add(key);
+          return true;
+        })
+    : [];
+
+  // 自动化映射：缺 scheduleId 的丢弃
+  const automations: AutomationLink[] = Array.isArray(r.automations)
+    ? (r.automations as AutomationLink[])
+        .filter((a) => a && typeof a === 'object' && typeof a.scheduleId === 'string' && a.scheduleId)
+        .map((a) => ({
+          scheduleId: a.scheduleId,
+          projectId: typeof a.projectId === 'string' && a.projectId ? a.projectId : null,
+          createdAt: typeof a.createdAt === 'number' ? a.createdAt : Date.now(),
+        }))
+    : [];
+
+  // 任务的项目归属：指向不存在的项目时回落默认工作区（不删任务）
+  const projectIds = new Set(projects.map((p) => p.id));
+  for (const task of tasks) {
+    if (task.projectId && !projectIds.has(task.projectId)) task.projectId = undefined;
+  }
 
   const focusSessions: FocusSession[] = Array.isArray(r.focusSessions)
     ? (r.focusSessions as FocusSession[])
@@ -264,6 +337,8 @@ function sanitize(raw: unknown): TodoData {
     goals,
     goalCategories,
     tasks,
+    projects,
+    automations,
     focusSessions,
     rewards,
     lastStreakSettleDate: typeof r.lastStreakSettleDate === 'string' ? r.lastStreakSettleDate : null,
@@ -429,6 +504,23 @@ interface TodoState {
   removeAgentQuestion: (sessionId: string, rpcId: string) => void;
 
   addTask: (title: string, opts?: Partial<Pick<TodoTask, 'due' | 'flag' | 'listId' | 'goalId' | 'milestoneId' | 'remindAt' | 'repeat' | 'checklist' | 'notes' | 'status' | 'chat' | 'agentModule' | 'agentSessionId' | 'agentPrompt'>>) => TodoTask;
+  /** 工作台任务建卡：origin='workbench' + status='doing'（loop 起点）。 */
+  createWorkbenchTask: (input: {
+    title: string;
+    notes?: string;
+    workbenchId: string;
+    projectId?: string;
+    automationId?: string;
+  }) => TodoTask;
+  /** 注册项目（同目录复用已有项目）。 */
+  createProject: (input: { dir: string; name?: string }) => WorkbenchProject;
+  /** 移除项目：任务与会话保留，归属回落默认工作区。 */
+  removeProject: (id: string) => void;
+  /** 更新项目属性（名称、隔离执行开关等）。 */
+  updateProject: (id: string, patch: Partial<WorkbenchProject>) => void;
+  /** 记录自动化 ↔ 引擎 schedule 的映射（同 scheduleId 覆盖 projectId）。 */
+  linkAutomation: (input: { scheduleId: string; projectId: string | null }) => void;
+  unlinkAutomation: (scheduleId: string) => void;
   updateTask: (id: string, patch: Partial<TodoTask>) => void;
   completeTask: (id: string, done: boolean) => void;
   deleteTask: (id: string) => void;
@@ -454,6 +546,10 @@ interface TodoState {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 工作台来源的任务（看板/任务场景的唯一数据源；与策任务按 origin 逻辑隔离）。 */
+export const selectWorkbenchTasks = (state: { data: TodoData }): TodoTask[] =>
+  state.data.tasks.filter((t) => t.origin === 'workbench');
 
 export const useTodoStore = create<TodoState>((set, get) => ({
   loaded: false,
@@ -567,6 +663,96 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     set((s) => ({ data: { ...s.data, tasks: [...s.data.tasks, task] } }));
     get().save();
     return task;
+  },
+
+  createWorkbenchTask: ({ title, notes, workbenchId, projectId, automationId }) => {
+    const task: TodoTask = {
+      id: genId('t'),
+      listId: null,
+      title,
+      notes: notes ?? '',
+      due: null,
+      repeat: null,
+      checklist: [],
+      flag: false,
+      completedAt: null,
+      createdAt: Date.now(),
+      order: Date.now(),
+      focus: { pomodoros: 0, minutes: 0 },
+      goalId: null,
+      milestoneId: null,
+      remindAt: null,
+      remindedAt: null,
+      status: 'doing',
+      origin: 'workbench',
+      workbenchId,
+      ...(projectId ? { projectId } : {}),
+      ...(automationId ? { automationId } : {}),
+    };
+    set((s) => ({ data: { ...s.data, tasks: [...s.data.tasks, task] } }));
+    get().save();
+    return task;
+  },
+
+  createProject: ({ dir, name }) => {
+    const trimmed = dir.trim();
+    const existing = get().data.projects.find(
+      (p) => p.dir.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (existing) return existing;
+    const project: WorkbenchProject = {
+      id: genId('p'),
+      name: name?.trim() || dirBaseName(trimmed),
+      dir: trimmed,
+      createdAt: Date.now(),
+    };
+    set((s) => ({ data: { ...s.data, projects: [...s.data.projects, project] } }));
+    get().save();
+    return project;
+  },
+
+  removeProject: (id) => {
+    set((s) => ({
+      data: {
+        ...s.data,
+        projects: s.data.projects.filter((p) => p.id !== id),
+        tasks: s.data.tasks.map((t) => (t.projectId === id ? { ...t, projectId: undefined } : t)),
+        automations: s.data.automations.map((a) =>
+          a.projectId === id ? { ...a, projectId: null } : a,
+        ),
+      },
+    }));
+    get().save();
+  },
+
+  updateProject: (id, patch) => {
+    set((s) => ({
+      data: {
+        ...s.data,
+        projects: s.data.projects.map((p) => (p.id === id ? { ...p, ...patch, id: p.id } : p)),
+      },
+    }));
+    get().save();
+  },
+
+  linkAutomation: ({ scheduleId, projectId }) => {
+    set((s) => {
+      const others = s.data.automations.filter((a) => a.scheduleId !== scheduleId);
+      return {
+        data: {
+          ...s.data,
+          automations: [...others, { scheduleId, projectId, createdAt: Date.now() }],
+        },
+      };
+    });
+    get().save();
+  },
+
+  unlinkAutomation: (scheduleId) => {
+    set((s) => ({
+      data: { ...s.data, automations: s.data.automations.filter((a) => a.scheduleId !== scheduleId) },
+    }));
+    get().save();
   },
 
   updateTask: (id, patch) => {

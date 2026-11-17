@@ -24,7 +24,7 @@ import { GoalComposer } from './views/GoalComposer';
 import { BoardView } from './views/BoardView';
 import { PlanChatPanel } from './views/PlanChatPanel';
 import { PlanDocPanel } from './views/PlanDocPanel';
-import { ExecChatPanel } from './views/ExecChatPanel';
+import { ExecSessionSummary } from './views/ExecSessionSummary';
 import { TaskCreateModal } from './views/TaskCreateModal';
 import { TraceView } from './views/TraceView';
 import { SettingsView } from './views/SettingsView';
@@ -87,8 +87,9 @@ export const TodoPanel: React.FC = () => {
           {view === 'routine' && <RoutineView onOpenCreate={() => setCreateModal('routine')} />}
 
           {/* 行 = 看板 + 细节区：选中卡联动下半区（讨论占想法池+计划中宽，
-              计划文档占右列）。进行中卡（已委托）左列 = 执行过程对话（会话
-              本体即讨论：实时流+干预+审批/提问应答）；其余卡 = 规划讨论。
+              计划文档占右列）。进行中卡（已委托）左列 = 会话摘要 + 工作台入口
+              （执行对话本身在工作台 AI 区承载，策不再就地渲染 dsh 会话）；
+              其余卡 = 规划讨论。
               Fragment key 按卡重挂——模型/会话流等面板状态不跨卡串扰 */}
           {view === 'today' && (
             <BoardView
@@ -103,7 +104,7 @@ export const TodoPanel: React.FC = () => {
                 <React.Fragment key={selectedTask.id}>
                   {(selectedTask.status ?? 'requirement') === 'doing' && selectedTask.agentSessionId ? (
                     <>
-                      <ExecChatPanel task={selectedTask} />
+                      <ExecSessionSummary task={selectedTask} />
                       <PlanDocPanel task={selectedTask} />
                     </>
                   ) : (

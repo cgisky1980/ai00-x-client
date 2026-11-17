@@ -10,12 +10,14 @@
  * - ai00_todo_read     — 读取知行（待办/目标/专注）全量数据
  * - ai00_todo_write    — 全量写知行数据（先 read 后改再写）
  * - ai00_task_complete — 提交模型自检（DoD 验收前置校验 + 快照）；完成/XP 由人类验收触发
+ * - ai00_task_verify   — 子任务证据门（跑步骤验收命令 + 收集精简证据，判定是否需云审）
  * - ai00_task_create   — agent 自主建卡（想法池落卡，人机对等的想法收集）
  * - ai00_focus_log     — 记录专注会话（宿主广播事件，web-ui 发放 XP）
  * - ai00_plan_read     — 读卡片计划文档 MD（与策窗口共享同一文件）
  * - ai00_plan_write    — 写卡片计划文档 MD（策窗口热刷新可见）
  * - ai00_web_extract   — web 有效信息提取（全本地闭环：搜索→并发抓取→本地并发筛选）
  * - ai00_text_summarize— 长文总结（全本地闭环：≤6000 单次 / >6000 map-reduce 并发）
+ * - ai00_search        — 搜索兜底（自建 SearXNG s.ai00-x.com，web_search 不可用/空结果时用）
  *
  * 本插件只做协议薄壳：业务逻辑在宿主侧（D7 决策）。
  * 不 import @deepseek-ai/dsh-tools（pnpm 严格解析下不可达），用原始
@@ -28,7 +30,7 @@
  * DELEGATE_COMPLETION_THREE_STEP 同步修改，勿只改一处。
  */
 
-import { exec } from "node:child_process";
+import { exec, execFile } from "node:child_process";
 
 const name = "ai00-x-tools";
 const inject = ["tools"];
@@ -93,7 +95,7 @@ function parseAcceptance(markdown) {
   let inSection = false;
   for (const line of markdown.split("\n")) {
     if (/^##\s/.test(line)) {
-      inSection = /^##\s*验收/.test(line);
+      inSection = /^##\s*(验收|Acceptance)/i.test(line);
       continue;
     }
     if (!inSection) continue;
@@ -177,6 +179,244 @@ function runVerification(cmd, cwd, signal) {
       if (signal.aborted) onAbort();
       else signal.addEventListener("abort", onAbort, { once: true });
     }
+  });
+}
+
+/**
+ * 取 markdown 中某个二级标题段的正文行（不含标题行）。
+ * 标题匹配用前缀正则（如 /^##\s*步骤/）。
+ */
+function sectionLines(markdown, headingPattern) {
+  if (typeof markdown !== "string" || !markdown) return null;
+  const lines = [];
+  let inside = false;
+  for (const line of markdown.split("\n")) {
+    if (/^##\s/.test(line)) {
+      inside = headingPattern.test(line);
+      continue;
+    }
+    if (inside) lines.push(line);
+  }
+  return inside || lines.length ? lines : null;
+}
+
+/** 执行策略段：执行方式（local-first/legacy）与云端复审（adaptive/strict）。 */
+function parseExecutionPolicy(markdown) {
+  const policy = { execution: "legacy", review: "adaptive" };
+  const lines = sectionLines(markdown, /^##\s*(执行策略|Execution Policy)/i);
+  if (!lines) return policy;
+  for (const line of lines) {
+    const m = /^\s*-\s*(执行方式|云端复审|Execution|Review)\s*[:：]\s*(.+)$/i.exec(line);
+    if (!m) continue;
+    const key = m[1].toLowerCase();
+    const value = m[2].trim().toLowerCase();
+    if (key === "执行方式" || key === "execution") policy.execution = value;
+    if (key === "云端复审" || key === "review") policy.review = value;
+  }
+  return policy;
+}
+
+/** 步骤字段中英归一（旧中文计划与英文模板都认）。 */
+const FIELD_ALIASES = {
+  依赖: "依赖",
+  "depends on": "依赖",
+  dependencies: "依赖",
+  dependency: "依赖",
+  风险: "风险",
+  risk: "风险",
+  范围: "范围",
+  scope: "范围",
+  paths: "范围",
+  实施细则: "实施细则",
+  implementation: "实施细则",
+  验收: "验收",
+  acceptance: "验收",
+  验证: "验证",
+  verification: "验证",
+  证据: "证据",
+  evidence: "证据",
+  状态: "状态",
+  state: "状态",
+  status: "状态",
+};
+
+/**
+ * 解析「## 步骤」段的结构化任务：
+ * - [ ] T1 标题 / - 依赖: none / - 风险: low / - 范围: a.ts, b.ts /
+ *   - 实施细则: ... / - 验收: ... {cmd: ...}
+ */
+function parsePlanSteps(markdown) {
+  const lines = sectionLines(markdown, /^##\s*(步骤|Steps?)/i);
+  if (!lines) return [];
+  const steps = [];
+  let current = null;
+  for (const line of lines) {
+    const head = /^\s*-\s+\[([ xX])\]\s+(T[0-9A-Za-z_-]+)\s+(.*)$/.exec(line);
+    if (head) {
+      current = {
+        id: head[2],
+        title: head[3].trim(),
+        done: head[1].toLowerCase() === "x",
+        dependencies: [],
+        risk: "low",
+        paths: [],
+        implementation: "",
+        acceptance: [],
+      };
+      steps.push(current);
+      continue;
+    }
+    if (!current) continue;
+    const prop = /^\s*-\s*([^:：]{1,24})[:：]\s*(.*)$/.exec(line);
+    if (!prop) continue;
+    const field = FIELD_ALIASES[prop[1].trim().toLowerCase()];
+    if (!field) continue;
+    const value = prop[2].trim();
+    switch (field) {
+      case "依赖":
+        current.dependencies = /^none$/i.test(value)
+          ? []
+          : value.split(/[,，\s]+/).filter(Boolean);
+        break;
+      case "风险":
+        current.risk = value.toLowerCase();
+        break;
+      case "范围":
+        current.paths = value
+          .split(/[,，]/)
+          .map((p) => p.trim())
+          .filter(Boolean);
+        break;
+      case "实施细则":
+        current.implementation = value;
+        break;
+      case "验收":
+        if (value) current.acceptance.push({ text: value, cmd: extractCmd(value) });
+        break;
+      default:
+        break;
+    }
+  }
+  return steps;
+}
+
+/**
+ * 把「验证 / 证据」两行写回指定步骤块（展示层的事实来源）。
+ *
+ * 只做行级 upsert：已有则替换，没有则插到该步骤块最后一条子行之后；
+ * 找不到步骤或结构异常时原样返回（不阻断验证）。
+ */
+function upsertStepEvidence(markdown, stepId, verdict, evidence) {
+  if (typeof markdown !== "string" || !markdown || !stepId) return markdown;
+  const lines = markdown.split("\n");
+  const stepHead = new RegExp(`^\\s*-\\s+\\[[ xX]\\]\\s+${stepId}\\s`);
+  let insideSteps = false;
+  let start = -1;
+  let end = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^##\s/.test(line)) {
+      if (start >= 0) {
+        end = i;
+        break;
+      }
+      insideSteps = /^##\s*步骤/.test(line);
+      continue;
+    }
+    if (!insideSteps) continue;
+    if (start < 0 && stepHead.test(line)) {
+      start = i;
+      continue;
+    }
+    if (start >= 0 && /^\s*-\s+\[[ xX]\]\s+T[0-9A-Za-z_-]+\s/.test(line)) {
+      end = i;
+      break;
+    }
+  }
+  if (start < 0) return markdown;
+  if (end < 0) end = lines.length;
+
+  const at = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const time = ` · ${at}`;
+  const verifyLine = `  - 验证: ${verdict}${time}`;
+  const evidenceLine = `  - 证据: ${evidence}`;
+
+  let verifyAt = -1;
+  let evidenceAt = -1;
+  let lastChild = start;
+  for (let i = start + 1; i < end; i++) {
+    if (/^\s*-\s*验证\s*[:：]/.test(lines[i])) verifyAt = i;
+    else if (/^\s*-\s*证据\s*[:：]/.test(lines[i])) evidenceAt = i;
+    else if (/^\s*-\s*/.test(lines[i])) lastChild = i;
+  }
+
+  const next = [...lines];
+  if (evidenceAt >= 0) next[evidenceAt] = evidenceLine;
+  else {
+    const insertAt = verifyAt >= 0 ? verifyAt + 1 : lastChild + 1;
+    next.splice(insertAt, 0, evidenceLine);
+    if (verifyAt >= 0 && insertAt <= verifyAt) verifyAt += 1;
+    if (evidenceAt >= 0 && insertAt <= evidenceAt) evidenceAt += 1;
+  }
+  if (verifyAt >= 0) next[verifyAt] = verifyLine;
+  else {
+    const anchor = evidenceAt >= 0 ? evidenceAt : lastChild;
+    next.splice(anchor + 1, 0, verifyLine);
+  }
+  return next.join("\n");
+}
+
+/** 精简证据摘要：命令通过数 / 变更文件数；不写完整输出。 */
+function summarizeEvidence(commands, changedFiles) {
+  const total = commands.length;
+  const passed = commands.filter((cmd) => cmd.ok).length;
+  const failed = commands.filter((cmd) => !cmd.ok);
+  const parts = [`命令 ${passed}/${total} 通过`];
+  if (failed.length) parts.push(`失败 ${failed.length}`);
+  if (changedFiles.length) parts.push(`变更 ${changedFiles.length} 文件`);
+  return parts.join(" · ");
+}
+
+/** 从工作目录取变更清单与 diff（git 不可用时返回空证据，交给 needs-review）。 */
+function collectGitEvidence(cwd, paths, includeDiff) {
+  return new Promise((resolve) => {
+    if (!cwd) {
+      resolve({ repo: false, changedFiles: [], diff: null, diffTruncated: false });
+      return;
+    }
+    const run = (args) =>
+      new Promise((done) => {
+        execFile(
+          "git",
+          args,
+          { cwd, timeout: 30_000, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
+          (error, stdout) => done(error ? null : String(stdout ?? ""))
+        );
+      });
+    (async () => {
+      const inside = await run(["rev-parse", "--is-inside-work-tree"]);
+      if (!inside || inside.trim() !== "true") {
+        resolve({ repo: false, changedFiles: [], diff: null, diffTruncated: false });
+        return;
+      }
+      const status = await run(["status", "--porcelain"]);
+      const changedFiles = (status ?? "")
+        .split("\n")
+        .map((line) => line.slice(3).trim())
+        .filter(Boolean)
+        .slice(0, 200);
+      let diff = null;
+      let diffTruncated = false;
+      if (includeDiff) {
+        const pathspec = Array.isArray(paths) && paths.length ? ["--", ...paths] : [];
+        const text = await run(["diff", "HEAD", "--no-color", ...pathspec]);
+        if (text) {
+          diffTruncated = text.length > 12_000;
+          diff = text.slice(0, 12_000);
+        }
+      }
+      resolve({ repo: true, changedFiles, diff, diffTruncated });
+    })().catch(() => resolve({ repo: false, changedFiles: [], diff: null, diffTruncated: false }));
   });
 }
 
@@ -478,6 +718,169 @@ function defineTools(ctx, api) {
     },
   });
 
+  // ---- ai00_task_verify：子任务证据门（本地执行的确定性验证）----
+  ctx.tools.register({
+    name: "ai00_task_verify",
+    description:
+      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Passing commands does NOT replace high-risk review or human acceptance.",
+    parameters: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: "Task id from the task brief." },
+        snapshotDir: {
+          type: "string",
+          description: "Working directory of this task (used to run commands and collect git evidence).",
+        },
+        stepId: {
+          type: "string",
+          description: "Plan step id such as T1. Omit to verify the global '## 验收' section (integration review).",
+        },
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional path filter for the diff. Narrows review scope only — it is not a sandbox.",
+        },
+        includeDiff: {
+          type: "boolean",
+          description: "Include a truncated diff. Pass true for strict mode, high-risk steps and cloud fallback.",
+        },
+      },
+      required: ["taskId"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          taskId: { type: "string" },
+          stepId: { type: "string" },
+          verdict: { type: "string" },
+          reviewRequired: { type: "boolean" },
+          risk: { type: "string" },
+          reviewMode: { type: "string" },
+          commands: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                cmd: { type: "string" },
+                ok: { type: "boolean" },
+                output: { type: "string" },
+              },
+              required: ["cmd", "ok"],
+            },
+          },
+          manualItems: { type: "array", items: { type: "string" } },
+          changedFiles: { type: "array", items: { type: "string" } },
+          diff: { type: "string" },
+          diffTruncated: { type: "boolean" },
+        },
+        required: ["taskId", "verdict", "reviewRequired", "commands", "manualItems", "changedFiles"],
+      },
+      render: (_args, value) => {
+        const lines = [
+          `verdict: ${value.verdict} (${value.stepId || "integration"}; risk=${value.risk || "-"}; review=${value.reviewMode || "-"}; reviewRequired=${value.reviewRequired})`,
+        ];
+        for (const c of value.commands ?? []) {
+          lines.push(`${c.ok ? "✓" : "✗"} ${c.cmd}${c.ok ? "" : `\n  ${(c.output || "").slice(0, 1200)}`}`);
+        }
+        if ((value.manualItems ?? []).length) {
+          lines.push(`manual: ${value.manualItems.join(" | ")}`);
+        }
+        if ((value.changedFiles ?? []).length) {
+          lines.push(`changed: ${value.changedFiles.slice(0, 40).join(", ")}`);
+        }
+        if (value.diff) lines.push(`diff${value.diffTruncated ? " (truncated)" : ""}:\n${value.diff}`);
+        return text(lines.join("\n"));
+      },
+    },
+    async execute(args, exec) {
+      const taskId = String(args?.taskId ?? "").trim();
+      if (!taskId) throw new Error("taskId is required");
+      const stepId = String(args?.stepId ?? "").trim();
+      const cwd = String(args?.snapshotDir ?? "").trim();
+      const pathFilter = Array.isArray(args?.paths)
+        ? args.paths.map((p) => String(p ?? "").trim()).filter(Boolean)
+        : [];
+
+      const plan = await api
+        .get(`/plan?taskId=${encodeURIComponent(taskId)}`, exec.signal)
+        .catch(() => null);
+      const markdown = typeof plan?.markdown === "string" ? plan.markdown : "";
+      const policy = parseExecutionPolicy(markdown);
+      const steps = parsePlanSteps(markdown);
+      const step = stepId ? steps.find((s) => s.id === stepId) : null;
+      if (stepId && !step) {
+        throw new Error(`plan step not found: ${stepId}`);
+      }
+
+      // 验收来源：指定步骤 → 该步骤验收；否则全局「## 验收」
+      const acceptance = step
+        ? step.acceptance
+        : parseAcceptance(markdown).unchecked.map((item) => ({ text: item, cmd: extractCmd(item) }));
+      const risk = step?.risk ?? "medium";
+      const reviewRequired =
+        policy.review === "strict" || risk === "high" || acceptance.length === 0;
+
+      const commands = [];
+      const manualItems = [];
+      let failed = false;
+      for (const item of acceptance) {
+        const cmd = item.cmd;
+        if (!cmd || !isCmdAllowed(cmd)) {
+          manualItems.push(item.text);
+          continue;
+        }
+        const verdict = await runVerification(cmd, cwd || undefined, exec.signal);
+        commands.push({ cmd, ok: verdict.ok, output: verdict.output });
+        if (!verdict.ok) failed = true;
+      }
+
+      const includeDiff =
+        args?.includeDiff === true || reviewRequired || failed || policy.review === "strict";
+      const evidence = await collectGitEvidence(cwd, pathFilter, includeDiff);
+
+      // 证据不足必须交人工/云端评审，不能假装通过
+      const insufficient =
+        acceptance.length === 0 ||
+        !evidence.repo ||
+        (commands.length === 0 && manualItems.length > 0) ||
+        (includeDiff && evidence.diffTruncated && evidence.changedFiles.length > 50);
+      const verdict = failed ? "failed" : manualItems.length > 0 || insufficient ? "needs-review" : "passed";
+
+      // 把验证结果写回计划（展示层读「验证/证据」两行）；失败不阻断验证结论
+      if (stepId && markdown) {
+        try {
+          const nextMd = upsertStepEvidence(
+            markdown,
+            stepId,
+            verdict,
+            summarizeEvidence(commands, evidence.changedFiles)
+          );
+          if (nextMd !== markdown) {
+            await api.put("/plan", { taskId, markdown: nextMd }, exec.signal);
+          }
+        } catch (error) {
+          ctx.logger.warn(`ai00-x-tools: step evidence write-back skipped: ${error.message}`);
+        }
+      }
+
+      return {
+        taskId,
+        ...(stepId ? { stepId } : {}),
+        verdict,
+        reviewRequired: reviewRequired || insufficient,
+        risk,
+        reviewMode: policy.review,
+        commands,
+        manualItems,
+        changedFiles: evidence.changedFiles,
+        ...(evidence.diff ? { diff: evidence.diff } : {}),
+        ...(evidence.diffTruncated ? { diffTruncated: true } : {}),
+      };
+    },
+  });
+
   // ---- ai00_task_complete：提交模型自检（双段验收第一段）----
   ctx.tools.register({
     name: "ai00_task_complete",
@@ -540,6 +943,21 @@ function defineTools(ctx, api) {
       const plan = await api
         .get(`/plan?taskId=${encodeURIComponent(taskId)}`, exec.signal)
         .catch(() => null);
+      // local-first 计划的额外门禁：步骤未逐项通过（含证据门）不得提交自检。
+      // 旧计划（无「## 执行策略」段）保持原判定，策任务行为不变。
+      const policy = parseExecutionPolicy(plan?.markdown);
+      if (policy.execution === "local-first") {
+        const unfinished = parsePlanSteps(plan?.markdown).filter((step) => !step.done);
+        if (unfinished.length > 0) {
+          throw new Error(
+            [
+              `仍有 ${unfinished.length} 个步骤未完成，不能提交自检：`,
+              ...unfinished.slice(0, 8).map((step) => `  - ${step.id} ${step.title}`),
+              "请先执行 ai00_task_verify（stepId 逐项）并确认通过，再把计划「## 步骤」对应项改为 \"- [x]\"。",
+            ].join("\n")
+          );
+        }
+      }
       const acceptance = parseAcceptance(plan?.markdown);
       const executedCmds = [];
       if (acceptance.total > 0) {
@@ -838,21 +1256,117 @@ function defineTools(ctx, api) {
     },
   });
 
+  // ---- ai00_search：搜索兜底（自建 SearXNG）----
+  // 引擎的 web_search 由 dsh-web 选单一提供方（DeepSeek 搜索需 API key/登录），
+  // 不可用或空结果时用本工具走自建服务，避免 agent 完全搜不到东西。
+  ctx.tools.register({
+    name: "ai00_search",
+    description:
+      "Search the web through Ai00-X's self-hosted SearXNG (no API key) — the primary web search tool. Returns title/url/snippet only; pass a result's URL to ai00_web_extract to get the page body, or call ai00_web_extract with a query directly for distilled per-page summaries.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query." },
+        max_results: {
+          type: "number",
+          description: "Results to return (1-10, default 8).",
+        },
+        language: {
+          type: "string",
+          description: "Language tag, default zh-CN.",
+        },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          results: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                url: { type: "string" },
+                snippet: { type: "string" },
+              },
+              required: ["title", "url", "snippet"],
+            },
+          },
+        },
+        required: ["results"],
+      },
+      render: (_args, value) => {
+        const items = Array.isArray(value?.results) ? value.results : [];
+        if (items.length === 0) return text("ai00_search: no results");
+        return text(
+          items
+            .map(
+              (item, index) =>
+                `${index + 1}. ${item.title}\n   ${item.url}\n   ${item.snippet}`
+            )
+            .join("\n")
+        );
+      },
+    },
+    isConcurrencySafe: () => true,
+    async execute(args, exec) {
+      const query = String(args?.query ?? "").trim();
+      if (!query) throw new Error("query is required");
+      const max = Math.min(Math.max(Number(args?.max_results) || 8, 1), 10);
+      const language = String(args?.language ?? "zh-CN");
+      const base = (process.env.AI00_SEARCH_URL || "https://s.ai00-x.com").replace(/\/+$/, "");
+      const params = new URLSearchParams({
+        q: query,
+        format: "json",
+        language,
+        pageno: "1",
+      });
+      const response = await fetch(`${base}/search?${params.toString()}`, {
+        headers: { accept: "application/json", "user-agent": "Ai00-X/1.0" },
+        signal: exec.signal,
+      });
+      const body = await response.text();
+      if (!response.ok) {
+        throw new Error(`search HTTP ${response.status}: ${body.slice(0, 200)}`);
+      }
+      let data;
+      try {
+        data = JSON.parse(body);
+      } catch {
+        throw new Error("search returned non-JSON (SearXNG json format may be disabled)");
+      }
+      const results = Array.isArray(data?.results) ? data.results : [];
+      return {
+        results: results.slice(0, max).map((item) => ({
+          title: String(item?.title ?? ""),
+          url: String(item?.url ?? ""),
+          snippet: String(item?.content ?? item?.snippet ?? "").slice(0, 500),
+        })),
+      };
+    },
+  });
+
   // ---- ai00_web_extract：web 有效信息提取（全本地闭环：搜索→并发抓取→本地筛选）----
   ctx.tools.register({
     name: "ai00_web_extract",
     description:
-      "Search the web and extract useful information for a query. Internally: searches up to 12 pages, fetches them concurrently, and the LOCAL model screens/summarizes each page concurrently — returns ready-to-use per-page key points (title/url/summary). Prefer this over raw web search when you need distilled content, not links. Pages marked [degraded] fell back to raw search snippets (local screening unavailable).",
+      "Fetch and extract web content, entirely locally (no API key). Two modes — pass exactly one: `url` fetches that page and returns its cleaned body text (use for a specific page, e.g. a link from ai00_search results); `query` searches up to 12 pages, fetches them concurrently, and the LOCAL model screens/summarizes each — returns per-page key points (title/url/summary). Pages marked [degraded] fell back to raw snippets. For a distilled summary of a long body, follow up with ai00_text_summarize.",
     parameters: {
       type: "object",
       properties: {
+        url: {
+          type: "string",
+          description: "Direct page URL to fetch and extract body text (takes precedence over query).",
+        },
         query: { type: "string", description: "Search query (Chinese or English)." },
         max_results: {
           type: "number",
-          description: "Pages to fetch and screen (1-12, default 8).",
+          description: "Query mode only: pages to fetch and screen (1-12, default 8).",
         },
       },
-      required: ["query"],
       additionalProperties: false,
     },
     output: {
@@ -888,10 +1402,11 @@ function defineTools(ctx, api) {
     },
     isConcurrencySafe: () => true,
     async execute(args, exec) {
+      const url = String(args?.url ?? "").trim();
       const query = String(args?.query ?? "").trim();
-      if (!query) throw new Error("query is required");
-      const body = { query };
-      if (Number.isFinite(args?.max_results)) body.max_results = args.max_results;
+      if (!url && !query) throw new Error("url or query is required");
+      const body = url ? { url } : { query };
+      if (!url && Number.isFinite(args?.max_results)) body.max_results = args.max_results;
       return api.post("/web/extract", body, exec.signal);
     },
   });

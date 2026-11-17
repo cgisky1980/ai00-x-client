@@ -34,6 +34,14 @@ import { globalEventBus } from '@/infrastructure/event-bus';
 import type { AIModelConfig } from '@/infrastructure/config/types';
 import { Tooltip, Popover, PopoverTrigger, PopoverContent } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
+import { notificationService } from '@/shared/notification-system';
+import ModelProfileDialog from '@/agent/ModelProfileDialog';
+import {
+  applyModelProfile,
+  getActiveProfileId,
+  listProfiles,
+  type AgentModelProfile,
+} from '@/agent/modelProfiles';
 import { UpgradeDialog } from './UpgradeDialog';
 import './ModelSelector.scss';
 
@@ -67,6 +75,10 @@ interface ModelSelectorProps {
   /** 整体禁用（Agent 回合运行中不允许切换模型）。 */
   disabled?: boolean;
   /**
+   * 组合应用后的回调（宿主可刷新会话模型投影；不传时只做应用与提示）。
+   */
+  onProfileApplied?: (profile: AgentModelProfile) => void;
+  /**
    * 受控值在本组件模型域里解析不出时的展示名。
    *
    * 典型场景：dsh 会话模型（如 `ai00s:<子模型>`）属于引擎目录，而本组件列出的是
@@ -81,6 +93,12 @@ interface ModelSelectorProps {
    * 传了该列表就只展示引擎可用的子模型（`ai00s:<id>` 或裸 id 均可匹配）。
    */
   allowedModelRefs?: string[] | null;
+  /**
+   * 是否在触发器上显示推理档位徽标（默认显示）。
+   *
+   * composer 里档位由独立的「思考档位」控件表达，避免与引擎会话档位重复展示。
+   */
+  showEffortBadge?: boolean;
 }
 
 interface ModelInfo {
@@ -139,6 +157,9 @@ const buildAutoModelInfo = (
 const formatMultiplier = (multiplier: number): string =>
   `${parseFloat(multiplier.toFixed(2))}x`;
 
+/// 组合摘要里的模型短名（`ai00s:` 前缀省略，避免一行太长）。
+const shortModelRef = (ref: string): string => (ref.startsWith('ai00s:') ? ref.slice(6) : ref);
+
 /// 倍率视图：格式化积分余额（千分位，最多 2 位小数）
 const formatCredits = (n: number): string =>
   n.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -186,18 +207,29 @@ const formatModalityLabel = (modality?: string | null): string => {
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
   // currentMode 参数随 per-mode 模型覆盖（ai.agent_models）移除不再使用（接口保留兼容既有调用方）
   className = '',
-  // sessionId 参数已随本地多档位移除不再使用（接口保留兼容既有调用方）
+  // 会话绑定：组合应用时把规划模型切到该会话（无会话则只保存偏好）
+  sessionId,
   currentTokens = 0,
   maxTokens = 0,
   controlledValue,
   onControlledSelect,
   disabled = false,
+  onProfileApplied,
   displayLabel = null,
   allowedModelRefs = null,
+  showEffortBadge = true,
 }) => {
   const { t } = useTranslation('flow-chat');
   // 受控模式（策窗口复用）：选择只回调，不写全局配置
   const isControlled = !!onControlledSelect;
+  const [profiles, setProfiles] = useState<AgentModelProfile[]>(() => listProfiles());
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(() =>
+    getActiveProfileId(),
+  );
+  const [profileDialog, setProfileDialog] = useState<{
+    open: boolean;
+    profile: AgentModelProfile | null;
+  }>({ open: false, profile: null });
   const [allModels, setAllModels] = useState<AIModelConfig[]>([]);
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({});
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -669,6 +701,31 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     return Math.min(Math.round((currentTokens / maxTokens) * 100), 100);
   }, [currentTokens, maxTokens]);
 
+  /** 选组合：写工人模型 + 切换当前会话规划模型，必要时重启引擎装载新 preset。 */
+  const handleSelectProfile = useCallback(
+    async (profile: AgentModelProfile): Promise<void> => {
+      setDropdownOpen(false);
+      try {
+        const result = await applyModelProfile(profile, { sessionId: sessionId ?? null });
+        setActiveProfileId(profile.id);
+        if (isControlled && onControlledSelect) onControlledSelect(profile.models.plan);
+        onProfileApplied?.(profile);
+        if (result.restartRequired) {
+          notificationService.warning('模型组合已保存；有会话正在运行，稍后重启引擎生效');
+        } else if (result.workersChanged) {
+          notificationService.success(`已应用组合「${profile.name}」（引擎已重载）`);
+        } else {
+          notificationService.success(`已应用组合「${profile.name}」`);
+        }
+      } catch (error) {
+        notificationService.error(
+          `应用组合失败：${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [isControlled, onControlledSelect, onProfileApplied, sessionId],
+  );
+
   const tokenStatusClass = useMemo(() => {
     if (tokenPercentage >= 90) return 'critical';
     if (tokenPercentage >= 70) return 'warning';
@@ -718,14 +775,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               className={`ai00-x-model-selector__trigger ${dropdownOpen ? 'ai00-x-model-selector__trigger--open' : ''}`}
               disabled={loading || disabled}
             >
-              <Cpu size={10} className="ai00-x-model-selector__icon" />
+              <Cpu size={16} className="ai00-x-model-selector__icon" />
               <span className="ai00-x-model-selector__name">
                 {triggerLabel}
               </span>
               {currentModel?.enableThinking && (
-                <Sparkles size={9} className="ai00-x-model-selector__thinking-icon" />
+                <Sparkles size={12} className="ai00-x-model-selector__thinking-icon" />
               )}
-              {currentModel?.reasoningEffort && (
+              {showEffortBadge && currentModel?.reasoningEffort && (
                 <span className="ai00-x-model-selector__effort-badge">
                   {currentModel.reasoningEffort}
                 </span>
@@ -746,6 +803,78 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           sideOffset={6}
           className="ai00-x-model-selector__dropdown"
         >
+          {/* 模型组合：按阶段分配模型（规划/执行/评审/兜底/调研），
+              既支持本地+云端，也支持云端高低价模型混搭 */}
+          <div className="ai00-x-model-selector__section-title">
+            模型组合
+          </div>
+          <div className="ai00-x-model-selector__list">
+            {profiles.map(profile => {
+              const selected = activeProfileId === profile.id;
+              return (
+                <div
+                  key={profile.id}
+                  className={`ai00-x-model-selector__option ${selected ? 'ai00-x-model-selector__option--selected' : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => void handleSelectProfile(profile)}
+                  onKeyDown={event => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    void handleSelectProfile(profile);
+                  }}
+                >
+                  <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
+                    {profile.name.charAt(0)}
+                  </span>
+                  <div className="ai00-x-model-selector__option-main">
+                    <div className="ai00-x-model-selector__option-title">
+                      <span className="ai00-x-model-selector__option-name">{profile.name}</span>
+                      {profile.builtin && (
+                        <span className="ai00-x-model-selector__option-tag">预设</span>
+                      )}
+                    </div>
+                    <span className="ai00-x-model-selector__option-multiplier">
+                      规划 {shortModelRef(profile.models.plan)} · 执行{' '}
+                      {shortModelRef(profile.models.execute)} · 评审{' '}
+                      {shortModelRef(profile.models.review)}
+                    </span>
+                  </div>
+                  {selected && (
+                    <Check size={14} className="ai00-x-model-selector__option-check" />
+                  )}
+                </div>
+              );
+            })}
+            <div
+              className="ai00-x-model-selector__option"
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                setDropdownOpen(false);
+                setProfileDialog({ open: true, profile: null });
+              }}
+              onKeyDown={event => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                setDropdownOpen(false);
+                setProfileDialog({ open: true, profile: null });
+              }}
+            >
+              <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
+                +
+              </span>
+              <div className="ai00-x-model-selector__option-main">
+                <div className="ai00-x-model-selector__option-title">
+                  <span className="ai00-x-model-selector__option-name">新建组合…</span>
+                </div>
+                <span className="ai00-x-model-selector__option-multiplier">
+                  每个阶段单独选模型（含本地与云端）
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* 本地模型：RWKV 3B 为必需档位（本地协同默认，自动下载），
               7B/13B 为可选档位，点行按需下载；未上架档位只做占位说明 */}
           <div className="ai00-x-model-selector__section-title">
@@ -849,6 +978,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         const memberPct = hasMemberDiscount
                           ? Math.round((1 - (apiModel.memberDiscount ?? 1)) * 100)
                           : 0;
+                        // 促销折扣（服务端手工配置，与会员折扣叠加；倍率已由服务端按促销后价计算）
+                        const promo = apiModel.promoDiscount ?? 1;
+                        const hasPromoDiscount = promo > 0 && promo < 1;
+                        const promoZhe = hasPromoDiscount
+                          ? String(parseFloat((promo * 10).toFixed(1)))
+                          : '';
+                        const promoPct = hasPromoDiscount ? Math.round((1 - promo) * 100) : 0;
 
                         // tooltip: 显示名 + 模态 + 机构 + 剩余额度 + 锁定原因（元价格不再突出）
                         const tooltipParts: string[] = [apiModel.displayName];
@@ -885,6 +1021,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                   {hasMemberDiscount && (
                                     <span className="ai00-x-model-selector__option-tag ai00-x-model-selector__option-tag--discount">
                                       {t('modelSelector.badges.memberDiscount', { zhe: memberZhe, pct: memberPct })}
+                                    </span>
+                                  )}
+                                  {hasPromoDiscount && (
+                                    <span className="ai00-x-model-selector__option-tag ai00-x-model-selector__option-tag--promo">
+                                      {t('modelSelector.badges.promoDiscount', { zhe: promoZhe, pct: promoPct })}
                                     </span>
                                   )}
                                   {apiModel.isUpstreamFree && (
@@ -979,6 +1120,16 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         modelName={upgradeDialog?.modelName ?? ''}
         requiredTier={upgradeDialog?.requiredTier ?? ''}
         currentTier={userTier}
+      />
+
+      <ModelProfileDialog
+        open={profileDialog.open}
+        profile={profileDialog.profile}
+        onClose={() => setProfileDialog({ open: false, profile: null })}
+        onSaved={saved => {
+          setProfiles(listProfiles());
+          void handleSelectProfile(saved);
+        }}
       />
     </Popover>
   );

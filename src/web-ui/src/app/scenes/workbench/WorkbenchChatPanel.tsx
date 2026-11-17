@@ -24,6 +24,7 @@ import {
   dshApproval,
   dshQuestion,
   dshSession,
+  extractSubagentCatalog,
   foldEvents,
   type DshApproval,
   type DshLiveAssistant,
@@ -34,22 +35,104 @@ import {
   type DshQuestionAnswerItem,
   type DshQueueItem,
   type DshSessionEvent,
+  type DshToolCallView,
 } from '@/infrastructure/api/service-api/DshAPI';
 import { isApprovalAllowed } from '@/shared/agent-approval-rules';
 import { emitBusEvent, onBusEvent } from '@/infrastructure/plugins/runtime';
-import { ensureWorkbenchSession, forgetBoundSession } from '@/infrastructure/plugins/workbenchSession';
+import {
+  ensureWorkbenchSession,
+  forgetBoundSession,
+  type WorkbenchOpenSessionIntent,
+} from '@/infrastructure/plugins/workbenchSession';
 import { ToolCallTracker, type ScopeViolation } from '@/infrastructure/plugins/workbenchScope';
 import type { WorkbenchEntry } from '@/infrastructure/plugins/workbenchRegistry';
+import { useWorkbenchTaskStore, type WorkbenchChildAgent } from '../tasks/workbenchTaskStore';
 import { ApprovalCard, ChatErrorText, MessageBubble, QuestionCard } from '../dsh/DshChatPieces';
+import { Markdown } from '@/component-library';
 import { groupMessagesForDisplay } from '../dsh/messageGroups';
 import { WorkbenchQueueDock, type QueueDockRow } from './WorkbenchQueueDock';
+import { ComposerInteraction } from './ComposerInteraction';
+import { WorkbenchPlanRail } from './WorkbenchPlanRail';
+import { WorkbenchPlanSummary } from './WorkbenchPlanSummary';
+import { WorkbenchTaskCards } from './WorkbenchTaskCards';
+import { WorkbenchTurnUsage } from './WorkbenchTurnUsage';
+import { WorkbenchSubagentCard } from './WorkbenchSubagentCard';
+import { WorkbenchSubagentOverview } from './WorkbenchSubagentOverview';
+import { focusSubagentCard } from './subagentFocus';
+import { isSubagentDispatch } from './subagentTools';
+import { parsePlanSteps } from '@/tools/todo/utils/planStructure';
+import {
+  getSessionUsage,
+  type AiUsageSplit,
+} from '@/infrastructure/api/service-api/AiUsageAPI';
 // 消息/输入区样式类复用策场景（__msg* / __composer 等 BEM 平级类）
 import '../dsh/DshScene.scss';
+import './WorkbenchDelegating.scss';
+
+/** 稳定空数组：避免 zustand selector 每次返回新引用导致重渲染。 */
+const EMPTY_CHILDREN: WorkbenchChildAgent[] = [];
+
+/** 回合无任何新事件多久后提示「可能卡住」（实测模型侧会静默数分钟）。 */
+const STALL_NOTICE_MS = 120_000;
+
+/** 子代理已运行时长（`3m 20s` / `45s`）。 */
+function formatElapsed(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(seconds / 60);
+  return minutes > 0 ? `${minutes}m ${seconds % 60}s` : `${seconds}s`;
+}
 
 interface WorkbenchChatPanelProps {
-  entry: WorkbenchEntry;
+  /** 当前插件工作台；纯外部会话宿主时为空（此时不建立任何工程绑定）。 */
+  entry?: WorkbenchEntry;
   /** 插件页挂载失败：AI 区显示不可用状态，不建立任何会话。 */
   pluginUnavailable?: boolean;
+  /**
+   * 外部会话绑定（策看板「在工作台继续」投递）：优先于 `workbench:active-project`
+   * 的工程绑定；只读展示 cwd，不建会话、不改 cwd。
+   */
+  externalSession?: WorkbenchOpenSessionIntent | null;
+  /** 退出外部会话：回到当前工程的会话绑定。 */
+  onExitExternalSession?: () => void;
+  /**
+   * 运行态上报（可选）：会话此刻是否在跑 / 是否出错。工作台默认任务场景用它
+   * 把状态递给看板（看板只读，不复用 TodoOverlay 的轮询）。
+   */
+  onRuntimeChange?: (runtime: { running: boolean; failed: boolean }) => void;
+  /** 默认 panel=插件右侧栏；conversation=任务主对话区（隐藏通用头部）。 */
+  variant?: 'panel' | 'conversation';
+  /** 展示层把首轮内部编排任务书替换为用户的原始需求，不改引擎历史。 */
+  initialRequest?: string;
+  /**
+   * 输入框上方是否显示工作区行（目录 + 分支）。
+   * 项目工作台里项目名与分支已在头部/侧栏常驻，这里默认关掉避免重复。
+   */
+  showWorkspace?: boolean;
+  /**
+   * 宿主提供的交互档位（如交付验收）。
+   * 优先级低于引擎自带的「提问 / 审批」，但高于工作区行——人类介入永远贴着输入框。
+   */
+  dock?: React.ReactNode;
+  /** 计划书（有就常驻输入框上方的计划条；不限项目/任务场景）。 */
+  planMd?: string | null;
+  /** 计划条是否自动展开（有评审/验收动作时）。 */
+  planAutoOpen?: boolean;
+  /** 计划条「详情」入口。 */
+  onViewPlan?: () => void;
+  /** 任务已完成：计划条不标「进行中」。 */
+  planFinished?: boolean;
+  /**
+   * 计划书是否已被人类确认。传 `false` 且已有计划书、agent 空闲时，
+   * 输入框上方升起「计划确认」档位——执行前必须过一次人类确认。
+   */
+  planApproved?: boolean;
+  /** 计划确认结果（宿主持久化到任务卡）。 */
+  onPlanApprove?: () => void;
+  /**
+   * agent 已提交自检（`agentCompletedAt`）。步骤全通过但它没提交时，
+   * 这里给一条「让它提交自检」的入口——否则流程会在汇总前断掉。
+   */
+  agentSelfChecked?: boolean;
 }
 
 interface ActiveProject {
@@ -85,6 +168,20 @@ interface LocalSubmission {
 export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   entry,
   pluginUnavailable = false,
+  externalSession = null,
+  onExitExternalSession,
+  onRuntimeChange,
+  variant = 'panel',
+  initialRequest,
+  showWorkspace = true,
+  dock,
+  planMd,
+  planAutoOpen = false,
+  onViewPlan,
+  planFinished = false,
+  planApproved,
+  onPlanApprove,
+  agentSelfChecked = false,
 }) => {
   const { t } = useTranslation('common');
   const tDsh = useTranslation('scenes/dsh').t;
@@ -122,8 +219,83 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   const [linkDown, setLinkDown] = useState(false);
 
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  /** 内部任务书只作引擎输入；任务主对话里展示用户真正写下的需求。 */
+  const transcriptMessages = useMemo(() => {
+    if (!initialRequest) return messages;
+    let replaced = false;
+    return messages.map((message) => {
+      if (!replaced && message.role === 'user' && message.text.includes('════ 任务书 ════')) {
+        replaced = true;
+        return { ...message, text: initialRequest };
+      }
+      return message;
+    });
+  }, [initialRequest, messages]);
   /** 展示用消息：逐条落盘的助手消息按回合合并成一个气泡（Trae 形态）。 */
-  const displayMessages = useMemo(() => groupMessagesForDisplay(messages), [messages]);
+  const displayMessages = useMemo(
+    () => groupMessagesForDisplay(transcriptMessages),
+    [transcriptMessages],
+  );
+
+  /** 本轮消耗（本地 / 云端分项，来自网关账本按会话增量）。 */
+  const [turnUsage, setTurnUsage] = useState<{
+    local: AiUsageSplit;
+    remote: AiUsageSplit;
+  } | null>(null);
+  const roundStartRef = useRef<number | null>(null);
+  const usageSessionId = bound?.sessionId ?? externalSession?.sessionId ?? null;
+  /** 正在跑的子代理（子会话）数量：主代理回合一结束不等于任务停下。 */
+  const delegatedCount = useWorkbenchTaskStore((s) =>
+    usageSessionId ? (s.delegating[usageSessionId] ?? 0) : 0,
+  );
+  /** 本会话的子代理活动（对话流里展示）。 */
+  const childAgents = useWorkbenchTaskStore((s) =>
+    usageSessionId ? (s.children[usageSessionId] ?? EMPTY_CHILDREN) : EMPTY_CHILDREN,
+  );
+  /** 尾部活动条只放运行中的子代理（已结束的留在派发位置的内联卡里）。 */
+  const runningChildAgents = childAgents.filter(agent => agent.running);
+  /** 子会话 turn 计时（durable）：活动条优先用它，而不是本端首次观测时间。 */
+  const subagentTiming = useWorkbenchTaskStore(s => s.subagentTiming);
+  /** worker 派发 → 子代理内联卡；其余工具走默认工具卡。 */
+  const renderToolCall = (call: DshToolCallView): React.ReactNode => {
+    if (!usageSessionId || !isSubagentDispatch(call)) return null;
+    return <WorkbenchSubagentCard call={call} parentSessionId={usageSessionId} />;
+  };
+  /** 子代理来源记录的人类可读名（catalog label，兜底短 id 由 MessageBubble 处理）。 */
+  const resolveOriginLabel = (id: string): string | null => {
+    const rows = useWorkbenchTaskStore.getState().subagentCatalog[usageSessionId ?? ''] ?? [];
+    return rows.find(row => row.id === id)?.label ?? null;
+  };
+  /** 子代理耗时：引擎不给开始时间，用本端首次观测近似，10s 走一格。 */
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const hasRunningChild = childAgents.some(agent => agent.running);
+  useEffect(() => {
+    if (!hasRunningChild) return undefined;
+    setNowTick(Date.now());
+    const timer = window.setInterval(() => setNowTick(Date.now()), 10_000);
+    return () => window.clearInterval(timer);
+  }, [hasRunningChild]);
+
+  useEffect(() => {
+    if (!usageSessionId) return;
+    if (agentRunning) {
+      // 回合开始：记下基线时间，结束时按 since 拉增量
+      if (roundStartRef.current === null) roundStartRef.current = Date.now();
+      return;
+    }
+    const since = roundStartRef.current;
+    if (!since) return;
+    roundStartRef.current = null;
+    let cancelled = false;
+    void getSessionUsage(usageSessionId, since)
+      .then(usage => {
+        if (!cancelled) setTurnUsage({ local: usage.local, remote: usage.remote });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [agentRunning, usageSessionId]);
   const eventsRef = useRef<DshSessionEvent[]>([]);
   const trackerRef = useRef(new ToolCallTracker());
   /** 当前绑定会话（mux 回调闭包里读最新值用）。 */
@@ -131,6 +303,11 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   boundRef.current = bound;
   const projectRef = useRef<ActiveProject | null>(null);
   projectRef.current = project;
+  /** 外部会话（非空时压制工程绑定：外部绑定优先）。 */
+  const externalRef = useRef<WorkbenchOpenSessionIntent | null>(null);
+  externalRef.current = externalSession;
+  /** 外部会话占用期间收到的 active-project：退出外部会话后据此恢复工程绑定。 */
+  const pendingProjectRef = useRef<ActiveProject | null>(null);
   /** 绑定序号：快速切换工程时，只有最后一次 active-project 的异步结果允许落地。 */
   const bindTokenRef = useRef(0);
   /** 同一会话的 prompt 按提交顺序串行发出（保证成功提交的 FIFO）。 */
@@ -157,10 +334,26 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   runningRef.current = running;
   hostInboxRef.current = hostInbox;
 
+  // 运行态上报（可选）：仅上报真实变化，避免每帧重渲染宿主
+  const onRuntimeChangeRef = useRef(onRuntimeChange);
+  onRuntimeChangeRef.current = onRuntimeChange;
+  const lastRuntimeRef = useRef<string>('');
+  useEffect(() => {
+    if (!onRuntimeChangeRef.current) return;
+    // 子代理仍在跑时任务不能报「已停止」，否则看板会误判
+    const effectiveRunning = running || delegatedCount > 0;
+    // 仍在推进（主回合或子代理任一在跑）时，回合级报错不升级为任务级「出错」——
+    // 否则父回合刚报错、子代理还在跑的任务会在看板上闪「出错」。
+    const failed = Boolean(error) && !effectiveRunning;
+    const key = `${effectiveRunning ? 1 : 0}${failed ? 1 : 0}`;
+    if (key === lastRuntimeRef.current) return;
+    lastRuntimeRef.current = key;
+    onRuntimeChangeRef.current({ running: effectiveRunning, failed });
+  }, [running, error, delegatedCount]);
+
   /** 实时流是否已有可见文本；没有就显示动态等待提示。 */
   const liveHasText = Boolean(live && (live.text || live.reasoning));
   const showPendingDots = !liveHasText && running;
-
   const sessionSubs = useMemo(
     () => submissions.filter(s => s.sessionId === sessionId),
     [submissions, sessionId],
@@ -249,6 +442,7 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   /** 绑定（或重试绑定）指定工程：准备目录/会话/模型；失败保留可重试状态。 */
   const bindProject = useCallback(
     (projectId: string, title?: string): void => {
+      if (!entry) return; // 纯外部会话宿主：不建立工程绑定
       const token = ++bindTokenRef.current;
       setProject({ projectId, title });
       setBinding(true);
@@ -275,11 +469,63 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     const off = onBusEvent('workbench:active-project', (data) => {
       const payload = data as { projectId?: string; title?: string } | undefined;
       if (!payload?.projectId) return;
+      // 外部会话占用 AI 区：先记账不抢绑定（退出外部会话时再恢复）
+      if (externalRef.current) {
+        pendingProjectRef.current = { projectId: payload.projectId, title: payload.title };
+        return;
+      }
       if (projectRef.current?.projectId === payload.projectId && boundRef.current) return;
       bindProject(payload.projectId, payload.title);
     });
     return off;
   }, [bindProject]);
+
+  /** 外部会话绑定：直接用给定会话 id，不建会话、不改 cwd（P1 边界）。
+   * 优先于工程绑定；cwd 缺失时用 session/list 只读反查（仍未拿到就置空，
+   * 只是少了越界校验的基准，不影响对话与审批）。
+   */
+  const externalSessionId = externalSession?.sessionId ?? null;
+  const externalSessionCwd = externalSession?.cwd ?? null;
+  useEffect(() => {
+    if (!externalSessionId) return;
+    bindTokenRef.current += 1; // 作废进行中的工程绑定
+    setProject(null);
+    setBinding(false);
+    setBindError(null);
+    setBound({ sessionId: externalSessionId, cwd: externalSessionCwd ?? '' });
+  }, [externalSessionId, externalSessionCwd]);
+
+  useEffect(() => {
+    if (!externalSessionId || externalSessionCwd) return undefined;
+    const target = externalSessionId;
+    let cancelled = false;
+    void dshSession
+      .list()
+      .then(({ items }) => {
+        const cwd = items.find((it) => it.sessionId === target)?.cwd;
+        if (cancelled || !cwd) return;
+        setBound(prev => (prev?.sessionId === target ? { ...prev, cwd } : prev));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [externalSessionId, externalSessionCwd]);
+
+  // 退出外部会话 → 清空绑定，若期间有工程上报则恢复工程绑定
+  const hadExternalRef = useRef(false);
+  useEffect(() => {
+    if (externalSessionId) {
+      hadExternalRef.current = true;
+      return;
+    }
+    if (!hadExternalRef.current) return;
+    hadExternalRef.current = false;
+    setBound(null);
+    const pending = pendingProjectRef.current;
+    pendingProjectRef.current = null;
+    if (pending) bindProject(pending.projectId, pending.title);
+  }, [externalSessionId, bindProject]);
 
   // 插件删除工程 → 只移除绑定并清空面板（不删引擎历史，会话可另行在会话列表查看）
   useEffect(() => {
@@ -287,7 +533,7 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
       const payload = data as { projectId?: string } | undefined;
       const removed = payload?.projectId;
       if (!removed) return;
-      forgetBoundSession(entry.id, removed);
+      if (entry) forgetBoundSession(entry.id, removed);
       if (projectRef.current?.projectId !== removed) return;
       bindTokenRef.current += 1;
       projectRef.current = null;
@@ -308,7 +554,7 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
       setRetryableText(null);
     });
     return off;
-  }, [entry.id]);
+  }, [entry]);
 
   const reloadBaseline = useCallback(async (): Promise<void> => {
     if (!sessionId) return;
@@ -317,11 +563,18 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
       eventsRef.current = events.map(e => e.event);
       const folded = foldEvents(eventsRef.current);
       setMessages(folded);
+      // 子代理目录兜底：投影可能还没到（首帧/重启），durable 事件先对齐 label
+      useWorkbenchTaskStore
+        .getState()
+        .seedSubagentCatalog(sessionId, extractSubagentCatalog(eventsRef.current));
       // 对账：已落盘的用户消息退休对应的本地即时气泡（按 rpcId 优先，文本兜底）
       const rpcIds = new Set(
         folded.filter(m => m.role === 'user' && m.rpcId).map(m => m.rpcId as string),
       );
-      const userTexts = new Set(folded.filter(m => m.role === 'user').map(m => m.text.trim()));
+      // 子代理 relay 记录也是 role=user，但不代表人类提交，不能参与文本对账
+      const userTexts = new Set(
+        folded.filter(m => m.role === 'user' && !m.origin).map(m => m.text.trim()),
+      );
       retireSubmissions(
         s =>
           s.sessionId === sessionId &&
@@ -476,6 +729,14 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
         setQuestions(prev => prev.filter(q => q.rpcId !== frame.questionRpcId));
         return;
       }
+      // 子代理投影（控制流按会话广播）：父会话的 subagentCatalog 提供 label，
+      // 子会话的 subagentTiming 提供 durable 耗时——不在本会话也要收。
+      if (frame.type === 'session/projection') {
+        useWorkbenchTaskStore
+          .getState()
+          .applySubagentProjection(frame.sessionId, frame.key, frame.value);
+        return;
+      }
       if (frame.type !== 'session/event' || frame.sessionId !== sessionId) return;
 
       const event = frame.event;
@@ -552,6 +813,10 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
         void refreshRunning();
         void refreshQueueSnapshot();
         return;
+      }
+      // 子代理派发记录：durable 副本先落 store（投影到达后同值覆盖）
+      if (event.type === 'subagent/catalog') {
+        useWorkbenchTaskStore.getState().seedSubagentCatalog(sessionId, extractSubagentCatalog([event]));
       }
       eventsRef.current = [...eventsRef.current, event];
       setMessages(foldEvents(eventsRef.current));
@@ -646,6 +911,35 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     }, 6_000);
     return () => window.clearInterval(timer);
   }, [awaitingAgent, liveHasText, sessionId]);
+
+  // —— 模型侧停滞提示：回合在跑但长时间没有任何新事件 ——
+  // 实测：编排者读完计划后会「思考中」5 分钟无 token、无工具、无超时，界面像卡死。
+  // 这里只做提示与出口（停止 / 重试上一条），不自动打断模型。
+  const [stallMs, setStallMs] = useState(0);
+  const lastActivityRef = useRef(Date.now());
+  useEffect(() => {
+    lastActivityRef.current = Date.now();
+    setStallMs(0);
+  }, [messages, live]);
+  useEffect(() => {
+    if (!running) {
+      setStallMs(0);
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      setStallMs(Date.now() - lastActivityRef.current);
+    }, 5_000);
+    return () => window.clearInterval(timer);
+  }, [running]);
+  const stalled = running && stallMs >= STALL_NOTICE_MS;
+  /** 重试用的上一条用户消息（没有就发一句「继续」）。 */
+  const lastUserText = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const message = messages[i];
+      if (message.role === 'user' && message.text.trim()) return message.text.trim();
+    }
+    return '';
+  }, [messages]);
 
   // —— 滚动：贴底跟随，用户向上阅读后不打断（出现「回到最新」） ——
   const scrollToBottom = useCallback((): void => {
@@ -834,7 +1128,8 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   };
 
   // 插件页不可用：AI 区给出明确的不可用状态，不建立会话、不显示输入框
-  if (pluginUnavailable) {
+  // （外部会话不依赖插件页：仍可对话与应答审批）
+  if (pluginUnavailable && !externalSession) {
     return (
       <div className="ai00-x-workbench-chat">
         <div className="ai00-x-workbench-chat__head">
@@ -848,29 +1143,213 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     );
   }
 
+  /** 对话区就绪：外部会话只需会话 id；工程绑定还需完成绑定且无错误。 */
+  const chatReady =
+    Boolean(bound) && (externalSession ? true : Boolean(project) && !binding && !bindError);
+
+  /**
+   * 输入框上的交互档位（同一时刻只一个，优先级：提问 > 审批/计划评审 > 宿主档位）。
+   * 人类介入一律贴着输入框，消息流只留事实。
+   *
+   * 计划评审正文：优先取本轮 exit_plan_mode 工具调用的 plan 参数，
+   * 没有就退回任务计划文件——两者都没有时评审卡只剩标题。
+   */
+  const planReviewText = ((): string | undefined => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      for (const tc of messages[i].toolCalls) {
+        if (tc.name !== 'exit_plan_mode') continue;
+        try {
+          const args = JSON.parse(tc.arguments) as { plan?: unknown };
+          if (typeof args?.plan === 'string' && args.plan.trim()) return args.plan;
+        } catch {
+          // 参数不是 JSON：退回计划文件
+        }
+      }
+    }
+    return planMd && planMd.trim() ? planMd : undefined;
+  })();
+
+  const pendingQuestion = questions[0];
+  const pendingApproval = approvals[0];
+  /** 计划确认卡的结构化步骤（旧计划为空 → 回落整篇 Markdown）。 */
+  const confirmSteps = parsePlanSteps(planMd ?? null);
+  /** 正在做计划评审（exit_plan_mode）：此时背卡直接摊开计划，不再显示计划条。 */
+  const planReviewing = pendingApproval?.toolName === 'exit_plan_mode';
+  /**
+   * 计划确认门禁：计划书已写好、还没被人类确认。
+   *
+   * 这是「计划 → 执行」之间唯一的人工闸口，所以**不跟运行态挂钩**——agent
+   * 收尾慢或运行态上报滞后（5s 轮询）时，按钮也必须立刻可见；此时批准消息
+   * 进队列，由输入框上方的队列条显示，不会丢。
+   */
+  const planAwaitingConfirm =
+    planApproved === false &&
+    Boolean(planMd && planMd.trim()) &&
+    !planFinished &&
+    !pendingQuestion &&
+    !pendingApproval;
+  const planConfirmDock = planAwaitingConfirm ? (
+    <ComposerInteraction
+      tone="warning"
+      actions={[
+        {
+          label: t('nav.workbenchWindow.progress.approvePlan'),
+          variant: 'primary',
+          onClick: () => {
+            onPlanApprove?.();
+            submitText(t('nav.workbenchWindow.progress.approvePlanMessage'));
+          },
+        },
+      ]}
+    >
+      <div className="ai00-x-plan-confirm">
+        {confirmSteps.length > 0 ? (
+          <>
+            <WorkbenchPlanSummary
+              steps={confirmSteps}
+              planMd={planMd ?? null}
+              running={agentRunning}
+              pendingApproval
+              taskCompleted={planFinished}
+            />
+            <WorkbenchTaskCards planMd={planMd ?? null} steps={confirmSteps} compact readOnly />
+          </>
+        ) : (
+          <Markdown
+            content={(planMd ?? '').replace(/^- \[x\] /gm, '✓ ').replace(/^- \[ \] /gm, '□ ')}
+          />
+        )}
+      </div>
+      <p className="ai00-x-plan-confirm__hint">
+        {agentRunning
+          ? t('nav.workbenchWindow.progress.planConfirmRunningHint')
+          : t('nav.workbenchWindow.progress.planConfirmHint')}
+      </p>
+    </ComposerInteraction>
+  ) : undefined;
+
+  /**
+   * 汇总断路兜底：步骤全部通过、agent 也停了，但它没调 ai00_task_complete
+   * → 验收卡永远不会出现。这里给一个「让它提交自检」的按钮。
+   */
+  const stepsAllDone = confirmSteps.length > 0 && confirmSteps.every(step => step.done);
+  const selfCheckNudge =
+    !planFinished &&
+    planApproved !== false &&
+    !agentSelfChecked &&
+    !agentRunning &&
+    stepsAllDone &&
+    !pendingQuestion &&
+    !pendingApproval;
+  const selfCheckDock = selfCheckNudge ? (
+    <ComposerInteraction
+      tone="accent"
+      actions={[
+        {
+          label: t('nav.workbenchWindow.progress.nudgeSelfCheckAction'),
+          variant: 'primary',
+          onClick: () => submitText(t('nav.workbenchWindow.progress.nudgeSelfCheckMessage')),
+        },
+      ]}
+    >
+      <p className="ai00-x-plan-confirm__hint">
+        {t('nav.workbenchWindow.progress.nudgeSelfCheck')}
+      </p>
+    </ComposerInteraction>
+  ) : undefined;
+
+  const interactionDock = pendingQuestion ? (
+    <ComposerInteraction
+      tone="warning"
+      meta={questions.length > 1 ? `${questions.length}` : undefined}
+    >
+      <QuestionCard
+        batch={pendingQuestion}
+        onRespond={respondQuestion}
+        onCancel={cancelQuestion}
+      />
+    </ComposerInteraction>
+  ) : pendingApproval ? (
+    <ComposerInteraction
+      tone={planReviewing ? 'warning' : 'accent'}
+      meta={approvals.length > 1 ? `${approvals.length}` : undefined}
+    >
+      <ApprovalCard
+        approval={pendingApproval}
+        planText={planReviewing ? planReviewText : undefined}
+        onRespond={(rpcId, outcome) => void respondApproval(rpcId, outcome)}
+      />
+    </ComposerInteraction>
+  ) : planConfirmDock ?? selfCheckDock ?? (
+    dock
+  );
+
+  /**
+   * 背卡内容：计划评审/确认时只摊计划书；其余时间常驻计划条，交互卡需要人类动手时升起。
+   */
+  const composerDock =
+    planMd !== undefined && !planReviewing && !planAwaitingConfirm ? (
+      <>
+        <WorkbenchPlanRail
+          planMd={planMd}
+          autoOpen={planAutoOpen}
+          onViewDetail={onViewPlan}
+          finished={planFinished}
+          running={agentRunning}
+        />
+        {interactionDock}
+      </>
+    ) : (
+      interactionDock
+    );
+
   return (
-    <div className="ai00-x-workbench-chat">
+    <div
+      className={`ai00-x-workbench-chat${variant === 'conversation' ? ' ai00-x-workbench-chat--conversation' : ''}`}
+    >
+      {variant === 'panel' && (
       <div className="ai00-x-workbench-chat__head">
         <span className={`ai00-x-workbench-chat__dot${agentRunning ? ' is-running' : ''}`} />
         <span className="ai00-x-workbench-chat__title">{t('nav.workbenchScene.chat.title')}</span>
-        {project && (
-          <span className="ai00-x-workbench-chat__project" title={bound?.cwd}>
-            {project.title || project.projectId}
-          </span>
+        {externalSession ? (
+          <>
+            <span
+              className="ai00-x-workbench-chat__project"
+              title={bound?.cwd || externalSession.cwd || undefined}
+            >
+              {externalSession.title || externalSession.sessionId.slice(0, 8)}
+            </span>
+            {onExitExternalSession && (
+              <button
+                type="button"
+                className="ai00-x-workbench-chat__exit"
+                onClick={onExitExternalSession}
+              >
+                {t('nav.workbenchScene.chat.exitExternal')}
+              </button>
+            )}
+          </>
+        ) : (
+          project && (
+            <span className="ai00-x-workbench-chat__project" title={bound?.cwd}>
+              {project.title || project.projectId}
+            </span>
+          )
         )}
       </div>
+      )}
 
-      {!project && (
+      {!externalSession && !project && (
         <div className="ai00-x-workbench-chat__empty">
           {t('nav.workbenchScene.chat.noProject')}
         </div>
       )}
-      {project && binding && (
+      {!externalSession && project && binding && (
         <div className="ai00-x-workbench-chat__empty">
           {t('nav.workbenchScene.chat.binding')}
         </div>
       )}
-      {project && !binding && bindError && (
+      {!externalSession && project && !binding && bindError && (
         <div className="ai00-x-workbench-chat__empty">
           <p>{t('nav.workbenchScene.chat.bindFailed', { message: bindError })}</p>
           <button
@@ -883,8 +1362,12 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
         </div>
       )}
 
-      {project && !binding && !bindError && bound && (
+      {chatReady && (
         <>
+          {/* 子代理汇总：常驻在消息流之上，解决「任务一长就找不到子代理」 */}
+          {usageSessionId && (
+            <WorkbenchSubagentOverview parentSessionId={usageSessionId} />
+          )}
           <div className="ai00-x-workbench-chat__body">
           <div
             className="ai00-x-dsh-scene__messages"
@@ -897,9 +1380,9 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
             {!loading && messages.length === 0 && !error && (
               <div className="ai00-x-dsh-scene__messages-empty">
                 <p>{tDsh('chat.empty')}</p>
-                {(entry.starterPrompts?.length ?? 0) > 0 && (
+                {(entry?.starterPrompts?.length ?? 0) > 0 && (
                   <div className="ai00-x-workbench-chat__starters">
-                    {entry.starterPrompts?.map(prompt => (
+                    {entry?.starterPrompts?.map(prompt => (
                       <button
                         key={prompt}
                         type="button"
@@ -915,8 +1398,60 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
               </div>
             )}
             {displayMessages.map(m => (
-              <MessageBubble key={m.id} message={m} />
+              <MessageBubble
+                key={m.id}
+                message={m}
+                renderToolCall={renderToolCall}
+                resolveOriginLabel={resolveOriginLabel}
+              />
             ))}
+            {/* 子代理活动：只留运行中的（已结束的归属各自派发卡，不再堆在消息流末尾） */}
+            {runningChildAgents.length > 0 && (
+              <div className="ai00-x-workbench-chat__subagents" role="group">
+                {runningChildAgents.slice(0, 3).map(agent => {
+                  const timing = subagentTiming[agent.sessionId];
+                  const elapsed = timing
+                    ? timing.settledMs + (timing.active ? nowTick - timing.active.since : 0)
+                    : nowTick - agent.since;
+                  return (
+                    <div
+                      key={agent.sessionId}
+                      className="ai00-x-workbench-chat__subagent is-running"
+                    >
+                      <span className="ai00-x-workbench-chat__subagent-dot" aria-hidden />
+                      <span className="ai00-x-workbench-chat__subagent-name">
+                        {agent.preset || 'subagent'}
+                      </span>
+                      <span
+                        className="ai00-x-workbench-chat__subagent-title"
+                        title={agent.title ?? undefined}
+                      >
+                        {agent.title || agent.sessionId.slice(0, 8)}
+                      </span>
+                      <span className="ai00-x-workbench-chat__subagent-state">
+                        {`${t('nav.workbenchWindow.subagentRunning')} · ${formatElapsed(elapsed)}`}
+                      </span>
+                      <button
+                        type="button"
+                        className="ai00-x-workbench-chat__subagent-open"
+                        title={t('nav.workbenchWindow.subagentLocate')}
+                        aria-label={t('nav.workbenchWindow.subagentLocate')}
+                        onClick={() => focusSubagentCard(agent.sessionId)}
+                      >
+                        {t('nav.workbenchWindow.subagentLocate')}
+                      </button>
+                    </div>
+                  );
+                })}
+                {runningChildAgents.length > 3 && (
+                  <div className="ai00-x-workbench-chat__subagent-more">
+                    {t('nav.workbenchWindow.subagentMore', {
+                      count: runningChildAgents.length - 3,
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             {/* 尚未落盘的用户输入：立即回显（落盘后按 rpcId 退休） */}
             {transcriptEchoes.map(sub => (
               <div key={sub.requestId} className="ai00-x-workbench-chat__optimistic">
@@ -959,9 +1494,39 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
                     </span>
                     <span>
                       {stopping ? tDsh('chat.stopping') : tDsh('chat.thinking')}
+                      {stallMs > 0 && ` · ${formatElapsed(stallMs)}`}
                     </span>
                   </div>
                 </div>
+              </div>
+            )}
+            {/* 长时间无任何事件：显示已等待时长并给出出口，避免看起来像卡死 */}
+            {stalled && (
+              <div className="ai00-x-workbench-chat__stall" role="status" aria-live="polite">
+                <span className="ai00-x-workbench-chat__stall-text">
+                  {t('nav.workbenchWindow.progress.stall', { time: formatElapsed(stallMs) })}
+                </span>
+                <span className="ai00-x-workbench-chat__stall-actions">
+                  <button
+                    type="button"
+                    className="ai00-x-workbench-chat__stall-btn"
+                    onClick={() => void handleStop()}
+                  >
+                    {t('nav.workbenchWindow.progress.stallStop')}
+                  </button>
+                  <button
+                    type="button"
+                    className="ai00-x-workbench-chat__stall-btn is-primary"
+                    onClick={() =>
+                      submitText(
+                        lastUserText || t('nav.workbenchWindow.progress.stallContinue'),
+                        'queue',
+                      )
+                    }
+                  >
+                    {t('nav.workbenchWindow.progress.stallRetry')}
+                  </button>
+                </span>
               </div>
             )}
             {linkDown && (
@@ -1020,25 +1585,6 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
             </div>
           )}
 
-          {approvals.length > 0 && (
-            <div className="ai00-x-dsh-scene__approvals">
-              {approvals.map(a => (
-                <ApprovalCard
-                  key={a.rpcId}
-                  approval={a}
-                  onRespond={(rpcId, outcome) => void respondApproval(rpcId, outcome)}
-                />
-              ))}
-            </div>
-          )}
-          {questions.length > 0 && (
-            <div className="ai00-x-dsh-scene__approvals">
-              {questions.map(q => (
-                <QuestionCard key={q.rpcId} batch={q} onRespond={respondQuestion} onCancel={cancelQuestion} />
-              ))}
-            </div>
-          )}
-
           <WorkbenchQueueDock
             rows={queueRows}
             running={running}
@@ -1050,7 +1596,28 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
             actionError={dockError}
           />
 
+          {turnUsage && (
+            <WorkbenchTurnUsage local={turnUsage.local} remote={turnUsage.remote} />
+          )}
+
+          {/* 主代理回合已结束但子代理仍在跑：明确提示，避免看起来像卡死/已停止 */}
+          {!running && delegatedCount > 0 && (
+            <div className="ai00-x-workbench-chat__delegating" role="status">
+              <span className="ai00-x-workbench-chat__delegating-dot" aria-hidden />
+              {t('nav.workbenchWindow.delegating', { count: delegatedCount })}
+            </div>
+          )}
+
           <div className="ai00-x-dsh-scene__composer">
+            {composerDock && (
+              <div
+                className={`ai00-x-composer-stack__under${
+                  interactionDock ? ' is-raised' : ''
+                }`}
+              >
+                {composerDock}
+              </div>
+            )}
             <AgentComposer
               value={draft}
               onChange={setDraft}
@@ -1061,7 +1628,13 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
               stopping={stopping}
               placeholder={tDsh('chat.inputPlaceholder')}
               sessionId={sessionId}
+              mentionRoot={bound?.cwd || externalSession?.cwd || undefined}
               onError={setError}
+              workspace={
+                showWorkspace && (bound?.cwd || externalSession?.cwd)
+                  ? { dir: (bound?.cwd || externalSession?.cwd) as string }
+                  : undefined
+              }
             />
           </div>
         </>

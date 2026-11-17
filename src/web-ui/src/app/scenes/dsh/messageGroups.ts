@@ -47,6 +47,13 @@ export function groupMessagesForDisplay(messages: DshMessage[]): DshMessage[] {
   let current: DshMessage | null = null;
 
   for (const message of messages) {
+    // 子代理来源记录（relay / settled）自成一条：既不能并进助手气泡，
+    // 也不能打断后再被当成「本回合正文」拼接。
+    if (message.origin) {
+      current = null;
+      grouped.push(message);
+      continue;
+    }
     if (message.role === 'user') {
       current = null;
       grouped.push(message);

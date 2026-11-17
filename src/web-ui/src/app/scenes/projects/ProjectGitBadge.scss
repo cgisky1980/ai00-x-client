@@ -1,0 +1,72 @@
+// 项目行 Git 徽标：分支名（mono）+ 脏点；非仓库降级为弱提示文字。
+.ai00-x-project-git {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: 0 0 auto;
+  max-width: 96px;
+  padding: var(--spacing-1) var(--spacing-1);
+  border: none;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-2xs);
+  line-height: 1.2;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-accent);
+    background-color: var(--element-bg-subtle);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--style-focus-ring, var(--color-accent));
+    outline-offset: 1px;
+  }
+
+  &.is-dirty {
+    color: var(--color-warning);
+  }
+
+  &.is-none {
+    cursor: default;
+    color: var(--color-text-muted);
+    font-family: var(--font-family-sans);
+
+    &:hover {
+      background-color: transparent;
+    }
+  }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__dot {
+    flex: none;
+    width: var(--spacing-1);
+    height: var(--spacing-1);
+    border-radius: var(--radius-full);
+    background-color: currentColor;
+  }
+
+  &__slot {
+    display: inline-block;
+    width: var(--spacing-3);
+    flex: none;
+  }
+
+  &__spin {
+    animation: ai00-x-project-git-spin 0.9s linear infinite;
+  }
+}
+
+@keyframes ai00-x-project-git-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

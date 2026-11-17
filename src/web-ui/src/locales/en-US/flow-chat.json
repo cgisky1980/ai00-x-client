@@ -987,6 +987,7 @@
     "badges": {
       "economy": "Economy",
       "memberDiscount": "Member {{pct}}% off",
+      "promoDiscount": "Limited {{pct}}% off",
       "subsidy": "Subsidized"
     },
     "autoRoute": {

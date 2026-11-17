@@ -29,6 +29,7 @@
     "@file-viewer/renderer-pptx": "3.0.3",
     "@file-viewer/renderer-spreadsheet": "3.0.3",
     "@file-viewer/renderer-word": "3.0.3",
+    "@kayingai/kaying-filetree": "^0.2.2",
     "@monaco-editor/react": "^4.6.0",
     "@pixiv/three-vrm": "^3.4.4",
     "@pixiv/three-vrm-animation": "^3.4.4",

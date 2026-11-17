@@ -7,6 +7,7 @@ export const tokens = {
   'size.radius.lg': "12px",
   'size.radius.xl': "16px",
   'size.radius.2xl': "20px",
+  'size.radius.3xl': "28px",
   'size.radius.full': "9999px",
   'size.gap.1': "4px",
   'size.gap.2': "8px",

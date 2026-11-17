@@ -140,11 +140,17 @@ async function fetchTarball(pkgName, version, destDir) {
   fs.writeFileSync(tgzPath, buf);
   const posix = tgzPath.split('\\').join('/');
   const posixDir = destDir.split('\\').join('/');
-  // --force-local 是 GNU tar 专属（规避 "C:" 被当主机名）；Windows 自带 bsdtar
-  // 不认该选项，但也无需它——直接按路径解包即可
-  const tarArgs = process.platform === 'win32'
-    ? ['-xzf', posix, '-C', posixDir]
-    : ['--force-local', '-xzf', posix, '-C', posixDir];
+  // PATH 上可能命中 git-bash 的 GNU tar（会把 "C:" 当主机名，需 --force-local）
+  // 或 Windows 自带 bsdtar（不认该选项）。按 tar --version 实际探测选择参数。
+  let tarArgs;
+  try {
+    const ver = sh('tar', ['--version']);
+    tarArgs = /GNU tar/i.test(ver)
+      ? ['--force-local', '-xzf', posix, '-C', posixDir]
+      : ['-xzf', posix, '-C', posixDir];
+  } catch {
+    tarArgs = ['-xzf', posix, '-C', posixDir];
+  }
   sh('tar', tarArgs);
   return path.join(destDir, 'package');
 }
@@ -226,14 +232,15 @@ async function main() {
     let ok = false;
     let note = '';
     if (check.pkg === '__cli__') {
-      const bin = path.join(cliDir, 'lib', 'bin.js');
-      if (!fs.existsSync(bin)) {
-        note = 'lib/bin.js 不存在（CLI 结构变化？）';
-      } else {
-        const text = fs.readFileSync(bin, 'utf8');
-        ok = check.patterns.every((p) => text.includes(p));
-        note = check.patterns.map((p) => `${p}:${text.includes(p) ? 'ok' : 'MISSING'}`).join(' ');
+      // 0.2.2 起 bin.js 是薄壳，字符串散在各 lib chunk——全包 grep
+      ok = true;
+      const parts = [];
+      for (const p of check.patterns) {
+        const n = grepCount(cliDir, p);
+        parts.push(`${p}×${n}`);
+        if (n === 0) ok = false;
       }
+      note = parts.join(' ');
     } else {
       // "a|b" 形式：任一包命中即通过（同一能力可能随版本迁移实现位置）
       const dirNames = check.pkg.split('|');

@@ -21,47 +21,23 @@ export interface AiMsg {
   content: string;
 }
 
-// ===== 委托任务书（useAgentDelegate / assembleDelegationPrompt） =====
-
-export const DELEGATE_RULES_HEADER = '【用户规则——必须遵守】';
-
-export const DELEGATE_MEMORY_HEADER = '【用户记忆——供参考】';
-
-export const DELEGATE_BOOK_TITLE = '════ 任务书 ════';
-
-export const DELEGATE_COMPLETION_TITLE = '════ 完工与收尾 ════';
-
-/** 交付物缺省口径（计划未写明时；四段「交付物」必填的兜底值）。 */
-export const DELEGATE_DELIVERABLE_DEFAULT =
-  '至少产出一份总结文件（如 report.md）——纯调研/咨询任务也必须有汇报产物；计划文档已写明时以其「## 交付物」段为准。';
-
-/** 执行协议（编排者保留职责；收进「工具与资料」段）。 */
-export const DELEGATE_PROTOCOL_ORCHESTRATION = (taskId: string): string =>
-  `- 执行协议（编排者——你不亲自执行）：第一步先 ai00_plan_read（taskId: "${taskId}"）读取任务书全文，把「## 步骤」拆解为可派发的子任务；调研/查证类派 research_worker，实现/执行类派 code_worker，相互独立的子任务在同一条回复里并发派发。派发的每个任务写明：目标与验收标准、边界、相关文件与上下文线索、期望的返回格式（worker 看不到你们的对话，任务书必须自包含）。`;
-
-/** 子代理完成通知处理（有计划文档时注入）。 */
-export const DELEGATE_SUBAGENT_NOTIFY =
-  '- 子代理完成通知：立即验收其结论，把「## 步骤」段对应项改为 "- [x]"（ai00_plan_write 全量写回），并把结果要点与遗留风险记录进计划文档；不合格就重新派发并说明问题。';
-
-/** 长耗时操作预告（有计划文档时注入）。 */
-export const DELEGATE_LONG_OP_NOTICE =
-  '- 长耗时操作（编译/训练/下载等，预计超过 2 分钟）：收到子代理开始通知后先向用户发一句预计耗时（如「预计 20 分钟」），完成后再继续——策窗口按此安排检查节奏。';
-
-/** 后台命令引导（有计划文档时注入；策执行流程审视 §2.6 的任务书引导）。 */
-export const DELEGATE_BG_COMMAND_NOTICE =
-  '- 长耗时命令：派发执行类任务时在任务书中提醒 worker：预计超过 2 分钟的命令用 pwsh 的 run_in_background: true 参数转后台执行——立即返回任务 id，完成后引擎会自动通知，用 job_output 读取输出再继续；不要让长命令阻塞在前台。';
-
-/** 边界一：计划优先铁律（有计划文档时注入）。 */
-export const DELEGATE_BOUNDARY_PLAN_FIRST =
-  '- 计划优先（铁律）：用户执行期间发来的消息，若涉及需求、方案、步骤或验收标准的变化，必须先把变更落入计划文档（ai00_plan_read → ai00_plan_write 更新「## 步骤」/「## 验收」等），再按更新后的计划重新派发——以计划文档为唯一依据；若只是确认、催促等无需改计划的交流，直接简短回应即可。你自己发现方案需要变化时同此规：先改计划，再派发。';
-
-/** 边界二：新想法落想法池、不私自扩范围。 */
-export const DELEGATE_BOUNDARY_IDEA_POOL = (taskId: string): string =>
-  `- 执行中发现需要新的子任务或想法，用 ai00_task_create 落入想法池（可带 sourceTaskId: "${taskId}" 标注来源、goalId 归志）——不要塞进当前计划文档的步骤段，也不要私自扩大执行范围。`;
-
-/** 完工三步（收尾段；与 dsh-plugins/tools 验收拒绝文案口径同步）。 */
-export const DELEGATE_COMPLETION_THREE_STEP = (taskId: string, cwd: string | null): string =>
-  `全部子代理完成、验收项逐项确认后（人工判据在计划文档中勾选 "- [x]"），按「完工三步」收尾：① 把交付物写成真实文件——计划「交付物」段承诺的产物必须逐一落地为工作目录下的实际文件（缺失的先让子代理补齐），纯调研/咨询任务也必须产出一份总结文件（如 report.md）；② 调用 ai00_task_complete 提交自检（taskId: "${taskId}"${cwd ? `，snapshotDir: "${cwd}"——提交时自动 git 快照工作目录的全部改动，不要手动 commit` : ''}），并带上 deliverables 参数（产物的绝对路径清单，必填）；验收未全勾该工具会拒绝；③ 提交后在会话内向用户汇报：结论摘要（≤200字）+ 产物清单（文件名 + 一句话内容）+ 待验收提示。提交后任务进入人类验收：完成状态的认定以用户在策窗口的验收为准，但结果汇报与产物清单必须主动给出，不要等用户来要。`;
+// ===== 委托任务书（assembleDelegationPrompt） =====
+// 2026-11-08 迁至 @/agent/orchestrator（工作台任务共用同一份口径），此处只保留
+// 再导出，避免策侧既有 import 路径大面积改动。
+export {
+  DELEGATE_BG_COMMAND_NOTICE,
+  DELEGATE_BOOK_TITLE,
+  DELEGATE_BOUNDARY_IDEA_POOL,
+  DELEGATE_BOUNDARY_PLAN_FIRST,
+  DELEGATE_COMPLETION_THREE_STEP,
+  DELEGATE_COMPLETION_TITLE,
+  DELEGATE_DELIVERABLE_DEFAULT,
+  DELEGATE_LONG_OP_NOTICE,
+  DELEGATE_MEMORY_HEADER,
+  DELEGATE_PROTOCOL_ORCHESTRATION,
+  DELEGATE_RULES_HEADER,
+  DELEGATE_SUBAGENT_NOTIFY,
+} from '@/agent/orchestrator/promptParts';
 
 // ===== 看门狗（watchdog） =====
 

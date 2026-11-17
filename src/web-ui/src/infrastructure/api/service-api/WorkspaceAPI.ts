@@ -245,6 +245,15 @@ export class WorkspaceAPI {
     }
   }
 
+  /** 路径是否存在（文件或目录）；不抛错，失败一律 false。 */
+  async pathExists(path: string): Promise<boolean> {
+    try {
+      return await api.invoke<boolean>('check_path_exists', { request: { path } });
+    } catch {
+      return false;
+    }
+  }
+
   async getFileMetadata(path: string): Promise<FileMetadata> {
     try {
       const raw = await api.invoke<Record<string, unknown>>('get_file_metadata', {

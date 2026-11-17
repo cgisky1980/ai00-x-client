@@ -148,7 +148,7 @@ export default defineConfig(({ mode, command }) => {
       input: {
         main: path.resolve(__dirname, 'index.html'),
         community: path.resolve(__dirname, 'community.html'),
-        tasks: path.resolve(__dirname, 'tasks.html'),
+        settings: path.resolve(__dirname, 'settings.html'),
         music: path.resolve(__dirname, 'music.html'),
         workbench: path.resolve(__dirname, 'workbench.html'),
         design: path.resolve(__dirname, 'design.html'),

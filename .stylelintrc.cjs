@@ -1,5 +1,5 @@
 // stylelint - hard-coded color / z-index / spacing / font-size guard
-// (spec: 参考/前端视觉设计规范-新东方极简.md; E2/E5 演进见 参考/设计系统演进路线图.md)
+// (spec: 参考/前端视觉设计规范.md; E2/E5 演进见 参考/设计系统演进路线图.md)
 // Goal:
 //   1. color values must be var(--token) / color-mix(); hex/raw-rgba allowed only in
 //      token sources, exempted legacy zones & scene palettes (see ignoreFiles).
@@ -101,6 +101,18 @@ module.exports = {
           ...spacingKeys,
         },
         disableFix: true,
+      },
+    ],
+    // 间距刻度只有 1/2/3/4/5/6/8/10/12/16（×4px）这几档；写不存在的刻度
+    // （--spacing-1-5 / --spacing-14 之类）不会报错，只会静默失效、padding 变 0——
+    // 曾导致子代理卡与汇总条挤成一行。这里直接拦死。
+    'declaration-property-value-disallowed-list': [
+      {
+        '/.+/': ['/var\\(--spacing-(?!(?:1|2|3|4|5|6|8|10|12|16)(?![\\w-]))/'],
+      },
+      {
+        message:
+          'spacing 刻度不存在（合法值 1/2/3/4/5/6/8/10/12/16）；无此 token 会静默失效',
       },
     ],
   },

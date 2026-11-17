@@ -16,6 +16,10 @@
     "resultError": "Error output",
     "resultEmpty": "(no output)"
   },
+  "origin": {
+    "relay": "Subagent message",
+    "settled": "Subagent finished"
+  },
   "permission": {
     "pending": "Permission requested: {{scope}}",
     "reason": "Plugin {{pluginId}} is calling a host capability that requires the \"{{scope}}\" scope. Grant it to allow future calls of this kind; revocable in plugin settings.",
@@ -25,7 +29,7 @@
   "chat": {
     "placeholder": "Ai00-X Agent powered by the dsh engine",
     "empty": "Type a message to start",
-    "inputPlaceholder": "Send a message…",
+    "inputPlaceholder": "Ask Ai00-X — use @ for context, / for commands and capabilities",
     "usageTitle": "This turn: {{input}} input tokens · {{output}} output tokens",
     "send": "Send",
     "stop": "Stop",
@@ -58,6 +62,7 @@
     "toolCallUnparsed": "The model wrote a tool call as plain text, so nothing was executed this turn. Retry, or switch to a model with tool-calling support.",
     "copyMessage": "Copy",
     "copied": "Copied",
+    "quote": "Quote",
     "error": {
       "switchCompaction": "Model switch failed: the engine failed to compact the context ({{detail}}). Start a new session before switching.",
       "modelNotConfigured": "Model not configured: {{detail}}. Add it in Settings → AI models, or pick another model.",
@@ -72,7 +77,10 @@
     "pending": "Confirmation needed",
     "allow": "Allow once",
     "reject": "Reject",
-    "allowAlways": "Always allow"
+    "allowAlways": "Always allow",
+    "logAllowed": "Allowed {{tool}}",
+    "logRejected": "Rejected {{tool}}",
+    "logCancelled": "Cancelled {{tool}}"
   },
   "plan": {
     "cardTitle": "Plan review",
@@ -114,7 +122,10 @@
     "pending": "Awaiting your answer",
     "customPlaceholder": "Other (custom answer)",
     "submit": "Submit",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "keyHint": "Number keys to pick, Enter to submit",
+    "logAnswered": "Answered: {{summary}}",
+    "logCancelled": "Question cancelled"
   },
   "status": {
     "starting": "Starting engine…",

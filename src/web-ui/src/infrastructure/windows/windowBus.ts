@@ -86,16 +86,16 @@ export function subscribeWindowMessage(listener: WindowBusListener): () => void 
  * BroadcastChannel 只投递给**已存在**的页面。当用户点击 overlay 上的工灵、
  * 而策窗口还没开时，直接广播会石沉大海。做法是：
  *
- * 1. 发送侧先 `queueWindowIntent(type, payload)` 落到 `sessionStorage`，
+ * 1. 发送侧先 `queueWindowIntent(type, payload)` 落到共享存储，
  *    然后 `publishWindowMessage` 尝试即时投递；
  * 2. 目标窗口启动（`bootstrapWindowPage` 挂载完成）后调
  *    `takePendingIntents(type)`，取走并清空——无论它是早就在跑（即时投递
  *    已生效，pending 为空）还是刚被拉起（取到刚入队的那条）。
  *
- * 用 `sessionStorage` 而非 `localStorage`：意图是"这一次操作"的，不应跨
- * 应用重启存活。注意 `sessionStorage` 按标签页隔离，但 Tauri 各窗口共享同一
- * webview 进程的 storage 分区——本项目实测可跨窗口读（与 `SettingsSyncService`
- * 的前提一致）；若日后发现隔离，可改 `localStorage` + 时间戳过期兜底。
+ * ★ 存储介质必须是 `localStorage`：`sessionStorage` 在 Tauri 里按窗口隔离
+ * （2026-11-08 实测：策窗口写入、工作台窗口 `Object.keys(sessionStorage)`
+ * 为空），冷启动路径会静默丢意图。改 `localStorage` 后靠 `at + ttl` 兜底
+ * "这一次操作"的语义，避免陈旧意图在新窗口里复活。
  */
 const INTENT_KEY_PREFIX = 'ai00.window-intent.';
 
@@ -105,6 +105,8 @@ const INTENT_TTL_MS = 10_000;
 interface StoredIntent<T = unknown> {
   payload?: T;
   at: number;
+  /** 入队时声明的存活上限（缺省按 INTENT_TTL_MS）。取侧按同一值判定。 */
+  ttl?: number;
 }
 
 /**
@@ -112,11 +114,17 @@ interface StoredIntent<T = unknown> {
  *
  * 注意：不做"已投递就删"的乐观清理——无法得知当前是否已有订阅者。
  * 由消费侧 `takePendingIntents` 负责清空，且带 TTL 防止无限堆积。
+ *
+ * `ttlMs`：目标窗口是"冷启动"（先建窗再加载页面）时，10s 不够——Vite 首屏
+ * 模块图或慢机器都可能超过，意图会在挂载前就被判过期而丢失。调用方按自己
+ * 知道的开窗成本声明（如 `workbench:open-session` 用 120s），默认保持 10s
+ * 不变（已存在的调用方行为不动）。
  */
-export function queueWindowIntent<T>(type: string, payload?: T): void {
+export function queueWindowIntent<T>(type: string, payload?: T, ttlMs?: number): void {
   try {
     const stored: StoredIntent<T> = { payload, at: Date.now() };
-    sessionStorage.setItem(INTENT_KEY_PREFIX + type, JSON.stringify(stored));
+    if (typeof ttlMs === 'number' && ttlMs > 0) stored.ttl = ttlMs;
+    localStorage.setItem(INTENT_KEY_PREFIX + type, JSON.stringify(stored));
   } catch (error) {
     log.warn('queueWindowIntent failed', error);
   }
@@ -131,12 +139,13 @@ export function queueWindowIntent<T>(type: string, payload?: T): void {
 export function takePendingIntents<T>(type: string): T[] {
   const key = INTENT_KEY_PREFIX + type;
   try {
-    const raw = sessionStorage.getItem(key);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
-    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
     const stored = JSON.parse(raw) as StoredIntent<T>;
     if (!stored || typeof stored.at !== 'number') return [];
-    if (Date.now() - stored.at > INTENT_TTL_MS) {
+    const ttl = typeof stored.ttl === 'number' && stored.ttl > 0 ? stored.ttl : INTENT_TTL_MS;
+    if (Date.now() - stored.at > ttl) {
       log.warn(`pending intent expired: ${type}`);
       return [];
     }

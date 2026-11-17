@@ -272,7 +272,14 @@ pub fn get_ffi() -> Result<&'static LlamaFFI, String> {
 
         let ggml_path = resolve_ggml(ggml_name);
 
-        let llama_path = llama_dir.join(llama_name);
+        // llama.dll 的定位必须与 `runtime::init::init_llama_ffi` 同源：
+        // 优先编译期 `LLAMA_LIB_DIR`（build.rs 的 CMake 产物），再回落运行时目录。
+        // 只用运行时目录时，dev 模式（AI00X_RUNTIME_DIR 指向 `.ai00-x-dev/runtime`）
+        // 会因为该目录里没有 `llama/<LLAMA_CPP_VERSION>-<backend>` 而加载失败。
+        // 注意：cudart/cublas/libomp 等附带 DLL 仍按 `llama_dir` 找（构建目录里没有）。
+        let llama_lib_dir =
+            crate::runtime::init::find_llama_lib_dir().unwrap_or_else(|| llama_dir.clone());
+        let llama_path = llama_lib_dir.join(llama_name);
         if !llama_path.exists() {
             return Err(format!(
                 "{} not found at: {}",

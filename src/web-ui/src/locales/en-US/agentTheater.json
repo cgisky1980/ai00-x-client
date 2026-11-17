@@ -57,7 +57,8 @@
     "thinking": "💭 Rehearsing backstage",
     "acceptance": "🎬 Awaiting review",
     "alert": "💥 Mishap on stage",
-    "idle_tool": ""
+    "idle_tool": "",
+    "subagents": "{{count}} subagent(s) running"
   },
   "notifyTurnSuccess": "Task completed",
   "notifyTurnFailed": "Task failed"

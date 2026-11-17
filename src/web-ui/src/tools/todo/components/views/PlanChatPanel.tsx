@@ -1,6 +1,9 @@
 /**
  * PlanChatPanel — 策下半区右半：选中卡片的规划讨论对话。
  *
+ * 归属：仅 overlay 运行时（TodoPanel → BoardView）使用；策窗口已撤为设置窗口，
+ * 工作台任务通过会话对话生成计划（见 `WorkbenchPlanPage`）。
+ *
  * 形式多轮、实质单发（RWKV 无多轮状态，历史清洗压缩后作为材料注入）：
  * 两段式——第一段每轮结构化 JSON（questions 选项卡点选即答 / ready 标记），
  * AI 判定就绪后第二段独立单发专出计划契约 → 落计划 MD（todo_plan_set）+
@@ -445,7 +448,7 @@ export const PlanChatPanel: React.FC<{
             placeholder={task.status === 'planning' || isDoing ? '对计划提出修改意见，或自由讨论…' : '补充需求、点选上面的选项，或自由回答…'}
             maxHeight={120}
             showModelSelector={false}
-            footerLeft={
+            trailing={
               <ModelSelector
                 currentMode="plan-discuss"
                 controlledValue={modelId}

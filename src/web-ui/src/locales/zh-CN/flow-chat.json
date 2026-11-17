@@ -985,6 +985,7 @@
     "badges": {
       "economy": "经济",
       "memberDiscount": "会员{{zhe}}折",
+      "promoDiscount": "限时{{zhe}}折",
       "subsidy": "专属补贴"
     },
     "autoRoute": {

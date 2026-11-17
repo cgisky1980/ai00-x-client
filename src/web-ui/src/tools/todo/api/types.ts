@@ -96,7 +96,50 @@ export interface TodoTask {
   /** 卡片级模型选择（讨论 + 委托执行同源；null=未选过，回落全局默认）。
    *  按卡存储——并行多任务可各用各的模型。 */
   discussModel?: string | null;
+  /** 任务来源（缺省=todo 策任务；workbench=工作台产生）。
+   *  同库存储，看板/场景按此字段逻辑隔离，旧数据零迁移。 */
+  origin?: 'todo' | 'workbench';
+  /** 来源工作台 id（origin='workbench' 时必填：'tasks'=默认任务场景，其余=插件工作台 id）。 */
+  workbenchId?: string;
+  /** 所属项目（= 用户指定的工作区目录）；缺省 = 默认工作区（每个任务独立目录）。 */
+  projectId?: string;
+  /** 自动化来源（引擎 schedule id）；缺省 = 手工创建。 */
+  automationId?: string;
+  /** 归档时刻（null/缺省 = 未归档）。归档只影响列表可见性，不影响引擎会话。 */
+  archivedAt?: number | null;
+  /** 隔离执行时该任务独占的分支（`ai00/<摘要>`）；null/缺省 = 直接跑在项目目录里。 */
+  branch?: string | null;
+  /** 隔离执行时该任务的工作目录（git worktree 路径；会话 cwd 绑这里）。 */
+  worktreePath?: string | null;
+  /** 计划书被人类确认的时刻（工作台「计划确认」门禁；缺省/ null = 待确认）。 */
+  planApprovedAt?: number | null;
 }
+
+/** 工作台「项目」= 用户指定的已有目录（工作区）。目录必须已存在，宿主不建不写。 */
+export interface WorkbenchProject {
+  id: string;
+  name: string;
+  dir: string;
+  createdAt: number;
+  /** 隔离执行：每个任务在独立 git worktree 里跑（需要目录已纳入 git），默认关。 */
+  isolate?: boolean;
+  /** 建 worktree 后自动装依赖（按锁文件识别包管理器）；默认关——会执行依赖的 postinstall。 */
+  autoDeps?: boolean;
+}
+
+/**
+ * 自动化 = 引擎 schedule 的本地投影。
+ *
+ * 规则内容（标题/提示词/RRULE/启用）真源在引擎 `schedule/*`，这里只记录
+ * 「哪条 schedule 属于哪个项目」，避免与引擎双写漂移。
+ */
+export interface AutomationLink {
+  scheduleId: string;
+  /** 投递会话的工作目录归属；null = 自动化默认工作区。 */
+  projectId: string | null;
+  createdAt: number;
+}
+
 
 /** 里程碑（志的阶段划分，与 plan 方案层平行） */
 export interface Milestone {
@@ -165,6 +208,10 @@ export interface TodoData {
   /** 志分类（志视图左栏分组） */
   goalCategories: GoalCategory[];
   tasks: TodoTask[];
+  /** 工作台项目（用户指定的工作区目录）。 */
+  projects: WorkbenchProject[];
+  /** 自动化 ↔ 引擎 schedule 的映射。 */
+  automations: AutomationLink[];
   focusSessions: FocusSession[];
   /** 自定义奖励（本地） */
   rewards: { id: string; name: string; cost: number }[];

@@ -19,10 +19,11 @@ import { connectMux, dshSession } from '../../../infrastructure/api/service-api/
 import type { DshMuxFrame } from '../../../infrastructure/api/service-api/DshAPI';
 import { useDraggable, refreshRegions, setDragging } from '../../../infrastructure/overlay';
 import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
+import { publishWindowMessage, queueWindowIntent } from '@/infrastructure/windows/windowBus';
+import { WORKBENCH_OPEN_SESSION } from '@/infrastructure/plugins/workbenchSession';
 import { ImpManager } from './ImpManager';
 import { useTheaterStore } from './theaterStore';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
-import { requestFocusTask } from '@/tools/todo/sync/todoWindowSync';
 import { AgentImp } from './AgentImp';
 import type { TheaterTurnEndedPayload } from './theaterTypes';
 import './AgentTheater.scss';
@@ -182,6 +183,8 @@ export const AgentTheaterWidget: React.FC = () => {
           .map((it) => ({
             sessionId: it.sessionId,
             title: it.projections?.values?.title ?? undefined,
+            // 子代理子会话：不单独成灵，只计入父工灵的角标
+            ...(it.parentSessionId ? { parentSessionId: it.parentSessionId } : {}),
           }));
         manager.syncRunningSessions(running);
         // 已停止的会话：活跃阶段工灵收敛到 待验收/失败警示
@@ -207,21 +210,26 @@ export const AgentTheaterWidget: React.FC = () => {
   const list = Object.values(imps).sort((a, b) => a.startedAt - b.startedAt);
 
   /**
-   * 点击工灵 → 激活策窗口并定位到对应卡片。
+   * 点击工灵 → 打开工作台窗口并定位到该任务的会话。
    *
-   * 不再打开会话浮层（2026-09-12 决策变更）：浮层与策窗口的 ExecChatPanel
-   * 是同一份对话的两个入口，并存会让用户困惑；且策窗口能同时给出卡片的
-   * 计划/验收/讨论上下文，信息更完整。
+   * 不再打开会话浮层（2026-09-12 决策变更）：浮层与策窗口曾各有一份同一会话的
+   * 对话入口，并存会让用户困惑；且策窗口能同时给出卡片的计划/验收/讨论上下文。
+   * 2026-11-08 起对话统一在工作台 AI 区承载，策窗口回退为设置窗口——所以这里
+   * 改走 P1 的外部会话通路（`workbench:open-session`）：工作台窗口按会话直接
+   * 展开 AI 区，不建会话、不改 cwd。卡片本身不再有看板 UI（已撤下）。
    *
    * 工灵驻留不因点击离场——验收完成才离场。
    */
   const handleLocate = (sessionId: string): void => {
     // sessionId → 卡片：靠 task.agentSessionId 反查（useAgentDelegate 回写时落的字段）
     const task = useTodoStore.getState().data.tasks.find(t => t.agentSessionId === sessionId);
-    if (!task) return; // 会话未绑定卡片（非策委派来源）→ 无卡片可定位，忽略
+    if (!task?.agentSessionId) return; // 会话未绑定卡片（非策委派来源）→ 无处可定位，忽略
 
-    void WindowAPI.open('tasks');
-    requestFocusTask(task.id);
+    const intent = { sessionId, title: task.title };
+    // 窗口已开：广播即时生效；窗口刚被拉起：排队意图在启动时取走（两条路收敛到同一个 apply）
+    queueWindowIntent(WORKBENCH_OPEN_SESSION, intent);
+    publishWindowMessage(WORKBENCH_OPEN_SESSION, intent);
+    void WindowAPI.open('workbench').catch(() => undefined);
   };
 
   const handleDismissImp = (sessionId: string): void => {

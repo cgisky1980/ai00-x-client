@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ArrowDown,
   Bot,
   GitFork,
   History,
@@ -31,6 +32,7 @@ import {
   MessageBubble,
   PermissionCard,
   QuestionCard,
+  ResolutionLogLine,
 } from './DshChatPieces';
 import { ImpVisual } from '@/app/components/AgentTheater/ImpVisual';
 import { groupMessagesForDisplay } from './messageGroups';
@@ -73,6 +75,7 @@ const DshScene: React.FC = () => {
     dismissPermission,
     clearPluginError,
     jobsBySession,
+    resolutionLog,
   } = useDshChat();
 
   // 工灵剧场（AgentTheater）：开关 + 会话卡片点击联动（设计 §3.5）
@@ -250,11 +253,63 @@ const DshScene: React.FC = () => {
 
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** 跟随输出：用户上翻即暂停跟随（回到底部恢复），避免流式输出把阅读位置顶跑。 */
+  const [following, setFollowing] = useState(true);
 
-  // 新消息自动滚底
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight });
+  }, []);
+
+  const handleMessagesScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setFollowing(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  }, []);
+
+  /** 当前会话的办结记录（审批/提问批后塌缩的一行只读记录）。 */
+  const currentLog = useMemo(
+    () => resolutionLog.filter(e => e.sessionId === currentSessionId),
+    [resolutionLog, currentSessionId],
+  );
+
+  /** 重试：最后一条用户输入（按钮只挂在最后一条助手消息上）。 */
+  const lastUserText = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'user' && messages[i].text.trim()) return messages[i].text;
+    }
+    return null;
   }, [messages]);
+
+  const lastAssistantId = useMemo(() => {
+    for (let i = displayMessages.length - 1; i >= 0; i -= 1) {
+      if (displayMessages[i].role === 'assistant' && !displayMessages[i].origin) {
+        return displayMessages[i].id;
+      }
+    }
+    return null;
+  }, [displayMessages]);
+
+  /** 引用回复：选中文字（无选中则整条正文）以 markdown 引用注入输入框并聚焦。 */
+  const handleQuote = useCallback((text: string) => {
+    const quoted = text
+      .split('\n')
+      .map(line => `> ${line}`)
+      .join('\n');
+    setInput(prev => (prev.trim() ? `${prev}\n\n${quoted}\n\n` : `${quoted}\n\n`));
+    document.querySelector<HTMLTextAreaElement>('.ai00-x-dsh-scene__composer textarea')?.focus();
+  }, []);
+
+  // 新消息/新卡片到达时，仅跟随态才自动滚底
+  useEffect(() => {
+    if (following) scrollToBottom();
+  }, [displayMessages, currentApprovals.length, currentQuestions.length, currentLog.length, following, scrollToBottom]);
+
+  // 换会话：恢复跟随并滚底
+  useEffect(() => {
+    setFollowing(true);
+    scrollToBottom();
+  }, [currentSessionId, scrollToBottom]);
 
   // ---- Slash 命令（commands/list + commands/execute；plan mode 等经此驱动）----
   const [commands, setCommands] = useState<DshCommandInfo[]>([]);
@@ -412,7 +467,7 @@ const DshScene: React.FC = () => {
       <aside className="ai00-x-dsh-scene__sidebar">
         <div className="ai00-x-dsh-scene__sidebar-header">
           <span className="ai00-x-dsh-scene__sidebar-title">{t('sessions.title')}</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <span className="ai00-x-dsh-scene__sidebar-actions">
             <Button
               variant="ghost"
               size="small"
@@ -593,16 +648,31 @@ const DshScene: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="ai00-x-dsh-scene__messages" ref={scrollRef}>
-              {messages.length === 0 && (
-                <div className="ai00-x-dsh-scene__messages-empty">{t('chat.empty')}</div>
-              )}
-              {displayMessages.map(m => (
-                <MessageBubble key={m.id} message={m} />
-              ))}
-            </div>
-            {currentApprovals.length > 0 && (
-              <div className="ai00-x-dsh-scene__approvals">
+            <div className="ai00-x-dsh-scene__messages-wrap">
+              <div
+                className="ai00-x-dsh-scene__messages"
+                ref={scrollRef}
+                onScroll={handleMessagesScroll}
+              >
+                {messages.length === 0 && (
+                  <div className="ai00-x-dsh-scene__messages-empty">{t('chat.empty')}</div>
+                )}
+                {displayMessages.map(m => (
+                  <MessageBubble
+                    key={m.id}
+                    message={m}
+                    onRetry={
+                      m.role === 'assistant' && !m.origin && m.id === lastAssistantId && lastUserText
+                        ? () => send(lastUserText)
+                        : undefined
+                    }
+                    onQuote={m.role === 'assistant' && !m.origin ? handleQuote : undefined}
+                  />
+                ))}
+                {/* 办结记录 + 待处理审批/提问：内联消息流尾部（批后塌缩为一行只读记录） */}
+                {currentLog.map(e => (
+                  <ResolutionLogLine key={e.rpcId} entry={e} />
+                ))}
                 {currentApprovals.map(a => (
                   <ApprovalCard
                     key={a.rpcId}
@@ -611,10 +681,6 @@ const DshScene: React.FC = () => {
                     planText={a.toolName === 'exit_plan_mode' ? planTextFor(a.callId) : undefined}
                   />
                 ))}
-              </div>
-            )}
-            {currentQuestions.length > 0 && (
-              <div className="ai00-x-dsh-scene__approvals">
                 {currentQuestions.map(q => (
                   <QuestionCard
                     key={q.rpcId}
@@ -624,7 +690,20 @@ const DshScene: React.FC = () => {
                   />
                 ))}
               </div>
-            )}
+              {!following && (
+                <button
+                  type="button"
+                  className="ai00-x-dsh-scene__scroll-latest"
+                  onClick={() => {
+                    setFollowing(true);
+                    scrollToBottom();
+                  }}
+                >
+                  <ArrowDown size={12} aria-hidden="true" />
+                  {t('chat.scrollToLatest')}
+                </button>
+              )}
+            </div>
             {runningJobs.length > 0 && (
               <div className="ai00-x-dsh-scene__jobs">
                 {runningJobs.map(job => (

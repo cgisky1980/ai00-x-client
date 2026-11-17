@@ -37,6 +37,29 @@ import {
 import { isApprovalAllowed } from '@/shared/agent-approval-rules';
 import { reportRuntimeFailure } from '@/infrastructure/api/service-api/DshMarketApi';
 
+/** 审批/提问办结记录（批后塌缩为一行只读记录，留在消息流尾部可回溯）。 */
+export interface DshResolutionEntry {
+  kind: 'approval' | 'question';
+  rpcId: string;
+  sessionId: string;
+  /** 审批 = 工具名；提问 = 答案摘要（取消时为首题文本）。 */
+  subject: string;
+  outcome: 'allowed-once' | 'rejected' | 'cancelled' | 'answered';
+  at: number;
+}
+
+/** 答案摘要：「问题 → 选项A、选项B / 自定义文本」，多题以；分隔。 */
+function summarizeAnswers(batch: DshQuestion, answers: DshQuestionAnswerItem[]): string {
+  return batch.questions
+    .map(q => {
+      const a = answers.find(x => x.id === q.id);
+      const picked = a?.custom?.trim() || (a?.selected ?? []).join('、');
+      return picked ? `${q.question} → ${picked}` : '';
+    })
+    .filter(Boolean)
+    .join('；');
+}
+
 export interface DshChatState {
   status: DshStatus | null;
   phase: DshPhase | null;
@@ -61,6 +84,8 @@ export interface DshChatState {
   usage: DshUsageSummary | null;
   /** 后台作业注册表（session/control 流的 jobs 帧；键 = sessionId，'*' = 全局）。 */
   jobsBySession: Record<string, DshJobItem[]>;
+  /** 审批/提问办结记录（按时间序，上限 100 条）。 */
+  resolutionLog: DshResolutionEntry[];
 }
 
 export function useDshChat() {
@@ -81,6 +106,7 @@ export function useDshChat() {
     permissionRequests: [],
     usage: null,
     jobsBySession: {},
+    resolutionLog: [],
   });
   /** 当前会话的实时事件累积（含 history 拉取的基线）。 */
   const liveEventsRef = useRef<DshSessionEvent[]>([]);
@@ -92,6 +118,11 @@ export function useDshChat() {
 
   const patch = useCallback((partial: Partial<DshChatState>) => {
     setState(prev => ({ ...prev, ...partial }));
+  }, []);
+
+  /** 追加办结记录（上限 100 条，防长会话堆积）。 */
+  const appendResolution = useCallback((entry: DshResolutionEntry) => {
+    setState(prev => ({ ...prev, resolutionLog: [...prev.resolutionLog, entry].slice(-100) }));
   }, []);
 
   // ---- 消息折叠（事件 → UI 消息 + 用量聚合） ----
@@ -243,6 +274,14 @@ export function useDshChat() {
           // 引擎侧已不 pending（迟到/重复）：本地同样丢弃即可
           setState(prev => ({ ...prev, approvals: prev.approvals.filter(a => a.rpcId !== rpcId) }));
         }
+        appendResolution({
+          kind: 'approval',
+          rpcId,
+          sessionId: current.sessionId,
+          subject: current.toolName,
+          outcome,
+          at: Date.now(),
+        });
       } catch {
         // 网络失败：恢复显示，等待 mux 重放（rpcId 稳定）
         setState(prev =>
@@ -252,7 +291,7 @@ export function useDshChat() {
         );
       }
     },
-    [],
+    [appendResolution],
   );
 
   // ---- 问题应答 ----
@@ -272,7 +311,16 @@ export function useDshChat() {
               : { ...prev, questions: [...prev.questions, current] },
           );
           patch({ error: 'question answer rejected (bad-response)' });
+          return;
         }
+        appendResolution({
+          kind: 'question',
+          rpcId,
+          sessionId: current.sessionId,
+          subject: summarizeAnswers(current, answers),
+          outcome: 'answered',
+          at: Date.now(),
+        });
       } catch {
         // 网络失败：恢复显示，等待 mux 重放（rpcId 稳定）
         setState(prev =>
@@ -282,17 +330,28 @@ export function useDshChat() {
         );
       }
     },
-    [patch],
+    [patch, appendResolution],
   );
 
   const cancelQuestion = useCallback(async (rpcId: string) => {
+    const current = stateRef.current.questions.find(q => q.rpcId === rpcId);
     setState(prev => ({ ...prev, questions: prev.questions.filter(q => q.rpcId !== rpcId) }));
+    if (current) {
+      appendResolution({
+        kind: 'question',
+        rpcId,
+        sessionId: current.sessionId,
+        subject: current.questions[0]?.question ?? '',
+        outcome: 'cancelled',
+        at: Date.now(),
+      });
+    }
     try {
       await dshQuestion.cancel(rpcId);
     } catch {
       // 取消失败无所谓：resolved 帧会收敛
     }
-  }, []);
+  }, [appendResolution]);
 
   // ---- 插件 scope 授权（per-plugin 权限模型 v1） ----
   const grantPermission = useCallback(
@@ -435,7 +494,19 @@ export function useDshChat() {
                   },
             );
           } else if (frame.type === 'approval/resolved') {
-            // 引擎侧已定局（含 turn cancel 触发的 cancelled）：本地同步移除
+            // 引擎侧已定局（含 turn cancel 触发的 cancelled）：本地同步移除；
+            // 仍在待处理列表里的（非本端应答）记一条「已取消」办结记录
+            const target = stateRef.current.approvals.find(a => a.approvalId === frame.approvalId);
+            if (target) {
+              appendResolution({
+                kind: 'approval',
+                rpcId: target.rpcId,
+                sessionId: target.sessionId,
+                subject: target.toolName,
+                outcome: 'cancelled',
+                at: Date.now(),
+              });
+            }
             setState(prev => ({
               ...prev,
               approvals: prev.approvals.filter(a => a.approvalId !== frame.approvalId),
@@ -454,7 +525,19 @@ export function useDshChat() {
                   },
             );
           } else if (frame.type === 'question/resolved') {
-            // 引擎侧已定局（answered/cancelled）：本地同步移除
+            // 引擎侧已定局（answered/cancelled）：本地同步移除；
+            // 仍在待处理列表里的（非本端应答）记一条「已取消」办结记录
+            const target = stateRef.current.questions.find(q => q.rpcId === frame.questionRpcId);
+            if (target) {
+              appendResolution({
+                kind: 'question',
+                rpcId: target.rpcId,
+                sessionId: target.sessionId,
+                subject: target.questions[0]?.question ?? '',
+                outcome: 'cancelled',
+                at: Date.now(),
+              });
+            }
             setState(prev => ({
               ...prev,
               questions: prev.questions.filter(q => q.rpcId !== frame.questionRpcId),

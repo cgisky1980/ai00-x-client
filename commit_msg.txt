@@ -1,0 +1,8 @@
+feat(billing): 客户端促销折扣展示 + 工作台多项改进
+
+- ai00sTier 解析 promo_discount，模型选择器展示限时折扣徽标
+- flow-chat 中英文文案补齐
+- 工作台 AgentTheater、DshScene、WorkbenchScene 多项优化
+- Todo/任务体系重构与计划看板
+- design-system comic 风格包与 tokens 更新
+- PromptInput 组件样式调整

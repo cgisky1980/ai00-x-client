@@ -26,6 +26,7 @@ use rwkv_rsv::gpu_model::{Bundle, GpuModel, ModelBuilder, SamplerParams, State};
 use rwkv_rsv::tokenizer::Tokenizer;
 
 use crate::rwkv_choose::{Candidate, ChoiceScore};
+use ai00_x_ai_adapters::providers::rwkv::request::estimate_prompt_tokens;
 
 const DEBUG_LOG_LLM: bool = false;
 macro_rules! debug_print {
@@ -1724,6 +1725,40 @@ fn u01(seed: u32) -> f32 {
     z as f32 / 4294967296.0
 }
 
+/// 本地直连推理记账（不经网关的 Tauri 命令 / 内部闭环路径）。
+///
+/// 网关与插件 AI 路径已经在各自出口记账，这里只覆盖直连 `pool_infer` 的调用，
+/// 避免同一批 token 被计两次。生成类调用用引擎 `Done` 事件的真实计数；
+/// 打分/分类等零生成调用用 [`estimate_prompt_tokens`] 仅计输入侧。
+pub(crate) async fn record_local_usage(
+    route: &str,
+    model: &str,
+    prompt_tokens: usize,
+    completion_tokens: usize,
+    latency_ms: u64,
+) {
+    if prompt_tokens == 0 && completion_tokens == 0 {
+        return;
+    }
+    crate::api::ai_usage_api::record_usage(crate::api::ai_usage_api::AiUsageRecord {
+        at: now_ms(),
+        plugin_id: "rwkv-direct".to_string(),
+        tag: None,
+        model: model.to_string(),
+        local: true,
+        prompt_tokens: u32::try_from(prompt_tokens).unwrap_or(u32::MAX),
+        completion_tokens: u32::try_from(completion_tokens).unwrap_or(u32::MAX),
+        latency_ms,
+        session_id: None,
+        requested_model: None,
+        route: Some(route.to_string()),
+        fallback_reason: None,
+        cached_prompt_tokens: None,
+        usage_known: Some(true),
+    })
+    .await;
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn pool_infer(
     prompt: String,
@@ -1800,6 +1835,8 @@ pub async fn rwkv_classify(
     prev_tier: Option<u8>,
     capture: bool,
 ) -> Result<Vec<f32>, String> {
+    let started = std::time::Instant::now();
+    let prompt_tokens = estimate_prompt_tokens(&request);
     // 路由分类与主模型解耦：router_mini 未就绪但模型文件已下载时先懒加载
     // （幂等；下载完成后的首次分类自动恢复，无需重启）。文件缺失时直接
     // 走 pool 内兼容回退链（主模型匹配头 / Err 降级回落远程）。
@@ -1819,7 +1856,18 @@ pub async fn rwkv_classify(
         })
         .map_err(|e| format!("failed to send classify request: {}", e))?;
     match tokio::time::timeout(Duration::from_secs(30), reply_rx).await {
-        Ok(Ok(result)) => result,
+        Ok(Ok(Ok(result))) => {
+            record_local_usage(
+                "local-router-classify",
+                "rwkv-router-mini",
+                prompt_tokens,
+                0,
+                started.elapsed().as_millis() as u64,
+            )
+            .await;
+            Ok(result)
+        }
+        Ok(Ok(Err(e))) => Err(e),
         Ok(Err(_)) => Err("classify reply channel closed".to_string()),
         Err(_) => Err("classify request timed out after 30s".to_string()),
     }
@@ -1835,6 +1883,13 @@ pub async fn rwkv_choose(
     choices: Vec<String>,
     calibrate: bool,
 ) -> Result<Vec<ChoiceScore>, String> {
+    let started = std::time::Instant::now();
+    // 零生成打分：token 用量 = prompt 原样分词 + 每个候选的 NLL 打分文本
+    let prompt_tokens = estimate_prompt_tokens(&prompt)
+        + choices
+            .iter()
+            .map(|c| estimate_prompt_tokens(c))
+            .sum::<usize>();
     let pool = get_inference_pool().ok_or("inference pool not started")?;
     let (reply_tx, reply_rx) = oneshot::channel::<Result<Vec<ChoiceScore>, String>>();
     pool.tx
@@ -1846,7 +1901,18 @@ pub async fn rwkv_choose(
         })
         .map_err(|e| format!("failed to send choose request: {}", e))?;
     match tokio::time::timeout(Duration::from_secs(30), reply_rx).await {
-        Ok(Ok(result)) => result,
+        Ok(Ok(Ok(result))) => {
+            record_local_usage(
+                "local-router-choose",
+                "rwkv-local",
+                prompt_tokens,
+                0,
+                started.elapsed().as_millis() as u64,
+            )
+            .await;
+            Ok(result)
+        }
+        Ok(Ok(Err(e))) => Err(e),
         Ok(Err(_)) => Err("choose reply channel closed".to_string()),
         Err(_) => Err("choose request timed out after 30s".to_string()),
     }
@@ -2114,8 +2180,11 @@ fn is_router_model_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// 解析 safetensors 文件头（前 8 字节 u64 长度 + JSON），判断是否为 int8 量化
+/// 解析 safetensors 文件头（前 8 字节 u64 长度 + JSON），判断是否为量化权重
 /// （量化张量键含 ".int8_idx" 后缀，存储在 .st 文件内部）。
+///
+/// 注：int6 文件的 head 恒为 int8，因此也会命中；该字段只表示“已量化”，
+/// 不区分位宽（加载端按文件内键自动分派）。
 fn is_int8_model(model_path: &Path) -> bool {
     let Ok(mut f) = std::fs::File::open(model_path) else {
         return false;
@@ -2210,15 +2279,16 @@ fn build_model_info(model_path: &Path, vocab_path: &Path) -> Option<RwkvModelInf
 
 /// 远端 UnifiedManifest 未收录 RWKV 档位前的内置下载目录。
 ///
-/// 就绪判定基于实际扫描（list_rwkv_models）：本地模型统一使用 int8，
-/// 按文件大小区间匹配档位（int8 ≈ 每参数 1 字节；兼容 bundled bf16 大文件）。
+/// 就绪判定基于实际扫描（list_rwkv_models）：3B 默认 int6，其余档位 int8，
+/// 按文件大小区间匹配档位（int6 ≈ 0.78–0.81 字节/参数，int8 ≈ 1 字节/参数；
+/// 兼容 bundled bf16 大文件）。
 #[derive(Debug, Clone, Serialize)]
 pub struct BuiltinRwkvEntry {
     pub key: String,
     pub display: String,
     /// models/ 下相对保存路径（download_model 的 url 字段语义）。
     pub file_rel: String,
-    /// 近似大小（int8 量化体积）。
+    /// 近似大小（当前部署量化体积，3B=int6、其余=int8）。
     pub size_bytes: u64,
     /// 就绪 = 扫描到匹配档位的本地模型（返回可用路径）。
     pub downloaded: bool,
@@ -2233,17 +2303,24 @@ pub struct BuiltinRwkvEntry {
     pub available: bool,
 }
 
+/// 3B 档位当前权重文件名（换版本或换量化位宽只改这一行；目录固定为 models/rwkv/）。
+///
+/// 命名约定：`rwkv-3B-<generation>-<tag>-int<bits>.st`
+/// （当前 g1m 预览版 int6 = `rwkv-3B-g1m-pre-int6.st`；int8 回滚件 = `...-int8.st`）。
+/// 档位 key（`rwkv-3b`）保持不变，前端/路由/网关无需随版本或位宽改动。
+pub const RWKV_3B_MODEL_FILE: &str = "rwkv-3B-g1m-pre-int6.st";
+
 #[derive(Debug, Clone)]
 struct BuiltinRwkvModel {
     key: &'static str,
     display: &'static str,
-    /// models/ 下 .st 相对保存路径（与统一仓库布局一致，落盘即被 list_rwkv_models 扫描到）。
-    st_rel: &'static str,
+    /// models/rwkv/ 下 .st 文件名（与统一仓库布局一致，落盘即被 list_rwkv_models 扫描到）。
+    file: &'static str,
     /// models/ 下 vocab 相对保存路径（7.2B 有独立 vocab 子目录，其余共用顶层 vocab.json）。
     vocab_rel: &'static str,
-    /// int8 量化近似字节数。
+    /// 部署量化近似字节数（3B 当前为 int6，其余档位 int8）。
     size_bytes: u64,
-    /// 就绪匹配区间（字节）：按 int8 实际体积紧凑匹配。
+    /// 就绪匹配区间（字节）：按当前部署量化体积紧凑匹配。
     min_bytes: u64,
     max_bytes: u64,
     /// 必需档位（启动期自动下载）；其余为可选档位，只在模型选择器里按需下载。
@@ -2252,16 +2329,24 @@ struct BuiltinRwkvModel {
     available: bool,
 }
 
+impl BuiltinRwkvModel {
+    /// models/ 下相对保存路径（下载 url 字段与 UI `file_rel` 的语义）。
+    fn st_rel(&self) -> String {
+        format!("rwkv/{}", self.file)
+    }
+}
+
 const BUILTIN_RWKV: &[BuiltinRwkvModel] = &[
     BuiltinRwkvModel {
         key: "rwkv-3b",
         display: "RWKV 3B",
-        // g1l 2.9b（20261031，ctx34304）int8；档位统一命名 rwkv7-(3/7/13)B-int8.st
-        st_rel: "rwkv/rwkv7-3B-int8.st",
+        // g1m 3b（temp-6056，ctx65536）int6 N-major；版本名只由 RWKV_3B_MODEL_FILE 决定。
+        file: RWKV_3B_MODEL_FILE,
         vocab_rel: "rwkv/vocab.json",
-        size_bytes: 3_295_783_296,
+        size_bytes: 2_666_658_289,
+        // 区间只覆盖 int6 体积：同目录的 int8 回滚件（3,295,783,296 B）不会被回退判成就绪。
         min_bytes: 2_500_000_000,
-        max_bytes: 4_500_000_000,
+        max_bytes: 2_800_000_000,
         required: true,
         available: true,
     },
@@ -2270,7 +2355,7 @@ const BUILTIN_RWKV: &[BuiltinRwkvModel] = &[
     BuiltinRwkvModel {
         key: "rwkv-7b",
         display: "RWKV 7B",
-        st_rel: "rwkv/rwkv7-7B-int8.st",
+        file: "rwkv7-7B-int8.st",
         vocab_rel: "rwkv/vocab.json",
         size_bytes: 7_898_815_456,
         min_bytes: 7_000_000_000,
@@ -2282,7 +2367,7 @@ const BUILTIN_RWKV: &[BuiltinRwkvModel] = &[
     BuiltinRwkvModel {
         key: "rwkv-13b",
         display: "RWKV 13B",
-        st_rel: "rwkv/rwkv7-13B-int8.st",
+        file: "rwkv7-13B-int8.st",
         vocab_rel: "rwkv/vocab.json",
         size_bytes: 0,
         min_bytes: 12_000_000_000,
@@ -2313,20 +2398,31 @@ fn rwkv_builtin_urls(rel_path: &str) -> (String, Vec<(&'static str, String)>) {
     )
 }
 
-/// 内置 RWKV 下载目录（就绪判定 = 扫描到匹配档位大小的本地模型，返回可用路径）。
+/// 内置 RWKV 下载目录（就绪判定：先按精确文件名命中，未命中再回退体积区间）。
 #[tauri::command]
 pub fn rwkv_builtin_catalog() -> Vec<BuiltinRwkvEntry> {
     let scanned = list_rwkv_models();
     BUILTIN_RWKV
         .iter()
         .map(|m| {
+            // 精确文件名优先：目录里可能保留旧版 3B，仅按体积会把旧文件误判为当前档位。
             let hit = scanned
                 .iter()
-                .find(|info| info.size_bytes >= m.min_bytes && info.size_bytes < m.max_bytes);
+                .find(|info| {
+                    Path::new(&info.model_path)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|name| name.eq_ignore_ascii_case(m.file))
+                })
+                .or_else(|| {
+                    scanned.iter().find(|info| {
+                        info.size_bytes >= m.min_bytes && info.size_bytes < m.max_bytes
+                    })
+                });
             BuiltinRwkvEntry {
                 key: m.key.to_string(),
                 display: m.display.to_string(),
-                file_rel: m.st_rel.to_string(),
+                file_rel: m.st_rel(),
                 size_bytes: m.size_bytes,
                 downloaded: hit.is_some(),
                 resolved_model_path: hit.map(|h| h.model_path.clone()),
@@ -2355,12 +2451,13 @@ pub async fn rwkv_builtin_download(key: String) -> Result<Vec<String>, String> {
     let models_dir = crate::runtime::get_models_dir();
     let mut task_ids = Vec::new();
 
-    let (st_primary, st_hosts) = rwkv_builtin_urls(entry.st_rel);
+    let st_rel = entry.st_rel();
+    let (st_primary, st_hosts) = rwkv_builtin_urls(&st_rel);
     let st_info = crate::model_checker::ModelUpdateInfo {
         component: "llm-rwkv".to_string(),
         name: entry.key.to_string(),
         key: entry.key.to_string(),
-        url: entry.st_rel.to_string(),
+        url: st_rel,
         download_url: st_primary,
         available_hosts: st_hosts
             .into_iter()
@@ -2400,7 +2497,7 @@ pub async fn rwkv_builtin_download(key: String) -> Result<Vec<String>, String> {
 fn scan_model_file() -> Option<String> {
     let models_dir = assets_models_dir();
     for builtin in BUILTIN_RWKV.iter().filter(|m| m.required) {
-        let path = models_dir.join(builtin.st_rel);
+        let path = models_dir.join(builtin.file);
         if path.is_file() {
             return Some(path.to_string_lossy().into_owned());
         }
@@ -2605,6 +2702,7 @@ pub async fn rwkv_chat(
     penalty_decay: f32,
     _state_path: Option<String>,
 ) -> Result<ChatResult, String> {
+    let started = std::time::Instant::now();
     let result = tokio::time::timeout(Duration::from_secs(30), async {
         let mut rx = pool_infer(
             prompt,
@@ -2650,7 +2748,18 @@ pub async fn rwkv_chat(
     })
     .await;
     match result {
-        Ok(inner) => inner,
+        Ok(Ok(result)) => {
+            record_local_usage(
+                "local-direct-chat",
+                "rwkv-local",
+                result.input_token_count,
+                result.output_token_count,
+                started.elapsed().as_millis() as u64,
+            )
+            .await;
+            Ok(result)
+        }
+        Ok(Err(e)) => Err(e),
         Err(_elapsed) => Err("RWKV inference timed out after 30s".to_string()),
     }
 }
@@ -2698,6 +2807,10 @@ pub async fn rwkv_chat_stream(
         &format!("prompt_len={} max_tokens={}", prompt.len(), max_tokens),
     );
 
+    let model_name = model_text
+        .clone()
+        .filter(|m| !m.is_empty())
+        .unwrap_or_else(|| "rwkv-local".to_string());
     let mut rx = pool_infer(
         prompt,
         max_tokens,
@@ -2715,6 +2828,9 @@ pub async fn rwkv_chat_stream(
     .await?;
 
     let mut text = String::new();
+    let mut input_tokens = 0usize;
+    let mut output_tokens = 0usize;
+    let started = std::time::Instant::now();
     while let Some(event) = rx.recv().await {
         match event {
             InferenceEvent::Token(t) => {
@@ -2723,10 +2839,13 @@ pub async fn rwkv_chat_stream(
             }
             InferenceEvent::Done {
                 text: t,
+                input_tokens: it,
+                output_tokens: ot,
                 stop_sequence,
-                ..
             } => {
                 text = t;
+                input_tokens = it;
+                output_tokens = ot;
                 if let Some(seq) = stop_sequence {
                     let _ = app.emit(
                         "rwkv://stop_hit",
@@ -2746,6 +2865,14 @@ pub async fn rwkv_chat_stream(
         "end",
         &format!("text_len={}", text.len()),
     );
+    record_local_usage(
+        "local-direct-stream",
+        &model_name,
+        input_tokens,
+        output_tokens,
+        started.elapsed().as_millis() as u64,
+    )
+    .await;
     Ok(text)
 }
 

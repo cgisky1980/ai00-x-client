@@ -1,0 +1,53 @@
+// 本轮消耗：本地 / 云端分项，一行弱化展示。
+.ai00-x-turn-usage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+}
+
+.ai00-x-turn-usage__label {
+  color: var(--color-text-muted);
+}
+
+.ai00-x-turn-usage__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+
+  &.is-muted {
+    color: var(--color-text-muted);
+  }
+
+  &.is-warning {
+    color: var(--color-warning);
+  }
+}
+
+.ai00-x-turn-usage__tag {
+  padding: 0 var(--spacing-1);
+  border-radius: var(--radius-sm);
+  background-color: var(--element-bg-subtle);
+  color: var(--color-text-secondary);
+}
+
+.ai00-x-turn-usage__num {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.ai00-x-turn-usage__link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: inherit;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

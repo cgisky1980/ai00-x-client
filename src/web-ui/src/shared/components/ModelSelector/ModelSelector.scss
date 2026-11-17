@@ -12,59 +12,64 @@
   align-items: center;
   
   // ==================== Trigger button ====================
-  
+  // composer 模型位（对齐 DSH）：28px 高、13px 常规字重、默认不透明、hover 才有底色
+
   &__trigger {
     display: inline-flex;
     align-items: center;
     gap: var(--size-gap-1);
-    height: 20px;
-    padding: 0 var(--size-gap-2);
-    border-radius: 10px;
+    height: var(--size-gap-7);
+    max-width: 220px;
+    padding: 0 var(--size-gap-1) 0 var(--size-gap-2);
+    border-radius: var(--size-radius-sm);
     border: none;
-    background: transparent;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-xxs);
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
     font-weight: 400;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color var(--motion-fast) var(--easing-standard),
+      color var(--motion-fast) var(--easing-standard);
     outline: none;
-    opacity: 0.3;
     white-space: nowrap;
-    letter-spacing: 0.3px;
-    
-    // More visible while input is focused
-    .ai00-x-chat-input__box:focus-within & {
-      opacity: 1;
-    }
-    
-    &:hover {
-      background: var(--element-bg-medium);
+
+    &:hover:not(:disabled) {
+      background-color: var(--element-bg-subtle);
       color: var(--color-text-primary);
-      opacity: 1;
     }
-    
+
+    &:focus-visible {
+      box-shadow: 0 0 0 2px var(--style-focus-ring, var(--color-accent-400));
+    }
+
     &--open {
-      background: var(--color-accent-200);
+      background-color: var(--element-bg-subtle);
       color: var(--color-text-primary);
-      opacity: 1;
     }
-    
+
     &:disabled {
       opacity: 0.4;
       cursor: default;
     }
   }
-  
+
   &__icon {
+    width: 16px;
+    height: 16px;
     color: var(--color-text-muted);
     flex-shrink: 0;
   }
-  
+
   &__name {
-    max-width: 100px;
+    max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  &__chevron {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
   }
   
   &__thinking-icon {
@@ -239,6 +244,12 @@
     &--discount {
       background: var(--color-accent-200);
       color: var(--color-accent-600);
+    }
+
+    // 促销折扣：语义警告色（限时/临时状态，与会员折扣区分）
+    &--promo {
+      background: var(--color-warning-bg);
+      color: var(--color-warning);
     }
 
     // 专属补贴：语义成功色（状态表达）

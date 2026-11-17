@@ -1,0 +1,124 @@
+// 「压在输入框下面」的卡片内容：一行内容 + 动作，不设标题。
+.ai00-x-interaction {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+
+  &__body {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-2);
+    min-width: 0;
+  }
+
+  &__dot {
+    margin-top: var(--spacing-2);
+    width: var(--spacing-2);
+    height: var(--spacing-2);
+    flex: none;
+    border-radius: var(--radius-full);
+    background-color: var(--color-accent);
+
+    .is-warning & {
+      background-color: var(--color-warning);
+    }
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    flex: 1;
+    min-width: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    line-height: 1.6;
+  }
+
+  &__meta {
+    flex: none;
+    color: var(--color-text-muted);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-2);
+  }
+}
+
+// 复用引擎审批/提问卡时去掉它们自带的外框（外框由下方卡片负责）
+.ai00-x-interaction .ai00-x-dsh-scene__approval {
+  padding: 0;
+  border: none;
+  background-color: transparent;
+}
+
+// 两条卡片叠放：背卡在输入框上方露出一条边，输入框压住它下半部分（输入框层级更高）。
+// 背卡比输入框窄 12px 并居中；只有上圆角，下沿直角藏在输入框里，不会有圆角外露。
+.ai00-x-composer-stack__under {
+  position: relative;
+  z-index: 0;
+  width: calc(100% - var(--spacing-3));
+  margin: 0 auto calc(var(--spacing-5) * -1);
+  padding: var(--spacing-3) var(--spacing-4) var(--spacing-8);
+  border: none;
+  border-radius: var(--size-radius-3xl) var(--size-radius-3xl) 0 0;
+  background-color: var(--color-bg-secondary);
+  transition:
+    transform var(--motion-base) var(--easing-standard),
+    box-shadow var(--motion-base) var(--easing-standard);
+
+  // 需要人类动手时，背卡从输入框后面升起来
+  &.is-raised {
+    transform: translateY(calc(var(--spacing-1) * -1));
+    box-shadow: var(--shadow-base);
+  }
+}
+
+// 计划确认档位里的计划书正文：只给要点，超长自己滚
+.ai00-x-plan-confirm {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: var(--spacing-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+
+  h1,
+  h2,
+  h3 {
+    margin: 0 0 var(--spacing-1);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+  }
+
+  p,
+  ul,
+  ol {
+    margin: 0 0 var(--spacing-1);
+  }
+
+  ul,
+  ol {
+    padding-left: var(--spacing-4);
+  }
+}
+
+.ai00-x-plan-confirm__hint {
+  margin: var(--spacing-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+}
+
+// 输入框永远压在这张纸上面
+.ai00-x-dsh-scene__composer > .ai00-x-composer-root {
+  position: relative;
+  z-index: 1;
+}
