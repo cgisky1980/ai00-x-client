@@ -94,6 +94,8 @@ struct GatewayUsage {
     fallback_reason: Option<String>,
     /// 本次请求发往服务端的 `X-Request-Id`（服务端计费账本同值，用于对账积分）。
     request_id: Option<String>,
+    /// 本回合已完成的工具轮数（观测值，用于验证熔断是否按预期生效）。
+    tool_rounds: Option<usize>,
     started: std::time::Instant,
 }
 
@@ -105,8 +107,15 @@ impl GatewayUsage {
             route: route.to_string(),
             fallback_reason: None,
             request_id: None,
+            tool_rounds: None,
             started: std::time::Instant::now(),
         }
+    }
+
+    fn with_tool_rounds(&self, rounds: usize) -> Self {
+        let mut next = self.clone();
+        next.tool_rounds = Some(rounds);
+        next
     }
 
     fn with_request_id(&self, request_id: String) -> Self {
@@ -149,6 +158,7 @@ impl GatewayUsage {
             completion_tokens: usage.completion,
             latency_ms: self.started.elapsed().as_millis() as u64,
             ttft_ms,
+            tool_rounds: self.tool_rounds,
             session_id: self.session_id.clone(),
             requested_model: Some(self.requested_model.clone()),
             route: Some(self.route.clone()),
@@ -573,7 +583,13 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
         .get("x-ai00-session-id")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
-    let usage = GatewayUsage::new(session_id.clone(), model.clone(), "remote");
+    let tool_rounds = body
+        .get("messages")
+        .and_then(|v| v.as_array())
+        .map(|messages| crate::tool_session::count_turn_rounds(messages))
+        .unwrap_or(0);
+    let usage = GatewayUsage::new(session_id.clone(), model.clone(), "remote")
+        .with_tool_rounds(tool_rounds);
 
     // 分流决策
     let has_tools = body

@@ -95,6 +95,9 @@ pub struct AiUsageRecord {
     /// 旧记录没有该字段，读取侧按 `Option` 兼容。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ttft_ms: Option<u64>,
+    /// 本回合已完成的工具轮数（网关按历史推算，用于观察熔断是否生效）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_rounds: Option<usize>,
     /// dsh 会话 id（plugin AI 通道为空）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
