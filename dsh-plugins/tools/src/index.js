@@ -84,6 +84,82 @@ function makeClient(baseURL, token) {
   };
 }
 
+/** 步骤 id → 是否已勾选（用于比较重写前后的勾选变化）。 */
+function tickedSteps(markdown) {
+  const map = new Map();
+  for (const line of String(markdown ?? "").split("\n")) {
+    const head = /^\s*-\s+\[([ xX])\]\s+(T[0-9A-Za-z_-]+)\s/.exec(line);
+    if (head) map.set(head[2], head[1].toLowerCase() === "x");
+  }
+  return map;
+}
+
+/**
+ * 找出「本次新勾上、但该步没有 `- 验证: passed`」的步骤。
+ *
+ * `plan_check` 已有同样的闸门，但整篇重写是绕过它的后门（实测真实任务里
+ * 三个步骤全被勾成 [x]，其中两个标注「阻塞」、全库零验证行）。
+ */
+function newlyTickedWithoutEvidence(prevMd, nextMd) {
+  const prev = tickedSteps(prevMd);
+  const next = tickedSteps(nextMd);
+  const lines = String(nextMd ?? "").split("\n");
+  const offenders = [];
+  for (const [stepId, done] of next) {
+    if (!done || prev.get(stepId) === true) continue;
+    const index = lines.findIndex((line) =>
+      new RegExp(`^\\s*-\\s+\\[[ xX]\\]\\s+${stepId}\\s`).test(line)
+    );
+    if (index < 0) continue;
+    if (!/^\s*-\s*(验证|verification)\s*[:：]\s*passed/im.test(stepBlock(lines, index))) {
+      offenders.push(stepId);
+    }
+  }
+  return offenders;
+}
+
+/**
+ * 写回计划时**保留验证证据**。
+ *
+ * 编排者重写整篇计划时手里是它自己那份副本，`ai00_task_verify` 写回的
+ * `- 验证: …` / `- 证据: …` 行会被整段抹掉（实测真实任务的最终计划里
+ * 验证行 0、证据行 0，而三个步骤全被勾成 [x]——进度与证据同时失真）。
+ * 这里按步骤 id 把旧计划里的这两行补回新计划，缺证据就没法被抹掉。
+ */
+function carryOverEvidence(prevMd, nextMd) {
+  if (typeof prevMd !== "string" || typeof nextMd !== "string") return nextMd;
+  const prevLines = prevMd.split("\n");
+  const kept = new Map();
+  prevLines.forEach((line, i) => {
+    const head = /^\s*-\s+\[[ xX]\]\s+(T[0-9A-Za-z_-]+)\s/.exec(line);
+    if (!head) return;
+    const block = stepBlock(prevLines, i).split("\n");
+    const evidence = block.filter((l) => /^\s*-\s*(验证|verification|证据|evidence)\s*[:：]/i.test(l));
+    if (evidence.length) kept.set(head[1], evidence);
+  });
+  if (!kept.size) return nextMd;
+
+  const lines = nextMd.split("\n");
+  let restored = 0;
+  for (const [stepId, evidence] of kept) {
+    const index = lines.findIndex((line) =>
+      new RegExp(`^\\s*-\\s+\\[[ xX]\\]\\s+${stepId}\\s`).test(line)
+    );
+    if (index < 0) continue; // 该步已被删掉，不强行恢复
+    // 逐行补：验证与证据是两类行，缺哪类补哪类
+    const block = stepBlock(lines, index);
+    const missing = evidence.filter((line) =>
+      /^\s*-\s*(验证|verification)\s*[:：]/i.test(line)
+        ? !/^\s*-\s*(验证|verification)\s*[:：]/im.test(block)
+        : !/^\s*-\s*(证据|evidence)\s*[:：]/im.test(block)
+    );
+    if (!missing.length) continue;
+    lines.splice(index + 1, 0, ...missing);
+    restored += missing.length;
+  }
+  return restored ? lines.join("\n") : nextMd;
+}
+
 /** 步骤块文本：从步骤行到下一个步骤行或下一个 `## ` 标题（不含）。 */
 function stepBlock(lines, startIndex) {
   const out = [];
@@ -1305,7 +1381,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_plan_write",
     description:
-      "Write (replace) the plan document (Markdown) of a Zhixing board card. The 策 window refreshes it live, so the user sees your updates. ai00_plan_read first, modify, then write back whole. Use it to check off steps, record progress, or adjust the plan as work unfolds. The FIRST write of a task's plan is a hard stop: after it, end the turn and wait for the user to confirm the plan — never dispatch a worker in the same turn.",
+      "Write (replace) the plan document (Markdown) of a Zhixing board card. The 策 window refreshes it live, so the user sees your updates. Prefer ai00_plan_check for status flips; use this only for structural edits. Verification/evidence lines already written by ai00_task_verify are preserved automatically, and a step cannot be newly ticked here without that evidence (the write is refused). The FIRST write of a task's plan is a hard stop: after it, end the turn and wait for the user to confirm the plan — never dispatch a worker in the same turn.",
     parameters: {
       type: "object",
       properties: {
@@ -1325,6 +1401,8 @@ function defineTools(ctx, api) {
           ok: { type: "boolean" },
           // 首次写入（此前没有计划）：宿主用它给模型发停机指令
           firstPlan: { type: "boolean" },
+          // 旧计划里的「验证/证据」行被保留并补回（模型重写时容易漏）
+          evidencePreserved: { type: "boolean" },
         },
         required: ["ok"],
         additionalProperties: false,
@@ -1346,17 +1424,30 @@ function defineTools(ctx, api) {
       if (!taskId || !markdown.trim()) throw new Error("taskId and markdown are required");
       // 先读旧计划判断是否「首次成文」：读失败按非首次处理，不阻断写盘
       let firstPlan = false;
+      let prevMarkdown = "";
       try {
         const prev = await api.get(
           `/plan?taskId=${encodeURIComponent(taskId)}`,
           exec.signal
         );
         firstPlan = !prev?.found || !String(prev.markdown ?? "").trim();
+        prevMarkdown = typeof prev?.markdown === "string" ? prev.markdown : "";
       } catch {
         firstPlan = false;
       }
-      await api.put("/plan", { taskId, markdown }, exec.signal);
-      return { ok: true, firstPlan };
+      // 整篇重写不得抹掉 ai00_task_verify 写回的验证/证据行
+      const merged = firstPlan ? markdown : carryOverEvidence(prevMarkdown, markdown);
+      // 也不得把「没验证过的步骤」勾上（与 plan_check 同一闸门）
+      if (!firstPlan) {
+        const offenders = newlyTickedWithoutEvidence(prevMarkdown, merged);
+        if (offenders.length) {
+          throw new Error(
+            `refused: no verification evidence for ${offenders.join(", ")} — call ai00_task_verify (stepId) first, then tick with ai00_plan_check. Nothing was written.`
+          );
+        }
+      }
+      await api.put("/plan", { taskId, markdown: merged }, exec.signal);
+      return { ok: true, firstPlan, evidencePreserved: merged !== markdown };
     },
   });
 
