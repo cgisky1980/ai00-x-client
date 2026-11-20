@@ -951,12 +951,24 @@ async fn local_rwkv_sse(
         // 引擎侧 deriveTurnTokenUsage 拿不到数字 → 本地模型的对话回合用量条全空。
         if let Some((name, arguments)) = tool_call_from_text(&text, has_tools) {
             let arguments = normalize_tool_arguments(&name, &arguments);
-            let chunk = sse_tool_call_delta(&model_name, &name, &arguments);
-            let _ = tx.send(Ok(Bytes::from(chunk)));
-            let chunk = sse_usage(&model_name, input_tokens, output_tokens);
-            let _ = tx.send(Ok(Bytes::from(chunk)));
-            let chunk = sse_finish(&model_name, "tool_calls");
-            let _ = tx.send(Ok(Bytes::from(chunk)));
+            if repeated_write_call(&messages_for_evidence, &name, &arguments) {
+                // 幂等写重复：直接以证据收尾，不再白烧工具轮（见 repeated_write_call）
+                log::info!("[ai-gateway] duplicate {name} call, closing turn with evidence");
+                text = finalize_exhausted_text("", &messages_for_evidence);
+                let chunk = sse_text_delta(&model_name, &text);
+                let _ = tx.send(Ok(Bytes::from(chunk)));
+                let chunk = sse_usage(&model_name, input_tokens, output_tokens);
+                let _ = tx.send(Ok(Bytes::from(chunk)));
+                let chunk = sse_finish(&model_name, "stop");
+                let _ = tx.send(Ok(Bytes::from(chunk)));
+            } else {
+                let chunk = sse_tool_call_delta(&model_name, &name, &arguments);
+                let _ = tx.send(Ok(Bytes::from(chunk)));
+                let chunk = sse_usage(&model_name, input_tokens, output_tokens);
+                let _ = tx.send(Ok(Bytes::from(chunk)));
+                let chunk = sse_finish(&model_name, "tool_calls");
+                let _ = tx.send(Ok(Bytes::from(chunk)));
+            }
         } else if has_tools && looks_like_tool_call_text(&text) {
             // 模型确实想调工具，但 JSON 残缺到认不出工具名。绝不能把它当最终
             // 回答交给引擎——编排者会把一串 JSON 残片当成工人交付（实测的
@@ -2069,6 +2081,63 @@ fn summarize_tool_text(text: &str, max_chars: usize) -> String {
     collapsed.chars().take(max_chars).collect()
 }
 
+/// 同一回合里再次提交**同内容**的 write（幂等写复读）。
+///
+/// 3B 在任务已达成后仍会复读同一个写调用（实测 4 轮，每轮全量 prefill + 一次
+/// 工具往返），而且复读时参数会被它自己写坏（补上 `description`/`justification`、
+/// 丢掉 `file_path`）——逐字段比对抓不住，所以按**写入内容**判定：
+/// 本回合已经写过这段内容，再写一次只会得到同样的结果。检测到就立即以既有
+/// 证据收尾，省 3–4 轮延迟与工具预算。
+fn repeated_write_call(messages: &[Value], name: &str, arguments: &str) -> bool {
+    if name != "write" {
+        return false;
+    }
+    let Ok(current) = serde_json::from_str::<Value>(arguments) else {
+        return false;
+    };
+    let Some(Value::String(content)) = current.get("content") else {
+        return false;
+    };
+    if content.trim().is_empty() {
+        return false;
+    }
+    let current_path = current.get("file_path").and_then(|v| v.as_str());
+    messages.iter().any(|msg| {
+        if msg.get("role").and_then(|r| r.as_str()) != Some("assistant") {
+            return false;
+        }
+        msg.get("tool_calls")
+            .and_then(|c| c.as_array())
+            .is_some_and(|calls| {
+                calls.iter().any(|call| {
+                    let function = call.get("function").unwrap_or(&Value::Null);
+                    if function.get("name").and_then(|n| n.as_str()) != Some("write") {
+                        return false;
+                    }
+                    let previous = match function.get("arguments") {
+                        Some(Value::String(raw)) => serde_json::from_str::<Value>(raw).ok(),
+                        Some(value) => Some(value.clone()),
+                        None => None,
+                    };
+                    let Some(previous) = previous else {
+                        return false;
+                    };
+                    if previous.get("content") != Some(&Value::String(content.clone())) {
+                        return false;
+                    }
+                    match (
+                        current_path,
+                        previous.get("file_path").and_then(|v| v.as_str()),
+                    ) {
+                        (Some(a), Some(b)) => a == b,
+                        // 任一侧路径缺失（复读时常见）→ 视为同一目标
+                        _ => true,
+                    }
+                })
+            })
+    })
+}
+
 /// 熔断轮终答清洗：收敛成**一行** `BLOCKED: <原因>`。
 ///
 /// 3B 本地模型在"不给工具"时会把注入的指令、甚至 system prompt 原样复读进正文
@@ -2908,6 +2977,46 @@ mod tests {
             "content":"[工具] read({\"file_path\":\"hello.txt\"}) → <path>hello.txt</path> <content>hello</content>"
         })];
         assert!(finalize_exhausted_text(model_text, &folded).starts_with("DONE: "));
+    }
+
+    #[test]
+    fn detects_repeated_write_call() {
+        let msgs = vec![
+            json!({"role":"user","content":"写 hello.txt"}),
+            json!({"role":"assistant","tool_calls":[{"id":"c1","function":{
+                "name":"write","arguments":"{\"content\":\"hello\",\"file_path\":\"hello.txt\"}"}}]}),
+            json!({"role":"tool","tool_call_id":"c1","content":"<path>hello.txt</path>"}),
+        ];
+        // 同内容同路径（键序无关）→ 重复
+        assert!(repeated_write_call(
+            &msgs,
+            "write",
+            r#"{"file_path":"hello.txt","content":"hello"}"#
+        ));
+        // 复读时把 file_path 弄丢、只带 content → 仍判为重复（实测形态）
+        assert!(repeated_write_call(
+            &msgs,
+            "write",
+            r#"{"content":"hello"}"#
+        ));
+        // 同内容但写的是另一个文件 → 不是重复
+        assert!(!repeated_write_call(
+            &msgs,
+            "write",
+            r#"{"content":"hello","file_path":"other.txt"}"#
+        ));
+        // 内容不同 → 不是重复
+        assert!(!repeated_write_call(
+            &msgs,
+            "write",
+            r#"{"content":"bye","file_path":"hello.txt"}"#
+        ));
+        // read 可重复（幂等判断只针对写）
+        assert!(!repeated_write_call(
+            &msgs,
+            "read",
+            r#"{"file_path":"hello.txt"}"#
+        ));
     }
 
     #[test]
