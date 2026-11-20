@@ -42,8 +42,8 @@ export const DELEGATE_PROTOCOL_ORCHESTRATION = (
 /** 子代理完成通知处理（有计划文档时注入）。 */
 export const DELEGATE_SUBAGENT_NOTIFY = (localFirst = false): string =>
   localFirst
-    ? '- Subagent completion notice: the notice only means the turn ended, not that the task succeeded. First call ai00_task_verify for that step to get real evidence (commands, changed files, diff when needed). Only when verdict=passed and risk is low/medium, flip the matching "## Steps" item to "- [x]". On failed or needs-review, send local_code_worker back to rework once; if it fails again, fall back to code_worker. Intent-only replies ("I will…", "ready to…"), missing artifacts, or "[tool] …" calls simulated in prose all count as not done.'
-    : '- Subagent completion notice: the notice only means the turn ended, not that the task succeeded. Check the stop reason, actual tool results and deliverables first; dispatch code_worker when verification is needed. Only after confirming completion, flip the matching "## Steps" item to "- [x]" (full write-back via ai00_plan_write) and record the result plus remaining risks. Intent-only replies, missing artifacts, or "[tool] …" calls simulated in prose all count as not done — dispatch code_worker to rework and state the problem.';
+    ? '- Subagent completion notice: the notice only means the turn ended, not that the task succeeded. First call ai00_task_verify for that step to get real evidence (commands, changed files, diff when needed). Only when verdict=passed and risk is low/medium, flip the matching "## Steps" item with ai00_plan_check (match = the step id, e.g. "T2") — do not rewrite the whole plan for a status change. On failed or needs-review, send local_code_worker back to rework once; if it fails again, fall back to code_worker. Intent-only replies ("I will…", "ready to…"), missing artifacts, or "[tool] …" calls simulated in prose all count as not done.'
+    : '- Subagent completion notice: the notice only means the turn ended, not that the task succeeded. Check the stop reason, actual tool results and deliverables first; dispatch code_worker when verification is needed. Only after confirming completion, flip the matching "## Steps" item with ai00_plan_check (match = the step id) — full ai00_plan_write is only for structural edits — and record the result plus remaining risks. Intent-only replies, missing artifacts, or "[tool] …" calls simulated in prose all count as not done — dispatch code_worker to rework and state the problem.';
 
 /** 人类验收打回时发回会话的固定话术（对话内退回与详情页退回共用一份）。 */
 export const buildRejectPrompt = (reason: string): string =>
@@ -59,7 +59,7 @@ export const DELEGATE_BG_COMMAND_NOTICE =
 
 /** 边界一：计划优先铁律（有计划文档时注入）。 */
 export const DELEGATE_BOUNDARY_PLAN_FIRST =
-  '- Plan-first (hard rule): any message arriving during execution that changes requirements, approach, steps or acceptance criteria must first be written into the plan (ai00_plan_read → ai00_plan_write updating "## Steps" / "## Acceptance"), then re-dispatched from the updated plan — the plan is the single source of truth. Pure acknowledgements or nudges need no plan change: just answer briefly. When you yourself spot a needed change, same rule: update the plan, then dispatch.';
+  '- Plan-first (hard rule): any message arriving during execution that changes requirements, approach, steps or acceptance criteria must first be written into the plan (ai00_plan_read → ai00_plan_write updating "## Steps" / "## Acceptance"), then re-dispatched from the updated plan — the plan is the single source of truth. Pure status flips (step done/undone) are not structural: use ai00_plan_check (match = step id), never a full rewrite. Pure acknowledgements or nudges need no plan change: just answer briefly. When you yourself spot a needed change, same rule: update the plan, then dispatch.';
 
 /** 边界二：新想法落想法池、不私自扩范围。 */
 export const DELEGATE_BOUNDARY_IDEA_POOL = (taskId: string): string =>

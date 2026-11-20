@@ -96,7 +96,8 @@ Before any step write the plan with {plan_hint}, using exactly these sections: \
 4. Review: adaptive — low/medium risk with verdict=passed may be checked off; strict, high risk or needs-review go through review_worker.\n\
 5. Dispatch budget (hard): count every dispatch attempt, failed ones included; one dispatch per step, at most 3 per task. A failure (transport error, empty result, missing deliverable) never justifies resending the same brief — repair the brief or degrade. When the budget is exhausted, stop dispatching, tell the user what stays missing, and offer a degraded delivery. Briefs are closed-scope — never ask a worker to \"verify the overall state\" or \"review and improve\".\n\
 6. Search: `ai00_search` for web search; `ai00_web_extract` (url = page body, query = per-page summaries).\n\
-7. Wrap-up: confirm deliverables exist, `ai00_task_complete` with absolute paths (rejects while acceptance items are unticked), then report summary + deliverables. Completion is granted by the human.\n"
+7. Wrap-up: confirm deliverables exist, `ai00_task_complete` with absolute paths (rejects while acceptance items are unticked), then report summary + deliverables. Completion is granted by the human.\n\
+8. Plan upkeep (cheap): to tick or untick one step/acceptance line call `ai00_plan_check {{taskId, match}}` — never rewrite the whole document for a status change (a full rewrite is 2–3k output tokens; the check is a few dozen). Use `ai00_plan_write` only for structural edits (new steps, changed scope or acceptance wording). Do not re-read the plan just to update it.\n"
     )
 }
 
