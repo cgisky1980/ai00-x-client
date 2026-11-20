@@ -442,7 +442,20 @@
         "statsTools": "工具调用",
         "statsToolFailures": "工具失败",
         "details": "验证与证据",
-        "accepted": "已验收，任务完成"
+        "accepted": "已验收，任务完成",
+        "editStep": "编辑步骤",
+        "stepTitle": "步骤标题",
+        "stepCommand": "验收命令（可选，如 pnpm run type-check）",
+        "saveStep": "保存",
+        "deleteStep": "删除步骤",
+        "addStep": "添加步骤",
+        "newStep": "新步骤",
+        "diffChanged": "修改 {{ids}}",
+        "diffAdded": "新增 {{ids}}",
+        "diffRemoved": "删除 {{ids}}",
+        "diffJoin": "、",
+        "diffBody": "修改了计划正文",
+        "changedMessage": "计划已修改：用户{{summary}}。请先用 ai00_plan_read 重新读取计划；计划已回到待批准，等用户在计划页批准后再按新计划继续。"
       }
     },
     "modes": {

@@ -438,6 +438,87 @@
     font-size: var(--font-size-xs);
   }
 
+  &__source-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 40vh;
+    margin-bottom: var(--spacing-3);
+    padding: var(--spacing-3);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    line-height: 1.6;
+    resize: vertical;
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  // ---- 行内编辑 ----
+  &__edit {
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--easing-standard);
+
+    .ai00-x-plan-card__step-head:hover &,
+    &:focus-visible {
+      opacity: 1;
+    }
+
+    @media (hover: none) {
+      opacity: 1;
+    }
+  }
+
+  &__editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    width: 100%;
+    font-weight: var(--font-weight-normal);
+  }
+
+  &__editor-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+
+    > :last-child {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__editor-cmd input {
+    font-family: var(--font-family-mono);
+  }
+
+  &__editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  &__editor-spacer {
+    flex: 1;
+  }
+
+  &__add-row {
+    padding: var(--spacing-1) 0 0 var(--spacing-6);
+    list-style: none;
+
+    .ai00-x-plan-card__link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-1);
+    }
+  }
+
   // ---- 规划中骨架 ----
   &__generating {
     display: flex;

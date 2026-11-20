@@ -11,13 +11,14 @@
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Check, FolderOpen, Undo2 } from 'lucide-react';
+import { Check, FolderOpen, Pencil, Plus, Trash2, Undo2 } from 'lucide-react';
 import { Button as DsButton } from '@ai00-x/design-system/react';
 import {
   Button,
   Collapse,
   CollapseItem,
   Empty,
+  Input,
   InputDialog,
   Markdown,
   Skeleton,
@@ -44,6 +45,14 @@ import {
   type PlanStep,
   type PlanStepState,
 } from '@/tools/todo/utils/planStructure';
+import {
+  appendStep,
+  deleteStep,
+  diffPlanSteps,
+  setStepCommand,
+  setStepTitle,
+  type PlanStepDiff,
+} from '@/tools/todo/utils/planEdit';
 import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
 import { useWorkbenchTaskStore } from '../tasks/workbenchTaskStore';
 import { WORKBENCH_STAGES, stageOf } from './workbenchStage';
@@ -101,6 +110,12 @@ function labelMentions(label: string | undefined, stepId: string): boolean {
   return new RegExp(`(^|[^0-9A-Za-z_-])${stepId}(?![0-9A-Za-z_-])`).test(label);
 }
 
+interface StepDraft {
+  lineIndex: number;
+  title: string;
+  cmd: string;
+}
+
 interface StepWorker {
   id: string;
   name: string;
@@ -121,6 +136,10 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
+  /** 源码全文编辑（次要入口）；null = 只读预览。 */
+  const [sourceDraft, setSourceDraft] = useState<string | null>(null);
+  /** 行内编辑中的步骤。 */
+  const [stepDraft, setStepDraft] = useState<StepDraft | null>(null);
 
   const sessionId = task.agentSessionId ?? '';
   const catalog = useWorkbenchTaskStore((s) => (sessionId ? s.subagentCatalog[sessionId] : undefined));
@@ -139,6 +158,8 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
 
   const completed = Boolean(task.completedAt);
   const stage = stageOf(phase);
+  /** 验收中 / 已完成不再改计划（改计划只发生在规划与执行段）。 */
+  const editable = !readOnly && !completed && phase !== 'awaiting';
   const activeIndex = useMemo(() => {
     if (completed) return null;
     const index = steps.findIndex((step) => !step.done);
@@ -190,6 +211,75 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     },
     [onPlanChange, task.id],
   );
+
+  /** 计划变更摘要：「修改 T3、新增 T5」。 */
+  const describeDiff = useCallback(
+    (diff: PlanStepDiff): string => {
+      const parts: string[] = [];
+      if (diff.changed.length) {
+        parts.push(t('nav.workbenchWindow.planCard.diffChanged', { ids: diff.changed.join(', ') }));
+      }
+      if (diff.added.length) {
+        parts.push(t('nav.workbenchWindow.planCard.diffAdded', { ids: diff.added.join(', ') }));
+      }
+      if (diff.removed.length) {
+        parts.push(t('nav.workbenchWindow.planCard.diffRemoved', { ids: diff.removed.join(', ') }));
+      }
+      return parts.length
+        ? parts.join(t('nav.workbenchWindow.planCard.diffJoin'))
+        : t('nav.workbenchWindow.planCard.diffBody');
+    },
+    [t],
+  );
+
+  /**
+   * 用户改计划 = 需求变更（规范 §9.6「改计划即重新待批」）：
+   * 写盘；若已批准则清除批准，并把 diff 摘要排进会话，让 agent 重读计划。
+   */
+  const commitPlan = useCallback(
+    async (next: string): Promise<boolean> => {
+      if (next === planMd) return true;
+      const diff = diffPlanSteps(planMd, next);
+      const ok = await writePlan(next);
+      if (!ok) return false;
+      if (task.planApprovedAt) {
+        useTodoStore.getState().updateTask(task.id, { planApprovedAt: null });
+        if (sessionId) {
+          const message = t('nav.workbenchWindow.planCard.changedMessage', {
+            summary: describeDiff(diff),
+          });
+          void dshSession.prompt(sessionId, message, { mode: 'queue' }).catch(() => undefined);
+        }
+      }
+      return true;
+    },
+    [describeDiff, planMd, sessionId, t, task.id, task.planApprovedAt, writePlan],
+  );
+
+  const saveStep = useCallback(async (): Promise<void> => {
+    if (!stepDraft || planMd == null || busy || !stepDraft.title.trim()) return;
+    let next = setStepTitle(planMd, stepDraft.lineIndex, stepDraft.title);
+    next = setStepCommand(next, stepDraft.lineIndex, stepDraft.cmd);
+    if (await commitPlan(next)) setStepDraft(null);
+  }, [busy, commitPlan, planMd, stepDraft]);
+
+  const removeStep = useCallback(async (): Promise<void> => {
+    if (!stepDraft || planMd == null || busy) return;
+    if (await commitPlan(deleteStep(planMd, stepDraft.lineIndex))) setStepDraft(null);
+  }, [busy, commitPlan, planMd, stepDraft]);
+
+  const addStep = useCallback(async (): Promise<void> => {
+    if (planMd == null || busy) return;
+    const result = appendStep(planMd, t('nav.workbenchWindow.planCard.newStep'));
+    if (!result || !(await commitPlan(result.md))) return;
+    const created = parsePlanSteps(result.md).find((step) => step.id === result.id);
+    if (created) setStepDraft({ lineIndex: created.lineIndex, title: created.title, cmd: '' });
+  }, [busy, commitPlan, planMd, t]);
+
+  const saveSource = useCallback(async (): Promise<void> => {
+    if (sourceDraft == null || busy) return;
+    if (await commitPlan(sourceDraft)) setSourceDraft(null);
+  }, [busy, commitPlan, sourceDraft]);
 
   const approve = useCallback((): void => {
     useTodoStore.getState().updateTask(task.id, { planApprovedAt: Date.now() });
@@ -342,29 +432,125 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     );
   };
 
+  const startEdit = (step: PlanStep): void => {
+    setStepDraft({
+      lineIndex: step.lineIndex,
+      title: step.title,
+      cmd: step.acceptance.find((item) => item.cmd)?.cmd ?? '',
+    });
+  };
+
+  const renderEditor = (step: PlanStep, draft: StepDraft): React.ReactNode => {
+    const onKeyDown = (event: React.KeyboardEvent): void => {
+      if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+        event.preventDefault();
+        void saveStep();
+      } else if (event.key === 'Escape') {
+        setStepDraft(null);
+      }
+    };
+    return (
+      <span className="ai00-x-plan-card__editor">
+        <span className="ai00-x-plan-card__editor-row">
+          <span className="ai00-x-plan-card__step-id">{step.id}</span>
+          <Input
+            inputSize="small"
+            autoFocus
+            value={draft.title}
+            aria-label={t('nav.workbenchWindow.planCard.stepTitle')}
+            onChange={(e) => setStepDraft({ ...draft, title: e.target.value })}
+            onKeyDown={onKeyDown}
+          />
+        </span>
+        <Input
+          inputSize="small"
+          className="ai00-x-plan-card__editor-cmd"
+          value={draft.cmd}
+          placeholder={t('nav.workbenchWindow.planCard.stepCommand')}
+          aria-label={t('nav.workbenchWindow.planCard.stepCommand')}
+          onChange={(e) => setStepDraft({ ...draft, cmd: e.target.value })}
+          onKeyDown={onKeyDown}
+        />
+        <span className="ai00-x-plan-card__editor-actions">
+          <Button variant="ghost" size="small" onClick={() => void removeStep()} disabled={busy}>
+            <Trash2 size={12} />
+            {t('nav.workbenchWindow.planCard.deleteStep')}
+          </Button>
+          <span className="ai00-x-plan-card__editor-spacer" />
+          <Button variant="secondary" size="small" onClick={() => setStepDraft(null)} disabled={busy}>
+            {t('nav.workbenchWindow.plan.editCancel')}
+          </Button>
+          <Button
+            variant="primary"
+            size="small"
+            onClick={() => void saveStep()}
+            disabled={busy || !draft.title.trim()}
+          >
+            {t('nav.workbenchWindow.planCard.saveStep')}
+          </Button>
+        </span>
+        {task.planApprovedAt && (
+          <span className="ai00-x-plan-card__muted">{t('nav.workbenchWindow.plan.editHint')}</span>
+        )}
+      </span>
+    );
+  };
+
+  const renderStepHead = (step: PlanStep, state: PlanStepState): React.ReactNode => (
+    <span className="ai00-x-plan-card__step-head">
+      <span className="ai00-x-plan-card__step-id">{step.id}</span>
+      <span
+        className="ai00-x-plan-card__step-title"
+        onDoubleClick={editable ? () => startEdit(step) : undefined}
+      >
+        {step.title}
+      </span>
+      <span className={`ai00-x-plan-card__state is-${state}`}>{t(STATE_KEY[state])}</span>
+      {renderWorkers(step)}
+      {editable && (
+        <button
+          type="button"
+          className="ai00-x-plan-card__icon ai00-x-plan-card__edit"
+          onClick={() => startEdit(step)}
+          title={t('nav.workbenchWindow.planCard.editStep')}
+          aria-label={t('nav.workbenchWindow.planCard.editStep')}
+        >
+          <Pencil size={12} />
+        </button>
+      )}
+    </span>
+  );
+
   const stepList =
     steps.length > 0 ? (
       <Timeline className="ai00-x-plan-card__steps">
         {steps.map((step, index) => {
           const state = states[index];
+          const draft = stepDraft?.lineIndex === step.lineIndex ? stepDraft : null;
           return (
             <TimelineItem
               key={step.id || index}
               className={`ai00-x-plan-card__step is-${state}`}
               status={TIMELINE_STATUS[state]}
-              title={
-                <span className="ai00-x-plan-card__step-head">
-                  <span className="ai00-x-plan-card__step-id">{step.id}</span>
-                  <span className="ai00-x-plan-card__step-title">{step.title}</span>
-                  <span className={`ai00-x-plan-card__state is-${state}`}>{t(STATE_KEY[state])}</span>
-                  {renderWorkers(step)}
-                </span>
-              }
+              title={draft ? renderEditor(step, draft) : renderStepHead(step, state)}
             >
-              {renderDetails(step)}
+              {draft ? null : renderDetails(step)}
             </TimelineItem>
           );
         })}
+        {editable && (
+          <li className="ai00-x-plan-card__add-row">
+            <button
+              type="button"
+              className="ai00-x-plan-card__link"
+              onClick={() => void addStep()}
+              disabled={busy}
+            >
+              <Plus size={12} />
+              {t('nav.workbenchWindow.planCard.addStep')}
+            </button>
+          </li>
+        )}
       </Timeline>
     ) : (
       <WorkbenchProgress
@@ -588,10 +774,25 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       <footer className="ai00-x-plan-card__footer">{footer}</footer>
 
       <div className="ai00-x-plan-card__source-bar">
+        {editable && sourceDraft == null && (
+          <button
+            type="button"
+            className="ai00-x-plan-card__link"
+            onClick={() => {
+              setSourceDraft(planMd ?? '');
+              setSourceOpen(true);
+            }}
+          >
+            {t('nav.workbenchWindow.plan.edit')}
+          </button>
+        )}
         <button
           type="button"
           className="ai00-x-plan-card__link"
-          onClick={() => setSourceOpen((prev) => !prev)}
+          onClick={() => {
+            setSourceOpen((prev) => !prev);
+            setSourceDraft(null);
+          }}
           aria-expanded={sourceOpen}
         >
           {sourceOpen ? t('nav.workbenchWindow.plan.hideSource') : t('nav.workbenchWindow.plan.viewSource')}
@@ -599,7 +800,33 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       </div>
       {sourceOpen && (
         <div className="ai00-x-plan-card__source">
-          <Markdown content={(planMd ?? '').replace(/^- \[x\] /gm, '✓ ').replace(/^- \[ \] /gm, '□ ')} />
+          {sourceDraft != null ? (
+            <>
+              <textarea
+                className="ai00-x-plan-card__source-input"
+                value={sourceDraft}
+                onChange={(e) => setSourceDraft(e.target.value)}
+                spellCheck={false}
+                aria-label={t('nav.workbenchWindow.plan.edit')}
+              />
+              <div className="ai00-x-plan-card__actions">
+                <span className="ai00-x-plan-card__hint">{t('nav.workbenchWindow.plan.editHint')}</span>
+                <Button variant="secondary" size="small" onClick={() => setSourceDraft(null)} disabled={busy}>
+                  {t('nav.workbenchWindow.plan.editCancel')}
+                </Button>
+                <Button
+                  variant="primary"
+                  size="small"
+                  onClick={() => void saveSource()}
+                  disabled={busy || sourceDraft === planMd}
+                >
+                  {t('nav.workbenchWindow.plan.editSave')}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Markdown content={(planMd ?? '').replace(/^- \[x\] /gm, '✓ ').replace(/^- \[ \] /gm, '□ ')} />
+          )}
         </div>
       )}
 

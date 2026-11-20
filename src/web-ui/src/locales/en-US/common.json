@@ -442,7 +442,20 @@
         "statsTools": "Tool calls",
         "statsToolFailures": "Tool failures",
         "details": "Verification & evidence",
-        "accepted": "Accepted — task complete"
+        "accepted": "Accepted — task complete",
+        "editStep": "Edit step",
+        "stepTitle": "Step title",
+        "stepCommand": "Acceptance command (optional, e.g. pnpm run type-check)",
+        "saveStep": "Save",
+        "deleteStep": "Delete step",
+        "addStep": "Add step",
+        "newStep": "New step",
+        "diffChanged": "changed {{ids}}",
+        "diffAdded": "added {{ids}}",
+        "diffRemoved": "removed {{ids}}",
+        "diffJoin": ", ",
+        "diffBody": "edited the plan text",
+        "changedMessage": "Plan changed: the user {{summary}}. Re-read the plan with ai00_plan_read first; it is back to pending approval — continue with the new plan once the user approves it on the plan page."
       }
     },
     "modes": {
