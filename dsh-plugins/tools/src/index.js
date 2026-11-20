@@ -84,6 +84,31 @@ function makeClient(baseURL, token) {
   };
 }
 
+/**
+ * 计划「## 交付物」段里承诺的文件清单（只取像文件路径的条目）。
+ *
+ * `ai00_task_complete` 的 deliverables 参数是模型**自己登记**的清单，实测出现过
+ * 计划承诺 `report.md` / `architecture-blueprint.md`、却从未生成也照常提交自检。
+ * 这里把计划承诺的路径解析出来做对等校验。
+ */
+function parseDeliverables(markdown) {
+  const lines = sectionLines(markdown, /^##\s*(交付物|Deliverables?)/i);
+  if (!lines) return [];
+  const out = [];
+  for (const line of lines) {
+    const item = /^\s*(?:[-*+]|\d+\.)\s+(.+)$/.exec(line);
+    if (!item) continue;
+    const token = item[1]
+      .replace(/`/g, "")
+      .trim()
+      .split(/\s+/)[0]
+      .replace(/[，。；、,;:：)）】」>]+$/g, "");
+    if (!/[\w.-]+\.[A-Za-z0-9]{1,8}$/.test(token)) continue;
+    if (!out.includes(token)) out.push(token);
+  }
+  return out;
+}
+
 /** 本地时间戳 `YYYY-MM-DD HH:mm`（计划文档给人读，不用 UTC）。 */
 function localStamp() {
   const d = new Date();
@@ -1139,6 +1164,24 @@ function defineTools(ctx, api) {
         }
       }
       const acceptance = parseAcceptance(plan?.markdown);
+      // 计划「## 交付物」承诺的文件也必须真实落盘：deliverables 参数由模型自报，
+      // 实测出现过承诺 report.md / blueprint 却从未生成仍提交自检。
+      const promisedMissing = [];
+      for (const raw of parseDeliverables(plan?.markdown)) {
+        const exists = await stat(resolveDeliverable(raw))
+          .then((s) => s.isFile() || s.isDirectory())
+          .catch(() => false);
+        if (!exists) promisedMissing.push(raw);
+      }
+      if (promisedMissing.length > 0) {
+        throw new Error(
+          [
+            `计划承诺的交付物不存在（共 ${promisedMissing.length} 个），不能提交自检：`,
+            ...promisedMissing.slice(0, 8).map((p) => `  - ${p}`),
+            "先把它们写进工作目录再提交；写不出来就改计划（ai00_plan_write）把承诺降到真实范围，不要只勾验收。",
+          ].join("\n")
+        );
+      }
       const executedCmds = [];
       if (acceptance.total > 0) {
         const cmdFailures = [];
