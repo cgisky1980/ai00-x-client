@@ -1069,10 +1069,12 @@ function defineTools(ctx, api) {
         args?.includeDiff === true || reviewRequired || failed || policy.review === "strict";
       const evidence = await collectGitEvidence(cwd, pathFilter, includeDiff);
 
-      // 证据不足必须交人工/云端评审，不能假装通过
+      // 证据不足必须交人工/云端评审，不能假装通过。
+      // 注意不再把「工作目录不是 git 仓库」算作证据不足：很多任务目录本就没有 git，
+      // 而验收命令全过本身就是硬证据（实测非 git 目录里每步都掉进 needs-review，
+      // 人得逐条点）。高风险/严格模式仍由 reviewRequired 覆盖。
       const insufficient =
         acceptance.length === 0 ||
-        !evidence.repo ||
         (commands.length === 0 && manualItems.length > 0) ||
         (includeDiff && evidence.diffTruncated && evidence.changedFiles.length > 50);
       const verdict = failed ? "failed" : manualItems.length > 0 || insufficient ? "needs-review" : "passed";
