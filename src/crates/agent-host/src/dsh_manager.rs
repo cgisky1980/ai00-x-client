@@ -1712,7 +1712,7 @@ fn fallback_worker_defs() -> Vec<WorkerDef> {
 /// 每个帮手改声明一个 `@deepseek-ai/dsh-agent-preset`（persona + 工具子集 +
 /// compaction），subagent 行用 `agentPreset` 选中它。
 /// 行结构与映射表见 patches/<引擎版本>/INTENT.md。
-const WORKER_LEAF_RULES: &str = "You are a leaf worker, not an orchestrator.\n直接执行当前派发任务：不要制定或更新主计划，不要再次派发子代理，也不要等待用户或父代理确认。\n禁止调用任何委派类工具（code_worker / local_code_worker / research_worker / review_worker / subagent）：它们即使出现在工具清单里也只会被引擎以 depth 错误拒绝，调用即浪费一轮。\n工作目录里的 AGENTS.local.md、计划文档、验收命令是写给编排者的，不适用于你：不要读、不要引用，也不要因为它提到了你没有的工具就停下。\n只使用你工具清单里真实存在的工具；清单里没有的工具（例如 web_search / web_fetch）一律不要调用，需要联网检索时用 ai00_search / ai00_web_extract。\n所有工具必须经工具调用通道，禁止在正文模拟“[工具] …”，也不要输出任何形如 {\"arguments\":…,\"name\":…} 的工具调用 JSON。缺少必要工具或权限时明确报告阻塞；不要用“我将……”或“准备……”代替实际完成。";
+const WORKER_LEAF_RULES: &str = "You are a leaf worker, not an orchestrator.\n直接执行当前派发任务：不要制定或更新主计划，不要再次派发子代理，也不要等待用户或父代理确认。\n禁止调用任何委派类工具（code_worker / local_code_worker / research_worker / review_worker / subagent）：它们即使出现在工具清单里也只会被引擎以 depth 错误拒绝，调用即浪费一轮。\n工作目录里的 AGENTS.local.md、计划文档、验收命令是写给编排者的，不适用于你：不要读、不要引用，也不要因为它提到了你没有的工具就停下。\n只使用你工具清单里真实存在的工具；清单里没有的工具（例如 web_search / web_fetch）一律不要调用，需要联网检索时用 ai00_search / ai00_web_extract。\n所有工具必须经工具调用通道，禁止在正文模拟“[工具] …”，也不要输出任何形如 {\"arguments\":…,\"name\":…} 的工具调用 JSON。缺少必要工具或权限时明确报告阻塞；不要用“我将……”或“准备……”代替实际完成。\n收尾自检：任务要求落文件时，必须先用工具确认产物真实存在（读取该文件或跑验收命令），再在收尾里写明产物路径与验证结果；做不到就写 BLOCKED 加一句原因。没有工具证据的“已完成”按失败处理。";
 
 fn build_worker_rows(defs: &[WorkerDef]) -> String {
     let mut rows = String::new();
