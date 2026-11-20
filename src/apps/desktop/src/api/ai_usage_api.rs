@@ -91,6 +91,10 @@ pub struct AiUsageRecord {
     pub completion_tokens: u32,
     /// 调用耗时（毫秒）
     pub latency_ms: u64,
+    /// 首字节时间（毫秒）：流式请求从发出到第一个 chunk 的耗时。
+    /// 旧记录没有该字段，读取侧按 `Option` 兼容。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttft_ms: Option<u64>,
     /// dsh 会话 id（plugin AI 通道为空）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,

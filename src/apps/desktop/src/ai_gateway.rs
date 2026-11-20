@@ -53,11 +53,21 @@ impl GatewayTokenUsage {
         let usage = value.get("usage")?;
         let prompt = usage.get("prompt_tokens")?.as_u64()?;
         let completion = usage.get("completion_tokens")?.as_u64()?;
+        // 缓存命中字段各家不一：OpenAI 走 prompt_tokens_details.cached_tokens，
+        // DeepSeek 走 prompt_cache_hit_tokens，Anthropic 走 cache_read_input_tokens，
+        // 部分网关用 input_tokens_details。逐一兜底，命中任一即可。
         let cached = usage
             .get("prompt_tokens_details")
             .and_then(|v| v.get("cached_tokens"))
             .and_then(Value::as_u64)
-            .or_else(|| usage.get("prompt_cache_hit_tokens").and_then(Value::as_u64));
+            .or_else(|| usage.get("prompt_cache_hit_tokens").and_then(Value::as_u64))
+            .or_else(|| usage.get("cache_read_input_tokens").and_then(Value::as_u64))
+            .or_else(|| {
+                usage
+                    .get("input_tokens_details")
+                    .and_then(|v| v.get("cached_tokens"))
+                    .and_then(Value::as_u64)
+            });
         Some(Self {
             prompt: u32::try_from(prompt).unwrap_or(u32::MAX),
             completion: u32::try_from(completion).unwrap_or(u32::MAX),
@@ -117,7 +127,13 @@ impl GatewayUsage {
         next
     }
 
-    async fn record(&self, actual_model: &str, local: bool, usage: Option<GatewayTokenUsage>) {
+    async fn record(
+        &self,
+        actual_model: &str,
+        local: bool,
+        usage: Option<GatewayTokenUsage>,
+        ttft_ms: Option<u64>,
+    ) {
         let usage_known = usage.is_some();
         let usage = usage.unwrap_or_default();
         crate::api::ai_usage_api::record_usage(crate::api::ai_usage_api::AiUsageRecord {
@@ -132,6 +148,7 @@ impl GatewayUsage {
             prompt_tokens: usage.prompt,
             completion_tokens: usage.completion,
             latency_ms: self.started.elapsed().as_millis() as u64,
+            ttft_ms,
             session_id: self.session_id.clone(),
             requested_model: Some(self.requested_model.clone()),
             route: Some(self.route.clone()),
@@ -830,9 +847,14 @@ async fn local_rwkv_sse(
         let mut full_text = String::new();
         let mut input_tokens = 0usize;
         let mut output_tokens = 0usize;
+        // 首 token 到达即记 TTFT（本地路径的一次性观测指标）
+        let mut ttft_ms: Option<u64> = None;
         while let Some(event) = rx.recv().await {
             match event {
                 InferenceEvent::Token(t) => {
+                    if ttft_ms.is_none() {
+                        ttft_ms = Some(usage.started.elapsed().as_millis() as u64);
+                    }
                     full_text.push_str(&t);
                     if !has_tools {
                         let chunk = sse_text_delta(&model_name, &t);
@@ -914,6 +936,7 @@ async fn local_rwkv_sse(
                     completion: u32::try_from(output_tokens).unwrap_or(u32::MAX),
                     cached_prompt: None,
                 }),
+                ttft_ms,
             )
             .await;
         let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n")));
@@ -1213,6 +1236,7 @@ async fn local_tool_round(
                 completion: u32::try_from(output_tokens).unwrap_or(u32::MAX),
                 cached_prompt: None,
             }),
+            None,
         )
         .await;
 
@@ -1406,6 +1430,8 @@ async fn forward_to_ai00_salvo(
     //   的自愈点，所以首块先读出来再决定，绝不把半截坏流投给引擎。
     let mut upstream_stream = None;
     let mut first_chunk: Option<Bytes> = None;
+    // 首块到达即记 TTFT（含上游排队与首 token 时间）
+    let mut ttft_ms: Option<u64> = None;
     let mut last_error = String::from("upstream request failed");
     for attempt in 0..2u32 {
         let mut request = client
@@ -1476,6 +1502,7 @@ async fn forward_to_ai00_salvo(
                     Some(Ok(bytes)) => {
                         first_chunk = Some(bytes);
                         upstream_stream = Some(stream);
+                        ttft_ms = Some(usage.started.elapsed().as_millis() as u64);
                         break;
                     }
                     Some(Err(e)) => {
@@ -1591,7 +1618,9 @@ async fn forward_to_ai00_salvo(
         if let Some(usage) = gateway_usage_from_sse_line(&pending) {
             seen_usage = Some(usage);
         }
-        usage.record(&actual_model, actual_local, seen_usage).await;
+        usage
+            .record(&actual_model, actual_local, seen_usage, ttft_ms)
+            .await;
     });
 
     res.headers_mut().insert(
@@ -2393,6 +2422,27 @@ mod tests {
         assert!(args.starts_with('{'));
         // 不带 tools 的请求不做修复（避免把普通 JSON 作答当工具调用）
         assert!(tool_call_from_text(text, false).is_none());
+    }
+
+    #[test]
+    fn parses_anthropic_cache_usage() {
+        // Anthropic 风格字段：cache_read_input_tokens
+        let v = json!({"usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 10,
+            "cache_read_input_tokens": 64,
+        }});
+        let usage = GatewayTokenUsage::from_openai(&v).expect("must parse");
+        assert_eq!(usage.prompt, 100);
+        assert_eq!(usage.cached_prompt, Some(64));
+        // 无缓存字段时不报错、cached 为空
+        let plain = json!({"usage": {"prompt_tokens": 5, "completion_tokens": 1}});
+        assert_eq!(
+            GatewayTokenUsage::from_openai(&plain)
+                .unwrap()
+                .cached_prompt,
+            None
+        );
     }
 
     #[test]

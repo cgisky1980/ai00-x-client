@@ -1749,6 +1749,7 @@ pub(crate) async fn record_local_usage(
         prompt_tokens: u32::try_from(prompt_tokens).unwrap_or(u32::MAX),
         completion_tokens: u32::try_from(completion_tokens).unwrap_or(u32::MAX),
         latency_ms,
+        ttft_ms: None,
         session_id: None,
         requested_model: None,
         route: Some(route.to_string()),
