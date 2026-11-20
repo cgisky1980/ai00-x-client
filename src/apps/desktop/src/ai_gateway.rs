@@ -2121,7 +2121,14 @@ fn normalize_tool_arguments(name: &str, arguments: &str) -> String {
             obj.insert("file_path".to_string(), path);
         }
     }
-    // 2) 嵌套参数：content 的值是对象且自带 content/file_path → 上提
+    // 2) 命令类工具：引擎要求 `description` 必填（仅元信息），模型经常漏给
+    if matches!(name, "pwsh" | "bash") && !obj.contains_key("description") {
+        obj.insert(
+            "description".to_string(),
+            Value::String("run shell command".to_string()),
+        );
+    }
+    // 3) 嵌套参数：content 的值是对象且自带 content/file_path → 上提
     for _ in 0..3 {
         let Some(Value::Object(inner)) = obj.get("content").cloned() else {
             break;
@@ -2536,6 +2543,11 @@ mod tests {
         // 非文件工具不动参数
         let raw = r#"{"query":"x"}"#;
         assert_eq!(normalize_tool_arguments("ai00_search", raw), raw);
+        // 命令类工具补 description（引擎必填）
+        let out = normalize_tool_arguments("pwsh", r#"{"command":"Get-Content notes.txt"}"#);
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["command"], json!("Get-Content notes.txt"));
+        assert!(v["description"].is_string(), "{out}");
     }
 
     #[test]
