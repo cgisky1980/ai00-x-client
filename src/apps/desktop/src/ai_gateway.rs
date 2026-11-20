@@ -1364,10 +1364,16 @@ async fn forward_to_ai00_salvo(
     let request_id = format!("cli_{}", uuid::Uuid::new_v4().simple());
     log::info!("[ai-gateway] request_id={request_id}");
 
-    // 发送（401 时刷新 member token 重试一次——dsh 会话是长驻的，
-    // access token 过期后不刷新会让所有 agent 请求永久 502）
-    let mut upstream = None;
-    for attempt in 0..2 {
+    // 发送（最多两次机会）：
+    // - 401：刷新 member token 后重建 client 重试（dsh 会话长驻，access token
+    //   过期不刷新会让所有 agent 请求永久 502）
+    // - 网络错误 / 5xx / 429 / 空响应体 / 首块即断流：长 SSE 请求在跨境链路上
+    //   偶发中断，直接 502 会让整轮 agent 回合作废。**响应头提交前**是唯一干净
+    //   的自愈点，所以首块先读出来再决定，绝不把半截坏流投给引擎。
+    let mut upstream_stream = None;
+    let mut first_chunk: Option<Bytes> = None;
+    let mut last_error = String::from("upstream request failed");
+    for attempt in 0..2u32 {
         let mut request = client
             .http_client()
             .post(&client.config.request_url)
@@ -1399,60 +1405,134 @@ async fn forward_to_ai00_salvo(
                         }
                     }
                 }
-                upstream = Some(r);
-                break;
+                if !r.status().is_success() {
+                    let status = r.status();
+                    let text = r.text().await.unwrap_or_default();
+                    last_error = format!("upstream {status}: {}", text.chars().take(400).collect::<String>());
+                    if attempt == 0
+                        && (status.is_server_error()
+                            || status == reqwest::StatusCode::TOO_MANY_REQUESTS)
+                    {
+                        log::warn!("[ai-gateway] {last_error}, retrying once");
+                        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+                        continue;
+                    }
+                    res.status_code(StatusCode::BAD_GATEWAY);
+                    res.body(
+                        json!({"error": {"message": text, "status": status.as_u16()}}).to_string(),
+                    );
+                    return;
+                }
+                let mut stream = r.bytes_stream();
+                match stream.next().await {
+                    Some(Ok(bytes)) => {
+                        first_chunk = Some(bytes);
+                        upstream_stream = Some(stream);
+                        break;
+                    }
+                    Some(Err(e)) => {
+                        last_error = format!("upstream stream error before first byte: {e}");
+                    }
+                    None => last_error = "upstream returned empty body".to_string(),
+                }
+                if attempt == 0 {
+                    log::warn!("[ai-gateway] {last_error}, retrying once");
+                    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+                }
             }
             Err(e) => {
-                res.status_code(StatusCode::BAD_GATEWAY);
-                res.body(
-                    json!({"error": {"message": format!("upstream request failed: {e}")}})
-                        .to_string(),
-                );
-                return;
+                last_error = format!("upstream request failed: {e}");
+                if attempt == 0 {
+                    log::warn!("[ai-gateway] {last_error}, retrying once");
+                    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+                }
             }
         }
     }
-    let Some(upstream) = upstream else {
+    let (Some(mut stream), Some(first)) = (upstream_stream, first_chunk) else {
+        log::warn!("[ai-gateway] giving up: {last_error}");
+        res.status_code(StatusCode::BAD_GATEWAY);
+        res.body(json!({"error": {"message": last_error}}).to_string());
         return;
     };
-
-    if !upstream.status().is_success() {
-        let status = upstream.status();
-        let text = upstream.text().await.unwrap_or_default();
-        res.status_code(StatusCode::BAD_GATEWAY);
-        res.body(json!({"error": {"message": text, "status": status.as_u16()}}).to_string());
-        return;
-    }
 
     // SSE 字节流透传；旁路解析 usage，不改写下游内容。
     let usage = usage.with_request_id(request_id.clone());
     let (tx, rx_body) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
     tokio::spawn(async move {
-        let mut stream = upstream.bytes_stream();
+        // 行缓冲扫描：usage 旁路 + 是否已见 `[DONE]` 终结符。
+        fn scan(
+            pending: &mut String,
+            text: &str,
+            seen_usage: &mut Option<GatewayTokenUsage>,
+            saw_done: &mut bool,
+        ) {
+            pending.push_str(text);
+            while let Some(end) = pending.find('\n') {
+                let line = pending[..=end].to_string();
+                pending.drain(..=end);
+                if line.trim_end().ends_with("data: [DONE]") {
+                    *saw_done = true;
+                }
+                if let Some(u) = gateway_usage_from_sse_line(&line) {
+                    *seen_usage = Some(u);
+                }
+            }
+        }
+
         let mut pending = String::new();
         let mut seen_usage = None;
-        while let Some(chunk) = stream.next().await {
-            match chunk {
-                Ok(bytes) => {
-                    pending.push_str(&String::from_utf8_lossy(&bytes));
-                    while let Some(end) = pending.find('\n') {
-                        let line = pending[..=end].to_string();
-                        pending.drain(..=end);
-                        if let Some(usage) = gateway_usage_from_sse_line(&line) {
-                            seen_usage = Some(usage);
+        let mut saw_done = false;
+        let mut interrupted = None;
+        scan(
+            &mut pending,
+            &String::from_utf8_lossy(&first),
+            &mut seen_usage,
+            &mut saw_done,
+        );
+        // 下游已断开时 send 失败，直接落到记账收尾。
+        if tx.send(Ok(first)).is_ok() {
+            while let Some(chunk) = stream.next().await {
+                match chunk {
+                    Ok(bytes) => {
+                        scan(
+                            &mut pending,
+                            &String::from_utf8_lossy(&bytes),
+                            &mut seen_usage,
+                            &mut saw_done,
+                        );
+                        if tx.send(Ok(bytes)).is_err() {
+                            break;
                         }
                     }
-                    if tx.send(Ok(bytes)).is_err() {
+                    Err(e) => {
+                        interrupted = Some(e.to_string());
                         break;
                     }
                 }
-                Err(e) => {
-                    let _ = tx.send(Err(salvo::Error::other(format!(
-                        "upstream stream error: {e}"
-                    ))));
-                    break;
-                }
             }
+        }
+        // 断流收尾：用 SSE error 事件 + `[DONE]` 干净关闭，而不是把原始错误
+        // 塞进响应体流——后者会让下游 reqwest 报 `error decoding response body`，
+        // 引擎整轮直接判死、用户只看到一句无上下文的解码失败。
+        match interrupted {
+            Some(e) => {
+                log::warn!("[ai-gateway] upstream stream interrupted: {e}");
+                let payload = format!(
+                    "data: {}\n\ndata: [DONE]\n\n",
+                    json!({
+                        "error": {
+                            "message": format!("upstream stream interrupted: {e}"),
+                            "code": "upstream_stream_interrupted",
+                        }
+                    })
+                );
+                let _ = tx.send(Ok(Bytes::from(payload)));
+            }
+            None if !saw_done => {
+                let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n")));
+            }
+            None => {}
         }
         if let Some(usage) = gateway_usage_from_sse_line(&pending) {
             seen_usage = Some(usage);
