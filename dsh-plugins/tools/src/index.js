@@ -724,7 +724,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_verify",
     description:
-      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Passing commands does NOT replace high-risk review or human acceptance.",
+      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Also returns planPending (unticked step ids + acceptance lines) so you can tick with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
     parameters: {
       type: "object",
       properties: {
@@ -774,6 +774,25 @@ function defineTools(ctx, api) {
           },
           manualItems: { type: "array", items: { type: "string" } },
           changedFiles: { type: "array", items: { type: "string" } },
+          planPending: {
+            type: "object",
+            properties: {
+              steps: {
+                type: "array",
+                items: { type: "string" },
+                description: "Step ids still unticked (empty = all steps ticked).",
+              },
+              acceptance: {
+                type: "array",
+                items: { type: "string" },
+                description: "Unticked '## 验收' lines (capped).",
+              },
+            },
+            required: ["steps", "acceptance"],
+            additionalProperties: false,
+            description:
+              "Remaining work read from the plan, so you can tick with ai00_plan_check instead of calling ai00_plan_read.",
+          },
           diff: { type: "string" },
           diffTruncated: { type: "boolean" },
         },
@@ -791,6 +810,21 @@ function defineTools(ctx, api) {
         }
         if ((value.changedFiles ?? []).length) {
           lines.push(`changed: ${value.changedFiles.slice(0, 40).join(", ")}`);
+        }
+        if (value.planPending) {
+          const pendingSteps = value.planPending.steps ?? [];
+          const pendingAcceptance = value.planPending.acceptance ?? [];
+          lines.push(
+            pendingSteps.length
+              ? `pending steps: ${pendingSteps.join(", ")}`
+              : "pending steps: none (all ticked)"
+          );
+          if (pendingAcceptance.length) {
+            lines.push(`pending acceptance: ${pendingAcceptance.join(" | ")}`);
+          }
+          lines.push(
+            "tick with ai00_plan_check (match = step id) — do not re-read the plan just to update it"
+          );
         }
         if (value.diff) lines.push(`diff${value.diffTruncated ? " (truncated)" : ""}:\n${value.diff}`);
         return text(lines.join("\n"));
@@ -877,6 +911,12 @@ function defineTools(ctx, api) {
         commands,
         manualItems,
         changedFiles: evidence.changedFiles,
+        // 计划剩余项随证据一起回传：编排者据此用 ai00_plan_check 精确勾选，
+        // 不必再为了看状态调一次 ai00_plan_read（实测一次读回 ~7k 输入）。
+        planPending: {
+          steps: steps.filter((s) => !s.done).map((s) => s.id).slice(0, 12),
+          acceptance: parseAcceptance(markdown).unchecked.slice(0, 6),
+        },
         ...(evidence.diff ? { diff: evidence.diff } : {}),
         ...(evidence.diffTruncated ? { diffTruncated: true } : {}),
       };
