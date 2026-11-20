@@ -84,6 +84,27 @@ function makeClient(baseURL, token) {
   };
 }
 
+/** 本地时间戳 `YYYY-MM-DD HH:mm`（计划文档给人读，不用 UTC）。 */
+function localStamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
+ * 步骤块是否已有**可用**验证证据（`ai00_task_verify` 写回的 `- 验证: <verdict>`）。
+ *
+ * `passed` 与 `needs-review` 都算「验过」：manual 类验收（`{cmd: …}` 无法执行）
+ * 永远只能拿到 needs-review，若只认 passed，这类步骤就永远勾不上（死锁）。
+ * `failed` 与「根本没有验证行」一律拒绝——那才是真正的假进度。
+ */
+function usableEvidence(block) {
+  const match = /^\s*-\s*(验证|verification)\s*[:：]\s*([a-z-]+)/im.exec(block);
+  if (!match) return { ok: false, verdict: "" };
+  const verdict = match[2].toLowerCase();
+  return { ok: verdict === "passed" || verdict === "needs-review", verdict };
+}
+
 /** 步骤 id → 是否已勾选（用于比较重写前后的勾选变化）。 */
 function tickedSteps(markdown) {
   const map = new Map();
@@ -111,7 +132,7 @@ function newlyTickedWithoutEvidence(prevMd, nextMd) {
       new RegExp(`^\\s*-\\s+\\[[ xX]\\]\\s+${stepId}\\s`).test(line)
     );
     if (index < 0) continue;
-    if (!/^\s*-\s*(验证|verification)\s*[:：]\s*passed/im.test(stepBlock(lines, index))) {
+    if (!usableEvidence(stepBlock(lines, index)).ok) {
       offenders.push(stepId);
     }
   }
@@ -409,7 +430,9 @@ function upsertStepEvidence(markdown, stepId, verdict, evidence) {
         end = i;
         break;
       }
-      insideSteps = /^##\s*步骤/.test(line);
+      // 循环契约规定标题用英文（## Steps），这里必须与 parsePlanSteps 同口径：
+      // 只认「## 步骤」会让英文计划的验证证据**永远写不进去**（实测 gate 探针）。
+      insideSteps = /^##\s*(步骤|Steps?)/i.test(line);
       continue;
     }
     if (!insideSteps) continue;
@@ -425,7 +448,8 @@ function upsertStepEvidence(markdown, stepId, verdict, evidence) {
   if (start < 0) return markdown;
   if (end < 0) end = lines.length;
 
-  const at = new Date().toISOString().slice(0, 16).replace("T", " ");
+  // 计划文档给人看：用本地时间（UTC 的 ISO 串会让人以为是错的时区）
+  const at = localStamp();
   const time = ` · ${at}`;
   const verifyLine = `  - 验证: ${verdict}${time}`;
   const evidenceLine = `  - 证据: ${evidence}`;
@@ -1516,11 +1540,13 @@ function defineTools(ctx, api) {
       const stepHead = /^\s*-\s+\[[ xX]\]\s+(T[0-9A-Za-z_-]+)\s/.exec(original);
       if (checked && stepHead) {
         const stepId = stepHead[1];
-        const block = stepBlock(lines, index);
-        if (!/^\s*-\s*(验证|verification)\s*[:：]\s*passed/im.test(block)) {
+        const evidence = usableEvidence(stepBlock(lines, index));
+        if (!evidence.ok) {
           return {
             ok: false,
-            hint: `no verification evidence for ${stepId} — call ai00_task_verify (stepId: "${stepId}") before ticking`,
+            hint: evidence.verdict
+              ? `verification for ${stepId} is "${evidence.verdict}" — fix it and re-run ai00_task_verify before ticking`
+              : `no verification evidence for ${stepId} — call ai00_task_verify (stepId: "${stepId}") before ticking`,
           };
         }
       }
