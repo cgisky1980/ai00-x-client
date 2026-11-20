@@ -1532,8 +1532,6 @@ tools:
   - write
   - bash
   - pwsh
-  - skill
-  - todo_write
 ---
 You are a local code worker dispatched by the Ai00-X orchestrator.
 Implement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.
@@ -1572,8 +1570,6 @@ tools:
   - write
   - bash
   - pwsh
-  - skill
-  - todo_write
 ---
 You are a code worker dispatched by the Ai00-X orchestrator.
 Implement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.
@@ -1818,6 +1814,12 @@ const WORKER_TOOL_NAMES: &[&str] = &[
 /// 对 128k 远端窗口也是充裕余量。
 const COMPACTION_HEADROOM_TOKENS: i64 = 8192;
 
+/// 工人工具面里**永不挂载**的成员（即使 md frontmatter 写了）。
+///
+/// 依据实测（2026-11-20）：本地工人第一轮就调 `skill` 载入无关技能文档，
+/// 之后连续输出不存在的工具名（`skill_call` 等），任务零产出。
+const WORKER_UNUSED_TOOLS: &[&str] = &["skill", "todo_write"];
+
 /// 子代理 preset 的压缩组（与 web-app standard preset 同构：每 agent 独立实例）。
 ///
 /// 与工作台 preset 对齐两点：
@@ -1830,7 +1832,10 @@ const WORKER_COMPACTION_GROUP: &str = "          - id: compaction\n            n
 /// 帮手声明的工具名 → preset 内工具插件行（固定顺序，13/15 空格缩进）。
 /// preset 机制只能按插件行粗粒度挂载，故未知工具名记 warn 后忽略。
 fn build_worker_tool_rows(tools: &[String]) -> String {
-    let has = |name: &str| tools.iter().any(|t| t == name);
+    // 工人（尤其 3B 本地模型）用不上的工具一律不挂：`skill` 会让模型第一轮就去
+    // 加载无关技能文档（实测 load `diagnose-windows-sandbox-acl` 后整轮跑偏），
+    // `todo_write` 是编排者职责。叶子工人只保留"读 / 搜 / 写 / 跑命令"。
+    let has = |name: &str| !WORKER_UNUSED_TOOLS.contains(&name) && tools.iter().any(|t| t == name);
     let mut rows = String::new();
 
     let fs_flags = [
@@ -2999,12 +3004,27 @@ mod tests {
         // 工人压缩组带工具结果截断器（对齐工作台 preset）
         assert!(rows.contains("tool-result-pruner"));
         assert!(rows.contains("thresholdChars: 8192"));
+        // skill / todo_write 永不挂载（即使 md 写了）
+        assert!(!rows.contains("@deepseek-ai/dsh-tool-skill"));
+        assert!(!rows.contains("@deepseek-ai/dsh-tool-todo"));
         // 委派工具行不进 profile 顶层：只在工作台 preset 里挂载（否则每个会话
         // 都能看到 code_worker 等，白付 schema 且快速问答也能派发）。
         assert!(!rows.contains("\n    - id: tool-subagent-"));
         assert!(!rows.contains("backgroundMode"));
         assert!(!rows.contains("toolFilter"));
         assert!(!rows.contains("persona: |-"));
+    }
+
+    /// 即使 md frontmatter 声明了 skill / todo_write，preset 也不挂这两行：
+    /// 本地小模型第一轮就会去 load 无关技能，整轮跑偏（2026-11-20 实测）。
+    #[test]
+    fn worker_presets_never_mount_skill() {
+        let md = "---\nname: t_worker\ndescription: d\nmodel: rwkv-local\ntools:\n  - read\n  - write\n  - skill\n  - todo_write\n---\nBody.";
+        let def = parse_worker_md("t_worker.md", md).expect("must parse");
+        let rows = build_worker_rows(&[def]);
+        assert!(!rows.contains("dsh-tool-skill"), "{rows}");
+        assert!(!rows.contains("dsh-tool-todo"), "{rows}");
+        assert!(rows.contains("dsh-tool-fs"), "{rows}");
     }
 
     /// 工人叶子规则 + deny 口径：
