@@ -221,7 +221,13 @@ async function* translateStream(sseObjects, model) {
       // 错误码沿用事件自带 code（AI00X_STREAM / AI00X_GATEWAY 等），
       // 便于会话日志按来源定位是「网关主动报错」还是「读流中断」；
       // 块序号接在已产出的块之后，避免与已有 block 撞号。
-      yield* yieldTransportError(failure.code ?? "AI00X_GATEWAY", failure, undefined, order.length);
+      // 工具调用格式错误不是网络抖动，提示词必须分开写——否则模型会原样
+      // 重发同样的坏 JSON，白烧一轮。
+      const hint =
+        failure.code === "AI00X_TOOL_PARSE"
+          ? "这是本地模型输出的工具调用 JSON 不规范（不是网络问题）：请把任务拆小，一次只调一个工具，参数只填必要的简单值后重试；连续两次仍失败就把任务降级为文本交付并说明原因。"
+          : undefined;
+      yield* yieldTransportError(failure.code ?? "AI00X_GATEWAY", failure, hint, order.length);
       return;
     }
     const choice = event.choices?.[0];

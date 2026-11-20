@@ -881,14 +881,13 @@ async fn local_rwkv_sse(
             // 模型确实想调工具，但 JSON 残缺到认不出工具名。绝不能把它当最终
             // 回答交给引擎——编排者会把一串 JSON 残片当成工人交付（实测的
             // "工人返回空壳"就是这么来的）。按传输错误收尾，交给引擎重试/降级。
-            log::warn!(
-                "[ai-gateway] unparsable local tool call: {}",
-                text.chars().take(160).collect::<String>()
-            );
+            let snippet: String = text.chars().take(160).collect();
+            log::warn!("[ai-gateway] unparsable local tool call: {snippet}");
+            // 把模型自己产出的片段回灌进错误正文：本地模型看到原文才可能自纠。
             let chunk = format!(
                 "data: {}\n\n",
                 json!({"error": {
-                    "message": "local model emitted an unparsable tool call",
+                    "message": format!("local model emitted an unparsable tool call: {snippet}"),
                     "code": "AI00X_TOOL_PARSE",
                 }})
             );
