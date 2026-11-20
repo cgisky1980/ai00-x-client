@@ -50,16 +50,16 @@ interface WorkbenchChatPanelProps {
    * 项目工作台里项目名与分支已在头部/侧栏常驻，这里默认关掉避免重复。
    */
   showWorkspace?: boolean;
-  /** 计划书（有就常驻输入框上方的紧凑任务状态卡；不限项目/任务场景）。 */
+  /** 计划书（保留兼容宿主传参；进度只在中央计划卡展示）。 */
   planMd?: string | null;
-  /** 任务已完成：状态卡不标「进行中」。 */
+  /** 任务已完成：消息流不标「进行中」。 */
   planFinished?: boolean;
   /**
    * 宿主有中央计划卡（规范 v0.23 §9.6）：exit_plan_mode 审批不在输入框出现，
    * 而是登记到 workbenchTaskStore 交给计划卡「待批准」态统一应答。
    */
   planHosted?: boolean;
-  /** 计划卡上有等你动手的事（待批准 / 待验收）：状态卡只提示去计划页。 */
+  /** 计划卡上有等你动手的事（保留兼容宿主传参；输入框不再提示）。 */
   planNeedsYou?: boolean;
 }
 
@@ -72,10 +72,8 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   variant = 'panel',
   initialRequest,
   showWorkspace = true,
-  planMd,
   planFinished = false,
   planHosted = false,
-  planNeedsYou = false,
 }) => {
   const { t } = useTranslation('common');
 
@@ -180,9 +178,6 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
             session={session}
             externalSession={externalSession}
             showWorkspace={showWorkspace}
-            planMd={planMd}
-            planFinished={planFinished}
-            planNeedsYou={planNeedsYou}
           />
         </>
       )}

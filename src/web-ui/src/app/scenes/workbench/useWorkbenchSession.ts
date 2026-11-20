@@ -275,17 +275,29 @@ export function useWorkbenchSession({
     if (settledKeyRef.current === settlementKey) return undefined;
     settledKeyRef.current = settlementKey;
     let cancelled = false;
+    const wait = (ms: number): Promise<void> =>
+      new Promise(resolve => {
+        setTimeout(resolve, ms);
+      });
     void getSessionUsage(usageSessionId, turnStartMs, childSessionIds)
       .then(async (usage) => {
         if (cancelled) return;
         // 云端只给积分：用本轮远端请求 id 去服务端会话账单核对（异步结算，内部会重试）
         setTurnUsage({ local: usage.local, remote: usage.remote, remoteCredits: null });
-        const credits = await resolveRemoteCredits({
+        const params = {
           sessionId: usageSessionId,
           childSessionIds,
           requestIds: usage.remoteRequestIds,
           sinceMs: turnStartMs,
-        });
+        };
+        let credits = await resolveRemoteCredits(params);
+        // 账本未命中只代表异步结算尚未落账，不等于没扣费；
+        // 再做几轮有界补齐（每轮 2s，最多 3 轮），让回合结束后几秒内自动出数。
+        for (let attempt = 0; attempt < 3 && credits === null && !cancelled; attempt += 1) {
+          await wait(2_000);
+          if (cancelled) return;
+          credits = await resolveRemoteCredits(params);
+        }
         if (!cancelled) {
           setTurnUsage({ local: usage.local, remote: usage.remote, remoteCredits: credits });
         }

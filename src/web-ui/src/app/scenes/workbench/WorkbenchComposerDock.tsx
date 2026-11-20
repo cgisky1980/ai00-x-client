@@ -1,8 +1,8 @@
 /**
  * WorkbenchComposerDock — 工作台对话区的输入区（从 WorkbenchChatPanel 拆出，行为不变）。
  *
- * 固定顺序（规范 §9.9）：Queue → 任务状态卡 / 提问与工具审批档位 → 输入框。
- * 计划批准与验收不在这里（规范 v0.23 §9.6）。
+ * 固定顺序（规范 §9.9）：Queue → 本轮消耗 / 提问与工具审批档位 → 输入框。
+ * 计划进度、批准与验收都不在这里（规范 v0.23 §9.6，进度只在中央计划卡）。
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,6 @@ import type { WorkbenchOpenSessionIntent } from '@/infrastructure/plugins/workbe
 import { ApprovalCard, QuestionCard } from '../dsh/DshChatPieces';
 import { WorkbenchQueueDock } from './WorkbenchQueueDock';
 import { ComposerInteraction } from './ComposerInteraction';
-import { WorkbenchPlanRail } from './WorkbenchPlanRail';
 import { WorkbenchTurnUsage } from './WorkbenchTurnUsage';
 import type { WorkbenchSession } from './useWorkbenchSession';
 
@@ -19,26 +18,18 @@ export interface WorkbenchComposerDockProps {
   session: WorkbenchSession;
   externalSession: WorkbenchOpenSessionIntent | null;
   showWorkspace: boolean;
-  planMd?: string | null;
-  planFinished: boolean;
-  planNeedsYou: boolean;
 }
 
 export const WorkbenchComposerDock: React.FC<WorkbenchComposerDockProps> = ({
   session,
   externalSession,
   showWorkspace,
-  planMd,
-  planFinished,
-  planNeedsYou,
 }) => {
-  const { t } = useTranslation('common');
   const tDsh = useTranslation('scenes/dsh').t;
   const {
     questions,
     approvals,
     pendingApproval,
-    planReviewApproval,
     planReviewText,
     respondQuestion,
     cancelQuestion,
@@ -95,37 +86,21 @@ export const WorkbenchComposerDock: React.FC<WorkbenchComposerDockProps> = ({
     </ComposerInteraction>
   ) : undefined;
 
-  /**
-   * 任务状态卡（紧凑态）：计划进度主行 + 本轮消耗辅行，同一张卡。
-   * 「需要你」时只提示去计划页，不在这里放推进按钮（入口唯一）。
-   */
-  const statusCard =
-    planMd !== undefined || turnUsage ? (
-      <WorkbenchPlanRail
-        planMd={planMd}
-        finished={planFinished}
-        running={taskRunning}
-        {...(planNeedsYou || planReviewApproval
-          ? { notice: t('nav.workbenchWindow.planCard.needsYouNotice') }
-          : {})}
-        {...(turnUsage
-          ? {
-              usage: (
-                <WorkbenchTurnUsage
-                  local={turnUsage.local}
-                  remote={turnUsage.remote}
-                  remoteCredits={turnUsage.remoteCredits}
-                />
-              ),
-            }
-          : {})}
+  /** 本轮消耗辅行：只显示用量，不放进度/批准/验收（都在中央计划卡）。 */
+  const usageDock = turnUsage ? (
+    <div className="ai00-x-turn-usage-dock">
+      <WorkbenchTurnUsage
+        local={turnUsage.local}
+        remote={turnUsage.remote}
+        remoteCredits={turnUsage.remoteCredits}
       />
-    ) : null;
+    </div>
+  ) : null;
 
   const composerDock =
-    statusCard || interactionDock ? (
+    usageDock || interactionDock ? (
       <>
-        {statusCard}
+        {usageDock}
         {interactionDock}
       </>
     ) : null;

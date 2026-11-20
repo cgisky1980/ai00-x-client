@@ -247,7 +247,8 @@ const UsageView: React.FC = () => {
     const models = (serverUsage?.byModel ?? []).map(m => ({
       model: m.model,
       cost: m.credits,
-      tokens: m.promptTokens + m.completionTokens,
+      // prompt 已含 cached（OpenAI 口径），另处单列 cached，避免重复计数。
+      tokens: Math.max(0, m.promptTokens - m.cachedTokens) + m.completionTokens,
       cachedTokens: m.cachedTokens,
       calls: m.calls,
     }));
