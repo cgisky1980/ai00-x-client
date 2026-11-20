@@ -119,7 +119,13 @@ function toOpenAiTools(tools) {
 // OpenAI SSE → StreamChunk
 // ---------------------------------------------------------------------------
 
-/** 逐块解析 SSE 文本流（async generator，产出 data JSON 对象）。 */
+/** 逐块解析 SSE 文本流（async generator，产出 data JSON 对象）。
+ *
+ * 读取失败（连接被重置 / 响应体解码失败，典型信息 `error decoding response body`）
+ * 不再向外抛：翻译成一个 SSE error 事件，交给 `translateStream` 的统一传输错误
+ * 回灌——错误文案进助手历史、finish 以 error 收尾。外层直接 reject 的话，引擎
+ * 只拿到一句无上下文的解码错误（turn 直接判死），模型既看不到原因也无法自纠。
+ */
 async function* parseSse(body, signal) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -147,6 +153,15 @@ async function* parseSse(body, signal) {
         }
       }
     }
+  } catch (error) {
+    // 用户主动取消不当作传输错误（引擎按 signal 处理取消语义）。
+    if (signal?.aborted) return;
+    yield {
+      error: {
+        message: `gateway stream interrupted: ${error?.message ?? error}`,
+        code: "AI00X_STREAM",
+      },
+    };
   } finally {
     reader.releaseLock();
   }
@@ -203,7 +218,10 @@ async function* translateStream(sseObjects, model) {
                 JSON.stringify(event.error).slice(0, 300),
               code: event.error.code ?? "AI00X_GATEWAY",
             };
-      yield* yieldTransportError("AI00X_GATEWAY", failure);
+      // 错误码沿用事件自带 code（AI00X_STREAM / AI00X_GATEWAY 等），
+      // 便于会话日志按来源定位是「网关主动报错」还是「读流中断」；
+      // 块序号接在已产出的块之后，避免与已有 block 撞号。
+      yield* yieldTransportError(failure.code ?? "AI00X_GATEWAY", failure, undefined, order.length);
       return;
     }
     const choice = event.choices?.[0];
@@ -385,15 +403,15 @@ async function* translateStream(sseObjects, model) {
  * 语义不变：finish 仍以 kind:'error' 收尾（失败判定、UI 表现、看门狗链路
  * 都不受影响），只是额外多了一段可被模型读到的正文。
  */
-function* yieldTransportError(code, failure, hint) {
+function* yieldTransportError(code, failure, hint, index = 0) {
   const text = [
     `【上游传输错误 · ${code}】${failure.message}`,
     hint ??
       "这是网络/服务端的临时抖动，与任务本身无关：请直接就刚才的请求重试一次——不要修改计划、不要向用户提问、不要放弃当前步骤。若连续两次仍失败，再向用户说明情况并停下。",
   ].join("\n");
-  yield { type: "block-start", index: 0, blockType: "text" };
-  yield { type: "text-delta", index: 0, text };
-  yield { type: "block-end", index: 0, block: { type: "text", text } };
+  yield { type: "block-start", index, blockType: "text" };
+  yield { type: "text-delta", index, text };
+  yield { type: "block-end", index, block: { type: "text", text } };
   yield { type: "finish", reason: { kind: "error", failure } };
 }
 
