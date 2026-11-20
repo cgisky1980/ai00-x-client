@@ -84,6 +84,17 @@ function makeClient(baseURL, token) {
   };
 }
 
+/** 步骤块文本：从步骤行到下一个步骤行或下一个 `## ` 标题（不含）。 */
+function stepBlock(lines, startIndex) {
+  const out = [];
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    if (/^##\s/.test(lines[i])) break;
+    if (/^\s*-\s+\[[ xX]\]\s+T[0-9A-Za-z_-]+\s/.test(lines[i])) break;
+    out.push(lines[i]);
+  }
+  return out.join("\n");
+}
+
 /** 文本块快捷构造。 */
 const text = (s) => [{ type: "text", text: String(s) }];
 
@@ -1356,7 +1367,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_plan_check",
     description:
-      "Toggle one checkbox line of a Zhixing board card plan (Markdown) without rewriting the document. Cheapest way to mark a step done/undone or tick an acceptance item: pass a short fragment that appears on that line. Only use ai00_plan_write for structural edits (new steps, changed acceptance wording).",
+      "Toggle one checkbox line of a Zhixing board card plan (Markdown) without rewriting the document. Cheapest way to mark a step done/undone or tick an acceptance item: pass a short fragment that appears on that line. Ticking a STEP requires prior evidence: the step block must already contain a `- 验证: passed` line written by ai00_task_verify, otherwise the call is refused (no evidence = no progress). Only use ai00_plan_write for structural edits (new steps, changed acceptance wording).",
     parameters: {
       type: "object",
       properties: {
@@ -1408,6 +1419,19 @@ function defineTools(ctx, api) {
       const original = lines[index];
       if (!/\[( |x|X)\]/.test(original)) {
         return { ok: false, hint: "matched line has no checkbox" };
+      }
+      // 勾选**步骤**前必须有该步的验证证据（ai00_task_verify 会写回「- 验证: passed」）。
+      // 没证据就勾选＝假进度：用户看到「已完成」，但没有任何命令或证据支撑。
+      const stepHead = /^\s*-\s+\[[ xX]\]\s+(T[0-9A-Za-z_-]+)\s/.exec(original);
+      if (checked && stepHead) {
+        const stepId = stepHead[1];
+        const block = stepBlock(lines, index);
+        if (!/^\s*-\s*(验证|verification)\s*[:：]\s*passed/im.test(block)) {
+          return {
+            ok: false,
+            hint: `no verification evidence for ${stepId} — call ai00_task_verify (stepId: "${stepId}") before ticking`,
+          };
+        }
       }
       const next = checked
         ? original.replace(/\[( |x|X)\]/, "[x]")
