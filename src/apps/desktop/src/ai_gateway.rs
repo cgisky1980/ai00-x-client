@@ -923,6 +923,7 @@ async fn local_rwkv_sse(
         // usage 分片放在 finish 之前、两条分支都发：工具轮以前完全没有 usage，
         // 引擎侧 deriveTurnTokenUsage 拿不到数字 → 本地模型的对话回合用量条全空。
         if let Some((name, arguments)) = tool_call_from_text(&text, has_tools) {
+            let arguments = normalize_tool_arguments(&name, &arguments);
             let chunk = sse_tool_call_delta(&model_name, &name, &arguments);
             let _ = tx.send(Ok(Bytes::from(chunk)));
             let chunk = sse_usage(&model_name, input_tokens, output_tokens);
@@ -1270,7 +1271,8 @@ async fn local_tool_round(
         )
         .await;
 
-    if let Some((name, arguments)) = try_extract_tool_call(&full_text) {
+    if let Some((name, arguments)) = tool_call_from_text(&full_text, true) {
+        let arguments = normalize_tool_arguments(&name, &arguments);
         Ok(ToolRoundOutcome::ToolCall {
             name,
             arguments,
@@ -2103,6 +2105,44 @@ fn repair_tool_call_text(text: &str) -> Option<(String, String)> {
     Some((name, arguments))
 }
 
+/// 工具参数归一：3B 本地模型常见两类"参数漂移"，这里确定性修掉，
+/// 免得每一轮都因参数名不对被判失败（实测：`path`/`file_path` 混用、
+/// `content` 里又嵌了一层 `{"content":…,"file_path":…}`）。
+fn normalize_tool_arguments(name: &str, arguments: &str) -> String {
+    let Ok(mut value) = serde_json::from_str::<Value>(arguments) else {
+        return arguments.to_string();
+    };
+    let Some(obj) = value.as_object_mut() else {
+        return arguments.to_string();
+    };
+    // 1) 文件类工具：`path` → `file_path`（dsh-tool-fs 的正式参数名）
+    if matches!(name, "read" | "write" | "edit" | "read_image") && !obj.contains_key("file_path") {
+        if let Some(path) = obj.remove("path") {
+            obj.insert("file_path".to_string(), path);
+        }
+    }
+    // 2) 嵌套参数：content 的值是对象且自带 content/file_path → 上提
+    for _ in 0..3 {
+        let Some(Value::Object(inner)) = obj.get("content").cloned() else {
+            break;
+        };
+        let nested_content = inner.get("content").cloned();
+        let nested_path = inner.get("file_path").cloned();
+        if nested_content.is_none() && nested_path.is_none() {
+            break;
+        }
+        if let Some(content) = nested_content {
+            obj.insert("content".to_string(), content);
+        }
+        if !obj.contains_key("file_path") {
+            if let Some(path) = nested_path {
+                obj.insert("file_path".to_string(), path);
+            }
+        }
+    }
+    value.to_string()
+}
+
 /// 文本是否"看起来像在调工具"：用于把**残缺到认不出工具名**的 JSON 判成
 /// 失败，而不是当成最终回答。只在带 tools 的请求里使用，避免误伤普通 JSON 作答。
 fn looks_like_tool_call_text(text: &str) -> bool {
@@ -2476,6 +2516,26 @@ mod tests {
         assert!(args.contains("hi.txt"));
         // 不带 tools 的请求不做前缀补回
         assert!(tool_call_from_text(fragment, false).is_none());
+    }
+
+    #[test]
+    fn normalizes_local_tool_argument_drift() {
+        // path → file_path
+        let out = normalize_tool_arguments("write", r#"{"content":"hi","path":"hello.txt"}"#);
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["file_path"], json!("hello.txt"));
+        assert!(v.get("path").is_none());
+        // content 里嵌套一层参数表 → 上提
+        let out = normalize_tool_arguments(
+            "write",
+            r#"{"content":{"content":{"content":"hi","file_path":"hello.txt"}}}"#,
+        );
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["content"], json!("hi"));
+        assert_eq!(v["file_path"], json!("hello.txt"));
+        // 非文件工具不动参数
+        let raw = r#"{"query":"x"}"#;
+        assert_eq!(normalize_tool_arguments("ai00_search", raw), raw);
     }
 
     #[test]
