@@ -25,7 +25,14 @@ export const DELEGATE_DELIVERABLE_DEFAULT =
 export const DELEGATE_PROTOCOL_ORCHESTRATION = (
   taskId: string,
   localFirst = false,
+  hasPlanDoc = true,
 ): string => {
+  // 新任务（无计划）只允许「写计划 → 停」。此前这里也写「先读计划再派发」，
+  // 与 loop 的批准闸口直接矛盾：模型 plan_write 完就顺势派了子代理，
+  // 人类确认变成事后队列消息（2026-11-20 实测 session-215065cf）。
+  if (!hasPlanDoc) {
+    return `- Planning phase (this turn only): this task has NO plan yet. Call ai00_plan_write (taskId: "${taskId}") with the complete plan (sections, T-numbered steps, acceptance, deliverables per the loop contract), then END this turn — reply with a 3–6 line plan summary and wait. Do NOT call ai00_plan_read first (there is nothing to read), do NOT dispatch any worker (research_worker / local_code_worker / code_worker) in the same turn as the plan write, and do NOT call ai00_task_complete. Dispatching before the user confirms the plan is a protocol violation.`;
+  }
   if (localFirst) {
     return `- Execution protocol (you orchestrate; you never execute yourself): start with ai00_plan_read (taskId: "${taskId}") to load the full plan, then dispatch "## Steps" by T id and dependencies. Default to local_code_worker (local model); only after a second local failure or when a cloud fix is clearly needed, dispatch code_worker. Dispatch research_worker for investigation (conclusions only — never ask it to create or modify files). Dispatch in parallel only when "Depends on: none" and scopes do not overlap. Every brief must state: goal and acceptance criteria, boundaries, relevant files and context, implementation details, acceptance commands, and the expected return format — workers cannot see this conversation, so each brief must be self-contained. **Write every subagent brief in English** (paths, identifiers and quoted user text may stay as-is). After each local worker run, call ai00_task_verify for real evidence; for strict mode, high risk or needs-review, dispatch review_worker on the evidence.`;
   }
@@ -84,7 +91,7 @@ export const WORKBENCH_LOOP_RULES = (taskId: string): string =>
     '## Delivery workflow (Ai00-X loop)',
     '',
     `Before any step write the plan with ai00_plan_write (taskId: "${taskId}"), using exactly these sections: "## Execution Policy" (\`- Execution: local-first\`, \`- Review: adaptive\`), "## Goal", "## Steps", "## Acceptance", "## Deliverables". Plan body in the user's language; headings and keys stay English. Each step: \`- [ ] T1 title\` with \`Depends on\`, \`Risk\` (low/medium/high), \`Scope\` (paths), \`Implementation\`, \`Acceptance\` ({cmd: ...}). Planning and self-check are never steps.`,
-    '1. Approval gate: stop after writing the plan; continue only after the user confirms.',
+    '1. Approval gate (hard stop): after writing the plan, end the turn and wait — never dispatch a worker in the same turn as the plan write; continue only after the user confirms.',
     '2. Dispatch: local_code_worker by default — brief in English, self-contained (goal, scope, files, acceptance commands, working directory, return format). Never call file/terminal/network tools yourself. Parallel only when dependency is none and scopes do not overlap.',
     '3. Evidence gate: call ai00_task_verify after every worker run; never trust self-reports (includeDiff for strict/high risk/fallback).',
     '4. Review: adaptive — low/medium risk with verdict=passed may be checked off; strict, high risk or needs-review go through review_worker.',

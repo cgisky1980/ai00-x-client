@@ -90,7 +90,7 @@ fn loop_rules_section(task_id: Option<&str>) -> String {
     format!(
         "## Delivery workflow (Ai00-X loop)\n\n\
 Before any step write the plan with {plan_hint}, using exactly these sections: \"## Execution Policy\" (`- Execution: local-first`, `- Review: adaptive`), \"## Goal\", \"## Steps\", \"## Acceptance\", \"## Deliverables\". Plan body in the user's language; headings and keys stay English. Each step: `- [ ] T1 title` with `Depends on`, `Risk` (low/medium/high), `Scope` (paths), `Implementation`, `Acceptance` ({{cmd: ...}}). Planning and self-check are never steps.\n\
-1. Approval gate: stop after writing the plan; continue only after the user confirms.\n\
+1. Approval gate (hard stop): after writing the plan, end the turn and wait — never dispatch a worker in the same turn as the plan write; continue only after the user confirms.\n\
 2. Dispatch: local_code_worker by default — brief in English, self-contained (goal, scope, files, acceptance commands, working directory, return format). Never call file/terminal/network tools yourself. Parallel only when dependency is none and scopes do not overlap.\n\
 3. Evidence gate: call `ai00_task_verify` after every worker run; never trust self-reports (`includeDiff` for strict/high risk/fallback).\n\
 4. Review: adaptive — low/medium risk with verdict=passed may be checked off; strict, high risk or needs-review go through review_worker.\n\

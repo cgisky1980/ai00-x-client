@@ -161,7 +161,7 @@ export function assembleDelegationPrompt(parts: {
   if (cwd) {
     tools.push(`- Working directory: ${cwd} (subagents read and write only inside it; put this path in every brief)`);
   }
-  tools.push(DELEGATE_PROTOCOL_ORCHESTRATION(taskId, localFirst));
+  tools.push(DELEGATE_PROTOCOL_ORCHESTRATION(taskId, localFirst, hasPlanDoc));
   if (hasPlanDoc) {
     tools.push(
       DELEGATE_SUBAGENT_NOTIFY(localFirst),

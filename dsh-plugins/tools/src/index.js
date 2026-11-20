@@ -1225,7 +1225,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_plan_write",
     description:
-      "Write (replace) the plan document (Markdown) of a Zhixing board card. The 策 window refreshes it live, so the user sees your updates. ai00_plan_read first, modify, then write back whole. Use it to check off steps, record progress, or adjust the plan as work unfolds.",
+      "Write (replace) the plan document (Markdown) of a Zhixing board card. The 策 window refreshes it live, so the user sees your updates. ai00_plan_read first, modify, then write back whole. Use it to check off steps, record progress, or adjust the plan as work unfolds. The FIRST write of a task's plan is a hard stop: after it, end the turn and wait for the user to confirm the plan — never dispatch a worker in the same turn.",
     parameters: {
       type: "object",
       properties: {
@@ -1241,18 +1241,42 @@ function defineTools(ctx, api) {
     output: {
       schema: {
         type: "object",
-        properties: { ok: { type: "boolean" } },
+        properties: {
+          ok: { type: "boolean" },
+          // 首次写入（此前没有计划）：宿主用它给模型发停机指令
+          firstPlan: { type: "boolean" },
+        },
         required: ["ok"],
         additionalProperties: false,
       },
-      render: (_args, value) => text(value.ok ? "plan document updated" : "plan write failed"),
+      render: (_args, value) => {
+        if (!value.ok) return text("plan write failed");
+        // 计划闸口是硬停：把指令贴在模型刚做完的动作旁边，而不是只写在 AGENTS.local.md
+        // （2026-11-20 实测：模型忽略文件里的 "stop after writing the plan" 直接派子代理）
+        return text(
+          value.firstPlan
+            ? "plan document saved (first version).\nSTOP NOW: end this turn and wait for the user to confirm the plan. Do not call ai00_plan_read, do not dispatch any worker, do not call ai00_task_complete in this turn. Reply with a 3–6 line plan summary."
+            : "plan document updated"
+        );
+      },
     },
     async execute(args, exec) {
       const taskId = String(args?.taskId ?? "").trim();
       const markdown = String(args?.markdown ?? "");
       if (!taskId || !markdown.trim()) throw new Error("taskId and markdown are required");
+      // 先读旧计划判断是否「首次成文」：读失败按非首次处理，不阻断写盘
+      let firstPlan = false;
+      try {
+        const prev = await api.get(
+          `/plan?taskId=${encodeURIComponent(taskId)}`,
+          exec.signal
+        );
+        firstPlan = !prev?.found || !String(prev.markdown ?? "").trim();
+      } catch {
+        firstPlan = false;
+      }
       await api.put("/plan", { taskId, markdown }, exec.signal);
-      return { ok: true };
+      return { ok: true, firstPlan };
     },
   });
 
