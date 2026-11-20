@@ -1215,7 +1215,7 @@ function defineTools(ctx, api) {
             [
               `仍有 ${unfinished.length} 个步骤未完成，不能提交自检：`,
               ...unfinished.slice(0, 8).map((step) => `  - ${step.id} ${step.title}`),
-              "请先执行 ai00_task_verify（stepId 逐项）并确认通过，再把计划「## 步骤」对应项改为 \"- [x]\"。",
+              "请先执行 ai00_task_verify（stepId 逐项）并确认通过，再用 ai00_plan_check（match: 步骤 id）勾选该步——不要整篇重写计划。",
             ].join("\n")
           );
         }
@@ -1287,7 +1287,7 @@ function defineTools(ctx, api) {
               .map((s, i) => `  ${i + 1}. ${s}`)
               .join("\n");
             lines.push(
-              "请先逐项自检，用 ai00_plan_read + ai00_plan_write 把计划文档「## 验收」段的对应项改为 \"- [x]\"。未通过项：",
+              "请先逐项自检，再用 ai00_plan_check（match: 该验收行的一段文字）把计划「## 验收」对应项勾成 \"- [x]\"——不要整篇重写计划。未通过项：",
               items,
             );
           }
