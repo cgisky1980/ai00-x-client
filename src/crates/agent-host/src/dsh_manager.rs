@@ -1107,11 +1107,14 @@ const WORKER_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract"];
 /// `ask_user_question`，结果连 ai00 工具的限制一起失效。要摘引擎工具，正确做法
 /// 是让该 preset 不挂对应插件行（见 `WORKBENCH_DROPPED_PLUGIN_IDS` /
 /// `WORKBENCH_QUICK_DROPPED_PLUGIN_IDS`）。
-fn worker_denied_tools() -> Vec<&'static str> {
+fn worker_denied_tools(worker: &str) -> Vec<&'static str> {
+    // 检索工具只留给 research_worker：写码工人带上 ai00_search 会被 3B 模型
+    // 当成"万能工具"滥用（实测写文件的任务连调十次搜索），也是纯 schema 成本。
+    let keeps_search = worker == "research_worker";
     AI00_TOOL_NAMES
         .iter()
         .copied()
-        .filter(|name| !WORKER_KEPT_TOOLS.contains(name))
+        .filter(|name| !(keeps_search && WORKER_KEPT_TOOLS.contains(name)))
         .collect()
 }
 
@@ -1782,7 +1785,7 @@ fn build_worker_rows(defs: &[WorkerDef]) -> String {
         rows.push_str(
             "          - id: ai00-x-tools-restrict\n            name: '@ai00-x/dsh-tools'\n            config:\n              mode: restrict\n              deny:\n",
         );
-        for tool in worker_denied_tools() {
+        for tool in worker_denied_tools(&def.tool_name) {
             rows.push_str(&format!("                - {tool}\n"));
         }
 

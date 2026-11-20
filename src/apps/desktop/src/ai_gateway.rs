@@ -791,6 +791,20 @@ async fn local_rwkv_sse(
         .get("tools")
         .and_then(|v| v.as_array())
         .is_some_and(|t| !t.is_empty());
+    // 回合熔断：本轮工具轮数达到上限后**不再下发 tools**，模型只能给终答。
+    // 3B 本地模型一旦选错工具会无限换词重试（实测同一会话连调 ai00_search 十次），
+    // 引擎侧没有轮数上限，这里按 `AI00X_TOOL_LOOP_MAX_ROUNDS`（默认 6）硬截断。
+    let rounds = crate::tool_session::count_turn_rounds(&messages);
+    let rounds_exhausted = has_tools && rounds >= crate::tool_session::tool_loop_max_rounds();
+    let tools = if rounds_exhausted {
+        log::warn!(
+            "[ai-gateway] local tool rounds exhausted ({rounds}); forcing final answer without tools"
+        );
+        None
+    } else {
+        tools
+    };
+    let has_tools = has_tools && !rounds_exhausted;
     let top_p = body
         .get("top_p")
         .and_then(|v| v.as_f64())
