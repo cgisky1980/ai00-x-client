@@ -94,6 +94,14 @@
     min-width: 0;
   }
 
+  // 「需要你」：琥珀提示，只指路到计划页，不放按钮（规范 §9.6 入口唯一）
+  &__notice {
+    margin: 0;
+    color: var(--color-warning);
+    font-size: var(--font-size-xs);
+    line-height: 1.6;
+  }
+
   &__steps {
     max-height: 32vh;
     overflow-y: auto;

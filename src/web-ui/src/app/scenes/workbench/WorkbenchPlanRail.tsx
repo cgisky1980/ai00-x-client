@@ -3,29 +3,29 @@
  *
  * 主行：`2/6 · T3 标题 · 待评审` + 展开键（无计划时让位给子代理状态）；
  * 辅行：本轮消耗（由调用方渲染）；
- * 展开区：结构化任务卡（紧凑模式）向上展开。
+ * 展开区：紧凑步骤列表（完整视图在中央计划卡，规范 v0.23 §9.2）；
+ * 「需要你」时追加一行提示，推进按钮只在计划卡（入口唯一）。
  *
  * 旧计划（无 T 编号）回落文本步骤与三态进度；三者皆空时整卡不渲染。
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { parseStepItems } from '@/tools/todo/utils/planAcceptance';
 import { deriveStepState, parsePlanSteps } from '@/tools/todo/utils/planStructure';
 import { WorkbenchProgress } from './WorkbenchProgress';
-import { WorkbenchTaskCards } from './WorkbenchTaskCards';
 import './WorkbenchPlanRail.scss';
 
 export interface WorkbenchPlanRailProps {
   planMd: string | null | undefined;
-  /** 有未处理的人类动作时自动展开（评审/验收）。 */
-  autoOpen?: boolean;
   /** 是否已完成（完成后不标进行中）。 */
   finished?: boolean;
   /** 会话是否在跑（决定是否标「进行中」）。 */
   running?: boolean;
   /** 辅行：本轮消耗（由调用方渲染好的节点）。 */
   usage?: React.ReactNode;
+  /** 「需要你」提示（如「计划待你批准，请在计划页操作」）。 */
+  notice?: string;
 }
 
 const STATE_KEY: Record<string, string> = {
@@ -40,19 +40,15 @@ const STATE_KEY: Record<string, string> = {
 
 export const WorkbenchPlanRail: React.FC<WorkbenchPlanRailProps> = ({
   planMd,
-  autoOpen = false,
   finished = false,
   running = false,
   usage,
+  notice,
 }) => {
   const { t } = useI18n('common');
   const structured = useMemo(() => parsePlanSteps(planMd ?? null), [planMd]);
   const legacySteps = useMemo(() => parseStepItems(planMd ?? null), [planMd]);
-  const [open, setOpen] = useState(autoOpen);
-
-  useEffect(() => {
-    if (autoOpen) setOpen(true);
-  }, [autoOpen]);
+  const [open, setOpen] = useState(false);
 
   const isStructured = structured.length > 0;
   const total = isStructured ? structured.length : legacySteps.length;
@@ -60,7 +56,7 @@ export const WorkbenchPlanRail: React.FC<WorkbenchPlanRailProps> = ({
     ? structured.filter(step => step.done).length
     : legacySteps.filter(step => step.done).length;
 
-  if (total === 0 && !usage) return null;
+  if (total === 0 && !usage && !notice) return null;
 
   const activeIndex = finished
     ? null
@@ -116,21 +112,25 @@ export const WorkbenchPlanRail: React.FC<WorkbenchPlanRailProps> = ({
         </div>
       )}
 
+      {notice && (
+        <p className="ai00-x-plan-strip__notice" role="status">
+          {notice}
+        </p>
+      )}
+
       {usage && <div className="ai00-x-plan-strip__usage">{usage}</div>}
 
       {open && total > 0 && (
         <div className="ai00-x-plan-strip__steps">
-          {isStructured ? (
-            <WorkbenchTaskCards
-              planMd={planMd ?? null}
-              steps={structured}
-              compact
-              running={running}
-              taskCompleted={finished}
-            />
-          ) : (
-            <WorkbenchProgress steps={legacySteps} activeIndex={activeIndex} hideHead />
-          )}
+          <WorkbenchProgress
+            steps={
+              isStructured
+                ? structured.map((step) => ({ text: `${step.id} ${step.title}`, done: step.done }))
+                : legacySteps
+            }
+            activeIndex={activeIndex}
+            hideHead
+          />
         </div>
       )}
     </section>

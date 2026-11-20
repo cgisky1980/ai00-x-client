@@ -82,42 +82,6 @@
   }
 }
 
-// 计划确认档位里的计划书正文：只给要点，超长自己滚
-.ai00-x-plan-confirm {
-  max-height: 200px;
-  overflow-y: auto;
-  padding-right: var(--spacing-1);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  line-height: 1.6;
-
-  h1,
-  h2,
-  h3 {
-    margin: 0 0 var(--spacing-1);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-medium);
-  }
-
-  p,
-  ul,
-  ol {
-    margin: 0 0 var(--spacing-1);
-  }
-
-  ul,
-  ol {
-    padding-left: var(--spacing-4);
-  }
-}
-
-.ai00-x-plan-confirm__hint {
-  margin: var(--spacing-2) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-2xs);
-}
-
 // 输入框永远压在这张纸上面
 .ai00-x-dsh-scene__composer > .ai00-x-composer-root {
   position: relative;

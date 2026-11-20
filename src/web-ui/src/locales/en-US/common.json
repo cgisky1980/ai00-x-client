@@ -455,7 +455,10 @@
         "diffRemoved": "removed {{ids}}",
         "diffJoin": ", ",
         "diffBody": "edited the plan text",
-        "changedMessage": "Plan changed: the user {{summary}}. Re-read the plan with ai00_plan_read first; it is back to pending approval — continue with the new plan once the user approves it on the plan page."
+        "changedMessage": "Plan changed: the user {{summary}}. Re-read the plan with ai00_plan_read first; it is back to pending approval — continue with the new plan once the user approves it on the plan page.",
+        "needsYouNotice": "Needs you: approve or review on the plan page.",
+        "acceptedFact": "— Accepted, task complete —",
+        "revise": "Send back"
       }
     },
     "modes": {

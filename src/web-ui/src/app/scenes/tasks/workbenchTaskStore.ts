@@ -36,6 +36,17 @@ export interface WorkbenchChildAgent {
   since: number;
 }
 
+/**
+ * 待人类批准的 exit_plan_mode 审批（规范 §9.6：与 ai00_plan_write 路径汇入计划卡同一个「待批准」态）。
+ * 对话面板收到审批帧后登记，计划卡负责应答；approval/resolved 帧到达后面板清除。
+ */
+export interface WorkbenchPlanReview {
+  rpcId: string;
+  approvalId: string;
+  /** exit_plan_mode 的 plan 参数（计划文件缺失时计划卡用它渲染）。 */
+  planText?: string;
+}
+
 /** 子代理目录条目（引擎 `subagentCatalog` 投影；label 是派发时冻结的任务标题）。 */
 export interface WorkbenchSubagentMeta {
   id: string;
@@ -55,6 +66,8 @@ interface WorkbenchTaskState {
   subagentCatalog: Record<string, WorkbenchSubagentMeta[]>;
   /** 子会话 → turn 计时（`subagentTiming` 投影，挂在子会话 id 上，durable）。 */
   subagentTiming: Record<string, DshSubagentTiming>;
+  /** 主会话 → 待批准的 exit_plan_mode 审批。 */
+  planReviews: Record<string, WorkbenchPlanReview>;
   /** 主会话 → 执行过程统计（对话面板由事件流水账算出后上报；计划卡读）。 */
   sessionStats: Record<string, DshSessionStats>;
   /** 跨任务/看板场景保持选中；仅进程内 UI 状态，不写入任务数据。 */
@@ -64,6 +77,7 @@ interface WorkbenchTaskState {
   selectTask: (taskId: string) => void;
   startNewTask: () => void;
   reportStats: (sessionId: string, stats: DshSessionStats) => void;
+  setPlanReview: (sessionId: string, review: WorkbenchPlanReview | null) => void;
   reportRuntime: (
     sessionId: string,
     next: { running: boolean; failed: boolean; asking?: boolean },
@@ -161,10 +175,23 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
   subagentCatalog: {},
   subagentTiming: {},
   sessionStats: {},
+  planReviews: {},
   selectedTaskId: null,
   creatingNew: true,
   selectTask: (taskId) => set({ selectedTaskId: taskId, creatingNew: false }),
   startNewTask: () => set({ selectedTaskId: null, creatingNew: true }),
+  setPlanReview: (sessionId, review) =>
+    set((s) => {
+      const prev = s.planReviews[sessionId];
+      if (!review) {
+        if (!prev) return s;
+        const next = { ...s.planReviews };
+        delete next[sessionId];
+        return { planReviews: next };
+      }
+      if (prev && prev.rpcId === review.rpcId && prev.planText === review.planText) return s;
+      return { planReviews: { ...s.planReviews, [sessionId]: review } };
+    }),
   reportStats: (sessionId, stats) =>
     set((s) => {
       const prev = s.sessionStats[sessionId];

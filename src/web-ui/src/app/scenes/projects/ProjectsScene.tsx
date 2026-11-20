@@ -15,7 +15,6 @@ import { Switch } from '@/component-library';
 import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
-import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
 import { pickWorkspaceDir } from '@/tools/todo/ai/workspace';
 import type { TodoTask, WorkbenchProject } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
@@ -34,8 +33,7 @@ import { WorkbenchPlanPage } from '../workbench/WorkbenchPlanPage';
 import { WorkbenchFilePreview } from '../workbench/WorkbenchFilePreview';
 import { activeFilePath, useWorkbenchTabs } from '../workbench/useWorkbenchTabs';
 import { useResizablePane } from '@/hooks/useResizablePane';
-import { WorkbenchReviewPanel } from '../workbench/WorkbenchReviewPanel';
-import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
+import { needsYou } from '../workbench/workbenchStage';
 import { ProjectGitBadge } from './ProjectGitBadge';
 import {
   TrunkBranchError,
@@ -64,8 +62,6 @@ export const ProjectsScene: React.FC = () => {
   const createProject = useTodoStore((s) => s.createProject);
   const removeProject = useTodoStore((s) => s.removeProject);
   const updateProject = useTodoStore((s) => s.updateProject);
-  const completeTask = useTodoStore((s) => s.completeTask);
-  const updateTask = useTodoStore((s) => s.updateTask);
   const reportRuntime = useWorkbenchTaskStore((s) => s.reportRuntime);
   const runtime = useWorkbenchTaskStore((s) => s.runtime);
   // 引擎会话运行态校准（最近任务的「执行中/已停止」以真实运行态为准）
@@ -530,32 +526,15 @@ export const ProjectsScene: React.FC = () => {
                 }}
                 onRuntimeChange={(state) => reportRuntime(conversation.sessionId, state)}
                 planMd={plans[conversation.task.id] ?? null}
-                planAutoOpen={
-                  taskPhase(conversation.task, null, runtime[conversation.sessionId]) ===
-                  'awaiting'
-                }
                 planFinished={Boolean(conversation.task.completedAt)}
-                planApproved={Boolean(conversation.task.planApprovedAt)}
-                agentSelfChecked={Boolean(conversation.task.agentCompletedAt)}
-                onPlanApprove={() =>
-                  updateTask(conversation.task.id, { planApprovedAt: Date.now() })
-                }
-                dock={
-                  taskPhase(conversation.task, null, runtime[conversation.sessionId]) ===
-                  'awaiting' ? (
-                    <WorkbenchReviewPanel
-                      task={conversation.task}
-                      planMd={plans[conversation.task.id] ?? null}
-                      onApprove={() => completeTask(conversation.task.id, true)}
-                      onReject={(reason) => {
-                        updateTask(conversation.task.id, { agentCompletedAt: null });
-                        void dshSession
-                          .prompt(conversation.sessionId, buildRejectPrompt(reason))
-                          .catch(() => undefined);
-                      }}
-                    />
-                  ) : undefined
-                }
+                planHosted
+                planNeedsYou={needsYou(
+                  taskPhase(
+                    conversation.task,
+                    plans[conversation.task.id] ?? null,
+                    runtime[conversation.sessionId],
+                  ),
+                )}
               />
             </div>
           </div>

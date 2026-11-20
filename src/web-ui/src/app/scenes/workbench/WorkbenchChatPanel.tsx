@@ -50,18 +50,14 @@ import { ToolCallTracker, type ScopeViolation } from '@/infrastructure/plugins/w
 import type { WorkbenchEntry } from '@/infrastructure/plugins/workbenchRegistry';
 import { useWorkbenchTaskStore, type WorkbenchChildAgent } from '../tasks/workbenchTaskStore';
 import { ApprovalCard, ChatErrorText, MessageBubble, QuestionCard } from '../dsh/DshChatPieces';
-import { Markdown } from '@/component-library';
 import { groupMessagesForDisplay } from '../dsh/messageGroups';
 import { WorkbenchQueueDock, type QueueDockRow } from './WorkbenchQueueDock';
 import { ComposerInteraction } from './ComposerInteraction';
 import { WorkbenchPlanRail } from './WorkbenchPlanRail';
-import { WorkbenchPlanSummary } from './WorkbenchPlanSummary';
-import { WorkbenchTaskCards } from './WorkbenchTaskCards';
 import { WorkbenchTurnUsage } from './WorkbenchTurnUsage';
 import { WorkbenchSubagentCard } from './WorkbenchSubagentCard';
 import { WorkbenchSubagentOverview } from './WorkbenchSubagentOverview';
 import { isSubagentDispatch } from './subagentTools';
-import { parsePlanSteps } from '@/tools/todo/utils/planStructure';
 import { DELEGATE_BOOK_TITLE } from '@/agent/orchestrator/promptParts';
 import {
   getSessionUsage,
@@ -124,29 +120,17 @@ interface WorkbenchChatPanelProps {
    * 项目工作台里项目名与分支已在头部/侧栏常驻，这里默认关掉避免重复。
    */
   showWorkspace?: boolean;
-  /**
-   * 宿主提供的交互档位（如交付验收）。
-   * 优先级低于引擎自带的「提问 / 审批」，但高于工作区行——人类介入永远贴着输入框。
-   */
-  dock?: React.ReactNode;
-  /** 计划书（有就常驻输入框上方的计划条；不限项目/任务场景）。 */
+  /** 计划书（有就常驻输入框上方的紧凑任务状态卡；不限项目/任务场景）。 */
   planMd?: string | null;
-  /** 计划条是否自动展开（有评审/验收动作时）。 */
-  planAutoOpen?: boolean;
-  /** 任务已完成：计划条不标「进行中」。 */
+  /** 任务已完成：状态卡不标「进行中」。 */
   planFinished?: boolean;
   /**
-   * 计划书是否已被人类确认。传 `false` 且已有计划书、agent 空闲时，
-   * 输入框上方升起「计划确认」档位——执行前必须过一次人类确认。
+   * 宿主有中央计划卡（规范 v0.23 §9.6）：exit_plan_mode 审批不在输入框出现，
+   * 而是登记到 workbenchTaskStore 交给计划卡「待批准」态统一应答。
    */
-  planApproved?: boolean;
-  /** 计划确认结果（宿主持久化到任务卡）。 */
-  onPlanApprove?: () => void;
-  /**
-   * agent 已提交自检（`agentCompletedAt`）。步骤全通过但它没提交时，
-   * 这里给一条「让它提交自检」的入口——否则流程会在汇总前断掉。
-   */
-  agentSelfChecked?: boolean;
+  planHosted?: boolean;
+  /** 计划卡上有等你动手的事（待批准 / 待验收）：状态卡只提示去计划页。 */
+  planNeedsYou?: boolean;
 }
 
 interface ActiveProject {
@@ -188,13 +172,10 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   variant = 'panel',
   initialRequest,
   showWorkspace = true,
-  dock,
   planMd,
-  planAutoOpen = false,
   planFinished = false,
-  planApproved,
-  onPlanApprove,
-  agentSelfChecked = false,
+  planHosted = false,
+  planNeedsYou = false,
 }) => {
   const { t } = useTranslation('common');
   const tDsh = useTranslation('scenes/dsh').t;
@@ -340,12 +321,15 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     // 仍在推进（主回合或子代理任一在跑）时，回合级报错不升级为任务级「出错」——
     // 否则父回合刚报错、子代理还在跑的任务会在看板上闪「出错」。
     const failed = Boolean(error) && !effectiveRunning;
-    const asking = questions.length > 0;
+    // 「需要你」：未回答的提问，或交给计划卡的 exit_plan_mode 审批
+    const asking =
+      questions.length > 0 ||
+      (planHosted && approvals.some(a => a.toolName === 'exit_plan_mode'));
     const key = `${effectiveRunning ? 1 : 0}${failed ? 1 : 0}${asking ? 1 : 0}`;
     if (key === lastRuntimeRef.current) return;
     lastRuntimeRef.current = key;
     onRuntimeChangeRef.current({ running: effectiveRunning, failed, asking });
-  }, [taskRunning, error, questions.length]);
+  }, [taskRunning, error, questions.length, approvals, planHosted]);
 
   /** 已结算过的「回合起点 + 子会话集合」键：同键不重复结算，换键则替换结果。 */
   const settledKeyRef = useRef<string | null>(null);
@@ -1186,6 +1170,51 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     setQuestions(prev => prev.filter(q => q.rpcId !== rpcId));
   };
 
+  // ---- exit_plan_mode → 计划卡（hooks 必须在任何提前 return 之前） ----
+  /** 普通工具审批留在输入框；exit_plan_mode 交给计划卡（有计划卡宿主时）。 */
+  const planReviewApproval = planHosted
+    ? approvals.find(a => a.toolName === 'exit_plan_mode')
+    : undefined;
+  const pendingApproval = approvals.find(a => a !== planReviewApproval);
+
+  /** exit_plan_mode 的 plan 参数（计划文件缺失时计划卡用它渲染）。 */
+  const planReviewText = ((): string | undefined => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      for (const tc of messages[i].toolCalls) {
+        if (tc.name !== 'exit_plan_mode') continue;
+        try {
+          const args = JSON.parse(tc.arguments) as { plan?: unknown };
+          if (typeof args?.plan === 'string' && args.plan.trim()) return args.plan;
+        } catch {
+          // 参数不是 JSON：计划卡退回计划文件
+        }
+      }
+    }
+    return undefined;
+  })();
+
+  useEffect(() => {
+    if (!sessionId || !planHosted) return;
+    useWorkbenchTaskStore.getState().setPlanReview(
+      sessionId,
+      planReviewApproval
+        ? {
+            rpcId: planReviewApproval.rpcId,
+            approvalId: planReviewApproval.approvalId,
+            ...(planReviewText ? { planText: planReviewText } : {}),
+          }
+        : null,
+    );
+    // 依赖 rpcId 而非对象引用：同一审批不重复登记
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, planHosted, planReviewApproval?.rpcId, planReviewText]);
+
+  // 卸载 / 换会话时清掉登记，避免计划卡拿着过期 rpcId
+  useEffect(() => {
+    if (!sessionId || !planHosted) return undefined;
+    return () => useWorkbenchTaskStore.getState().setPlanReview(sessionId, null);
+  }, [sessionId, planHosted]);
+
   // 插件页不可用：AI 区给出明确的不可用状态，不建立会话、不显示输入框
   // （外部会话不依赖插件页：仍可对话与应答审批）
   if (pluginUnavailable && !externalSession) {
@@ -1207,115 +1236,10 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     Boolean(bound) && (externalSession ? true : Boolean(project) && !binding && !bindError);
 
   /**
-   * 输入框上的交互档位（同一时刻只一个，优先级：提问 > 审批/计划评审 > 宿主档位）。
-   * 人类介入一律贴着输入框，消息流只留事实。
-   *
-   * 计划评审正文：优先取本轮 exit_plan_mode 工具调用的 plan 参数，
-   * 没有就退回任务计划文件——两者都没有时评审卡只剩标题。
+   * 输入框上的交互档位（规范 v0.23 §9.6）：输入框只承载 ask user 与工具审批。
+   * 计划批准与最终验收只在中央计划卡；exit_plan_mode 审批登记到 store，由计划卡应答。
    */
-  const planReviewText = ((): string | undefined => {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      for (const tc of messages[i].toolCalls) {
-        if (tc.name !== 'exit_plan_mode') continue;
-        try {
-          const args = JSON.parse(tc.arguments) as { plan?: unknown };
-          if (typeof args?.plan === 'string' && args.plan.trim()) return args.plan;
-        } catch {
-          // 参数不是 JSON：退回计划文件
-        }
-      }
-    }
-    return planMd && planMd.trim() ? planMd : undefined;
-  })();
-
   const pendingQuestion = questions[0];
-  const pendingApproval = approvals[0];
-  /** 计划确认卡的结构化步骤（旧计划为空 → 回落整篇 Markdown）。 */
-  const confirmSteps = parsePlanSteps(planMd ?? null);
-  /** 正在做计划评审（exit_plan_mode）：此时背卡直接摊开计划，不再显示计划条。 */
-  const planReviewing = pendingApproval?.toolName === 'exit_plan_mode';
-  /**
-   * 计划确认门禁：计划书已写好、还没被人类确认。
-   *
-   * 这是「计划 → 执行」之间唯一的人工闸口，所以**不跟运行态挂钩**——agent
-   * 收尾慢或运行态上报滞后（5s 轮询）时，按钮也必须立刻可见；此时批准消息
-   * 进队列，由输入框上方的队列条显示，不会丢。
-   */
-  const planAwaitingConfirm =
-    planApproved === false &&
-    Boolean(planMd && planMd.trim()) &&
-    !planFinished &&
-    !pendingQuestion &&
-    !pendingApproval;
-  const planConfirmDock = planAwaitingConfirm ? (
-    <ComposerInteraction
-      tone="warning"
-      actions={[
-        {
-          label: t('nav.workbenchWindow.progress.approvePlan'),
-          variant: 'primary',
-          onClick: () => {
-            onPlanApprove?.();
-            submitText(t('nav.workbenchWindow.progress.approvePlanMessage'));
-          },
-        },
-      ]}
-    >
-      <div className="ai00-x-plan-confirm">
-        {confirmSteps.length > 0 ? (
-          <>
-            <WorkbenchPlanSummary
-              steps={confirmSteps}
-              planMd={planMd ?? null}
-              running={agentRunning}
-              pendingApproval
-              taskCompleted={planFinished}
-            />
-            <WorkbenchTaskCards planMd={planMd ?? null} steps={confirmSteps} compact readOnly />
-          </>
-        ) : (
-          <Markdown
-            content={(planMd ?? '').replace(/^- \[x\] /gm, '✓ ').replace(/^- \[ \] /gm, '□ ')}
-          />
-        )}
-      </div>
-      <p className="ai00-x-plan-confirm__hint">
-        {agentRunning
-          ? t('nav.workbenchWindow.progress.planConfirmRunningHint')
-          : t('nav.workbenchWindow.progress.planConfirmHint')}
-      </p>
-    </ComposerInteraction>
-  ) : undefined;
-
-  /**
-   * 汇总断路兜底：步骤全部通过、agent 也停了，但它没调 ai00_task_complete
-   * → 验收卡永远不会出现。这里给一个「让它提交自检」的按钮。
-   */
-  const stepsAllDone = confirmSteps.length > 0 && confirmSteps.every(step => step.done);
-  const selfCheckNudge =
-    !planFinished &&
-    planApproved !== false &&
-    !agentSelfChecked &&
-    !agentRunning &&
-    stepsAllDone &&
-    !pendingQuestion &&
-    !pendingApproval;
-  const selfCheckDock = selfCheckNudge ? (
-    <ComposerInteraction
-      tone="accent"
-      actions={[
-        {
-          label: t('nav.workbenchWindow.progress.nudgeSelfCheckAction'),
-          variant: 'primary',
-          onClick: () => submitText(t('nav.workbenchWindow.progress.nudgeSelfCheckMessage')),
-        },
-      ]}
-    >
-      <p className="ai00-x-plan-confirm__hint">
-        {t('nav.workbenchWindow.progress.nudgeSelfCheck')}
-      </p>
-    </ComposerInteraction>
-  ) : undefined;
 
   const interactionDock = pendingQuestion ? (
     <ComposerInteraction
@@ -1330,31 +1254,30 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     </ComposerInteraction>
   ) : pendingApproval ? (
     <ComposerInteraction
-      tone={planReviewing ? 'warning' : 'accent'}
+      tone={pendingApproval.toolName === 'exit_plan_mode' ? 'warning' : 'accent'}
       meta={approvals.length > 1 ? `${approvals.length}` : undefined}
     >
       <ApprovalCard
         approval={pendingApproval}
-        planText={planReviewing ? planReviewText : undefined}
+        planText={pendingApproval.toolName === 'exit_plan_mode' ? planReviewText : undefined}
         onRespond={(rpcId, outcome) => void respondApproval(rpcId, outcome)}
       />
     </ComposerInteraction>
-  ) : planConfirmDock ?? selfCheckDock ?? (
-    dock
-  );
+  ) : undefined;
 
   /**
-   * 任务状态卡：计划进度（主行）+ 本轮消耗（辅行）同一张卡。
-   * 子代理运行态只在对话顶部汇总条表达，这里不重复。
-   * 两者皆无时 `WorkbenchPlanRail` 自己返回 null，快速问答不会出现空卡。
+   * 任务状态卡（紧凑态）：计划进度主行 + 本轮消耗辅行，同一张卡。
+   * 「需要你」时只提示去计划页，不在这里放推进按钮（入口唯一）。
    */
   const statusCard =
     planMd !== undefined || turnUsage ? (
       <WorkbenchPlanRail
         planMd={planMd}
-        autoOpen={planAutoOpen}
         finished={planFinished}
         running={taskRunning}
+        {...(planNeedsYou || planReviewApproval
+          ? { notice: t('nav.workbenchWindow.planCard.needsYouNotice') }
+          : {})}
         {...(turnUsage
           ? {
               usage: (
@@ -1369,18 +1292,13 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
       />
     ) : null;
 
-  /**
-   * 背卡内容：计划评审/确认时只摊计划书；其余时间常驻任务状态卡，交互卡需要人类动手时升起。
-   */
   const composerDock =
-    !planReviewing && !planAwaitingConfirm ? (
+    statusCard || interactionDock ? (
       <>
         {statusCard}
         {interactionDock}
       </>
-    ) : (
-      interactionDock
-    );
+    ) : null;
 
   return (
     <div
@@ -1531,6 +1449,12 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
                   </div>
                 </div>
               </div>
+            )}
+            {/* 留痕（规范 §9.6）：验收只在计划卡完成，这里只追加一条事实行，不触发 agent */}
+            {planHosted && planFinished && (
+              <p className="ai00-x-workbench-chat__fact" role="status">
+                {t('nav.workbenchWindow.planCard.acceptedFact')}
+              </p>
             )}
             {/* 长时间无任何事件：显示已等待时长并给出出口，避免看起来像卡死 */}
             {stalled && (

@@ -28,7 +28,7 @@ import {
   TimelineItem,
 } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
-import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
+import { dshApproval, dshSession } from '@/infrastructure/api/service-api/DshAPI';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import type { TodoTask } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
@@ -145,21 +145,28 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const catalog = useWorkbenchTaskStore((s) => (sessionId ? s.subagentCatalog[sessionId] : undefined));
   const children = useWorkbenchTaskStore((s) => (sessionId ? s.children[sessionId] : undefined));
   const stats = useWorkbenchTaskStore((s) => (sessionId ? s.sessionStats[sessionId] : undefined));
+  /** exit_plan_mode 审批（与 ai00_plan_write 汇入同一个「待批准」态，规范 §9.6）。 */
+  const planReview = useWorkbenchTaskStore((s) => (sessionId ? s.planReviews[sessionId] : undefined));
 
-  const hasPlan = Boolean(planMd && planMd.trim());
-  const steps = useMemo(() => parsePlanSteps(planMd), [planMd]);
-  const legacySteps = useMemo(() => parseStepItems(planMd), [planMd]);
-  const acceptance = useMemo(() => parseAcceptance(planMd), [planMd]);
-  const policy = useMemo(() => parsePlanPolicy(planMd), [planMd]);
+  /** 计划文件缺失时，用 exit_plan_mode 的 plan 参数渲染（只读）。 */
+  const fileBacked = Boolean(planMd && planMd.trim());
+  const shownMd = fileBacked ? planMd : (planReview?.planText ?? null);
+  const hasPlan = Boolean(shownMd && shownMd.trim());
+  const steps = useMemo(() => parsePlanSteps(shownMd), [shownMd]);
+  const legacySteps = useMemo(() => parseStepItems(shownMd), [shownMd]);
+  const acceptance = useMemo(() => parseAcceptance(shownMd), [shownMd]);
+  const policy = useMemo(() => parsePlanPolicy(shownMd), [shownMd]);
   const goal = useMemo(
-    () => parsePlanGoal(planMd) || task.plan?.goal || task.title,
-    [planMd, task.plan?.goal, task.title],
+    () => parsePlanGoal(shownMd) || task.plan?.goal || task.title,
+    [shownMd, task.plan?.goal, task.title],
   );
 
   const completed = Boolean(task.completedAt);
   const stage = stageOf(phase);
   /** 验收中 / 已完成不再改计划（改计划只发生在规划与执行段）。 */
-  const editable = !readOnly && !completed && phase !== 'awaiting';
+  const editable = !readOnly && !completed && phase !== 'awaiting' && fileBacked;
+  /** 待批准：计划书未确认，或 agent 以 exit_plan_mode 请求批准。 */
+  const awaitingApproval = !completed && (phase === 'approving' || Boolean(planReview));
   const activeIndex = useMemo(() => {
     if (completed) return null;
     const index = steps.findIndex((step) => !step.done);
@@ -283,13 +290,28 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
 
   const approve = useCallback((): void => {
     useTodoStore.getState().updateTask(task.id, { planApprovedAt: Date.now() });
+    // exit_plan_mode 路径：放行审批即恢复 agent，审批结果本身就是消息流里的留痕
+    if (planReview && sessionId) {
+      void dshApproval
+        .respond(planReview.rpcId, sessionId, planReview.approvalId, 'allowed-once')
+        .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+      return;
+    }
     // 批准消息进队列（agent 收尾中也不丢）；它同时是消息流里的留痕行
     if (sessionId) {
       void dshSession
         .prompt(sessionId, t('nav.workbenchWindow.progress.approvePlanMessage'), { mode: 'queue' })
         .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
     }
-  }, [sessionId, t, task.id]);
+  }, [planReview, sessionId, t, task.id]);
+
+  /** exit_plan_mode 退回：拒绝审批，agent 留在计划模式继续改（意见写在对话里）。 */
+  const rejectReview = useCallback((): void => {
+    if (!planReview || !sessionId) return;
+    void dshApproval
+      .respond(planReview.rpcId, sessionId, planReview.approvalId, 'rejected')
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  }, [planReview, sessionId]);
 
   const nudgeSelfCheck = useCallback((): void => {
     if (!sessionId) return;
@@ -679,6 +701,12 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           ? t('nav.workbenchWindow.progress.planConfirmRunningHint')
           : t('nav.workbenchWindow.planCard.approveHint')}
       </p>
+      {!readOnly && planReview && (
+        <Button variant="secondary" size="small" onClick={rejectReview}>
+          <Undo2 size={12} />
+          {t('nav.workbenchWindow.planCard.revise')}
+        </Button>
+      )}
       {!readOnly && (
         <DsButton variant="seal" size="base" className="ai00-x-plan-card__cta" onClick={approve}>
           {t('nav.workbenchWindow.planCard.approve')}
@@ -727,7 +755,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     </div>
   ) : phase === 'awaiting' ? (
     reviewArea
-  ) : phase === 'approving' ? (
+  ) : awaitingApproval ? (
     approveArea
   ) : (
     executeArea
@@ -825,7 +853,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
               </div>
             </>
           ) : (
-            <Markdown content={(planMd ?? '').replace(/^- \[x\] /gm, '✓ ').replace(/^- \[ \] /gm, '□ ')} />
+            <Markdown content={(shownMd ?? '').replace(/^- \[x\] /gm, '✓ ').replace(/^- \[ \] /gm, '□ ')} />
           )}
         </div>
       )}

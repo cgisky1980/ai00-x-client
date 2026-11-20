@@ -9,14 +9,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Archive, FileText, Loader2, Plus } from 'lucide-react';
 import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
-import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
 import { useResizablePane } from '@/hooks/useResizablePane';
 import type { TodoTask, WorkbenchProject } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { WorkbenchChatPanel } from '../workbench/WorkbenchChatPanel';
 import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
-import { WorkbenchReviewPanel } from '../workbench/WorkbenchReviewPanel';
-import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
+import { needsYou } from '../workbench/workbenchStage';
 import { WorkbenchTabs, type WorkbenchTabItem } from '../workbench/WorkbenchTabs';
 import { WorkbenchPlanPage } from '../workbench/WorkbenchPlanPage';
 import { WorkbenchFilePreview } from '../workbench/WorkbenchFilePreview';
@@ -57,8 +55,6 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
   const loaded = useTodoStore((s) => s.loaded);
   const load = useTodoStore((s) => s.load);
   const allTasks = useTodoStore((s) => s.data.tasks);
-  const completeTask = useTodoStore((s) => s.completeTask);
-  const updateTask = useTodoStore((s) => s.updateTask);
 
   const projects = useTodoStore((s) => s.data.projects);
   /** 侧栏显示已归档任务（归档只影响列表可见性，卡片与会话保留）。 */
@@ -466,36 +462,15 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
                       title: binding.title,
                     }}
                     onRuntimeChange={(state) => reportRuntime(binding.sessionId, state)}
-                    // 快速问答没有计划：相关 props 一律不传（计划条/审批卡就不会出现）
+                    // 快速问答没有计划：相关 props 一律不传（状态卡 / 计划卡托管都不会出现）
                     {...(selectedQuick
                       ? {}
                       : {
                           planMd: plans[selectedTask.id] ?? null,
-                          planAutoOpen: phaseOf(selectedTask) === 'awaiting',
                           planFinished: Boolean(selectedTask.completedAt),
-                          planApproved: Boolean(selectedTask.planApprovedAt),
-                          agentSelfChecked: Boolean(selectedTask.agentCompletedAt),
-                          onPlanApprove: () =>
-                            updateTask(selectedTask.id, { planApprovedAt: Date.now() }),
+                          planHosted: true,
+                          planNeedsYou: needsYou(phaseOf(selectedTask)),
                         })}
-                    dock={
-                      !selectedQuick &&
-                      selectedTask &&
-                      phaseOf(selectedTask) === 'awaiting' ? (
-                        <WorkbenchReviewPanel
-                          task={selectedTask}
-                          planMd={plans[selectedTask.id] ?? null}
-                          onApprove={() => completeTask(selectedTask.id, true)}
-                          onReject={(reason) => {
-                            updateTask(selectedTask.id, { agentCompletedAt: null });
-                            // 退回必须把意见发回会话，否则 agent 完全不知道被打回
-                            void dshSession
-                              .prompt(binding.sessionId, buildRejectPrompt(reason))
-                              .catch(() => undefined);
-                          }}
-                        />
-                      ) : undefined
-                    }
                   />
                 </div>
               </>
