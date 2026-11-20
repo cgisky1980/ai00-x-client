@@ -870,7 +870,7 @@ async fn local_rwkv_sse(
         // 尝试提取工具调用（```json {...} ``` 协议）
         // usage 分片放在 finish 之前、两条分支都发：工具轮以前完全没有 usage，
         // 引擎侧 deriveTurnTokenUsage 拿不到数字 → 本地模型的对话回合用量条全空。
-        if let Some((name, arguments)) = try_extract_tool_call(&text) {
+        if let Some((name, arguments)) = tool_call_from_text(&text, has_tools) {
             let chunk = sse_tool_call_delta(&model_name, &name, &arguments);
             let _ = tx.send(Ok(Bytes::from(chunk)));
             let chunk = sse_usage(&model_name, input_tokens, output_tokens);
@@ -1945,6 +1945,64 @@ fn try_extract_tool_call(text: &str) -> Option<(String, String)> {
     None
 }
 
+/// 工具调用提取总入口：先严格解析，失败再走带工具时的宽容修复
+/// （多行美化 / 截断的 JSON）。
+fn tool_call_from_text(text: &str, has_tools: bool) -> Option<(String, String)> {
+    try_extract_tool_call(text).or_else(|| {
+        if has_tools && looks_like_tool_call_text(text) {
+            repair_tool_call_text(text)
+        } else {
+            None
+        }
+    })
+}
+
+/// 宽容修复：模型把调用写成**多行美化 JSON 或被 max_tokens 截断**时，
+/// `serde` 解析必然失败（实测 2026-11-20：`{\n  "name": "ai00_todo_read",\n …`），
+/// 但工具名和参数起手式都在。这里按文本定位 name / arguments，把残缺参数原样
+/// 交给引擎——引擎校验参数会回一条普通工具错误，模型能据此改，比整轮判死好。
+fn repair_tool_call_text(text: &str) -> Option<(String, String)> {
+    let mut name = None;
+    for (idx, _) in text.match_indices("\"name\"") {
+        let rest = text[idx + 6..].trim_start();
+        let Some(rest) = rest.strip_prefix(':') else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let Some(rest) = rest.strip_prefix('"') else {
+            continue;
+        };
+        let candidate: String = rest
+            .chars()
+            .take_while(|c| {
+                c.is_ascii_alphanumeric() || *c == '_' || *c == '-' || *c == '.' || *c == ':'
+            })
+            .collect();
+        if !candidate.is_empty() && candidate.len() <= 96 {
+            name = Some(candidate);
+            break;
+        }
+    }
+    let name = name?;
+
+    let arguments = text
+        .find("\"arguments\"")
+        .map(|idx| {
+            let rest = &text[idx + 11..];
+            rest.trim_start()
+                .strip_prefix(':')
+                .map(|r| {
+                    r.trim_start()
+                        .trim_end_matches(['`', '\\', ' ', '\n', '\r', '\t'])
+                        .to_string()
+                })
+                .unwrap_or_default()
+        })
+        .filter(|a| !a.is_empty())
+        .unwrap_or_else(|| "{}".to_string());
+    Some((name, arguments))
+}
+
 /// 文本是否"看起来像在调工具"：用于把**残缺到认不出工具名**的 JSON 判成
 /// 失败，而不是当成最终回答。只在带 tools 的请求里使用，避免误伤普通 JSON 作答。
 fn looks_like_tool_call_text(text: &str) -> bool {
@@ -2295,6 +2353,18 @@ mod tests {
         let (name, args) = try_extract_tool_call(text).unwrap();
         assert_eq!(name, "ai00_search");
         assert!(args.contains("\"x\""));
+    }
+
+    #[test]
+    fn repairs_pretty_printed_truncated_call() {
+        // 实测形状：多行美化 + 被 max_tokens 截断，serde 无法解析
+        let text = "{\n  \"name\": \"ai00_todo_read\",\n  \"arguments\": {\n    \"taskId\": \"t-1\",\n    \"goal";
+        assert!(try_extract_tool_call(text).is_none());
+        let (name, args) = tool_call_from_text(text, true).expect("must repair");
+        assert_eq!(name, "ai00_todo_read");
+        assert!(args.starts_with('{'));
+        // 不带 tools 的请求不做修复（避免把普通 JSON 作答当工具调用）
+        assert!(tool_call_from_text(text, false).is_none());
     }
 
     #[test]

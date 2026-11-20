@@ -1175,11 +1175,15 @@ const WORKBENCH_TASK_DROPPED_PLUGIN_IDS: &[&str] = &["tool-pwsh", "tool-goal"];
 const WORKBENCH_QUICK_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract", "ai00_notify"];
 
 /// 快速问答 deny 的业务工具 = 全部 15 个减去保留的 3 个（单一来源，避免两处漏改）。
+///
+/// 快速问答是"直接回答"，引擎全局工具同样要摘：实测本地模型会反复调
+/// `ask_user_question`（缺参数被拒后原样重发六次），纯烧 token。
 fn quick_denied_tools() -> Vec<&'static str> {
     AI00_TOOL_NAMES
         .iter()
         .copied()
         .filter(|name| !WORKBENCH_QUICK_KEPT_TOOLS.contains(name))
+        .chain(WORKER_DENIED_ENGINE_TOOLS.iter().copied())
         .collect()
 }
 
