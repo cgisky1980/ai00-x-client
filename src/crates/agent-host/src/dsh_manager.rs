@@ -3065,6 +3065,8 @@ mod tests {
         assert!(!deny_block.contains("ai00_search"), "{deny_block}");
         assert!(!deny_block.contains("ai00_web_extract"), "{deny_block}");
         assert!(deny_block.contains("ai00_plan_write"), "{deny_block}");
+        // 计划工具（含单行勾选）只属于编排者：工人勾选框等于绕过验收
+        assert!(deny_block.contains("ai00_plan_check"), "{deny_block}");
         // 引擎工具不得写进 restrict 的 deny：它们不是全局注册，引擎会整条抛错
         assert!(!deny_block.contains("web_search"), "{deny_block}");
         assert!(!deny_block.contains("code_worker"), "{deny_block}");
