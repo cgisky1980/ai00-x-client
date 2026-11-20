@@ -1089,10 +1089,24 @@ const WORKBENCH_TASK_DENIED_TOOLS: &[&str] = &[
     "ai00_text_summarize",
 ];
 
-/// 帮手（叶子工人）preset 里 deny 掉的全局业务工具：工人只用文件/命令/检索工具，
-/// 业务工具（计划、验收、壁纸、待办）属于编排者职责。本地小模型上下文紧张，
-/// 这 15 个 schema 是纯负担 —— 全部 deny。
-const WORKER_DENIED_TOOLS: &[&str] = AI00_TOOL_NAMES;
+/// 帮手必须保留的 AI00-X 业务工具：自托管、免 key，是本部署**唯一**可用的
+/// web 检索通路（引擎 `web_search` 需要 DeepSeek key/登录，实际不可用）。
+///
+/// 缺了这两项，research_worker 只能看到一个调不通的 `web_search`，实测会把
+/// 工具调用直接写成 JSON 文本当收尾（`{"arguments":{…},"name":"web_search"}`），
+/// 整轮调研无产出。
+const WORKER_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract"];
+
+/// 帮手（叶子工人）preset 里 deny 掉的全局业务工具 = 全部业务工具 − 保留的检索工具。
+///
+/// 计划/验收/派发/壁纸/待办属于编排者职责，对工人是纯上下文负担；检索必须留下。
+fn worker_denied_tools() -> Vec<&'static str> {
+    AI00_TOOL_NAMES
+        .iter()
+        .copied()
+        .filter(|name| !WORKER_KEPT_TOOLS.contains(name))
+        .collect()
+}
 
 /// `@ai00-x/dsh-tools` 注册的全部业务工具名（与插件 `TOOL_NAMES` 同步）。
 const AI00_TOOL_NAMES: &[&str] = &[
@@ -1469,6 +1483,8 @@ You are a research worker dispatched by the Ai00-X orchestrator.
 Read-only investigation only (read files / search / verify online). Never modify files or run commands.
 Stay strictly within the assigned task; return concise findings plus evidence locations (file:line or URL).
 Use ai00_search (Ai00-X self-hosted search, no key) for web search; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.
+Always use the real tool-call channel — never write a tool call as JSON or prose text. If a needed tool is unavailable, state exactly what is missing instead of pretending to call it.
+Keep search queries short and specific (one topic per call); never concatenate many keywords or languages into one query.
 "#;
 
 const DEFAULT_WORKER_LOCAL_CODE_MD: &str = r#"---
@@ -1491,6 +1507,7 @@ You are a local code worker dispatched by the Ai00-X orchestrator.
 Implement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.
 Always use real tool calls; never simulate tools in text. Run the given acceptance commands before finishing.
 Use ai00_search (self-hosted, no key) for web lookup; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.
+Never write a tool call as JSON or prose text; if a needed tool is unavailable, state exactly what is missing.
 Return compact evidence only: changed files, commands with exit codes, remaining risks/exceptions. No long narratives.
 "#;
 
@@ -1733,11 +1750,11 @@ fn build_worker_rows(defs: &[WorkerDef]) -> String {
         );
         rows.push_str(WORKER_COMPACTION_GROUP);
         // 业务工具（计划/验收/壁纸/待办）属于编排者职责，工人一个都不要：
-        // 这些 schema 在本地小模型上是纯上下文负担。
+        // 这些 schema 在本地小模型上是纯上下文负担；但自托管检索必须留下。
         rows.push_str(
             "          - id: ai00-x-tools-restrict\n            name: '@ai00-x/dsh-tools'\n            config:\n              mode: restrict\n              deny:\n",
         );
-        for tool in WORKER_DENIED_TOOLS {
+        for tool in worker_denied_tools() {
             rows.push_str(&format!("                - {tool}\n"));
         }
 

@@ -1336,17 +1336,17 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   );
 
   /**
-   * 任务状态卡：计划进度（主行）+ 子代理运行（主行）+ 本轮消耗（辅行）同一张卡。
-   * 三者皆无时 `WorkbenchPlanRail` 自己返回 null，快速问答不会出现空卡。
+   * 任务状态卡：计划进度（主行）+ 本轮消耗（辅行）同一张卡。
+   * 子代理运行态只在对话顶部汇总条表达，这里不重复。
+   * 两者皆无时 `WorkbenchPlanRail` 自己返回 null，快速问答不会出现空卡。
    */
   const statusCard =
-    planMd !== undefined || turnUsage || delegatedCount > 0 ? (
+    planMd !== undefined || turnUsage ? (
       <WorkbenchPlanRail
         planMd={planMd}
         autoOpen={planAutoOpen}
         finished={planFinished}
         running={taskRunning}
-        delegatedCount={delegatedCount}
         {...(turnUsage
           ? {
               usage: (

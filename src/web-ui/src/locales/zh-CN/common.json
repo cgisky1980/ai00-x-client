@@ -399,7 +399,6 @@
         "creditsUnit": "积分",
         "creditsPending": "结算中"
       },
-      "delegating": "子代理运行中 · {{count}}",
       "subagents": "子代理",
       "subagentRunning": "运行中",
       "subagentDone": "已完成",

@@ -89,25 +89,6 @@
     }
   }
 
-  // 无计划时占位：把子代理状态推到右端，主行高度不塌
-  &__placeholder {
-    flex: 1;
-    min-width: 0;
-  }
-
-  // 子代理仍在跑（主代理回合已结束也照常显示）：任务级事实，贴主行右端
-  &__delegated {
-    flex: none;
-    padding: 0 var(--spacing-1);
-    border-radius: var(--radius-sm);
-    background-color: var(--element-bg-subtle);
-    color: var(--color-accent);
-    font-family: var(--font-family-mono);
-    font-size: var(--font-size-2xs);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
   // 辅行：消耗与主行左对齐（云端积分由 WorkbenchTurnUsage 内部靠右）
   &__usage {
     min-width: 0;
@@ -116,14 +97,5 @@
   &__steps {
     max-height: 32vh;
     overflow-y: auto;
-  }
-
-  // 窄容器：子代理状态允许收缩省略，主行文本继续省略，避免横向溢出
-  @media (max-width: 420px) {
-    &__delegated {
-      flex: 0 1 auto;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
   }
 }

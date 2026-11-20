@@ -26,8 +26,6 @@ export interface WorkbenchPlanRailProps {
   running?: boolean;
   /** 辅行：本轮消耗（由调用方渲染好的节点）。 */
   usage?: React.ReactNode;
-  /** 正在跑的子代理数（>0 时主行显示「子代理运行中 · N」）。 */
-  delegatedCount?: number;
 }
 
 const STATE_KEY: Record<string, string> = {
@@ -46,7 +44,6 @@ export const WorkbenchPlanRail: React.FC<WorkbenchPlanRailProps> = ({
   finished = false,
   running = false,
   usage,
-  delegatedCount = 0,
 }) => {
   const { t } = useI18n('common');
   const structured = useMemo(() => parsePlanSteps(planMd ?? null), [planMd]);
@@ -63,7 +60,7 @@ export const WorkbenchPlanRail: React.FC<WorkbenchPlanRailProps> = ({
     ? structured.filter(step => step.done).length
     : legacySteps.filter(step => step.done).length;
 
-  if (total === 0 && !usage && !delegatedCount) return null;
+  if (total === 0 && !usage) return null;
 
   const activeIndex = finished
     ? null
@@ -96,8 +93,9 @@ export const WorkbenchPlanRail: React.FC<WorkbenchPlanRailProps> = ({
 
   return (
     <section className={`ai00-x-plan-strip${open ? ' is-open' : ''}`}>
-      <div className="ai00-x-plan-strip__head">
-        {total > 0 ? (
+      {/* 子代理运行态只在对话顶部的汇总条表达，这里不重复 */}
+      {total > 0 && (
+        <div className="ai00-x-plan-strip__head">
           <button
             type="button"
             className="ai00-x-plan-strip__main"
@@ -115,15 +113,8 @@ export const WorkbenchPlanRail: React.FC<WorkbenchPlanRailProps> = ({
             )}
             <ChevronDown size={12} className="ai00-x-plan-strip__chevron" />
           </button>
-        ) : (
-          <span className="ai00-x-plan-strip__placeholder" />
-        )}
-        {delegatedCount > 0 && (
-          <span className="ai00-x-plan-strip__delegated">
-            {t('nav.workbenchWindow.delegating', { count: delegatedCount })}
-          </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {usage && <div className="ai00-x-plan-strip__usage">{usage}</div>}
 

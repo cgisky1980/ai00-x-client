@@ -399,7 +399,6 @@
         "creditsUnit": "credits",
         "creditsPending": "settling"
       },
-      "delegating": "Subagents running · {{count}}",
       "subagents": "Subagents",
       "subagentRunning": "Running",
       "subagentDone": "Finished",
