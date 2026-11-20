@@ -877,6 +877,24 @@ async fn local_rwkv_sse(
             let _ = tx.send(Ok(Bytes::from(chunk)));
             let chunk = sse_finish(&model_name, "tool_calls");
             let _ = tx.send(Ok(Bytes::from(chunk)));
+        } else if has_tools && looks_like_tool_call_text(&text) {
+            // 模型确实想调工具，但 JSON 残缺到认不出工具名。绝不能把它当最终
+            // 回答交给引擎——编排者会把一串 JSON 残片当成工人交付（实测的
+            // "工人返回空壳"就是这么来的）。按传输错误收尾，交给引擎重试/降级。
+            log::warn!(
+                "[ai-gateway] unparsable local tool call: {}",
+                text.chars().take(160).collect::<String>()
+            );
+            let chunk = format!(
+                "data: {}\n\n",
+                json!({"error": {
+                    "message": "local model emitted an unparsable tool call",
+                    "code": "AI00X_TOOL_PARSE",
+                }})
+            );
+            let _ = tx.send(Ok(Bytes::from(chunk)));
+            let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n")));
+            return;
         } else {
             // 带工具但没解析出调用：整段作为文本补发（缓冲模式下还没发过）
             if has_tools && !text.is_empty() {
@@ -1408,7 +1426,10 @@ async fn forward_to_ai00_salvo(
                 if !r.status().is_success() {
                     let status = r.status();
                     let text = r.text().await.unwrap_or_default();
-                    last_error = format!("upstream {status}: {}", text.chars().take(400).collect::<String>());
+                    last_error = format!(
+                        "upstream {status}: {}",
+                        text.chars().take(400).collect::<String>()
+                    );
                     if attempt == 0
                         && (status.is_server_error()
                             || status == reqwest::StatusCode::TOO_MANY_REQUESTS)
@@ -1925,14 +1946,77 @@ fn try_extract_tool_call(text: &str) -> Option<(String, String)> {
     None
 }
 
-/// 解析后的 JSON 值 → (name, arguments_json)。无 name 字段视为非工具调用。
+/// 文本是否"看起来像在调工具"：用于把**残缺到认不出工具名**的 JSON 判成
+/// 失败，而不是当成最终回答。只在带 tools 的请求里使用，避免误伤普通 JSON 作答。
+fn looks_like_tool_call_text(text: &str) -> bool {
+    let t = text.trim();
+    if t.is_empty() {
+        return false;
+    }
+    if t.contains("```json") {
+        return true;
+    }
+    if !t.starts_with('{') {
+        return false;
+    }
+    [
+        "\"arguments\"",
+        "\"args\"",
+        "\"name\"",
+        "\"tool\"",
+        "\"tool_name\"",
+    ]
+    .iter()
+    .any(|key| t.contains(key))
+}
+
+/// 解析后的 JSON 值 → (name, arguments_json)。
+///
+/// RWKV 的"工具调用"是普通文本里的 JSON，形状并不统一（实测 2026-11-20）：
+/// 标准形状 `{"name":"x","arguments":{...}}`；省略包装
+/// `{"arguments":{"name":"x","query":"…"}}`（名字埋在参数里）；以及别名
+/// `tool` / `tool_name` / `function.name`。
+/// 只要能从任意位置认出名字就还原成工具调用——否则这段 JSON 会被当成
+/// 最终回答交给引擎，编排者看到的就是"工人返回空壳"。
 fn parse_call_value(v: Value) -> Option<(String, String)> {
-    let name = v.get("name")?.as_str()?.to_string();
-    let arguments = v
+    let mut arguments = v
         .get("arguments")
-        .cloned()
-        .map(|a| a.to_string())
-        .unwrap_or_else(|| "{}".to_string());
+        .or_else(|| v.get("args"))
+        .or_else(|| v.get("parameters"))
+        .cloned();
+
+    // 名字优先取顶层；缺失时从 arguments 内部取（并把该键从参数里摘掉）。
+    let mut name = ["name", "tool", "tool_name"]
+        .iter()
+        .find_map(|key| v.get(*key).and_then(|n| n.as_str()).map(str::to_string))
+        .or_else(|| {
+            v.get("function")
+                .and_then(|f| f.get("name"))
+                .and_then(|n| n.as_str())
+                .map(str::to_string)
+        });
+
+    if name.is_none() {
+        if let Some(Value::Object(map)) = arguments.as_mut() {
+            let inner = ["name", "tool", "tool_name"]
+                .iter()
+                .find_map(|key| map.get(*key).and_then(|n| n.as_str()).map(str::to_string));
+            if let Some(inner_name) = inner {
+                for key in ["name", "tool", "tool_name"] {
+                    map.remove(key);
+                }
+                name = Some(inner_name);
+            }
+        }
+    }
+
+    let name = name?;
+    // arguments 是字符串时原样透传（模型已自行序列化），对象则序列化。
+    let arguments = match arguments {
+        Some(Value::String(raw)) => raw,
+        Some(other) => other.to_string(),
+        None => "{}".to_string(),
+    };
     Some((name, arguments))
 }
 
@@ -2126,8 +2210,10 @@ mod tests {
             }
         })];
         let prompt = openai_messages_to_rwkv_prompt(&messages, Some(&tools));
-        // 官方 G1x 模板：JSON 数组工具定义（含 description）+ ```json 续写起点
-        assert!(prompt.contains("System: Tools:"));
+        // 官方 G1x 模板：JSON 数组工具定义（含 description）+ ```json 续写起点。
+        // 工具清单拼在同一个 System 块内（G1 只允许一个 System 块），
+        // 因此是 `System: <persona>\nTools:`，不是独立的 `System: Tools:`。
+        assert!(prompt.contains("System: You are helpful\nTools:"));
         assert!(prompt.contains("\"name\": \"Read\""));
         assert!(prompt.contains("\"description\": \"Read a UTF-8 text file\""));
         assert!(prompt.contains("Return only a JSON function call."));
@@ -2191,6 +2277,37 @@ mod tests {
         let text = "{\"name\":\"Read\",\"arguments\":{}}\n```\n\nUser: 下一轮";
         let (name, _) = try_extract_tool_call(text).unwrap();
         assert_eq!(name, "Read");
+    }
+
+    #[test]
+    fn extracts_tool_call_with_nested_name() {
+        // 实测形状（2026-11-20）：名字埋在 arguments 里，没有顶层 name。
+        // 以前整段被当成最终回答 → 编排者看到"工人返回空壳"。
+        let text = r#"{"arguments":{"name":"web_search","query":"agent memory"}}"#;
+        let (name, args) = try_extract_tool_call(text).unwrap();
+        assert_eq!(name, "web_search");
+        assert!(args.contains("agent memory"));
+        assert!(!args.contains("\"name\""), "name must be stripped: {args}");
+    }
+
+    #[test]
+    fn extracts_tool_call_alias_keys() {
+        let text = r#"{"tool":"ai00_search","args":{"query":"x"}}"#;
+        let (name, args) = try_extract_tool_call(text).unwrap();
+        assert_eq!(name, "ai00_search");
+        assert!(args.contains("\"x\""));
+    }
+
+    #[test]
+    fn detects_unparsable_tool_call_text() {
+        // 想调工具（有 arguments/name 键）但认不出工具名 → 判失败而非交付
+        assert!(looks_like_tool_call_text(
+            r#"{"arguments":{"query":"test"},"name":}"#
+        ));
+        assert!(looks_like_tool_call_text("```json\n{\"arguments\":"));
+        // 普通文本 / 普通 JSON 作答不误伤
+        assert!(!looks_like_tool_call_text("好的，已完成。"));
+        assert!(!looks_like_tool_call_text(r#"{"answer":42}"#));
     }
 
     #[test]

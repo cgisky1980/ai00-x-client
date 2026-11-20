@@ -58,17 +58,22 @@
 
 ## 帮手 → preset 迁移（build_worker_rows）
 
-每个 `<DSH_HOME>/agent-workers/*.md` 生成两个 insert 行：
+每个 `<DSH_HOME>/agent-workers/*.md` 生成 **一个** insert 行（2026-11-20 起）：
 
 ```
 - id: preset-<presetId>          name: @deepseek-ai/dsh-agent-preset
     config.id = <presetId>；config.plugins =
       [persona(prefix=叶子规则+正文), agent-instructions(禁用 local 指令),
-       <工具行…>, subagent-control(send_message), compaction 组]
-- id: tool-subagent-<suffix>     name: @deepseek-ai/dsh-tool-subagent
-    config = { provider: spawn, toolName, agentPreset: <presetId>,
-               agentOptions: { provider: ai00-x, model } }
+       <工具行…>, subagent-control(send_message), compaction 组,
+       ai00-x-tools-restrict(deny 业务工具 + 引擎全局工具)]
 ```
+
+委派工具行 `tool-subagent-<suffix>` **不再作为 profile 顶层行**：顶层行会让
+每个会话（标准聊天 / 快速问答 / 工人自己）都看到 `code_worker` 等，既白付
+schema token，又让快速问答能越界派发（实测）。现在它只由
+`build_workbench_preset_row_from_standard` 写进 workbench / workbench-task
+两个 preset；工人 preset 用 `ai00-x-tools-restrict` 的 deny 列表把继承来的
+同名工具摘掉。
 
 工具子集映射（frontmatter `tools:` → 插件行）：
 

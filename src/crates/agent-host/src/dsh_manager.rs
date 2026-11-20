@@ -1110,12 +1110,11 @@ fn worker_denied_tools() -> Vec<&'static str> {
 }
 
 /// 工人作用域里 deny 掉的**引擎全局工具**（tool-web / todo / goal / jobs /
-/// schedule / present / ask-user / session-query / 通用 subagent）。
+/// schedule / present / ask-user / session-query / 委派工具）。
 ///
-/// 依据（2026-11-20 会话实证）：工人会话里出现了 `web_search` 与 `code_worker`
-/// —— 这些不是 preset 行的工具，而是从上层继承下来的全局注册；`web_search`
-/// 在本部署不可用（需 DeepSeek key），被调用一次就白烧一轮。`ctx.tools.restrict`
-/// 只过滤全局注册、不影响 preset 作用域内的行，因此这里列的是「全局名」，
+/// 依据（2026-11-20 实测）：工人会话里出现了 `web_search`（本部署不可用，需
+/// DeepSeek key，调用一次白烧一轮）；委派工具行此前挂在 profile 顶层，对**每个**
+/// 会话都可见。`ctx.tools.restrict` 只过滤全局注册，因此这里列全局名即可；
 /// 工人 frontmatter 声明的工具（fs/pwsh/skill 等）走 preset 行，不受影响。
 const WORKER_DENIED_ENGINE_TOOLS: &[&str] = &[
     // 检索：改走自托管的 ai00_search / ai00_web_extract
@@ -1814,12 +1813,11 @@ fn build_worker_rows(defs: &[WorkerDef]) -> String {
             rows.push_str(&format!("                - {tool}\n"));
         }
 
-        // 2) 委派工具：选中上面的 preset（模型由 agentOptions 固定）
-        rows.push_str(&format!(
-            "    - id: tool-subagent-{id_suffix}\n      name: '@deepseek-ai/dsh-tool-subagent'\n      config:\n        provider: spawn\n        toolName: {}\n        agentPreset: {preset_id}\n        agentOptions:\n          provider: ai00-x\n          model: {}\n",
-            yaml_quote(&def.tool_name),
-            yaml_quote(&def.model),
-        ));
+        // 2) 委派工具行**不在这里**：`tool-subagent-<x>` 若作为 profile 顶层行
+        // 会在**每个会话**（含标准聊天、快速问答、工人自己）的工具体里出现，
+        // 白付 schema token，且让快速问答/工人也能"派发"（实测快速问答会话
+        // 直接调到了 code_worker）。委派工具改由 `build_workbench_preset_row`
+        // 只在工作台 preset 里挂载；工人 preset 通过 deny 摘掉继承来的同名工具。
     }
     rows
 }
@@ -3019,9 +3017,9 @@ mod tests {
         assert!(rows.contains(
             "          - id: tool-subagent-control\n            name: '@deepseek-ai/dsh-tool-subagent-control'\n"
         ));
-        // 委派工具用 agentPreset 选中 preset，且不再带已移除的配置键
-        assert!(rows.contains("        toolName: \"research_worker\"\n"));
-        assert!(rows.contains("        agentPreset: ai00x-research-worker\n"));
+        // 委派工具行不进 profile 顶层：只在工作台 preset 里挂载（否则每个会话
+        // 都能看到 code_worker 等，白付 schema 且快速问答也能派发）。
+        assert!(!rows.contains("\n    - id: tool-subagent-"));
         assert!(!rows.contains("backgroundMode"));
         assert!(!rows.contains("toolFilter"));
         assert!(!rows.contains("persona: |-"));
@@ -3039,7 +3037,7 @@ mod tests {
         let deny_start = rows.find("deny:\n").expect("deny list must exist");
         let deny_block = &rows[deny_start..];
         let deny_block = &deny_block[..deny_block
-            .find("    - id: tool-subagent")
+            .find("\n    - id: preset-ai00x-")
             .unwrap_or(deny_block.len())];
         assert!(!deny_block.contains("ai00_search"), "{deny_block}");
         assert!(!deny_block.contains("ai00_web_extract"), "{deny_block}");
