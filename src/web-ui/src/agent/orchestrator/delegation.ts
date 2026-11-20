@@ -161,7 +161,15 @@ export function assembleDelegationPrompt(parts: {
   if (cwd) {
     tools.push(`- Working directory: ${cwd} (subagents read and write only inside it; put this path in every brief)`);
   }
-  tools.push(DELEGATE_PROTOCOL_ORCHESTRATION(taskId, localFirst, hasPlanDoc));
+  tools.push(
+    DELEGATE_PROTOCOL_ORCHESTRATION(
+      taskId,
+      localFirst,
+      hasPlanDoc,
+      // 计划正文确实嵌进来了才敢说「不必为载入而 plan_read」
+      Boolean(planMd && planMd.trim()),
+    )
+  );
   if (hasPlanDoc) {
     tools.push(
       DELEGATE_SUBAGENT_NOTIFY(localFirst),
