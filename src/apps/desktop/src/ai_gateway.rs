@@ -2066,7 +2066,8 @@ fn tool_call_from_text(text: &str, has_tools: bool) -> Option<(String, String)> 
             return Some(call);
         }
         if looks_like_tool_call_text(text) {
-            return repair_tool_call_text(text);
+            // 残缺形状（截断/多行/参数嵌套错位）在补回前缀后的文本上再修一次
+            return repair_tool_call_text(&restored);
         }
     }
     None
@@ -2169,6 +2170,10 @@ fn looks_like_tool_call_text(text: &str) -> bool {
     let t = text.trim();
     if t.is_empty() {
         return false;
+    }
+    // 预填续写的残片形如 `pwsh", "arguments": {...`——不以 `{` 开头但明显是工具调用
+    if t.contains("\"arguments\"") {
+        return true;
     }
     if t.contains("```json") {
         return true;
@@ -2536,6 +2541,15 @@ mod tests {
         assert!(args.contains("hi.txt"));
         // 不带 tools 的请求不做前缀补回
         assert!(tool_call_from_text(fragment, false).is_none());
+    }
+
+    #[test]
+    fn repairs_prefilled_fragment_text() {
+        // 预填续写的残片：不含开头 `{"name": "`，直接是 `pwsh", "arguments": …`
+        let fragment =
+            "pwsh\", \"arguments\": {\"command\": {\"description\": \"x\", \"command\": \"Get-Content notes.txt\"}}";
+        let (name, _args) = tool_call_from_text(fragment, true).expect("must repair");
+        assert_eq!(name, "pwsh");
     }
 
     #[test]
