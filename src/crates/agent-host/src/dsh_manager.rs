@@ -1105,8 +1105,47 @@ fn worker_denied_tools() -> Vec<&'static str> {
         .iter()
         .copied()
         .filter(|name| !WORKER_KEPT_TOOLS.contains(name))
+        .chain(WORKER_DENIED_ENGINE_TOOLS.iter().copied())
         .collect()
 }
+
+/// 工人作用域里 deny 掉的**引擎全局工具**（tool-web / todo / goal / jobs /
+/// schedule / present / ask-user / session-query / 通用 subagent）。
+///
+/// 依据（2026-11-20 会话实证）：工人会话里出现了 `web_search` 与 `code_worker`
+/// —— 这些不是 preset 行的工具，而是从上层继承下来的全局注册；`web_search`
+/// 在本部署不可用（需 DeepSeek key），被调用一次就白烧一轮。`ctx.tools.restrict`
+/// 只过滤全局注册、不影响 preset 作用域内的行，因此这里列的是「全局名」，
+/// 工人 frontmatter 声明的工具（fs/pwsh/skill 等）走 preset 行，不受影响。
+const WORKER_DENIED_ENGINE_TOOLS: &[&str] = &[
+    // 检索：改走自托管的 ai00_search / ai00_web_extract
+    "web_search",
+    "web_fetch",
+    // 编排者/人类专属
+    "ask_user_question",
+    "present",
+    "create_goal",
+    "get_goal",
+    "update_goal",
+    "schedule_create",
+    "schedule_edit",
+    "schedule_list",
+    "schedule_view",
+    "job_kill",
+    "job_list",
+    "job_output",
+    "session_search",
+    "session_trace",
+    "session_event_read",
+    "session_event_search",
+    "session_event_trace",
+    // 委派：叶子工人不得再派发（引擎会以 depth 错误拒绝，白烧一轮）
+    "subagent",
+    "code_worker",
+    "local_code_worker",
+    "research_worker",
+    "review_worker",
+];
 
 /// `@ai00-x/dsh-tools` 注册的全部业务工具名（与插件 `TOOL_NAMES` 同步）。
 const AI00_TOOL_NAMES: &[&str] = &[
@@ -2980,5 +3019,8 @@ mod tests {
         assert!(!deny_block.contains("ai00_search"), "{deny_block}");
         assert!(!deny_block.contains("ai00_web_extract"), "{deny_block}");
         assert!(deny_block.contains("ai00_plan_write"), "{deny_block}");
+        // 引擎全局工具：本部署不可用的 web_search 与委派工具都要摘掉
+        assert!(deny_block.contains("web_search"), "{deny_block}");
+        assert!(deny_block.contains("code_worker"), "{deny_block}");
     }
 }

@@ -1547,6 +1547,23 @@ function apply(ctx, config) {
     try {
       ctx.tools.restrict(filter);
     } catch (error) {
+      // 引擎对**未知全局工具名**直接抛错，整条限制随之失效。（典型场景：
+      // 工人 deny 列表里带引擎全局工具名，而某个名字在本引擎版本不存在。）
+      // 降级为只 deny 本插件自己的工具——它们由根挂载全局注册，一定存在；
+      // 其余名字只能交给 persona 约束。
+      const own = (filter.deny ?? []).filter((t) => TOOL_NAMES.includes(t));
+      if (filter.allow === undefined && own.length > 0) {
+        try {
+          ctx.tools.restrict({ deny: own });
+          ctx.logger.warn(
+            `${name}: restrict narrowed to own tools (${error?.message ?? error})`
+          );
+          return;
+        } catch (retryError) {
+          ctx.logger.warn(`${name}: restrict failed (${retryError?.message ?? retryError})`);
+          return;
+        }
+      }
       // 未知工具名 / 全局注册尚未就位时引擎会抛错：按「不限制」降级，不阻断会话。
       ctx.logger.warn(`${name}: restrict failed (${error?.message ?? error})`);
       return;
