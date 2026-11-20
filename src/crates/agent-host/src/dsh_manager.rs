@@ -1777,9 +1777,9 @@ fn build_worker_rows(defs: &[WorkerDef]) -> String {
             "          - id: agent-instructions\n            name: '@deepseek-ai/dsh-agent-instructions'\n            config:\n              maxBytes: 65536\n              localInstructionFileCandidates: []\n",
         );
         rows.push_str(&build_worker_tool_rows(&def.tools));
-        rows.push_str(
-            "          - id: tool-subagent-control\n            name: '@deepseek-ai/dsh-tool-subagent-control'\n",
-        );
+        // 不挂 `tool-subagent-control`：工人是叶子，send_message / interrupt_agent
+        // / list_agents 三个 schema 每轮都是固定成本，且这些工具不在网关本地
+        // 白名单里——挂上会把请求顶出本地路径。生命周期由引擎负责，不靠这三件。
         rows.push_str(WORKER_COMPACTION_GROUP);
         // 业务工具（计划/验收/壁纸/待办）属于编排者职责，工人一个都不要：
         // 这些 schema 在本地小模型上是纯上下文负担；但自托管检索必须留下。
@@ -1820,9 +1820,12 @@ const COMPACTION_HEADROOM_TOKENS: i64 = 8192;
 
 /// 子代理 preset 的压缩组（与 web-app standard preset 同构：每 agent 独立实例）。
 ///
-/// `headroomTokens` 必须显式下调：引擎默认 65536 超过本地 RWKV 的 16384 窗口，
-/// 会让这条 agent 在切模型时被判「无压力预算」并拒绝切换。
-const WORKER_COMPACTION_GROUP: &str = "          - id: compaction\n            name: cordis:group\n            group: true\n            isolate:\n              compaction: true\n            config:\n              - id: compaction-basic\n                name: '@deepseek-ai/dsh-compaction-basic'\n                config:\n                  headroomTokens: 8192\n              - id: command-compact\n                name: '@deepseek-ai/dsh-command-compact'\n";
+/// 与工作台 preset 对齐两点：
+/// - `headroomTokens` 显式下调：引擎默认 65536 超过本地 RWKV 的 16384 窗口，
+///   会让这条 agent 在切模型时被判「无压力预算」并拒绝切换；
+/// - 带 `tool-result-pruner`：单个工具结果可能是几万字符（读文件 / todo 全量 /
+///   verify diff），不截断会直接挤爆 16k 窗口。
+const WORKER_COMPACTION_GROUP: &str = "          - id: compaction\n            name: cordis:group\n            group: true\n            isolate:\n              compaction: true\n              toolResultPruner: true\n            config:\n              - id: compaction-basic\n                name: '@deepseek-ai/dsh-compaction-basic'\n                config:\n                  headroomTokens: 8192\n              - id: command-compact\n                name: '@deepseek-ai/dsh-command-compact'\n              - id: tool-result-pruner\n                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'\n                config:\n                  thresholdChars: 8192\n                  headChars: 4096\n                  tailChars: 1024\n";
 
 /// 帮手声明的工具名 → preset 内工具插件行（固定顺序，13/15 空格缩进）。
 /// preset 机制只能按插件行粗粒度挂载，故未知工具名记 warn 后忽略。
@@ -2991,9 +2994,11 @@ mod tests {
         assert!(rows.contains("              prefix: |-\n                You are a leaf worker"));
         assert!(rows.contains("                You are a research worker"));
         assert!(rows.contains("              localInstructionFileCandidates: []\n"));
-        assert!(rows.contains(
-            "          - id: tool-subagent-control\n            name: '@deepseek-ai/dsh-tool-subagent-control'\n"
-        ));
+        // 工人不挂 subagent-control（叶子工人不需要消息/中断/列子代理）
+        assert!(!rows.contains("tool-subagent-control"));
+        // 工人压缩组带工具结果截断器（对齐工作台 preset）
+        assert!(rows.contains("tool-result-pruner"));
+        assert!(rows.contains("thresholdChars: 8192"));
         // 委派工具行不进 profile 顶层：只在工作台 preset 里挂载（否则每个会话
         // 都能看到 code_worker 等，白付 schema 且快速问答也能派发）。
         assert!(!rows.contains("\n    - id: tool-subagent-"));

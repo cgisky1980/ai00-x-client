@@ -1305,6 +1305,20 @@ fn remote_fallback_ref(model: &str) -> &str {
     }
 }
 
+/// 远端折叠触发阈值（字符）：≈128k 窗口的 80%（128k token × ~3.5 字符 ≈ 448k，
+/// 取 80% 后再留余量）。低于此值保留完整工具历史，避免把文件内容压成 300 字符。
+const REMOTE_FOLD_TRIGGER_CHARS: usize = 320_000;
+
+/// 远端历史是否需要兜底折叠：默认否（准确性优先），仅压力超阈值或
+/// `AI00X_REMOTE_FOLD=1` 强制时折叠。
+fn remote_fold_needed(messages: &[Value]) -> bool {
+    if std::env::var("AI00X_REMOTE_FOLD").is_ok_and(|v| v == "1") {
+        return true;
+    }
+    let total: usize = messages.iter().map(|m| m.to_string().chars().count()).sum();
+    total > REMOTE_FOLD_TRIGGER_CHARS
+}
+
 /// 转发到指定模型引用（OpenAI 兼容 SSE 透传）：`ai00-api` → primary 槽；
 /// 其他引用（ai00s:/gguf-local:/自定义 id）按 client_factory 同一解析链直达。
 /// 本地失败降级统一走此入口——逻辑 id（rwkv-local/ai00-auto）先经
@@ -1315,19 +1329,22 @@ async fn forward_to_ai00_salvo(
     model_ref: &str,
     usage: GatewayUsage,
 ) {
-    // 历史折叠（M1.3）：已闭合工具段 → 紧凑结论行（省 token、防长会话漂移）；
-    // 进行中段原样保留——llama-server 需原始 tool 消息续接工具循环。幂等。
+    // 历史折叠（按需）：**默认不再折叠**。折叠把已闭合工具段的参数压到 80 字符、
+    // 结果压到 300 字符，远端模型（128k 窗口）读完一个文件再调一次工具，文件内容
+    // 就没了——准确性优先，历史预算交给引擎压缩（它按完整历史算）。
+    // 只在估算体量超过远端窗口 80% 时兜底折叠（防爆），
+    // `AI00X_REMOTE_FOLD=1` 可强制恢复旧行为（A/B 与回退用）。
     if let Some(obj) = body.as_object_mut() {
         if let Some(messages) = obj.get("messages").and_then(|v| v.as_array()) {
-            let folded = crate::tool_session::fold_tool_segments(messages, false);
-            if folded.len() != messages.len() {
+            if remote_fold_needed(messages) {
+                let folded = crate::tool_session::fold_tool_segments(messages, false);
                 log::info!(
-                    "[ai-gateway] folded tool segments: {} -> {} messages",
+                    "[ai-gateway] folded tool segments (pressure): {} -> {} messages",
                     messages.len(),
                     folded.len()
                 );
+                obj.insert("messages".to_string(), json!(folded));
             }
-            obj.insert("messages".to_string(), json!(folded));
         }
     }
     let resolve_key = match remote_fallback_ref(model_ref) {
@@ -2376,6 +2393,22 @@ mod tests {
         assert!(args.starts_with('{'));
         // 不带 tools 的请求不做修复（避免把普通 JSON 作答当工具调用）
         assert!(tool_call_from_text(text, false).is_none());
+    }
+
+    #[test]
+    fn remote_fold_only_under_pressure() {
+        let small = vec![
+            json!({"role": "user", "content": "hi"}),
+            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "read", "arguments": "{}"}}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "file body"}),
+        ];
+        assert!(
+            !remote_fold_needed(&small),
+            "small history must stay intact"
+        );
+        let big =
+            vec![json!({"role": "tool", "content": "x".repeat(REMOTE_FOLD_TRIGGER_CHARS + 1)})];
+        assert!(remote_fold_needed(&big), "oversized history must fold");
     }
 
     #[test]

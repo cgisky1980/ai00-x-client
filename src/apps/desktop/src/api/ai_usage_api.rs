@@ -115,8 +115,13 @@ pub struct AiUsageRecord {
     pub request_id: Option<String>,
 }
 
+/// 用量文件读-改-写串行化：整月文件重写如果并发，会互相覆盖丢记录
+/// （并行子代理同时回传用量即可复现）。锁只保护这一次文件操作，不阻塞 AI 主链路。
+static USAGE_WRITE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// 追加一条记录（失败仅告警，不阻塞 AI 调用主链路）。
 pub async fn record_usage(rec: AiUsageRecord) {
+    let _guard = USAGE_WRITE_LOCK.lock().await;
     let path = month_file(rec.at);
     let mut list: Vec<Value> = match fs::read_to_string(&path).await {
         Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
