@@ -61,6 +61,7 @@ import { WorkbenchSubagentCard } from './WorkbenchSubagentCard';
 import { WorkbenchSubagentOverview } from './WorkbenchSubagentOverview';
 import { isSubagentDispatch } from './subagentTools';
 import { parsePlanSteps } from '@/tools/todo/utils/planStructure';
+import { DELEGATE_BOOK_TITLE } from '@/agent/orchestrator/promptParts';
 import {
   getSessionUsage,
   resolveRemoteCredits,
@@ -81,6 +82,19 @@ function formatElapsed(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(seconds / 60);
   return minutes > 0 ? `${minutes}m ${seconds % 60}s` : `${seconds}s`;
+}
+
+/**
+ * 内部任务书抬头：只作引擎输入，绝不能当人话渲染。
+ *
+ * 判据引用 `DELEGATE_BOOK_TITLE`——曾经写死中文抬头，抬头改成 `TASK BRIEF` 后
+ * 匹配失效，内部任务书（[GOAL] + 运行规约）整段漏进对话区冒充用户发言。
+ * 旧会话保留中文抬头以兼容历史。
+ */
+const TASK_BRIEF_MARKERS = [DELEGATE_BOOK_TITLE, '════ 任务书 ════'];
+
+function isTaskBrief(text: string): boolean {
+  return TASK_BRIEF_MARKERS.some((marker) => text.includes(marker));
 }
 
 interface WorkbenchChatPanelProps {
@@ -219,15 +233,17 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   const bodyRef = useRef<HTMLDivElement | null>(null);
   /** 内部任务书只作引擎输入；任务主对话里展示用户真正写下的需求。 */
   const transcriptMessages = useMemo(() => {
-    if (!initialRequest) return messages;
-    let replaced = false;
-    return messages.map((message) => {
-      if (!replaced && message.role === 'user' && message.text.includes('════ 任务书 ════')) {
-        replaced = true;
-        return { ...message, text: initialRequest };
-      }
-      return message;
-    });
+    const briefIndex = messages.findIndex(
+      (message) => message.role === 'user' && isTaskBrief(message.text),
+    );
+    if (briefIndex < 0) return messages;
+    // 没有可替换的真实需求时，内部任务书（含 [GOAL]/运行规约）不能进对话区
+    if (!initialRequest) {
+      return messages.filter((_, index) => index !== briefIndex);
+    }
+    return messages.map((message, index) =>
+      index === briefIndex ? { ...message, text: initialRequest } : message,
+    );
   }, [initialRequest, messages]);
   /** 展示用消息：逐条落盘的助手消息按回合合并成一个气泡（Trae 形态）。 */
   const displayMessages = useMemo(
