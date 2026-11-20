@@ -1412,15 +1412,26 @@ async fn forward_to_ai00_salvo(
         match request.send().await {
             Ok(r) => {
                 if r.status() == reqwest::StatusCode::UNAUTHORIZED && attempt == 0 {
-                    // token 过期：刷新后重建 client 重试
-                    if crate::auth::refresh_auth_token_impl().await.is_ok() {
-                        if let Ok(f) = AIClientFactory::get_global() {
-                            if let Ok(c) = f.get_client_resolved(resolve_key).await {
-                                client = c;
-                                continue;
-                            }
+                    // token 过期：先刷新，再重建 client 重试。
+                    // 刷新失败也要重试一次——vault 里可能已有别的会话刚写入的
+                    // 新 token（ensure_auth_synced 会把它同步进内存）。实测
+                    // 2026-11-20：并发会话下刷新偶发失败，整轮直接 502
+                    // `member authentication required`，而下一秒的直接请求正常。
+                    let refreshed = crate::auth::refresh_auth_token_impl().await;
+                    if refreshed.is_err() {
+                        let _ = crate::auth::ensure_auth_synced().await;
+                    }
+                    if let Ok(f) = AIClientFactory::get_global() {
+                        if let Ok(c) = f.get_client_resolved(resolve_key).await {
+                            client = c;
+                            log::info!(
+                                "[ai-gateway] 401 recovered (refresh={:?}), retrying once",
+                                refreshed.is_ok()
+                            );
+                            continue;
                         }
                     }
+                    log::warn!("[ai-gateway] 401 but client rebuild failed, giving up");
                 }
                 if !r.status().is_success() {
                     let status = r.status();
