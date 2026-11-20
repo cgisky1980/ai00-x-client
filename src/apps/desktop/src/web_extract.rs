@@ -751,8 +751,11 @@ fn extract_prose_summary(text: &str) -> String {
             return body;
         }
     }
-    // ③ 肯定句「是」「是的」→ 取其余部分
-    if let Some(rest) = text.strip_prefix("是") {
+    // ③ 肯定句「是的」「是」→ 取其余部分（先试「是的」，否则「的，…」会残留）
+    if let Some(rest) = text
+        .strip_prefix("是的")
+        .or_else(|| text.strip_prefix("是"))
+    {
         let body = trim_summary(rest);
         if body.chars().count() >= 6 {
             return body;
