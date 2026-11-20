@@ -10,8 +10,8 @@
  * - 对话：在本场景内直接进入该项目的任务会话（不跳到「任务」工作台）。
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronRight, FileText, FolderOpen, FolderPlus, Loader2, PanelRight, Trash2 } from 'lucide-react';
-import { Drawer, DrawerPanel, Switch } from '@/component-library';
+import { ArrowLeft, ChevronRight, FileText, FolderOpen, FolderPlus, Loader2, Trash2 } from 'lucide-react';
+import { Switch } from '@/component-library';
 import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
@@ -22,7 +22,6 @@ import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { createTask, ensureTaskSession, taskTitleFromRequest } from '../tasks/taskSession';
 import { useWorkbenchTaskStore } from '../tasks/workbenchTaskStore';
 import { TaskActionsMenu } from '../tasks/TaskActionsMenu';
-import TaskDetail from '../tasks/TaskDetail';
 import { useTaskPlans } from '../tasks/useTaskPlans';
 import { TrunkBranchDialog, type TrunkBranchRequest } from '../tasks/TrunkBranchDialog';
 import { taskPhase } from '../tasks/taskPhase';
@@ -37,7 +36,6 @@ import { activeFilePath, useWorkbenchTabs } from '../workbench/useWorkbenchTabs'
 import { useResizablePane } from '@/hooks/useResizablePane';
 import { WorkbenchReviewPanel } from '../workbench/WorkbenchReviewPanel';
 import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
-import { taskProgress } from '../workbench/taskProgress';
 import { ProjectGitBadge } from './ProjectGitBadge';
 import {
   TrunkBranchError,
@@ -72,9 +70,8 @@ export const ProjectsScene: React.FC = () => {
   const runtime = useWorkbenchTaskStore((s) => s.runtime);
   // 引擎会话运行态校准（最近任务的「执行中/已停止」以真实运行态为准）
   useSessionRunningSync();
-  /** 计划书（抽屉里展示步骤与验收，进度也从这里算）。 */
+  /** 计划书（中央计划页展示步骤与验收）。 */
   const { plans, setPlan } = useTaskPlans(allTasks);
-  const [detailOpen, setDetailOpen] = useState(false);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   /** 侧栏展开的项目（每个项目下面直接列它的任务）。 */
@@ -128,12 +125,6 @@ export const ProjectsScene: React.FC = () => {
   );
 
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-
-  /** 当前对话任务的进度（计划步骤完成度），头部徽标与详情抽屉共用。 */
-  const progress = useMemo(
-    () => taskProgress(conversation ? (plans[conversation.task.id] ?? null) : null),
-    [conversation, plans],
-  );
 
   // ---- 中间标签区：首页=计划页，其余=文件预览 / 子代理子会话；按任务记忆 ----
   const tabs = useWorkbenchTabs(conversation?.task.id ?? 'projects-new');
@@ -527,31 +518,7 @@ export const ProjectsScene: React.FC = () => {
                             )}`,
                           )}
                         </span>
-                        {progress.stepsTotal > 0 && (
-                          <button
-                            type="button"
-                            className="ai00-x-progress-chip"
-                            onClick={() => setDetailOpen(true)}
-                            title={t('nav.workbenchWindow.progress.title')}
-                          >
-                            {t('nav.workbenchWindow.progress.chip', {
-                              done: progress.stepsDone,
-                              total: progress.stepsTotal,
-                            })}
-                          </button>
-                        )}
                       </>
-                    }
-                    actions={
-                      <button
-                        type="button"
-                        className="ai00-x-projects-scene__icon-button"
-                        onClick={() => setDetailOpen(true)}
-                        title={t('nav.workbenchWindow.tasks.detail')}
-                        aria-label={t('nav.workbenchWindow.tasks.detail')}
-                      >
-                        <PanelRight size={14} />
-                      </button>
                     }
                   />
                 )}
@@ -585,7 +552,6 @@ export const ProjectsScene: React.FC = () => {
                   taskPhase(conversation.task, null, runtime[conversation.sessionId]) ===
                   'awaiting'
                 }
-                onViewPlan={() => setDetailOpen(true)}
                 planFinished={Boolean(conversation.task.completedAt)}
                 planApproved={Boolean(conversation.task.planApprovedAt)}
                 agentSelfChecked={Boolean(conversation.task.agentCompletedAt)}
@@ -724,27 +690,6 @@ export const ProjectsScene: React.FC = () => {
       </main>
 
       <TrunkBranchDialog request={trunkRequest} onDecision={handleTrunkDecision} />
-
-      <Drawer open={detailOpen} onOpenChange={setDetailOpen}>
-        {conversation && (
-          <DrawerPanel
-            title={conversation.task.title}
-            description={t(
-              `nav.workbenchWindow.tasks.status.${taskPhase(
-                conversation.task,
-                null,
-                runtime[conversation.sessionId],
-              )}`,
-            )}
-          >
-            <TaskDetail
-              task={conversation.task}
-              planMd={plans[conversation.task.id] ?? null}
-              onPlanChange={setPlan}
-            />
-          </DrawerPanel>
-        )}
-      </Drawer>
     </div>
   );
 };

@@ -62,27 +62,33 @@ export const DELEGATE_BOUNDARY_IDEA_POOL = (taskId: string): string =>
 export const DELEGATE_COMPLETION_THREE_STEP = (taskId: string, cwd: string | null): string =>
   `When every subagent has finished and each acceptance item is confirmed (human criteria ticked "- [x]" in the plan), finish with the three-step wrap-up: ① Materialize the deliverables — every artifact promised by "## Deliverables" must exist as a real file under the working directory (have subagents fill any gaps); even pure research/consulting tasks must leave a summary file (e.g. report.md). ② Call ai00_task_complete to submit the self-check (taskId: "${taskId}"${cwd ? `, snapshotDir: "${cwd}" — it git-snapshots the working directory automatically, do not commit manually` : ''}) and pass deliverables (absolute paths of the artifacts, required); the tool rejects the call while acceptance items are unticked. ③ After submitting, report in the session: conclusion summary (≤200 chars) + deliverables list (file name + one line) + awaiting-review notice. The task then enters human acceptance: completion is granted only when the user clicks approve in this workbench's task panel (no separate window), but the report and deliverables list must still be given proactively.`;
 
-/** Unified loop contract (workbench AGENTS.local.md addendum; prompts stay English). */
+/** 快速问答任务书（工作台「快速问答」模式：不写计划、不派子代理、不落文件）。 */
+export const QUICK_TASK_RULES = [
+  '## Quick answer mode (Ai00-X workbench)',
+  'This task is a quick question. Answer it directly in this chat.',
+  '- Do NOT write a plan, do NOT call ai00_plan_write, do NOT spawn subagents, do NOT create files, do NOT ask for approval.',
+  '- Use ai00_search / ai00_web_extract only when the answer needs fresh facts; keep it to at most 3 tool calls and read as few pages as possible.',
+  "- Reply in the user's UI language, concise and grounded; when web results were used, cite the source URLs inline.",
+  '- If the question actually needs files or multi-step delivery, say so in one sentence and suggest switching the task to 完整交付 (delivery mode) — never start the heavy flow on your own.',
+].join('\n');
+
+/**
+ * 统一 loop 契约（工作台 AGENTS.local.md 追加段；提示词保持英文）。
+ *
+ * 2026-11-20 压缩：每轮都会进上下文，长文案直接变成每轮固定成本。
+ * 与宿主 `apps/desktop/src/api/workbench_api.rs::loop_rules_section` 同一份口径，
+ * 改一处必须同步另一处。
+ */
 export const WORKBENCH_LOOP_RULES = (taskId: string): string =>
   [
-    '## Delivery workflow (Ai00-X orchestration loop — additive to existing plugin instructions)',
-    `Before any step, write the plan with ai00_plan_write (taskId: "${taskId}") using exactly five sections: "## Execution Policy", "## Goal", "## Steps", "## Acceptance", "## Deliverables".`,
-    "Write the plan body in the user's current UI language, but keep section headings and field keys exactly as shown here (English keys).",
-    'Execution Policy has exactly two lines: `- Execution: local-first` and `- Review: adaptive` (switch to strict when the user asks for per-step cloud review).',
-    'Each entry under "## Steps" must be independently dispatchable:',
-    '- [ ] T1 one-line title',
-    '  - Depends on: none OR T0, T1',
-    '  - Risk: low / medium / high',
-    '  - Scope: comma separated file paths',
-    '  - Implementation: concrete instructions the local model can execute without follow-ups (what to change, how, what NOT to do)',
-    '  - Acceptance: objectively checkable criteria {cmd: whitelisted command}',
-    'Do not list planning/self-check as steps. Any requirement or scope change updates the plan first and requires human re-approval.',
-    '1. Plan approval (hard gate): stop after writing the plan — summarize key points and acceptance criteria only, and tell the user the plan is ready right here in this chat (the approve button renders inline under the plan card; there is no separate plan window). Wait for the user to click it; if the plan is returned, revise it and stop again.',
-    '2. Execution: dispatch to local_code_worker by default, with goal, implementation, scope, dependency results, acceptance commands, working directory and a compact return format. **Write every subagent brief in English** — the plan body may stay in the user\'s language, but briefs, constraints and expected return formats must be English so workers receive a consistent instruction format. Run in parallel only when dependency is none AND scopes do not overlap. Never call file/terminal/network tools yourself.',
-    '3. Evidence gate: after every local worker run call ai00_task_verify (taskId + snapshotDir + stepId) to actually run the step acceptance and capture evidence; never trust the worker self-report. Pass includeDiff: true for strict, high risk and cloud fallback.',
-    '3.1 Search rule: use ai00_search (Ai00-X self-hosted search, no key) for web search; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries. Put this rule into every research brief.',
-    '4. Tiered review: in adaptive mode, low/medium risk with verdict=passed may be checked off immediately without a separate full-diff cloud review. For strict, risk=high, or verdict=needs-review, dispatch review_worker with the evidence package (plus diff when needed) and require "verdict / problems (files and symbols) / minimal rework instructions".',
-    '5. Rework and fallback: on verdict=failed or a review rejection, let local_code_worker rework once with the review notes. If it fails again, switch to code_worker (cloud fallback); never loop locally. Fallback results must pass the evidence gate and review too.',
-    '6. Integration review: when all steps pass, call ai00_task_verify without stepId to re-run the global "## Acceptance", checking cross-task interfaces, missing criteria and scope creep. Reopen affected steps on failure.',
-    '7. Self-check and human acceptance: verify deliverables exist on disk, call ai00_task_complete with the absolute deliverables list, then report a short summary + deliverables + awaiting-review notice. Completion is only granted when the human clicks the accept button in this workbench\'s task panel; never claim the task is done by yourself.',
+    '## Delivery workflow (Ai00-X loop)',
+    '',
+    `Before any step write the plan with ai00_plan_write (taskId: "${taskId}"), using exactly these sections: "## Execution Policy" (\`- Execution: local-first\`, \`- Review: adaptive\`), "## Goal", "## Steps", "## Acceptance", "## Deliverables". Plan body in the user's language; headings and keys stay English. Each step: \`- [ ] T1 title\` with \`Depends on\`, \`Risk\` (low/medium/high), \`Scope\` (paths), \`Implementation\`, \`Acceptance\` ({cmd: ...}). Planning and self-check are never steps.`,
+    '1. Approval gate: stop after writing the plan; continue only after the user confirms.',
+    '2. Dispatch: local_code_worker by default — brief in English, self-contained (goal, scope, files, acceptance commands, working directory, return format). Never call file/terminal/network tools yourself. Parallel only when dependency is none and scopes do not overlap.',
+    '3. Evidence gate: call ai00_task_verify after every worker run; never trust self-reports (includeDiff for strict/high risk/fallback).',
+    '4. Review: adaptive — low/medium risk with verdict=passed may be checked off; strict, high risk or needs-review go through review_worker.',
+    '5. Fix budget: one local rework, then one code_worker fallback; after two failed remediation dispatches stop and report the blocker. Max 3 subagents per task. Briefs are closed-scope — never ask a worker to "verify the overall state" or "review and improve".',
+    '6. Search: ai00_search for web search; ai00_web_extract (url = page body, query = per-page summaries).',
+    '7. Wrap-up: call ai00_task_verify without stepId to re-run the global "## Acceptance", confirm deliverables exist, then ai00_task_complete with absolute paths (rejects while acceptance items are unticked) and report summary + deliverables. Completion is granted by the human.',
   ].join('\n');

@@ -1,4 +1,6 @@
 import { fetchWithAuth } from '@/infrastructure/auth/fetchWithAuth';
+import { configManager } from '@/infrastructure/config/services/ConfigManager';
+import { globalEventBus } from '@/infrastructure/event-bus';
 
 export type Ai00sTier = 'free' | 'vip' | 'svip';
 
@@ -257,6 +259,7 @@ function revalidateAi00ApiModels(): void {
         cachedAi00sModels = models;
         ai00ApiFetchedAt = Date.now();
         persistAi00ApiModels(models);
+        maybeHealStaleRefs(models);
       }
     })
     .catch(() => {})
@@ -379,6 +382,7 @@ export async function fetchAi00sModels(): Promise<Ai00sModelInfo[]> {
     if (!ai00ApiRevalidating && Date.now() - ai00ApiFetchedAt > AI00_API_MODELS_TTL_MS) {
       revalidateAi00ApiModels();
     }
+    maybeHealStaleRefs(cachedAi00sModels);
     return cachedAi00sModels;
   }
   const result = await fetchAi00sModelsRemote();
@@ -387,8 +391,84 @@ export async function fetchAi00sModels(): Promise<Ai00sModelInfo[]> {
     cachedAi00sModels = result;
     ai00ApiFetchedAt = Date.now();
     persistAi00ApiModels(result);
+    maybeHealStaleRefs(result);
   }
   return result;
+}
+
+/** 已修复过的目录指纹（同一目录只修一次，避免每次读取都写配置）。 */
+let healedCatalogSignature = '';
+
+function maybeHealStaleRefs(models: Ai00sModelInfo[]): void {
+  const signature = models.map(m => m.id).sort().join(',');
+  if (!signature || signature === healedCatalogSignature) return;
+  healedCatalogSignature = signature;
+  void healStaleAi00sRefs(models);
+}
+
+/**
+ * 修复指向已下架子模型的存量引用（典型：上游换模型后配置里还钉着
+ * `ai00s:GLM-4.7-Flash`，请求必然 404 model_not_found）。
+ *
+ * 规则：`ai00s:<sub>` 不在当前目录里 → 换成服务器默认子模型；没有默认则换成
+ * 网关主模型槽 `ai00-api`。只动复合引用，其余引用不碰。
+ */
+export async function healStaleAi00sRefs(models: Ai00sModelInfo[]): Promise<void> {
+  if (models.length === 0) return;
+  const ids = new Set(models.map(m => m.id));
+  const fallback = (models.find(m => m.isDefault && !m.locked) ?? models.find(m => !m.locked))?.id;
+  const fallbackRef = fallback ? `ai00s:${fallback}` : 'ai00-api';
+
+  const healRef = <T extends string | null | undefined>(ref: T): T => {
+    if (!ref || !ref.startsWith('ai00s:')) return ref;
+    const sub = ref.slice('ai00s:'.length);
+    return (ids.has(sub) ? ref : fallbackRef) as T;
+  };
+
+  let changed = false;
+
+  try {
+    const defaults = await configManager.getConfig<Record<string, string | null>>('ai.default_models');
+    if (defaults) {
+      const next = { ...defaults };
+      for (const key of Object.keys(next)) {
+        const healed = healRef(next[key]);
+        if (healed !== next[key]) {
+          next[key] = healed ?? null;
+          changed = true;
+        }
+      }
+      if (changed) await configManager.setConfig('ai.default_models', next);
+    }
+  } catch {
+    // 配置不可用：不影响运行
+  }
+
+  for (const path of ['ai.agent_models', 'ai.func_agent_models'] as const) {
+    try {
+      const map = await configManager.getConfig<Record<string, string> | null>(path);
+      if (!map) continue;
+      let mapChanged = false;
+      const next = { ...map };
+      for (const key of Object.keys(next)) {
+        const healed = healRef(next[key]);
+        if (healed !== next[key]) {
+          next[key] = healed;
+          mapChanged = true;
+        }
+      }
+      if (mapChanged) {
+        await configManager.setConfig(path, next);
+        changed = true;
+      }
+    } catch {
+      // 单项失败不影响其它引用修复
+    }
+  }
+
+  if (changed) {
+    globalEventBus.emit('mode:config:updated');
+  }
 }
 
 // ===== Phase 5.1: 模型分组 + 剩余额度 + 套餐判断 =====

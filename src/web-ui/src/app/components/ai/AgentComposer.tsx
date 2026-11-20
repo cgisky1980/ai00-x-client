@@ -43,6 +43,8 @@ export interface AgentComposerProps {
   loading?: boolean;
   /** Agent 当前回合运行中：发送与停止并存、运行中可排队/插话。 */
   running?: boolean;
+  /** 运行中是否允许插话；缺省跟随 running（子代理单独运行时传 false）。 */
+  steering?: boolean;
   /** 正在停止当前回合（停止按钮防重入）。 */
   stopping?: boolean;
   /** 是否显示 Enter/插话快捷键提示（默认显示）。 */
@@ -154,6 +156,7 @@ export const AgentComposer: React.FC<AgentComposerProps> = ({
   onStop,
   loading,
   running,
+  steering,
   stopping,
   showShortcutHint,
   placeholder,
@@ -510,6 +513,34 @@ export const AgentComposer: React.FC<AgentComposerProps> = ({
     reloadModels();
   }, [pendingModelRef, reloadModels, sessionId]);
 
+  // 存量会话可能钉着已下架的模型（上游换模型后如 `ai00s:GLM-4.7-Flash`）：
+  // 引擎目录里已经没有它，继续发请求必得 404 model_not_found。这里自动切到
+  // 目录里可用的模型（优先具体 Ai00-API 子模型），避免用户手动逐个会话修。
+  useEffect(() => {
+    if (!sessionId || !currentRef || !engineModelRefs || engineModelRefs.length === 0) return;
+    if (engineModelRefs.includes(currentRef)) return;
+    const fallback = engineModelRefs.find(ref => ref.startsWith('ai00s:')) ?? engineModelRefs[0];
+    if (!fallback || fallback === currentRef) return;
+    const meta = modelMetaRef.current[fallback];
+    const provider = meta?.provider ?? 'ai00-x';
+    dshSession
+      .selectModel(sessionId, provider, fallback)
+      .then(() => {
+        setCurrentRef(fallback);
+        setCurrentLabel(null);
+        setCurrentProvider(provider);
+        setEfforts(meta?.efforts ?? []);
+        setEffort(meta?.defaultEffort ?? null);
+        confirmedRef.current = {
+          ref: fallback,
+          label: meta?.name ?? null,
+          provider,
+          effort: meta?.defaultEffort ?? null,
+        };
+      })
+      .catch(() => undefined);
+  }, [sessionId, currentRef, engineModelRefs]);
+
   const handleSelectModel = (ref: string): void => {
     // 无会话（新建任务空态）：先暂存，建会话后由宿主落到该会话
     if (!sessionId) {
@@ -770,6 +801,7 @@ export const AgentComposer: React.FC<AgentComposerProps> = ({
       onStop={onStop}
       loading={loading}
       running={running}
+      steering={steering}
       stopping={stopping}
       showShortcutHint={showShortcutHint}
       placeholder={placeholder}

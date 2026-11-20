@@ -14,7 +14,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { dshEngine, dshSession } from '@/infrastructure/api/service-api/DshAPI';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
-import { WORKBENCH_LOOP_RULES } from '@/agent/orchestrator';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import type { WorkbenchEntry } from './workbenchRegistry';
 
@@ -125,10 +124,13 @@ export interface EnsuredWorkbenchSession {
  * 网关入口上——引擎默认（deepseek-official）未配 key 时每回合 MISSING_CREDENTIAL。
  * 任务场景（内置「任务」）与会话绑定共用这一个创建口，避免两处各写一份。
  */
-export async function createWorkbenchPresetSession(cwd: string): Promise<string> {
+export async function createWorkbenchPresetSession(
+  cwd: string,
+  agentPreset = 'workbench',
+): Promise<string> {
   // workbench preset：指令根发现止于工程自身（AGENTS.local.md 作 rootMarker），
   // 不向上递归收集宿主仓库的 AGENTS.md
-  const { sessionId } = await dshSession.create({ cwd, agentPreset: 'workbench' });
+  const { sessionId } = await dshSession.create({ cwd, agentPreset });
   try {
     const defaults = await configManager.getConfig<{ primary?: string }>('ai.default_models');
     await dshSession.selectModel(sessionId, 'ai00-x', toEngineModelRef(defaults?.primary));
@@ -201,11 +203,12 @@ async function doEnsureWorkbenchSession(
   noteBoundSession(entry.id, projectId, { sessionId, cwd: root });
   useTodoStore.getState().updateTask(task.id, { agentSessionId: sessionId });
 
-  // 首条任务简报：把任务卡与 loop 约束交到 agent 手里；用户还没提需求时
-  // 只要求它待命，不许自行开工（避免空需求就改文件）。
+  // 首条任务简报：把任务卡交到 agent 手里；用户还没提需求时只要求它待命，
+  // 不许自行开工（避免空需求就改文件）。loop 规约由宿主写进同目录的
+  // `AGENTS.local.md`（每轮注入），这里只指路，不再重复一份。
   const brief = [
     `本会话已被 Ai00-X 工作台「${entry.title}」登记为任务卡 ${task.id}（工程：${projectTitle ?? projectId}）。`,
-    WORKBENCH_LOOP_RULES(task.id),
+    'Loop contract: see ./AGENTS.local.md (delivery workflow, approval gate, evidence gate).',
     '用户还没有提出具体需求时，只回复一句「已就绪，请描述要做什么」，不要创建或修改任何文件。',
   ].join('\n\n');
   await dshSession.prompt(sessionId, brief).catch(() => undefined);

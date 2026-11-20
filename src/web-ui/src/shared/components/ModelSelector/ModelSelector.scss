@@ -348,8 +348,9 @@
   // v0.13：定位与浮层视觉由 DS Popover（.ds-popover，Radix 浮层引擎）接管；
   // 此处仅保留尺寸与内边距约束（header 全出血设计需要 padding: 0）
   &__dropdown {
+    width: 280px;
     min-width: 220px;
-    max-width: 280px;
+    max-width: calc(100vw - var(--size-gap-8));
     padding: 0;
     overflow: hidden;
     // z-index：chrome-popup 档（50030）——控件常驻 chrome 浮层（策面板 z≈50020、
@@ -415,6 +416,7 @@
   &__list {
     max-height: 240px;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: var(--size-gap-1) 0;
     
     // Scrollbar styling
@@ -558,6 +560,17 @@
     .ai00-x-model-selector__option--selected & {
       color: var(--color-accent-500);
     }
+
+    // 组合摘要（规划/执行/评审…）：长文本截断，不参与撑宽弹窗
+    &--summary {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: left;
+    }
   }
 
   &__option-thinking {
@@ -568,6 +581,75 @@
   &__option-check {
     color:color-mix(in srgb, var(--color-accent-500) 80%, transparent);
     flex-shrink: 0;
+  }
+
+  // 组合行的编辑 / 删除 / 另存为：悬停或聚焦时才出现
+  &__option-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-1);
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--easing-standard);
+  }
+
+  &__option:hover &__option-actions,
+  &__option:focus-within &__option-actions {
+    opacity: 1;
+  }
+
+  &__option-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--size-gap-5);
+    height: var(--size-gap-5);
+    padding: 0;
+    border: none;
+    border-radius: var(--size-radius-sm);
+    background-color: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background-color var(--motion-instant) var(--easing-standard),
+      color var(--motion-instant) var(--easing-standard);
+
+    &:hover {
+      background-color: var(--element-bg-base);
+      color: var(--color-text-primary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent);
+      outline-offset: -2px;
+    }
+
+    &--danger:hover {
+      color: var(--color-error);
+    }
+  }
+
+  &__option--manage {
+    color: var(--color-text-secondary);
+  }
+
+  // 「单一模型」入口行：右侧箭头提示可展开二级菜单
+  &__option--submenu {
+    cursor: pointer;
+  }
+
+  &__option-chevron {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+
+  // 二级菜单顶部的组合状态提示
+  &__submenu-hint {
+    padding: var(--size-gap-2) var(--size-gap-3);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    background-color: var(--element-bg-subtle);
+    font-size: var(--font-size-xxs);
+    color: var(--color-text-muted);
+    line-height: 1.4;
   }
 
   &__section-title {
@@ -643,4 +725,91 @@
 @keyframes ai00-x-ctx-critical-pulse {
   0%, 100% { opacity: 0.8; }
   50%       { opacity: 1; }
+}
+
+// ==================== 「单一模型」二级菜单 ====================
+// PopoverContent 由 Radix Portal 挂到 body，样式类仍是独立 BEM 类，可直接复用。
+.ai00-x-model-selector__submenu {
+  z-index: var(--z-chrome-popup, 50030);
+  width: 280px;
+  max-width: calc(100vw - var(--size-gap-8));
+  max-height: 70vh;
+  padding: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-text-primary) 16%, transparent);
+    border-radius: 2px;
+  }
+}
+
+// ==================== 悬停二级弹层：模型详情 ====================
+// PopoverContent 由 Radix Portal 挂到 body，脱离 .ai00-x-model-selector 作用域，
+// 因此这里用顶层 BEM 类（与触发器的嵌套写法并存）。
+.ai00-x-model-selector__detail-popover {
+  z-index: var(--z-chrome-popup, 50030);
+  width: 240px;
+  max-width: calc(100vw - var(--size-gap-8));
+  padding: var(--size-gap-3);
+}
+
+.ai00-x-model-selector__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-1);
+}
+
+.ai00-x-model-selector__detail-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  line-height: 1.35;
+  word-break: break-all;
+}
+
+.ai00-x-model-selector__detail-meta {
+  font-size: var(--font-size-xxs);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.ai00-x-model-selector__detail-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-0-5);
+  margin-top: var(--size-gap-1);
+  padding-top: var(--size-gap-2);
+  border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
+}
+
+.ai00-x-model-selector__detail-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--size-gap-2);
+}
+
+.ai00-x-model-selector__detail-label {
+  flex-shrink: 0;
+  font-size: var(--font-size-xxs);
+  color: var(--color-text-muted);
+}
+
+.ai00-x-model-selector__detail-value {
+  min-width: 0;
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-xxs);
+  color: var(--color-text-secondary);
+  text-align: right;
+  word-break: break-all;
 }

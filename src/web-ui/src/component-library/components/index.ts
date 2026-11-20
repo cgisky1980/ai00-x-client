@@ -27,6 +27,7 @@ const LABEL_KEYS = [
   'select.customValueHint', 'select.selectAll', 'select.useCustomValue',
   'toast.close', 'empty.title',
   'drawer.close', 'pagination.label', 'pagination.previous', 'pagination.next',
+  'ai.queueOnlyHint',
 ] as const;
 
 setComponentLabels(

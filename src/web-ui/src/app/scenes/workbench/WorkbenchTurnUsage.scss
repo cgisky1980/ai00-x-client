@@ -1,12 +1,21 @@
-// 本轮消耗：本地 / 云端分项，一行弱化展示。
+// 本轮消耗：辅行两端对齐——左侧弱化指标（可换行），右侧云端积分为唯一强调读数。
 .ai00-x-turn-usage {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: var(--spacing-2);
-  padding: var(--spacing-1) var(--spacing-2);
+  column-gap: var(--spacing-3);
   color: var(--color-text-muted);
   font-size: var(--font-size-2xs);
+}
+
+.ai00-x-turn-usage__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1) var(--spacing-2);
+  min-width: 0;
 }
 
 .ai00-x-turn-usage__label {
@@ -39,15 +48,16 @@
   font-variant-numeric: tabular-nums;
 }
 
-.ai00-x-turn-usage__link {
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-accent);
-  font-size: inherit;
-  cursor: pointer;
+// 云端积分：这一行里唯一需要被一眼看到的信息
+.ai00-x-turn-usage__item.is-credits {
+  margin-left: auto;
+  padding: 0 var(--spacing-1);
+  border-radius: var(--radius-sm);
+  background-color: var(--element-bg-subtle);
 
-  &:hover {
-    text-decoration: underline;
+  .ai00-x-turn-usage__num {
+    color: var(--color-accent);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
   }
 }

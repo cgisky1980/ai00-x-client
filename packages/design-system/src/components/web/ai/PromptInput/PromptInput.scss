@@ -46,6 +46,12 @@
     opacity: var(--opacity-disabled);
   }
 
+  // 执行态（含子代理在跑）：静态交互色描边表达运行中。
+  // 不做呼吸动画——呼吸只留给停止按钮；与 :focus-within 同色，切换不抖动。
+  &.is-running &__card {
+    border-color: var(--color-accent-400);
+  }
+
   // ---- 文本区 ----
   &__textarea {
     display: block;
@@ -216,6 +222,12 @@
   @container (width < 560px) {
     &__tools {
       gap: var(--size-gap-2);
+    }
+
+    // 窄容器：controls 让位收缩，保证 trailing（停止 / 发送）不被挤出
+    &__controls {
+      flex: 1 1 auto;
+      min-width: 0;
     }
   }
 

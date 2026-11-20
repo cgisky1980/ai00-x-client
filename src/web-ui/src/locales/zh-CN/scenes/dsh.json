@@ -8,7 +8,8 @@
     "empty": "暂无会话",
     "rename": "重命名会话",
     "fork": "派生会话（复制历史到新会话）",
-    "usage": "本会话累计用量（↑输入 ↓输出 · 请求数 · 缓存命中率）",
+    "usage": "本会话累计用量（↑输入 ↓输出 · 请求数 · 缓存命中率 · 积分）",
+    "creditsUnit": "积分",
     "cacheHit": "缓存"
   },
   "tool": {
@@ -31,6 +32,7 @@
     "empty": "输入消息开始对话",
     "inputPlaceholder": "向 Ai00-X 提问，使用 @ 添加上下文，使用 / 选择命令或能力",
     "usageTitle": "本回合消耗：输入 {{input}} tokens · 输出 {{output}} tokens",
+    "creditsTitle": "本回合消耗 {{credits}} 点积分",
     "send": "发送",
     "stop": "停止",
     "thinking": "思考中…",

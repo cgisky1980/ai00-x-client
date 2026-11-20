@@ -360,6 +360,15 @@
     flex-direction: column;
   }
 
+  /** 子代理汇总条的内容列：与消息流同一居中列（条本身是轻量线，不铺满宽） */
+  &__subagents-head {
+    flex: none;
+    padding: 0 var(--spacing-4);
+    max-width: var(--size-content-chat);
+    width: 100%;
+    margin: 0 auto;
+  }
+
   &__jump {
     position: absolute;
     right: var(--spacing-4);
@@ -522,31 +531,15 @@
   border-left: none;
   background-color: var(--color-bg-base);
 
-  // 内容列：宽窗口封顶 880px 居中，窄窗口自动退化为「左右 16px 的满宽」。
-  // 之前用 72ch 做上限，CJK 字体下 ch 偏宽 → 列被压到 ~580px，
-  // 窗口一宽两侧就空出一大块；改成固定像素上限后宽窄都稳定。
-  .ai00-x-dsh-scene__messages {
-    padding: var(--spacing-6) max(var(--spacing-4), calc((100% - 880px) / 2)) var(--spacing-4);
-  }
-
+  // 内容列与消息宽度由 DshScene.scss 共享规则（--size-content-chat / 76ch / 56ch）提供，
+  // 这里只保留容器属性，避免两处规则互相覆盖。
   .ai00-x-dsh-scene__composer {
     width: 100%;
-    padding: var(--spacing-3) max(var(--spacing-4), calc((100% - 880px) / 2))
-      var(--spacing-5);
     border-top: none;
-  }
-
-  // 气泡跟着列宽走：助手贴左、用户贴右，长文不再缩成窄条
-  .ai00-x-dsh-scene__msg {
-    max-width: min(100%, 76ch);
-  }
-
-  .ai00-x-dsh-scene__msg.is-user {
-    max-width: min(100%, 56ch);
   }
 }
 
-// 窄窗口（三栏挤压）：收窄留白、气泡占满，避免内容被挤成细条
+// 窄窗口（三栏挤压）：收窄留白，避免内容被挤成细条
 @media (max-width: 640px) {
   .ai00-x-workbench-chat--conversation {
     .ai00-x-dsh-scene__messages {
@@ -557,11 +550,6 @@
     .ai00-x-dsh-scene__composer {
       padding-left: var(--spacing-3);
       padding-right: var(--spacing-3);
-    }
-
-    .ai00-x-dsh-scene__msg,
-    .ai00-x-dsh-scene__msg.is-user {
-      max-width: 100%;
     }
   }
 }
@@ -733,10 +721,11 @@
   }
 }
 
-// ---- Queue Dock（运行中待处理输入；位于 transcript 与输入框之间）----
+// ---- Queue Dock（运行中待处理输入；落在 composer 内容列最上方）----
 .ai00-x-workbench-queue {
   flex-shrink: 0;
-  margin: 0 var(--spacing-3) var(--spacing-2);
+  margin: 0 0 var(--spacing-2);
+  width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
   border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--radius-md);

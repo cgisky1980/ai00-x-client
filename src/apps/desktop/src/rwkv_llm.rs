@@ -1755,6 +1755,7 @@ pub(crate) async fn record_local_usage(
         fallback_reason: None,
         cached_prompt_tokens: None,
         usage_known: Some(true),
+        request_id: None,
     })
     .await;
 }
@@ -2306,9 +2307,9 @@ pub struct BuiltinRwkvEntry {
 /// 3B 档位当前权重文件名（换版本或换量化位宽只改这一行；目录固定为 models/rwkv/）。
 ///
 /// 命名约定：`rwkv-3B-<generation>-<tag>-int<bits>.st`
-/// （当前 g1m 预览版 int6 = `rwkv-3B-g1m-pre-int6.st`；int8 回滚件 = `...-int8.st`）。
+/// （当前默认 g1m 预览版 int8 = `rwkv-3B-g1m-pre-int8.st`；int6 小体积件 = `...-int6.st`，不默认）。
 /// 档位 key（`rwkv-3b`）保持不变，前端/路由/网关无需随版本或位宽改动。
-pub const RWKV_3B_MODEL_FILE: &str = "rwkv-3B-g1m-pre-int6.st";
+pub const RWKV_3B_MODEL_FILE: &str = "rwkv-3B-g1m-pre-int8.st";
 
 #[derive(Debug, Clone)]
 struct BuiltinRwkvModel {
@@ -2318,7 +2319,7 @@ struct BuiltinRwkvModel {
     file: &'static str,
     /// models/ 下 vocab 相对保存路径（7.2B 有独立 vocab 子目录，其余共用顶层 vocab.json）。
     vocab_rel: &'static str,
-    /// 部署量化近似字节数（3B 当前为 int6，其余档位 int8）。
+    /// 部署量化近似字节数（3B 当前为 int8，其余档位 int8）。
     size_bytes: u64,
     /// 就绪匹配区间（字节）：按当前部署量化体积紧凑匹配。
     min_bytes: u64,
@@ -2340,13 +2341,13 @@ const BUILTIN_RWKV: &[BuiltinRwkvModel] = &[
     BuiltinRwkvModel {
         key: "rwkv-3b",
         display: "RWKV 3B",
-        // g1m 3b（temp-6056，ctx65536）int6 N-major；版本名只由 RWKV_3B_MODEL_FILE 决定。
+        // g1m 3b（temp-6056，ctx65536）int8；版本名只由 RWKV_3B_MODEL_FILE 决定。
         file: RWKV_3B_MODEL_FILE,
         vocab_rel: "rwkv/vocab.json",
-        size_bytes: 2_666_658_289,
-        // 区间只覆盖 int6 体积：同目录的 int8 回滚件（3,295,783,296 B）不会被回退判成就绪。
-        min_bytes: 2_500_000_000,
-        max_bytes: 2_800_000_000,
+        size_bytes: 3_295_783_296,
+        // 区间只覆盖 int8 体积：同目录的 int6 小体积件（2,666,658,289 B）不会被判成就绪。
+        min_bytes: 3_000_000_000,
+        max_bytes: 3_500_000_000,
         required: true,
         available: true,
     },

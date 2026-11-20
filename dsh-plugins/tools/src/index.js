@@ -1460,7 +1460,49 @@ function defineTools(ctx, api) {
 // Cordis 插件入口
 // ---------------------------------------------------------------------------
 
+/** 本插件注册的全部工具名（restrict 模式与宿主对齐时用）。 */
+const TOOL_NAMES = [
+  "ai00_notify",
+  "ai00_wallpaper_create",
+  "ai00_wallpaper_projects",
+  "ai00_set_wallpaper",
+  "ai00_todo_read",
+  "ai00_todo_write",
+  "ai00_task_verify",
+  "ai00_task_complete",
+  "ai00_task_create",
+  "ai00_focus_log",
+  "ai00_plan_read",
+  "ai00_plan_write",
+  "ai00_search",
+  "ai00_web_extract",
+  "ai00_text_summarize",
+];
+
 function apply(ctx, config) {
+  // 限制模式：同一个包挂进 agent preset 时不重复注册工具，只对**该 agent 作用域**
+  // 收缩全局工具可见集（ctx.tools.restrict）。工具 schema 是每次请求的固定成本，
+  // 编排者/工人用不上的业务工具在各自 preset 里 deny 掉即可省下这部分。
+  if (config?.mode === "restrict") {
+    const filter = {};
+    if (Array.isArray(config.allow) && config.allow.length > 0) filter.allow = config.allow;
+    if (Array.isArray(config.deny) && config.deny.length > 0) filter.deny = config.deny;
+    if (Object.keys(filter).length === 0) {
+      ctx.logger.warn(`${name}: restrict mode without allow/deny, nothing to do`);
+      return;
+    }
+    try {
+      ctx.tools.restrict(filter);
+    } catch (error) {
+      // 未知工具名 / 全局注册尚未就位时引擎会抛错：按「不限制」降级，不阻断会话。
+      ctx.logger.warn(`${name}: restrict failed (${error?.message ?? error})`);
+      return;
+    }
+    const denied = filter.deny ?? TOOL_NAMES.filter((t) => !filter.allow.includes(t));
+    ctx.logger.info(`${name}: restricted tools (${denied.length}) for this agent scope`);
+    return;
+  }
+
   const baseURL = config?.baseURL ?? DEFAULT_BASE_URL;
   const token = process.env[TOKEN_ENV] ?? "";
   if (!token) {

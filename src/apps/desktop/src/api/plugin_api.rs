@@ -1507,6 +1507,7 @@ pub async fn plugin_ai_complete(
         fallback_reason: None,
         cached_prompt_tokens: None,
         usage_known: Some(usage.is_some()),
+        request_id: None,
     })
     .await;
 

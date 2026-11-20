@@ -511,6 +511,8 @@ interface TodoState {
     workbenchId: string;
     projectId?: string;
     automationId?: string;
+    /** quick=快速问答（直接回答，不写计划/不派子代理/不落文件）；缺省 delivery。 */
+    executionMode?: 'quick' | 'delivery';
   }) => TodoTask;
   /** 注册项目（同目录复用已有项目）。 */
   createProject: (input: { dir: string; name?: string }) => WorkbenchProject;
@@ -665,7 +667,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     return task;
   },
 
-  createWorkbenchTask: ({ title, notes, workbenchId, projectId, automationId }) => {
+  createWorkbenchTask: ({ title, notes, workbenchId, projectId, automationId, executionMode }) => {
     const task: TodoTask = {
       id: genId('t'),
       listId: null,
@@ -688,6 +690,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       workbenchId,
       ...(projectId ? { projectId } : {}),
       ...(automationId ? { automationId } : {}),
+      ...(executionMode ? { executionMode } : {}),
     };
     set((s) => ({ data: { ...s.data, tasks: [...s.data.tasks, task] } }));
     get().save();

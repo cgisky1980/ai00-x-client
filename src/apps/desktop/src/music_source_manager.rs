@@ -35,6 +35,8 @@ const SEARCH_TIMEOUT_SECS: u64 = 40;
 const INSTALL_TIMEOUT_SECS: u64 = 600;
 /// healthz 就绪探测超时。
 const READY_TIMEOUT_SECS: u64 = 30;
+/// 启动失败时随错误回传的 stderr 尾巴上限（字符）。
+const STDERR_TAIL_LIMIT: usize = 2000;
 
 /// 安装/运行阶段（推给前端 `music-source://phase` 事件）。
 #[derive(Debug, Clone, Serialize)]
@@ -277,12 +279,34 @@ async fn run_with_timeout(
 // sidecar 生命周期
 // ---------------------------------------------------------------------------
 
+/// 只保留字符串末尾 `max` 字节（对齐到 UTF-8 字符边界）。
+///
+/// 直接 `drain(..len-max)` 在中文/多字节 stderr 上会切在字符中间 → `String`
+/// 内部断言失败 panic（曾把整个客户端带崩）。这里前进到最近的字符边界。
+fn truncate_keep_tail(text: &mut String, max: usize) {
+    if text.len() <= max {
+        return;
+    }
+    let mut cut = text.len() - max;
+    while cut < text.len() && !text.is_char_boundary(cut) {
+        cut += 1;
+    }
+    text.drain(..cut);
+}
+
 /// 启动 sidecar 并等待就绪，返回实际端口。
 async fn spawn_sidecar() -> Result<u16, String> {
     let mgr = get();
 
     let mut cmd = process_manager::create_tokio_command(venv_python());
     cmd.arg(server_script()).arg("--port").arg("0");
+    // musicdl 会在「进程当前目录」下创建相对的 musicdl_outputs/，cwd 不可写时
+    // 直接 PermissionError 退出（WinError 5）。固定到可写的 music-source 根目录，
+    // 不依赖客户端是以什么 cwd 启动的。
+    let home = music_source_home();
+    std::fs::create_dir_all(&home)
+        .map_err(|e| format!("failed to create music-source home: {e}"))?;
+    cmd.current_dir(&home);
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
     cmd.kill_on_drop(true);
@@ -290,9 +314,41 @@ async fn spawn_sidecar() -> Result<u16, String> {
         .spawn()
         .map_err(|e| format!("failed to spawn music source sidecar: {e}"))?;
 
+    // stderr 立即开始收集：sidecar 在 ready 之前就退出时，原因只能从 stderr 得到
+    // （此前 stderr 泵在拿到 ready 行之后才启动，失败时日志里什么都没有）。
+    let stderr_tail = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    if let Some(stderr) = child.stderr.take() {
+        let tail = stderr_tail.clone();
+        tokio::spawn(async move {
+            use tokio::io::AsyncReadExt;
+            let mut reader = tokio::io::BufReader::new(stderr);
+            let mut buf = [0u8; 4096];
+            loop {
+                match reader.read(&mut buf[..]).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        let text = String::from_utf8_lossy(&buf[..n]).to_string();
+                        for l in text.lines().filter(|l| !l.trim().is_empty()) {
+                            log::info!("[music-source] {l}");
+                        }
+                        let mut guard = tail.lock().unwrap_or_else(|e| e.into_inner());
+                        guard.push_str(&text);
+                        truncate_keep_tail(&mut guard, STDERR_TAIL_LIMIT);
+                    }
+                }
+            }
+        });
+    }
+    let take_stderr_tail = || {
+        stderr_tail
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .trim()
+            .to_string()
+    };
+
     // stdout：读首行 ready JSON 解析端口；其余行丢弃（排水防阻塞）
     let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
     let port = match stdout {
         Some(stdout) => {
             use tokio::io::{AsyncBufReadExt, BufReader};
@@ -304,8 +360,44 @@ async fn spawn_sidecar() -> Result<u16, String> {
             )
             .await
             {
-                Ok(Ok(0)) | Err(_) | Ok(Err(_)) => {
-                    return Err("sidecar exited before ready (see app log)".into());
+                Ok(Ok(0)) => {
+                    let status = child
+                        .try_wait()
+                        .ok()
+                        .flatten()
+                        .map(|s| format!("{s}"))
+                        .unwrap_or_else(|| "unknown".into());
+                    let tail = take_stderr_tail();
+                    log::error!(
+                        "[MusicSource] sidecar exited before ready (status={status}): {tail}"
+                    );
+                    return Err(format!(
+                        "sidecar exited before ready (status={status}): {}",
+                        if tail.is_empty() {
+                            "no stderr output".into()
+                        } else {
+                            tail
+                        }
+                    ));
+                }
+                Err(_) => {
+                    let tail = take_stderr_tail();
+                    log::error!(
+                        "[MusicSource] sidecar ready timeout after {READY_TIMEOUT_SECS}s: {tail}"
+                    );
+                    return Err(format!(
+                        "sidecar ready timeout after {READY_TIMEOUT_SECS}s: {}",
+                        if tail.is_empty() {
+                            "no stderr output".into()
+                        } else {
+                            tail
+                        }
+                    ));
+                }
+                Ok(Err(e)) => {
+                    let tail = take_stderr_tail();
+                    log::error!("[MusicSource] sidecar stdout read error: {e}: {tail}");
+                    return Err(format!("sidecar stdout read error: {e}: {tail}"));
                 }
                 Ok(Ok(_)) => {
                     // 后续行排水（防缓冲写满阻塞子进程）
@@ -327,26 +419,6 @@ async fn spawn_sidecar() -> Result<u16, String> {
         }
         None => return Err("sidecar stdout not piped".into()),
     };
-
-    // stderr 日志泵 → app log
-    if let Some(stderr) = stderr {
-        tokio::spawn(async move {
-            use tokio::io::AsyncReadExt;
-            let mut reader = tokio::io::BufReader::new(stderr);
-            let mut buf = [0u8; 4096];
-            loop {
-                match reader.read(&mut buf[..]).await {
-                    Ok(0) | Err(_) => break,
-                    Ok(n) => {
-                        let text = String::from_utf8_lossy(&buf[..n]);
-                        for l in text.lines().filter(|l| !l.trim().is_empty()) {
-                            log::info!("[music-source] {l}");
-                        }
-                    }
-                }
-            }
-        });
-    }
 
     let mut slot = mgr.child.lock().await;
     if let Some(mut old) = slot.take() {

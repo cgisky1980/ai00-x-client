@@ -110,6 +110,14 @@ const WorkbenchWindowApp: React.FC = () => {
   // 别处（如插件工作台会话补登的任务卡、设置窗口）写入后这里能即时对齐。
   useEffect(() => initTodoWindowSync('ui'), []);
 
+  // 启动即校准 Ai00-API 引用：上游下架/改名后，配置里残留的
+  // `ai00s:<旧模型>` 会被自动换成可用模型（fetchAi00sModels 内部自愈）。
+  useEffect(() => {
+    void import('@/infrastructure/config/services/ai00sTier')
+      .then(({ fetchAi00sModels }) => fetchAi00sModels())
+      .catch(() => undefined);
+  }, []);
+
   const activeEntry = activeId ? workbenches.find(w => w.id === activeId) : undefined;
 
   // 打开中的工作台被卸载/禁用 → 回首页。

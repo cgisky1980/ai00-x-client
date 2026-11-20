@@ -88,22 +88,31 @@ fn loop_rules_section(task_id: Option<&str>) -> String {
         None => "ai00_plan_write (taskId from the first task brief)".to_string(),
     };
     format!(
-        "## Delivery workflow (Ai00-X orchestration loop — additive to existing instructions)\n\n\
-Before any step, write the plan with {plan_hint} using exactly five sections: \"## Execution Policy\", \"## Goal\", \"## Steps\", \"## Acceptance\", \"## Deliverables\".\n\
-Write the plan body in the user's current UI language, but keep section headings and field keys exactly as shown (English keys).\n\
-Execution Policy has two lines: `- Execution: local-first` and `- Review: adaptive` (strict when the user asks for per-step cloud review).\n\
-Each entry under \"## Steps\":\n\
-- [ ] T1 title\n  - Depends on: none OR T0, T1\n  - Risk: low / medium / high\n  - Scope: comma separated paths\n  - Implementation: concrete instructions the local model can execute without follow-ups\n  - Acceptance: objectively checkable criteria {{cmd: whitelisted command}}\n\
-Never list planning or self-check as steps. Requirement or scope changes update the plan first and need human re-approval.\n\
-1. Plan approval (hard gate): stop after writing the plan, summarize key points and acceptance criteria only; continue after the user confirms.\n\
-2. Execution: dispatch to local_code_worker by default with goal, implementation, scope, dependency results, acceptance commands, working directory and a compact return format. Write every subagent brief in English (the plan body may stay in the user's language). Parallel only when dependency is none AND scopes do not overlap. Never call file/terminal/network tools yourself.\n\
-3. Evidence gate: after every local run call `ai00_task_verify` (taskId + snapshotDir + stepId); never trust worker self-reports. Pass includeDiff: true for strict, high risk and cloud fallback.\n\
-3.1 Search rule: use ai00_search (self-hosted, no key) for web search; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.\n\
-4. Tiered review: adaptive + low/medium risk + verdict=passed may be checked off directly; strict, risk=high or needs-review must go through review_worker with evidence (and diff when needed).\n\
-5. Rework and fallback: one local rework with review notes; if it still fails, switch to code_worker (cloud fallback), never loop locally. Fallback also passes the evidence gate and review.\n\
-6. Integration review: when all steps pass, call `ai00_task_verify` without stepId to re-run \"## Acceptance\"; reopen affected steps on failure.\n\
-7. Self-check and human acceptance: verify deliverables on disk, call `ai00_task_complete` with absolute deliverables, then report summary + deliverables + awaiting review. Completion is granted by the human.\n"
+        "## Delivery workflow (Ai00-X loop)\n\n\
+Before any step write the plan with {plan_hint}, using exactly these sections: \"## Execution Policy\" (`- Execution: local-first`, `- Review: adaptive`), \"## Goal\", \"## Steps\", \"## Acceptance\", \"## Deliverables\". Plan body in the user's language; headings and keys stay English. Each step: `- [ ] T1 title` with `Depends on`, `Risk` (low/medium/high), `Scope` (paths), `Implementation`, `Acceptance` ({{cmd: ...}}). Planning and self-check are never steps.\n\
+1. Approval gate: stop after writing the plan; continue only after the user confirms.\n\
+2. Dispatch: local_code_worker by default — brief in English, self-contained (goal, scope, files, acceptance commands, working directory, return format). Never call file/terminal/network tools yourself. Parallel only when dependency is none and scopes do not overlap.\n\
+3. Evidence gate: call `ai00_task_verify` after every worker run; never trust self-reports (`includeDiff` for strict/high risk/fallback).\n\
+4. Review: adaptive — low/medium risk with verdict=passed may be checked off; strict, high risk or needs-review go through review_worker.\n\
+5. Fix budget: one local rework, then one code_worker fallback; after two failed remediation dispatches stop and report the blocker. Max 3 subagents per task. Briefs are closed-scope — never ask a worker to \"verify the overall state\" or \"review and improve\".\n\
+6. Search: `ai00_search` for web search; `ai00_web_extract` (url = page body, query = per-page summaries).\n\
+7. Wrap-up: confirm deliverables exist, `ai00_task_complete` with absolute paths (rejects while acceptance items are unticked), then report summary + deliverables. Completion is granted by the human.\n"
     )
+}
+
+/// 快速问答模式（工作台任务勾选「快速问答」）：不写计划、不派子代理、不落文件。
+///
+/// 这类任务走完整 loop 会把一次问答膨胀成十几次模型调用（实测 26 分钟），
+/// 所以宿主写入的 `AGENTS.local.md` 也要换掉整段 loop 规约，而不是让首轮
+/// 任务书孤军作战——否则每一轮会话都会被合约拉回计划模式。
+fn quick_rules_section() -> String {
+    "## Quick answer mode (Ai00-X workbench)\n\n\
+This task is a quick question. Answer it directly in this chat.\n\
+- Do NOT write a plan, do NOT call ai00_plan_write, do NOT spawn subagents, do NOT create files, do NOT ask for approval.\n\
+- Use ai00_search / ai00_web_extract only when fresh facts are needed; at most 3 tool calls, as few pages as possible.\n\
+- Reply in the user's UI language, concise and grounded; cite source URLs inline when web results were used.\n\
+- If the question really needs files or multi-step delivery, say so in one sentence and suggest switching the task to delivery mode — never start the heavy flow on your own.\n"
+        .to_string()
 }
 
 /// 项目级 `AGENTS.local.md`：宿主生成块 + 工作台约定的内联副本。
@@ -121,8 +130,7 @@ fn compose_project_agents(opts: &ComposeOptions<'_>) -> String {
 本会话由 Ai00-X 工作台「{workbench_title}」（id: {workbench_id}）创建并绑定到工程 {project_label}。\n\n\
 - 工作台总目录：`{workbench_root}`\n\
 - 工程根路径（本会话工作目录）：`{project_root}`\n\
-- 写入范围约定：只允许读取/创建/修改该工程根路径之内的文件；任何越界写入都会被宿主自动拒绝（path_out_of_scope）。\n\
-- 需要工程之外的参考资料时请只读访问，并把产物写回工程根内。\n\n\
+- 写入范围：只允许读写该工程根路径之内；越界写入会被宿主拒绝（path_out_of_scope），工程外资料只读引用、产物写回根内。\n\n\
 ## 工作台约定\n\n\
 {workbench_agents}\n\n\
 {loop_rules}\n",
@@ -132,7 +140,11 @@ fn compose_project_agents(opts: &ComposeOptions<'_>) -> String {
         workbench_root = opts.workbench_root.display(),
         project_root = opts.project_root.display(),
         workbench_agents = opts.workbench_agents.trim(),
-        loop_rules = loop_rules_section(opts.task_id),
+        loop_rules = if opts.quick_mode {
+            quick_rules_section()
+        } else {
+            loop_rules_section(opts.task_id)
+        },
     )
 }
 
@@ -146,6 +158,8 @@ struct ComposeOptions<'a> {
     workbench_agents: &'a str,
     /// 工作台任务卡 id（内置任务场景有；插件工作台新建会话时由宿主补登）。
     task_id: Option<&'a str>,
+    /// 快速问答任务：用精简规约替换整段交付 loop。
+    quick_mode: bool,
 }
 
 /// Resolve the workbench root and its project subdirectory, then make sure both
@@ -163,6 +177,8 @@ pub async fn workbench_prepare_project(
     project_id: String,
     project_title: Option<String>,
     task_id: Option<String>,
+    // 'quick' = 快速问答（精简规约，不写计划/不派子代理）；缺省/其它 = 完整交付。
+    execution_mode: Option<String>,
     // 外部项目目录（工作台「项目」工作台）：给定时直接使用该已存在目录，
     // 不建目录、不写 AGENTS.local.md——避免污染用户已有工程。
     project_root: Option<String>,
@@ -248,6 +264,7 @@ pub async fn workbench_prepare_project(
         project_root: &project_root,
         workbench_agents: &workbench_agents,
         task_id: task_id.as_deref(),
+        quick_mode: execution_mode.as_deref() == Some("quick"),
     });
     let local = project_root.join("AGENTS.local.md");
     let unchanged = std::fs::read_to_string(&local)

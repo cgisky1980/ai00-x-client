@@ -60,11 +60,12 @@
 }
 
 // 两条卡片叠放：背卡在输入框上方露出一条边，输入框压住它下半部分（输入框层级更高）。
-// 背卡比输入框窄 12px 并居中；只有上圆角，下沿直角藏在输入框里，不会有圆角外露。
+// 背卡与输入框同宽同列（规范 9.9：队列 / 状态卡 / 输入框左右边缘严格对齐）；
+// 只有上圆角，下沿直角藏在输入框里，不会有圆角外露。
 .ai00-x-composer-stack__under {
   position: relative;
   z-index: 0;
-  width: calc(100% - var(--spacing-3));
+  width: 100%;
   margin: 0 auto calc(var(--spacing-5) * -1);
   padding: var(--spacing-3) var(--spacing-4) var(--spacing-8);
   border: none;

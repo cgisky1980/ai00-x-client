@@ -75,6 +75,46 @@ export interface ProfileUpdateResponse {
 }
 
 /**
+ * 会话积分消耗（GET /api/v1/me/billing/session?session_id=xxx）
+ *
+ * 服务端按 `ai_billing_ledger.session_id` 聚合：累计积分 + 每条调用明细。
+ * 客户端在每回合结束后刷新，用「本次累计 - 上次累计」得到本回合消耗。
+ */
+export interface SessionBilling {
+  session_id: string;
+  calls: number;
+  total_credits: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cached_tokens: number;
+  items: Array<{
+    ledger_id: number;
+    request_id: string | null;
+    model: string;
+    prompt_tokens: number;
+    completion_tokens: number;
+    cached_tokens: number;
+    cost_credits: number;
+    status: string;
+    created_at: string;
+  }>;
+}
+
+/** 查询某会话的积分消耗（未登录/无账单时返回 null，不抛错） */
+export async function getSessionBilling(sessionId: string): Promise<SessionBilling | null> {
+  if (!sessionId) return null;
+  try {
+    const data = await fetchWithAuth<{ code: number; message?: string; data: SessionBilling }>(
+      `/api/v1/me/billing/session?session_id=${encodeURIComponent(sessionId)}`,
+    );
+    if (data.code !== 0) return null;
+    return data.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 获取会员档案：GET /ai00-s/api/ai/me
  *
  * 响应结构：

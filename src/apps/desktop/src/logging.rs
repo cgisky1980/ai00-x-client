@@ -18,6 +18,54 @@ static SESSION_LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
 // Default to Debug in early development for easier diagnostics
 static CURRENT_LOG_LEVEL: AtomicU8 = AtomicU8::new(level_filter_to_u8(log::LevelFilter::Debug));
 
+/// 第三方库的 DEBUG/TRACE 噪音源，统一压到 Warn 及以上：
+/// - `html5ever`/`selectors`：解析网页时逐字符打点，一次大页面能刷出上万行
+/// - `enigo`/`device_query`：每次查询鼠标位置都打点
+/// - HTTP/TLS/运行时内部细节
+///
+/// 全局级别开到 Debug 时这些库足以把 app.log 刷到 10MB/30s：日志锁与磁盘写入
+/// 反过来拖慢主流程（网页解析、任务请求），业务日志也被淹没到无法阅读。
+const NOISY_TARGET_PREFIXES: &[&str] = &[
+    "html5ever",
+    "markup5ever",
+    "xml5ever",
+    "selectors",
+    "cssparser",
+    "scraper",
+    "enigo",
+    "device_query",
+    "reqwest",
+    "hyper",
+    "h2",
+    "rustls",
+    "tokio",
+    "mio",
+    "tungstenite",
+    "tao",
+    "wry",
+    "chromiumoxide",
+    "fantoccini",
+    "headless_chrome",
+    "notify",
+    "ignore",
+    "globset",
+    "zbus",
+];
+
+fn is_noisy_target(target: &str) -> bool {
+    NOISY_TARGET_PREFIXES.iter().any(|p| target.starts_with(p))
+}
+
+/// app.log 的接收条件：自有 `ai*`/`webview` 日志走独立文件，其余第三方库
+/// 只保留 Warn/Error（`Level` 数值越小越严重）。
+fn passes_noise_filter(metadata: &log::Metadata<'_>) -> bool {
+    let target = metadata.target();
+    if target.starts_with("ai") || target.starts_with("webview") {
+        return false;
+    }
+    !(metadata.level() >= log::Level::Info && is_noisy_target(target))
+}
+
 fn get_thread_id() -> u64 {
     let thread_id = thread::current().id();
     let id_str = format!("{:?}", thread_id);
@@ -203,10 +251,7 @@ pub fn build_log_targets(config: &LogConfig) -> Vec<Target> {
     if config.is_debug || use_stdout_only {
         targets.push(
             Target::new(TargetKind::Stdout)
-                .filter(|metadata| {
-                    let target = metadata.target();
-                    !target.starts_with("ai") && !target.starts_with("webview")
-                })
+                .filter(passes_noise_filter)
                 .format(|out, message, record| {
                     let target = record.target();
                     let simplified_target = if target.starts_with("webview:") {
@@ -244,10 +289,7 @@ pub fn build_log_targets(config: &LogConfig) -> Vec<Target> {
                 path: app_log_dir,
                 file_name: Some("app".into()),
             })
-            .filter(|metadata| {
-                let target = metadata.target();
-                !target.starts_with("ai") && !target.starts_with("webview")
-            })
+            .filter(passes_noise_filter)
             .format(format_log_plain),
         );
 

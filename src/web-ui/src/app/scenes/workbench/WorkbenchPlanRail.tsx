@@ -1,14 +1,14 @@
 /**
- * WorkbenchPlanRail — 常驻输入框下方的计划条（纸叠的最底一张）。
+ * WorkbenchPlanRail — 常驻输入框上方的任务状态卡（纸叠的最底一张）。
  *
- * 折叠：`2/6 · T3 标题 · 待评审` 一行；
- * 展开：结构化任务卡（紧凑模式）向上展开；
- * 右侧小图标进详情抽屉。
+ * 主行：`2/6 · T3 标题 · 待评审` + 展开键（无计划时让位给子代理状态）；
+ * 辅行：本轮消耗（由调用方渲染）；
+ * 展开区：结构化任务卡（紧凑模式）向上展开。
  *
- * 旧计划（无 T 编号）回落文本步骤与三态进度。
+ * 旧计划（无 T 编号）回落文本步骤与三态进度；三者皆空时整卡不渲染。
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, PanelRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { parseStepItems } from '@/tools/todo/utils/planAcceptance';
 import { deriveStepState, parsePlanSteps } from '@/tools/todo/utils/planStructure';
@@ -20,12 +20,14 @@ export interface WorkbenchPlanRailProps {
   planMd: string | null | undefined;
   /** 有未处理的人类动作时自动展开（评审/验收）。 */
   autoOpen?: boolean;
-  /** 打开完整计划（抽屉）。 */
-  onViewDetail?: () => void;
   /** 是否已完成（完成后不标进行中）。 */
   finished?: boolean;
   /** 会话是否在跑（决定是否标「进行中」）。 */
   running?: boolean;
+  /** 辅行：本轮消耗（由调用方渲染好的节点）。 */
+  usage?: React.ReactNode;
+  /** 正在跑的子代理数（>0 时主行显示「子代理运行中 · N」）。 */
+  delegatedCount?: number;
 }
 
 const STATE_KEY: Record<string, string> = {
@@ -41,9 +43,10 @@ const STATE_KEY: Record<string, string> = {
 export const WorkbenchPlanRail: React.FC<WorkbenchPlanRailProps> = ({
   planMd,
   autoOpen = false,
-  onViewDetail,
   finished = false,
   running = false,
+  usage,
+  delegatedCount = 0,
 }) => {
   const { t } = useI18n('common');
   const structured = useMemo(() => parsePlanSteps(planMd ?? null), [planMd]);
@@ -60,7 +63,7 @@ export const WorkbenchPlanRail: React.FC<WorkbenchPlanRailProps> = ({
     ? structured.filter(step => step.done).length
     : legacySteps.filter(step => step.done).length;
 
-  if (total === 0) return null;
+  if (total === 0 && !usage && !delegatedCount) return null;
 
   const activeIndex = finished
     ? null
@@ -93,36 +96,38 @@ export const WorkbenchPlanRail: React.FC<WorkbenchPlanRailProps> = ({
 
   return (
     <section className={`ai00-x-plan-strip${open ? ' is-open' : ''}`}>
-      <button
-        type="button"
-        className="ai00-x-plan-strip__main"
-        onClick={() => setOpen(prev => !prev)}
-        aria-expanded={open}
-      >
-        <span className="ai00-x-plan-strip__count">
-          {done}/{total}
-        </span>
-        <span className="ai00-x-plan-strip__text">{currentText}</span>
-        {currentState && (
-          <span className={`ai00-x-plan-strip__state is-${currentState}`}>
-            {t(STATE_KEY[currentState])}
+      <div className="ai00-x-plan-strip__head">
+        {total > 0 ? (
+          <button
+            type="button"
+            className="ai00-x-plan-strip__main"
+            onClick={() => setOpen(prev => !prev)}
+            aria-expanded={open}
+          >
+            <span className="ai00-x-plan-strip__count">
+              {done}/{total}
+            </span>
+            <span className="ai00-x-plan-strip__text">{currentText}</span>
+            {currentState && (
+              <span className={`ai00-x-plan-strip__state is-${currentState}`}>
+                {t(STATE_KEY[currentState])}
+              </span>
+            )}
+            <ChevronDown size={12} className="ai00-x-plan-strip__chevron" />
+          </button>
+        ) : (
+          <span className="ai00-x-plan-strip__placeholder" />
+        )}
+        {delegatedCount > 0 && (
+          <span className="ai00-x-plan-strip__delegated">
+            {t('nav.workbenchWindow.delegating', { count: delegatedCount })}
           </span>
         )}
-        <ChevronDown size={12} className="ai00-x-plan-strip__chevron" />
-      </button>
-      {onViewDetail && (
-        <button
-          type="button"
-          className="ai00-x-plan-strip__more"
-          onClick={onViewDetail}
-          title={t('nav.workbenchWindow.progress.detail')}
-          aria-label={t('nav.workbenchWindow.progress.detail')}
-        >
-          <PanelRight size={12} />
-        </button>
-      )}
+      </div>
 
-      {open && (
+      {usage && <div className="ai00-x-plan-strip__usage">{usage}</div>}
+
+      {open && total > 0 && (
         <div className="ai00-x-plan-strip__steps">
           {isStructured ? (
             <WorkbenchTaskCards

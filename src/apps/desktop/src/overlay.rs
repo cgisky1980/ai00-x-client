@@ -1,5 +1,4 @@
 use device_query::{DeviceQuery, DeviceState};
-use enigo::{Enigo, Mouse, Settings};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::thread;
@@ -70,15 +69,6 @@ pub fn spawn_overlay_thread(app_handle: tauri::AppHandle) {
 
     let app_handle = app_handle.clone();
     thread::spawn(move || {
-        let enigo = match Enigo::new(&Settings::default()) {
-            Ok(e) => e,
-            Err(_) => {
-                let state = app_handle.state::<OverlayState>();
-                state.overlay_thread_running.store(false, Ordering::SeqCst);
-                return;
-            }
-        };
-
         let device_state = DeviceState::new();
         let mut last_left_pressed = false;
 
@@ -142,26 +132,24 @@ pub fn spawn_overlay_thread(app_handle: tauri::AppHandle) {
 
                     let scale = win.scale_factor().unwrap_or(1.0);
 
-                    match enigo.location() {
-                        Ok((mx, my)) => {
-                            let window_x = ((mx - pos.x) as f64) / scale;
-                            let window_y = ((my - pos.y) as f64) / scale;
+                    // 复用上方 device_query 已取到的坐标：既避免 60Hz 反复调
+                    // enigo.location()（Windows 上每次都会开显示上下文并打 DEBUG
+                    // 日志，曾把 app.log 刷爆），也保证命中判定与点击事件同源。
+                    let window_x = ((mx - pos.x) as f64) / scale;
+                    let window_y = ((my - pos.y) as f64) / scale;
 
-                            let mut should_penetrate = true;
-                            for r in regions.iter() {
-                                if window_x >= r.x
-                                    && window_x <= r.x + r.width
-                                    && window_y >= r.y
-                                    && window_y <= r.y + r.height
-                                {
-                                    should_penetrate = false;
-                                    break;
-                                }
-                            }
-                            should_penetrate
+                    let mut should_penetrate = true;
+                    for r in regions.iter() {
+                        if window_x >= r.x
+                            && window_x <= r.x + r.width
+                            && window_y >= r.y
+                            && window_y <= r.y + r.height
+                        {
+                            should_penetrate = false;
+                            break;
                         }
-                        Err(_) => true,
                     }
+                    should_penetrate
                 };
 
                 (should_penetrate, last_val)

@@ -229,37 +229,20 @@ impl ConfigService {
     }
 
     /// Returns all AI model configurations.
+    ///
+    /// 不再向 `ai.models` 播种内置 `ai00s`（「Ai00-S」）条目：它只是
+    /// `ai00s:<子模型>` 复合引用的配置基底，运行时由 `client_factory` 用内置
+    /// 默认配置兜底；播种会让它出现在「自定义模型」列表里。
     pub async fn get_ai_models(&self) -> Ai00XResult<Vec<AIModelConfig>> {
         let mut config: GlobalConfig = self.get_config(None).await?;
-        let base_url = config.app.ai00_s_base_url.clone();
         config
             .ai
             .models
             .retain(|m| m.id != "ai00s-free" && m.id != "ai00s-vip" && m.id != "ai00s-svip");
-        if !config.ai.models.iter().any(|m| m.id == "ai00s") {
-            config.ai.models.push(AIModelConfig {
-                id: "ai00s".to_string(),
-                name: "Ai00-S".to_string(),
-                provider: "ai00s".to_string(),
-                model_name: "ai00s".to_string(),
-                base_url: base_url.clone(),
-                request_url: None,
-                api_key: String::new(),
-                context_window: Some(65536),
-                max_tokens: Some(4096),
-                temperature: Some(0.7),
-                enabled: true,
-                category: ModelCategory::GeneralChat,
-                capabilities: vec![ModelCapability::TextChat],
-                metadata: Some(serde_json::json!({"source": "ai00-s"})),
-                ..Default::default()
-            });
-        }
-        for model in config.ai.models.iter_mut() {
-            if model.provider == "ai00s" {
-                model.base_url = base_url.clone();
-            }
-        }
+        config
+            .ai
+            .models
+            .retain(|m| !(m.id == "ai00s" && m.provider == "ai00s"));
         Ok(config.ai.models)
     }
 

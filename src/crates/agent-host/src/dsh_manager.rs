@@ -1051,6 +1051,139 @@ async fn ensure_default_model_setting() -> Result<(), String> {
 ///   profile 层已注册，这里只补「工作台会话可见的委派工具」。
 const WORKBENCH_ORCHESTRATOR_PERSONA: &str = "You are the Ai00-X orchestrator, powered by the {{model}} model.\nYou plan, dispatch, triage reviews and accept results; you never execute. Dispatch research to research_worker (read-only); dispatch real file work and commands to local_code_worker by default, and switch to code_worker only after the second local failure or when a direct cloud fix is needed. Run tasks in parallel only when they are independent and their scopes do not overlap. Write every subagent brief in English (the plan body may follow the user's language). Never call file/terminal/network tools yourself; all tools must go through the tool-call channel, never simulated in text. A subagent finishing its turn does not mean success: always call ai00_task_verify for real evidence. Strict mode, high risk and insufficient evidence require cloud review; the second local failure must fall back to cloud. Run an integration review after all steps pass, then submit for human acceptance.";
 
+/// 工作台 preset 不挂载的引擎工具行。
+///
+/// 编排者按契约为「只规划 + 派发，从不自己执行」，这些工具的 schema 每轮都会
+/// 进入**远程**请求的上下文（实测 27 个工具 ≈ 10k tokens），却按契约用不上：
+/// - `tool-web`（web_fetch / web_search）：与 `ai00_search` / `ai00_web_extract` 重复；
+/// - `tool-subagent-fork` / `workflow-ptc` / `tool-workflow`：统一走 spawn 工人；
+/// - `present` / `tool-plugin-manager` / `tool-jobs` / `tool-schedule`：工作台不用；
+/// - `planning`（plan-mode → exit_plan_mode）：工作台计划走 `ai00_plan_write`，
+///   且工作台对话面板没有 plan-mode 开关。
+///
+/// 保留 read / glob / grep / pwsh / edit / write —— 编排者自检与手工兜底仍需要。
+const WORKBENCH_DROPPED_PLUGIN_IDS: &[&str] = &[
+    "tool-web",
+    "tool-subagent-fork",
+    "workflow-ptc",
+    "tool-workflow",
+    "present",
+    "tool-plugin-manager",
+    "tool-jobs",
+    "tool-schedule",
+    "planning",
+];
+
+/// 工作台「任务」场景用不上的 Ai00-X 业务工具（壁纸 / 知行待办 / 专注 / 长文总结）。
+///
+/// 全局挂载的 `@ai00-x/dsh-tools` 对每个 agent 都可见，schema 是每次请求的固定
+/// 成本；插件工作台（壁纸编辑器等）确实要用壁纸/待办工具，所以不全局裁，而是
+/// 给任务场景单独派生 `workbench-task` preset，用 restrict 模式 deny 掉这七项。
+const WORKBENCH_TASK_DENIED_TOOLS: &[&str] = &[
+    "ai00_wallpaper_create",
+    "ai00_wallpaper_projects",
+    "ai00_set_wallpaper",
+    "ai00_todo_read",
+    "ai00_todo_write",
+    "ai00_focus_log",
+    "ai00_text_summarize",
+];
+
+/// 帮手（叶子工人）preset 里 deny 掉的全局业务工具：工人只用文件/命令/检索工具，
+/// 业务工具（计划、验收、壁纸、待办）属于编排者职责。本地小模型上下文紧张，
+/// 这 15 个 schema 是纯负担 —— 全部 deny。
+const WORKER_DENIED_TOOLS: &[&str] = AI00_TOOL_NAMES;
+
+/// `@ai00-x/dsh-tools` 注册的全部业务工具名（与插件 `TOOL_NAMES` 同步）。
+const AI00_TOOL_NAMES: &[&str] = &[
+    "ai00_notify",
+    "ai00_wallpaper_create",
+    "ai00_wallpaper_projects",
+    "ai00_set_wallpaper",
+    "ai00_todo_read",
+    "ai00_todo_write",
+    "ai00_task_verify",
+    "ai00_task_complete",
+    "ai00_task_create",
+    "ai00_focus_log",
+    "ai00_plan_read",
+    "ai00_plan_write",
+    "ai00_search",
+    "ai00_web_extract",
+    "ai00_text_summarize",
+];
+
+/// 任务场景（`workbench-task`）额外不挂载的引擎工具 —— 依据实测 schema 成本：
+/// `pwsh` 1887 字符、`tool-goal` 三件套 1731 字符（≈470 / 430 tokens），而编排者
+/// 按契约从不执行命令、也不建目标。
+const WORKBENCH_TASK_DROPPED_PLUGIN_IDS: &[&str] = &["tool-pwsh", "tool-goal"];
+
+/// 快速问答保留的业务工具：搜索 + 正文提取 + 桌面通知。
+/// 契约是「不写计划、不派子代理、不落文件」，其余业务工具都不挂。
+const WORKBENCH_QUICK_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract", "ai00_notify"];
+
+/// 快速问答 deny 的业务工具 = 全部 15 个减去保留的 3 个（单一来源，避免两处漏改）。
+fn quick_denied_tools() -> Vec<&'static str> {
+    AI00_TOOL_NAMES
+        .iter()
+        .copied()
+        .filter(|name| !WORKBENCH_QUICK_KEPT_TOOLS.contains(name))
+        .collect()
+}
+
+/// 快速问答额外不挂载的引擎工具：文件、搜索、技能、待办、命令全部不需要，
+/// 委派组（subagent + control）也整组去掉 —— 快速问答不派子代理。
+const WORKBENCH_QUICK_DROPPED_PLUGIN_IDS: &[&str] = &[
+    "tool-pwsh",
+    "tool-goal",
+    "tool-fs",
+    "tool-fs-search",
+    "tool-skill",
+    "tool-todo",
+    "tool-subagent-control",
+    "delegation",
+];
+
+/// 工作台 preset 的三种用途。
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WorkbenchFlavor {
+    /// 插件工作台：全量业务工具。
+    Full,
+    /// 任务场景「完整交付」：编排 loop 用到的工具，其余裁掉。
+    Task,
+    /// 任务场景「快速问答」：只有检索 + 通知 + 提问，不派子代理。
+    Quick,
+}
+
+/// 工作台 preset 变体：插件链一致，只有行 id / preset id / 顺序 / 工具裁剪不同。
+struct WorkbenchPresetSpec<'a> {
+    row_id: &'a str,
+    preset_id: &'a str,
+    order: u32,
+    flavor: WorkbenchFlavor,
+}
+
+/// 快速问答的编排者 persona：只回答，不规划、不派发、不落文件。
+const WORKBENCH_QUICK_PERSONA: &str = "You are Ai00-X answering a quick question.\nAnswer directly in this chat, in the user's language, concise and grounded. Never write a plan, never dispatch subagents, never create or modify files, never ask for approval. Use ai00_search / ai00_web_extract only when the answer needs fresh facts, and cite source URLs inline. If the question really needs files or multi-step delivery, say so in one sentence and suggest switching the task to delivery mode. All tools must go through the tool-call channel, never simulated in text.";
+
+impl<'a> WorkbenchPresetSpec<'a> {
+    fn denied_tools(&self) -> Option<Vec<&'static str>> {
+        match self.flavor {
+            WorkbenchFlavor::Full => None,
+            WorkbenchFlavor::Task => Some(WORKBENCH_TASK_DENIED_TOOLS.to_vec()),
+            WorkbenchFlavor::Quick => Some(quick_denied_tools()),
+        }
+    }
+
+    fn extra_dropped(&self) -> &'a [&'a str] {
+        match self.flavor {
+            WorkbenchFlavor::Full => &[],
+            WorkbenchFlavor::Task => WORKBENCH_TASK_DROPPED_PLUGIN_IDS,
+            WorkbenchFlavor::Quick => WORKBENCH_QUICK_DROPPED_PLUGIN_IDS,
+        }
+    }
+}
+
 fn build_workbench_preset_row(worker_defs: &[WorkerDef]) -> Result<String, String> {
     let path = node_dir()
         .join("node_modules")
@@ -1067,12 +1200,44 @@ fn build_workbench_preset_row(worker_defs: &[WorkerDef]) -> Result<String, Strin
             path.display()
         )
     })?;
-    build_workbench_preset_row_from_standard(&text, worker_defs)
+    // 三个变体：通用工作台（全量业务工具）、任务「完整交付」、任务「快速问答」。
+    let workbench = build_workbench_preset_row_from_standard(
+        &text,
+        worker_defs,
+        &WorkbenchPresetSpec {
+            row_id: "preset-workbench",
+            preset_id: "workbench",
+            order: 2,
+            flavor: WorkbenchFlavor::Full,
+        },
+    )?;
+    let task = build_workbench_preset_row_from_standard(
+        &text,
+        worker_defs,
+        &WorkbenchPresetSpec {
+            row_id: "preset-workbench-task",
+            preset_id: "workbench-task",
+            order: 3,
+            flavor: WorkbenchFlavor::Task,
+        },
+    )?;
+    let quick = build_workbench_preset_row_from_standard(
+        &text,
+        worker_defs,
+        &WorkbenchPresetSpec {
+            row_id: "preset-workbench-quick",
+            preset_id: "workbench-quick",
+            order: 4,
+            flavor: WorkbenchFlavor::Quick,
+        },
+    )?;
+    Ok(format!("{workbench}{task}{quick}"))
 }
 
 fn build_workbench_preset_row_from_standard(
     text: &str,
     worker_defs: &[WorkerDef],
+    spec: &WorkbenchPresetSpec<'_>,
 ) -> Result<String, String> {
     let mut doc: serde_yaml::Value =
         serde_yaml::from_str(text).map_err(|e| format!("解析 standard.patch.yml 失败: {e}"))?;
@@ -1083,48 +1248,101 @@ fn build_workbench_preset_row_from_standard(
     else {
         return Err("standard.patch.yml 结构不符（缺 insert[0]）".into());
     };
-    row["id"] = serde_yaml::Value::from("preset-workbench");
-    row["config"]["id"] = serde_yaml::Value::from("workbench");
-    row["config"]["order"] = serde_yaml::Value::from(2);
+    row["id"] = serde_yaml::Value::from(spec.row_id);
+    row["config"]["id"] = serde_yaml::Value::from(spec.preset_id);
+    row["config"]["order"] = serde_yaml::Value::from(spec.order);
     let Some(plugins) = row["config"]["plugins"].as_sequence_mut() else {
         return Err("standard.patch.yml 结构不符（缺 plugins）".into());
     };
     for plugin in plugins.iter_mut() {
         match plugin["id"].as_str() {
             Some("persona") => {
-                plugin["config"]["prefix"] =
-                    serde_yaml::Value::from(WORKBENCH_ORCHESTRATOR_PERSONA);
+                plugin["config"]["prefix"] = serde_yaml::Value::from(match spec.flavor {
+                    WorkbenchFlavor::Quick => WORKBENCH_QUICK_PERSONA,
+                    _ => WORKBENCH_ORCHESTRATOR_PERSONA,
+                });
             }
             Some("agent-instructions") => {
                 plugin["config"]["projectRootMarkers"] =
                     serde_yaml::Value::from(vec![serde_yaml::Value::from("AGENTS.local.md")]);
             }
+            Some("tool-fs") if spec.flavor == WorkbenchFlavor::Task => {
+                // 任务场景的编排者不落文件（契约：只规划+派发），文件工具只留只读；
+                // write / edit / read_image 由子代理承担。
+                let config = plugin["config"]
+                    .as_mapping_mut()
+                    .ok_or_else(|| "tool-fs 行缺少 config".to_string())?;
+                config.insert("read".into(), true.into());
+                config.insert("readImage".into(), false.into());
+                config.insert("write".into(), false.into());
+                config.insert("edit".into(), false.into());
+            }
             _ => {}
         }
     }
-    // 帮手委派工具（与 profile 层同名行同构：provider=spawn + 固定 agent preset）
-    for def in worker_defs {
-        let id_suffix: String = def
-            .tool_name
-            .chars()
-            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-            .collect();
-        let mut config = serde_yaml::Mapping::new();
-        config.insert("provider".into(), "spawn".into());
-        config.insert("toolName".into(), def.tool_name.clone().into());
-        config.insert("agentPreset".into(), format!("ai00x-{id_suffix}").into());
-        let mut options = serde_yaml::Mapping::new();
-        options.insert("provider".into(), "ai00-x".into());
-        options.insert("model".into(), def.model.clone().into());
-        config.insert("agentOptions".into(), serde_yaml::Value::Mapping(options));
-        let mut row = serde_yaml::Mapping::new();
-        row.insert("id".into(), format!("tool-subagent-{id_suffix}").into());
-        row.insert("name".into(), "@deepseek-ai/dsh-tool-subagent".into());
-        row.insert("config".into(), serde_yaml::Value::Mapping(config));
-        plugins.push(serde_yaml::Value::Mapping(row));
+    // 工作台编排者用不上的引擎工具：整行不挂载（见 WORKBENCH_DROPPED_PLUGIN_IDS）；
+    // 任务/快速问答再叠加各自清单。
+    // 分组行（如 delegation）的行内联在 `config` 数组里，需要同层再过滤一次。
+    let extra = spec.extra_dropped();
+    let dropped = |plugin: &serde_yaml::Value| {
+        let id = plugin["id"].as_str().unwrap_or_default();
+        WORKBENCH_DROPPED_PLUGIN_IDS.contains(&id) || extra.contains(&id)
+    };
+    for plugin in plugins.iter_mut() {
+        if let Some(inner) = plugin["config"].as_sequence_mut() {
+            inner.retain(|entry| !dropped(entry));
+        }
+    }
+    plugins.retain(|plugin| !dropped(plugin));
+    // 帮手委派工具（与 profile 层同名行同构：provider=spawn + 固定 agent preset）。
+    // 快速问答不派子代理，整组不挂。
+    if spec.flavor != WorkbenchFlavor::Quick {
+        for def in worker_defs {
+            let id_suffix: String = def
+                .tool_name
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+                .collect();
+            let mut config = serde_yaml::Mapping::new();
+            config.insert("provider".into(), "spawn".into());
+            config.insert("toolName".into(), def.tool_name.clone().into());
+            config.insert("agentPreset".into(), format!("ai00x-{id_suffix}").into());
+            let mut options = serde_yaml::Mapping::new();
+            options.insert("provider".into(), "ai00-x".into());
+            options.insert("model".into(), def.model.clone().into());
+            config.insert("agentOptions".into(), serde_yaml::Value::Mapping(options));
+            let mut row = serde_yaml::Mapping::new();
+            row.insert("id".into(), format!("tool-subagent-{id_suffix}").into());
+            row.insert("name".into(), "@deepseek-ai/dsh-tool-subagent".into());
+            row.insert("config".into(), serde_yaml::Value::Mapping(config));
+            plugins.push(serde_yaml::Value::Mapping(row));
+        }
+    }
+    if let Some(denied) = spec.denied_tools() {
+        plugins.push(tool_restrict_row(&denied));
     }
     let insert_doc = serde_yaml::Value::from(vec![doc[0].clone()]);
     serde_yaml::to_string(&insert_doc).map_err(|e| format!("序列化 workbench preset 失败: {e}"))
+}
+
+/// agent preset 内的业务工具限制行：同一个 `@ai00-x/dsh-tools` 包以 restrict
+/// 模式挂进来，只对本 agent 作用域收缩全局工具可见集（不重复注册工具）。
+fn tool_restrict_row(denied: &[&str]) -> serde_yaml::Value {
+    let mut config = serde_yaml::Mapping::new();
+    config.insert("mode".into(), "restrict".into());
+    config.insert(
+        "deny".into(),
+        denied
+            .iter()
+            .map(|name| serde_yaml::Value::from(*name))
+            .collect::<Vec<_>>()
+            .into(),
+    );
+    let mut row = serde_yaml::Mapping::new();
+    row.insert("id".into(), "ai00-x-tools-restrict".into());
+    row.insert("name".into(), "@ai00-x/dsh-tools".into());
+    row.insert("config".into(), serde_yaml::Value::Mapping(config));
+    serde_yaml::Value::Mapping(row)
 }
 
 async fn ensure_orchestration_patch() -> Result<(), String> {
@@ -1514,6 +1732,14 @@ fn build_worker_rows(defs: &[WorkerDef]) -> String {
             "          - id: tool-subagent-control\n            name: '@deepseek-ai/dsh-tool-subagent-control'\n",
         );
         rows.push_str(WORKER_COMPACTION_GROUP);
+        // 业务工具（计划/验收/壁纸/待办）属于编排者职责，工人一个都不要：
+        // 这些 schema 在本地小模型上是纯上下文负担。
+        rows.push_str(
+            "          - id: ai00-x-tools-restrict\n            name: '@ai00-x/dsh-tools'\n            config:\n              mode: restrict\n              deny:\n",
+        );
+        for tool in WORKER_DENIED_TOOLS {
+            rows.push_str(&format!("                - {tool}\n"));
+        }
 
         // 2) 委派工具：选中上面的 preset（模型由 agentOptions 固定）
         rows.push_str(&format!(
@@ -2654,8 +2880,17 @@ mod tests {
           - id: agent-instructions
             config: {}
 "#;
-        let generated = build_workbench_preset_row_from_standard(standard, &fallback_worker_defs())
-            .expect("workbench preset must generate");
+        let generated = build_workbench_preset_row_from_standard(
+            standard,
+            &fallback_worker_defs(),
+            &WorkbenchPresetSpec {
+                row_id: "preset-workbench",
+                preset_id: "workbench",
+                order: 2,
+                flavor: WorkbenchFlavor::Full,
+            },
+        )
+        .expect("workbench preset must generate");
         let doc: serde_yaml::Value =
             serde_yaml::from_str(&generated).expect("workbench preset must be valid YAML");
         let row = &doc[0]["insert"][0];

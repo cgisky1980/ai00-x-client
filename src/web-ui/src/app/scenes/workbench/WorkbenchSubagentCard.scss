@@ -339,6 +339,10 @@
     white-space: pre-wrap;
   }
 
+  &[open] {
+    border-color: var(--border-base);
+  }
+
   &.is-running {
     border-color: var(--color-accent);
 

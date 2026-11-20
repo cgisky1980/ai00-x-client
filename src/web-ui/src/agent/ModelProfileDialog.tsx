@@ -12,6 +12,7 @@ import {
   AGENT_STAGES,
   AGENT_STAGE_HINTS,
   AGENT_STAGE_LABELS,
+  MODEL_REMOTE,
   deleteProfile,
   loadAgentModelOptions,
   saveProfile,
@@ -34,12 +35,29 @@ function genId(): string {
 }
 
 const EMPTY_MODELS: Record<AgentStage, string> = {
-  plan: 'ai00-api',
-  execute: 'rwkv-local',
-  review: 'ai00-api',
-  fallback: 'ai00-api',
-  research: 'ai00-auto',
+  plan: MODEL_REMOTE,
+  execute: MODEL_REMOTE,
+  review: MODEL_REMOTE,
+  fallback: MODEL_REMOTE,
+  research: MODEL_REMOTE,
 };
+
+/**
+ * 候选加载后归一化：`ai00-api`（网关主模型槽）与已下架模型不在候选里，
+ * 统一换成第一个具体的 Ai00-API 子模型；本地 RWKV 保留。
+ */
+function normalizeModels(
+  current: Record<AgentStage, string>,
+  options: AgentModelOption[],
+): Record<AgentStage, string> {
+  const values = new Set(options.map(option => option.value));
+  const fallback = options.find(option => option.group === 'Ai00-API')?.value ?? MODEL_REMOTE;
+  const next = { ...current };
+  for (const stage of AGENT_STAGES) {
+    if (!values.has(next[stage])) next[stage] = fallback;
+  }
+  return next;
+}
 
 export const ModelProfileDialog: React.FC<ModelProfileDialogProps> = ({
   open,
@@ -61,7 +79,9 @@ export const ModelProfileDialog: React.FC<ModelProfileDialogProps> = ({
     let cancelled = false;
     void loadAgentModelOptions()
       .then(next => {
-        if (!cancelled) setOptions(next);
+        if (cancelled) return;
+        setOptions(next);
+        setModels(prev => normalizeModels(prev, next));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

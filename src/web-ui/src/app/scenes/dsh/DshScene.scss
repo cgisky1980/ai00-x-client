@@ -283,13 +283,34 @@
     flex-direction: column;
   }
 
+  // 消息流与输入区共用 --size-content-chat 居中内容列（三种容器自动一致）
   &__messages {
     flex: 1;
     overflow-y: auto;
-    padding: var(--spacing-4);
+    padding: var(--spacing-6) max(var(--spacing-4), calc((100% - var(--size-content-chat)) / 2))
+      var(--spacing-4);
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-4);
+  }
+
+  // 轮次节奏（规范 9.8）：不再用单一 gap 等距铺开，改为相邻块默认紧凑、
+  // 轮次之间拉开。origin 记录 / 办结记录 / 审批卡等也走同一默认节奏。
+  &__messages > * + * {
+    margin-top: var(--spacing-3);
+  }
+
+  // 组内紧凑：用户消息与被它触发的助手回复
+  &__msg.is-user + &__msg.is-assistant {
+    margin-top: var(--spacing-3);
+  }
+
+  // 轮次分隔：助手结束 → 下一轮用户
+  &__msg.is-assistant + &__msg.is-user {
+    margin-top: var(--spacing-6);
+  }
+
+  &__messages > :first-child {
+    margin-top: 0;
   }
 
   // 回到最新：上翻暂停跟随时浮现（浮层唯一玻璃免谈——实体表面）
@@ -364,7 +385,7 @@
 
   &__msg.is-user &__msg-body {
     width: fit-content;
-    max-width: 80%;
+    max-width: min(80%, 56ch);
     margin-left: auto;
     padding: var(--spacing-2) var(--spacing-3);
     border-radius: var(--radius-base);
@@ -414,7 +435,9 @@
     flex: 1;
   }
 
+  // 助手正文限行长（工具/子代理折叠块不限，允许用满内容列）
   &__msg-text {
+    max-width: 76ch;
     font-size: var(--font-size-sm);
     line-height: 1.6;
     white-space: pre-wrap;
@@ -677,6 +700,8 @@
     display: flex;
     gap: var(--spacing-1);
     margin-top: var(--spacing-1);
+    // 始终靠右：无用量读数时也不左漂
+    margin-left: auto;
     opacity: 0;
     transition: opacity var(--motion-fast) ease;
   }
@@ -712,27 +737,37 @@
     opacity: 1;
   }
 
+  // 触屏无 hover：操作区常显，不依赖鼠标
+  @media (hover: none) {
+    &__msg-actions {
+      opacity: 1;
+    }
+  }
+
+  // 图标按钮：文案由 aria-label / title 承担，视觉只留图标
   &__msg-copy {
     display: inline-flex;
     align-items: center;
-    gap: var(--spacing-1);
-    padding: var(--spacing-1) var(--spacing-2);
-    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    padding: var(--spacing-1);
+    border: none;
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
     cursor: pointer;
-    transition: color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+    transition: color var(--motion-fast) ease;
 
     &:hover {
       color: var(--color-accent);
-      border-color: var(--color-accent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
     }
 
     &.is-copied {
       color: var(--color-success);
-      border-color: var(--color-success);
     }
   }
 
@@ -1125,7 +1160,8 @@
 
   // ---- 输入区（标准件：design-system PromptInput + ModelSelector）----
   &__composer {
-    padding: var(--spacing-3) var(--spacing-4) var(--spacing-4);
+    padding: var(--spacing-3) max(var(--spacing-4), calc((100% - var(--size-content-chat)) / 2))
+      var(--spacing-5);
     border-top: var(--style-stroke-width, 1px) solid var(--border-subtle);
   }
 

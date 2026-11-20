@@ -10,6 +10,13 @@
       "3xl": { "$value": "28px", "$type": "dimension", "$description": "大卡片：对话输入框（composer）签名圆角" },
       "full": { "$value": "9999px", "$type": "dimension" }
     },
+    "content": {
+      "chat": {
+        "$value": "880px",
+        "$type": "dimension",
+        "$description": "对话内容列最大宽度（所有 DSH 对话共用）：消息流与 composer 在同一内容列内居中，超出时两侧留白"
+      }
+    },
     "gap": {
       "$description": "间距刻度 = Tailwind 式 ×4px 语义键（键×4=px）。E5 扩步进：新增 0.25/0.5/1.5/2.5/3.5/4.5/7/14 半步，覆盖 2px 细栅格与 28/56 页面级；奇数字面值（3/5/7/9px）一律就近对齐本刻度（±1px）",
       "0.25": { "$value": "1px", "$type": "dimension" },

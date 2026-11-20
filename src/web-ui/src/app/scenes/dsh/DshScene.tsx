@@ -27,6 +27,7 @@ import {
 } from '@/infrastructure/api/service-api/DshAPI';
 import { useWorkspaceManagerSync } from '@/infrastructure/hooks/useWorkspaceManagerSync';
 import { useDshChat } from './hooks/useDshChat';
+import { useSessionCredits } from './hooks/useSessionCredits';
 import {
   ApprovalCard,
   MessageBubble,
@@ -78,6 +79,8 @@ const DshScene: React.FC = () => {
     resolutionLog,
   } = useDshChat();
 
+  /** 会话积分消耗（服务端账单）：每回合结束刷新，展示「本回合 + 会话累计」 */
+  const sessionCredits = useSessionCredits(currentSessionId, messages);
   // 工灵剧场（AgentTheater）：开关 + 会话卡片点击联动（设计 §3.5）
   const theaterEnabled = useTheaterStore((st) => st.enabled);
   const setTheaterEnabled = useTheaterStore((st) => st.setEnabled);
@@ -202,6 +205,7 @@ const DshScene: React.FC = () => {
     return [
       `↑${fmt(usage.inputTokens)} ↓${fmt(usage.outputTokens)} · ${usage.requests}`,
       cacheRate ? `${t('sessions.cacheHit')} ${cacheRate}` : '',
+      sessionCredits.total > 0 ? `${sessionCredits.total} ${t('sessions.creditsUnit')}` : '',
     ]
       .filter(Boolean)
       .join(' · ');
@@ -661,6 +665,7 @@ const DshScene: React.FC = () => {
                   <MessageBubble
                     key={m.id}
                     message={m}
+                    credits={m.role === 'assistant' ? sessionCredits.perMessage[m.id] : undefined}
                     onRetry={
                       m.role === 'assistant' && !m.origin && m.id === lastAssistantId && lastUserText
                         ? () => send(lastUserText)

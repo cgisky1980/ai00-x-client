@@ -8,7 +8,8 @@
     "empty": "No sessions yet",
     "rename": "Rename session",
     "fork": "Fork session (copy history into a new one)",
-    "usage": "Session cumulative usage (↑input ↓output · requests · cache hit rate)",
+    "usage": "Session cumulative usage (↑input ↓output · requests · cache hit rate · credits)",
+    "creditsUnit": "credits",
     "cacheHit": "cache"
   },
   "tool": {
@@ -31,6 +32,7 @@
     "empty": "Type a message to start",
     "inputPlaceholder": "Ask Ai00-X — use @ for context, / for commands and capabilities",
     "usageTitle": "This turn: {{input}} input tokens · {{output}} output tokens",
+    "creditsTitle": "This turn: {{credits}} credits",
     "send": "Send",
     "stop": "Stop",
     "thinking": "Thinking…",

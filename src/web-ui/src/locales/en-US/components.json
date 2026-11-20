@@ -1,4 +1,7 @@
 {
+  "ai": {
+    "queueOnlyHint": "Press Enter to queue for the current task"
+  },
   "button": {
     "primary": "Primary",
     "secondary": "Secondary",

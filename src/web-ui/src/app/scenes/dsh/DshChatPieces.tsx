@@ -12,6 +12,7 @@ import {
   ArrowUp,
   Check,
   CheckCircle2,
+  Coins,
   Copy,
   HelpCircle,
   Minus,
@@ -268,7 +269,22 @@ export const MessageBubble: React.FC<{
   renderToolCall?: (call: DshToolCallView) => React.ReactNode;
   /** 反查来源会话的展示名（子代理 label），查不到时退回短 id。 */
   resolveOriginLabel?: (sessionId: string) => string | null;
-}> = ({ message, onRetry, onQuote, renderToolCall, resolveOriginLabel }) => {
+  /** 本回合消耗的积分（服务端账单口径；无数据时不显示）。 */
+  credits?: number;
+  /**
+   * 是否在气泡底部显示单条 token 用量（↑输入 ↓输出）。
+   * 工作台对话传 false：那里只在「本轮」行报数，避免同一屏两处消耗口径。
+   */
+  showUsage?: boolean;
+}> = ({
+  message,
+  onRetry,
+  onQuote,
+  renderToolCall,
+  resolveOriginLabel,
+  credits,
+  showUsage = true,
+}) => {
   const { t } = useTranslation('scenes/dsh');
   const isUser = message.role === 'user' && !message.origin;
   /** 推理过程默认折叠；只在展开时渲染 markdown，避免长历史每条消息都做一遍解析。 */
@@ -402,7 +418,7 @@ export const MessageBubble: React.FC<{
         )}
         {!isUser && !message.streaming && (displayText || message.usage) && (
           <div className="ai00-x-dsh-scene__msg-meta">
-            {message.usage && (
+            {showUsage && message.usage && (
               <span
                 className="ai00-x-dsh-scene__msg-usage"
                 title={t('chat.usageTitle', {
@@ -416,6 +432,15 @@ export const MessageBubble: React.FC<{
                 <span>{formatTokens(message.usage.outputTokens)}</span>
               </span>
             )}
+            {credits != null && credits > 0 && (
+              <span
+                className="ai00-x-dsh-scene__msg-usage"
+                title={t('chat.creditsTitle', { credits })}
+              >
+                <Coins size={11} aria-hidden="true" />
+                <span>{credits}</span>
+              </span>
+            )}
             {(displayText || onRetry) && (
               <div className="ai00-x-dsh-scene__msg-actions">
                 {displayText && (
@@ -427,7 +452,6 @@ export const MessageBubble: React.FC<{
                     title={copied ? t('chat.copied') : t('chat.copyMessage')}
                   >
                     {copied ? <Check size={12} /> : <Copy size={12} />}
-                    <span>{copied ? t('chat.copied') : t('chat.copyMessage')}</span>
                   </button>
                 )}
                 {displayText && onQuote && (
@@ -439,7 +463,6 @@ export const MessageBubble: React.FC<{
                     title={t('chat.quote')}
                   >
                     <Quote size={12} />
-                    <span>{t('chat.quote')}</span>
                   </button>
                 )}
                 {onRetry && (
@@ -451,7 +474,6 @@ export const MessageBubble: React.FC<{
                     title={t('chat.retryTurn')}
                   >
                     <RotateCcw size={12} />
-                    <span>{t('chat.retryTurn')}</span>
                   </button>
                 )}
               </div>

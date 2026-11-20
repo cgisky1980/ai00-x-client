@@ -25,7 +25,12 @@ fn month_file(at_ms: u64) -> PathBuf {
     // 用秒级时间戳换算年月（无 chrono 依赖，1970 起算的简易换算）
     let days = at_ms / 86_400_000;
     let (y, m) = year_month_from_days(days as i64);
-    ai_usage_dir().join(format!("records-{}-{:02}.json", y, m))
+    month_path(y, m)
+}
+
+/// 指定年月的账本路径（月文件命名的唯一出口）。
+fn month_path(year: i64, month: u32) -> PathBuf {
+    ai_usage_dir().join(format!("records-{}-{:02}.json", year, month))
 }
 
 /// 天数 → (年, 月)（1970-01-01 起算，含闰年）。
@@ -104,6 +109,10 @@ pub struct AiUsageRecord {
     /// 是否有真实 usage。旧记录缺省视为历史口径已知；新记录缺 usage 必须显式 false。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage_known: Option<bool>,
+    /// 网关发往服务端的 `X-Request-Id`（服务端计费账本的 `request_id` 同值）。
+    /// 用于把「本轮」的远端调用对到服务端积分账单上；本地调用为空。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
 }
 
 /// 追加一条记录（失败仅告警，不阻塞 AI 调用主链路）。
@@ -211,6 +220,8 @@ pub struct AiUsageSessionResponse {
     pub since_ms: u64,
     pub local: AiUsageSplit,
     pub remote: AiUsageSplit,
+    /// 窗口内**远端**调用的请求 id（去重、升序），用于到服务端计费账本核对积分。
+    pub remote_request_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -220,6 +231,10 @@ pub struct AiUsageSessionRequest {
     /// 只统计该时刻之后的记录（毫秒）；缺省最近 24 小时。
     #[serde(default)]
     pub since_ms: Option<u64>,
+    /// 一并统计的子会话（子代理）id：一次派发会花掉别的会话的额度，
+    /// 「本轮消耗」必须把它们算进来，否则云端积分会少算。
+    #[serde(default)]
+    pub extra_session_ids: Vec<String>,
 }
 
 fn merge_split(split: &mut AiUsageSplit, record: &AiUsageRecord) {
@@ -236,9 +251,43 @@ fn merge_split(split: &mut AiUsageSplit, record: &AiUsageRecord) {
     }
 }
 
+/// 单次会话查询最多读取的月账本数。
+///
+/// 账本按月存，重启恢复「本轮消耗」只需回溯到 turn/start；即使跨年长会话也远不到 24 个月。
+/// 设上界是为了让病态跨度（如前端误传 5 年前的 since）只读最近 24 个月，行为可预期且不会卡死。
+const SESSION_USAGE_MAX_MONTHS: usize = 24;
+
+/// 按 `since .. now` 实际跨度列出要读的月账本路径（无重复，按年月升序）。
+///
+/// 直接按年月索引逐月枚举（不用 31 天步长探测：31 天可整段跨过 28/30 天的月份，
+/// 例如 1/31 + 31 天落在 3/3，二月的账本会被整月漏掉），保证中间任何月份都不漏。
+/// 两端顺序颠倒时按区间处理；超过 `max_months` 时只保留最近的 `max_months` 个。
+fn month_paths_between(since_ms: u64, now_ms: u64, max_months: usize) -> Vec<PathBuf> {
+    if max_months == 0 {
+        return Vec::new();
+    }
+    let lo = since_ms.min(now_ms) / 86_400_000;
+    let hi = since_ms.max(now_ms) / 86_400_000;
+    let (y0, m0) = year_month_from_days(lo as i64);
+    let (y1, m1) = year_month_from_days(hi as i64);
+    let start = y0 * 12 + i64::from(m0) - 1;
+    let end = y1 * 12 + i64::from(m1) - 1;
+    // 从最近的月份开始往回取，命中上限即停——病态跨度也只读 max_months 个文件
+    let mut list = Vec::new();
+    let mut idx = end;
+    while idx >= start && list.len() < max_months {
+        let y = idx.div_euclid(12);
+        let m = idx.rem_euclid(12) as u32 + 1;
+        list.push(month_path(y, m));
+        idx -= 1;
+    }
+    list.reverse();
+    list
+}
+
 /// 按会话聚合本地/远端用量（工作台「本轮消耗」与按会话对账）。
 ///
-/// 只读当月与上月账本，避免为一次增量查询扫描全部历史。
+/// 只读 `since .. now` 实际跨度涉及的月账本（缺省 24h 只命中一个文件）。
 #[tauri::command]
 pub async fn ai_usage_session_usage(
     request: AiUsageSessionRequest,
@@ -256,16 +305,20 @@ pub async fn ai_usage_session_usage(
         since_ms: since,
         local: AiUsageSplit::default(),
         remote: AiUsageSplit::default(),
+        remote_request_ids: Vec::new(),
     };
-
-    // 只读两个月的文件（当前月 + 上月），足以覆盖缺省 24h 与常见回合窗口
-    let mut seen = std::collections::BTreeSet::new();
-    for back in 0..=1u64 {
-        let at = now.saturating_sub(back * 31 * 86_400_000);
-        let path = month_file(at);
-        if !seen.insert(path.clone()) {
-            continue;
+    let mut request_ids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    // 主会话 + 本轮派发的子会话（子代理）一起统计
+    let mut sessions: std::collections::BTreeSet<&str> =
+        std::collections::BTreeSet::from([request.session_id.as_str()]);
+    for id in &request.extra_session_ids {
+        if !id.is_empty() {
+            sessions.insert(id.as_str());
         }
+    }
+
+    // 按 since..now 实际跨度读月账本（缺省 24h 只命中一个文件）
+    for path in month_paths_between(since, now, SESSION_USAGE_MAX_MONTHS) {
         let Ok(content) = fs::read_to_string(&path).await else {
             continue;
         };
@@ -276,16 +329,21 @@ pub async fn ai_usage_session_usage(
             if record.at < since {
                 continue;
             }
-            if record.session_id.as_deref() != Some(request.session_id.as_str()) {
+            let sid = record.session_id.as_deref();
+            if !matches!(sid, Some(s) if sessions.contains(s)) {
                 continue;
             }
             if record.local {
                 merge_split(&mut response.local, &record);
             } else {
                 merge_split(&mut response.remote, &record);
+                if let Some(id) = record.request_id.filter(|id| !id.is_empty()) {
+                    request_ids.insert(id);
+                }
             }
         }
     }
+    response.remote_request_ids = request_ids.into_iter().collect();
 
     Ok(response)
 }
@@ -460,5 +518,44 @@ mod tests {
     #[test]
     fn day_key_format() {
         assert_eq!(day_key(0), "1970-01-01");
+    }
+
+    /// 2026-01-01 的毫秒时间戳（天数见 year_month_roundtrip）。
+    const JAN_2026_MS: u64 = 20_454 * 86_400_000;
+    const DAY_MS: u64 = 86_400_000;
+
+    #[test]
+    fn month_paths_cover_cross_month_window_without_duplicates() {
+        let since = JAN_2026_MS;
+        let now = since + 70 * DAY_MS;
+        let paths = month_paths_between(since, now, SESSION_USAGE_MAX_MONTHS);
+        assert!(
+            paths.len() >= 3,
+            "70 天窗口应至少命中 3 个月: {}",
+            paths.len()
+        );
+        let mut unique = paths.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(unique.len(), paths.len(), "月份路径不应重复");
+    }
+
+    #[test]
+    fn month_paths_single_month_window() {
+        let paths = month_paths_between(JAN_2026_MS + 4 * DAY_MS, JAN_2026_MS + 19 * DAY_MS, 24);
+        assert_eq!(paths.len(), 1, "同月窗口只应读一个文件: {:?}", paths);
+    }
+
+    #[test]
+    fn month_paths_capped_for_huge_span() {
+        let max_months = 24;
+        let paths = month_paths_between(0, 5 * 365 * DAY_MS, max_months);
+        assert!(!paths.is_empty());
+        assert!(
+            paths.len() <= max_months,
+            "超长跨度应被截断到 {}，实际 {}",
+            max_months,
+            paths.len()
+        );
     }
 }

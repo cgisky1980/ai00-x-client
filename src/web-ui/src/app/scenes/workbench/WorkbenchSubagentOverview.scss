@@ -1,16 +1,16 @@
 // 子代理汇总条：常驻在对话面板顶部，回答「现在有几个、谁在跑」。
+// 轻量线（透明底 + 底边线），左右留白由父容器 __subagents-head 提供。
 .ai00-x-wb-subagent-overview {
   flex: none;
   border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
-  /* 比对话底色亮一档：它是常驻工具条，不是消息内容 */
-  background-color: var(--color-bg-card);
+  background-color: transparent;
 
   &__head {
     display: flex;
     align-items: center;
     gap: var(--spacing-2);
     width: 100%;
-    padding: var(--spacing-2) var(--spacing-4);
+    padding: var(--spacing-2) 0;
     border: none;
     background: none;
     color: var(--color-text-secondary);
@@ -73,7 +73,7 @@
     align-items: center;
     gap: var(--spacing-2);
     width: 100%;
-    padding: var(--spacing-1) var(--spacing-4);
+    padding: var(--spacing-1) 0;
     border: none;
     background: none;
     color: var(--color-text-secondary);

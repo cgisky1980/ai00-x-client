@@ -51,6 +51,15 @@ export function useCoreLayoutInit(): CoreLayoutInitResult {
   const [splashVisible, setSplashVisible] = useState(true);
   const [splashExiting, setSplashExiting] = useState(false);
 
+  // 启动即校准 Ai00-API 引用：上游下架/改名后，配置里残留的
+  // `ai00s:<旧模型>` 会被自动换成可用模型（fetchAi00sModels 内部自愈），
+  // 避免旧会话/路由继续请求已不存在的模型拿到 404。
+  useEffect(() => {
+    void import('@/infrastructure/config/services/ai00sTier')
+      .then(({ fetchAi00sModels }) => fetchAi00sModels())
+      .catch(() => undefined);
+  }, []);
+
   const handleOpenProject = useCallback(async () => {
     try {
       const selected = await open({
@@ -191,8 +200,22 @@ export function useCoreLayoutInit(): CoreLayoutInitResult {
       try {
         const { listen } = await import('@tauri-apps/api/event');
         const { useSceneStore } = await import('@/app/stores/sceneStore');
-        unlistenFn = await listen('open-settings-scene', () => {
-          useSceneStore.getState().openScene('settings');
+        unlistenFn = await listen<{ tab?: string } | null>('open-settings-scene', event => {
+          void (async () => {
+            const tab = event.payload?.tab;
+            if (tab) {
+              try {
+                const [{ normalizeSettingsTab }, { useSettingsStore }] = await Promise.all([
+                  import('@/app/scenes/settings/settingsConfig'),
+                  import('@/app/scenes/settings/settingsStore'),
+                ]);
+                useSettingsStore.getState().setActiveTab(normalizeSettingsTab(tab));
+              } catch {
+                // 设置页模块不可用时按默认 tab 打开
+              }
+            }
+            useSceneStore.getState().openScene('settings');
+          })();
         });
         // dsh Agent 场景唤起（策窗口委托交付链路）
         unlistenDshFn = await listen('open-dsh-scene', () => {

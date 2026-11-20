@@ -9,6 +9,7 @@ export const tokens = {
   'size.radius.2xl': "20px",
   'size.radius.3xl': "28px",
   'size.radius.full': "9999px",
+  'size.content.chat': "880px",
   'size.gap.1': "4px",
   'size.gap.2': "8px",
   'size.gap.3': "12px",

@@ -10,10 +10,11 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Cpu, ChevronDown, Check, Sparkles, Lock, Rocket, Coins } from 'lucide-react';
+import { Cpu, ChevronDown, ChevronRight, Check, Sparkles, Lock, Rocket, Coins, Pencil, Trash2, Copy, SlidersHorizontal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
+import { dshEngine } from '@/infrastructure/api/service-api/DshAPI';
 import { getProviderDisplayName } from '@/infrastructure/config/services/modelConfigs';
 import {
   isAi00sModel,
@@ -32,16 +33,21 @@ import {
 import { getEffectiveReasoningMode, isReasoningVisiblyEnabled } from '@/infrastructure/config/utils/reasoning';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import type { AIModelConfig } from '@/infrastructure/config/types';
-import { Tooltip, Popover, PopoverTrigger, PopoverContent } from '@/component-library';
+import { Tooltip, Popover, PopoverTrigger, PopoverAnchor, PopoverContent } from '@/component-library';
 import { createLogger } from '@/shared/utils/logger';
 import { notificationService } from '@/shared/notification-system';
 import ModelProfileDialog from '@/agent/ModelProfileDialog';
 import {
   applyModelProfile,
+  deleteProfile,
   getActiveProfileId,
   listProfiles,
+  resolveProfileModels,
+  saveProfile,
+  setActiveProfileId as persistActiveProfileId,
   type AgentModelProfile,
 } from '@/agent/modelProfiles';
+import { quickActions } from '@/shared/services/ide-control/api';
 import { UpgradeDialog } from './UpgradeDialog';
 import './ModelSelector.scss';
 
@@ -157,9 +163,6 @@ const buildAutoModelInfo = (
 const formatMultiplier = (multiplier: number): string =>
   `${parseFloat(multiplier.toFixed(2))}x`;
 
-/// 组合摘要里的模型短名（`ai00s:` 前缀省略，避免一行太长）。
-const shortModelRef = (ref: string): string => (ref.startsWith('ai00s:') ? ref.slice(6) : ref);
-
 /// 倍率视图：格式化积分余额（千分位，最多 2 位小数）
 const formatCredits = (n: number): string =>
   n.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -204,6 +207,36 @@ const formatModalityLabel = (modality?: string | null): string => {
   return '';
 };
 
+interface ModelDetailItem {
+  label: string;
+  value: string;
+}
+
+/**
+ * 模型详细信息卡（悬停二级弹层内容）。
+ * 只做展示：模型名 + 元信息 + 键值明细，样式全部走设计令牌。
+ */
+const ModelDetailCard: React.FC<{
+  title: string;
+  meta?: string;
+  items: ModelDetailItem[];
+}> = ({ title, meta, items }) => (
+  <div className="ai00-x-model-selector__detail">
+    <div className="ai00-x-model-selector__detail-title">{title}</div>
+    {meta && <div className="ai00-x-model-selector__detail-meta">{meta}</div>}
+    {items.length > 0 && (
+      <div className="ai00-x-model-selector__detail-grid">
+        {items.map(item => (
+          <div key={item.label} className="ai00-x-model-selector__detail-item">
+            <span className="ai00-x-model-selector__detail-label">{item.label}</span>
+            <span className="ai00-x-model-selector__detail-value">{item.value}</span>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
   // currentMode 参数随 per-mode 模型覆盖（ai.agent_models）移除不再使用（接口保留兼容既有调用方）
   className = '',
@@ -246,6 +279,67 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const localDownloadPollRef = useRef<number | null>(null);
 
   const autoSelectedRef = useRef(false);
+
+  // 悬停二级弹层：当前展开详情的行 id（api:/local:/custom: 前缀区分来源）
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detailCloseTimerRef = useRef<number | null>(null);
+  const detailIdRef = useRef<string | null>(null);
+
+  // 「单一模型」二级菜单（本地 / Ai00-API / 自定义模型）
+  const [singleMenuOpen, setSingleMenuOpen] = useState(false);
+  const singleMenuTimerRef = useRef<number | null>(null);
+
+  const openDetail = useCallback((id: string) => {
+    if (detailCloseTimerRef.current !== null) {
+      window.clearTimeout(detailCloseTimerRef.current);
+      detailCloseTimerRef.current = null;
+    }
+    detailIdRef.current = id;
+    setDetailId(current => (current === id ? current : id));
+  }, []);
+
+  const scheduleCloseDetail = useCallback(() => {
+    if (detailCloseTimerRef.current !== null) window.clearTimeout(detailCloseTimerRef.current);
+    detailCloseTimerRef.current = window.setTimeout(() => {
+      detailCloseTimerRef.current = null;
+      detailIdRef.current = null;
+      setDetailId(null);
+    }, 120);
+  }, []);
+
+  const openSingleMenu = useCallback(() => {
+    if (singleMenuTimerRef.current !== null) {
+      window.clearTimeout(singleMenuTimerRef.current);
+      singleMenuTimerRef.current = null;
+    }
+    setSingleMenuOpen(true);
+  }, []);
+
+  const scheduleCloseSingleMenu = useCallback(() => {
+    if (singleMenuTimerRef.current !== null) window.clearTimeout(singleMenuTimerRef.current);
+    singleMenuTimerRef.current = window.setTimeout(() => {
+      singleMenuTimerRef.current = null;
+      // 详情卡还开着（鼠标停在某个模型行上）时先不关，等它自己收起
+      if (detailIdRef.current) {
+        scheduleCloseSingleMenu();
+        return;
+      }
+      setSingleMenuOpen(false);
+    }, 200);
+  }, []);
+
+  useEffect(() => {
+    if (!dropdownOpen) {
+      setDetailId(null);
+      detailIdRef.current = null;
+      setSingleMenuOpen(false);
+    }
+  }, [dropdownOpen]);
+
+  useEffect(() => () => {
+    if (detailCloseTimerRef.current !== null) window.clearTimeout(detailCloseTimerRef.current);
+    if (singleMenuTimerRef.current !== null) window.clearTimeout(singleMenuTimerRef.current);
+  }, []);
 
   /** 拉取本地模型内置目录（RWKV 3B/7B/13B + Qwen3.8 27B）的就绪状态与可用路径。 */
   const refreshLocalCatalog = useCallback(async () => {
@@ -435,11 +529,46 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   // 受控模式的 primary 来自调用方；非受控来自全局配置
   const primaryModelId = isControlled ? (controlledValue ?? null) : (defaultModels.primary || null);
 
+  /// 服务器默认的 Ai00-API 子模型（`ai00-api` 网关主模型槽的落点）
+  const defaultApiModel = useMemo(
+    () =>
+      ai00ApiModels.find(m => m.isDefault && !m.locked)
+      ?? ai00ApiModels.find(m => !m.locked)
+      ?? ai00ApiModels[0]
+      ?? null,
+    [ai00ApiModels],
+  );
+
+  /// 模型引用 → 可读名（组合摘要 / 触发器共用；不再露裸 id）
+  const describeModelRef = useCallback((ref: string): string => {
+    if (!ref) return '';
+    if (ref === 'ai00-api' || ref === 'ai00-salvo') return defaultApiModel?.displayName ?? 'Ai00-API 默认';
+    if (ref === 'ai00-auto' || ref === 'auto') return '智能路由';
+    if (ref === 'rwkv-local') return '本地 RWKV';
+    if (ref.startsWith('ai00s:')) {
+      const sub = ref.slice('ai00s:'.length);
+      return ai00ApiModels.find(m => m.id === sub)?.displayName ?? sub;
+    }
+    const hit = allModels.find(m => m.id === ref);
+    return hit?.name || hit?.model_name || ref;
+  }, [defaultApiModel, ai00ApiModels, allModels]);
+
   /// 当前生效模型的展示信息（受控/非受控统一按 primaryModelId 解析：
-  /// ai00s 复合引用 → 服务器列表；自定义 id → ai.models；空/自动 → 默认态）
+  /// ai00s 复合引用 → 服务器列表；ai00-api 主模型槽 → 服务器默认子模型；
+  /// 自定义 id → ai.models；空/自动 → 默认态）
   const currentModel = useMemo((): ModelInfo | null => {
     const ref = primaryModelId;
     if (!ref || ref === 'auto') return buildAutoModelInfo(t);
+    if (ref === 'ai00-api' || ref === 'ai00-salvo') {
+      // 网关主模型槽：跟随服务端 is_default，展示真实子模型名而非裸引用
+      return {
+        id: ref,
+        configName: defaultApiModel?.displayName ?? 'Ai00-API 默认',
+        modelName: defaultApiModel?.displayName ?? 'Ai00-API 默认',
+        providerName: 'Ai00-API',
+        provider: 'ai00s',
+      };
+    }
     if (ref.startsWith('ai00s:')) {
       const sub = ref.slice('ai00s:'.length);
       const m = ai00ApiModels.find(x => x.id === sub);
@@ -476,7 +605,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       enableThinking: isReasoningVisiblyEnabled(getEffectiveReasoningMode(model)),
       reasoningEffort: model.reasoning_effort,
     };
-  }, [primaryModelId, allModels, ai00ApiModels, t, isControlled, displayLabel]);
+  }, [primaryModelId, allModels, ai00ApiModels, defaultApiModel, t, isControlled, displayLabel]);
 
   const availableModels = useMemo((): ModelInfo[] => {
     return allModels
@@ -499,7 +628,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   /// 非 ai00s 的全部模型（本地 + 用户自定义）
   const customModels = useMemo((): ModelInfo[] => {
-    return availableModels.filter(m => !isAi00sModel(m.id));
+    return availableModels.filter(
+      m => !isAi00sModel(m.id) && (m.provider || '').trim().toLowerCase() !== 'ai00s',
+    );
   }, [availableModels]);
 
   /// 用户自定义远程 API 模型（排除本地模型）；ai00s 作为 Ai00-API 入口，不在此列表。
@@ -513,8 +644,27 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     );
   }, [customModels, isControlled]);
 
+  /// 内置组合的动态占位引用（最低/最高倍率）按当前目录解析后再展示与应用
+  const resolvedProfiles = useMemo(
+    () => profiles.map(profile => ({
+      ...profile,
+      models: resolveProfileModels(profile, ai00ApiModels),
+    })),
+    [profiles, ai00ApiModels],
+  );
+
+  /// 当前生效的组合（组合模式下「单一模型」分组不再显示勾选，二者互斥）
+  const activeProfile = useMemo(
+    () => resolvedProfiles.find(profile => profile.id === activeProfileId) ?? null,
+    [resolvedProfiles, activeProfileId],
+  );
+
   const handleSelectModel = useCallback(async (modelId: string) => {
     if (loading) return;
+
+    // 选具体模型 = 退出组合模式（受控/非受控都要清，避免组合勾选与触发器不一致）
+    persistActiveProfileId(null);
+    setActiveProfileId(null);
 
     // 受控模式：只回调调用方（策窗口局部持久化），不写全局配置
     if (isControlled) {
@@ -539,6 +689,40 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       setDropdownOpen(false);
     } catch (error) {
       log.error('Failed to switch model', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, isControlled, onControlledSelect]);
+
+  /**
+   * 选本地常驻模型（RWKV 3B）作为单一模型。
+   * 7B/13B 只是可选下载档位，引擎不加载，不能当对话模型。
+   */
+  const handleSelectLocalModel = useCallback(async () => {
+    if (loading) return;
+
+    persistActiveProfileId(null);
+    setActiveProfileId(null);
+
+    if (isControlled) {
+      onControlledSelect?.('rwkv-local');
+      setDropdownOpen(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const currentDefaultModels = await configManager.getConfig<any>('ai.default_models') || {};
+      await configManager.setConfig('ai.default_models', {
+        ...currentDefaultModels,
+        primary: 'rwkv-local',
+      });
+      setDefaultModels(prev => ({ ...prev, primary: 'rwkv-local' }));
+      log.info('Primary model switched to local RWKV');
+      globalEventBus.emit('mode:config:updated');
+      setDropdownOpen(false);
+    } catch (error) {
+      log.error('Failed to switch to local model', error);
     } finally {
       setLoading(false);
     }
@@ -627,6 +811,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
     // 受控模式：只回调复合引用，不写全局配置
     if (isControlled) {
+      persistActiveProfileId(null);
+      setActiveProfileId(null);
       onControlledSelect?.(`ai00s:${apiModel.id}`);
       setDropdownOpen(false);
       return;
@@ -650,6 +836,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         primary: compositeRef,
       });
       setDefaultModels(prev => ({ ...prev, primary: compositeRef }));
+
+      // 选具体模型 = 退出组合模式，避免组合勾选与实际模型不一致
+      persistActiveProfileId(null);
+      setActiveProfileId(null);
 
       log.info('Ai00-API sub-model selected', { subModelId: apiModel.id });
 
@@ -708,9 +898,23 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       try {
         const result = await applyModelProfile(profile, { sessionId: sessionId ?? null });
         setActiveProfileId(profile.id);
-        if (isControlled && onControlledSelect) onControlledSelect(profile.models.plan);
+        if (isControlled && onControlledSelect) {
+          // 工人模型改动会触发引擎重启：等引擎就绪再切会话模型，否则切换必然被拒
+          if (result.workersChanged) {
+            try {
+              await dshEngine.ensureReady();
+            } catch {
+              // 引擎起不来时仍尝试切换，失败由宿主回调提示
+            }
+          }
+          onControlledSelect(profile.models.plan);
+        }
         onProfileApplied?.(profile);
-        if (result.restartRequired) {
+        if (result.workersError) {
+          notificationService.warning(
+            `组合「${profile.name}」已保存，但工人模型写入失败：${result.workersError}`,
+          );
+        } else if (result.restartRequired) {
           notificationService.warning('模型组合已保存；有会话正在运行，稍后重启引擎生效');
         } else if (result.workersChanged) {
           notificationService.success(`已应用组合「${profile.name}」（引擎已重载）`);
@@ -726,6 +930,56 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     [isControlled, onControlledSelect, onProfileApplied, sessionId],
   );
 
+  /** 编辑自定义组合（内置组合只能另存为）。 */
+  const handleEditProfile = useCallback((profile: AgentModelProfile) => {
+    setDropdownOpen(false);
+    setProfileDialog({ open: true, profile });
+  }, []);
+
+  /** 删除自定义组合；删的是当前生效组合时一并退出组合模式。 */
+  const handleDeleteProfile = useCallback((profile: AgentModelProfile) => {
+    deleteProfile(profile.id);
+    setProfiles(listProfiles());
+    if (getActiveProfileId() === profile.id) {
+      persistActiveProfileId(null);
+      setActiveProfileId(null);
+    }
+    notificationService.success(`已删除组合「${profile.name}」`);
+  }, []);
+
+  /**
+   * 打开「自定义 API」管理页。
+   *
+   * 设置页只存在于主窗口：工作台/策等独立窗口里 `openScene('settings')` 没有
+   * 对应路由（会落回本窗口的场景列表，看起来像「页面不对」）。因此这里先唤起
+   * 主窗口，再广播 `open-settings-scene`（主窗口监听后切到「AI 模型」页）。
+   */
+  const openCustomApiManagement = useCallback(async () => {
+    setDropdownOpen(false);
+    try {
+      const [{ invoke }, { emit }] = await Promise.all([
+        import('@tauri-apps/api/core'),
+        import('@tauri-apps/api/event'),
+      ]);
+      await invoke('show_main_window');
+      await emit('open-settings-scene', { tab: 'models' });
+    } catch (error) {
+      log.warn('Failed to open settings in main window, falling back to local scene', error);
+      quickActions.openSettings('models');
+    }
+  }, []);
+
+  /** 内置组合「另存为」：复制成可编辑的同内容自定义组合。 */
+  const handleDuplicateProfile = useCallback((profile: AgentModelProfile) => {
+    const copy = saveProfile({
+      id: `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      name: `${profile.name} 副本`,
+      models: { ...profile.models },
+    });
+    setProfiles(listProfiles());
+    notificationService.success(`已另存为「${copy.name}」，可继续编辑`);
+  }, []);
+
   const tokenStatusClass = useMemo(() => {
     if (tokenPercentage >= 90) return 'critical';
     if (tokenPercentage >= 70) return 'warning';
@@ -737,6 +991,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   /// 触发器显示名：统一按 currentModel 解析（空/未解析出 → 「自动」默认态）
   const triggerLabel = useMemo((): string => {
+    // 组合生效时直接显示组合名——组合是「按阶段分配模型」，露单个模型名会误导
+    if (activeProfile) return activeProfile.name;
+
     if (currentModel && currentModel.id !== 'auto') {
       return currentModel.modelName || currentModel.configName;
     }
@@ -752,7 +1009,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       return ref;
     }
     return t('modelSelector.autoModel');
-  }, [currentModel, primaryModelId, ai00ApiModels, allModels, t]);
+  }, [activeProfile, currentModel, primaryModelId, ai00ApiModels, allModels, t]);
 
   if (!isControlled && availableModels.length === 0 && ai00ApiModels.length === 0) {
     return null;
@@ -809,8 +1066,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             模型组合
           </div>
           <div className="ai00-x-model-selector__list">
-            {profiles.map(profile => {
+            {resolvedProfiles.map(profile => {
               const selected = activeProfileId === profile.id;
+              const summary = `规划 ${describeModelRef(profile.models.plan)} · 执行 ${describeModelRef(profile.models.execute)} · 评审 ${describeModelRef(profile.models.review)}`;
               return (
                 <div
                   key={profile.id}
@@ -834,11 +1092,52 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         <span className="ai00-x-model-selector__option-tag">预设</span>
                       )}
                     </div>
-                    <span className="ai00-x-model-selector__option-multiplier">
-                      规划 {shortModelRef(profile.models.plan)} · 执行{' '}
-                      {shortModelRef(profile.models.execute)} · 评审{' '}
-                      {shortModelRef(profile.models.review)}
+                    <span
+                      className="ai00-x-model-selector__option-multiplier ai00-x-model-selector__option-multiplier--summary"
+                      title={summary}
+                    >
+                      {summary}
                     </span>
+                  </div>
+                  <div className="ai00-x-model-selector__option-actions">
+                    {profile.builtin ? (
+                      <button
+                        type="button"
+                        className="ai00-x-model-selector__option-action"
+                        title="另存为自定义组合"
+                        onClick={event => {
+                          event.stopPropagation();
+                          handleDuplicateProfile(profile);
+                        }}
+                      >
+                        <Copy size={12} />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="ai00-x-model-selector__option-action"
+                          title="编辑组合"
+                          onClick={event => {
+                            event.stopPropagation();
+                            handleEditProfile(profile);
+                          }}
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          className="ai00-x-model-selector__option-action ai00-x-model-selector__option-action--danger"
+                          title="删除组合"
+                          onClick={event => {
+                            event.stopPropagation();
+                            handleDeleteProfile(profile);
+                          }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </>
+                    )}
                   </div>
                   {selected && (
                     <Check size={14} className="ai00-x-model-selector__option-check" />
@@ -868,30 +1167,77 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 <div className="ai00-x-model-selector__option-title">
                   <span className="ai00-x-model-selector__option-name">新建组合…</span>
                 </div>
-                <span className="ai00-x-model-selector__option-multiplier">
+                <span className="ai00-x-model-selector__option-multiplier ai00-x-model-selector__option-multiplier--summary">
                   每个阶段单独选模型（含本地与云端）
                 </span>
               </div>
             </div>
           </div>
 
-          {/* 本地模型：RWKV 3B 为必需档位（本地协同默认，自动下载），
-              7B/13B 为可选档位，点行按需下载；未上架档位只做占位说明 */}
+          {/* 单一模型：本地 / Ai00-API / 自定义模型收进二级菜单，
+              主菜单只保留组合与这一个入口 */}
           <div className="ai00-x-model-selector__section-title">
-            {t('modelSelector.localModels.sectionTitle')}
+            单一模型
           </div>
-          <div className="ai00-x-model-selector__list">
+          <Popover
+            open={singleMenuOpen}
+            modal={false}
+            onOpenChange={next => {
+              if (!next) setSingleMenuOpen(false);
+            }}
+          >
+            <PopoverAnchor asChild>
+              <div
+                className="ai00-x-model-selector__option ai00-x-model-selector__option--submenu"
+                role="button"
+                tabIndex={0}
+                aria-haspopup="menu"
+                aria-expanded={singleMenuOpen}
+                onMouseEnter={openSingleMenu}
+                onMouseLeave={scheduleCloseSingleMenu}
+                onClick={openSingleMenu}
+                onKeyDown={event => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  openSingleMenu();
+                }}
+              >
+                <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
+                  <Cpu size={12} />
+                </span>
+                <div className="ai00-x-model-selector__option-main">
+                  <div className="ai00-x-model-selector__option-title">
+                    <span className="ai00-x-model-selector__option-name">选单个模型</span>
+                  </div>
+                  <span className="ai00-x-model-selector__option-multiplier ai00-x-model-selector__option-multiplier--summary">
+                    当前：{currentModel?.modelName ?? '未选择'}
+                  </span>
+                </div>
+                <ChevronRight size={12} className="ai00-x-model-selector__option-chevron" />
+              </div>
+            </PopoverAnchor>
+            <PopoverContent
+              side="right"
+              align="start"
+              sideOffset={8}
+              className="ai00-x-model-selector__submenu"
+              onOpenAutoFocus={event => event.preventDefault()}
+              onMouseEnter={openSingleMenu}
+              onMouseLeave={scheduleCloseSingleMenu}
+            >
+              {activeProfile && (
+                <div className="ai00-x-model-selector__submenu-hint">
+                  组合「{activeProfile.name}」生效中；选任一模型会退出组合
+                </div>
+              )}
+              {/* 本地模型：RWKV 3B 为必需档位（本地协同默认，自动下载），
+                  7B/13B 为可选档位，点行按需下载；未上架档位只做占位说明 */}
+              <div className="ai00-x-model-selector__section-title">
+                {t('modelSelector.localModels.sectionTitle')}
+              </div>
+              <div className="ai00-x-model-selector__list">
             {localSlots.map(slot => {
               const downloading = !slot.ready && slot.progress !== null;
-              const slotTooltip = !slot.available
-                ? `${slot.label} · ${t('modelSelector.localModels.unavailable')}`
-                : slot.ready
-                  ? slot.required
-                    ? `${slot.label} · ${t('modelSelector.localModels.defaultBadge')}`
-                    : `${slot.label} · ${t('modelSelector.localModels.downloaded')}`
-                  : downloading
-                    ? `${slot.label} · ${t('modelSelector.localModels.downloading')} ${slot.progress}%`
-                    : t('modelSelector.localModels.notReady');
               const statusText = !slot.available
                 ? t('modelSelector.localModels.unavailable')
                 : downloading
@@ -901,56 +1247,100 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     : t('modelSelector.localModels.downloadNow'));
 
               const actionable = slot.available && !slot.ready && !downloading;
+              // 常驻档（3B）就绪后可作为「单一模型」被选中；7B/13B 只是下载档位
+              const selectable = slot.required && slot.ready && slot.available;
+              const interactive = actionable || selectable;
+              const isSelectedLocal = selectable && !activeProfile && primaryModelId === 'rwkv-local';
+              const detailKey = `local:${slot.key}`;
+              const detailItems: ModelDetailItem[] = [
+                {
+                  label: '状态',
+                  value: !slot.available
+                    ? t('modelSelector.localModels.unavailable')
+                    : downloading
+                      ? `${t('modelSelector.localModels.downloading')} ${slot.progress}%`
+                      : slot.ready
+                        ? t('modelSelector.localModels.downloaded')
+                        : t('modelSelector.localModels.notReady'),
+                },
+                {
+                  label: '定位',
+                  value: slot.required
+                    ? '常驻引擎默认档（智能路由 / 本地工具轮），也可选为对话模型'
+                    : '可选档位，按需下载，不参与常驻',
+                },
+              ];
               return (
-                <Tooltip key={slot.key} content={slotTooltip} placement="right">
-                  <div
-                    className={`ai00-x-model-selector__option ${
-                      !slot.available
-                        ? 'ai00-x-model-selector__option--disabled'
-                        : actionable || downloading
-                          ? 'ai00-x-model-selector__option--downloadable'
-                          : ''
-                    }`}
-                    role={actionable ? 'button' : undefined}
-                    tabIndex={actionable ? 0 : -1}
-                    aria-disabled={!actionable || undefined}
-                    onClick={() => {
-                      // 本地模型是常驻引擎状态行（非对话模型候选）：
-                      // 可选档位未就绪时点行拉起下载；已就绪/未上架点击无操作
-                      if (actionable) void startLocalDownload(slot.key);
-                    }}
-                    onKeyDown={(e) => {
-                      if (!actionable) return;
-                      if (e.key !== 'Enter' && e.key !== ' ') return;
-                      e.preventDefault();
-                      void startLocalDownload(slot.key);
-                    }}
-                  >
-                    <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
-                      {slot.label.charAt(0).toUpperCase()}
-                    </span>
-                    <div className="ai00-x-model-selector__option-main">
-                      <div className="ai00-x-model-selector__option-title">
-                        <span className="ai00-x-model-selector__option-name">
-                          {slot.label}
-                        </span>
-                        {slot.required && (
-                          <span className="ai00-x-model-selector__option-tag">
-                            {t('modelSelector.localModels.defaultBadge')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {statusText && (
-                      <span className="ai00-x-model-selector__option-multiplier">
-                        {statusText}
+                <Popover key={slot.key} open={detailId === detailKey} modal={false}>
+                  <PopoverAnchor asChild>
+                    <div
+                      className={`ai00-x-model-selector__option ${isSelectedLocal ? 'ai00-x-model-selector__option--selected' : ''} ${
+                        !slot.available
+                          ? 'ai00-x-model-selector__option--disabled'
+                          : actionable || downloading || selectable
+                            ? 'ai00-x-model-selector__option--downloadable'
+                            : ''
+                      }`}
+                      role={interactive ? 'button' : undefined}
+                      tabIndex={interactive ? 0 : -1}
+                      aria-disabled={!interactive || undefined}
+                      aria-pressed={selectable ? isSelectedLocal : undefined}
+                      onMouseEnter={() => openDetail(detailKey)}
+                      onMouseLeave={scheduleCloseDetail}
+                      onClick={() => {
+                        // 未就绪的可选档位：点行拉起下载；就绪的常驻档：选为单一模型
+                        if (actionable) void startLocalDownload(slot.key);
+                        else if (selectable) void handleSelectLocalModel();
+                      }}
+                      onKeyDown={(e) => {
+                        if (!interactive) return;
+                        if (e.key !== 'Enter' && e.key !== ' ') return;
+                        e.preventDefault();
+                        if (actionable) void startLocalDownload(slot.key);
+                        else if (selectable) void handleSelectLocalModel();
+                      }}
+                    >
+                      <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
+                        {slot.label.charAt(0).toUpperCase()}
                       </span>
-                    )}
-                    {slot.required && (
-                      <Check size={14} className="ai00-x-model-selector__option-check" />
-                    )}
-                  </div>
-                </Tooltip>
+                      <div className="ai00-x-model-selector__option-main">
+                        <div className="ai00-x-model-selector__option-title">
+                          <span className="ai00-x-model-selector__option-name">
+                            {slot.label}
+                          </span>
+                          {slot.required && (
+                            <span className="ai00-x-model-selector__option-tag">
+                              {t('modelSelector.localModels.defaultBadge')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {statusText && (
+                        <span className="ai00-x-model-selector__option-multiplier">
+                          {statusText}
+                        </span>
+                      )}
+                      {isSelectedLocal && (
+                        <Check size={14} className="ai00-x-model-selector__option-check" />
+                      )}
+                    </div>
+                  </PopoverAnchor>
+                  <PopoverContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="ai00-x-model-selector__detail-popover"
+                    onOpenAutoFocus={event => event.preventDefault()}
+                    onMouseEnter={() => openDetail(detailKey)}
+                    onMouseLeave={scheduleCloseDetail}
+                  >
+                    <ModelDetailCard
+                      title={slot.label}
+                      meta={slot.required ? '本地常驻默认档' : '本地可选档位'}
+                      items={detailItems}
+                    />
+                  </PopoverContent>
+                </Popover>
               );
             })}
           </div>
@@ -963,7 +1353,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               </div>
               <div className="ai00-x-model-selector__list">
                 {routableApiModels.map(apiModel => {
-                        const isSelected = currentAi00ApiModelId === apiModel.id;
+                        const isSelected = !activeProfile && currentAi00ApiModelId === apiModel.id;
                         const isLocked = !canAccessModel(apiModel, userTier);
                         const isExhausted = apiModel.isUpstreamFree && getFreeQuotaStatus(apiModel.freeQuota) === 'exhausted';
                         const multiplierText = apiModel.multiplier !== undefined ? formatMultiplier(apiModel.multiplier) : null;
@@ -986,69 +1376,101 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           : '';
                         const promoPct = hasPromoDiscount ? Math.round((1 - promo) * 100) : 0;
 
-                        // tooltip: 显示名 + 模态 + 机构 + 剩余额度 + 锁定原因（元价格不再突出）
-                        const tooltipParts: string[] = [apiModel.displayName];
-                        if (modalityLabel) tooltipParts.push(modalityLabel);
-                        if (apiModel.producer) tooltipParts.push(apiModel.producer);
-                        if (quotaText) tooltipParts.push(quotaText);
-                        if (isExhausted) {
-                          tooltipParts.push(t('modelSelector.freeQuota.exhausted'));
-                        } else if (isLocked) {
-                          tooltipParts.push(t('modelSelector.upgrade.locked'));
+                        // 悬停详情：倍率 / 折扣 / 额度 / 状态（元价格不再突出）
+                        const detailKey = `api:${apiModel.id}`;
+                        const detailMeta = [modalityLabel, apiModel.producer].filter(Boolean).join(' · ');
+                        const detailItems: ModelDetailItem[] = [];
+                        if (multiplierText) detailItems.push({ label: '消耗倍率', value: multiplierText });
+                        if (hasMemberDiscount) {
+                          detailItems.push({ label: '会员折扣', value: `${memberZhe} 折 · 省 ${memberPct}%` });
                         }
-                        const tooltipText = tooltipParts.join(' · ');
+                        if (hasPromoDiscount) {
+                          detailItems.push({ label: '限时促销', value: `${promoZhe} 折 · 省 ${promoPct}%` });
+                        }
+                        if (apiModel.isUpstreamFree) {
+                          detailItems.push({ label: '今日免费额度', value: quotaText || '不限' });
+                        }
+                        detailItems.push({
+                          label: '状态',
+                          value: isExhausted
+                            ? t('modelSelector.freeQuota.exhausted')
+                            : isLocked
+                              ? t('modelSelector.upgrade.locked')
+                              : apiModel.isDefault
+                                ? '服务器默认'
+                                : '可用',
+                        });
 
                         return (
-                          <Tooltip key={apiModel.id} content={tooltipText} placement="right">
-                            <div
-                              className={`ai00-x-model-selector__option ${isSelected ? 'ai00-x-model-selector__option--selected' : ''} ${isExhausted ? 'ai00-x-model-selector__option--disabled' : ''} ${isLocked ? 'ai00-x-model-selector__option--locked' : ''}`}
-                              onClick={() => handleSelectAi00ApiModel(apiModel)}
-                            >
-                              <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
-                                {apiModel.displayName.charAt(0).toUpperCase()}
-                              </span>
-                              <div className="ai00-x-model-selector__option-main">
-                                <div className="ai00-x-model-selector__option-title">
-                                  <span className="ai00-x-model-selector__option-name">
-                                    {apiModel.displayName}
-                                  </span>
-                                  {apiModel.isDefault && (
-                                    <span
-                                      className="ai00-x-model-selector__option-dot"
-                                      title={t('modelSelector.defaultBadge')}
-                                    />
-                                  )}
-                                  {hasMemberDiscount && (
-                                    <span className="ai00-x-model-selector__option-tag ai00-x-model-selector__option-tag--discount">
-                                      {t('modelSelector.badges.memberDiscount', { zhe: memberZhe, pct: memberPct })}
+                          <Popover key={apiModel.id} open={detailId === detailKey} modal={false}>
+                            <PopoverAnchor asChild>
+                              <div
+                                className={`ai00-x-model-selector__option ${isSelected ? 'ai00-x-model-selector__option--selected' : ''} ${isExhausted ? 'ai00-x-model-selector__option--disabled' : ''} ${isLocked ? 'ai00-x-model-selector__option--locked' : ''}`}
+                                onMouseEnter={() => openDetail(detailKey)}
+                                onMouseLeave={scheduleCloseDetail}
+                                onClick={() => handleSelectAi00ApiModel(apiModel)}
+                              >
+                                <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
+                                  {apiModel.displayName.charAt(0).toUpperCase()}
+                                </span>
+                                <div className="ai00-x-model-selector__option-main">
+                                  <div className="ai00-x-model-selector__option-title">
+                                    <span className="ai00-x-model-selector__option-name">
+                                      {apiModel.displayName}
                                     </span>
-                                  )}
-                                  {hasPromoDiscount && (
-                                    <span className="ai00-x-model-selector__option-tag ai00-x-model-selector__option-tag--promo">
-                                      {t('modelSelector.badges.promoDiscount', { zhe: promoZhe, pct: promoPct })}
-                                    </span>
-                                  )}
-                                  {apiModel.isUpstreamFree && (
-                                    <span className="ai00-x-model-selector__option-tag ai00-x-model-selector__option-tag--subsidy">
-                                      {t('modelSelector.badges.subsidy')}
-                                    </span>
-                                  )}
+                                    {apiModel.isDefault && (
+                                      <span
+                                        className="ai00-x-model-selector__option-dot"
+                                        title={t('modelSelector.defaultBadge')}
+                                      />
+                                    )}
+                                    {hasMemberDiscount && (
+                                      <span className="ai00-x-model-selector__option-tag ai00-x-model-selector__option-tag--discount">
+                                        {t('modelSelector.badges.memberDiscount', { zhe: memberZhe, pct: memberPct })}
+                                      </span>
+                                    )}
+                                    {hasPromoDiscount && (
+                                      <span className="ai00-x-model-selector__option-tag ai00-x-model-selector__option-tag--promo">
+                                        {t('modelSelector.badges.promoDiscount', { zhe: promoZhe, pct: promoPct })}
+                                      </span>
+                                    )}
+                                    {apiModel.isUpstreamFree && (
+                                      <span className="ai00-x-model-selector__option-tag ai00-x-model-selector__option-tag--subsidy">
+                                        {t('modelSelector.badges.subsidy')}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
+                                {isLocked ? (
+                                  <Lock size={12} className="ai00-x-model-selector__option-lock" />
+                                ) : (
+                                  multiplierText && (
+                                    <span className="ai00-x-model-selector__option-multiplier">
+                                      {multiplierText}
+                                    </span>
+                                  )
+                                )}
+                                {isSelected && (
+                                  <Check size={14} className="ai00-x-model-selector__option-check" />
+                                )}
                               </div>
-                              {isLocked ? (
-                                <Lock size={12} className="ai00-x-model-selector__option-lock" />
-                              ) : (
-                                multiplierText && (
-                                  <span className="ai00-x-model-selector__option-multiplier">
-                                    {multiplierText}
-                                  </span>
-                                )
-                              )}
-                              {isSelected && (
-                                <Check size={14} className="ai00-x-model-selector__option-check" />
-                              )}
-                            </div>
-                          </Tooltip>
+                            </PopoverAnchor>
+                            <PopoverContent
+                              side="right"
+                              align="start"
+                              sideOffset={8}
+                              className="ai00-x-model-selector__detail-popover"
+                              onOpenAutoFocus={event => event.preventDefault()}
+                              onMouseEnter={() => openDetail(detailKey)}
+                              onMouseLeave={scheduleCloseDetail}
+                            >
+                              <ModelDetailCard
+                                title={apiModel.displayName}
+                                meta={detailMeta}
+                                items={detailItems}
+                              />
+                            </PopoverContent>
+                          </Popover>
                         );
                       })}
               </div>
@@ -1063,45 +1485,90 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             </>
           )}
 
-          {/* 自定义模型API */}
-          {customApiModels.length > 0 && (
-            <>
-              <div className="ai00-x-model-selector__section-title">
-                {t('modelSelector.customModels.sectionTitle')}
-              </div>
-              <div className="ai00-x-model-selector__list">
-                {customApiModels.map(model => {
-                  const isPrimary = model.id === primaryModelId;
+          {/* 自定义模型API：用户自建远程 API + 管理入口（内置 ai00s 载体不在此列） */}
+          <div className="ai00-x-model-selector__section-title">
+            {t('modelSelector.customModels.sectionTitle')}
+          </div>
+          <div className="ai00-x-model-selector__list">
+            {customApiModels.map(model => {
+              const isPrimary = !activeProfile && model.id === primaryModelId;
+              const detailKey = `custom:${model.id}`;
+              const detailItems: ModelDetailItem[] = [
+                { label: '模型 ID', value: model.configName || model.id },
+                { label: '上下文', value: formatContextWindow(model.contextWindow) ?? '—' },
+                { label: '思考模式', value: model.enableThinking ? '开启' : '关闭' },
+              ];
 
-                  return (
-                    <Tooltip key={model.id} content={buildModelMetaText(model)} placement="right">
-                      <div
-                        className={`ai00-x-model-selector__option ${isPrimary ? 'ai00-x-model-selector__option--selected' : ''}`}
-                        onClick={() => handleSelectModel(model.id)}
-                      >
-                        <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
-                          {model.modelName.charAt(0).toUpperCase()}
-                        </span>
-                        <div className="ai00-x-model-selector__option-main">
-                          <div className="ai00-x-model-selector__option-title">
-                            <span className="ai00-x-model-selector__option-name">
-                              {model.modelName}
-                            </span>
-                            {model.enableThinking && (
-                              <Sparkles size={10} className="ai00-x-model-selector__option-thinking" />
-                            )}
-                          </div>
+              return (
+                <Popover key={model.id} open={detailId === detailKey} modal={false}>
+                  <PopoverAnchor asChild>
+                    <div
+                      className={`ai00-x-model-selector__option ${isPrimary ? 'ai00-x-model-selector__option--selected' : ''}`}
+                      onMouseEnter={() => openDetail(detailKey)}
+                      onMouseLeave={scheduleCloseDetail}
+                      onClick={() => handleSelectModel(model.id)}
+                    >
+                      <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
+                        {model.modelName.charAt(0).toUpperCase()}
+                      </span>
+                      <div className="ai00-x-model-selector__option-main">
+                        <div className="ai00-x-model-selector__option-title">
+                          <span className="ai00-x-model-selector__option-name">
+                            {model.modelName}
+                          </span>
+                          {model.enableThinking && (
+                            <Sparkles size={10} className="ai00-x-model-selector__option-thinking" />
+                          )}
                         </div>
-                        {isPrimary && (
-                          <Check size={14} className="ai00-x-model-selector__option-check" />
-                        )}
                       </div>
-                    </Tooltip>
-                  );
-                })}
+                      {isPrimary && (
+                        <Check size={14} className="ai00-x-model-selector__option-check" />
+                      )}
+                    </div>
+                  </PopoverAnchor>
+                  <PopoverContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="ai00-x-model-selector__detail-popover"
+                    onOpenAutoFocus={event => event.preventDefault()}
+                    onMouseEnter={() => openDetail(detailKey)}
+                    onMouseLeave={scheduleCloseDetail}
+                  >
+                    <ModelDetailCard
+                      title={model.modelName}
+                      meta={model.providerName}
+                      items={detailItems}
+                    />
+                  </PopoverContent>
+                </Popover>
+              );
+            })}
+            <div
+              className="ai00-x-model-selector__option ai00-x-model-selector__option--manage"
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                void openCustomApiManagement();
+              }}
+              onKeyDown={event => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                void openCustomApiManagement();
+              }}
+            >
+              <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
+                <SlidersHorizontal size={12} />
+              </span>
+              <div className="ai00-x-model-selector__option-main">
+                <div className="ai00-x-model-selector__option-title">
+                  <span className="ai00-x-model-selector__option-name">管理自定义 API…</span>
+                </div>
               </div>
-            </>
-          )}
+            </div>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           {/* 积分余额底栏（来自 /ai00-s/api/ai/me 的 total_remaining） */}
           <div className="ai00-x-model-selector__dropdown-footer">

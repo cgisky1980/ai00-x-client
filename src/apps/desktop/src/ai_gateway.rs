@@ -82,6 +82,8 @@ struct GatewayUsage {
     requested_model: String,
     route: String,
     fallback_reason: Option<String>,
+    /// 本次请求发往服务端的 `X-Request-Id`（服务端计费账本同值，用于对账积分）。
+    request_id: Option<String>,
     started: std::time::Instant,
 }
 
@@ -92,8 +94,15 @@ impl GatewayUsage {
             requested_model,
             route: route.to_string(),
             fallback_reason: None,
+            request_id: None,
             started: std::time::Instant::now(),
         }
+    }
+
+    fn with_request_id(&self, request_id: String) -> Self {
+        let mut next = self.clone();
+        next.request_id = Some(request_id);
+        next
     }
 
     fn with_route(&self, route: &str) -> Self {
@@ -129,6 +138,7 @@ impl GatewayUsage {
             fallback_reason: self.fallback_reason.clone(),
             cached_prompt_tokens: usage.cached_prompt,
             usage_known: Some(usage_known),
+            request_id: self.request_id.clone(),
         })
         .await;
     }
@@ -266,8 +276,25 @@ async fn list_models(res: &mut Response) {
                 .filter(|v| *v > 0)
                 .unwrap_or(128_000)
                 .max(128_000);
+            // 服务端目录先拉：既用于补通告，也用于裁剪已下架的存量引用。
+            // 失败静默沿用配置项（离线时不能把可用模型也裁掉）。
+            let server_models = fetch_remote_ai00s_models(&config.app.ai00_s_base_url).await;
+            let known_subs: Option<std::collections::HashSet<String>> = if server_models.is_empty()
+            {
+                None
+            } else {
+                Some(server_models.iter().map(|(id, _)| id.clone()).collect())
+            };
             for sub in configured_ai00s_refs(&config.ai) {
                 let name = sub.strip_prefix("ai00s:").unwrap_or(&sub).to_string();
+                // 下架/改名后的存量引用（如 GLM-4.7-Flash）不再通告：否则引擎会把
+                // 会话切到必然 404 的模型，用户看到的就是 upstream model_not_found。
+                if let Some(known) = &known_subs {
+                    if !known.contains(&name) {
+                        log::warn!("[Gateway] drop stale ai00s ref from model list: {name}");
+                        continue;
+                    }
+                }
                 data.push(json!({
                     "id": sub,
                     "object": "model",
@@ -277,9 +304,8 @@ async fn list_models(res: &mut Response) {
                 }));
             }
             // 服务端目录补通告：本机配置没绑定的子模型（未锁定）也要可选，
-            // 否则选择器里看不到 / 引擎拒绝会话模型。失败静默沿用配置项。
-            let server_models = fetch_remote_ai00s_models(&config.app.ai00_s_base_url).await;
-            for (sub_id, display) in server_models {
+            // 否则选择器里看不到 / 引擎拒绝会话模型。
+            for (sub_id, display) in &server_models {
                 let ref_id = format!("ai00s:{sub_id}");
                 if data.iter().any(|v| v["id"] == ref_id) {
                     continue;
@@ -842,8 +868,12 @@ async fn local_rwkv_sse(
         }
 
         // 尝试提取工具调用（```json {...} ``` 协议）
+        // usage 分片放在 finish 之前、两条分支都发：工具轮以前完全没有 usage，
+        // 引擎侧 deriveTurnTokenUsage 拿不到数字 → 本地模型的对话回合用量条全空。
         if let Some((name, arguments)) = try_extract_tool_call(&text) {
             let chunk = sse_tool_call_delta(&model_name, &name, &arguments);
+            let _ = tx.send(Ok(Bytes::from(chunk)));
+            let chunk = sse_usage(&model_name, input_tokens, output_tokens);
             let _ = tx.send(Ok(Bytes::from(chunk)));
             let chunk = sse_finish(&model_name, "tool_calls");
             let _ = tx.send(Ok(Bytes::from(chunk)));
@@ -893,10 +923,21 @@ async fn local_rwkv_sse(
 /// 单轮本地工具推理结果。
 enum ToolRoundOutcome {
     /// 模型产出工具调用（```json 协议解析成功）。
-    ToolCall { name: String, arguments: String },
+    /// 带上本轮的 token 数：工具轮的 usage 分片要靠它，否则引擎侧拿不到数字。
+    ToolCall {
+        name: String,
+        arguments: String,
+        input_tokens: usize,
+        output_tokens: usize,
+    },
     /// 模型产出纯文本——工具循环收敛信号，作为终答草稿。
     /// hit_len = 因 max_tokens 收尾（Done.stop_sequence 为 None），供质量门判定截断。
-    Draft { text: String, hit_len: bool },
+    Draft {
+        text: String,
+        hit_len: bool,
+        input_tokens: usize,
+        output_tokens: usize,
+    },
 }
 
 /// 混合工具循环编排：工具轮本地 RWKV（零状态临时会话），收敛后远端终答。
@@ -929,13 +970,24 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response, usage: G
     }
 
     match local_tool_round(&body, None, usage.with_route("hybrid-local")).await {
-        Ok(ToolRoundOutcome::ToolCall { name, arguments }) => {
+        Ok(ToolRoundOutcome::ToolCall {
+            name,
+            arguments,
+            input_tokens,
+            output_tokens,
+        }) => {
             log::info!("[ai-gateway] tool round {rounds}: local -> call {name}");
             let (tx, rx_body) =
                 tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
             tokio::spawn(async move {
                 let _ = tx.send(Ok(Bytes::from(sse_tool_call_delta(
                     MODEL_RWKV, &name, &arguments,
+                ))));
+                // 工具轮也要带 usage，否则本地工具轮在回合用量条上是空的
+                let _ = tx.send(Ok(Bytes::from(sse_usage(
+                    MODEL_RWKV,
+                    input_tokens,
+                    output_tokens,
                 ))));
                 let _ = tx.send(Ok(Bytes::from(sse_finish(MODEL_RWKV, "tool_calls"))));
                 let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n")));
@@ -952,7 +1004,12 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response, usage: G
                 rx_body,
             ));
         }
-        Ok(ToolRoundOutcome::Draft { text, hit_len }) => {
+        Ok(ToolRoundOutcome::Draft {
+            text,
+            hit_len,
+            input_tokens: draft_in,
+            output_tokens: draft_out,
+        }) => {
             let is_local_final = crate::tool_session::tools_all_local_final(&body);
             match crate::tool_session::quality_gate(&text, hit_len) {
                 Ok(()) if is_local_final => {
@@ -961,7 +1018,7 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response, usage: G
                         "[ai-gateway] tool round {rounds}: local-final answer {} chars (no remote)",
                         text.chars().count()
                     );
-                    stream_local_final(res, &text);
+                    stream_local_final(res, &text, draft_in, draft_out);
                 }
                 Ok(()) => {
                     log::info!(
@@ -992,20 +1049,22 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response, usage: G
                         Ok(ToolRoundOutcome::Draft {
                             text: retry_text,
                             hit_len: retry_hit,
+                            input_tokens: retry_in,
+                            output_tokens: retry_out,
                         }) if crate::tool_session::quality_gate(&retry_text, retry_hit).is_ok() => {
-                            Some(retry_text)
+                            Some((retry_text, retry_in, retry_out))
                         }
                         _ => None,
                     };
                     match retry {
-                        Some(retry_text) if is_local_final => {
+                        Some((retry_text, retry_in, retry_out)) if is_local_final => {
                             log::info!(
                                 "[ai-gateway] retry passed gate: local-final answer {} chars",
                                 retry_text.chars().count()
                             );
-                            stream_local_final(res, &retry_text);
+                            stream_local_final(res, &retry_text, retry_in, retry_out);
                         }
-                        Some(retry_text) => {
+                        Some((retry_text, _, _)) => {
                             compose_final_remote(
                                 body,
                                 Some(&retry_text),
@@ -1141,25 +1200,32 @@ async fn local_tool_round(
         .await;
 
     if let Some((name, arguments)) = try_extract_tool_call(&full_text) {
-        Ok(ToolRoundOutcome::ToolCall { name, arguments })
+        Ok(ToolRoundOutcome::ToolCall {
+            name,
+            arguments,
+            input_tokens,
+            output_tokens,
+        })
     } else {
         Ok(ToolRoundOutcome::Draft {
             text: full_text.trim().to_string(),
             hit_len,
+            input_tokens,
+            output_tokens,
         })
     }
 }
 
 /// 全本地闭环终答直出：草稿文本以 SSE 流式形状一次性下发（不绕远端）。
-fn stream_local_final(res: &mut Response, text: &str) {
+fn stream_local_final(res: &mut Response, text: &str, input_tokens: usize, output_tokens: usize) {
     let (tx, rx_body) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
     let text = text.to_string();
     tokio::spawn(async move {
         let _ = tx.send(Ok(Bytes::from(sse_text_delta(MODEL_RWKV, &text))));
         let _ = tx.send(Ok(Bytes::from(sse_usage(
             MODEL_RWKV,
-            0,
-            text.chars().count(),
+            input_tokens,
+            output_tokens,
         ))));
         let _ = tx.send(Ok(Bytes::from(sse_finish(MODEL_RWKV, "stop"))));
         let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n")));
@@ -1288,6 +1354,10 @@ async fn forward_to_ai00_salvo(
         if let Some(options) = options.as_object_mut() {
             options.insert("include_usage".to_string(), json!(true));
         }
+        // 会话标识透传：服务端按 session_id 聚合积分账单，供客户端展示「本回合消耗 / 会话累计」
+        if let Some(sid) = usage.session_id.as_deref().filter(|s| !s.is_empty()) {
+            obj.insert("session_id".to_string(), json!(sid));
+        }
     }
 
     // 请求标识：一次逻辑请求生成一次，401 刷新重试复用同一 id（服务端据此关联请求日志与账单）
@@ -1355,6 +1425,7 @@ async fn forward_to_ai00_salvo(
     }
 
     // SSE 字节流透传；旁路解析 usage，不改写下游内容。
+    let usage = usage.with_request_id(request_id.clone());
     let (tx, rx_body) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
     tokio::spawn(async move {
         let mut stream = upstream.bytes_stream();

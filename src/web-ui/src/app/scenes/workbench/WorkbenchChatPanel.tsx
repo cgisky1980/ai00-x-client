@@ -15,7 +15,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDown, Bot } from 'lucide-react';
+import { ArrowDown } from 'lucide-react';
 import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import type { PromptSubmitIntent } from '@/component-library';
 import {
@@ -26,6 +26,7 @@ import {
   dshSession,
   extractSubagentCatalog,
   foldEvents,
+  subagentInterrupt,
   type DshApproval,
   type DshLiveAssistant,
   type DshMessage,
@@ -58,11 +59,11 @@ import { WorkbenchTaskCards } from './WorkbenchTaskCards';
 import { WorkbenchTurnUsage } from './WorkbenchTurnUsage';
 import { WorkbenchSubagentCard } from './WorkbenchSubagentCard';
 import { WorkbenchSubagentOverview } from './WorkbenchSubagentOverview';
-import { focusSubagentCard } from './subagentFocus';
 import { isSubagentDispatch } from './subagentTools';
 import { parsePlanSteps } from '@/tools/todo/utils/planStructure';
 import {
   getSessionUsage,
+  resolveRemoteCredits,
   type AiUsageSplit,
 } from '@/infrastructure/api/service-api/AiUsageAPI';
 // 消息/输入区样式类复用策场景（__msg* / __composer 等 BEM 平级类）
@@ -117,8 +118,6 @@ interface WorkbenchChatPanelProps {
   planMd?: string | null;
   /** 计划条是否自动展开（有评审/验收动作时）。 */
   planAutoOpen?: boolean;
-  /** 计划条「详情」入口。 */
-  onViewPlan?: () => void;
   /** 任务已完成：计划条不标「进行中」。 */
   planFinished?: boolean;
   /**
@@ -177,7 +176,6 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   dock,
   planMd,
   planAutoOpen = false,
-  onViewPlan,
   planFinished = false,
   planApproved,
   onPlanApprove,
@@ -237,12 +235,14 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     [transcriptMessages],
   );
 
-  /** 本轮消耗（本地 / 云端分项，来自网关账本按会话增量）。 */
+  /** 本轮消耗（本地 token / 云端积分，来自网关账本 + 服务端账单）。 */
   const [turnUsage, setTurnUsage] = useState<{
     local: AiUsageSplit;
     remote: AiUsageSplit;
+    remoteCredits: number | null;
   } | null>(null);
-  const roundStartRef = useRef<number | null>(null);
+  /** 本轮起点（毫秒）：优先取 durable turn/start，新提交时用本端时间兜底。 */
+  const [turnStartMs, setTurnStartMs] = useState<number | null>(null);
   const usageSessionId = bound?.sessionId ?? externalSession?.sessionId ?? null;
   /** 正在跑的子代理（子会话）数量：主代理回合一结束不等于任务停下。 */
   const delegatedCount = useWorkbenchTaskStore((s) =>
@@ -252,10 +252,8 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   const childAgents = useWorkbenchTaskStore((s) =>
     usageSessionId ? (s.children[usageSessionId] ?? EMPTY_CHILDREN) : EMPTY_CHILDREN,
   );
-  /** 尾部活动条只放运行中的子代理（已结束的留在派发位置的内联卡里）。 */
+  /** 运行中的子代理：停止必须一并取消它们（消息流里不再重复展示）。 */
   const runningChildAgents = childAgents.filter(agent => agent.running);
-  /** 子会话 turn 计时（durable）：活动条优先用它，而不是本端首次观测时间。 */
-  const subagentTiming = useWorkbenchTaskStore(s => s.subagentTiming);
   /** worker 派发 → 子代理内联卡；其余工具走默认工具卡。 */
   const renderToolCall = (call: DshToolCallView): React.ReactNode => {
     if (!usageSessionId || !isSubagentDispatch(call)) return null;
@@ -266,36 +264,7 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     const rows = useWorkbenchTaskStore.getState().subagentCatalog[usageSessionId ?? ''] ?? [];
     return rows.find(row => row.id === id)?.label ?? null;
   };
-  /** 子代理耗时：引擎不给开始时间，用本端首次观测近似，10s 走一格。 */
-  const [nowTick, setNowTick] = useState(() => Date.now());
-  const hasRunningChild = childAgents.some(agent => agent.running);
-  useEffect(() => {
-    if (!hasRunningChild) return undefined;
-    setNowTick(Date.now());
-    const timer = window.setInterval(() => setNowTick(Date.now()), 10_000);
-    return () => window.clearInterval(timer);
-  }, [hasRunningChild]);
 
-  useEffect(() => {
-    if (!usageSessionId) return;
-    if (agentRunning) {
-      // 回合开始：记下基线时间，结束时按 since 拉增量
-      if (roundStartRef.current === null) roundStartRef.current = Date.now();
-      return;
-    }
-    const since = roundStartRef.current;
-    if (!since) return;
-    roundStartRef.current = null;
-    let cancelled = false;
-    void getSessionUsage(usageSessionId, since)
-      .then(usage => {
-        if (!cancelled) setTurnUsage({ local: usage.local, remote: usage.remote });
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [agentRunning, usageSessionId]);
   const eventsRef = useRef<DshSessionEvent[]>([]);
   const trackerRef = useRef(new ToolCallTracker());
   /** 当前绑定会话（mux 回调闭包里读最新值用）。 */
@@ -329,8 +298,11 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
 
   const sessionId = bound?.sessionId ?? null;
 
-  /** 当前回合是否在运行：本地等待 + 实时流 + running 查询三者取并集。 */
-  const running = agentRunning || awaitingAgent || Boolean(live?.active);
+  /** 主回合运行：断线判定、停滞检测、插话资格只看它。 */
+  const turnRunning = agentRunning || awaitingAgent || Boolean(live?.active);
+  /** 任务级运行：主回合或仍有子代理在跑——输入框/头部/状态卡/运行态上报用它。 */
+  const taskRunning = turnRunning || delegatedCount > 0;
+  const running = turnRunning; // 既有消费方（队列、停滞、重试）保持主回合语义
   runningRef.current = running;
   hostInboxRef.current = hostInbox;
 
@@ -340,8 +312,8 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   const lastRuntimeRef = useRef<string>('');
   useEffect(() => {
     if (!onRuntimeChangeRef.current) return;
-    // 子代理仍在跑时任务不能报「已停止」，否则看板会误判
-    const effectiveRunning = running || delegatedCount > 0;
+    // 任务级：子代理仍在跑时任务不能报「已停止」，否则看板会误判
+    const effectiveRunning = taskRunning;
     // 仍在推进（主回合或子代理任一在跑）时，回合级报错不升级为任务级「出错」——
     // 否则父回合刚报错、子代理还在跑的任务会在看板上闪「出错」。
     const failed = Boolean(error) && !effectiveRunning;
@@ -349,7 +321,47 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     if (key === lastRuntimeRef.current) return;
     lastRuntimeRef.current = key;
     onRuntimeChangeRef.current({ running: effectiveRunning, failed });
-  }, [running, error, delegatedCount]);
+  }, [taskRunning, error]);
+
+  /** 已结算过的「回合起点 + 子会话集合」键：同键不重复结算，换键则替换结果。 */
+  const settledKeyRef = useRef<string | null>(null);
+  /** 本轮派发的子会话（排序后作为结算键的一部分，顺序不影响取值）。 */
+  const childSessionIds = useMemo(
+    () => childAgents.map(child => child.sessionId).filter(Boolean).sort(),
+    [childAgents],
+  );
+  const settlementKey =
+    turnStartMs !== null ? `${turnStartMs}|${childSessionIds.join(',')}` : null;
+
+  // 本轮消耗：起点取 durable turn/start（重启后仍能恢复）；主回合与子代理全部
+  // 收口后按「起点 + 子会话集合」替换式重算，换轮次/换子会话都不混算。
+  useEffect(() => {
+    if (!usageSessionId || turnStartMs === null || !settlementKey) return undefined;
+    // 主回合或子代理仍在跑：等全部收口再结算，避免漏掉子会话扣费
+    if (taskRunning) return undefined;
+    if (settledKeyRef.current === settlementKey) return undefined;
+    settledKeyRef.current = settlementKey;
+    let cancelled = false;
+    void getSessionUsage(usageSessionId, turnStartMs, childSessionIds)
+      .then(async (usage) => {
+        if (cancelled) return;
+        // 云端只给积分：用本轮远端请求 id 去服务端会话账单核对（异步结算，内部会重试）
+        setTurnUsage({ local: usage.local, remote: usage.remote, remoteCredits: null });
+        const credits = await resolveRemoteCredits({
+          sessionId: usageSessionId,
+          childSessionIds,
+          requestIds: usage.remoteRequestIds,
+          sinceMs: turnStartMs,
+        });
+        if (!cancelled) {
+          setTurnUsage({ local: usage.local, remote: usage.remote, remoteCredits: credits });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [usageSessionId, turnStartMs, settlementKey, childSessionIds, taskRunning]);
 
   /** 实时流是否已有可见文本；没有就显示动态等待提示。 */
   const liveHasText = Boolean(live && (live.text || live.reasoning));
@@ -563,6 +575,15 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
       eventsRef.current = events.map(e => e.event);
       const folded = foldEvents(eventsRef.current);
       setMessages(folded);
+      // 本轮起点：最近一次 durable turn/start（重启后据此恢复消耗；无历史为 null）
+      const lastTurnStart = (() => {
+        for (let i = eventsRef.current.length - 1; i >= 0; i -= 1) {
+          const event = eventsRef.current[i];
+          if (event.type === 'turn/start' && typeof event.time === 'number') return event.time;
+        }
+        return null;
+      })();
+      setTurnStartMs(lastTurnStart);
       // 子代理目录兜底：投影可能还没到（首帧/重启），durable 事件先对齐 label
       useWorkbenchTaskStore
         .getState()
@@ -632,6 +653,10 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     setStopping(false);
     setHasNewBelow(false);
     setLinkDown(false);
+    // 本轮消耗按会话隔离：起点与结算键都随绑定清空（模块级 ref 不会自动清）
+    setTurnStartMs(null);
+    setTurnUsage(null);
+    settledKeyRef.current = null;
     interruptedRef.current = false;
     stickToBottomRef.current = true;
     if (!sessionId) return;
@@ -968,9 +993,9 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     (text: string, intent: PromptSubmitIntent = 'queue'): void => {
       const trimmed = text.trim();
       if (!trimmed || !sessionId || binding) return;
-      const wasRunning = running;
-      const mode: 'queue' | 'steer' = wasRunning && intent === 'steer' ? 'steer' : 'queue';
-      const placement: SubmissionPlacement = wasRunning
+      // 只有主回合运行时才可能插话；子代理单独运行只能排队
+      const mode: 'queue' | 'steer' = turnRunning && intent === 'steer' ? 'steer' : 'queue';
+      const placement: SubmissionPlacement = taskRunning
         ? mode === 'steer'
           ? 'steering'
           : 'queued'
@@ -991,6 +1016,8 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
       if (placement === 'transcript') {
         setAwaitingAgent(true);
         setAgentRunning(true);
+        // 本轮起点：已有 durable 起点就不覆盖，否则先用本端时间兜底
+        setTurnStartMs(prev => prev ?? Date.now());
         scrollToBottom();
       }
       sendChainRef.current = sendChainRef.current.then(async () => {
@@ -1019,7 +1046,7 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
         }
       });
     },
-    [sessionId, binding, running, scrollToBottom, refreshQueueSnapshot],
+    [sessionId, binding, turnRunning, taskRunning, scrollToBottom, refreshQueueSnapshot],
   );
 
   const handleSend = (intent?: PromptSubmitIntent): void => {
@@ -1042,14 +1069,22 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     // 兜底：引擎未回 turn/end 时也要退出「正在停止」态，避免永久禁用
     if (stoppingTimerRef.current !== null) window.clearTimeout(stoppingTimerRef.current);
     stoppingTimerRef.current = window.setTimeout(() => clearStopping(), 20_000);
-    try {
-      await dshSession.cancel(sessionId);
-      // 只取消当前回合：inbox 里的排队项由 Host 继续调度
-      void refreshRunning();
-    } catch (err) {
+    // 停止覆盖整个任务：主回合 + 仍在跑的子代理（子代理有自己的回合，不取消会继续烧）
+    const children = runningChildAgents.map(agent => agent.sessionId);
+    const results = await Promise.allSettled([
+      ...(turnRunning ? [dshSession.cancel(sessionId)] : []),
+      ...children.map(childId => subagentInterrupt(sessionId, childId)),
+    ]);
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (failure) {
       clearStopping();
-      setError(err instanceof Error ? err.message : String(err));
+      setError(failure.reason instanceof Error ? failure.reason.message : String(failure.reason));
+      return;
     }
+    // 只取消当前回合：inbox 里的排队项由 Host 继续调度
+    void refreshRunning();
   };
 
   // —— Queue Dock 操作：只对 Host 权威行调用 updateQueue ——
@@ -1285,18 +1320,38 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   );
 
   /**
-   * 背卡内容：计划评审/确认时只摊计划书；其余时间常驻计划条，交互卡需要人类动手时升起。
+   * 任务状态卡：计划进度（主行）+ 子代理运行（主行）+ 本轮消耗（辅行）同一张卡。
+   * 三者皆无时 `WorkbenchPlanRail` 自己返回 null，快速问答不会出现空卡。
+   */
+  const statusCard =
+    planMd !== undefined || turnUsage || delegatedCount > 0 ? (
+      <WorkbenchPlanRail
+        planMd={planMd}
+        autoOpen={planAutoOpen}
+        finished={planFinished}
+        running={taskRunning}
+        delegatedCount={delegatedCount}
+        {...(turnUsage
+          ? {
+              usage: (
+                <WorkbenchTurnUsage
+                  local={turnUsage.local}
+                  remote={turnUsage.remote}
+                  remoteCredits={turnUsage.remoteCredits}
+                />
+              ),
+            }
+          : {})}
+      />
+    ) : null;
+
+  /**
+   * 背卡内容：计划评审/确认时只摊计划书；其余时间常驻任务状态卡，交互卡需要人类动手时升起。
    */
   const composerDock =
-    planMd !== undefined && !planReviewing && !planAwaitingConfirm ? (
+    !planReviewing && !planAwaitingConfirm ? (
       <>
-        <WorkbenchPlanRail
-          planMd={planMd}
-          autoOpen={planAutoOpen}
-          onViewDetail={onViewPlan}
-          finished={planFinished}
-          running={agentRunning}
-        />
+        {statusCard}
         {interactionDock}
       </>
     ) : (
@@ -1309,7 +1364,7 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     >
       {variant === 'panel' && (
       <div className="ai00-x-workbench-chat__head">
-        <span className={`ai00-x-workbench-chat__dot${agentRunning ? ' is-running' : ''}`} />
+        <span className={`ai00-x-workbench-chat__dot${taskRunning ? ' is-running' : ''}`} />
         <span className="ai00-x-workbench-chat__title">{t('nav.workbenchScene.chat.title')}</span>
         {externalSession ? (
           <>
@@ -1366,7 +1421,9 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
         <>
           {/* 子代理汇总：常驻在消息流之上，解决「任务一长就找不到子代理」 */}
           {usageSessionId && (
-            <WorkbenchSubagentOverview parentSessionId={usageSessionId} />
+            <div className="ai00-x-workbench-chat__subagents-head">
+              <WorkbenchSubagentOverview parentSessionId={usageSessionId} />
+            </div>
           )}
           <div className="ai00-x-workbench-chat__body">
           <div
@@ -1403,55 +1460,9 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
                 message={m}
                 renderToolCall={renderToolCall}
                 resolveOriginLabel={resolveOriginLabel}
+                showUsage={false}
               />
             ))}
-            {/* 子代理活动：只留运行中的（已结束的归属各自派发卡，不再堆在消息流末尾） */}
-            {runningChildAgents.length > 0 && (
-              <div className="ai00-x-workbench-chat__subagents" role="group">
-                {runningChildAgents.slice(0, 3).map(agent => {
-                  const timing = subagentTiming[agent.sessionId];
-                  const elapsed = timing
-                    ? timing.settledMs + (timing.active ? nowTick - timing.active.since : 0)
-                    : nowTick - agent.since;
-                  return (
-                    <div
-                      key={agent.sessionId}
-                      className="ai00-x-workbench-chat__subagent is-running"
-                    >
-                      <span className="ai00-x-workbench-chat__subagent-dot" aria-hidden />
-                      <span className="ai00-x-workbench-chat__subagent-name">
-                        {agent.preset || 'subagent'}
-                      </span>
-                      <span
-                        className="ai00-x-workbench-chat__subagent-title"
-                        title={agent.title ?? undefined}
-                      >
-                        {agent.title || agent.sessionId.slice(0, 8)}
-                      </span>
-                      <span className="ai00-x-workbench-chat__subagent-state">
-                        {`${t('nav.workbenchWindow.subagentRunning')} · ${formatElapsed(elapsed)}`}
-                      </span>
-                      <button
-                        type="button"
-                        className="ai00-x-workbench-chat__subagent-open"
-                        title={t('nav.workbenchWindow.subagentLocate')}
-                        aria-label={t('nav.workbenchWindow.subagentLocate')}
-                        onClick={() => focusSubagentCard(agent.sessionId)}
-                      >
-                        {t('nav.workbenchWindow.subagentLocate')}
-                      </button>
-                    </div>
-                  );
-                })}
-                {runningChildAgents.length > 3 && (
-                  <div className="ai00-x-workbench-chat__subagent-more">
-                    {t('nav.workbenchWindow.subagentMore', {
-                      count: runningChildAgents.length - 3,
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
             {/* 尚未落盘的用户输入：立即回显（落盘后按 rpcId 退休） */}
             {transcriptEchoes.map(sub => (
               <div key={sub.requestId} className="ai00-x-workbench-chat__optimistic">
@@ -1482,9 +1493,6 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
             {/* 助手在跑但还没有可见文本（含请求在途）：动态等待提示，避免像卡死 */}
             {showPendingDots && (
               <div className="ai00-x-dsh-scene__msg is-assistant">
-                <div className="ai00-x-dsh-scene__msg-avatar">
-                  <Bot size={13} />
-                </div>
                 <div className="ai00-x-dsh-scene__msg-body">
                   <div className="ai00-x-workbench-chat__pending" role="status" aria-live="polite">
                     <span className="ai00-x-workbench-chat__pending-dots" aria-hidden="true">
@@ -1585,30 +1593,17 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
             </div>
           )}
 
-          <WorkbenchQueueDock
-            rows={queueRows}
-            running={running}
-            onEdit={handleQueueEdit}
-            onRemove={handleQueueRemove}
-            onSteer={handleQueueSteer}
-            onRetry={handleRetrySubmission}
-            onClearAll={handleQueueClearAll}
-            actionError={dockError}
-          />
-
-          {turnUsage && (
-            <WorkbenchTurnUsage local={turnUsage.local} remote={turnUsage.remote} />
-          )}
-
-          {/* 主代理回合已结束但子代理仍在跑：明确提示，避免看起来像卡死/已停止 */}
-          {!running && delegatedCount > 0 && (
-            <div className="ai00-x-workbench-chat__delegating" role="status">
-              <span className="ai00-x-workbench-chat__delegating-dot" aria-hidden />
-              {t('nav.workbenchWindow.delegating', { count: delegatedCount })}
-            </div>
-          )}
-
           <div className="ai00-x-dsh-scene__composer">
+            <WorkbenchQueueDock
+              rows={queueRows}
+              running={running}
+              onEdit={handleQueueEdit}
+              onRemove={handleQueueRemove}
+              onSteer={handleQueueSteer}
+              onRetry={handleRetrySubmission}
+              onClearAll={handleQueueClearAll}
+              actionError={dockError}
+            />
             {composerDock && (
               <div
                 className={`ai00-x-composer-stack__under${
@@ -1624,7 +1619,8 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
               onSubmit={handleSend}
               onStop={() => void handleStop()}
               loading={hasPendingSubmission}
-              running={running}
+              running={taskRunning}
+              steering={turnRunning}
               stopping={stopping}
               placeholder={tDsh('chat.inputPlaceholder')}
               sessionId={sessionId}

@@ -19,8 +19,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import { dshEngine, dshSession, dshWorkers } from '@/infrastructure/api/service-api/DshAPI';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
-import { fetchAi00sModels } from '@/infrastructure/config/services/ai00sTier';
+import { fetchAi00sModels, type Ai00sModelInfo } from '@/infrastructure/config/services/ai00sTier';
+import { classifyModel } from '@/infrastructure/config/services/modelClass';
 import type { AIModelConfig } from '@/infrastructure/config/types';
+import { createLogger } from '@/shared/utils/logger';
+
+const log = createLogger('ModelProfiles');
 
 export type AgentStage = 'plan' | 'execute' | 'review' | 'fallback' | 'research';
 
@@ -55,55 +59,62 @@ const ACTIVE_KEY = 'ai00x.agent.activeProfile.v1';
 
 export const MODEL_REMOTE = 'ai00-api';
 export const MODEL_RWKV = 'rwkv-local';
+/** 智能路由入口：保留为引擎引用（存量会话/配置兼容），不再作为可选预设。 */
 export const MODEL_AUTO = 'ai00-auto';
-/**
- * 内置组合里的云端落点一律交给服务器决定（2026-11-17 起不再在客户端钉模型 id）：
- * - `ai00-api`：网关主模型槽，跟随服务端 `/ai00-s/api/ai/models` 里 `is_default`
- *   标注的默认模型（选择器自动绑定），换模型/下架模型只改服务器；
- * - `ai00-auto`：智能路由，按任务复杂度在已绑定模型间选档。
- */
 
-/** 内置组合：覆盖本地/云端混合与云端高低价混合。 */
+/** 内置组合钉住的远端模型（AI00-API 目录里的公开模型 id）。 */
+export const REMOTE_DEEPSEEK = 'ai00s:deepseek-v4.1-flash';
+export const REMOTE_QWEN = 'ai00s:qwen3.8-flash';
+
+/**
+ * 内置组合：只有两条，都是「全阶段走同一个远端模型」。
+ *
+ * 2026-11-20 起不再内置「本地优先 / 省钱优先 / 旗舰质量 / 离线本地」等组合：
+ * 用户要的是「选一个远程模型就用它」，阶段混合交给后续按需自定义。
+ */
 export const BUILTIN_PROFILES: AgentModelProfile[] = [
   {
-    id: 'balanced',
-    name: '均衡混合',
+    id: 'remote-deepseek',
+    name: '远程 DeepSeek',
     builtin: true,
-    // 执行走智能路由：本地 RWKV 3B 实测写不出合格文件（乱码），
-    // 只会在证据门被判 needs-review 后多绕一轮云审。
     models: {
-      plan: MODEL_REMOTE,
-      execute: MODEL_AUTO,
-      review: MODEL_REMOTE,
-      fallback: MODEL_REMOTE,
-      research: MODEL_AUTO,
+      plan: REMOTE_DEEPSEEK,
+      execute: REMOTE_DEEPSEEK,
+      review: REMOTE_DEEPSEEK,
+      fallback: REMOTE_DEEPSEEK,
+      research: REMOTE_DEEPSEEK,
     },
   },
   {
-    id: 'local-first',
-    name: '本地优先（RWKV）',
+    id: 'remote-qwen',
+    name: '远程 Qwen3.8-Flash',
     builtin: true,
     models: {
-      plan: MODEL_REMOTE,
-      execute: MODEL_RWKV,
-      review: MODEL_REMOTE,
-      fallback: MODEL_REMOTE,
-      research: MODEL_AUTO,
-    },
-  },
-  {
-    id: 'quality',
-    name: '质量优先',
-    builtin: true,
-    models: {
-      plan: MODEL_REMOTE,
-      execute: MODEL_REMOTE,
-      review: MODEL_REMOTE,
-      fallback: MODEL_REMOTE,
-      research: MODEL_AUTO,
+      plan: REMOTE_QWEN,
+      execute: REMOTE_QWEN,
+      review: REMOTE_QWEN,
+      fallback: REMOTE_QWEN,
+      research: REMOTE_QWEN,
     },
   },
 ];
+
+/**
+ * 把组合里的模型引用原样返回（保留函数为调用方 API 稳定）。
+ *
+ * 2026-11-20 起内置组合直接钉具体远端模型，不再有 `ai00:cheapest` /
+ * `ai00:flagship` 这类动态占位，目录参数只为兼容既有调用点。
+ */
+export function resolveProfileModels(
+  profile: AgentModelProfile,
+  _catalog: Ai00sModelInfo[],
+): Record<AgentStage, string> {
+  const models = {} as Record<AgentStage, string>;
+  for (const stage of AGENT_STAGES) {
+    models[stage] = profile.models[stage];
+  }
+  return models;
+}
 
 function readProfiles(): AgentModelProfile[] {
   try {
@@ -125,7 +136,7 @@ function normalizeProfile(profile: AgentModelProfile): AgentModelProfile {
   const models = {} as Record<AgentStage, string>;
   for (const stage of AGENT_STAGES) {
     const raw = profile.models?.[stage];
-    models[stage] = typeof raw === 'string' && raw.trim() ? raw.trim() : MODEL_AUTO;
+    models[stage] = typeof raw === 'string' && raw.trim() ? raw.trim() : MODEL_REMOTE;
   }
   return {
     id: profile.id,
@@ -204,17 +215,24 @@ export function isEngineModelRef(ref: string): boolean {
 export interface AgentModelOption {
   value: string;
   label: string;
-  group: '本地' | 'Ai00-API' | '自动' | '自定义';
+  group: '本地' | 'Ai00-API' | '自定义';
   /** 积分倍率（Ai00-API 模型返回时展示，便于挑低价云）。 */
   multiplier?: number;
 }
 
-/** 弹窗里的模型候选：本地 + 自动 + Ai00-API 子模型 + 用户自定义 API。 */
+/**
+ * 弹窗里的模型候选：本地 + Ai00-API 子模型 + 用户自定义 API。
+ *
+ * 只列「具体模型」：`ai00-api`（网关主模型槽）不是用户可选的模型，内置
+ * `ai00s` 载体条目、RWKV / GGUF 本地条目也不作为候选，否则下拉里会出现
+ * 「Ai00-API 主模型」伪选项与一个自定义分组下的「Ai00-S」。
+ *
+ * 2026-11-20：「自动路由」不进候选 —— 智能路由是网关内部行为，不该出现在
+ * 用户可选的模型/组合里。
+ */
 export async function loadAgentModelOptions(): Promise<AgentModelOption[]> {
   const options: AgentModelOption[] = [
     { value: MODEL_RWKV, label: '本地 RWKV', group: '本地' },
-    { value: MODEL_AUTO, label: '自动路由（本地优先，失败升级）', group: '自动' },
-    { value: MODEL_REMOTE, label: 'Ai00-API 主模型', group: 'Ai00-API' },
   ];
 
   try {
@@ -228,7 +246,7 @@ export async function loadAgentModelOptions(): Promise<AgentModelOption[]> {
       });
     }
   } catch {
-    // 未登录 / 离线：保留主模型入口即可
+    // 未登录 / 离线：保留本地与自动路由入口即可
   }
 
   try {
@@ -237,6 +255,8 @@ export async function loadAgentModelOptions(): Promise<AgentModelOption[]> {
       if (!model.enabled || !model.id) continue;
       const capabilities = Array.isArray(model.capabilities) ? model.capabilities : [];
       if (!capabilities.includes('text_chat')) continue;
+      // 内置/本地条目（ai00s 载体、RWKV、GGUF）不是用户自定义模型
+      if (classifyModel(model) !== 'custom') continue;
       if (options.some(o => o.value === model.id)) continue;
       options.push({ value: model.id, label: model.name || model.model_name || model.id, group: '自定义' });
     }
@@ -254,6 +274,8 @@ export interface ApplyProfileResult {
   restartRequired: boolean;
   /** 主会话模型是否已切换。 */
   sessionSwitched: boolean;
+  /** 工人模型写入失败时的原因（为空 = 成功或无需写入）。 */
+  workersError?: string;
 }
 
 /**
@@ -269,6 +291,7 @@ export async function applyModelProfile(
   setActiveProfileId(profile.id);
 
   let workersChanged = false;
+  let workersError: string | undefined;
   try {
     workersChanged = await invoke<boolean>('dsh_workers_apply_models', {
       execute: profile.models.execute,
@@ -276,8 +299,10 @@ export async function applyModelProfile(
       fallback: profile.models.fallback,
       research: profile.models.research,
     });
-  } catch {
-    // Rust 侧不可用（旧版本/独立宿主）：保留组合偏好，不阻断主会话切换
+  } catch (error) {
+    // 不再静默：写入失败会让「组合看起来生效、实际仍跑旧工人」，必须让调用方提示用户
+    workersError = error instanceof Error ? error.message : String(error);
+    log.warn('Failed to apply model profile to workers', { profile: profile.id, error: workersError });
   }
 
   let sessionSwitched = false;
@@ -291,23 +316,23 @@ export async function applyModelProfile(
   }
 
   if (!workersChanged) {
-    return { workersChanged, restartRequired: false, sessionSwitched };
+    return { workersChanged, restartRequired: false, sessionSwitched, workersError };
   }
 
   // 引擎在跑才需要重启；有会话运行中时不打断，交由用户稍后重启
   try {
     const status = await dshEngine.status();
     if (status.phase.phase !== 'running') {
-      return { workersChanged, restartRequired: false, sessionSwitched };
+      return { workersChanged, restartRequired: false, sessionSwitched, workersError };
     }
     const { items } = await dshSession.list();
     if (items.some(item => item.running)) {
-      return { workersChanged, restartRequired: true, sessionSwitched };
+      return { workersChanged, restartRequired: true, sessionSwitched, workersError };
     }
     await dshEngine.restart();
-    return { workersChanged, restartRequired: false, sessionSwitched };
+    return { workersChanged, restartRequired: false, sessionSwitched, workersError };
   } catch {
-    return { workersChanged, restartRequired: true, sessionSwitched };
+    return { workersChanged, restartRequired: true, sessionSwitched, workersError };
   }
 }
 

@@ -1,4 +1,7 @@
 {
+  "ai": {
+    "queueOnlyHint": "Enter 排队等待当前任务"
+  },
   "button": {
     "primary": "主按钮",
     "secondary": "次按钮",

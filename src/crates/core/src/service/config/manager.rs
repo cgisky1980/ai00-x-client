@@ -195,8 +195,7 @@ impl ConfigManager {
                 Self::ensure_models_config(&mut config.ai.models);
                 Self::add_default_agent_models_config(&mut config.ai.agent_models);
                 Self::add_default_func_agent_models_config(&mut config.ai.func_agent_models);
-                Self::ensure_ai00s_models(&mut config.ai.models, &config.app.ai00_s_base_url);
-                Self::migrate_ai00s_model_refs(&mut config.ai);
+                Self::ensure_ai00s_models(&mut config.ai);
                 Self::migrate_fast_model_refs(&mut config.ai);
 
                 if config.migrate_vrm_to_standalone() {
@@ -245,8 +244,7 @@ impl ConfigManager {
         Self::ensure_models_config(&mut config.ai.models);
         Self::add_default_agent_models_config(&mut config.ai.agent_models);
         Self::add_default_func_agent_models_config(&mut config.ai.func_agent_models);
-        Self::ensure_ai00s_models(&mut config.ai.models, &config.app.ai00_s_base_url);
-        Self::migrate_ai00s_model_refs(&mut config.ai);
+        Self::ensure_ai00s_models(&mut config.ai);
         Self::migrate_fast_model_refs(&mut config.ai);
 
         let _ = config.migrate_vrm_to_standalone();
@@ -275,53 +273,76 @@ impl ConfigManager {
         );
     }
 
-    fn ensure_ai00s_models(models: &mut Vec<AIModelConfig>, base_url: &str) {
-        models.retain(|m| m.id != "ai00s-free" && m.id != "ai00s-vip" && m.id != "ai00s-svip");
-
-        if !models.iter().any(|m| m.id == "ai00s") {
-            models.push(AIModelConfig {
-                id: "ai00s".to_string(),
-                name: "Ai00-S".to_string(),
-                provider: "ai00s".to_string(),
-                model_name: "ai00s".to_string(),
-                base_url: base_url.to_string(),
-                request_url: None,
-                api_key: String::new(),
-                context_window: Some(65536),
-                max_tokens: Some(4096),
-                temperature: Some(0.7),
-                enabled: true,
-                category: ModelCategory::GeneralChat,
-                capabilities: vec![ModelCapability::TextChat],
-                metadata: Some(serde_json::json!({"source": "ai00-s"})),
-                ..Default::default()
-            });
-        }
-        for model in models.iter_mut() {
-            if model.provider == "ai00s" {
-                model.base_url = base_url.to_string();
-            }
-        }
-    }
-
-    fn migrate_ai00s_model_refs(config: &mut AIConfig) {
-        let migrate = |id: &mut String| {
-            if id == "ai00s-free" || id == "ai00s-vip" || id == "ai00s-svip" {
+    /// 清理内置 Ai00-API 载体条目 `ai00s`（历史版本会向 `ai.models` 播种名为
+    /// 「Ai00-S」的条目，它在 UI 上会被当成用户自定义模型）。
+    ///
+    /// 该条目只是 `ai00s:<子模型>` 复合引用在配置里的基底，运行时由
+    /// `client_factory` 用内置默认配置兜底，因此可以安全删除：
+    /// 1. 旧套餐引用（ai00s-free/vip/svip）与旧条目归一成裸 `ai00s`；
+    /// 2. 若裸 `ai00s` 条目带具体 `model_name`，先把指向裸 `ai00s` 的引用升级成
+    ///    `ai00s:<子模型>`（保住子模型绑定），再删条目；
+    /// 3. 没有任何裸 `ai00s` 引用时直接删条目；
+    /// 4. 还有裸引用但拿不到具体子模型时保留条目（运行时仍需要它兜底）。
+    fn ensure_ai00s_models(ai: &mut AIConfig) {
+        let normalize = |id: &mut String| {
+            if matches!(id.as_str(), "ai00s-free" | "ai00s-vip" | "ai00s-svip") {
                 *id = "ai00s".to_string();
             }
         };
-        if let Some(ref mut primary) = config.default_models.primary {
+        if let Some(ref mut primary) = ai.default_models.primary {
+            normalize(primary);
+        }
+        if let Some(ref mut fast) = ai.default_models.fast {
+            normalize(fast);
+        }
+        for v in ai.agent_models.values_mut() {
+            normalize(v);
+        }
+        for v in ai.func_agent_models.values_mut() {
+            normalize(v);
+        }
+        ai.models
+            .retain(|m| !matches!(m.id.as_str(), "ai00s-free" | "ai00s-vip" | "ai00s-svip"));
+
+        let Some(sub_model) = ai
+            .models
+            .iter()
+            .find(|m| m.id == "ai00s" && m.provider == "ai00s")
+            .map(|m| m.model_name.trim().to_string())
+            .filter(|name| !name.is_empty() && name != "ai00s")
+        else {
+            let has_bare_ref = ai.default_models.primary.as_deref() == Some("ai00s")
+                || ai.default_models.fast.as_deref() == Some("ai00s")
+                || ai.agent_models.values().any(|v| v == "ai00s")
+                || ai.func_agent_models.values().any(|v| v == "ai00s");
+            if !has_bare_ref {
+                ai.models
+                    .retain(|m| !(m.id == "ai00s" && m.provider == "ai00s"));
+            }
+            return;
+        };
+
+        let composite = format!("ai00s:{sub_model}");
+        let migrate = |id: &mut String| {
+            if id == "ai00s" {
+                *id = composite.clone();
+            }
+        };
+        if let Some(ref mut primary) = ai.default_models.primary {
             migrate(primary);
         }
-        if let Some(ref mut fast) = config.default_models.fast {
+        if let Some(ref mut fast) = ai.default_models.fast {
             migrate(fast);
         }
-        for v in config.agent_models.values_mut() {
+        for v in ai.agent_models.values_mut() {
             migrate(v);
         }
-        for v in config.func_agent_models.values_mut() {
+        for v in ai.func_agent_models.values_mut() {
             migrate(v);
         }
+
+        ai.models
+            .retain(|m| !(m.id == "ai00s" && m.provider == "ai00s"));
     }
 
     /// Unifies the model tier system: `rwkv-local` (R0/R1 lightweight) /

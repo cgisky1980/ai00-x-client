@@ -13,7 +13,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { dshEngine, dshSession } from '@/infrastructure/api/service-api/DshAPI';
 import { createWorkbenchPresetSession } from '@/infrastructure/plugins/workbenchSession';
-import { WORKBENCH_LOOP_RULES, assembleDelegationPrompt } from '@/agent/orchestrator';
+import { WORKBENCH_LOOP_RULES, QUICK_TASK_RULES, DELEGATE_BOOK_TITLE, assembleDelegationPrompt } from '@/agent/orchestrator';
 import { applyModelProfile, getActiveProfile } from '@/agent/modelProfiles';
 import type { TodoTask, WorkbenchProject } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
@@ -41,6 +41,7 @@ async function prepareTaskWorkspace(
   taskTitle: string,
   workbenchTitle: string,
   project: WorkbenchProject | null,
+  executionMode?: 'quick' | 'delivery',
 ): Promise<TaskWorkspaceContext> {
   await dshEngine.ensureReady();
   return invoke<TaskWorkspaceContext>('workbench_prepare_project', {
@@ -51,15 +52,31 @@ async function prepareTaskWorkspace(
     projectId: taskId,
     projectTitle: taskTitle,
     taskId,
+    ...(executionMode ? { executionMode } : {}),
     ...(project ? { projectRoot: project.dir } : {}),
   });
 }
 
-/** 首轮任务书：任务书四段 + 统一 loop 规约；角色说明由 preset 系统提示提供。 */
+/**
+ * 首轮任务书：任务书四段（+ 未由宿主注入时的 loop 规约）。
+ * 角色说明由 preset 系统提示提供。
+ *
+ * `hostRules` = 宿主已把 loop / 快速问答规约写进工程根的 `AGENTS.local.md`
+ * （默认工作区任务）。此时每轮都会注入那份文件，任务书再带一份就是纯重复，
+ * 只留一句指路；外部项目目录不写 `AGENTS.local.md`，必须自带完整规约。
+ */
 export function buildTaskBrief(
-  task: Pick<TodoTask, 'id' | 'title' | 'notes'>,
+  task: Pick<TodoTask, 'id' | 'title' | 'notes' | 'executionMode'>,
   cwd: string,
+  hostRules = false,
 ): string {
+  // 快速问答：不写计划、不派子代理、不落文件，直接回答（见 QUICK_TASK_RULES）。
+  // 这类任务若走完整 loop，单次问答会膨胀成十几次模型调用、二十多分钟。
+  if (task.executionMode === 'quick') {
+    const goal = task.notes?.trim() ? `${task.title}\n\n${task.notes.trim()}` : task.title;
+    const rules = hostRules ? 'Quick answer mode: follow ./AGENTS.local.md.' : QUICK_TASK_RULES;
+    return `${DELEGATE_BOOK_TITLE}\n[GOAL] ${goal}\n\n${rules}`;
+  }
   const brief = assembleDelegationPrompt({
     promptPrefix: '',
     rules: '',
@@ -72,7 +89,10 @@ export function buildTaskBrief(
     // 工作台新任务默认本地优先 + 自适应云审（组合在模型选择器里按阶段配置）
     execution: 'local-first',
   });
-  return `${brief}\n\n${WORKBENCH_LOOP_RULES(task.id)}`;
+  const loopRules = hostRules
+    ? 'Loop contract: see ./AGENTS.local.md (delivery workflow, approval gate, evidence gate).'
+    : WORKBENCH_LOOP_RULES(task.id);
+  return `${brief}\n\n${loopRules}`;
 }
 
 /** 从首句需求派生列表标题；完整需求仍写入 notes 并进入首轮任务书。 */
@@ -87,6 +107,7 @@ export async function createTask(
   title: string,
   notes?: string,
   projectId?: string,
+  executionMode?: 'quick' | 'delivery',
 ): Promise<TodoTask> {
   if (!useTodoStore.getState().loaded) await useTodoStore.getState().load();
   return useTodoStore.getState().createWorkbenchTask({
@@ -94,6 +115,7 @@ export async function createTask(
     notes: notes?.trim(),
     workbenchId: TASKS_WORKBENCH_ID,
     ...(projectId ? { projectId } : {}),
+    ...(executionMode ? { executionMode } : {}),
   });
 }
 
@@ -155,10 +177,20 @@ export async function ensureTaskSession(
   preferredModelRef: string | null = null,
   options: EnsureTaskSessionOptions = {},
 ): Promise<{ sessionId: string; cwd: string }> {
-  if (task.agentSessionId) return { sessionId: task.agentSessionId, cwd: '' };
+  if (task.agentSessionId) {
+    // 已绑定的会话也刷新一次宿主注入的 `AGENTS.local.md`：它是每轮进上下文的
+    // 常驻文件，规约文案更新后旧任务不刷新就会一直带着过期的长文案。
+    // 仅默认工作区走这条路（外部项目目录不写该文件），失败不阻塞。
+    if (!project) {
+      await prepareTaskWorkspace(task.id, task.title, workbenchTitle, null, task.executionMode).catch(
+        () => undefined,
+      );
+    }
+    return { sessionId: task.agentSessionId, cwd: '' };
+  }
 
   const root = project ? await resolveTaskRoot(task, project, options) : null;
-  const ctx = await prepareTaskWorkspace(task.id, task.title, workbenchTitle, root);
+  const ctx = await prepareTaskWorkspace(task.id, task.title, workbenchTitle, root, task.executionMode);
   // 建会话前把「当前模型组合」落到四个工人（幂等：模型没变就不写盘、不重启引擎）。
   // 这一步是默认组合生效的唯一保证——新装用户不改设置时，execute 也不会落到
   // 实测产不出文件的本地 RWKV。
@@ -167,7 +199,10 @@ export async function ensureTaskSession(
   } catch {
     // 组合应用失败不阻断任务创建：工人按 md 默认模型继续
   }
-  const sessionId = await createWorkbenchPresetSession(ctx.projectRoot);
+  // 按执行模式选 preset：两者插件链一致，工具集按契约裁剪
+  // （快速问答不写计划/不派子代理/不落文件 → 只留检索+通知+提问）。
+  const agentPreset = task.executionMode === 'quick' ? 'workbench-quick' : 'workbench-task';
+  const sessionId = await createWorkbenchPresetSession(ctx.projectRoot, agentPreset);
   useTodoStore.getState().updateTask(task.id, { agentSessionId: sessionId });
   // 主会话模型：用户手动预选优先，否则用组合的「规划」阶段。
   // 不切的话会话停在 Auto（SmartRouter），实测会被路由到 GLM 系，
@@ -180,6 +215,6 @@ export async function ensureTaskSession(
       // 切模型失败不阻塞任务创建：引擎按默认模型继续
     }
   }
-  await dshSession.prompt(sessionId, buildTaskBrief(task, ctx.projectRoot));
+  await dshSession.prompt(sessionId, buildTaskBrief(task, ctx.projectRoot, project === null));
   return { sessionId, cwd: ctx.projectRoot };
 }

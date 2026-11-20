@@ -99,6 +99,9 @@ export interface TodoTask {
   /** 任务来源（缺省=todo 策任务；workbench=工作台产生）。
    *  同库存储，看板/场景按此字段逻辑隔离，旧数据零迁移。 */
   origin?: 'todo' | 'workbench';
+  /** 执行模式：quick=快速问答（直接对话回答，不写计划/不派子代理/不落文件）；
+   *  delivery=完整交付（规划→审批→子代理→证据验收）。缺省 delivery，旧数据兼容。 */
+  executionMode?: 'quick' | 'delivery';
   /** 来源工作台 id（origin='workbench' 时必填：'tasks'=默认任务场景，其余=插件工作台 id）。 */
   workbenchId?: string;
   /** 所属项目（= 用户指定的工作区目录）；缺省 = 默认工作区（每个任务独立目录）。 */

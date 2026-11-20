@@ -36,6 +36,11 @@ export interface PromptInputProps {
    * Agent 当前回合仍在运行（启用「发送 + 停止并存、运行中可排队/插话」契约）。
    */
   running?: boolean;
+  /**
+   * 运行中是否允许插话（Ctrl/Cmd+Enter → 'steer'）。
+   * 缺省跟随 `running`（旧调用方零改动）；传 false 时一律按排队处理。
+   */
+  steering?: boolean;
   /** 正在停止当前回合（停止按钮防重入，发送仍可用）。 */
   stopping?: boolean;
   /** 快捷键提示是否显示（默认 true；窄容器自动隐藏）。 */
@@ -113,6 +118,7 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
       onStop,
       loading = false,
       running,
+      steering,
       stopping = false,
       showShortcutHint = true,
       placeholder,
@@ -156,6 +162,8 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
 
     /** 新契约（显式传 running）：运行中仍可提交。旧契约保持 loading 禁发。 */
     const isRunningContract = running !== undefined;
+    /** 插话资格由主回合决定；子代理单独在跑时只排队，不宣称可插话。 */
+    const canSteer = (steering ?? Boolean(running)) === true;
     const hasText = value.trim().length > 0;
     const canSend = isRunningContract
       ? !disabled && hasText
@@ -183,13 +191,15 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
       if (composingRef.current || composing || e.nativeEvent.isComposing) return;
       if (e.shiftKey) return; // Shift+Enter 换行
       e.preventDefault();
-      // Ctrl/Cmd+Enter = 在安全边界插话；空闲时由调用方按普通发送处理
-      const accelerated = (e.ctrlKey || e.metaKey) && isRunningContract;
+      // Ctrl/Cmd+Enter = 在安全边界插话；空闲或不可插话时按普通排队处理
+      const accelerated = (e.ctrlKey || e.metaKey) && isRunningContract && canSteer;
       submit(accelerated ? 'steer' : 'queue');
     };
 
     const defaultHint = isRunningContract && running
-      ? label('components.ai.runningHint', 'Enter 排队 · Ctrl/Cmd+Enter 插话')
+      ? canSteer
+        ? label('components.ai.runningHint', 'Enter 排队 · Ctrl/Cmd+Enter 插话')
+        : label('components.ai.queueOnlyHint', 'Enter 排队等待当前任务')
       : label('components.ai.idleHint', 'Enter 发送 · Shift+Enter 换行');
     const hasDock = showShortcutHint;
 
@@ -199,6 +209,7 @@ export const PromptInput = forwardRef<HTMLTextAreaElement, PromptInputProps>(
           'ai-prompt-input',
           `ai-prompt-input--${variant}`,
           disabled && 'is-disabled',
+          isRunningContract && running && 'is-running',
           className,
         ]
           .filter(Boolean)
