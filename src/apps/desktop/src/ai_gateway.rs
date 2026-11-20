@@ -834,6 +834,17 @@ async fn local_rwkv_sse(
     } else {
         messages
     };
+    // 终结型工具已成功的下一轮：不再推理，直接以证据收尾。
+    // 3B 在拿到 write / ai00_research_collect 的结果后无法自行停止（工具轮预填
+    // 使模型只能继续产出工具调用，见 openai_messages_to_rwkv_prompt 末尾），
+    // 这里确定性短路：省一轮全量 prefill，同时杜绝"任务已完成却复读调用"。
+    if !rounds_exhausted {
+        if let Some(evidence) = terminal_tool_completion(&messages) {
+            log::info!("[ai-gateway] terminal tool succeeded, closing turn with evidence");
+            stream_local_final(res, &format!("DONE: {evidence}"), 0, 0);
+            return Ok(());
+        }
+    }
     // 熔断轮只允许一句话：3B 模型在"没工具"时会整段复读指令甚至 system prompt，
     // 实测量出 20s / 数百 token 的垃圾正文。这里硬压到 256 token。
     let max_tokens = if rounds_exhausted {
@@ -951,8 +962,8 @@ async fn local_rwkv_sse(
         // 引擎侧 deriveTurnTokenUsage 拿不到数字 → 本地模型的对话回合用量条全空。
         if let Some((name, arguments)) = tool_call_from_text(&text, has_tools) {
             let arguments = normalize_tool_arguments(&name, &arguments);
-            if repeated_write_call(&messages_for_evidence, &name, &arguments) {
-                // 幂等写重复：直接以证据收尾，不再白烧工具轮（见 repeated_write_call）
+            if repeated_tool_call(&messages_for_evidence, &name, &arguments) {
+                // 重复调用：直接以证据收尾，不再白烧工具轮（见 repeated_tool_call）
                 log::info!("[ai-gateway] duplicate {name} call, closing turn with evidence");
                 text = finalize_exhausted_text("", &messages_for_evidence);
                 let chunk = sse_text_delta(&model_name, &text);
@@ -1769,8 +1780,11 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
         prompt.push_str(&format!("System: {system_text}\n\n"));
     }
     if has_tools {
-        if let Some(fewshot) = tools.and_then(tool_fewshot_block) {
-            prompt.push_str(&fewshot);
+        if let Some(tool_defs) = tools.filter(|defs| !defs.is_empty()) {
+            let hint = hinted_tool(tool_defs, messages);
+            if let Some(fewshot) = tool_fewshot_block(tool_defs, hint) {
+                prompt.push_str(&fewshot);
+            }
         }
     }
 
@@ -1882,82 +1896,133 @@ fn tools_block(tools: &[Value]) -> String {
     )
 }
 
+/// 最后一条 user 消息（brief）里点名的工具名——few-shot 选例的第一优先级。
+///
+/// 编排者的 brief 会明确写「用 `ai00_research_collect` 一次完成」，被点名的
+/// 那件才是本轮真正要调的工具；不点名时返回 None，退回到默认优先级。
+fn hinted_tool<'a>(tools: &'a [Value], messages: &[Value]) -> Option<&'a str> {
+    let last_user = messages
+        .iter()
+        .rev()
+        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))?;
+    let text = message_text(last_user)?;
+    tools.iter().find_map(|tool| {
+        let name = tool
+            .get("function")
+            .and_then(|f| f.get("name"))
+            .and_then(|n| n.as_str())?;
+        (name.starts_with("ai00_") && text.contains(name)).then_some(name)
+    })
+}
+
 /// 一轮对话式 few-shot（2026-11-11 prompt_lab 实验：对话轮示例是 3B 工具
 /// 调用 JSON 合法性的决定性变量——零样本会多闭合括号，而把示例写进
 /// System 文本完全无效）。示例从当次工具表合成（优先首个能合成出非空
 /// 参数的工具），保证示例工具恒在表内；格式模仿可泛化到表内其他工具
 /// （三选一实测 3/3）。
-fn tool_fewshot_block(tools: &[Value]) -> Option<String> {
+fn tool_fewshot_block(tools: &[Value], hint: Option<&str>) -> Option<String> {
     // 优先选能合成出非空参数的工具做示例：空参数（{}）示例会让模型在需要
     // 填参数时把 JSON schema 结构当参数值复读（2026-11-11 实测 3/3 复现）。
     //
     // 示例取两个：3B 逐字模仿示例的参数键名，只给一个示例时没覆盖到的工具
     // 会去抄训练数据里的别的 schema（实测 write 没示例 → 输出 Claude Write 的
-    // description/justification，漏掉 file_path，白烧 6 轮）。`write` 永远优先。
+    // description/justification，漏掉 file_path，白烧 6 轮）。
+    //
+    // 选例顺序（2026-11-21）：brief 里点名的工具 → ai00_research_collect →
+    // write → 其余。brief 点名的那件才是本轮真正要调的工具；不点名时
+    // research 工人以前只会看到 read/read_image 的示例，从不示范检索工具。
+    let priority = |index: usize| -> u8 {
+        let name = tools[index]
+            .get("function")
+            .and_then(|f| f.get("name"))
+            .and_then(|n| n.as_str())
+            .unwrap_or("");
+        if hint == Some(name) {
+            0
+        } else if name == "ai00_research_collect" {
+            1
+        } else if name == "write" {
+            2
+        } else {
+            3
+        }
+    };
+    let mut order: Vec<usize> = (0..tools.len()).collect();
+    order.sort_by_key(|&index| (priority(index), index));
+
     let mut examples: Vec<String> = Vec::new();
     let mut empty_candidate: Option<String> = None;
-    for prefer_write in [true, false] {
-        for tool in tools {
-            let Some(function) = tool.get("function") else {
-                continue;
-            };
-            let Some(name) = function.get("name").and_then(|n| n.as_str()) else {
-                continue;
-            };
-            let name = name.trim();
-            if name.is_empty() || (prefer_write != (name == "write")) {
-                continue;
+    for index in order {
+        let tool = &tools[index];
+        let Some(function) = tool.get("function") else {
+            continue;
+        };
+        let Some(name) = function.get("name").and_then(|n| n.as_str()) else {
+            continue;
+        };
+        let name = name.trim();
+        if name.is_empty() {
+            continue;
+        }
+        let mut args = serde_json::Map::new();
+        if let Some(props) = function
+            .get("parameters")
+            .and_then(|p| p.get("properties"))
+            .and_then(|p| p.as_object())
+        {
+            for (key, schema) in props.iter().take(2) {
+                let ty = schema.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                // 示例值必须真实感且互异：占位符（"example"）会让模型丢失
+                // 参数绑定能力——复读 schema 结构或塌陷重复（p2/p4/p6 实测），
+                // 真实值则连工具选择都纠正（p5 错选 vs p7 全对）。
+                let value = match ty {
+                    "string" => json!(sample_string_arg(key)),
+                    "number" | "integer" => json!(1),
+                    "boolean" => json!(true),
+                    // 数组参数（queries / urls）：给一个元素的真实示例，
+                    // 否则模型会把 schema 结构塞进数组或干脆漏掉该键。
+                    "array" => json!([sample_string_arg(key)]),
+                    _ => continue,
+                };
+                args.insert(key.clone(), value);
             }
-            let mut args = serde_json::Map::new();
-            if let Some(props) = function
-                .get("parameters")
-                .and_then(|p| p.get("properties"))
-                .and_then(|p| p.as_object())
-            {
-                for (key, schema) in props.iter().take(2) {
-                    let ty = schema.get("type").and_then(|t| t.as_str()).unwrap_or("");
-                    // 示例值必须真实感且互异：占位符（"example"）会让模型丢失
-                    // 参数绑定能力——复读 schema 结构或塌陷重复（p2/p4/p6 实测），
-                    // 真实值则连工具选择都纠正（p5 错选 vs p7 全对）。
-                    let value = match ty {
-                        "string" => {
-                            if key.contains("path") {
-                                json!("note.txt")
-                            } else if key.contains("query") {
-                                json!("latest AI news")
-                            } else if key.contains("url") {
-                                json!("https://www.rwkv.cn")
-                            } else if key.contains("title") {
-                                json!("Reminder")
-                            } else if key.contains("message") || key.contains("msg") {
-                                json!("Don't forget your meeting at 3 PM.")
-                            } else {
-                                json!("hello")
-                            }
-                        }
-                        "number" | "integer" => json!(1),
-                        "boolean" => json!(true),
-                        _ => continue,
-                    };
-                    args.insert(key.clone(), value);
-                }
+        }
+        if args.is_empty() {
+            if empty_candidate.is_none() {
+                empty_candidate = Some(build_fewshot(name, args));
             }
-            if args.is_empty() {
-                if empty_candidate.is_none() {
-                    empty_candidate = Some(build_fewshot(name, args));
-                }
-                continue;
-            }
-            examples.push(build_fewshot(name, args));
-            if examples.len() >= 2 {
-                return Some(examples.concat());
-            }
+            continue;
+        }
+        examples.push(build_fewshot(name, args));
+        if examples.len() >= 2 {
+            return Some(examples.concat());
         }
     }
     if examples.is_empty() {
         return empty_candidate;
     }
     Some(examples.concat())
+}
+
+/// few-shot 字符串参数示例值（按参数名挑最贴近真实用法的样例）。
+fn sample_string_arg(key: &str) -> &'static str {
+    if key.contains("path") {
+        "note.txt"
+    } else if key.contains("query") || key.contains("queries") {
+        "agent memory architecture"
+    } else if key.contains("url") {
+        "https://www.rwkv.cn"
+    } else if key.contains("title") {
+        "Reminder"
+    } else if key.contains("message") || key.contains("msg") {
+        "Don't forget your meeting at 3 PM."
+    } else if key.contains("cwd") || key.contains("dir") {
+        "C:/work/demo"
+    } else if key.contains("topic") {
+        "agent memory architecture"
+    } else {
+        "hello"
+    }
 }
 
 fn build_fewshot(name: &str, args: serde_json::Map<String, Value>) -> String {
@@ -2050,27 +2115,24 @@ fn finalize_exhausted_text(model_text: &str, messages: &[Value]) -> String {
 
 /// 最后一条**成功**工具结果的摘要。
 ///
-/// 不能只看 `role == "tool"`：引擎把工具结果并回历史时可能渲染成 user 正文，
-/// 这里以文件工具结果的固定标记 `<path>` 为主判据（成功结果必带），
-/// 其余工具退回 role=tool 且不以 `Error` 开头。
+/// 不能只看 `role == "tool"`：引擎把工具结果并回历史时可能渲染成 user 正文
+/// （`Function output: …`），见 `tool_result_text`。`no results` / `Error`
+/// 这类空结果与失败结果不算证据——否则熔断轮会把"什么都没搜到"收尾成 DONE。
 fn last_successful_tool_result(messages: &[Value]) -> Option<String> {
     const MAX_CHARS: usize = 160;
     let mut fallback: Option<String> = None;
     for msg in messages.iter().rev() {
-        let Some(raw) = message_text(msg) else {
+        let Some(text) = tool_result_text(msg) else {
             continue;
         };
-        let text = raw.trim();
-        if text.is_empty() {
+        if is_failed_tool_text(&text) {
             continue;
         }
         if text.contains("<path>") {
-            return Some(summarize_tool_text(text, MAX_CHARS));
+            return Some(summarize_tool_text(&text, MAX_CHARS));
         }
-        let is_ok_tool =
-            msg.get("role").and_then(|r| r.as_str()) == Some("tool") && !text.starts_with("Error");
-        if is_ok_tool && fallback.is_none() {
-            fallback = Some(summarize_tool_text(text, MAX_CHARS));
+        if fallback.is_none() {
+            fallback = Some(summarize_tool_text(&text, MAX_CHARS));
         }
     }
     fallback
@@ -2079,6 +2141,120 @@ fn last_successful_tool_result(messages: &[Value]) -> Option<String> {
 fn summarize_tool_text(text: &str, max_chars: usize) -> String {
     let collapsed = text.split_whitespace().collect::<Vec<_>>().join(" ");
     collapsed.chars().take(max_chars).collect()
+}
+
+/// 工具结果正文（兼容 `role=tool` 与引擎把结果并回历史后渲染成的 user 正文
+/// `Function output: …` 形态）。
+///
+/// 只认 role=tool 会漏掉后者：research 工人的检索结果就是这样进历史的，
+/// 熔断轮因此把"已经搜到了内容"判成"什么都没做"，输出 BLOCKED 触发无谓的
+/// 云端升级（2026-11-21 会话 session-369d2a7d 实测）。
+fn tool_result_text(msg: &Value) -> Option<String> {
+    let text = message_text(msg)?.trim().to_string();
+    if text.is_empty() {
+        return None;
+    }
+    let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
+    if role == "tool" {
+        return Some(text);
+    }
+    let stripped = text.strip_prefix("Function output:")?.trim();
+    (!stripped.is_empty()).then(|| stripped.to_string())
+}
+
+/// 工具结果是否为**失败/空**（不能当交付证据）。
+///
+/// `ai00_search: no results` 这类文本曾被算作成功工具结果，导致"什么都没搜到"
+/// 被收尾成 `DONE:`；这里显式排除。
+fn is_failed_tool_text(text: &str) -> bool {
+    let text = text.trim();
+    text.starts_with("Error")
+        || text.starts_with("ERR ")
+        || text.contains("ai00_search: no results")
+        || text.contains("web extract: no results")
+}
+
+/// 终结型工具：它们的成功结果本身就代表任务达成，下一轮无需再推理。
+const TERMINAL_TOOLS: [&str; 2] = ["write", "ai00_research_collect"];
+
+/// 本回合最后一次成功工具结果若来自终结型工具，返回其摘要（供 `DONE:` 收尾）。
+fn terminal_tool_completion(messages: &[Value]) -> Option<String> {
+    let last = messages.last()?;
+    let text = tool_result_text(last)?;
+    if is_failed_tool_text(&text) {
+        return None;
+    }
+    let call_id = last.get("tool_call_id").and_then(|v| v.as_str());
+    let name = find_tool_call_name(messages, call_id)?;
+    if !TERMINAL_TOOLS.contains(&name.as_str()) {
+        return None;
+    }
+    Some(summarize_tool_text(&text, 160))
+}
+
+/// 反查某个 tool_call id 对应的工具名（无 id 时取最近一次 assistant 的最后一个调用）。
+fn find_tool_call_name(messages: &[Value], call_id: Option<&str>) -> Option<String> {
+    for msg in messages.iter().rev() {
+        let Some(calls) = msg.get("tool_calls").and_then(|c| c.as_array()) else {
+            continue;
+        };
+        for call in calls.iter().rev() {
+            let Some(function) = call.get("function") else {
+                continue;
+            };
+            let Some(name) = function.get("name").and_then(|n| n.as_str()) else {
+                continue;
+            };
+            let id = call.get("id").and_then(|v| v.as_str());
+            match (call_id, id) {
+                (Some(want), Some(have)) if want != have => continue,
+                _ => return Some(name.to_string()),
+            }
+        }
+    }
+    None
+}
+
+/// 同一回合里再次提交**同一调用**（同工具 + 规范化参数）→ 立即收尾。
+///
+/// 3B 在任务达成后会复读调用（实测同一检索查询连发 4 次，每轮全量 prefill +
+/// 一次工具往返）。`write` 保留按写入内容判定的旧逻辑（复读时 3B 会把参数写坏，
+/// 逐字段比对抓不住）；其余工具按规范化 JSON 比对。
+fn repeated_tool_call(messages: &[Value], name: &str, arguments: &str) -> bool {
+    if name == "write" {
+        return repeated_write_call(messages, name, arguments);
+    }
+    let Some(current) = canonical_args(arguments) else {
+        return false;
+    };
+    let Some(previous_calls) = messages
+        .iter()
+        .rev()
+        .find_map(|msg| msg.get("tool_calls").and_then(|c| c.as_array()))
+    else {
+        return false;
+    };
+    previous_calls.iter().any(|call| {
+        let Some(function) = call.get("function") else {
+            return false;
+        };
+        if function.get("name").and_then(|n| n.as_str()) != Some(name) {
+            return false;
+        }
+        let raw = match function.get("arguments") {
+            Some(Value::String(text)) => text.clone(),
+            Some(value) => value.to_string(),
+            None => return false,
+        };
+        canonical_args(&raw).as_deref() == Some(current.as_str())
+    })
+}
+
+/// 参数规范化：解析成 JSON 后重排序列化（serde_json 的 Map 默认有序），
+/// 解析失败返回 None（调用方按"不重复"处理，宁可多跑一轮也不误收尾）。
+fn canonical_args(raw: &str) -> Option<String> {
+    let value: Value = serde_json::from_str(raw).ok()?;
+    Some(value.to_string())
 }
 
 /// 同一回合里再次提交**同内容**的 write（幂等写复读）。
@@ -2147,6 +2323,9 @@ fn repeated_write_call(messages: &[Value], name: &str, arguments: &str) -> bool 
 fn sanitize_blocked_text(text: &str) -> String {
     const MARKER: &str = "BLOCKED:";
     const MAX_CHARS: usize = 200;
+    // 先按角色标记截断：3B 会在正文尾部续写 `System: You are …`（实测泄漏
+    // 整段系统提示词），这段既污染证据也会误导编排者。
+    let text = truncate_at_role_marker(text);
     let marker_at = text.char_indices().find_map(|(i, _)| {
         text[i..]
             .get(..MARKER.len())
@@ -3069,5 +3248,105 @@ mod tests {
             "ai00s:deepseek-v3"
         );
         assert_eq!(remote_fallback_ref("my-custom-model"), "my-custom-model");
+    }
+
+    // ---- 2026-11-21：工具轮收尾与证据判定 ----
+
+    #[test]
+    fn tool_result_text_accepts_rendered_user_output() {
+        let tool_msg = json!({"role": "tool", "content": "1. Mem0 paper\n   https://arxiv.org/abs/2504.19413"});
+        assert!(tool_result_text(&tool_msg).is_some_and(|t| t.contains("Mem0")));
+        // 引擎把结果并回历史时渲染成 user 正文
+        let rendered =
+            json!({"role": "user", "content": "Function output:\n1. Mem0 paper\ntitle/url"});
+        assert!(tool_result_text(&rendered).is_some_and(|t| t.starts_with("1. Mem0")));
+        // 普通用户消息不是工具结果
+        assert!(tool_result_text(&json!({"role": "user", "content": "plan ok"})).is_none());
+    }
+
+    #[test]
+    fn failed_tool_text_is_not_evidence() {
+        let messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "ai00_search", "arguments": "{}"}}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "ai00_search: no results"}),
+        ];
+        assert_eq!(last_successful_tool_result(&messages), None);
+        assert_eq!(terminal_tool_completion(&messages), None);
+    }
+
+    #[test]
+    fn runtime_evidence_detected_after_search_results() {
+        let messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "ai00_search", "arguments": "{}"}}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "1. Mem0\n   https://mem0.ai"}),
+        ];
+        assert!(last_successful_tool_result(&messages).is_some());
+        // 检索不是终结型工具：不短路，让模型继续走
+        assert_eq!(terminal_tool_completion(&messages), None);
+    }
+
+    #[test]
+    fn terminal_tool_closes_turn_with_evidence() {
+        let messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "ai00_research_collect", "arguments": "{}"}}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "wrote sources.md: 12 sources from 4 queries, 0 failed"}),
+        ];
+        let done = terminal_tool_completion(&messages);
+        assert!(done.is_some_and(|text| text.contains("12 sources")));
+    }
+
+    #[test]
+    fn repeated_tool_call_detects_same_arguments() {
+        let messages = vec![json!({
+            "role": "assistant",
+            "tool_calls": [{"id": "c1", "function": {
+                "name": "ai00_search",
+                "arguments": "{\"query\":\"agent memory\",\"max_results\":8}"
+            }}]
+        })];
+        // 字段顺序不同但语义相同 → 视为重复
+        assert!(repeated_tool_call(
+            &messages,
+            "ai00_search",
+            "{\"max_results\":8,\"query\":\"agent memory\"}"
+        ));
+        assert!(!repeated_tool_call(
+            &messages,
+            "ai00_search",
+            "{\"query\":\"graphiti temporal graph\",\"max_results\":8}"
+        ));
+    }
+
+    #[test]
+    fn blocked_text_truncates_leaked_system_prompt() {
+        let text = "BLOCKED: 未找到相关结果。System: You are a helpful AI agent for research task execution.";
+        let cleaned = sanitize_blocked_text(text);
+        assert_eq!(cleaned, "BLOCKED: 未找到相关结果。");
+    }
+
+    #[test]
+    fn fewshot_prefers_tool_named_in_brief() {
+        let tools = vec![
+            json!({"type": "function", "function": {
+                "name": "read",
+                "description": "Read a file",
+                "parameters": {"properties": {"path": {"type": "string"}}}
+            }}),
+            json!({"type": "function", "function": {
+                "name": "ai00_research_collect",
+                "description": "Collect sources",
+                "parameters": {"properties": {
+                    "topic": {"type": "string"},
+                    "queries": {"type": "array", "items": {"type": "string"}}
+                }}
+            }}),
+        ];
+        let block = tool_fewshot_block(&tools, Some("ai00_research_collect")).unwrap_or_default();
+        assert!(
+            block.contains("\"name\": \"ai00_research_collect\""),
+            "expected the hinted tool first: {block}"
+        );
+        // 数组参数也要有真实示例
+        assert!(block.contains("\"queries\": ["));
     }
 }

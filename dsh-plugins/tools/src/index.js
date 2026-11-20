@@ -1753,19 +1753,24 @@ function defineTools(ctx, api) {
               required: ["title", "url", "snippet"],
             },
           },
+          effective_query: { type: "string" },
         },
         required: ["results"],
       },
       render: (_args, value) => {
         const items = Array.isArray(value?.results) ? value.results : [];
         if (items.length === 0) return text("ai00_search: no results");
+        const body = items
+          .map(
+            (item, index) =>
+              `${index + 1}. ${item.title}\n   ${item.url}\n   ${item.snippet}`
+          )
+          .join("\n");
+        const effective = value?.effective_query;
         return text(
-          items
-            .map(
-              (item, index) =>
-                `${index + 1}. ${item.title}\n   ${item.url}\n   ${item.snippet}`
-            )
-            .join("\n")
+          typeof effective === "string" && effective
+            ? `${body}\n\n(effective query: ${effective})`
+            : body
         );
       },
     },
@@ -1776,33 +1781,51 @@ function defineTools(ctx, api) {
       const max = Math.min(Math.max(Number(args?.max_results) || 8, 1), 10);
       const language = String(args?.language ?? "zh-CN");
       const base = (process.env.AI00_SEARCH_URL || "https://s.ai00-x.com").replace(/\/+$/, "");
-      const params = new URLSearchParams({
-        q: query,
-        format: "json",
-        language,
-        pageno: "1",
-      });
-      const response = await fetch(`${base}/search?${params.toString()}`, {
-        headers: { accept: "application/json", "user-agent": "Ai00-X/1.0" },
-        signal: exec.signal,
-      });
-      const body = await response.text();
-      if (!response.ok) {
-        throw new Error(`search HTTP ${response.status}: ${body.slice(0, 200)}`);
-      }
-      let data;
-      try {
-        data = JSON.parse(body);
-      } catch {
-        throw new Error("search returned non-JSON (SearXNG json format may be disabled)");
-      }
-      const results = Array.isArray(data?.results) ? data.results : [];
-      return {
-        results: results.slice(0, max).map((item) => ({
+
+      const run = async (q, lang) => {
+        const params = new URLSearchParams({
+          q,
+          format: "json",
+          language: lang,
+          pageno: "1",
+        });
+        const response = await fetch(`${base}/search?${params.toString()}`, {
+          headers: { accept: "application/json", "user-agent": "Ai00-X/1.0" },
+          signal: exec.signal,
+        });
+        const body = await response.text();
+        if (!response.ok) {
+          throw new Error(`search HTTP ${response.status}: ${body.slice(0, 200)}`);
+        }
+        let data;
+        try {
+          data = JSON.parse(body);
+        } catch {
+          throw new Error("search returned non-JSON (SearXNG json format may be disabled)");
+        }
+        const results = Array.isArray(data?.results) ? data.results : [];
+        return results.slice(0, max).map((item) => ({
           title: String(item?.title ?? ""),
           url: String(item?.url ?? ""),
           snippet: String(item?.content ?? item?.snippet ?? "").slice(0, 500),
-        })),
+        }));
+      };
+
+      // 零结果回退（2026-11-21）：SearXNG 对 zh-CN + 多词长查询常返回 0 条，
+      // 同一串在 all 下往往有结果；本地 3B 只会原样重发同一查询 → 整轮空转。
+      let effective = query;
+      let results = await run(query, language);
+      if (results.length === 0) {
+        results = await run(query, "all");
+      }
+      const words = query.split(/\s+/).filter(Boolean);
+      if (results.length === 0 && words.length > 6) {
+        effective = words.slice(0, 6).join(" ");
+        results = await run(effective, "all");
+      }
+      return {
+        results,
+        ...(results.length > 0 && effective !== query ? { effective_query: effective } : {}),
       };
     },
   });
@@ -1866,6 +1889,85 @@ function defineTools(ctx, api) {
       const body = url ? { url } : { query };
       if (!url && Number.isFinite(args?.max_results)) body.max_results = args.max_results;
       return api.post("/web/extract", body, exec.signal);
+    },
+  });
+
+  // ---- ai00_research_collect：一次调用完成「检索 → 抓取 → 筛选 → 落盘」----
+  // 本地 3B 的可靠区只有单次工具调用；连续检索多轮必然退化（查询串乱码、
+  // 同一查询复读、最后喊 BLOCKED）。把整条链路下沉到宿主，模型只发一次。
+  ctx.tools.register({
+    name: "ai00_research_collect",
+    description:
+      "One-shot research collection. Searches the web for `topic` (or the given `queries`), fetches and locally screens the pages, de-duplicates them and WRITES a Markdown source list (`save_to`, default sources.md) into `cwd`. Use this INSTEAD of many ai00_search calls. Pass your working directory verbatim as `cwd`.",
+    parameters: {
+      type: "object",
+      properties: {
+        topic: { type: "string", description: "Research topic, e.g. 'agent memory architecture'." },
+        cwd: {
+          type: "string",
+          description: "Working directory given in your task brief, verbatim. Files are written only here.",
+        },
+        queries: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional short queries (≤8, ≤6 words each, English preferred).",
+        },
+        urls: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional seed URLs to fetch directly (≤12).",
+        },
+        save_to: {
+          type: "string",
+          description: "Relative .md file name, default sources.md.",
+        },
+      },
+      required: ["topic", "cwd"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          saved: { type: "string" },
+          sources: { type: "number" },
+          queries: { type: "number" },
+          failed: { type: "number" },
+        },
+        required: ["saved", "sources"],
+      },
+      render: (_args, value) => {
+        const saved = String(value?.saved ?? "sources.md");
+        const sources = Number(value?.sources ?? 0);
+        const queries = Number(value?.queries ?? 0);
+        const failed = Number(value?.failed ?? 0);
+        if (sources === 0) {
+          return text(
+            `ai00_research_collect: no results (wrote ${saved}: 0 sources from ${queries} queries, ${failed} failed)`
+          );
+        }
+        return text(`wrote ${saved}: ${sources} sources from ${queries} queries, ${failed} failed`);
+      },
+    },
+    isConcurrencySafe: () => false,
+    async execute(args, exec) {
+      const topic = String(args?.topic ?? "").trim();
+      const cwd = String(args?.cwd ?? "").trim();
+      if (!topic) throw new Error("topic is required");
+      if (!cwd) {
+        throw new Error("cwd is required — pass your working directory verbatim from the task brief");
+      }
+      const body = { topic, cwd };
+      if (Array.isArray(args?.queries)) {
+        const queries = args.queries.filter((q) => typeof q === "string" && q.trim());
+        if (queries.length > 0) body.queries = queries;
+      }
+      if (Array.isArray(args?.urls)) {
+        const urls = args.urls.filter((u) => typeof u === "string" && u.trim());
+        if (urls.length > 0) body.urls = urls;
+      }
+      if (typeof args?.save_to === "string" && args.save_to.trim()) body.save_to = args.save_to.trim();
+      return api.post("/web/research", body, exec.signal);
     },
   });
 
@@ -1935,6 +2037,7 @@ const TOOL_NAMES = [
   "ai00_plan_check",
   "ai00_search",
   "ai00_web_extract",
+  "ai00_research_collect",
   "ai00_text_summarize",
 ];
 

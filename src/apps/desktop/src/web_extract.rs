@@ -84,6 +84,49 @@ fn maybe_lazy_init(err: &str) {
     }
 }
 
+/// 搜索（带零结果回退）：原语言 → `all` → 截前 6 词。
+///
+/// 实测（2026-11-21）：SearXNG 对 `zh-CN` + 多词英文长查询经常返回 0 条，
+/// 而同一查询在 `all` 下能出结果；本地 3B 又只会原样重发同一串 → 整轮空转。
+/// 回退链放在宿主侧，模型只需发一次调用。
+async fn search_with_fallback(
+    query: &str,
+    max_results: usize,
+) -> (Vec<ai00_x_core::websearch::SearchResultItem>, String) {
+    let attempt = |q: String, language: &'static str| async move {
+        WebSearchTool::new()
+            .with_searxng_enabled(true)
+            .search_simple(&q, language, max_results)
+            .await
+            .unwrap_or_else(|e| {
+                log::warn!("[web-extract] search failed ({language}): {e}");
+                Vec::new()
+            })
+    };
+
+    let results = attempt(query.to_string(), "zh-CN").await;
+    if !results.is_empty() {
+        return (results, query.to_string());
+    }
+    log::warn!("[web-extract] query={query:?} returned 0 results (zh-CN), retrying with all");
+    let results = attempt(query.to_string(), "all").await;
+    if !results.is_empty() {
+        return (results, query.to_string());
+    }
+    let words: Vec<&str> = query.split_whitespace().collect();
+    if words.len() > 6 {
+        let shortened = words[..6].join(" ");
+        log::warn!(
+            "[web-extract] query={query:?} returned 0 results, retrying shortened {shortened:?}"
+        );
+        let results = attempt(shortened.clone(), "all").await;
+        if !results.is_empty() {
+            return (results, shortened);
+        }
+    }
+    (Vec::new(), query.to_string())
+}
+
 /// web 有效信息提取主流程：搜索 → 并发抓取 → 并发本地筛选。
 pub async fn extract(query: &str, max_results: Option<usize>) -> Vec<PageExtract> {
     let max_results = max_results
@@ -91,20 +134,13 @@ pub async fn extract(query: &str, max_results: Option<usize>) -> Vec<PageExtract
         .clamp(1, MAX_RESULTS_CAP);
     // SearXNG 自建实例（s.ai00-x.com，2026-10-02 部署）已作为主搜索源，
     // 此处显式开启 fallback 链：AnySearch（有 key）→ SearXNG →（无则空）
-    let results = WebSearchTool::new()
-        .with_searxng_enabled(true)
-        .search_simple(query, "zh-CN", max_results)
-        .await
-        .unwrap_or_else(|e| {
-            log::warn!("[web-extract] search failed: {e}");
-            Vec::new()
-        });
+    let (results, effective_query) = search_with_fallback(query, max_results).await;
     if results.is_empty() {
-        log::warn!("[web-extract] query={query:?} returned 0 results");
+        log::warn!("[web-extract] query={query:?} returned 0 results after fallbacks");
         return Vec::new();
     }
     log::info!(
-        "[web-extract] query={query:?} {} results, fetching concurrently",
+        "[web-extract] query={query:?} (effective={effective_query:?}) {} results, fetching concurrently",
         results.len()
     );
 
@@ -153,6 +189,222 @@ pub async fn extract(query: &str, max_results: Option<usize>) -> Vec<PageExtract
             .collect();
     }
     pages
+}
+
+// ---------------------------------------------------------------------------
+// ai00_research_collect：把"多步检索 → 整理 → 落盘"下沉到宿主
+// ---------------------------------------------------------------------------
+//
+// 为什么需要：本地 3B 的可靠区只有**单次**工具调用（见
+// 参考/2026-11-11-rwkv-本地模型执行边界与最佳提示词模板-实验记录.md §二）。
+// 让它连续检索 10 次再整理，实测查询串退化、同一查询连发 4 次、最后喊 BLOCKED。
+// 这里把整条链路做成一个确定性工具：模型只发一次调用，宿主完成搜索、并发抓取、
+// 本地筛选、去重、拼 Markdown 与落盘。
+
+/// 调研采集结果（工具输出，供插件渲染一行摘要）。
+#[derive(Debug, Clone, Serialize)]
+pub struct ResearchCollectOutcome {
+    /// 落盘文件名（相对工作目录）。
+    pub saved: String,
+    /// 实际写入的来源条数（去重后）。
+    pub sources: usize,
+    /// 实际执行的查询数。
+    pub queries: usize,
+    /// 零结果的查询数（>0 表示部分主题没搜到）。
+    pub failed: usize,
+}
+
+/// 单次采集上限：查询数 / 种子 URL 数 / 每条查询取几页。
+const RESEARCH_QUERY_CAP: usize = 8;
+const RESEARCH_URL_CAP: usize = 12;
+const RESEARCH_PER_QUERY: usize = 6;
+/// 并发上限（与 web_extract 的 12 页上限同量级，避免把搜索源打爆）。
+const RESEARCH_CONCURRENCY: usize = 4;
+
+/// topic → 查询集（模型省略 queries 时使用；确定性派生，不需要模型多想一步）。
+pub fn derived_queries(topic: &str) -> Vec<String> {
+    let topic = topic.trim();
+    if topic.is_empty() {
+        return Vec::new();
+    }
+    vec![
+        topic.to_string(),
+        format!("{topic} survey"),
+        format!("{topic} architecture comparison"),
+        format!("{topic} 2025 2026"),
+    ]
+}
+
+/// 采集：查询集并发执行（上限 4），种子 URL 并发抓取，按 URL 去重。
+///
+/// 返回 (去重后的页面, 执行的查询数, 零结果查询数)。工具永不失败：抓取失败的
+/// 页面直接丢弃，全空时由调用方写成 `0 sources`（不冒充实成功）。
+pub async fn collect_pages(
+    queries: &[String],
+    urls: &[String],
+) -> (Vec<PageExtract>, usize, usize) {
+    use futures::StreamExt;
+
+    let queries: Vec<String> = queries
+        .iter()
+        .map(|q| q.trim().to_string())
+        .filter(|q| !q.is_empty())
+        .take(RESEARCH_QUERY_CAP)
+        .collect();
+    let query_count = queries.len();
+
+    let batches: Vec<(String, Vec<PageExtract>)> = futures::stream::iter(queries)
+        .map(|query| async move {
+            let pages = extract(&query, Some(RESEARCH_PER_QUERY)).await;
+            (query, pages)
+        })
+        .buffer_unordered(RESEARCH_CONCURRENCY)
+        .collect()
+        .await;
+
+    let failed = batches.iter().filter(|(_, pages)| pages.is_empty()).count();
+    let mut pages: Vec<PageExtract> = Vec::new();
+    for (_, mut item) in batches {
+        pages.append(&mut item);
+    }
+
+    let urls: Vec<String> = urls
+        .iter()
+        .map(|u| u.trim().to_string())
+        .filter(|u| u.starts_with("http"))
+        .take(RESEARCH_URL_CAP)
+        .collect();
+    if !urls.is_empty() {
+        let fetched = futures::future::join_all(urls.iter().map(|url| extract_url(url))).await;
+        pages.extend(fetched.into_iter().flatten());
+    }
+
+    // 去重（保留首次出现的顺序）
+    let mut seen = std::collections::HashSet::new();
+    pages.retain(|page| !page.url.is_empty() && seen.insert(page.url.clone()));
+    (pages, query_count, failed)
+}
+
+/// 把采集结果写成 Markdown 来源汇编并落盘。
+///
+/// `cwd` 必须是宿主认可的工作目录（工作台工程目录 / 工作区 / git 仓库根），
+/// `save_to` 必须是单层相对文件名且以 `.md` 结尾——两者都由 `resolve_save_target`
+/// 做确定性校验，避免模型把文件写到任意路径。
+pub fn write_research_markdown(
+    cwd: &std::path::Path,
+    save_to: &str,
+    topic: &str,
+    pages: &[PageExtract],
+) -> Result<ResearchCollectOutcome, String> {
+    let target = resolve_save_target(cwd, save_to)?;
+    let out = render_research_markdown(topic, pages);
+    std::fs::write(&target, out.as_bytes())
+        .map_err(|e| format!("write {} failed: {e}", target.display()))?;
+    Ok(ResearchCollectOutcome {
+        saved: save_to.to_string(),
+        sources: pages.len(),
+        queries: 0,
+        failed: 0,
+    })
+}
+
+/// 来源汇编的 Markdown 渲染（纯函数，便于单测）。
+fn render_research_markdown(topic: &str, pages: &[PageExtract]) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("# Sources — {}\n\n", sanitize_inline(topic)));
+    out.push_str(&format!(
+        "Collected by ai00_research_collect · {} sources\n\n",
+        pages.len()
+    ));
+    for (index, page) in pages.iter().enumerate() {
+        out.push_str(&format!(
+            "## {}. {}\n\n- URL: {}\n",
+            index + 1,
+            sanitize_inline(&page.title),
+            page.url
+        ));
+        let summary = page.summary.trim().replace("\r\n", "\n");
+        if summary.is_empty() {
+            out.push_str("- Summary: (empty)\n");
+        } else {
+            out.push_str("- Summary:\n");
+            for line in summary.lines().take(12) {
+                let line = line.trim();
+                if !line.is_empty() {
+                    out.push_str(&format!("  {line}\n"));
+                }
+            }
+        }
+        if page.degraded {
+            out.push_str("- Note: [degraded] snippet fallback (local screening skipped)\n");
+        }
+        out.push('\n');
+    }
+    out
+}
+
+/// 标题/主题里的换行与首尾空白清洗（Markdown 结构不被模型产出的文本打散）。
+fn sanitize_inline(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// 校验并解析落盘目标：单层相对 `.md` 文件名 + cwd 在允许根内。
+pub fn resolve_save_target(
+    cwd: &std::path::Path,
+    save_to: &str,
+) -> Result<std::path::PathBuf, String> {
+    let name = save_to.trim();
+    if name.is_empty() {
+        return Err("save_to is empty".to_string());
+    }
+    if name.starts_with('/') || name.starts_with('\\') || name.contains(':') {
+        return Err("save_to must be a relative file name (no drive/absolute path)".to_string());
+    }
+    if name.contains("..") || name.contains('/') || name.contains('\\') {
+        return Err("save_to must be a single file name (no directory separators)".to_string());
+    }
+    if !name.to_lowercase().ends_with(".md") {
+        return Err("save_to must end with .md".to_string());
+    }
+    let dir = std::fs::canonicalize(cwd)
+        .map_err(|e| format!("cwd does not exist ({}): {e}", cwd.display()))?;
+    if !dir.is_dir() {
+        return Err(format!("cwd is not a directory: {}", dir.display()));
+    }
+    if !is_allowed_research_root(&dir) {
+        return Err(format!(
+            "cwd is outside the allowed research roots: {}",
+            dir.display()
+        ));
+    }
+    Ok(dir.join(name))
+}
+
+/// 允许落盘的目录：宿主生成的工作台工程目录（带 `AGENTS.local.md`）、
+/// 工作台/工作区根内，或一个 git 仓库根（用户自带工程目录的任务）。
+fn is_allowed_research_root(dir: &std::path::Path) -> bool {
+    // Windows 文件系统大小写不敏感，但 `Path::starts_with` 区分大小写：
+    // 统一按小写字符串前缀比较，避免盘符/目录大小写差异误拒。
+    let dir_key = dir.to_string_lossy().to_lowercase();
+    for root in research_allowed_roots() {
+        let root_key = root.to_string_lossy().to_lowercase();
+        if dir_key.starts_with(&root_key) {
+            return true;
+        }
+    }
+    dir.join("AGENTS.local.md").exists() || dir.join(".git").exists()
+}
+
+/// 允许根：`<APPDATA>/Ai00-X/workbenches` 与 `<exe_dir>/data/workspaces`。
+fn research_allowed_roots() -> Vec<std::path::PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(data_dir) = dirs::data_dir() {
+        roots.push(data_dir.join("Ai00-X").join("workbenches"));
+    }
+    if let Ok(exe_dir) = ai00_x_core::infrastructure::PathManager::exe_dir() {
+        roots.push(exe_dir.join("data").join("workspaces"));
+    }
+    roots
 }
 
 /// url 直达模式：抓取指定单页 → 提正文（web_fetch 的本机替代）。
@@ -783,6 +1035,43 @@ mod tests {
         assert!(matches!(v, Some(ScreenOutcome::NotRelevant)));
         // 完全无法解析 → None（调用方 snippet 降级）
         assert!(parse_screen_output("根据提供的网页内容，没有直接提及……因此无法判断").is_none());
+    }
+
+    #[test]
+    fn derived_queries_covers_topic() {
+        let queries = derived_queries("agent memory architecture");
+        assert_eq!(queries.len(), 4);
+        assert_eq!(queries[0], "agent memory architecture");
+        assert!(derived_queries("   ").is_empty());
+    }
+
+    #[test]
+    fn resolve_save_target_rejects_unsafe_names() {
+        let cwd = std::env::temp_dir();
+        assert!(resolve_save_target(&cwd, "").is_err());
+        assert!(resolve_save_target(&cwd, "../escape.md").is_err());
+        assert!(resolve_save_target(&cwd, "sub/sources.md").is_err());
+        assert!(resolve_save_target(&cwd, "C:/abs/sources.md").is_err());
+        assert!(resolve_save_target(&cwd, "sources.txt").is_err());
+    }
+
+    #[test]
+    fn research_markdown_contains_sources_and_degraded_mark() {
+        // 允许根之外的目录应被拒（否则模型可把文件写到任意路径）
+        let outside = std::path::Path::new("C:/Windows");
+        assert!(resolve_save_target(outside, "sources.md").is_err());
+
+        let pages = vec![PageExtract {
+            title: "Mem0: Building Production-Ready".to_string(),
+            url: "https://arxiv.org/abs/2504.19413".to_string(),
+            summary: "点一\n点二".to_string(),
+            degraded: true,
+        }];
+        let md = render_research_markdown("agent memory", &pages);
+        assert!(md.starts_with("# Sources — agent memory"));
+        assert!(md.contains("1 sources"));
+        assert!(md.contains("https://arxiv.org/abs/2504.19413"));
+        assert!(md.contains("[degraded] snippet fallback"));
     }
 }
 
