@@ -1132,6 +1132,7 @@ const AI00_TOOL_NAMES: &[&str] = &[
     "ai00_focus_log",
     "ai00_plan_read",
     "ai00_plan_write",
+    "ai00_plan_check",
     "ai00_search",
     "ai00_web_extract",
     "ai00_text_summarize",
@@ -1146,7 +1147,7 @@ const WORKBENCH_TASK_DROPPED_PLUGIN_IDS: &[&str] = &["tool-pwsh", "tool-goal"];
 /// 契约是「不写计划、不派子代理、不落文件」，其余业务工具都不挂。
 const WORKBENCH_QUICK_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract", "ai00_notify"];
 
-/// 快速问答 deny 的业务工具 = 全部 15 个减去保留的 3 个（单一来源，避免两处漏改）。
+/// 快速问答 deny 的业务工具 = 全部业务工具减去保留的 3 个（单一来源，避免两处漏改）。
 ///
 /// 只列本插件工具名；引擎工具走 `WORKBENCH_QUICK_DROPPED_PLUGIN_IDS` 摘插件行
 /// （restrict 只认全局注册，引擎工具是 preset 行，写进来会让整条限制失效）。

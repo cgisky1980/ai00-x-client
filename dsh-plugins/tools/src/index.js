@@ -1309,6 +1309,79 @@ function defineTools(ctx, api) {
     },
   });
 
+  // ---- ai00_plan_check：只勾选/取消勾选计划里的一行（免整篇重写）----
+  // 计划文档动辄 2–3k 字，整篇重写一次就是 2–3k 输出 token（实测一个任务里
+  // 模型为了改三处状态把全文重写了 3 次 ≈ 8k 输出 token）。这里按「行内片段
+  // 匹配」只改一行，模型输出几十 token 即可。
+  ctx.tools.register({
+    name: "ai00_plan_check",
+    description:
+      "Toggle one checkbox line of a Zhixing board card plan (Markdown) without rewriting the document. Cheapest way to mark a step done/undone or tick an acceptance item: pass a short fragment that appears on that line. Only use ai00_plan_write for structural edits (new steps, changed acceptance wording).",
+    parameters: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: "Task id." },
+        match: {
+          type: "string",
+          description:
+            "Short fragment that identifies exactly one line, e.g. a step id (\"S2\") or a few words of the step title.",
+        },
+        checked: {
+          type: "boolean",
+          description: "true = mark done ([x]), false = uncheck ([ ]). Default true.",
+        },
+      },
+      required: ["taskId", "match"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean" },
+          line: { type: "string", description: "The updated line (trimmed)." },
+          hint: { type: "string", description: "Present when nothing matched." },
+        },
+        required: ["ok"],
+        additionalProperties: false,
+      },
+      render: (_args, value) => {
+        if (value.ok) return text(`plan line updated: ${value.line ?? ""}`);
+        return text(
+          `no line matched (${value.hint ?? "no match"}). Call ai00_plan_read and use ai00_plan_write instead.`
+        );
+      },
+    },
+    async execute(args, exec) {
+      const taskId = String(args?.taskId ?? "").trim();
+      const match = String(args?.match ?? "").trim();
+      const checked = args?.checked !== false;
+      if (!taskId || !match) throw new Error("taskId and match are required");
+      const prev = await api.get(`/plan?taskId=${encodeURIComponent(taskId)}`, exec.signal);
+      if (!prev?.found) return { ok: false, hint: "no plan document yet" };
+      const markdown = String(prev.markdown ?? "");
+      const lines = markdown.split("\n");
+      const index = lines.findIndex((line) => line.includes("]") && line.includes(match));
+      if (index < 0) {
+        return { ok: false, hint: `no checkbox line contains "${match}"` };
+      }
+      const original = lines[index];
+      if (!/\[( |x|X)\]/.test(original)) {
+        return { ok: false, hint: "matched line has no checkbox" };
+      }
+      const next = checked
+        ? original.replace(/\[( |x|X)\]/, "[x]")
+        : original.replace(/\[( |x|X)\]/, "[ ]");
+      if (next === original) {
+        // 已是目标状态：不写盘，省一次 PUT
+        return { ok: true, line: original.trim() };
+      }
+      lines[index] = next;
+      await api.put("/plan", { taskId, markdown: lines.join("\n") }, exec.signal);
+      return { ok: true, line: next.trim() };
+    },
+  });
+
   // ---- ai00_search：搜索兜底（自建 SearXNG）----
   // 引擎的 web_search 由 dsh-web 选单一提供方（DeepSeek 搜索需 API key/登录），
   // 不可用或空结果时用本工具走自建服务，避免 agent 完全搜不到东西。
@@ -1527,6 +1600,7 @@ const TOOL_NAMES = [
   "ai00_focus_log",
   "ai00_plan_read",
   "ai00_plan_write",
+  "ai00_plan_check",
   "ai00_search",
   "ai00_web_extract",
   "ai00_text_summarize",
