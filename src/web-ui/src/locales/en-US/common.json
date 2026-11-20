@@ -353,7 +353,7 @@
         "stateActive": "Running",
         "stateReview": "In review",
         "stateRework": "Rework",
-        "stateDone": "Passed",
+        "stateDone": "Verified",
         "stateFallback": "Cloud fallback",
         "stateFailed": "Failed",
         "currentStage": "Stage",
@@ -431,6 +431,18 @@
         "truncated": "Large file — showing the first 256KB",
         "unsupported": "This file type has no built-in preview",
         "fileTooLarge": "File exceeds {{size}}MB; built-in preview unavailable"
+      },
+      "planCard": {
+        "generating": "Ai00-X is breaking down the goal…",
+        "emptyTitle": "No plan yet",
+        "approve": "Approve & run",
+        "approveHint": "Want changes? Edit the steps directly or say so in the chat — you will be asked to confirm again.",
+        "statsDone": "Done",
+        "statsRework": "Rework",
+        "statsTools": "Tool calls",
+        "statsToolFailures": "Tool failures",
+        "details": "Verification & evidence",
+        "accepted": "Accepted — task complete"
       }
     },
     "modes": {

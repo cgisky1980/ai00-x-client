@@ -353,7 +353,7 @@
         "stateActive": "进行中",
         "stateReview": "待评审",
         "stateRework": "返工",
-        "stateDone": "已通过",
+        "stateDone": "已验证",
         "stateFallback": "云端兜底",
         "stateFailed": "失败",
         "currentStage": "当前阶段",
@@ -431,6 +431,18 @@
         "truncated": "文件较大，仅显示前 256KB",
         "unsupported": "该文件类型暂不支持内置预览",
         "fileTooLarge": "文件超过 {{size}}MB，不支持内置预览"
+      },
+      "planCard": {
+        "generating": "Ai00-X 正在拆解目标…",
+        "emptyTitle": "还没有计划",
+        "approve": "批准并执行",
+        "approveHint": "要改计划？直接编辑步骤，或在对话里说明——改完会再请你确认。",
+        "statsDone": "已完成",
+        "statsRework": "返工",
+        "statsTools": "工具调用",
+        "statsToolFailures": "工具失败",
+        "details": "验证与证据",
+        "accepted": "已验收，任务完成"
       }
     },
     "modes": {

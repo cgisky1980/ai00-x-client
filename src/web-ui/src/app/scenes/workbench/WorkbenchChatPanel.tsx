@@ -19,6 +19,7 @@ import { ArrowDown } from 'lucide-react';
 import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import type { PromptSubmitIntent } from '@/component-library';
 import {
+  aggregateSessionStats,
   connectMux,
   createDshRequestId,
   dshApproval,
@@ -318,6 +319,12 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   const turnRunning = agentRunning || awaitingAgent || Boolean(live?.active);
   /** 任务级运行：主回合或仍有子代理在跑——输入框/头部/状态卡/运行态上报用它。 */
   const taskRunning = turnRunning || delegatedCount > 0;
+
+  // 执行统计上报：计划卡执行态读它（事件流水账只在面板内，这里数完交给 store）
+  useEffect(() => {
+    if (!sessionId || eventsRef.current.length === 0) return;
+    useWorkbenchTaskStore.getState().reportStats(sessionId, aggregateSessionStats(eventsRef.current));
+  }, [sessionId, messages]);
   const running = turnRunning; // 既有消费方（队列、停滞、重试）保持主回合语义
   runningRef.current = running;
   hostInboxRef.current = hostInbox;

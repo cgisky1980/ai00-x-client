@@ -8,6 +8,7 @@
  */
 import { create } from 'zustand';
 import type {
+  DshSessionStats,
   DshSubagentCatalogEntry,
   DshSubagentMode,
   DshSubagentTiming,
@@ -54,12 +55,15 @@ interface WorkbenchTaskState {
   subagentCatalog: Record<string, WorkbenchSubagentMeta[]>;
   /** 子会话 → turn 计时（`subagentTiming` 投影，挂在子会话 id 上，durable）。 */
   subagentTiming: Record<string, DshSubagentTiming>;
+  /** 主会话 → 执行过程统计（对话面板由事件流水账算出后上报；计划卡读）。 */
+  sessionStats: Record<string, DshSessionStats>;
   /** 跨任务/看板场景保持选中；仅进程内 UI 状态，不写入任务数据。 */
   selectedTaskId: string | null;
   /** 主区是否展示新任务输入（与「未选中任何任务」区分）。 */
   creatingNew: boolean;
   selectTask: (taskId: string) => void;
   startNewTask: () => void;
+  reportStats: (sessionId: string, stats: DshSessionStats) => void;
   reportRuntime: (
     sessionId: string,
     next: { running: boolean; failed: boolean; asking?: boolean },
@@ -156,10 +160,17 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
   children: {},
   subagentCatalog: {},
   subagentTiming: {},
+  sessionStats: {},
   selectedTaskId: null,
   creatingNew: true,
   selectTask: (taskId) => set({ selectedTaskId: taskId, creatingNew: false }),
   startNewTask: () => set({ selectedTaskId: null, creatingNew: true }),
+  reportStats: (sessionId, stats) =>
+    set((s) => {
+      const prev = s.sessionStats[sessionId];
+      if (prev && JSON.stringify(prev) === JSON.stringify(stats)) return s;
+      return { sessionStats: { ...s.sessionStats, [sessionId]: stats } };
+    }),
   reportRuntime: (sessionId, next) =>
     set((s) => {
       const prev = s.runtime[sessionId];

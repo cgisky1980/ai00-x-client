@@ -14,11 +14,7 @@ import { useResizablePane } from '@/hooks/useResizablePane';
 import type { TodoTask, WorkbenchProject } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { WorkbenchChatPanel } from '../workbench/WorkbenchChatPanel';
-import {
-  WorkbenchStageBar,
-  WorkbenchStageDots,
-  WorkbenchStatusTag,
-} from '../workbench/WorkbenchStageBar';
+import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
 import { WorkbenchReviewPanel } from '../workbench/WorkbenchReviewPanel';
 import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
 import { WorkbenchTabs, type WorkbenchTabItem } from '../workbench/WorkbenchTabs';
@@ -435,7 +431,6 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
                               {selectedProject.name}
                             </span>
                           )}
-                          <WorkbenchStageBar phase={phaseOf(selectedTask)} size="compact" />
                           <WorkbenchStatusTag
                             className="ai00-x-task-scene__conversation-status"
                             phase={phaseOf(selectedTask)}

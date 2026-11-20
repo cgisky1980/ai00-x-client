@@ -28,11 +28,7 @@ import { taskPhase } from '../tasks/taskPhase';
 import { useSessionRunningSync } from '../tasks/useSessionRunningSync';
 import { dirTail, relativeTime } from '../tasks/display';
 import { WorkbenchChatPanel } from '../workbench/WorkbenchChatPanel';
-import {
-  WorkbenchStageBar,
-  WorkbenchStageDots,
-  WorkbenchStatusTag,
-} from '../workbench/WorkbenchStageBar';
+import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
 import { WorkbenchTabs, type WorkbenchTabItem } from '../workbench/WorkbenchTabs';
 import { WorkbenchPlanPage } from '../workbench/WorkbenchPlanPage';
 import { WorkbenchFilePreview } from '../workbench/WorkbenchFilePreview';
@@ -499,14 +495,6 @@ export const ProjectsScene: React.FC = () => {
                         <span className="ai00-x-projects-scene__dir" title={selected.dir}>
                           {selected.name}
                         </span>
-                        <WorkbenchStageBar
-                          phase={taskPhase(
-                            conversation.task,
-                            null,
-                            runtime[conversation.sessionId],
-                          )}
-                          size="compact"
-                        />
                         <WorkbenchStatusTag
                           className="ai00-x-projects-scene__status"
                           phase={taskPhase(conversation.task, null, runtime[conversation.sessionId])}
