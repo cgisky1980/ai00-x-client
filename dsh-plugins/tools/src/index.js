@@ -17,7 +17,7 @@
  * - ai00_plan_write    — 写卡片计划文档 MD（策窗口热刷新可见）
  * - ai00_web_extract   — web 有效信息提取（全本地闭环：搜索→并发抓取→本地并发筛选）
  * - ai00_text_summarize— 长文总结（全本地闭环：≤6000 单次 / >6000 map-reduce 并发）
- * - ai00_search        — 搜索兜底（自建 SearXNG s.ai00-x.com，web_search 不可用/空结果时用）
+ * - ai00_research_collect — 一次调用完成「多查询检索 → 抓取 → 筛选 → 落盘来源汇编」
  *
  * 本插件只做协议薄壳：业务逻辑在宿主侧（D7 决策）。
  * 不 import @deepseek-ai/dsh-tools（pnpm 严格解析下不可达），用原始
@@ -36,7 +36,7 @@ import { stat, readFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 
 const name = "ai00-x-tools";
-const inject = ["tools"];
+const inject = ["tools", "workingDirectory"];
 
 /** 插件标识（npm 包名；宿主内部 API 按此头做 per-plugin scope 授权）。 */
 const PLUGIN_ID = "@ai00-x/dsh-tools";
@@ -1714,127 +1714,11 @@ function defineTools(ctx, api) {
     },
   });
 
-  // ---- ai00_search：搜索兜底（自建 SearXNG）----
-  // 引擎的 web_search 由 dsh-web 选单一提供方（DeepSeek 搜索需 API key/登录），
-  // 不可用或空结果时用本工具走自建服务，避免 agent 完全搜不到东西。
-  ctx.tools.register({
-    name: "ai00_search",
-    description:
-      "Search the web through Ai00-X's self-hosted SearXNG (no API key) — the primary web search tool. Returns title/url/snippet only; pass a result's URL to ai00_web_extract to get the page body, or call ai00_web_extract with a query directly for distilled per-page summaries.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Search query." },
-        max_results: {
-          type: "number",
-          description: "Results to return (1-10, default 8).",
-        },
-        language: {
-          type: "string",
-          description: "Language tag, default zh-CN.",
-        },
-      },
-      required: ["query"],
-      additionalProperties: false,
-    },
-    output: {
-      schema: {
-        type: "object",
-        properties: {
-          results: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                title: { type: "string" },
-                url: { type: "string" },
-                snippet: { type: "string" },
-              },
-              required: ["title", "url", "snippet"],
-            },
-          },
-          effective_query: { type: "string" },
-        },
-        required: ["results"],
-      },
-      render: (_args, value) => {
-        const items = Array.isArray(value?.results) ? value.results : [];
-        if (items.length === 0) return text("ai00_search: no results");
-        const body = items
-          .map(
-            (item, index) =>
-              `${index + 1}. ${item.title}\n   ${item.url}\n   ${item.snippet}`
-          )
-          .join("\n");
-        const effective = value?.effective_query;
-        return text(
-          typeof effective === "string" && effective
-            ? `${body}\n\n(effective query: ${effective})`
-            : body
-        );
-      },
-    },
-    isConcurrencySafe: () => true,
-    async execute(args, exec) {
-      const query = String(args?.query ?? "").trim();
-      if (!query) throw new Error("query is required");
-      const max = Math.min(Math.max(Number(args?.max_results) || 8, 1), 10);
-      const language = String(args?.language ?? "zh-CN");
-      const base = (process.env.AI00_SEARCH_URL || "https://s.ai00-x.com").replace(/\/+$/, "");
-
-      const run = async (q, lang) => {
-        const params = new URLSearchParams({
-          q,
-          format: "json",
-          language: lang,
-          pageno: "1",
-        });
-        const response = await fetch(`${base}/search?${params.toString()}`, {
-          headers: { accept: "application/json", "user-agent": "Ai00-X/1.0" },
-          signal: exec.signal,
-        });
-        const body = await response.text();
-        if (!response.ok) {
-          throw new Error(`search HTTP ${response.status}: ${body.slice(0, 200)}`);
-        }
-        let data;
-        try {
-          data = JSON.parse(body);
-        } catch {
-          throw new Error("search returned non-JSON (SearXNG json format may be disabled)");
-        }
-        const results = Array.isArray(data?.results) ? data.results : [];
-        return results.slice(0, max).map((item) => ({
-          title: String(item?.title ?? ""),
-          url: String(item?.url ?? ""),
-          snippet: String(item?.content ?? item?.snippet ?? "").slice(0, 500),
-        }));
-      };
-
-      // 零结果回退（2026-11-21）：SearXNG 对 zh-CN + 多词长查询常返回 0 条，
-      // 同一串在 all 下往往有结果；本地 3B 只会原样重发同一查询 → 整轮空转。
-      let effective = query;
-      let results = await run(query, language);
-      if (results.length === 0) {
-        results = await run(query, "all");
-      }
-      const words = query.split(/\s+/).filter(Boolean);
-      if (results.length === 0 && words.length > 6) {
-        effective = words.slice(0, 6).join(" ");
-        results = await run(effective, "all");
-      }
-      return {
-        results,
-        ...(results.length > 0 && effective !== query ? { effective_query: effective } : {}),
-      };
-    },
-  });
-
   // ---- ai00_web_extract：web 有效信息提取（全本地闭环：搜索→并发抓取→本地筛选）----
   ctx.tools.register({
     name: "ai00_web_extract",
     description:
-      "Fetch and extract web content, entirely locally (no API key). Two modes — pass exactly one: `url` fetches that page and returns its cleaned body text (use for a specific page, e.g. a link from ai00_search results); `query` searches up to 12 pages, fetches them concurrently, and the LOCAL model screens/summarizes each — returns per-page key points (title/url/summary). Pages marked [degraded] fell back to raw snippets. For a distilled summary of a long body, follow up with ai00_text_summarize.",
+      "Fetch and extract web content, entirely locally (no API key). Two modes — pass exactly one: `url` fetches that page and returns its cleaned body text (use for a specific page); `query` SEARCHES the web (self-hosted SearXNG, no key), fetches up to 12 pages concurrently, and the LOCAL model screens/summarizes each — returns per-page key points (title/url/summary). This is the single search entry point. Pages marked [degraded] fell back to raw snippets. For a distilled summary of a long body, follow up with ai00_text_summarize.",
     parameters: {
       type: "object",
       properties: {
@@ -1898,14 +1782,14 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_research_collect",
     description:
-      "One-shot research collection. Searches the web for `topic` (or the given `queries`), fetches and locally screens the pages, de-duplicates them and WRITES a Markdown source list (`save_to`, default sources.md) into `cwd`. Use this INSTEAD of many ai00_search calls. Pass your working directory verbatim as `cwd`.",
+      "One-shot research collection. Searches the web for `topic`, fetches and locally screens the pages, de-duplicates them and WRITES a Markdown source list (`save_to`, default sources.md) into the session working directory. Use this INSTEAD of many separate search calls. Do not pass `cwd` — the working directory is resolved by the host.",
     parameters: {
       type: "object",
       properties: {
         topic: { type: "string", description: "Research topic, e.g. 'agent memory architecture'." },
         cwd: {
           type: "string",
-          description: "Working directory given in your task brief, verbatim. Files are written only here.",
+          description: "Optional; leave empty. The host resolves the session working directory.",
         },
         queries: {
           type: "array",
@@ -1922,7 +1806,7 @@ function defineTools(ctx, api) {
           description: "Relative .md file name, default sources.md.",
         },
       },
-      required: ["topic", "cwd"],
+      required: ["topic"],
       additionalProperties: false,
     },
     output: {
@@ -1952,11 +1836,17 @@ function defineTools(ctx, api) {
     isConcurrencySafe: () => false,
     async execute(args, exec) {
       const topic = String(args?.topic ?? "").trim();
-      const cwd = String(args?.cwd ?? "").trim();
       if (!topic) throw new Error("topic is required");
-      if (!cwd) {
-        throw new Error("cwd is required — pass your working directory verbatim from the task brief");
+      // 工作目录由宿主解析：3B 抄长路径必然出错（实测把 t-1795207736548-5kr
+      // 抄成 t-179520207736548-5kr），所以模型给的 cwd 只当提示，最终以引擎的
+      // 会话工作目录为准。
+      let cwd = "";
+      try {
+        cwd = await ctx.workingDirectory.ensure(exec.agent, exec.signal);
+      } catch {
+        cwd = String(args?.cwd ?? "").trim();
       }
+      if (!cwd) throw new Error("cannot resolve the session working directory");
       const body = { topic, cwd };
       if (Array.isArray(args?.queries)) {
         const queries = args.queries.filter((q) => typeof q === "string" && q.trim());
@@ -2035,7 +1925,6 @@ const TOOL_NAMES = [
   "ai00_plan_read",
   "ai00_plan_write",
   "ai00_plan_check",
-  "ai00_search",
   "ai00_web_extract",
   "ai00_research_collect",
   "ai00_text_summarize",

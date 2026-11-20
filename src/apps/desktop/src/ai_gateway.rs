@@ -679,7 +679,8 @@ async fn chat_completions(req: &mut Request, res: &mut Response) {
 /// - dsh 只读套件：与 dsh_manager.rs research_worker 工具集完全一致——
 ///   编排架构里调研 worker（model=ai00-auto）靠本白名单获得
 ///   hybrid_tool_loop 本地资格。web 检索为全局插件 @ai00-x/dsh-tools 的
-///   ai00_search / ai00_web_extract（2026-11-11 起替代引擎 web_fetch/web_search）
+///   ai00_web_extract（自托管免 key，2026-11-11 起替代引擎 web_fetch/web_search；
+///   2026-11-21 起合并原 ai00_search——query 模式本身即搜索+取正文）
 const LOCAL_TOOL_WHITELIST: &[&str] = &[
     "ai00_notify",
     "ai00_todo_read",
@@ -691,7 +692,6 @@ const LOCAL_TOOL_WHITELIST: &[&str] = &[
     "read_image",
     "glob",
     "grep",
-    "ai00_search",
     "ai00_web_extract",
 ];
 
@@ -808,7 +808,7 @@ async fn local_rwkv_sse(
         .and_then(|v| v.as_array())
         .is_some_and(|t| !t.is_empty());
     // 回合熔断：本轮工具轮数达到上限后**不再下发 tools**，模型只能给终答。
-    // 3B 本地模型一旦选错工具会无限换词重试（实测同一会话连调 ai00_search 十次），
+    // 3B 本地模型一旦选错工具会无限换词重试（实测同一会话连调检索工具十次），
     // 引擎侧没有轮数上限，这里按 `AI00X_TOOL_LOOP_MAX_ROUNDS`（默认 6）硬截断。
     let rounds = crate::tool_session::count_turn_rounds(&messages);
     let rounds_exhausted = has_tools && rounds >= crate::tool_session::tool_loop_max_rounds();
@@ -1788,13 +1788,35 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
         }
     }
 
+    // 收集块：相邻同角色块合并（rwkv-pf 规则 TWO_USER_TURNS / TWO_ASSISTANT_TURNS）。
+    //
+    // dsh 在一个 turn 开头会连发多条 user 消息（工作目录变更 / 工作目录 /
+    // runtime context 快照），各写一个 `User:` 块会让 3B 把"目录"和"上下文
+    // 快照"当成任务本身：2026-11-21 用 rwkv-pf 校验真实工人提示词，判定 2 处
+    // TWO_USER_TURNS（3 个连续 User 块）。
+    //
+    // Assistant 侧同理：并行工具调用是同一 assistant 消息里的多个围栏块，
+    // 分开写会被判 TWO_ASSISTANT_TURNS；合并成同一个 Assistant 块后，生成点
+    // 解析仍只取第一段围栏（与合并前一致）。
+    let mut blocks: Vec<(bool, String)> = Vec::new();
+    let mut previous_had_tool_calls = false;
     for msg in messages {
         let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
         match role {
             "system" => {} // 已在上面合并进唯一的 System 块
             "user" => {
                 if let Some(content) = message_text(msg) {
-                    prompt.push_str(&format!("User: {}\n\n", sanitize(&content)));
+                    // 引擎有时把工具结果并回历史成普通 user 正文（无
+                    // `Function output:` 前缀），紧随「带 tool_calls 的 assistant」。
+                    // 不补前缀的话 3B 会把结果当用户指令——实测随后去调不存在的
+                    // `read_file` 想读回 sources.md，白烧工具轮直到熔断。
+                    let body = sanitize(&content);
+                    let body = if previous_had_tool_calls && !body.starts_with("Function output:") {
+                        format!("Function output:\n{body}")
+                    } else {
+                        body
+                    };
+                    push_prompt_block(&mut blocks, true, body);
                 }
             }
             "assistant" => {
@@ -1805,22 +1827,32 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
                             "name": function.get("name").cloned().unwrap_or(Value::Null),
                             "arguments": function.get("arguments").cloned().unwrap_or(Value::Null),
                         });
-                        prompt.push_str(&format!("Assistant: ```json\n{}\n```\n\n", value));
+                        push_prompt_block(&mut blocks, false, format!("```json\n{value}\n```"));
                     }
                 } else if let Some(content) = message_text(msg) {
-                    prompt.push_str(&format!("Assistant: {}\n\n", sanitize(&content)));
+                    push_prompt_block(&mut blocks, false, sanitize(&content));
                 }
             }
             "tool" => {
                 if let Some(content) = message_text(msg) {
-                    prompt.push_str(&format!(
-                        "User: Function output:\n{}\n\n",
-                        sanitize(&content)
-                    ));
+                    push_prompt_block(
+                        &mut blocks,
+                        true,
+                        format!("Function output:\n{}", sanitize(&content)),
+                    );
                 }
             }
             _ => {}
         }
+        previous_had_tool_calls = msg
+            .get("tool_calls")
+            .and_then(|t| t.as_array())
+            .is_some_and(|calls| !calls.is_empty());
+    }
+
+    for (is_user, body) in blocks {
+        let label = if is_user { "User" } else { "Assistant" };
+        prompt.push_str(&format!("{label}: {body}\n\n"));
     }
 
     if has_tools {
@@ -1832,7 +1864,107 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
     } else {
         prompt.push_str("Assistant: ");
     }
+    audit_prompt_format(&prompt);
     prompt
+}
+
+/// 追加一个提示词块；相邻的同角色块合并（见调用处说明）。
+fn push_prompt_block(blocks: &mut Vec<(bool, String)>, is_user: bool, text: String) {
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        return;
+    }
+    if let Some((last_is_user, last)) = blocks.last_mut() {
+        if *last_is_user == is_user {
+            last.push('\n');
+            last.push_str(&text);
+            return;
+        }
+    }
+    blocks.push((is_user, text));
+}
+
+/// 提示词格式自检（对齐 rwkv-pf 的关键规则，常开、零依赖）。
+///
+/// 为什么要有：`rwkv-prompt-format` 仓库里已有完整检查器，但推理链路此前
+/// **一次都没调用**——格式问题只能靠模型表现反推。这里把最致命且可判定的几条
+/// 内建到构造出口：连续 User / 连续 Assistant / 多 System / 生成点位置 / CRLF /
+/// 块内空行。违规只记 warn（不阻断推理），并支持 `AI00X_RWKV_PROMPT_DEBUG`
+/// 把真实提示词落盘，便于直接用 rwkv-pf 复查。
+fn audit_prompt_format(prompt: &str) {
+    let violations = scan_prompt_violations(prompt);
+    if !violations.is_empty() {
+        log::warn!("[ai-gateway] RWKV prompt format violations: {violations:?}");
+    }
+    if let Ok(path) = std::env::var("AI00X_RWKV_PROMPT_DEBUG") {
+        if !path.trim().is_empty() {
+            if let Err(e) = std::fs::write(&path, prompt) {
+                log::warn!("[ai-gateway] dump RWKV prompt to {path} failed: {e}");
+            }
+        }
+    }
+}
+
+/// 扫描提示词里的格式违规（返回 rwkv-pf 风格的规则名）。
+fn scan_prompt_violations(prompt: &str) -> Vec<String> {
+    const LABELS: [&str; 6] = [
+        "System:",
+        "Instruction:",
+        "User:",
+        "Assistant:",
+        "Input:",
+        "Response:",
+    ];
+    let mut violations: Vec<String> = Vec::new();
+    if prompt.contains("\r\n") {
+        violations.push("CRLF".to_string());
+    }
+    if prompt.contains("\n\n\n") {
+        violations.push("EXTRA_BLANK_SEPARATOR".to_string());
+    }
+    // 块边界恒为单个空行（sanitize 已折叠块内空行），按 "\n\n" 切分即等于块
+    let chunks: Vec<&str> = prompt
+        .split("\n\n")
+        .filter(|c| !c.trim().is_empty())
+        .collect();
+    let label_of = |chunk: &str| -> Option<&'static str> {
+        LABELS
+            .iter()
+            .copied()
+            .find(|label| chunk.starts_with(label))
+    };
+    let mut system_blocks = 0usize;
+    let mut previous: Option<&'static str> = None;
+    for chunk in &chunks {
+        let Some(label) = label_of(chunk) else {
+            violations.push("NO_ROLE_LABEL".to_string());
+            continue;
+        };
+        if label == "System:" {
+            system_blocks += 1;
+        }
+        if matches!(label, "User:" | "Assistant:") && previous == Some(label) {
+            violations.push(
+                if label == "User:" {
+                    "TWO_USER_TURNS"
+                } else {
+                    "TWO_ASSISTANT_TURNS"
+                }
+                .to_string(),
+            );
+        }
+        previous = Some(label);
+    }
+    if system_blocks > 1 {
+        violations.push("MULTIPLE_SYSTEM".to_string());
+    }
+    if !chunks
+        .last()
+        .is_some_and(|chunk| chunk.starts_with("Assistant:") || chunk.starts_with("Response:"))
+    {
+        violations.push("ENDS_ON_NON_ASSISTANT".to_string());
+    }
+    violations
 }
 
 /// 取消息文本（兼容 string content 与数组 content 的 text 部分）。
@@ -2121,8 +2253,8 @@ fn finalize_exhausted_text(model_text: &str, messages: &[Value]) -> String {
 fn last_successful_tool_result(messages: &[Value]) -> Option<String> {
     const MAX_CHARS: usize = 160;
     let mut fallback: Option<String> = None;
-    for msg in messages.iter().rev() {
-        let Some(text) = tool_result_text(msg) else {
+    for index in (0..messages.len()).rev() {
+        let Some(text) = tool_result_text_at(messages, index) else {
             continue;
         };
         if is_failed_tool_text(&text) {
@@ -2164,14 +2296,33 @@ fn tool_result_text(msg: &Value) -> Option<String> {
 
 /// 工具结果是否为**失败/空**（不能当交付证据）。
 ///
-/// `ai00_search: no results` 这类文本曾被算作成功工具结果，导致"什么都没搜到"
-/// 被收尾成 `DONE:`；这里显式排除。
+/// `ai00_search: no results` / `ai00_research_collect: no results` 这类文本
+/// 曾被算作成功工具结果，导致"什么都没搜到"被收尾成 `DONE:`；这里显式排除。
 fn is_failed_tool_text(text: &str) -> bool {
     let text = text.trim();
     text.starts_with("Error")
         || text.starts_with("ERR ")
         || text.contains("ai00_search: no results")
+        || text.contains("ai00_research_collect: no results")
         || text.contains("web extract: no results")
+}
+
+/// 某条消息是否承载工具结果（`role=tool`，或紧随工具调用的 user 正文）。
+fn tool_result_text_at(messages: &[Value], index: usize) -> Option<String> {
+    let msg = messages.get(index)?;
+    if let Some(text) = tool_result_text(msg) {
+        return Some(text);
+    }
+    let previous = messages.get(index.checked_sub(1)?)?;
+    let previous_had_calls = previous
+        .get("tool_calls")
+        .and_then(|t| t.as_array())
+        .is_some_and(|calls| !calls.is_empty());
+    if !previous_had_calls {
+        return None;
+    }
+    let text = message_text(msg)?.trim().to_string();
+    (!text.is_empty()).then_some(text)
 }
 
 /// 终结型工具：它们的成功结果本身就代表任务达成，下一轮无需再推理。
@@ -2179,12 +2330,12 @@ const TERMINAL_TOOLS: [&str; 2] = ["write", "ai00_research_collect"];
 
 /// 本回合最后一次成功工具结果若来自终结型工具，返回其摘要（供 `DONE:` 收尾）。
 fn terminal_tool_completion(messages: &[Value]) -> Option<String> {
-    let last = messages.last()?;
-    let text = tool_result_text(last)?;
+    let index = messages.len().checked_sub(1)?;
+    let text = tool_result_text_at(messages, index)?;
     if is_failed_tool_text(&text) {
         return None;
     }
-    let call_id = last.get("tool_call_id").and_then(|v| v.as_str());
+    let call_id = messages[index].get("tool_call_id").and_then(|v| v.as_str());
     let name = find_tool_call_name(messages, call_id)?;
     if !TERMINAL_TOOLS.contains(&name.as_str()) {
         return None;
@@ -2994,9 +3145,9 @@ mod tests {
 
     #[test]
     fn extracts_tool_call_alias_keys() {
-        let text = r#"{"tool":"ai00_search","args":{"query":"x"}}"#;
+        let text = r#"{"tool":"ai00_web_extract","args":{"query":"x"}}"#;
         let (name, args) = try_extract_tool_call(text).unwrap();
-        assert_eq!(name, "ai00_search");
+        assert_eq!(name, "ai00_web_extract");
         assert!(args.contains("\"x\""));
     }
 
@@ -3049,7 +3200,7 @@ mod tests {
         assert_eq!(v["file_path"], json!("hello.txt"));
         // 非文件工具不动参数
         let raw = r#"{"query":"x"}"#;
-        assert_eq!(normalize_tool_arguments("ai00_search", raw), raw);
+        assert_eq!(normalize_tool_arguments("ai00_web_extract", raw), raw);
         // 命令类工具补 description（引擎必填）
         let out = normalize_tool_arguments("pwsh", r#"{"command":"Get-Content notes.txt"}"#);
         let v: Value = serde_json::from_str(&out).unwrap();
@@ -3267,8 +3418,8 @@ mod tests {
     #[test]
     fn failed_tool_text_is_not_evidence() {
         let messages = vec![
-            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "ai00_search", "arguments": "{}"}}]}),
-            json!({"role": "tool", "tool_call_id": "c1", "content": "ai00_search: no results"}),
+            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "ai00_web_extract", "arguments": "{}"}}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "web extract: no results"}),
         ];
         assert_eq!(last_successful_tool_result(&messages), None);
         assert_eq!(terminal_tool_completion(&messages), None);
@@ -3318,10 +3469,91 @@ mod tests {
     }
 
     #[test]
+    fn terminal_tool_detects_result_injected_as_user_text() {
+        // 引擎把工具结果并回历史成普通 user 正文 → 仍须判定为终结型工具成功
+        let messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "ai00_research_collect", "arguments": "{}"}}]}),
+            json!({"role": "user", "content": "wrote sources.md: 31 sources from 7 queries, 0 failed"}),
+        ];
+        let done = terminal_tool_completion(&messages);
+        assert!(
+            done.as_deref()
+                .is_some_and(|text| text.contains("31 sources")),
+            "{done:?}"
+        );
+        assert!(last_successful_tool_result(&messages).is_some());
+    }
+
+    #[test]
     fn blocked_text_truncates_leaked_system_prompt() {
         let text = "BLOCKED: 未找到相关结果。System: You are a helpful AI agent for research task execution.";
         let cleaned = sanitize_blocked_text(text);
         assert_eq!(cleaned, "BLOCKED: 未找到相关结果。");
+    }
+
+    #[test]
+    fn merges_consecutive_user_blocks() {
+        // dsh 在 turn 开头连发多条 user 消息 → 必须并成一个 User 块
+        let messages = vec![
+            json!({"role": "system", "content": "You are a worker."}),
+            json!({"role": "user", "content": "The working directory changed to C:/ws"}),
+            json!({"role": "user", "content": "Working directory: C:/ws"}),
+            json!({"role": "user", "content": "Current runtime context snapshot."}),
+        ];
+        let prompt = openai_messages_to_rwkv_prompt(&messages, None);
+        assert_eq!(
+            prompt.matches("User:").count(),
+            1,
+            "consecutive user turns must merge: {prompt}"
+        );
+        assert!(prompt.contains("The working directory changed to C:/ws"));
+        assert!(prompt.contains("Current runtime context snapshot."));
+        assert!(scan_prompt_violations(&prompt).is_empty(), "{prompt}");
+    }
+
+    #[test]
+    fn merges_parallel_tool_call_blocks() {
+        let messages = vec![
+            json!({"role": "system", "content": "You are a worker."}),
+            json!({"role": "user", "content": "research memory"}),
+            json!({"role": "assistant", "tool_calls": [
+                {"id": "c1", "function": {"name": "ai00_search", "arguments": "{\"query\":\"a\"}"}},
+                {"id": "c2", "function": {"name": "ai00_search", "arguments": "{\"query\":\"b\"}"}}
+            ]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "1. result a"}),
+            json!({"role": "tool", "tool_call_id": "c2", "content": "1. result b"}),
+        ];
+        let prompt = openai_messages_to_rwkv_prompt(&messages, None);
+        assert_eq!(
+            prompt.matches("Assistant: ```json").count(),
+            1,
+            "parallel calls must live in one assistant block: {prompt}"
+        );
+        assert_eq!(prompt.matches("User: Function output:").count(), 1);
+        assert!(scan_prompt_violations(&prompt).is_empty(), "{prompt}");
+    }
+
+    #[test]
+    fn scan_flags_two_user_turns_and_multiple_system() {
+        let bad = "System: a\n\nSystem: b\n\nUser: x\n\nUser: y\n\nAssistant: ";
+        let violations = scan_prompt_violations(bad);
+        assert!(
+            violations.contains(&"MULTIPLE_SYSTEM".to_string()),
+            "{violations:?}"
+        );
+        assert!(
+            violations.contains(&"TWO_USER_TURNS".to_string()),
+            "{violations:?}"
+        );
+    }
+
+    #[test]
+    fn scan_accepts_wellformed_prompt() {
+        let good = "System: a\n\nUser: x\n\nAssistant: ```json\n{\"name\": \"";
+        assert!(scan_prompt_violations(good).is_empty());
+        // 不以 Assistant 结尾 → 报错
+        let truncated = "System: a\n\nUser: x\n\n";
+        assert!(scan_prompt_violations(truncated).contains(&"ENDS_ON_NON_ASSISTANT".to_string()));
     }
 
     #[test]

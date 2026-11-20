@@ -45,7 +45,7 @@ const FETCH_TIMEOUT_SECS: u64 = 10;
 const FETCH_BYTES_CAP: usize = 2 * 1024 * 1024;
 const PAGE_MD_CHARS: usize = 3000;
 const SCREEN_TIMEOUT_SECS: u64 = 60;
-const SCREEN_MAX_TOKENS: usize = 256;
+const SCREEN_MAX_TOKENS: usize = 320;
 
 /// 长文总结阈值：≤ 6000 字符单次总结；> 6000 切块 map-reduce。
 const SUMMARIZE_SINGLE_SHOT_CHARS: usize = 6000;
@@ -84,11 +84,30 @@ fn maybe_lazy_init(err: &str) {
     }
 }
 
-/// 搜索（带零结果回退）：原语言 → `all` → 截前 6 词。
+/// 按查询脚本判定搜索语言（**不再作为第一跳**）：AnySearch 在 `zh-CN` / `zh` 下
+/// 对中英文查询都只回 cqvip 中文期刊页（非空但无关，零结果回退永不触发）。
+fn detect_search_language(query: &str) -> &'static str {
+    let cjk = query
+        .chars()
+        .filter(|c| ('\u{4e00}'..='\u{9fff}').contains(c))
+        .count();
+    let latin = query.chars().filter(|c| c.is_ascii_alphabetic()).count();
+    if cjk * 2 >= latin.max(1) {
+        "zh-CN"
+    } else {
+        "en"
+    }
+}
+
+/// 搜索（回退链）：`all` → 查询语言 → 截前 6 词。
 ///
-/// 实测（2026-11-21）：SearXNG 对 `zh-CN` + 多词英文长查询经常返回 0 条，
-/// 而同一查询在 `all` 下能出结果；本地 3B 又只会原样重发同一串 → 整轮空转。
-/// 回退链放在宿主侧，模型只需发一次调用。
+/// 实测（2026-11-21，直连 AnySearch 对照）：
+/// - `language=all` + 英文查询 → reddit / redis / mem0 / aws（正常）
+/// - `language=all` + 中文查询 → rwkv.cn / 知乎 / arxiv / bilibili（正常）
+/// - `language=zh-CN|zh` + 任一查询 → 清一色 cqvip 中文期刊页（无关）
+/// - SearXNG（自建 s.ai00-x.com）+ 英文查询 → `results: []`（上游引擎全限流）
+///
+/// 所以第一跳固定 `all`；语言定向只作为零结果的第二跳兜底，最后再截词重试。
 async fn search_with_fallback(
     query: &str,
     max_results: usize,
@@ -104,12 +123,13 @@ async fn search_with_fallback(
             })
     };
 
-    let results = attempt(query.to_string(), "zh-CN").await;
+    let results = attempt(query.to_string(), "all").await;
     if !results.is_empty() {
         return (results, query.to_string());
     }
-    log::warn!("[web-extract] query={query:?} returned 0 results (zh-CN), retrying with all");
-    let results = attempt(query.to_string(), "all").await;
+    let language = detect_search_language(query);
+    log::warn!("[web-extract] query={query:?} returned 0 results (all), retrying with {language}");
+    let results = attempt(query.to_string(), language).await;
     if !results.is_empty() {
         return (results, query.to_string());
     }
@@ -621,6 +641,7 @@ fn clean_markdown_noise(md: &str) -> String {
 }
 
 /// 筛选输出解析结果。
+#[derive(Debug)]
 enum ScreenOutcome {
     /// 相关，附模型摘要。
     Relevant(String),
@@ -628,9 +649,13 @@ enum ScreenOutcome {
     NotRelevant,
 }
 
-/// 解析筛选输出：JSON 优先；散文协议兜底（3B 模型稳定产出
-/// 「相关：<要点>」/「要点：…」/「不相关…」散文，2026-09-11 三轮实录）。
-/// 返回 None = 完全无法解析（调用方 snippet 降级收录）。
+/// 解析筛选输出：JSON 优先；散文兜底。
+///
+/// 3B 的散文变体远比最初设想的多（2026-11-21 实测日志）：
+/// 「是的，…相关，并提取到要点：…」「网页内容与查询「…」相关，并提取到要点：…」
+/// 「是\n<正文>」「根据网页内容，「…」…」「…并不相关，因为…」「不相關，無法提取」，
+/// 还有直接复述指令「判断网页内容与查询…只输出一行 JSON。」。
+/// 这些此前全部判 unparseable → 页面以 degraded 片段保留，报告混入大量无关站点。
 fn parse_screen_output(text: &str) -> Option<ScreenOutcome> {
     // 1) JSON 优先（salvage 支持多候选跳模板复述）
     if let Some(json) = crate::ai_gateway::salvage_balanced_json(text) {
@@ -650,28 +675,123 @@ fn parse_screen_output(text: &str) -> Option<ScreenOutcome> {
             .map(|s| s.chars().take(500).collect::<String>());
         return summary.map(ScreenOutcome::Relevant);
     }
-    // 2) 散文协议兜底
     let t = text.trim();
-    let body = t
-        .strip_prefix("相关：")
-        .or_else(|| t.strip_prefix("相关:"))
-        .map(str::trim);
-    if let Some(mut body) = body {
-        // 「相关：…\n要点：…」→ 优先取要点段（注意「要点：」全角冒号为 9 字节）
-        if let Some(pos) = body.find("要点：") {
-            body = body[pos + "要点：".len()..].trim();
-        } else if let Some(pos) = body.find("要点:") {
-            body = body[pos + "要点:".len()..].trim();
-        }
-        if !body.is_empty() {
-            return Some(ScreenOutcome::Relevant(body.chars().take(500).collect()));
-        }
-        return None;
-    }
-    if t.starts_with("不相关") || t.starts_with("不 相关") {
+    // 2) 否定信号（含繁简与"无法提取"类拒绝）：先于正向判定，否则
+    //    「…是否相关并不相关…」会被当成相关。
+    if NEGATIVE_MARKERS.iter().any(|m| t.contains(m)) {
         return Some(ScreenOutcome::NotRelevant);
     }
+    // 3) 弱相关判定（3B 的实际结论常写成「相关性较弱，仅部分相关」）：
+    //    模型没给正文要点，按无法解析处理 → 调用方用 snippet 降级收录，
+    //    既不留伪摘要，也不丢掉这个 URL。
+    if WEAK_MARKERS.iter().any(|m| t.contains(m)) {
+        return None;
+    }
+    // 4) 指令复述（模型把提示词照抄，没有任何判定）
+    if t.starts_with("判断网页内容") || t.contains("只输出一行 JSON") {
+        return None;
+    }
+    // 5) 显式「相关：…」
+    if let Some(body) = t.strip_prefix("相关：").or_else(|| t.strip_prefix("相关:")) {
+        let summary = extract_prose_summary(body);
+        // 没有「要点」标记时，冒号后的整段就是要点本身
+        let summary = if summary.is_empty() {
+            trim_summary(body)
+        } else {
+            summary
+        };
+        return (!summary.is_empty()).then_some(ScreenOutcome::Relevant(summary));
+    }
+    // 5) 含「相关」/ 肯定句「是…」/「根据网页内容…」→ 抽正文
+    if t.contains("相关") || t.starts_with('是') || t.starts_with("根据网页内容") {
+        let summary = extract_prose_summary(t);
+        return (!summary.is_empty()).then_some(ScreenOutcome::Relevant(summary));
+    }
     None
+}
+
+/// 页面不相关的散文信号（2026-11-21 实测：3B 用这些说法明确拒绝页面）。
+const NEGATIVE_MARKERS: [&str; 8] = [
+    "不相关",
+    "不相關",
+    "没有提取到",
+    "未提取到",
+    "无法提取",
+    "無法提取",
+    "没有直接提及",
+    "未提及",
+];
+
+/// 弱相关判定（3B 不确定时的说法）：没有正文要点，按无法解析降级。
+const WEAK_MARKERS: [&str; 4] = ["较弱", "弱相关", "仅部分相关", "不太相关"];
+
+/// 从散文里抽要点正文字符串（500 字符上限）。
+fn extract_prose_summary(text: &str) -> String {
+    // ① 要点标记优先：「相关：…\n要点：…」「…并提取到要点：…」
+    for marker in [
+        "提取要点：",
+        "提取到要点：",
+        "要点：",
+        "提取要点:",
+        "提取到要点:",
+        "要点:",
+    ] {
+        if let Some(pos) = text.find(marker) {
+            let body = trim_summary(&text[pos + marker.len()..]);
+            if !body.is_empty() {
+                return body;
+            }
+        }
+    }
+    // ② 「…相关，<正文>」：先把「是否相关」这类疑问表述抹掉再定位
+    let normalized = text.replace("是否相关", "是否");
+    if let Some(pos) = normalized.find("相关") {
+        let body = trim_summary(&normalized[pos + "相关".len()..]);
+        if body.chars().count() >= 6 {
+            return body;
+        }
+    }
+    // ③ 肯定句「是」「是的」→ 取其余部分
+    if let Some(rest) = text.strip_prefix("是") {
+        let body = trim_summary(rest);
+        if body.chars().count() >= 6 {
+            return body;
+        }
+    }
+    // ④ 「根据网页内容，…」→ 取其余部分
+    for prefix in ["根据网页内容", "根据提供的网页内容", "根据内容"] {
+        if let Some(rest) = text.strip_prefix(prefix) {
+            let body = trim_summary(rest);
+            if body.chars().count() >= 6 {
+                return body;
+            }
+        }
+    }
+    String::new()
+}
+
+/// 去掉摘要首尾的连接词与标点，并截到 500 字符。
+fn trim_summary(raw: &str) -> String {
+    let head = raw.trim_start_matches(|c: char| {
+        c.is_whitespace()
+            || matches!(
+                c,
+                '，' | '。' | '、' | '：' | ':' | '；' | ';' | '并' | '且'
+            )
+    });
+    let body: String = head.chars().take(500).collect();
+    body.trim_end_matches(|c: char| {
+        c.is_whitespace() || matches!(c, '，' | '。' | '、' | '；' | ';')
+    })
+    .to_string()
+}
+
+/// 3B 把示例答案整段复述（示例固定为「RWKV…」，与真实查询无关时即为编造）。
+fn is_example_parrot(query: &str, summary: &str) -> bool {
+    summary.contains("RWKV")
+        && summary.contains("RNN")
+        && summary.contains("Transformer")
+        && !query.to_ascii_lowercase().contains("rwkv")
 }
 
 /// 单页本地筛选：1-shot 对话格式 JSON 输出，散文协议兜底；
@@ -761,12 +881,22 @@ async fn screen_page(query: &str, page: &FetchedPage, markdown: &str) -> Option<
     };
 
     match parse_screen_output(&text) {
-        Some(ScreenOutcome::Relevant(summary)) => Some(PageExtract {
-            title: page.title.clone(),
-            url: page.url.clone(),
-            summary,
-            degraded: false,
-        }),
+        Some(ScreenOutcome::Relevant(summary)) => {
+            if is_example_parrot(query, &summary) {
+                // 模型没有真读正文，只是复述示例答案 → 不能算相关证据
+                log::warn!(
+                    "[web-extract] screen parroted example answer for {}; dropping page",
+                    page.url
+                );
+                return None;
+            }
+            Some(PageExtract {
+                title: page.title.clone(),
+                url: page.url.clone(),
+                summary,
+                degraded: false,
+            })
+        }
         Some(ScreenOutcome::NotRelevant) => None,
         None => {
             let head: String = text.chars().take(200).collect();
@@ -1033,8 +1163,90 @@ mod tests {
         // 实录 3：不相关散文
         let v = parse_screen_output("不相关，无要点");
         assert!(matches!(v, Some(ScreenOutcome::NotRelevant)));
-        // 完全无法解析 → None（调用方 snippet 降级）
-        assert!(parse_screen_output("根据提供的网页内容，没有直接提及……因此无法判断").is_none());
+        // 实测：无法判断也按不相关丢弃（保留会让无关页以 degraded 片段混进报告）
+        let v = parse_screen_output("根据提供的网页内容，没有直接提及……因此无法判断");
+        assert!(matches!(v, Some(ScreenOutcome::NotRelevant)), "{v:?}");
+    }
+
+    #[test]
+    fn parse_screen_accepts_affirmative_prose_variant() {
+        // 3B 实测输出：「是的，…相关，并提取要点：…」
+        let v = parse_screen_output(
+            "是的，网页内容与查询「agent memory」相关，并提取要点：Mem0 用向量库做长期记忆。",
+        );
+        assert!(
+            matches!(v, Some(ScreenOutcome::Relevant(ref s)) if s.contains("Mem0")),
+            "{v:?}"
+        );
+        // 纯肯定句、无要点标记
+        let v = parse_screen_output("是，相关。该文讨论了 MemGPT 的分层内存。");
+        assert!(
+            matches!(v, Some(ScreenOutcome::Relevant(ref s)) if s.contains("MemGPT")),
+            "{v:?}"
+        );
+    }
+
+    /// 2026-11-21 实录变体（此前全部判 unparseable → 无关页以片段混进报告）。
+    #[test]
+    fn parse_screen_handles_recorded_variants() {
+        // 「并提取到要点：」（比「提取要点：」多一个「到」）
+        let v = parse_screen_output(
+            "网页内容与查询「agent memory architecture primary sources」相关，并提取到要点：「Memory tradeoffs and failure modes」、「The proactive memory problem」",
+        );
+        assert!(
+            matches!(v, Some(ScreenOutcome::Relevant(ref s)) if s.starts_with("「Memory tradeoffs")),
+            "{v:?}"
+        );
+        // 肯定 + 换行正文
+        let v = parse_screen_output("是\n该文讨论 agent memory 的分层存储设计。");
+        assert!(
+            matches!(v, Some(ScreenOutcome::Relevant(ref s)) if s.contains("分层存储")),
+            "{v:?}"
+        );
+        // 「根据网页内容，…」肯定句
+        let v = parse_screen_output(
+            "根据网页内容，「Agent Memory Architecture」是一种结合了RNN和Transformer优点的大模型架构。",
+        );
+        assert!(
+            matches!(v, Some(ScreenOutcome::Relevant(ref s)) if s.contains("Agent Memory Architecture")),
+            "{v:?}"
+        );
+        // 繁体拒绝
+        let v = parse_screen_output("不相關，無法提取到要點");
+        assert!(matches!(v, Some(ScreenOutcome::NotRelevant)), "{v:?}");
+        // 「是否相关并不相关」不得被当成相关
+        let v = parse_screen_output(
+            "该内容与「RWKV 是什么」是否相关并不相关，因为它讨论的是 agent memory。",
+        );
+        assert!(matches!(v, Some(ScreenOutcome::NotRelevant)), "{v:?}");
+        // 指令复述（没有任何判定）→ None
+        assert!(parse_screen_output(
+            "判断网页内容与查询「agent memory」是否相关并提取要点，只输出一行 JSON。网页内容中包含了…"
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn example_parrot_is_detected() {
+        let parrot = "RWKV 是一种结合了 RNN 和 Transformer 优点的大模型架构，推理快速、节省显存，支持无限上下文";
+        assert!(is_example_parrot("agent memory architecture", parrot));
+        // 查询本身就是 RWKV 时，内容提到 RWKV 属正常
+        assert!(!is_example_parrot("RWKV 是什么", parrot));
+    }
+
+    #[test]
+    fn weak_relevance_degrades_instead_of_fake_summary() {
+        // 实测输出「性较弱，仅部分相关」曾被抽成摘要 → 改为降级用 snippet
+        assert!(parse_screen_output("相关性较弱，仅部分相关").is_none());
+    }
+
+    #[test]
+    fn search_language_follows_query_script() {
+        // 英文查询不得走 zh-CN（AnySearch 在 zh-CN 下只回 cqvip 中文期刊页）
+        assert_eq!(detect_search_language("agent memory architecture"), "en");
+        assert_eq!(detect_search_language("RWKV-7 architecture survey"), "en");
+        assert_eq!(detect_search_language("智能体记忆架构"), "zh-CN");
+        assert_eq!(detect_search_language("RWKV-7 架构 论文"), "zh-CN");
     }
 
     #[test]
