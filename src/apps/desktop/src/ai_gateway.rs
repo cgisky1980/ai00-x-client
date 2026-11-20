@@ -1471,7 +1471,13 @@ async fn forward_to_ai00_salvo(
             while let Some(end) = pending.find('\n') {
                 let line = pending[..=end].to_string();
                 pending.drain(..=end);
-                if line.trim_end().ends_with("data: [DONE]") {
+                // 终结符写法不统一：上游实测发 `data:[DONE]`（无空格），
+                // 早期判定用 `ends_with("data: [DONE]")` 会漏判、导致重复补发。
+                if line
+                    .trim()
+                    .strip_prefix("data:")
+                    .is_some_and(|rest| rest.trim() == "[DONE]")
+                {
                     *saw_done = true;
                 }
                 if let Some(u) = gateway_usage_from_sse_line(&line) {
