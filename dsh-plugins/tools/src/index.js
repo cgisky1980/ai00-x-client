@@ -31,6 +31,8 @@
  */
 
 import { exec, execFile } from "node:child_process";
+import { stat } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
 
 const name = "ai00-x-tools";
 const inject = ["tools"];
@@ -885,7 +887,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_complete",
     description:
-      "Submit a Zhixing task's SELF-CHECK for HUMAN acceptance by id (dual-stage acceptance — this does NOT complete the task; the human reviews and accepts in the Zhixing board). Self-check gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot of all changes is taken automatically — do NOT commit manually. MUST pass `deliverables`: the absolute paths of every artifact file you produced for this task (report/summary/output files — at least one; write them as real files in the working directory BEFORE calling, e.g. report.md). After submitting, REPORT to the user in the conversation: a short result summary (≤200 words) + the deliverables list (filename + one-line description). XP and completion are granted by the human, not by this tool.",
+      "Submit a Zhixing task's SELF-CHECK for HUMAN acceptance by id (dual-stage acceptance — this does NOT complete the task; the human reviews and accepts in the Zhixing board). The call is REJECTED when `deliverables` is empty or any listed path does not exist on disk (relative paths resolve against snapshotDir). Self-check gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot of all changes is taken automatically — do NOT commit manually. MUST pass `deliverables`: the absolute paths of every artifact file you produced for this task (report/summary/output files — at least one; write them as real files in the working directory BEFORE calling, e.g. report.md). After submitting, REPORT to the user in the conversation: a short result summary (≤200 words) + the deliverables list (filename + one-line description). XP and completion are granted by the human, not by this tool.",
     parameters: {
       type: "object",
       properties: {
@@ -936,6 +938,33 @@ function defineTools(ctx, api) {
       const deliverables = Array.isArray(args?.deliverables)
         ? args.deliverables.map((d) => String(d ?? "").trim()).filter(Boolean)
         : [];
+
+      // 交付物必须真实落盘：此前只登记路径不校验，实测出现「步骤与验收全勾、
+      // 但 report.md / blueprint 从未生成」仍提交自检（本地与云端两条链路都发生过）。
+      if (deliverables.length === 0) {
+        throw new Error(
+          "deliverables 为空：先把交付物写成真实文件（至少一个；纯调研也必须有摘要文件），再提交自检。"
+        );
+      }
+      const resolveDeliverable = (p) =>
+        isAbsolute(p) || !snapshotDir ? p : resolve(snapshotDir, p);
+      const missing = [];
+      for (const raw of deliverables) {
+        const target = resolveDeliverable(raw);
+        const exists = await stat(target)
+          .then((s) => s.isFile() || s.isDirectory())
+          .catch(() => false);
+        if (!exists) missing.push(raw);
+      }
+      if (missing.length > 0) {
+        throw new Error(
+          [
+            `以下交付物不存在（共 ${missing.length} 个），不能提交自检：`,
+            ...missing.slice(0, 8).map((p) => `  - ${p}`),
+            "请先把它们写进工作目录（或修正路径）后重试；不要把未产出的步骤与验收项勾成已完成。",
+          ].join("\n")
+        );
+      }
 
       // DoD 对等校验（与策窗口人侧「标记完成」同口径）：验收未全勾 → 报错驱动自纠。
       // evals 进环（M2.3）：带 {cmd: ...} 标记的条目由插件实际执行命令判定——

@@ -104,6 +104,89 @@
     font-size: var(--font-size-xs);
     line-height: 1.6;
   }
+
+  // 卡片式页面布局：主卡 / 分页 / 底部操作条
+  &__panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+    min-width: 0;
+    padding: var(--spacing-4);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-bg-card);
+  }
+
+  &__tabs {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
+  }
+
+  &__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-2) 0;
+    margin-bottom: calc(var(--style-stroke-width, 1px) * -1);
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--color-text-muted);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: color var(--motion-fast, 0.15s) var(--easing-standard, ease);
+
+    &:hover {
+      color: var(--color-text-secondary);
+    }
+
+    &.is-active {
+      border-bottom-color: var(--color-accent);
+      color: var(--color-text-primary);
+      font-weight: 600;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__tab-count {
+    color: var(--color-text-muted);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__tabpanel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+    min-width: 0;
+  }
+
+  &__footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--spacing-2);
+  }
+
+  &__source {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    min-width: 0;
+  }
+}
+
+// 页面变体：页面级留白比抽屉大一档
+.ai00-x-plan-page.is-page .ai00-x-plan-page__body {
+  padding: var(--spacing-5) var(--spacing-6);
 }
 
 // 交付物文件名可点开预览（抽屉里没有 onOpenFile 时退化为纯文本）

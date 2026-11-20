@@ -1,0 +1,188 @@
+// 计划页底部洞察卡：概览 / 风险评估 / 核心目标。
+.ai00-x-plan-insights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-4);
+  min-width: 0;
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+    min-width: 0;
+    padding: var(--spacing-4);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-bg-card);
+  }
+
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+  }
+
+  &__numbers {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--spacing-2);
+  }
+
+  &__number {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-1);
+    min-width: 0;
+
+    & + & {
+      border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    }
+  }
+
+  &__value {
+    color: var(--color-text-primary);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xl);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    line-height: 1.2;
+
+    &.is-done {
+      color: var(--color-success);
+    }
+
+    &.is-pending {
+      color: var(--color-accent);
+    }
+  }
+
+  &__label {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+  }
+
+  &__risk {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    min-width: 0;
+  }
+
+  &__ring {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 72px;
+    height: 72px;
+    border-radius: var(--radius-full);
+  }
+
+  &__ring-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-1);
+    width: calc(100% - var(--spacing-3));
+    height: calc(100% - var(--spacing-3));
+    border-radius: var(--radius-full);
+    background-color: var(--color-bg-card);
+  }
+
+  &__ring-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    line-height: 1.2;
+
+    &.is-high {
+      color: var(--color-error);
+    }
+
+    &.is-medium {
+      color: var(--color-warning);
+    }
+
+    &.is-low {
+      color: var(--color-success);
+    }
+
+    &.is-unknown {
+      color: var(--color-text-muted);
+    }
+  }
+
+  &__ring-caption {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+  }
+
+  &__legend {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 0;
+  }
+
+  &__legend-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-2xs);
+  }
+
+  &__dot {
+    flex: none;
+    width: var(--spacing-2);
+    height: var(--spacing-2);
+    border-radius: var(--radius-full);
+
+    &.is-high {
+      background-color: var(--color-error);
+    }
+
+    &.is-medium {
+      background-color: var(--color-warning);
+    }
+
+    &.is-low {
+      background-color: var(--color-success);
+    }
+
+    &.is-unknown {
+      background-color: var(--border-subtle);
+    }
+  }
+
+  &__legend-label {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__legend-count {
+    flex: none;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__goal {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    line-height: 1.7;
+  }
+}

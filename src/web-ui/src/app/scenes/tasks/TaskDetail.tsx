@@ -32,6 +32,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
         onPlanChange={onPlanChange}
         onOpenFile={setPreviewPath}
         running={running}
+        variant="compact"
       />
       <DeliverablePreview path={previewPath} onClose={() => setPreviewPath(null)} />
     </div>

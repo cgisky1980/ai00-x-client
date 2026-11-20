@@ -1,0 +1,188 @@
+// 计划页顶部概览卡：标题 + 阶段 + 进度 + 三项真实指标。
+.ai00-x-plan-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-5);
+  border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-bg-card);
+  min-width: 0;
+
+  &__main {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    flex: 1 1 320px;
+    min-width: 0;
+  }
+
+  &__avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 64px;
+    height: 64px;
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    background-color: var(--color-bg-secondary);
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__title {
+    margin: 0;
+    overflow: hidden;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-serif);
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-2);
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  &__stage {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: 0 var(--spacing-2);
+    border-radius: var(--radius-full);
+    background-color: var(--element-bg-subtle);
+    font-size: var(--font-size-2xs);
+    line-height: 1.8;
+
+    &::before {
+      content: '';
+      width: var(--spacing-1);
+      height: var(--spacing-1);
+      border-radius: var(--radius-full);
+      background-color: currentColor;
+    }
+
+    &.is-running,
+    &.is-review {
+      color: var(--color-accent);
+    }
+
+    &.is-pending {
+      color: var(--color-warning);
+    }
+
+    &.is-done {
+      color: var(--color-success);
+    }
+  }
+
+  &__chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--spacing-2);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+    line-height: 1.8;
+  }
+
+  &__progress {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    min-width: 0;
+  }
+
+  &__bar {
+    flex: 1;
+    height: var(--spacing-2);
+    min-width: 0;
+    overflow: hidden;
+    border-radius: var(--radius-full);
+    background-color: var(--element-bg-subtle);
+  }
+
+  &__bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: var(--radius-full);
+    background-color: var(--color-accent);
+    transition: width var(--motion-base, 0.3s) var(--easing-standard, ease);
+  }
+
+  &__percent {
+    flex: none;
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__stats {
+    display: flex;
+    gap: var(--spacing-2);
+    flex: none;
+  }
+
+  &__stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-1);
+    min-width: 96px;
+    padding: var(--spacing-2) var(--spacing-3);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-base);
+    background-color: var(--color-bg-secondary);
+  }
+
+  &__stat-icon {
+    color: var(--color-accent);
+  }
+
+  &__stat-value {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    line-height: 1.2;
+
+    &.is-mono {
+      font-family: var(--font-family-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    &.is-high {
+      color: var(--color-error);
+    }
+
+    &.is-medium {
+      color: var(--color-warning);
+    }
+
+    &.is-low {
+      color: var(--color-success);
+    }
+  }
+
+  &__stat-label {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+  }
+}

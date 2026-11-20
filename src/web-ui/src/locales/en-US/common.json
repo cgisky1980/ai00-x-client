@@ -387,7 +387,20 @@
         "editSaved": "Plan saved. Please confirm it again before execution.",
         "showMore": "Expand",
         "showLess": "Collapse",
-        "legacyPlanHint": "Legacy plan: only check progress. Ask the agent to rewrite it with the structured contract."
+        "legacyPlanHint": "Legacy plan: only check progress. Ask the agent to rewrite it with the structured contract.",
+        "elapsed": "Elapsed",
+        "elapsedMinutes": "{{min}} min",
+        "riskLevel": "Risk level",
+        "tabsLabel": "Plan content",
+        "tabsSteps": "Steps",
+        "tabsResults": "Results",
+        "overviewTitle": "Overview",
+        "overviewTotal": "Total",
+        "overviewDone": "Done",
+        "overviewPending": "Pending",
+        "riskAssessment": "Risk assessment",
+        "goalTitle": "Goal",
+        "executingNow": "Running: "
       },
       "usage": {
         "round": "This turn",

@@ -387,7 +387,20 @@
         "editSaved": "计划已保存，请重新确认后再执行。",
         "showMore": "展开",
         "showLess": "收起",
-        "legacyPlanHint": "旧格式计划：仅显示勾选进度，建议让 agent 按新契约重写。"
+        "legacyPlanHint": "旧格式计划：仅显示勾选进度，建议让 agent 按新契约重写。",
+        "elapsed": "已用时",
+        "elapsedMinutes": "{{min}} 分钟",
+        "riskLevel": "风险等级",
+        "tabsLabel": "计划内容",
+        "tabsSteps": "执行步骤",
+        "tabsResults": "结果摘要",
+        "overviewTitle": "计划概览",
+        "overviewTotal": "总步骤",
+        "overviewDone": "已完成",
+        "overviewPending": "待执行",
+        "riskAssessment": "风险评估",
+        "goalTitle": "核心目标",
+        "executingNow": "正在执行："
       },
       "usage": {
         "round": "本轮",
