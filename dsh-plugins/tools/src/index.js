@@ -31,6 +31,7 @@
  */
 
 import { exec, execFile } from "node:child_process";
+import { statSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 
@@ -273,6 +274,40 @@ function isCmdAllowed(cmd) {
   const first = cmd.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
   const normalized = first.replace(/\.(exe|cmd|bat|ps1)$/, "");
   return CMD_WHITELIST.has(normalized);
+}
+
+/**
+ * 内置文件检查：`test -f/-d/-e <path>` 与 `[ -f <path> ]`。
+ *
+ * 计划里的验收最常见的写法就是这两条，但它们**不在白名单里**（`test` 是 shell
+ * 内建/Unix 工具），于是每次验收都回落成「人工判据」→ 整个任务的所有步骤都停在
+ * `needs-review`，人得逐条点。这里用 fs.stat 直接判定：确定性、零注入风险、
+ * 跨平台（Windows 上没有 `test` 命令也能判）。
+ *
+ * 返回 null = 不是这类指令，交给原有逻辑。
+ */
+function builtinFileCheck(cmd, cwd) {
+  const match = /^\s*(?:test\s+-([fde])\s+|\[\s+-([fde])\s+)(.+?)\s*\]?\s*$/i.exec(cmd);
+  if (!match) return null;
+  const flag = (match[1] || match[2] || "").toLowerCase();
+  const target = match[3].trim().replace(/^["']|["']$/g, "");
+  if (!target) return null;
+  // 没有工作目录时相对路径无从解析（会落到引擎进程 cwd），交回人工判据
+  if (!isAbsolute(target) && !cwd) return null;
+  const path = isAbsolute(target) ? target : resolve(cwd || ".", target);
+  let exists = false;
+  let isFile = false;
+  let isDir = false;
+  try {
+    const info = statSync(path);
+    exists = true;
+    isFile = info.isFile();
+    isDir = info.isDirectory();
+  } catch {
+    exists = false;
+  }
+  const ok = flag === "f" ? isFile : flag === "d" ? isDir : exists;
+  return { ok, output: ok ? "" : `missing: ${target}` };
 }
 
 /**
@@ -999,7 +1034,18 @@ function defineTools(ctx, api) {
       let failed = false;
       for (const item of acceptance) {
         const cmd = item.cmd;
-        if (!cmd || !isCmdAllowed(cmd)) {
+        if (!cmd) {
+          manualItems.push(item.text);
+          continue;
+        }
+        // test -f/-d/-e 与 [ -f … ] 走内置 fs 判定（不在命令白名单里，但语义确定）
+        const builtin = builtinFileCheck(cmd, cwd);
+        if (builtin) {
+          commands.push({ cmd, ok: builtin.ok, output: builtin.output });
+          if (!builtin.ok) failed = true;
+          continue;
+        }
+        if (!isCmdAllowed(cmd)) {
           manualItems.push(item.text);
           continue;
         }
@@ -1190,6 +1236,12 @@ function defineTools(ctx, api) {
           const cmd = extractCmd(item);
           if (!cmd) {
             manualUnchecked += 1;
+            continue;
+          }
+          const builtin = builtinFileCheck(cmd, snapshotDir || undefined);
+          if (builtin) {
+            executedCmds.push(cmd);
+            if (!builtin.ok) cmdFailures.push({ item, cmd, output: builtin.output });
             continue;
           }
           if (!isCmdAllowed(cmd)) {
