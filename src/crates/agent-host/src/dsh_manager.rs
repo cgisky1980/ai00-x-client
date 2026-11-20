@@ -1743,7 +1743,7 @@ fn fallback_worker_defs() -> Vec<WorkerDef> {
 /// 每个帮手改声明一个 `@deepseek-ai/dsh-agent-preset`（persona + 工具子集 +
 /// compaction），subagent 行用 `agentPreset` 选中它。
 /// 行结构与映射表见 patches/<引擎版本>/INTENT.md。
-const WORKER_LEAF_RULES: &str = "You are a leaf worker, not an orchestrator.\n直接执行当前派发任务：不要制定或更新主计划，不要再次派发子代理，也不要等待用户或父代理确认。\n禁止调用任何委派类工具（code_worker / local_code_worker / research_worker / review_worker / subagent）：它们即使出现在工具清单里也只会被引擎以 depth 错误拒绝，调用即浪费一轮。\n工作目录里的 AGENTS.local.md、计划文档、验收命令是写给编排者的，不适用于你：不要读、不要引用，也不要因为它提到了你没有的工具就停下。\n只使用你工具清单里真实存在的工具；清单里没有的工具（例如 web_search / web_fetch）一律不要调用，需要联网检索时用 ai00_search / ai00_web_extract。\n所有工具必须经工具调用通道，禁止在正文模拟“[工具] …”，也不要输出任何形如 {\"arguments\":…,\"name\":…} 的工具调用 JSON。缺少必要工具或权限时明确报告阻塞；不要用“我将……”或“准备……”代替实际完成。\n收尾自检：任务要求落文件时，必须先用工具确认产物真实存在（读取该文件或跑验收命令），再在收尾里写明产物路径与验证结果；做不到就写 BLOCKED 加一句原因。没有工具证据的“已完成”按失败处理。";
+const WORKER_LEAF_RULES: &str = "You are a leaf worker, not an orchestrator.\n直接执行当前派发任务：不要制定或更新主计划，不要再次派发子代理，也不要等待用户或父代理确认。\n禁止调用任何委派类工具（code_worker / local_code_worker / research_worker / review_worker / subagent）：它们即使出现在工具清单里也只会被引擎以 depth 错误拒绝，调用即浪费一轮。\n工作目录里的 AGENTS.local.md、计划文档、验收命令是写给编排者的，不适用于你：不要读、不要引用，也不要因为它提到了你没有的工具就停下。\n只使用你工具清单里真实存在的工具；清单里没有的工具（例如 web_search / web_fetch）一律不要调用，需要联网检索时用 ai00_search / ai00_web_extract。\n落文件优先用 write（参数 `file_path` + `content`，一次写整段）：新建文件只能用 write；只有修改**已存在**文件才用 edit，且 old_string 必须是文件里真实出现的原文——不确定就不要用 edit。命令执行用 pwsh。\n所有工具必须经工具调用通道，禁止在正文模拟“[工具] …”，也不要输出任何形如 {\"arguments\":…,\"name\":…} 的工具调用 JSON。缺少必要工具或权限时明确报告阻塞；不要用“我将……”或“准备……”代替实际完成。\n收尾自检：任务要求落文件时，必须先用工具确认产物真实存在（读取该文件或跑验收命令），再在收尾里写明产物路径与验证结果；做不到就写 BLOCKED 加一句原因。没有工具证据的“已完成”按失败处理。";
 
 fn build_worker_rows(defs: &[WorkerDef]) -> String {
     let mut rows = String::new();
@@ -1775,7 +1775,7 @@ fn build_worker_rows(defs: &[WorkerDef]) -> String {
         rows.push_str(
             "          - id: agent-instructions\n            name: '@deepseek-ai/dsh-agent-instructions'\n            config:\n              maxBytes: 65536\n              localInstructionFileCandidates: []\n",
         );
-        rows.push_str(&build_worker_tool_rows(&def.tools));
+        rows.push_str(&build_worker_tool_rows(&def.tool_name, &def.tools));
         // 不挂 `tool-subagent-control`：工人是叶子，send_message / interrupt_agent
         // / list_agents 三个 schema 每轮都是固定成本，且这些工具不在网关本地
         // 白名单里——挂上会把请求顶出本地路径。生命周期由引擎负责，不靠这三件。
@@ -1834,11 +1834,20 @@ const WORKER_COMPACTION_GROUP: &str = "          - id: compaction\n            n
 
 /// 帮手声明的工具名 → preset 内工具插件行（固定顺序，13/15 空格缩进）。
 /// preset 机制只能按插件行粗粒度挂载，故未知工具名记 warn 后忽略。
-fn build_worker_tool_rows(tools: &[String]) -> String {
+fn build_worker_tool_rows(worker: &str, tools: &[String]) -> String {
     // 工人（尤其 3B 本地模型）用不上的工具一律不挂：`skill` 会让模型第一轮就去
     // 加载无关技能文档（实测 load `diagnose-windows-sandbox-acl` 后整轮跑偏），
-    // `todo_write` 是编排者职责。叶子工人只保留"读 / 搜 / 写 / 跑命令"。
-    let has = |name: &str| !WORKER_UNUSED_TOOLS.contains(&name) && tools.iter().any(|t| t == name);
+    // `todo_write` 是编排者职责。本地写码工人再摘掉 `edit`：3B 填不对 old_string，
+    // 只会连错六轮；`write` 可以整段覆盖文件，够用。
+    let has = |name: &str| {
+        if WORKER_UNUSED_TOOLS.contains(&name) {
+            return false;
+        }
+        if name == "edit" && worker.starts_with("local") {
+            return false;
+        }
+        tools.iter().any(|t| t == name)
+    };
     let mut rows = String::new();
 
     let fs_flags = [
@@ -3028,6 +3037,13 @@ mod tests {
         assert!(!rows.contains("dsh-tool-skill"), "{rows}");
         assert!(!rows.contains("dsh-tool-todo"), "{rows}");
         assert!(rows.contains("dsh-tool-fs"), "{rows}");
+
+        // 本地工人摘掉 edit（3B 填不对 old_string，write 可整段覆盖）
+        let local_md = "---\nname: local_x\ndescription: d\nmodel: rwkv-local\ntools:\n  - read\n  - write\n  - edit\n---\nBody.";
+        let local = parse_worker_md("local_x.md", local_md).expect("must parse");
+        let rows = build_worker_rows(&[local]);
+        assert!(rows.contains("write: true"), "{rows}");
+        assert!(rows.contains("edit: false"), "{rows}");
     }
 
     /// 工人叶子规则 + deny 口径：
