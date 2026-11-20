@@ -1100,51 +1100,20 @@ const WORKER_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract"];
 /// 帮手（叶子工人）preset 里 deny 掉的全局业务工具 = 全部业务工具 − 保留的检索工具。
 ///
 /// 计划/验收/派发/壁纸/待办属于编排者职责，对工人是纯上下文负担；检索必须留下。
+///
+/// 只列 `@ai00-x/dsh-tools` 自己的工具名：`ctx.tools.restrict` 只作用于**全局
+/// 注册**，引擎工具（web/todo/goal/…）都挂在 preset 行里（scoped），写进来会让
+/// 引擎以「unknown global tool」整条抛错——实测 2026-11-20：快速问答 deny 里加了
+/// `ask_user_question`，结果连 ai00 工具的限制一起失效。要摘引擎工具，正确做法
+/// 是让该 preset 不挂对应插件行（见 `WORKBENCH_DROPPED_PLUGIN_IDS` /
+/// `WORKBENCH_QUICK_DROPPED_PLUGIN_IDS`）。
 fn worker_denied_tools() -> Vec<&'static str> {
     AI00_TOOL_NAMES
         .iter()
         .copied()
         .filter(|name| !WORKER_KEPT_TOOLS.contains(name))
-        .chain(WORKER_DENIED_ENGINE_TOOLS.iter().copied())
         .collect()
 }
-
-/// 工人作用域里 deny 掉的**引擎全局工具**（tool-web / todo / goal / jobs /
-/// schedule / present / ask-user / session-query / 委派工具）。
-///
-/// 依据（2026-11-20 实测）：工人会话里出现了 `web_search`（本部署不可用，需
-/// DeepSeek key，调用一次白烧一轮）；委派工具行此前挂在 profile 顶层，对**每个**
-/// 会话都可见。`ctx.tools.restrict` 只过滤全局注册，因此这里列全局名即可；
-/// 工人 frontmatter 声明的工具（fs/pwsh/skill 等）走 preset 行，不受影响。
-const WORKER_DENIED_ENGINE_TOOLS: &[&str] = &[
-    // 检索：改走自托管的 ai00_search / ai00_web_extract
-    "web_search",
-    "web_fetch",
-    // 编排者/人类专属
-    "ask_user_question",
-    "present",
-    "create_goal",
-    "get_goal",
-    "update_goal",
-    "schedule_create",
-    "schedule_edit",
-    "schedule_list",
-    "schedule_view",
-    "job_kill",
-    "job_list",
-    "job_output",
-    "session_search",
-    "session_trace",
-    "session_event_read",
-    "session_event_search",
-    "session_event_trace",
-    // 委派：叶子工人不得再派发（引擎会以 depth 错误拒绝，白烧一轮）
-    "subagent",
-    "code_worker",
-    "local_code_worker",
-    "research_worker",
-    "review_worker",
-];
 
 /// `@ai00-x/dsh-tools` 注册的全部业务工具名（与插件 `TOOL_NAMES` 同步）。
 const AI00_TOOL_NAMES: &[&str] = &[
@@ -1176,19 +1145,21 @@ const WORKBENCH_QUICK_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract",
 
 /// 快速问答 deny 的业务工具 = 全部 15 个减去保留的 3 个（单一来源，避免两处漏改）。
 ///
-/// 快速问答是"直接回答"，引擎全局工具同样要摘：实测本地模型会反复调
-/// `ask_user_question`（缺参数被拒后原样重发六次），纯烧 token。
+/// 只列本插件工具名；引擎工具走 `WORKBENCH_QUICK_DROPPED_PLUGIN_IDS` 摘插件行
+/// （restrict 只认全局注册，引擎工具是 preset 行，写进来会让整条限制失效）。
 fn quick_denied_tools() -> Vec<&'static str> {
     AI00_TOOL_NAMES
         .iter()
         .copied()
         .filter(|name| !WORKBENCH_QUICK_KEPT_TOOLS.contains(name))
-        .chain(WORKER_DENIED_ENGINE_TOOLS.iter().copied())
         .collect()
 }
 
 /// 快速问答额外不挂载的引擎工具：文件、搜索、技能、待办、命令全部不需要，
 /// 委派组（subagent + control）也整组去掉 —— 快速问答不派子代理。
+///
+/// `tool-ask-user` / `tool-web` 也必须摘：本地模型会在快速问答里反复调
+/// `ask_user_question`（缺参数被拒后原样重发），而 `web_search` 在本部署不可用。
 const WORKBENCH_QUICK_DROPPED_PLUGIN_IDS: &[&str] = &[
     "tool-pwsh",
     "tool-goal",
@@ -1197,6 +1168,8 @@ const WORKBENCH_QUICK_DROPPED_PLUGIN_IDS: &[&str] = &[
     "tool-skill",
     "tool-todo",
     "tool-subagent-control",
+    "tool-ask-user",
+    "tool-web",
     "delegation",
 ];
 
@@ -3029,8 +3002,9 @@ mod tests {
         assert!(!rows.contains("persona: |-"));
     }
 
-    /// 工人会继承父会话的委派工具行（引擎只对全局工具支持 restrict），
-    /// 所以「禁止派发 + 忽略编排者指令文件 + 收尾自检」只能靠叶子规则兜住。
+    /// 工人叶子规则 + deny 口径：
+    /// 引擎工具不在 deny 里（restrict 只认全局注册，写了会让整条限制失效），
+    /// 「禁止派发 + 忽略编排者指令文件 + 收尾自检」靠 persona 兜住。
     #[test]
     fn worker_rows_carry_leaf_rules() {
         let rows = build_worker_rows(&fallback_worker_defs());
@@ -3046,8 +3020,9 @@ mod tests {
         assert!(!deny_block.contains("ai00_search"), "{deny_block}");
         assert!(!deny_block.contains("ai00_web_extract"), "{deny_block}");
         assert!(deny_block.contains("ai00_plan_write"), "{deny_block}");
-        // 引擎全局工具：本部署不可用的 web_search 与委派工具都要摘掉
-        assert!(deny_block.contains("web_search"), "{deny_block}");
-        assert!(deny_block.contains("code_worker"), "{deny_block}");
+        // 引擎工具不得写进 restrict 的 deny：它们不是全局注册，引擎会整条抛错
+        assert!(!deny_block.contains("web_search"), "{deny_block}");
+        assert!(!deny_block.contains("code_worker"), "{deny_block}");
+        assert!(!deny_block.contains("ask_user_question"), "{deny_block}");
     }
 }
