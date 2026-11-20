@@ -8,3 +8,12 @@
 - id: skill-filesystem
   config:
     bundledSkillDir: "{BUNDLED_SKILLS_DIR}"
+
+# 压缩头寸下调：引擎默认 headroomTokens=65536，而本地 RWKV 只有 16384 窗口。
+# 切模型时 compaction 会算出「无可用预算」并直接拒绝切换（实测报错
+# `MODEL_SWITCH_COMPACTION_FAILED ... leaves no pressure budget`），
+# 用户看到的是「本地模型选不了」。8192 在 16k 窗口下留出 8k 阈值，
+# 128k 远端窗口仍是 16% 压缩余量，两个档位都成立。
+- id: compaction-basic
+  config:
+    headroomTokens: 8192

@@ -1307,6 +1307,23 @@ fn build_workbench_preset_row_from_standard(
     let Some(plugins) = row["config"]["plugins"].as_sequence_mut() else {
         return Err("standard.patch.yml 结构不符（缺 plugins）".into());
     };
+    // 压缩头寸下调：本地 RWKV 只有 16384 窗口，引擎默认 headroomTokens=65536
+    // 会让 compaction 算出「无压力预算」并**拒绝切换模型**（实测
+    // `MODEL_SWITCH_COMPACTION_FAILED ... leaves no pressure budget`）。
+    for plugin in plugins.iter_mut() {
+        if plugin["id"].as_str() == Some("compaction-basic") {
+            plugin["config"]["headroomTokens"] =
+                serde_yaml::Value::from(COMPACTION_HEADROOM_TOKENS);
+        }
+        if let Some(inner) = plugin["config"].as_sequence_mut() {
+            for entry in inner.iter_mut() {
+                if entry["id"].as_str() == Some("compaction-basic") {
+                    entry["config"]["headroomTokens"] =
+                        serde_yaml::Value::from(COMPACTION_HEADROOM_TOKENS);
+                }
+            }
+        }
+    }
     for plugin in plugins.iter_mut() {
         match plugin["id"].as_str() {
             Some("persona") => {
@@ -1821,8 +1838,16 @@ const WORKER_TOOL_NAMES: &[&str] = &[
     "todo_write",
 ];
 
+/// 压缩头寸（tokens）：引擎默认 65536 超过本地 RWKV 的 16384 窗口，
+/// 会让压缩判定「无压力预算」并拒绝切模型。8192 在 16k 窗口下仍留 8k 阈值，
+/// 对 128k 远端窗口也是充裕余量。
+const COMPACTION_HEADROOM_TOKENS: i64 = 8192;
+
 /// 子代理 preset 的压缩组（与 web-app standard preset 同构：每 agent 独立实例）。
-const WORKER_COMPACTION_GROUP: &str = "          - id: compaction\n            name: cordis:group\n            group: true\n            isolate:\n              compaction: true\n            config:\n              - id: compaction-basic\n                name: '@deepseek-ai/dsh-compaction-basic'\n              - id: command-compact\n                name: '@deepseek-ai/dsh-command-compact'\n";
+///
+/// `headroomTokens` 必须显式下调：引擎默认 65536 超过本地 RWKV 的 16384 窗口，
+/// 会让这条 agent 在切模型时被判「无压力预算」并拒绝切换。
+const WORKER_COMPACTION_GROUP: &str = "          - id: compaction\n            name: cordis:group\n            group: true\n            isolate:\n              compaction: true\n            config:\n              - id: compaction-basic\n                name: '@deepseek-ai/dsh-compaction-basic'\n                config:\n                  headroomTokens: 8192\n              - id: command-compact\n                name: '@deepseek-ai/dsh-command-compact'\n";
 
 /// 帮手声明的工具名 → preset 内工具插件行（固定顺序，13/15 空格缩进）。
 /// preset 机制只能按插件行粗粒度挂载，故未知工具名记 warn 后忽略。
