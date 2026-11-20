@@ -73,6 +73,25 @@
     font-variant-numeric: tabular-nums;
   }
 
+  // 长跑预警：只在运行中且超阈值时出现（10min 偏长 / 20min 疑似卡住）。
+  &__hint {
+    flex: none;
+    padding: 0 var(--spacing-2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-2xs);
+    white-space: nowrap;
+
+    &.is-slow {
+      color: var(--color-warning);
+      background-color: var(--color-warning-bg);
+    }
+
+    &.is-stalled {
+      color: var(--color-error);
+      background-color: var(--color-error-bg);
+    }
+  }
+
   &__actions {
     display: inline-flex;
     align-items: center;

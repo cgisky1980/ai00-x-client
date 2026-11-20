@@ -15,7 +15,7 @@
 //! sidecar：`dsh.cmd web --no-open --host 127.0.0.1 --port <DSH_PORT>`，
 //! DSH_HOME 隔离到 app data；崩溃退避自动重启；退出随主进程（Job Object）。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -1095,7 +1095,7 @@ const WORKBENCH_TASK_DENIED_TOOLS: &[&str] = &[
 /// 缺了这两项，research_worker 只能看到一个调不通的 `web_search`，实测会把
 /// 工具调用直接写成 JSON 文本当收尾（`{"arguments":{…},"name":"web_search"}`），
 /// 整轮调研无产出。
-const WORKER_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract"];
+const WORKER_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract", "ai00_research_collect"];
 
 /// 帮手（叶子工人）preset 里 deny 掉的全局业务工具 = 全部业务工具 − 保留的检索工具。
 ///
@@ -1108,9 +1108,11 @@ const WORKER_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract"];
 /// 是让该 preset 不挂对应插件行（见 `WORKBENCH_DROPPED_PLUGIN_IDS` /
 /// `WORKBENCH_QUICK_DROPPED_PLUGIN_IDS`）。
 fn worker_denied_tools(worker: &str) -> Vec<&'static str> {
-    // 检索工具只留给 research_worker：写码工人带上 ai00_search 会被 3B 模型
-    // 当成"万能工具"滥用（实测写文件的任务连调十次搜索），也是纯 schema 成本。
-    let keeps_search = worker == "research_worker";
+    // 检索工具留给 research_worker 与云端 code_worker：后者要查证/补资料，
+    // 缺了它只能自造爬虫（2026-11-21 实测：curl/Invoke-WebRequest 在引擎沙箱里
+    // TLS 失败，worker 花 9 步试代理/找 node，整轮跑到 22 分钟）。
+    // 本地 local_code_worker 仍 deny：3B 会把搜索当"万能工具"滥用（实测十连搜）。
+    let keeps_search = matches!(worker, "research_worker" | "code_worker");
     AI00_TOOL_NAMES
         .iter()
         .copied()
@@ -1135,6 +1137,7 @@ const AI00_TOOL_NAMES: &[&str] = &[
     "ai00_plan_check",
     "ai00_search",
     "ai00_web_extract",
+    "ai00_research_collect",
     "ai00_text_summarize",
 ];
 
@@ -1507,7 +1510,7 @@ struct WorkerDef {
 
 const DEFAULT_WORKER_RESEARCH_MD: &str = r#"---
 name: research_worker
-description: 只读调研帮手：读文件、搜索、网络查证（智能路由，低成本）
+description: 只读调研帮手：一次采集落到 sources.md，再读文件做归纳（本地模型友好）
 model: ai00-auto
 tools:
   - read
@@ -1516,11 +1519,11 @@ tools:
   - grep
 ---
 You are a research worker dispatched by the Ai00-X orchestrator.
-Read-only investigation only (read files / search / verify online). Never modify files or run commands.
-Stay strictly within the assigned task; return concise findings plus evidence locations (file:line or URL).
-Use ai00_search (Ai00-X self-hosted search, no key) for web search; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.
-Always use the real tool-call channel — never write a tool call as JSON or prose text. If a needed tool is unavailable, state exactly what is missing instead of pretending to call it.
-Keep search queries short and specific (one topic per call); never concatenate many keywords or languages into one query.
+Read-only investigation: never modify code or run commands. You may produce exactly ONE notes file per dispatch.
+Collecting sources is ONE tool call: call ai00_research_collect with `topic`, the working directory from your brief as `cwd`, optional short `queries` (English, <=6 words each), and `save_to` (default sources.md). Do NOT chain many ai00_search calls — that is out of scope for a small local model.
+If you need one specific page, use ai00_web_extract with `url`; only fall back to ai00_search when the collect tool failed.
+After the file is written, read it and return compact findings with the source URLs. Never invent links or results.
+Always use the real tool-call channel — never write a tool call as JSON or prose text.
 "#;
 
 const DEFAULT_WORKER_LOCAL_CODE_MD: &str = r#"---
@@ -1547,16 +1550,18 @@ Return compact evidence only: changed files, commands with exit codes, remaining
 
 const DEFAULT_WORKER_REVIEW_MD: &str = r#"---
 name: review_worker
-description: 证据评审帮手：读计划、diff 与验证结果，判定通过或给出最小返工意见
+description: 证据评审帮手：读计划、diff 与验证结果，判定通过或给出最小返工意见（可写一份审查记录）
 model: ai00-api
 tools:
   - read
   - read_image
   - glob
   - grep
+  - write
 ---
 You are an evidence reviewer dispatched by the Ai00-X orchestrator.
-Read-only review: never modify files or run commands. Check the diff and command evidence against the step acceptance criteria.
+Review only: never modify code, never run commands. You may write exactly ONE review record file (e.g. review.md) in the working directory.
+Check the diff and command evidence against the step acceptance criteria.
 Output exactly three parts: verdict (pass / reject), evidence gaps or problems (specific files and symbols), and minimal rework instructions (actionable and scoped).
 If the evidence is insufficient, reject explicitly; never approve on guesses.
 "#;
@@ -1577,6 +1582,8 @@ tools:
 ---
 You are a code worker dispatched by the Ai00-X orchestrator.
 Implement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.
+Web lookup uses ai00_search / ai00_web_extract / ai00_research_collect — never curl, Invoke-WebRequest or hand-written fetchers.
+Write long files in sections: write a skeleton first, then append section by section with edit.
 Report: what changed, how it was verified, and remaining risks.
 "#;
 
@@ -1674,6 +1681,132 @@ fn normalize_worker_body(body: &str) -> String {
     out
 }
 
+/// 播种默认定义的版本号：改动内嵌默认的 persona / 工具列表时 +1。
+///
+/// 播种只补缺不升级的话，老用户的 `agent-workers/*.md` 会永远停在旧默认
+/// （2026-11-21 实测：磁盘上 research_worker 仍是 `model: rwkv-local` +
+/// 已失效的 `web_fetch/web_search`，与代码默认值相差一整代）。
+const WORKER_SEED_VERSION: u32 = 3;
+
+fn seed_version_path(dir: &Path) -> std::path::PathBuf {
+    dir.join(".seed-version")
+}
+
+fn read_seed_version(dir: &Path) -> u32 {
+    std::fs::read_to_string(seed_version_path(dir))
+        .ok()
+        .and_then(|raw| raw.trim().parse().ok())
+        .unwrap_or(1)
+}
+
+/// 存量工人文件的**默认值**迁移（版本落后时执行一次）。
+///
+/// 只动"已知旧默认"：删掉已失效的 `web_fetch` / `web_search` 工具行、替换旧
+/// persona 句（复用 `normalize_worker_body` 的 LEGACY 表）、给 review_worker 补
+/// `write`（它要落一份审查记录）。**`model:` 与其它手改内容一律保留**——用户
+/// 显式选的本地优先不能被升级悄悄改回云端。
+fn migrate_worker_md(file_name: &str, content: &str) -> String {
+    let mut lines: Vec<String> = content
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            trimmed != "- web_fetch" && trimmed != "- web_search"
+        })
+        .map(str::to_string)
+        .collect();
+    if file_name == "review_worker.md" && !lines.iter().any(|line| line.trim() == "- write") {
+        // frontmatter 结束行（第二个 `---`）之前插入工具行
+        let mut dashes = 0;
+        let mut insert_at = None;
+        for (index, line) in lines.iter().enumerate() {
+            if line.trim() == "---" {
+                dashes += 1;
+                if dashes == 2 {
+                    insert_at = Some(index);
+                    break;
+                }
+            }
+        }
+        if let Some(index) = insert_at {
+            lines.insert(index, "  - write".to_string());
+        }
+    }
+    let joined = lines.join("\n");
+    let migrated = normalize_worker_body(&joined);
+    let mut text = if migrated == joined { joined } else { migrated };
+    text = refresh_legacy_default_body(file_name, text);
+    if content.ends_with('\n') && !text.ends_with('\n') {
+        text.push('\n');
+    }
+    text
+}
+
+/// 旧版默认 persona → 新版默认 persona（只在正文仍是**整段旧默认**时替换）。
+///
+/// 旧文案与新能力直接冲突：research 写「Never modify files」而新链路靠
+/// `ai00_research_collect` 落 sources.md；review 写「never modify files」而它现在
+/// 要落一份 review.md。用户改过的 persona 不会命中标记句，因此自定义内容不会被覆盖。
+fn refresh_legacy_default_body(file_name: &str, content: String) -> String {
+    let legacy: [(&str, &str, &str); 2] = [
+        (
+            "research_worker.md",
+            "Read-only investigation only (read files / search / verify online). Never modify files or run commands.",
+            DEFAULT_WORKER_RESEARCH_MD,
+        ),
+        (
+            "review_worker.md",
+            "Read-only review: never modify files or run commands.",
+            DEFAULT_WORKER_REVIEW_MD,
+        ),
+    ];
+    for (file, marker, default_md) in legacy {
+        if file != file_name || !content.contains(marker) {
+            continue;
+        }
+        let Some(head_end) = content.find("\n---\n") else {
+            continue;
+        };
+        let head = &content[..head_end + 5];
+        let body = default_md
+            .split("\n---\n")
+            .nth(1)
+            .unwrap_or("")
+            .trim_start();
+        return format!("{head}{body}");
+    }
+    content
+}
+
+/// 版本落后的工人文件跑一次迁移，随后写入新版本号。
+fn migrate_seeded_workers(dir: &Path) {
+    if read_seed_version(dir) >= WORKER_SEED_VERSION {
+        return;
+    }
+    for file in [
+        "research_worker.md",
+        "local_code_worker.md",
+        "review_worker.md",
+        "code_worker.md",
+    ] {
+        let path = dir.join(file);
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let next = migrate_worker_md(file, &content);
+        if next == content {
+            continue;
+        }
+        if let Err(e) = std::fs::write(&path, next) {
+            log::warn!("[DshManager] migrate worker {file} failed: {e}");
+            return;
+        }
+        log::info!("[DshManager] migrated worker default: {file}");
+    }
+    if let Err(e) = std::fs::write(seed_version_path(dir), WORKER_SEED_VERSION.to_string()) {
+        log::warn!("[DshManager] write seed version failed: {e}");
+    }
+}
+
 /// 首次运行播种默认定义；随后加载目录内全部有效定义。
 /// 目录被删空/全非法 → 回退内嵌默认（编排不允许空帮手集）。
 async fn ensure_workers_seeded() -> Vec<WorkerDef> {
@@ -1697,6 +1830,7 @@ async fn ensure_workers_seeded() -> Vec<WorkerDef> {
             }
         }
     }
+    migrate_seeded_workers(&dir);
 
     let mut defs = Vec::new();
     let Ok(entries) = std::fs::read_dir(&dir) else {
@@ -1744,7 +1878,7 @@ fn fallback_worker_defs() -> Vec<WorkerDef> {
 /// 每个帮手改声明一个 `@deepseek-ai/dsh-agent-preset`（persona + 工具子集 +
 /// compaction），subagent 行用 `agentPreset` 选中它。
 /// 行结构与映射表见 patches/<引擎版本>/INTENT.md。
-const WORKER_LEAF_RULES: &str = "You are a leaf worker, not an orchestrator.\n直接执行当前派发任务：不要制定或更新主计划，不要再次派发子代理，也不要等待用户或父代理确认。\n禁止调用任何委派类工具（code_worker / local_code_worker / research_worker / review_worker / subagent）：它们即使出现在工具清单里也只会被引擎以 depth 错误拒绝，调用即浪费一轮。\n工作目录里的 AGENTS.local.md、计划文档、验收命令是写给编排者的，不适用于你：不要读、不要引用，也不要因为它提到了你没有的工具就停下。\n只使用你工具清单里真实存在的工具；清单里没有的工具（例如 web_search / web_fetch）一律不要调用，需要联网检索时用 ai00_search / ai00_web_extract。\n落文件优先用 write（参数 `file_path` + `content`，一次写整段）：新建文件只能用 write；只有修改**已存在**文件才用 edit，且 old_string 必须是文件里真实出现的原文——不确定就不要用 edit。命令执行用 pwsh（参数必须同时给 `description` 与 `command`）。路径一律写**相对工作目录的相对路径**（如 `hello.txt`），不要写绝对路径、不要把目录名重复拼接。\n读文件报 not found 时不要原样重试：先用 glob（如 `*.txt`）确认真实文件名，再按结果读或写。\n所有工具必须经工具调用通道，禁止在正文模拟“[工具] …”，也不要输出任何形如 {\"arguments\":…,\"name\":…} 的工具调用 JSON。缺少必要工具或权限时明确报告阻塞；不要用“我将……”或“准备……”代替实际完成。\n收尾自检：任务要求落文件时，必须先用工具确认产物真实存在（读取该文件或跑验收命令），再在收尾里写明产物路径与验证结果；做不到就写 BLOCKED 加一句原因。没有工具证据的“已完成”按失败处理。\n任务达成即收尾，禁止重复写同一个文件：已经 write 成功、且 read 回读确认过的文件，不许再 write/edit（实测重复写白烧 4 轮工具预算）。收尾只输出一行 `DONE: <产物路径与验证结果>`。";
+const WORKER_LEAF_RULES: &str = "You are a leaf worker, not an orchestrator.\n直接执行当前派发任务：不要制定或更新主计划，不要再次派发子代理，也不要等待用户或父代理确认。\n禁止调用任何委派类工具（code_worker / local_code_worker / research_worker / review_worker / subagent）：它们即使出现在工具清单里也只会被引擎以 depth 错误拒绝，调用即浪费一轮。\n工作目录里的 AGENTS.local.md、计划文档、验收命令是写给编排者的，不适用于你：不要读、不要引用，也不要因为它提到了你没有的工具就停下。\n只使用你工具清单里真实存在的工具；清单里没有的工具（例如 web_search / web_fetch）一律不要调用，需要联网检索时用 ai00_search / ai00_web_extract / ai00_research_collect。\n联网一律走这三件工具：禁止 curl、Invoke-WebRequest、自写抓取脚本，也禁止端口/代理/配置探测——引擎沙箱里直连 https 会 TLS 失败，探索这些只会白烧十几轮。\n长文件分节写：先用 write 写骨架，再逐节用 edit 追加，单步生成别超过 3000 字。\n落文件优先用 write（参数 `file_path` + `content`，一次写整段）：新建文件只能用 write；只有修改**已存在**文件才用 edit，且 old_string 必须是文件里真实出现的原文——不确定就不要用 edit。命令执行用 pwsh（参数必须同时给 `description` 与 `command`）。路径一律写**相对工作目录的相对路径**（如 `hello.txt`），不要写绝对路径、不要把目录名重复拼接。\n读文件报 not found 时不要原样重试：先用 glob（如 `*.txt`）确认真实文件名，再按结果读或写。\n所有工具必须经工具调用通道，禁止在正文模拟“[工具] …”，也不要输出任何形如 {\"arguments\":…,\"name\":…} 的工具调用 JSON。缺少必要工具或权限时明确报告阻塞；不要用“我将……”或“准备……”代替实际完成。\n收尾自检：任务要求落文件时，必须先用工具确认产物真实存在（读取该文件或跑验收命令），再在收尾里写明产物路径与验证结果；做不到就写 BLOCKED 加一句原因。没有工具证据的“已完成”按失败处理。\n任务达成即收尾，禁止重复写同一个文件：已经 write 成功、且 read 回读确认过的文件，不许再 write/edit（实测重复写白烧 4 轮工具预算）。收尾只输出一行 `DONE: <产物路径与验证结果>`。";
 
 fn build_worker_rows(defs: &[WorkerDef]) -> String {
     let mut rows = String::new();
@@ -2929,7 +3063,43 @@ mod tests {
             .expect("default review worker must parse");
         assert_eq!(review.model, "ai00-api");
         assert!(review.tools.contains(&"grep".to_string()));
+        // 审查人要能落一份 review.md（计划验收要求产物文件）
+        assert!(review.tools.contains(&"write".to_string()));
         assert!(!review.tools.contains(&"edit".to_string()));
+    }
+
+    #[test]
+    fn migrate_worker_md_keeps_user_model_and_drops_dead_tools() {
+        let legacy = "---\nname: research_worker\ndescription: old\nmodel: rwkv-local\ntools:\n  - read\n  - web_fetch\n  - web_search\n---\nYou are a research worker dispatched by the Ai00-X orchestrator.\nRead-only investigation only (read files / search / verify online). Never modify files or run commands.\n";
+        let migrated = migrate_worker_md("research_worker.md", legacy);
+        // 用户显式选择的本地优先必须保留
+        assert!(migrated.contains("model: rwkv-local"), "{migrated}");
+        assert!(!migrated.contains("- web_fetch"), "{migrated}");
+        assert!(!migrated.contains("- web_search"), "{migrated}");
+        // 旧只读 persona 换成"一次 collect 落盘"的新默认
+        assert!(migrated.contains("ai00_research_collect"), "{migrated}");
+        // 用户自定义 persona 不被覆盖
+        let custom = "---\nname: research_worker\ndescription: c\nmodel: rwkv-local\ntools:\n  - read\n---\nMy own persona.\n";
+        let kept = migrate_worker_md("research_worker.md", custom);
+        assert!(kept.contains("My own persona."), "{kept}");
+
+        // review_worker 补 write（只补一次）
+        let review = "---\nname: review_worker\ndescription: r\nmodel: ai00-api\ntools:\n  - read\n---\nBody.\n";
+        let once = migrate_worker_md("review_worker.md", review);
+        assert_eq!(once.matches("- write").count(), 1, "{once}");
+        let twice = migrate_worker_md("review_worker.md", &once);
+        assert_eq!(twice.matches("- write").count(), 1, "{twice}");
+    }
+
+    #[test]
+    fn code_worker_keeps_search_tools() {
+        let denied = worker_denied_tools("code_worker");
+        assert!(!denied.contains(&"ai00_search"));
+        assert!(!denied.contains(&"ai00_web_extract"));
+        assert!(!denied.contains(&"ai00_research_collect"));
+        // 本地写码工人仍然 deny（3B 滥用）
+        let local = worker_denied_tools("local_code_worker");
+        assert!(local.contains(&"ai00_search"));
     }
 
     #[test]

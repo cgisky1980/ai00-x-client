@@ -9,7 +9,7 @@
  * 数据只来自既有解析器（planStructure / planAcceptance）与 workbenchTaskStore，
  * 不新增后端字段。旧格式计划（无 T 编号）回落三态进度。
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Check, FolderOpen, Pencil, Plus, Trash2, Undo2 } from 'lucide-react';
 import { Button as DsButton } from '@ai00-x/design-system/react';
@@ -59,6 +59,7 @@ import { WORKBENCH_STAGES, stageOf } from './workbenchStage';
 import type { TaskPhase } from '../tasks/taskPhase';
 import { WorkbenchProgress } from './WorkbenchProgress';
 import { focusSubagentCard } from './subagentFocus';
+import { formatSubagentDuration } from './subagentTools';
 import './WorkbenchPlanCard.scss';
 
 export interface WorkbenchPlanCardProps {
@@ -140,6 +141,8 @@ interface StepWorker {
   id: string;
   name: string;
   running: boolean;
+  /** 本端子会话启动时间（仅运行中有意义，用于计划卡上的时长展示）。 */
+  since?: number;
 }
 
 export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
@@ -205,6 +208,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const workersByStep = useMemo(() => {
     const runningIds = new Set((children ?? []).filter((c) => c.running).map((c) => c.sessionId));
     const presetById = new Map((children ?? []).map((c) => [c.sessionId, c.preset]));
+    const sinceById = new Map((children ?? []).map((c) => [c.sessionId, c.since]));
     const map: Record<string, StepWorker[]> = {};
     for (const step of steps) {
       map[step.id] = (catalog ?? [])
@@ -213,10 +217,21 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           id: meta.id,
           name: presetById.get(meta.id) ?? (meta.mode === 'unknown' ? 'worker' : meta.mode),
           running: runningIds.has(meta.id),
+          ...(runningIds.has(meta.id) ? { since: sinceById.get(meta.id) } : {}),
         }));
     }
     return map;
   }, [catalog, children, steps]);
+
+  /** 有子代理在跑时每秒推进一次，让步骤行上的时长真的在走。 */
+  const anyWorkerRunning = (children ?? []).some((c) => c.running);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!anyWorkerRunning) return undefined;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [anyWorkerRunning]);
 
   // ---------------------------------------------------------------------------
   // 动作
@@ -404,6 +419,11 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           >
             <span className="ai00-x-plan-card__worker-dot" aria-hidden />
             {worker.name}
+            {worker.running && worker.since ? (
+              <span className="ai00-x-plan-card__worker-time">
+                {formatSubagentDuration(Math.max(0, now - worker.since))}
+              </span>
+            ) : null}
           </button>
         ))}
         {workers.length > shown.length && (

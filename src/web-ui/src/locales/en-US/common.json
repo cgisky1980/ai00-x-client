@@ -423,6 +423,8 @@
       "subagentDone": "Finished",
       "subagentPending": "Dispatching",
       "subagentAbnormal": "Ended abnormally",
+      "subagentSlow": "Taking long",
+      "subagentStalled": "Looks stuck — stop it and degrade",
       "subagentSession": "Session",
       "subagentPromptToggle": "Show task brief",
       "subagentOverview": "Subagents {{count}}",

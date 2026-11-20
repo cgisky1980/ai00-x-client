@@ -162,6 +162,12 @@
     font-size: var(--font-size-2xs);
   }
 
+  // 运行中工人已跑多久（每秒推进）：让"跑了很久"在计划卡上直接可见。
+  &__worker-time {
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
   // 验证 / 证据折叠：贴着步骤行，弱化外框
   &__details {
     margin-top: var(--spacing-1);

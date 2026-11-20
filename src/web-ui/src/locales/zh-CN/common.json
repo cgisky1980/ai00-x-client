@@ -423,6 +423,8 @@
       "subagentDone": "已完成",
       "subagentPending": "派发中",
       "subagentAbnormal": "非正常结束",
+      "subagentSlow": "耗时偏长",
+      "subagentStalled": "疑似卡住，建议停止并降级",
       "subagentSession": "会话",
       "subagentPromptToggle": "查看任务书",
       "subagentOverview": "子代理 {{count}}",
