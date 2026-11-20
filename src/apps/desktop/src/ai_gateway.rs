@@ -1739,8 +1739,11 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
     }
 
     if has_tools {
-        // 官方 G1x 模板：续写起点给 ```json 围栏开头，模型输出 {"name":...} 后闭合
+        // 官方 G1x 模板的续写起点直接给到 name 键：3B 模型自由续写时经常漏掉
+        // `{"name":` 直接从 `{"arguments":` 开始（2026-11-20 实测多轮），
+        // 预填前缀后它只需要续写工具名；解析时由 TOOL_CALL_PREFILL 补回。
         prompt.push_str("Assistant: ```json\n");
+        prompt.push_str(TOOL_CALL_PREFILL);
     } else {
         prompt.push_str("Assistant: ");
     }
@@ -2002,16 +2005,26 @@ fn try_extract_tool_call(text: &str) -> Option<(String, String)> {
     None
 }
 
-/// 工具调用提取总入口：先严格解析，失败再走带工具时的宽容修复
-/// （多行美化 / 截断的 JSON）。
+/// 工具调用续写起点：prompt 末尾预填该前缀，模型只需续写工具名与参数。
+/// 解析时把前缀补回生成文本（`tool_call_from_text`）。
+const TOOL_CALL_PREFILL: &str = "{\"name\": \"";
+
+/// 工具调用提取总入口：先严格解析生成文本，再尝试补回预填前缀，
+/// 最后走带工具时的宽容修复（多行美化 / 截断的 JSON）。
 fn tool_call_from_text(text: &str, has_tools: bool) -> Option<(String, String)> {
-    try_extract_tool_call(text).or_else(|| {
-        if has_tools && looks_like_tool_call_text(text) {
-            repair_tool_call_text(text)
-        } else {
-            None
+    if let Some(call) = try_extract_tool_call(text) {
+        return Some(call);
+    }
+    if has_tools {
+        let restored = format!("{TOOL_CALL_PREFILL}{text}");
+        if let Some(call) = try_extract_tool_call(&restored) {
+            return Some(call);
         }
-    })
+        if looks_like_tool_call_text(text) {
+            return repair_tool_call_text(text);
+        }
+    }
+    None
 }
 
 /// 宽容修复：模型把调用写成**多行美化 JSON 或被 max_tokens 截断**时，
@@ -2265,7 +2278,7 @@ mod tests {
             !system_block.contains("\n\n"),
             "System block must not contain blank lines"
         );
-        assert!(prompt.ends_with("Assistant: ```json\n"));
+        assert!(prompt.ends_with("Assistant: ```json\n{\"name\": \""));
     }
 
     #[test]
@@ -2331,7 +2344,7 @@ mod tests {
         assert!(prompt.contains("\"name\": \"Read\""));
         assert!(prompt.contains("\"description\": \"Read a UTF-8 text file\""));
         assert!(prompt.contains("Return only a JSON function call."));
-        assert!(prompt.ends_with("Assistant: ```json\n"));
+        assert!(prompt.ends_with("Assistant: ```json\n{\"name\": \""));
         // 对话式 few-shot：System 之后、真实 User 之前，示例工具来自工具表
         assert!(prompt.contains(
             "User: Use the Read tool.\n\nAssistant: ```json\n{\"name\": \"Read\", \"arguments\": {\"file_path\": \"note.txt\"}}\n```\n\n"
@@ -2422,6 +2435,17 @@ mod tests {
         assert!(args.starts_with('{'));
         // 不带 tools 的请求不做修复（避免把普通 JSON 作答当工具调用）
         assert!(tool_call_from_text(text, false).is_none());
+    }
+
+    #[test]
+    fn restores_prefilled_tool_call() {
+        // prompt 已预填 `{"name": "`，模型只续写 name 与 arguments
+        let fragment = "write\", \"arguments\": {\"path\": \"hi.txt\", \"content\": \"hi\"}}\n```";
+        let (name, args) = tool_call_from_text(fragment, true).expect("must restore");
+        assert_eq!(name, "write");
+        assert!(args.contains("hi.txt"));
+        // 不带 tools 的请求不做前缀补回
+        assert!(tool_call_from_text(fragment, false).is_none());
     }
 
     #[test]
