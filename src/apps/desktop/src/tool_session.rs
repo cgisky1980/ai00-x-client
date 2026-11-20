@@ -107,18 +107,19 @@ pub fn tool_loop_max_rounds() -> usize {
         .unwrap_or(6)
 }
 
-/// 当前回合已进行的工具轮数 = 最后一条**真实用户输入**之后含 tool_calls 的
-/// assistant 消息条数（无状态轮次计量，替代会话注册表）。
+/// 当前回合已进行的工具轮数 = **最后一条"有正文的助手消息"之后**的
+/// 含 tool_calls assistant 消息条数（无状态轮次计量，替代会话注册表）。
 ///
-/// 注意：带工具结果续接时，引擎会把 tool-result 块挂在一个**空文本 user 消息**
-/// 上（bridge 原样转发），所以不能见到 user 就停——只有非空文本的 user 才是
-/// 新一轮任务的起点。此前按"最后一条 user"截断，导致轮数恒为 0/1，
-/// 网关的回合熔断从未生效（实测本地工人在一个回合里连调 13 次工具）。
+/// 不能按 user 消息截断：引擎把工具结果并进历史时，配的 user 消息里可能带正文
+/// （渲染后的 `[工具] …` 摘要），按 user 截断会让计数恒为 0——实测本地工人在
+/// 一个回合里连调 13 次工具，网关熔断从未触发。回合的真实边界是"助手给出终答"，
+/// 所以以最后一条非空 assistant 文本为界。
 pub fn count_turn_rounds(messages: &[Value]) -> usize {
     let mut rounds = 0;
     for msg in messages.iter().rev() {
         match msg.get("role").and_then(|r| r.as_str()) {
-            Some("user") => {
+            Some("assistant") if has_tool_calls(msg) => rounds += 1,
+            Some("assistant") => {
                 let has_text = crate::ai_gateway::message_text(msg)
                     .map(|t| !t.trim().is_empty())
                     .unwrap_or(false);
@@ -126,7 +127,6 @@ pub fn count_turn_rounds(messages: &[Value]) -> usize {
                     break;
                 }
             }
-            Some("assistant") if has_tool_calls(msg) => rounds += 1,
             _ => {}
         }
     }
@@ -432,7 +432,7 @@ mod tests {
     /// 工具结果续接时引擎会插入"空文本 user"消息；轮数统计必须跳过它，
     /// 否则回合熔断永远不触发（实测本地工人一回合连调 13 次工具）。
     #[test]
-    fn counts_rounds_across_tool_result_user_messages() {
+    fn counts_rounds_with_tool_result_user_messages() {
         let mut msgs = vec![user("do it")];
         for i in 0..3 {
             msgs.push(assistant_tc(&format!("c{i}"), "edit", "{}"));
@@ -440,8 +440,9 @@ mod tests {
             msgs.push(json!({"role": "user", "content": ""}));
         }
         assert_eq!(count_turn_rounds(&msgs), 3);
-        // 新的真实用户输入重置计数
-        msgs.push(user("new task"));
-        assert_eq!(count_turn_rounds(&msgs), 0);
+        // 助手给出终答（非空文本）即为回合边界，之后的工具轮不累计
+        msgs.push(assistant_text("done"));
+        msgs.push(assistant_tc("c9", "edit", "{}"));
+        assert_eq!(count_turn_rounds(&msgs), 1);
     }
 }
