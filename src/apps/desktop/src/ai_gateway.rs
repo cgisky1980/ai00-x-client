@@ -828,11 +828,18 @@ async fn local_rwkv_sse(
         let mut messages = messages;
         messages.push(json!({
             "role": "user",
-            "content": "工具轮数已用尽。不要再调用任何工具，只输出一行：BLOCKED: <一句话说明卡在哪里>",
+            "content": "Reply with exactly one line: BLOCKED: <reason>",
         }));
         messages
     } else {
         messages
+    };
+    // 熔断轮只允许一句话：3B 模型在"没工具"时会整段复读指令甚至 system prompt，
+    // 实测量出 20s / 数百 token 的垃圾正文。这里硬压到 256 token。
+    let max_tokens = if rounds_exhausted {
+        max_tokens.min(256)
+    } else {
+        max_tokens
     };
     let top_p = body
         .get("top_p")
@@ -883,8 +890,12 @@ async fn local_rwkv_sse(
     // 流式桥接：InferenceEvent → OpenAI SSE chunks
     // 带工具时输出全缓冲（结束才判定 tool-call / 纯文本）：边流 text-delta 边
     // 补发 tool_call_delta 会让 text 块和 tool-call 块并存，污染 dsh 上下文。
+    // 熔断轮同样全缓冲：终答要先收敛成一行 DONE:/BLOCKED:（见 finalize_exhausted_text）。
     let (tx, rx_body) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
     let model_name = MODEL_RWKV.to_string();
+    let stream_inline_text = !has_tools && !rounds_exhausted;
+    // 熔断轮判定"证据 vs 失败"用的历史（含本回合所有工具结果）
+    let messages_for_evidence = messages;
 
     tokio::spawn(async move {
         let mut full_text = String::new();
@@ -899,7 +910,7 @@ async fn local_rwkv_sse(
                         ttft_ms = Some(usage.started.elapsed().as_millis() as u64);
                     }
                     full_text.push_str(&t);
-                    if !has_tools {
+                    if stream_inline_text {
                         let chunk = sse_text_delta(&model_name, &t);
                         if tx.send(Ok(Bytes::from(chunk))).is_err() {
                             break;
@@ -931,6 +942,9 @@ async fn local_rwkv_sse(
         if is_instruction_format {
             text = truncate_at_role_marker(&text);
         }
+        if rounds_exhausted {
+            text = finalize_exhausted_text(&text, &messages_for_evidence);
+        }
 
         // 尝试提取工具调用（```json {...} ``` 协议）
         // usage 分片放在 finish 之前、两条分支都发：工具轮以前完全没有 usage，
@@ -961,8 +975,8 @@ async fn local_rwkv_sse(
             let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n")));
             return;
         } else {
-            // 带工具但没解析出调用：整段作为文本补发（缓冲模式下还没发过）
-            if has_tools && !text.is_empty() {
+            // 缓冲模式（带工具 / 熔断轮）还没发过正文，这里整段补发
+            if !stream_inline_text && !text.is_empty() {
                 let chunk = sse_text_delta(&model_name, &text);
                 let _ = tx.send(Ok(Bytes::from(chunk)));
             }
@@ -1864,61 +1878,74 @@ fn tools_block(tools: &[Value]) -> String {
 fn tool_fewshot_block(tools: &[Value]) -> Option<String> {
     // 优先选能合成出非空参数的工具做示例：空参数（{}）示例会让模型在需要
     // 填参数时把 JSON schema 结构当参数值复读（2026-11-11 实测 3/3 复现）。
-    let mut empty_candidate: Option<(&str, serde_json::Map<String, Value>)> = None;
-    for tool in tools {
-        let Some(function) = tool.get("function") else {
-            continue;
-        };
-        let Some(name) = function.get("name").and_then(|n| n.as_str()) else {
-            continue;
-        };
-        let name = name.trim();
-        if name.is_empty() {
-            continue;
-        }
-        let mut args = serde_json::Map::new();
-        if let Some(props) = function
-            .get("parameters")
-            .and_then(|p| p.get("properties"))
-            .and_then(|p| p.as_object())
-        {
-            for (key, schema) in props.iter().take(2) {
-                let ty = schema.get("type").and_then(|t| t.as_str()).unwrap_or("");
-                // 示例值必须真实感且互异：占位符（"example"）会让模型丢失
-                // 参数绑定能力——复读 schema 结构或塌陷重复（p2/p4/p6 实测），
-                // 真实值则连工具选择都纠正（p5 错选 vs p7 全对）。
-                let value = match ty {
-                    "string" => {
-                        if key.contains("path") {
-                            json!("note.txt")
-                        } else if key.contains("query") {
-                            json!("latest AI news")
-                        } else if key.contains("url") {
-                            json!("https://www.rwkv.cn")
-                        } else if key.contains("title") {
-                            json!("Reminder")
-                        } else if key.contains("message") || key.contains("msg") {
-                            json!("Don't forget your meeting at 3 PM.")
-                        } else {
-                            json!("hello")
+    //
+    // 示例取两个：3B 逐字模仿示例的参数键名，只给一个示例时没覆盖到的工具
+    // 会去抄训练数据里的别的 schema（实测 write 没示例 → 输出 Claude Write 的
+    // description/justification，漏掉 file_path，白烧 6 轮）。`write` 永远优先。
+    let mut examples: Vec<String> = Vec::new();
+    let mut empty_candidate: Option<String> = None;
+    for prefer_write in [true, false] {
+        for tool in tools {
+            let Some(function) = tool.get("function") else {
+                continue;
+            };
+            let Some(name) = function.get("name").and_then(|n| n.as_str()) else {
+                continue;
+            };
+            let name = name.trim();
+            if name.is_empty() || (prefer_write != (name == "write")) {
+                continue;
+            }
+            let mut args = serde_json::Map::new();
+            if let Some(props) = function
+                .get("parameters")
+                .and_then(|p| p.get("properties"))
+                .and_then(|p| p.as_object())
+            {
+                for (key, schema) in props.iter().take(2) {
+                    let ty = schema.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                    // 示例值必须真实感且互异：占位符（"example"）会让模型丢失
+                    // 参数绑定能力——复读 schema 结构或塌陷重复（p2/p4/p6 实测），
+                    // 真实值则连工具选择都纠正（p5 错选 vs p7 全对）。
+                    let value = match ty {
+                        "string" => {
+                            if key.contains("path") {
+                                json!("note.txt")
+                            } else if key.contains("query") {
+                                json!("latest AI news")
+                            } else if key.contains("url") {
+                                json!("https://www.rwkv.cn")
+                            } else if key.contains("title") {
+                                json!("Reminder")
+                            } else if key.contains("message") || key.contains("msg") {
+                                json!("Don't forget your meeting at 3 PM.")
+                            } else {
+                                json!("hello")
+                            }
                         }
-                    }
-                    "number" | "integer" => json!(1),
-                    "boolean" => json!(true),
-                    _ => continue,
-                };
-                args.insert(key.clone(), value);
+                        "number" | "integer" => json!(1),
+                        "boolean" => json!(true),
+                        _ => continue,
+                    };
+                    args.insert(key.clone(), value);
+                }
+            }
+            if args.is_empty() {
+                if empty_candidate.is_none() {
+                    empty_candidate = Some(build_fewshot(name, args));
+                }
+                continue;
+            }
+            examples.push(build_fewshot(name, args));
+            if examples.len() >= 2 {
+                return Some(examples.concat());
             }
         }
-        if !args.is_empty() {
-            return Some(build_fewshot(name, args));
-        }
-        if empty_candidate.is_none() {
-            empty_candidate = Some((name, args));
-        }
     }
-    let (name, args) = empty_candidate?;
-    Some(build_fewshot(name, args))
+    if examples.is_empty() {
+        return empty_candidate;
+    }
+    Some(examples.concat())
 }
 
 fn build_fewshot(name: &str, args: serde_json::Map<String, Value>) -> String {
@@ -1993,6 +2020,90 @@ fn sanitize(content: &str) -> String {
         }
     }
     result.trim_end_matches('\n').to_string()
+}
+
+/// 熔断轮终答：**证据优先于模型自述**。
+///
+/// 熔断只说明"工具预算用尽"，不等于任务失败：实测本地工人 6 轮里前两轮就已
+/// 成功 `write` + `read`，后面四轮只是同一个写调用的复读，最后模型喊 BLOCKED——
+/// 编排者据此升级云端，等于为一份已经落盘的文件再付一次远端费用。
+/// 所以本回合只要存在**成功工具结果**，就以该结果作为交付证据输出 `DONE:`；
+/// 一次成功都没有才输出 `BLOCKED:`。
+fn finalize_exhausted_text(model_text: &str, messages: &[Value]) -> String {
+    match last_successful_tool_result(messages) {
+        Some(evidence) => format!("DONE: {evidence}"),
+        None => sanitize_blocked_text(model_text),
+    }
+}
+
+/// 最后一条**成功**工具结果的摘要。
+///
+/// 不能只看 `role == "tool"`：引擎把工具结果并回历史时可能渲染成 user 正文，
+/// 这里以文件工具结果的固定标记 `<path>` 为主判据（成功结果必带），
+/// 其余工具退回 role=tool 且不以 `Error` 开头。
+fn last_successful_tool_result(messages: &[Value]) -> Option<String> {
+    const MAX_CHARS: usize = 160;
+    let mut fallback: Option<String> = None;
+    for msg in messages.iter().rev() {
+        let Some(raw) = message_text(msg) else {
+            continue;
+        };
+        let text = raw.trim();
+        if text.is_empty() {
+            continue;
+        }
+        if text.contains("<path>") {
+            return Some(summarize_tool_text(text, MAX_CHARS));
+        }
+        let is_ok_tool =
+            msg.get("role").and_then(|r| r.as_str()) == Some("tool") && !text.starts_with("Error");
+        if is_ok_tool && fallback.is_none() {
+            fallback = Some(summarize_tool_text(text, MAX_CHARS));
+        }
+    }
+    fallback
+}
+
+fn summarize_tool_text(text: &str, max_chars: usize) -> String {
+    let collapsed = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    collapsed.chars().take(max_chars).collect()
+}
+
+/// 熔断轮终答清洗：收敛成**一行** `BLOCKED: <原因>`。
+///
+/// 3B 本地模型在"不给工具"时会把注入的指令、甚至 system prompt 原样复读进正文
+/// （实测以「工具轮数已用尽…」开头、尾部还挂着 `System: You are a …`）。编排者
+/// 既读不出失败信号，又会把这坨文本当交付物。这里确定性收敛：命中 `BLOCKED:`
+/// 就从那里截到行尾；完全没命中就补前缀（熔断本身就意味着未完成，必须显式失败）。
+fn sanitize_blocked_text(text: &str) -> String {
+    const MARKER: &str = "BLOCKED:";
+    const MAX_CHARS: usize = 200;
+    let marker_at = text.char_indices().find_map(|(i, _)| {
+        text[i..]
+            .get(..MARKER.len())
+            .filter(|s| s.eq_ignore_ascii_case(MARKER))
+            .map(|_| i)
+    });
+    let body = match marker_at {
+        Some(start) => text[start + MARKER.len()..]
+            .lines()
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_string(),
+        None => text
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .unwrap_or("")
+            .to_string(),
+    };
+    let body: String = body.chars().take(MAX_CHARS).collect();
+    if body.is_empty() {
+        "BLOCKED: tool rounds exhausted".to_string()
+    } else {
+        format!("BLOCKED: {body}")
+    }
 }
 
 /// 截断 Instruction 格式响应中模型幻觉出的新角色块。
@@ -2135,6 +2246,23 @@ fn normalize_tool_arguments(name: &str, arguments: &str) -> String {
             obj.insert("file_path".to_string(), path);
         }
     }
+    // 1a) glob：引擎参数是 `pattern`，模型常写 `path`/`query`
+    if name == "glob" && !obj.contains_key("pattern") {
+        if let Some(pattern) = obj.remove("path").or_else(|| obj.remove("query")) {
+            obj.insert("pattern".to_string(), pattern);
+        }
+    }
+    // 1b) file_path 去噪：3B 会把提示前缀/引号一起写进值里（实测
+    // `": \"C:\\…\\hello.txt"`），直接落盘会失败，剥掉再交给引擎。
+    if matches!(name, "read" | "write" | "edit" | "read_image") {
+        if let Some(Value::String(path)) = obj.get("file_path").cloned() {
+            let cleaned = clean_path_value(&path);
+            let cleaned = rebase_absolute_path(&cleaned);
+            if cleaned != path {
+                obj.insert("file_path".to_string(), Value::String(cleaned));
+            }
+        }
+    }
     // 2) 命令类工具：引擎要求 `description` 必填（仅元信息），模型经常漏给
     if matches!(name, "pwsh" | "bash") && !obj.contains_key("description") {
         obj.insert(
@@ -2162,6 +2290,39 @@ fn normalize_tool_arguments(name: &str, arguments: &str) -> String {
         }
     }
     value.to_string()
+}
+
+/// 绝对路径降级：3B 会把 system prompt 里的包路径拼进工作路径，产出一个
+/// 工作目录之外的绝对路径（实测 `…\node_modules\@deepseek-ai\dsh\ws\hello.txt`）。
+/// 引擎已把工具 cwd 钉成工作目录、规则也要求相对路径，所以本地模型给出的绝对
+/// 路径只会是这种污染——**无条件**只留文件名（曾经只处理"不存在的绝对路径"，
+/// 结果写进 node_modules 里"成功"了，工作目录里什么都没有，白烧 6 轮）。
+fn rebase_absolute_path(path: &str) -> String {
+    let candidate = std::path::Path::new(path);
+    if !candidate.is_absolute() {
+        return path.to_string();
+    }
+    match candidate.file_name().and_then(|n| n.to_str()) {
+        Some(name) if !name.is_empty() => name.to_string(),
+        _ => path.to_string(),
+    }
+}
+
+/// 路径值去噪：取最后一个引号片段（模型常把提示前缀 `": "` 或多余引号抄进值里），
+/// 再剥掉包裹的引号/冒号/等号/空白。干净的路径原样返回。
+fn clean_path_value(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let candidate = if trimmed.contains('"') {
+        trimmed
+            .split('"')
+            .rfind(|part| !part.trim().is_empty())
+            .map_or(trimmed, str::trim)
+    } else {
+        trimmed
+    };
+    candidate
+        .trim_matches(|c: char| c == ':' || c == '=' || c == '\'' || c == '"' || c.is_whitespace())
+        .to_string()
 }
 
 /// 文本是否"看起来像在调工具"：用于把**残缺到认不出工具名**的 JSON 判成
@@ -2477,6 +2638,77 @@ mod tests {
     }
 
     #[test]
+    fn fewshot_covers_write_even_when_not_first() {
+        // write 排在后面时也必须出示例：3B 缺 write 示例会抄 Claude Write 的
+        // description/justification、漏掉 file_path（实测白烧 6 轮）。
+        let messages = vec![json!({"role": "user", "content": "hi"})];
+        let tools = vec![
+            json!({"type":"function","function":{"name":"pwsh","parameters":{"properties":{
+                "description":{"type":"string"},"command":{"type":"string"}}}}}),
+            json!({"type":"function","function":{"name":"write","parameters":{"properties":{
+                "file_path":{"type":"string"},"content":{"type":"string"}}}}}),
+        ];
+        let prompt = openai_messages_to_rwkv_prompt(&messages, Some(&tools));
+        assert!(prompt.contains("User: Use the write tool."), "{prompt}");
+        // 参数键必须与引擎 schema 同名（排序由 serde_json map 决定，不约束顺序）
+        assert!(prompt.contains("\"name\": \"write\""), "{prompt}");
+        assert!(prompt.contains("\"file_path\": \"note.txt\""), "{prompt}");
+        assert!(prompt.contains("\"content\": \"hello\""), "{prompt}");
+        assert!(!prompt.contains("justification"), "{prompt}");
+        // 第二个示例仍要有（覆盖两个工具）
+        assert!(prompt.contains("User: Use the pwsh tool."), "{prompt}");
+    }
+
+    #[test]
+    fn cleans_garbled_path_values() {
+        assert_eq!(clean_path_value("hello.txt"), "hello.txt");
+        assert_eq!(clean_path_value(" \"C:\\a\\b.txt\" "), "C:\\a\\b.txt");
+        // 实测形态：`: "C:\…\hello.txt`
+        assert_eq!(
+            clean_path_value(": \"C:\\Users\\x\\hello.txt"),
+            "C:\\Users\\x\\hello.txt"
+        );
+        assert_eq!(
+            clean_path_value("file_path: hello.txt"),
+            "file_path: hello.txt"
+        );
+    }
+
+    #[test]
+    fn normalizes_garbled_file_path_argument() {
+        let args = normalize_tool_arguments(
+            "write",
+            r#"{"content":"hello","file_path":": \"C:\\Users\\x\\hello.txt"}"#,
+        );
+        let parsed: Value = serde_json::from_str(&args).unwrap();
+        // 去噪去掉 `": "` 前缀；该绝对路径不存在 → 降级为文件名
+        assert_eq!(parsed["file_path"], json!("hello.txt"));
+        assert_eq!(parsed["content"], json!("hello"));
+    }
+
+    #[test]
+    fn normalizes_glob_path_to_pattern() {
+        let args = normalize_tool_arguments("glob", r#"{"path":"**/*.txt"}"#);
+        let parsed: Value = serde_json::from_str(&args).unwrap();
+        assert_eq!(parsed["pattern"], json!("**/*.txt"));
+        assert!(parsed.get("path").is_none());
+    }
+
+    #[test]
+    fn rebases_absolute_path_to_basename() {
+        // 绝对路径（含 system prompt 污染的包路径）→ 只留文件名
+        let polluted = if cfg!(windows) {
+            r"C:\nope\ai00x\node_modules\@deepseek-ai\dsh\ws\hello.txt"
+        } else {
+            "/nope/ai00x/node_modules/@deepseek-ai/dsh/ws/hello.txt"
+        };
+        assert_eq!(rebase_absolute_path(polluted), "hello.txt");
+        // 相对路径原样保留
+        assert_eq!(rebase_absolute_path("hello.txt"), "hello.txt");
+        assert_eq!(rebase_absolute_path("src/main.rs"), "src/main.rs");
+    }
+
+    #[test]
     fn extracts_tool_call_from_json_block() {
         let text = "让我先读文件。\n```json\n{\"name\":\"Read\",\"arguments\":{\"file_path\":\"src/main.rs\"}}\n```";
         let (name, args) = try_extract_tool_call(text).unwrap();
@@ -2630,6 +2862,52 @@ mod tests {
     fn truncates_runaway_role_marker() {
         let text = "Paris。System: ### 新任务";
         assert_eq!(truncate_at_role_marker(text), "Paris。");
+    }
+
+    #[test]
+    fn sanitizes_blocked_round_output() {
+        // 实测形态：先复读注入指令，再给 BLOCKED 行，末尾挂着泄漏的 system prompt
+        let text = "工具轮数已用尽，不再调用任何工具，只输出一行：BLOCKED: 无法继续执行，因为已没有可用工具。\nSystem: You are a DeepSeek Research Agent.\nThe user will provide…";
+        assert_eq!(
+            sanitize_blocked_text(text),
+            "BLOCKED: 无法继续执行，因为已没有可用工具。"
+        );
+        // 完全没命中标记：补前缀，保证编排者能识别失败
+        assert_eq!(
+            sanitize_blocked_text("\n\nI could not finish the task"),
+            "BLOCKED: I could not finish the task"
+        );
+        // 空正文也要有可解析的一行
+        assert_eq!(
+            sanitize_blocked_text("   \n "),
+            "BLOCKED: tool rounds exhausted"
+        );
+    }
+
+    #[test]
+    fn exhausted_round_prefers_evidence_over_model_self_report() {
+        let model_text = "BLOCKED: write 参数一直错";
+        // 有成功工具结果 → 交付证据优先，输出 DONE（避免编排者白付一次远端升级）
+        let with_evidence = vec![
+            json!({"role":"user","content":"写 hello.txt"}),
+            json!({"role":"tool","tool_call_id":"c1","content":"Error: missing file_path"}),
+            json!({"role":"tool","tool_call_id":"c2","content":"<path>hello.txt</path>\n<content>\nhello\n</content>"}),
+        ];
+        let done = finalize_exhausted_text(model_text, &with_evidence);
+        assert!(done.starts_with("DONE: "), "{done}");
+        assert!(done.contains("hello.txt"), "{done}");
+        // 只有失败结果 → 保持显式失败
+        let only_errors = vec![
+            json!({"role":"user","content":"写 hello.txt"}),
+            json!({"role":"tool","tool_call_id":"c1","content":"Error: missing file_path"}),
+        ];
+        assert!(finalize_exhausted_text(model_text, &only_errors).starts_with("BLOCKED: "));
+        // 引擎把工具结果渲染进 user 正文时同样算证据（不依赖 role=tool）
+        let folded = vec![json!({
+            "role":"user",
+            "content":"[工具] read({\"file_path\":\"hello.txt\"}) → <path>hello.txt</path> <content>hello</content>"
+        })];
+        assert!(finalize_exhausted_text(model_text, &folded).starts_with("DONE: "));
     }
 
     #[test]
