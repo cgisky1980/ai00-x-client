@@ -16,6 +16,8 @@ import type {
 export interface WorkbenchTaskRuntime {
   running: boolean;
   failed: boolean;
+  /** 会话有未回答的 ask user 提问（「需要你」徽标用；仅面板打开时可知）。 */
+  asking?: boolean;
   /** 最后更新时刻（调试/排序用） */
   at: number;
 }
@@ -58,7 +60,10 @@ interface WorkbenchTaskState {
   creatingNew: boolean;
   selectTask: (taskId: string) => void;
   startNewTask: () => void;
-  reportRuntime: (sessionId: string, next: { running: boolean; failed: boolean }) => void;
+  reportRuntime: (
+    sessionId: string,
+    next: { running: boolean; failed: boolean; asking?: boolean },
+  ) => void;
   /**
    * 用引擎 `session/list` 的 running 快照回填全量会话运行态。
    *
@@ -158,11 +163,19 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
   reportRuntime: (sessionId, next) =>
     set((s) => {
       const prev = s.runtime[sessionId];
-      if (prev && prev.running === next.running && prev.failed === next.failed) return s;
+      const asking = Boolean(next.asking);
+      if (
+        prev &&
+        prev.running === next.running &&
+        prev.failed === next.failed &&
+        Boolean(prev.asking) === asking
+      ) {
+        return s;
+      }
       return {
         runtime: {
           ...s.runtime,
-          [sessionId]: { running: next.running, failed: next.failed, at: Date.now() },
+          [sessionId]: { running: next.running, failed: next.failed, asking, at: Date.now() },
         },
       };
     }),
@@ -177,6 +190,7 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
         runtime[entry.sessionId] = {
           running: entry.running,
           failed: prev?.failed ?? false,
+          asking: prev?.asking ?? false,
           at: Date.now(),
         };
         changed = true;

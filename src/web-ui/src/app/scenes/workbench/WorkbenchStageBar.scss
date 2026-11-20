@@ -122,3 +122,27 @@
     }
   }
 }
+
+// 状态文字：阶段名 + 「需要你」徽标（琥珀 = 轮到你，规范 §9.6）
+.ai00-x-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  white-space: nowrap;
+
+  &.is-failed &__stage {
+    color: var(--color-danger);
+  }
+
+  &__needs {
+    padding: 0 var(--spacing-1);
+    border: var(--style-stroke-width, 1px) solid var(--color-warning-border);
+    border-radius: var(--radius-full);
+    background-color: var(--color-warning-bg);
+    color: var(--color-warning);
+    font-weight: var(--font-weight-medium);
+  }
+}

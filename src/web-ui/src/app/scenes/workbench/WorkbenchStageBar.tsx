@@ -10,7 +10,7 @@ import React from 'react';
 import { Check, X } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { TaskPhase } from '../tasks/taskPhase';
-import { WORKBENCH_STAGES, stageOf } from './workbenchStage';
+import { WORKBENCH_STAGES, needsYou, stageKeyOf, stageOf } from './workbenchStage';
 import './WorkbenchStageBar.scss';
 
 export interface WorkbenchStageBarProps {
@@ -102,6 +102,39 @@ export const WorkbenchStageDots: React.FC<{ phase: TaskPhase; className?: string
               : 'todo';
         return <span key={stage} className={`ai00-x-stage-dots__dot is-${state}`} />;
       })}
+    </span>
+  );
+};
+
+/**
+ * 状态文字：阶段名（计划 / 执行 / 审核 / 已完成）+ 可选「需要你」徽标。
+ * 列表、看板、头部统一用它，技术状态不直接出 UI 文案（规范 §9.2）。
+ */
+export const WorkbenchStatusTag: React.FC<{
+  phase: TaskPhase;
+  asking?: boolean;
+  /** 只显示「需要你」徽标（看板卡片：列头已表明阶段）。 */
+  hideStage?: boolean;
+  className?: string;
+}> = ({ phase, asking = false, hideStage = false, className }) => {
+  const { t } = useI18n('common');
+  const failed = stageOf(phase).state === 'failed';
+  const attention = needsYou(phase, asking);
+  if (hideStage && !attention) return null;
+  return (
+    <span
+      className={['ai00-x-status-tag', failed ? 'is-failed' : '', className ?? '']
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {!hideStage && (
+        <span className="ai00-x-status-tag__stage">
+          {t(`nav.workbenchWindow.stages.${stageKeyOf(phase)}`)}
+        </span>
+      )}
+      {attention && (
+        <span className="ai00-x-status-tag__needs">{t('nav.workbenchWindow.stages.needsYou')}</span>
+      )}
     </span>
   );
 };

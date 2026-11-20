@@ -176,8 +176,6 @@
 
   &__item-meta {
     flex: 0 0 auto;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
   }
 
   &__empty {
@@ -296,13 +294,6 @@
 
   &__conversation-status {
     flex: 0 0 auto;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
-
-    &.is-awaiting,
-    &.is-failed {
-      color: var(--color-accent);
-    }
   }
 
   &__review-banner {

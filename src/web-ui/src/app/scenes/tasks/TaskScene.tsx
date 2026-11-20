@@ -14,7 +14,11 @@ import { useResizablePane } from '@/hooks/useResizablePane';
 import type { TodoTask, WorkbenchProject } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { WorkbenchChatPanel } from '../workbench/WorkbenchChatPanel';
-import { WorkbenchStageBar, WorkbenchStageDots } from '../workbench/WorkbenchStageBar';
+import {
+  WorkbenchStageBar,
+  WorkbenchStageDots,
+  WorkbenchStatusTag,
+} from '../workbench/WorkbenchStageBar';
 import { WorkbenchReviewPanel } from '../workbench/WorkbenchReviewPanel';
 import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
 import { WorkbenchTabs, type WorkbenchTabItem } from '../workbench/WorkbenchTabs';
@@ -134,6 +138,8 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
       plans[task.id] ?? null,
       task.agentSessionId ? runtime[task.agentSessionId] : undefined,
     );
+  const askingOf = (task: TodoTask): boolean =>
+    Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking);
   /** 快速问答：不展示任何计划相关 UI（计划页/计划条/阶段条/审批）。 */
   const selectedQuick = selectedTask?.executionMode === 'quick';
   /** 选中任务的会话是否在跑（计划步骤标「进行中」用）。 */
@@ -359,9 +365,11 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
               >
                 <span className="ai00-x-task-scene__item-title">{task.title}</span>
                 {task.executionMode !== 'quick' && <WorkbenchStageDots phase={phaseOf(task)} />}
-                <span className="ai00-x-task-scene__item-meta">
-                  {t(`nav.workbenchWindow.tasks.status.${phaseOf(task)}`)}
-                </span>
+                <WorkbenchStatusTag
+                  className="ai00-x-task-scene__item-meta"
+                  phase={phaseOf(task)}
+                  asking={askingOf(task)}
+                />
               </button>
               <TaskActionsMenu
                 task={task}
@@ -428,11 +436,11 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
                             </span>
                           )}
                           <WorkbenchStageBar phase={phaseOf(selectedTask)} size="compact" />
-                          <span
-                            className={`ai00-x-task-scene__conversation-status is-${phaseOf(selectedTask)}`}
-                          >
-                            {t(`nav.workbenchWindow.tasks.status.${phaseOf(selectedTask)}`)}
-                          </span>
+                          <WorkbenchStatusTag
+                            className="ai00-x-task-scene__conversation-status"
+                            phase={phaseOf(selectedTask)}
+                            asking={askingOf(selectedTask)}
+                          />
                         </>
                       }
                     />

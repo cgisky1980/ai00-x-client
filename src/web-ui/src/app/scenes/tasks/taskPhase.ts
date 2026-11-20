@@ -1,5 +1,7 @@
 /**
- * taskPhase — 工作台任务状态推导（看板分组 + 卡片标签）。
+ * taskPhase — 工作台任务技术状态推导（内部映射，不直接出 UI 文案）。
+ *
+ * UI 一律经 `workbenchStage.ts` 的 `stageOf()` / `stageKeyOf()` / `needsYou()` 呈现（规范 §9.2）。
  *
  * 状态真源全部是既有字段（不新增持久化状态）：
  * - 已完成 = `completedAt` 非空（人类验收通过）
@@ -24,17 +26,6 @@ export type TaskPhase =
   | 'awaiting'
   | 'done'
   | 'failed';
-
-/** 看板列顺序。 */
-export const TASK_PHASES: TaskPhase[] = [
-  'planning',
-  'approving',
-  'running',
-  'stopped',
-  'awaiting',
-  'done',
-  'failed',
-];
 
 export function taskPhase(
   task: TodoTask,

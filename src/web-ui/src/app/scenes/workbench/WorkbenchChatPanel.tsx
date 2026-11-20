@@ -113,7 +113,7 @@ interface WorkbenchChatPanelProps {
    * 运行态上报（可选）：会话此刻是否在跑 / 是否出错。工作台默认任务场景用它
    * 把状态递给看板（看板只读，不复用 TodoOverlay 的轮询）。
    */
-  onRuntimeChange?: (runtime: { running: boolean; failed: boolean }) => void;
+  onRuntimeChange?: (runtime: { running: boolean; failed: boolean; asking: boolean }) => void;
   /** 默认 panel=插件右侧栏；conversation=任务主对话区（隐藏通用头部）。 */
   variant?: 'panel' | 'conversation';
   /** 展示层把首轮内部编排任务书替换为用户的原始需求，不改引擎历史。 */
@@ -333,11 +333,12 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     // 仍在推进（主回合或子代理任一在跑）时，回合级报错不升级为任务级「出错」——
     // 否则父回合刚报错、子代理还在跑的任务会在看板上闪「出错」。
     const failed = Boolean(error) && !effectiveRunning;
-    const key = `${effectiveRunning ? 1 : 0}${failed ? 1 : 0}`;
+    const asking = questions.length > 0;
+    const key = `${effectiveRunning ? 1 : 0}${failed ? 1 : 0}${asking ? 1 : 0}`;
     if (key === lastRuntimeRef.current) return;
     lastRuntimeRef.current = key;
-    onRuntimeChangeRef.current({ running: effectiveRunning, failed });
-  }, [taskRunning, error]);
+    onRuntimeChangeRef.current({ running: effectiveRunning, failed, asking });
+  }, [taskRunning, error, questions.length]);
 
   /** 已结算过的「回合起点 + 子会话集合」键：同键不重复结算，换键则替换结果。 */
   const settledKeyRef = useRef<string | null>(null);

@@ -28,7 +28,11 @@ import { taskPhase } from '../tasks/taskPhase';
 import { useSessionRunningSync } from '../tasks/useSessionRunningSync';
 import { dirTail, relativeTime } from '../tasks/display';
 import { WorkbenchChatPanel } from '../workbench/WorkbenchChatPanel';
-import { WorkbenchStageBar, WorkbenchStageDots } from '../workbench/WorkbenchStageBar';
+import {
+  WorkbenchStageBar,
+  WorkbenchStageDots,
+  WorkbenchStatusTag,
+} from '../workbench/WorkbenchStageBar';
 import { WorkbenchTabs, type WorkbenchTabItem } from '../workbench/WorkbenchTabs';
 import { WorkbenchPlanPage } from '../workbench/WorkbenchPlanPage';
 import { WorkbenchFilePreview } from '../workbench/WorkbenchFilePreview';
@@ -503,21 +507,11 @@ export const ProjectsScene: React.FC = () => {
                           )}
                           size="compact"
                         />
-                        <span
-                          className={`ai00-x-projects-scene__status is-${taskPhase(
-                            conversation.task,
-                            null,
-                            runtime[conversation.sessionId],
-                          )}`}
-                        >
-                          {t(
-                            `nav.workbenchWindow.tasks.status.${taskPhase(
-                              conversation.task,
-                              null,
-                              runtime[conversation.sessionId],
-                            )}`,
-                          )}
-                        </span>
+                        <WorkbenchStatusTag
+                          className="ai00-x-projects-scene__status"
+                          phase={taskPhase(conversation.task, null, runtime[conversation.sessionId])}
+                          asking={Boolean(runtime[conversation.sessionId]?.asking)}
+                        />
                       </>
                     }
                   />
@@ -667,15 +661,15 @@ export const ProjectsScene: React.FC = () => {
                       onClick={() => void openConversation(task, selected, null)}
                     >
                       <span className="ai00-x-projects-scene__task-title">{task.title}</span>
-                      <span className="ai00-x-projects-scene__task-meta">
-                        {t(
-                          `nav.workbenchWindow.tasks.status.${taskPhase(
-                            task,
-                            null,
-                            task.agentSessionId ? runtime[task.agentSessionId] : undefined,
-                          )}`,
+                      <WorkbenchStatusTag
+                        className="ai00-x-projects-scene__task-meta"
+                        phase={taskPhase(
+                          task,
+                          null,
+                          task.agentSessionId ? runtime[task.agentSessionId] : undefined,
                         )}
-                      </span>
+                        asking={Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking)}
+                      />
                       <span className="ai00-x-projects-scene__task-time">
                         {relativeTime(task.createdAt)}
                       </span>

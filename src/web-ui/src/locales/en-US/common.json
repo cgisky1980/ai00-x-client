@@ -150,16 +150,7 @@
         "reviewAction": "Review",
         "empty": "No tasks yet",
         "preparing": "Preparing session…",
-        "openFailed": "Failed to open the task session: {{message}}",
-        "status": {
-          "planning": "Planning",
-          "approving": "Awaiting approval",
-          "running": "Running",
-          "stopped": "Stopped",
-          "awaiting": "Awaiting review",
-          "done": "Done",
-          "failed": "Failed"
-        }
+        "openFailed": "Failed to open the task session: {{message}}"
       },
       "projects": {
         "rail": "Projects",
@@ -274,15 +265,6 @@
         "title": "Task board",
         "hasPlan": "Has a plan",
         "columnEmpty": "No tasks",
-        "phases": {
-          "planning": "Planning",
-          "approving": "Awaiting approval",
-          "running": "Running",
-          "stopped": "Stopped",
-          "awaiting": "Awaiting review",
-          "done": "Done",
-          "failed": "Failed"
-        },
         "noSelection": "Pick a card on the left to see its plan and acceptance",
         "filterLabel": "Scope",
         "filterAll": "All",
@@ -310,7 +292,9 @@
         "label": "Task flow",
         "plan": "Plan",
         "execute": "Execute",
-        "review": "Review"
+        "review": "Review",
+        "done": "Done",
+        "needsYou": "Needs you"
       },
       "review": {
         "title": "Awaiting your review",
