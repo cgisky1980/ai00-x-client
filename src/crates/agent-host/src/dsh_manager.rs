@@ -2962,4 +2962,23 @@ mod tests {
         assert!(!rows.contains("toolFilter"));
         assert!(!rows.contains("persona: |-"));
     }
+
+    /// 工人会继承父会话的委派工具行（引擎只对全局工具支持 restrict），
+    /// 所以「禁止派发 + 忽略编排者指令文件 + 收尾自检」只能靠叶子规则兜住。
+    #[test]
+    fn worker_rows_carry_leaf_rules() {
+        let rows = build_worker_rows(&fallback_worker_defs());
+        for needle in ["禁止调用任何委派类工具", "AGENTS.local.md", "收尾自检"] {
+            assert!(rows.contains(needle), "leaf rules missing: {needle}");
+        }
+        // 检索工具保留：deny 列表里不得出现 ai00_search / ai00_web_extract
+        let deny_start = rows.find("deny:\n").expect("deny list must exist");
+        let deny_block = &rows[deny_start..];
+        let deny_block = &deny_block[..deny_block
+            .find("    - id: tool-subagent")
+            .unwrap_or(deny_block.len())];
+        assert!(!deny_block.contains("ai00_search"), "{deny_block}");
+        assert!(!deny_block.contains("ai00_web_extract"), "{deny_block}");
+        assert!(deny_block.contains("ai00_plan_write"), "{deny_block}");
+    }
 }
