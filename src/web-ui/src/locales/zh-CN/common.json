@@ -129,7 +129,7 @@
         "modeQuick": "快速问答",
         "modeQuickHint": "直接回答，不写计划、不派子代理、不生成文件",
         "modeDelivery": "完整交付",
-        "modeDeliveryHint": "规划 → 你审批 → 子代理执行 → 证据验收 → 落文件",
+        "modeDeliveryHint": "规划 → 你批准 → 子代理执行 → 证据验收 → 你验收",
         "modeLabel": "执行模式",
         "requestPlaceholder": "描述你的任务，按 Enter 开始…",
         "flowHint": "先规划 → 执行 → 自检 → 你验收",
@@ -150,7 +150,29 @@
         "reviewAction": "去验收",
         "empty": "还没有任务",
         "preparing": "正在准备会话…",
-        "openFailed": "打开任务会话失败：{{message}}"
+        "openFailed": "打开任务会话失败：{{message}}",
+        "starters": {
+          "bug": {
+            "title": "修一个 bug",
+            "description": "描述现象和复现步骤，Agent 定位并修复",
+            "prompt": "修复这个问题：\n现象：\n复现步骤：\n期望结果："
+          },
+          "feature": {
+            "title": "加一个功能",
+            "description": "说清目标和验收标准，先出计划再动手",
+            "prompt": "实现一个新功能：\n目标：\n验收标准："
+          },
+          "docs": {
+            "title": "写一份文档",
+            "description": "说明读者和范围，产出 Markdown 文件",
+            "prompt": "写一份文档：\n读者：\n要覆盖的内容："
+          },
+          "research": {
+            "title": "做一次调研",
+            "description": "给出问题和约束，产出调研结论",
+            "prompt": "调研这个问题并给出结论：\n问题：\n约束条件："
+          }
+        }
       },
       "projects": {
         "rail": "项目",

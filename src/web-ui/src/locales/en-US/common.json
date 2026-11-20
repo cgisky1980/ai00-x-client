@@ -129,7 +129,7 @@
         "modeQuick": "Quick answer",
         "modeQuickHint": "Answer right in chat — no plan, no subagents, no files",
         "modeDelivery": "Full delivery",
-        "modeDeliveryHint": "Plan → your approval → subagents → evidence gate → files",
+        "modeDeliveryHint": "Plan → you approve → subagents run → evidence check → you accept",
         "modeLabel": "Execution mode",
         "requestPlaceholder": "Describe your task and press Enter to start…",
         "flowHint": "Plan → Execute → Self-check → Your review",
@@ -150,7 +150,29 @@
         "reviewAction": "Review",
         "empty": "No tasks yet",
         "preparing": "Preparing session…",
-        "openFailed": "Failed to open the task session: {{message}}"
+        "openFailed": "Failed to open the task session: {{message}}",
+        "starters": {
+          "bug": {
+            "title": "Fix a bug",
+            "description": "Describe the symptom and repro; the agent locates and fixes it",
+            "prompt": "Fix this issue:\nSymptom:\nSteps to reproduce:\nExpected result:"
+          },
+          "feature": {
+            "title": "Add a feature",
+            "description": "State the goal and acceptance criteria; a plan comes first",
+            "prompt": "Implement a new feature:\nGoal:\nAcceptance criteria:"
+          },
+          "docs": {
+            "title": "Write docs",
+            "description": "Name the audience and scope; outputs a Markdown file",
+            "prompt": "Write a document:\nAudience:\nWhat it should cover:"
+          },
+          "research": {
+            "title": "Research a question",
+            "description": "Give the question and constraints; outputs a conclusion",
+            "prompt": "Research this question and give a conclusion:\nQuestion:\nConstraints:"
+          }
+        }
       },
       "projects": {
         "rail": "Projects",

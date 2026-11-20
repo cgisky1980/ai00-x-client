@@ -10,7 +10,7 @@
  * - 对话：在本场景内直接进入该项目的任务会话（不跳到「任务」工作台）。
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronRight, FileText, FolderOpen, FolderPlus, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, FolderOpen, FolderPlus, Loader2, Trash2 } from 'lucide-react';
 import { Switch } from '@/component-library';
 import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -26,14 +26,8 @@ import { TrunkBranchDialog, type TrunkBranchRequest } from '../tasks/TrunkBranch
 import { taskPhase } from '../tasks/taskPhase';
 import { useSessionRunningSync } from '../tasks/useSessionRunningSync';
 import { dirTail, relativeTime } from '../tasks/display';
-import { WorkbenchChatPanel } from '../workbench/WorkbenchChatPanel';
 import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
-import { WorkbenchTabs, type WorkbenchTabItem } from '../workbench/WorkbenchTabs';
-import { WorkbenchPlanPage } from '../workbench/WorkbenchPlanPage';
-import { WorkbenchFilePreview } from '../workbench/WorkbenchFilePreview';
-import { activeFilePath, useWorkbenchTabs } from '../workbench/useWorkbenchTabs';
-import { useResizablePane } from '@/hooks/useResizablePane';
-import { needsYou } from '../workbench/workbenchStage';
+import { WorkbenchTaskHost } from '../workbench/WorkbenchTaskHost';
 import { ProjectGitBadge } from './ProjectGitBadge';
 import {
   TrunkBranchError,
@@ -62,7 +56,6 @@ export const ProjectsScene: React.FC = () => {
   const createProject = useTodoStore((s) => s.createProject);
   const removeProject = useTodoStore((s) => s.removeProject);
   const updateProject = useTodoStore((s) => s.updateProject);
-  const reportRuntime = useWorkbenchTaskStore((s) => s.reportRuntime);
   const runtime = useWorkbenchTaskStore((s) => s.runtime);
   // 引擎会话运行态校准（最近任务的「执行中/已停止」以真实运行态为准）
   useSessionRunningSync();
@@ -121,49 +114,6 @@ export const ProjectsScene: React.FC = () => {
   );
 
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-
-  // ---- 中间标签区：首页=计划页，其余=文件预览 / 子代理子会话；按任务记忆 ----
-  const tabs = useWorkbenchTabs(conversation?.task.id ?? 'projects-new');
-  const currentPath = activeFilePath(tabs.activeKey);
-  const tabItems = useMemo<WorkbenchTabItem[]>(
-    () => [
-      {
-        key: 'home',
-        kind: 'home',
-        title: t('nav.workbenchWindow.tabs.plan'),
-        icon: <FileText size={13} />,
-      },
-      ...tabs.fileTabs.map((tab) => ({
-        key: tab.key,
-        kind: 'file' as const,
-        title: tab.title,
-        tooltip: tab.path,
-        icon: <FileText size={13} />,
-      })),
-    ],
-    [tabs.fileTabs, t],
-  );
-  /** 对话区宽度（与任务/插件工作台共用记忆键）。 */
-  const chat = useResizablePane({
-    storageKey: 'workbench.chatWidth',
-    defaultWidth: 380,
-    min: 300,
-    max: 640,
-    edge: 'left',
-    label: t('nav.workbenchWindow.resizeChat'),
-  });
-
-  const pickFile = useCallback((): void => {
-    void import('@tauri-apps/plugin-dialog').then(({ open }) =>
-      open({
-        multiple: false,
-        directory: false,
-        title: t('nav.workbenchWindow.tabs.pickFile'),
-      }).then((picked) => {
-        if (typeof picked === 'string') tabs.openFile(picked);
-      }),
-    );
-  }, [tabs, t]);
 
   const openProject = useCallback(async (): Promise<void> => {
     setError(null);
@@ -457,87 +407,32 @@ export const ProjectsScene: React.FC = () => {
             </button>
           </section>
         ) : conversation ? (
-          <div className="ai00-x-projects-scene__row">
-            <div className="ai00-x-projects-scene__stage">
-              <WorkbenchTabs
-                tabs={tabItems}
-                activeKey={tabs.activeKey}
-                onChange={tabs.setActiveKey}
-                onClose={tabs.closeTab}
-                onPickFile={pickFile}
-              >
-                {currentPath ? (
-                  <WorkbenchFilePreview path={currentPath} />
-                ) : (
-                  <WorkbenchPlanPage
-                    task={conversation.task}
-                    planMd={plans[conversation.task.id] ?? null}
-                    onPlanChange={setPlan}
-                    onOpenFile={tabs.openFile}
-                    header={
-                      <>
-                        <button
-                          type="button"
-                          className="ai00-x-projects-scene__back"
-                          onClick={backToOverview}
-                          title={t('nav.workbenchWindow.projects.back')}
-                          aria-label={t('nav.workbenchWindow.projects.back')}
-                        >
-                          <ArrowLeft size={14} />
-                        </button>
-                        <h1 className="ai00-x-projects-scene__title">
-                          {conversation.task.title}
-                        </h1>
-                        <span className="ai00-x-projects-scene__dir" title={selected.dir}>
-                          {selected.name}
-                        </span>
-                        <WorkbenchStatusTag
-                          className="ai00-x-projects-scene__status"
-                          phase={taskPhase(conversation.task, null, runtime[conversation.sessionId])}
-                          asking={Boolean(runtime[conversation.sessionId]?.asking)}
-                        />
-                      </>
-                    }
-                  />
-                )}
-              </WorkbenchTabs>
-            </div>
-            <div
-              className={`ai00-x-projects-scene__chat-resizer${
-                chat.dragging ? ' is-dragging' : ''
-              }`}
-              {...chat.handleProps}
-            />
-            <div className="ai00-x-projects-scene__chat" style={{ width: `${chat.width}px` }}>
-              {error && (
-                <p className="ai00-x-projects-scene__error" role="alert">
-                  {error}
-                </p>
-              )}
-              <WorkbenchChatPanel
-                key={conversation.sessionId}
-                variant="conversation"
-                showWorkspace={false}
-                initialRequest={conversation.task.notes || conversation.task.title}
-                externalSession={{
-                  sessionId: conversation.sessionId,
-                  ...(conversation.cwd ? { cwd: conversation.cwd } : {}),
-                  title: conversation.task.title,
-                }}
-                onRuntimeChange={(state) => reportRuntime(conversation.sessionId, state)}
-                planMd={plans[conversation.task.id] ?? null}
-                planFinished={Boolean(conversation.task.completedAt)}
-                planHosted
-                planNeedsYou={needsYou(
-                  taskPhase(
-                    conversation.task,
-                    plans[conversation.task.id] ?? null,
-                    runtime[conversation.sessionId],
-                  ),
-                )}
-              />
-            </div>
-          </div>
+          <WorkbenchTaskHost
+            key={conversation.task.id}
+            task={allTasks.find((item) => item.id === conversation.task.id) ?? conversation.task}
+            sessionId={conversation.sessionId}
+            cwd={conversation.cwd}
+            planMd={plans[conversation.task.id] ?? null}
+            onPlanChange={setPlan}
+            error={error}
+            title={
+              <>
+                <button
+                  type="button"
+                  className="ai00-x-projects-scene__back"
+                  onClick={backToOverview}
+                  title={t('nav.workbenchWindow.projects.back')}
+                  aria-label={t('nav.workbenchWindow.projects.back')}
+                >
+                  <ArrowLeft size={14} />
+                </button>
+                <h1 className="ai00-x-projects-scene__title">{conversation.task.title}</h1>
+                <span className="ai00-x-projects-scene__dir" title={selected.dir}>
+                  {selected.name}
+                </span>
+              </>
+            }
+          />
         ) : (
           <>
             <header className="ai00-x-projects-scene__head">

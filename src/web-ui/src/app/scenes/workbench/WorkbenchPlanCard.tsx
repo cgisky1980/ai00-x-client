@@ -110,6 +110,26 @@ function labelMentions(label: string | undefined, stepId: string): boolean {
   return new RegExp(`(^|[^0-9A-Za-z_-])${stepId}(?![0-9A-Za-z_-])`).test(label);
 }
 
+/**
+ * 规划中骨架：Skeleton 步骤行 + 一句进度文案（规范 §9.2 空态 / 加载态）。
+ * ink-ripple 只在出现这一刻播一次（分册一白名单 5：AI 开始生成）。
+ * 新建任务提交后也直接渲染它，不再停在 spinner。
+ */
+export const PlanCardGenerating: React.FC = () => {
+  const { t } = useI18n('common');
+  return (
+    <div className="ai00-x-plan-card__generating ds-ink-ripple" role="status" aria-live="polite">
+      <p className="ai00-x-plan-card__generating-text">{t('nav.workbenchWindow.planCard.generating')}</p>
+      {[0, 1, 2].map((row) => (
+        <div key={row} className="ai00-x-plan-card__skeleton-row">
+          <Skeleton className="ai00-x-plan-card__skeleton-dot" />
+          <Skeleton className="ai00-x-plan-card__skeleton-line" />
+        </div>
+      ))}
+    </div>
+  );
+};
+
 interface StepDraft {
   lineIndex: number;
   title: string;
@@ -145,6 +165,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const catalog = useWorkbenchTaskStore((s) => (sessionId ? s.subagentCatalog[sessionId] : undefined));
   const children = useWorkbenchTaskStore((s) => (sessionId ? s.children[sessionId] : undefined));
   const stats = useWorkbenchTaskStore((s) => (sessionId ? s.sessionStats[sessionId] : undefined));
+  const runtimeKnown = useWorkbenchTaskStore((s) => Boolean(sessionId && s.runtime[sessionId]));
   /** exit_plan_mode 审批（与 ai00_plan_write 汇入同一个「待批准」态，规范 §9.6）。 */
   const planReview = useWorkbenchTaskStore((s) => (sessionId ? s.planReviews[sessionId] : undefined));
 
@@ -768,18 +789,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   if (!hasPlan) {
     return (
       <article className="ai00-x-plan-card is-empty">
-        {running ? (
-          <div className="ai00-x-plan-card__generating ds-ink-ripple" role="status" aria-live="polite">
-            <p className="ai00-x-plan-card__generating-text">
-              {t('nav.workbenchWindow.planCard.generating')}
-            </p>
-            {[0, 1, 2].map((row) => (
-              <div key={row} className="ai00-x-plan-card__skeleton-row">
-                <Skeleton className="ai00-x-plan-card__skeleton-dot" />
-                <Skeleton className="ai00-x-plan-card__skeleton-line" />
-              </div>
-            ))}
-          </div>
+        {/* 运行态未知（刚建会话、还没上报）也按规划中处理，避免先闪一下空态 */}
+        {running || !runtimeKnown ? (
+          <PlanCardGenerating />
         ) : (
           <Empty
             title={t('nav.workbenchWindow.planCard.emptyTitle')}
