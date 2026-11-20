@@ -251,8 +251,19 @@ function parseAcceptance(markdown) {
  */
 function extractCmd(item) {
   const m = /\{cmd:\s*(.+?)\}\s*$/.exec(item);
-  if (!m) return null;
-  const cmd = m[1].trim();
+  let cmd = m ? m[1].trim() : "";
+  if (!cmd) {
+    // 裸命令形态：`Acceptance: cargo test`、`验收: test -f hello.txt`
+    // （模型经常不写 {cmd: …} 花括号，结果整条验收掉进人工判据）
+    const bare = item
+      .replace(/^\s*(?:acceptance|verify|verification|验收|验证)\s*[:：]\s*/i, "")
+      .trim();
+    const looksBuiltin = /^(?:test\s+-[fde]\b|\[\s+-[fde]\b)/i.test(bare);
+    // 只接受短 ASCII 命令行：长句/中文说明仍按人工判据处理
+    if (!looksBuiltin && !isCmdAllowed(bare)) return null;
+    if (!bare || bare.length > 120 || !/^[\x20-\x7E]+$/.test(bare)) return null;
+    cmd = bare;
+  }
   // 基本护栏：长度上限 + 拒绝嵌套 shell 展开（防计划文档被注入任意复合命令）
   if (!cmd || cmd.length > 500) return null;
   if (/`|\$\(|&&\s*rm|;\s*rm/.test(cmd)) return null;
