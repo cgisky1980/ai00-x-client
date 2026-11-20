@@ -821,6 +821,19 @@ async fn local_rwkv_sse(
         tools
     };
     let has_tools = has_tools && !rounds_exhausted;
+    // 熔断后必须让失败**显式**：不给工具还不够，3B 模型会继续胡写。
+    // 追加一条收尾指令，要求它输出一行 `BLOCKED: 原因`——编排者据此判定失败、
+    // 按预算升级云端工人，而不是把这坨文本当交付物。
+    let messages = if rounds_exhausted {
+        let mut messages = messages;
+        messages.push(json!({
+            "role": "user",
+            "content": "工具轮数已用尽。不要再调用任何工具，只输出一行：BLOCKED: <一句话说明卡在哪里>",
+        }));
+        messages
+    } else {
+        messages
+    };
     let top_p = body
         .get("top_p")
         .and_then(|v| v.as_f64())
