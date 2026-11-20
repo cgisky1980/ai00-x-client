@@ -32,8 +32,8 @@
 
 import { exec, execFile } from "node:child_process";
 import { statSync } from "node:fs";
-import { stat } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
+import { stat, readFile } from "node:fs/promises";
+import { isAbsolute, join, resolve } from "node:path";
 
 const name = "ai00-x-tools";
 const inject = ["tools"];
@@ -561,7 +561,25 @@ function summarizeEvidence(commands, changedFiles) {
   return parts.join(" · ");
 }
 
-/** 从工作目录取变更清单与 diff（git 不可用时返回空证据，交给 needs-review）。 */
+/** 读文本文件前 N 个字符（读失败/二进制返回 null）。 */
+async function readTextFile(path, maxChars) {
+  try {
+    const info = await stat(path);
+    if (!info.isFile() || info.size > 512 * 1024) return null;
+    const text = await readFile(path, "utf8");
+    if (text.includes("\u0000")) return null;
+    return text.slice(0, maxChars);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 收集 git 证据：是否仓库 / 改动文件 / 可选 diff。
+ *
+ * `status --porcelain` 给改动清单；`git diff HEAD` 给补丁（高风险/严格模式用）。
+ * 未跟踪文件不在 diff 里，单独按内容追加（见 collectGitEvidence 内部注释）。
+ */
 function collectGitEvidence(cwd, paths, includeDiff) {
   return new Promise((resolve) => {
     if (!cwd) {
@@ -597,6 +615,31 @@ function collectGitEvidence(cwd, paths, includeDiff) {
         if (text) {
           diffTruncated = text.length > 12_000;
           diff = text.slice(0, 12_000);
+        }
+        // `git diff HEAD` 不含未跟踪文件：新建的产物恰恰是最需要评审的东西。
+        // 这里把未跟踪文件的内容按上限补进 diff（只读，不改索引）。
+        const untracked = (status ?? "")
+          .split("\n")
+          .filter((line) => line.startsWith("??"))
+          .map((line) => line.slice(3).trim())
+          .filter(Boolean)
+          .slice(0, 5);
+        const parts = [];
+        let budget = 4000;
+        for (const rel of untracked) {
+          if (budget <= 0) break;
+          // 注意：这里**不能**用 path 的 `resolve`——外层 `new Promise((resolve) => …)`
+          // 已经把 `resolve` 遮成 promise 的 resolve，误用会让整个证据对象变成一个字符串。
+          const body = await readTextFile(join(cwd, rel), Math.min(budget, 2000));
+          if (body === null) continue;
+          const block = `--- new file: ${rel} ---\n${body}`;
+          parts.push(block);
+          budget -= block.length;
+        }
+        if (parts.length) {
+          const appended = [diff ?? "", ...parts].filter(Boolean).join("\n");
+          diffTruncated = diffTruncated || appended.length > 12_000;
+          diff = appended.slice(0, 12_000);
         }
       }
       resolve({ repo: true, changedFiles, diff, diffTruncated });
