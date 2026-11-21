@@ -1,6 +1,6 @@
 /**
  * AIToolCard —— 工具调用卡样式（v0.15 AI 系）
- * 卡面：墨面卡 + 细边；状态色仅图标语义用（running=黛青 spinner、ok=success、err=error、ask=warning、cancel=淡墨）。
+ * 卡面：墨面卡 + 细边；状态色仅图标语义用（running=交互色 spinner、ok=success、err=error、ask=warning、cancel=淡墨）。
  */
 .ai-tool-card {
   border: var(--style-stroke-width, 1px) solid var(--border-subtle);

@@ -1,22 +1,18 @@
-/* @ai00-x/design-system standalone — AUTO-GENERATED（tokens + 纸纹 + 动效 + 组件 + 风格包，单文件内联用） */
+/* @ai00-x/design-system standalone — AUTO-GENERATED（tokens + 内置皮肤 + 动效 + 组件，单文件内联用；字体请另行引入） */
 /* ============================================================
  * @ai00-x/design-system tokens — AUTO-GENERATED（pnpm build 产物，勿手改）
- * 源：tokens/{primitives,semantic.dark,semantic.light,aliases}.json（DTCG 2025.10）
- * 规范：参考/前端视觉设计规范.md（总则第二节：token 命名 1:1 直出）
- * 主题：:root 为暗色默认「深墨」；[data-theme-type="light"] 为亮色「宣纸」
- * 换肤：色值内嵌 var(--hue/--chroma/--chroma-surface/--gray-level) 回退公式，
- *       ThemeService 覆盖这些变量即整体换肤（朱砂不联动）
+ * 源：tokens/{primitives,semantic,aliases}.json
+ * 值全部由 --skin-* 种子派生；种子由皮肤给出（css/skins.css 或运行时 <style id="ai00-skin">）。
+ * 规范：参考/前端视觉设计规范.md（v1.0 第二节）
  * ============================================================ */
 :root {
-  color-scheme: dark;
-
-  /* ==== primitives · 刻度与配方 ==== */
-  --size-radius-sm: 6px;
-  --size-radius-base: 8px;
-  --size-radius-lg: 12px;
-  --size-radius-xl: 16px;
-  --size-radius-2xl: 20px;
-  --size-radius-3xl: 28px;
+  /* ==== primitives · 刻度 ==== */
+  --size-radius-sm: var(--skin-radius-sm);
+  --size-radius-base: var(--skin-radius-base);
+  --size-radius-lg: var(--skin-radius-lg);
+  --size-radius-xl: var(--skin-radius-xl);
+  --size-radius-2xl: var(--skin-radius-2xl);
+  --size-radius-3xl: var(--skin-radius-3xl);
   --size-radius-full: 9999px;
   --size-content-chat: 880px;
   --size-gap-1: 4px;
@@ -42,17 +38,20 @@
   --motion-base: 0.3s;
   --motion-slow: 0.6s;
   --motion-lazy: 1s;
+  --motion-press: 90ms;
+  --motion-lift: -2px;
   --easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --easing-decelerate: cubic-bezier(0, 0, 0.2, 1);
   --easing-accelerate: cubic-bezier(0.4, 0, 1, 1);
   --easing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  --easing-brush: cubic-bezier(0.65, 0, 0.35, 1);
+  --easing-brush: cubic-bezier(0.2, 0.8, 0.2, 1);
   --easing-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --easing-ease-in: cubic-bezier(0.4, 0, 1, 1);
   --easing-ease-out: cubic-bezier(0, 0, 0.2, 1);
-  --font-family-sans: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Pro Display', Roboto, sans-serif;
-  --font-family-serif: 'Ai00 X Serif', 'Noto Serif SC', 'Source Han Serif SC', 'STZhongsong', 'Songti SC', 'SimSun', serif;
-  --font-family-mono: 'Fira Code', 'JetBrains Mono', 'SF Mono', Consolas, 'Noto Sans SC', 'Microsoft YaHei', 'Liberation Mono', monospace;
+  --font-family-sans: var(--skin-font-text);
+  --font-family-serif: var(--skin-font-display);
+  --font-family-mono: var(--skin-font-mono);
+  --font-family-display: var(--skin-font-display);
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -98,44 +97,45 @@
   --opacity-hover: 0.8;
   --opacity-focus: 0.9;
   --opacity-overlay: 0.4;
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.9);
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.8);
-  --shadow-base: 0 4px 8px rgba(0, 0, 0, 0.7);
-  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.6);
-  --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.5);
-  --shadow-2xl: 0 16px 32px rgba(0, 0, 0, 0.4);
+  --shadow-xs: 0 1px 2px var(--skin-shadow);
+  --shadow-sm: 0 2px 4px var(--skin-shadow);
+  --shadow-base: 0 4px 10px var(--skin-shadow);
+  --shadow-lg: 0 8px 20px var(--skin-shadow);
+  --shadow-xl: 0 14px 32px var(--skin-shadow);
+  --shadow-2xl: 0 20px 48px var(--skin-shadow);
   --button-height-sm: 32px;
   --button-height-base: 40px;
   --button-height-lg: 48px;
-  --button-shadow-base: 0 2px 8px rgba(96, 165, 250, 0.08);
-  --button-shadow-hover: 0 4px 12px rgba(96, 165, 250, 0.12);
-  --button-shadow-active: 0 1px 4px rgba(96, 165, 250, 0.06);
-  --glow-shadow-blue: 0 12px 32px rgba(96, 165, 250, 0.2), 0 6px 16px rgba(96, 165, 250, 0.12), 0 3px 8px rgba(0, 0, 0, 0.12);
-  --glow-shadow-purple: 0 12px 32px rgba(139, 92, 246, 0.22), 0 6px 16px rgba(124, 58, 237, 0.14), 0 3px 8px rgba(0, 0, 0, 0.12);
-  --glow-shadow-red: 0 8px 20px rgba(239, 68, 68, 0.2), 0 4px 10px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  --glow-shadow-green: 0 8px 20px rgba(52, 211, 153, 0.2), 0 4px 10px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  --glow-shadow-mixed: 0 12px 32px rgba(255, 255, 255, 0.06), 0 6px 16px rgba(139, 92, 246, 0.12), 0 3px 8px rgba(0, 0, 0, 0.12);
-  --inner-glow-top: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --inner-glow-top-hover: inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  --inner-glow-bottom: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
-  --inner-glow-bottom-blue: inset 0 -1px 0 rgba(59, 130, 246, 0.12);
+  --button-shadow-base: none;
+  --button-shadow-hover: 0 2px 8px color-mix(in oklab, var(--skin-accent) 18%, transparent);
+  --button-shadow-active: none;
+  --button-radius: var(--skin-button-radius);
+  --glow-shadow-blue: 0 10px 28px color-mix(in oklab, var(--skin-accent) 22%, transparent), 0 3px 8px var(--skin-shadow);
+  --glow-shadow-purple: 0 10px 28px color-mix(in oklab, var(--skin-mark) 22%, transparent), 0 3px 8px var(--skin-shadow);
+  --glow-shadow-red: 0 8px 20px color-mix(in oklab, var(--skin-error) 22%, transparent), 0 3px 8px var(--skin-shadow);
+  --glow-shadow-green: 0 8px 20px color-mix(in oklab, var(--skin-success) 22%, transparent), 0 3px 8px var(--skin-shadow);
+  --glow-shadow-mixed: 0 10px 28px color-mix(in oklab, var(--skin-mark) 14%, transparent), 0 3px 8px var(--skin-shadow);
+  --inner-glow-top: inset 0 1px 0 color-mix(in oklab, var(--skin-ink) 6%, transparent);
+  --inner-glow-top-hover: inset 0 1px 0 color-mix(in oklab, var(--skin-ink) 14%, transparent);
+  --inner-glow-bottom: inset 0 -1px 0 color-mix(in oklab, var(--skin-ink) 4%, transparent);
+  --inner-glow-bottom-blue: inset 0 -1px 0 color-mix(in oklab, var(--skin-accent) 16%, transparent);
   --blur-subtle: blur(4px) saturate(1.05);
   --blur-base: blur(8px) saturate(1.1);
   --blur-medium: blur(12px) saturate(1.2);
   --blur-strong: blur(16px) saturate(1.3) brightness(1.1);
   --blur-intense: blur(20px) saturate(1.4) brightness(1.15);
-  --glass-base: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(255, 255, 255, 0.03) 100%);
-  --glass-disabled: rgba(255, 255, 255, 0.02);
-  --glass-blue-subtle: rgba(59, 130, 246, 0.08);
-  --glass-blue-base: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.08) 30%, rgba(59, 130, 246, 0.06) 60%, rgba(59, 130, 246, 0.15) 100%);
-  --glass-blue-hover: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.12) 30%, rgba(59, 130, 246, 0.08) 60%, rgba(59, 130, 246, 0.18) 100%);
-  --glass-purple-base: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(139, 92, 246, 0.05) 30%, rgba(139, 92, 246, 0.06) 60%, rgba(139, 92, 246, 0.1) 100%);
-  --glass-purple-hover: linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(124, 58, 237, 0.18) 30%, rgba(196, 181, 253, 0.15) 60%, rgba(139, 92, 246, 0.3) 100%);
-  --glass-red-subtle: rgba(239, 68, 68, 0.05);
-  --glass-red-base: rgba(239, 68, 68, 0.08);
-  --glass-red-hover: rgba(239, 68, 68, 0.15);
-  --glass-green-base: rgba(52, 211, 153, 0.08);
-  --glass-green-hover: rgba(52, 211, 153, 0.15);
+  --glass-base: color-mix(in oklab, var(--skin-ink) 2%, transparent);
+  --glass-disabled: color-mix(in oklab, var(--skin-ink) 2%, transparent);
+  --glass-blue-subtle: color-mix(in oklab, var(--skin-accent) 8%, transparent);
+  --glass-blue-base: color-mix(in oklab, var(--skin-accent) 12%, transparent);
+  --glass-blue-hover: color-mix(in oklab, var(--skin-accent) 18%, transparent);
+  --glass-purple-base: color-mix(in oklab, var(--skin-mark) 10%, transparent);
+  --glass-purple-hover: color-mix(in oklab, var(--skin-mark) 20%, transparent);
+  --glass-red-subtle: color-mix(in oklab, var(--skin-error) 5%, transparent);
+  --glass-red-base: color-mix(in oklab, var(--skin-error) 8%, transparent);
+  --glass-red-hover: color-mix(in oklab, var(--skin-error) 15%, transparent);
+  --glass-green-base: color-mix(in oklab, var(--skin-success) 8%, transparent);
+  --glass-green-hover: color-mix(in oklab, var(--skin-success) 15%, transparent);
   --input-height-sm: 32px;
   --input-height-base: 40px;
   --input-height-lg: 48px;
@@ -144,106 +144,107 @@
   --style-stroke-width: 1px;
   --style-focus-ring: var(--color-accent-400);
 
-  /* ==== semantic · 暗色默认「深墨」（墨阶/黛青/朱砂） ==== */
-  --color-bg-base: oklch(0.27 calc(var(--chroma-surface, 0.012) * 0.5) var(--hue-ink, 240));
-  --color-bg-sunken: oklch(0.31 calc(var(--chroma-surface, 0.012) * 0.55) var(--hue-ink, 240));
-  --color-bg-shell: oklch(0.22 calc(var(--chroma-surface, 0.012) * 0.42) var(--hue-ink, 240));
-  --color-bg-card: oklch(0.35 calc(var(--chroma-surface, 0.012) * 0.67) var(--hue-ink, 240));
-  --color-bg-overlay: oklch(0.40 calc(var(--chroma-surface, 0.012) * 0.75) var(--hue-ink, 240));
-  --color-bg-modal: oklch(0.45 calc(var(--chroma-surface, 0.012) * 0.85) var(--hue-ink, 240));
+  /* ==== semantic · 种子派生 ==== */
+  --color-bg-base: var(--skin-bg);
+  --color-bg-sunken: color-mix(in oklab, var(--skin-bg) 50%, var(--skin-surface));
+  --color-bg-shell: var(--skin-deep);
+  --color-bg-card: var(--skin-surface);
+  --color-bg-overlay: color-mix(in oklab, var(--skin-surface) 50%, var(--skin-high));
+  --color-bg-modal: var(--skin-high);
   --color-bg-primary: var(--color-bg-base);
   --color-bg-secondary: var(--color-bg-sunken);
   --color-bg-tertiary: var(--color-bg-card);
   --color-bg-quaternary: var(--color-bg-overlay);
   --color-bg-elevated: var(--color-bg-modal);
-  --color-bg-workbench: oklch(0.21 calc(var(--chroma-surface, 0.012) * 0.4) var(--hue-ink, 240));
-  --color-bg-scene: oklch(0.32 calc(var(--chroma-surface, 0.012) * 0.6) var(--hue-ink, 240));
+  --color-bg-workbench: color-mix(in oklab, var(--skin-deep) 50%, var(--skin-bg));
+  --color-bg-scene: color-mix(in oklab, var(--skin-bg) 40%, var(--skin-surface));
   --color-bg-flowchat: var(--color-bg-scene);
   --color-bg-tooltip: var(--color-bg-modal);
-  --color-text-primary: oklch(0.92 calc(var(--chroma-surface, 0.012) * 0.33) var(--hue-ink, 240));
-  --color-text-secondary: oklch(0.78 calc(var(--chroma-surface, 0.012) * 0.25) var(--hue-ink, 240));
-  --color-text-muted: oklch(0.64 calc(var(--chroma-surface, 0.012) * 0.06) var(--hue-ink, 240));
-  --color-text-disabled: oklch(0.48 calc(var(--chroma-surface, 0.012) * 0.04) var(--hue-ink, 240));
-  --color-accent-50: oklch(0.96 calc(var(--chroma, 0.12) * 0.05 * (1 - var(--gray-level, 0))) var(--hue, 235));
-  --color-accent-100: oklch(0.92 calc(var(--chroma, 0.12) * 0.12 * (1 - var(--gray-level, 0))) var(--hue, 235));
-  --color-accent-200: oklch(0.85 calc(var(--chroma, 0.12) * 0.28 * (1 - var(--gray-level, 0))) var(--hue, 235));
-  --color-accent-300: oklch(0.78 calc(var(--chroma, 0.12) * 0.50 * (1 - var(--gray-level, 0))) var(--hue, 235));
-  --color-accent-400: oklch(0.72 calc(var(--chroma, 0.12) * 0.72 * (1 - var(--gray-level, 0))) var(--hue, 235));
-  --color-accent-500: oklch(0.70 var(--chroma, 0.12) var(--hue, 235));
-  --color-accent-600: oklch(0.62 var(--chroma, 0.12) var(--hue, 235));
-  --color-accent-700: oklch(0.55 calc(var(--chroma, 0.12) * 0.85) var(--hue, 235));
-  --color-accent-800: oklch(0.48 calc(var(--chroma, 0.12) * 0.70) var(--hue, 235));
-  --color-accent-foreground: oklch(0.97 0.01 90);
-  --color-brand-seal: oklch(0.63 0.19 28);
-  --color-brand-seal-foreground: oklch(0.16 0.01 28);
-  --color-brand-seal-hover: oklch(0.58 0.19 28);
-  --color-purple-50: rgba(139, 92, 246, 0.04);
-  --color-purple-100: rgba(139, 92, 246, 0.08);
-  --color-purple-200: rgba(139, 92, 246, 0.15);
-  --color-purple-300: rgba(139, 92, 246, 0.25);
-  --color-purple-400: rgba(139, 92, 246, 0.4);
-  --color-purple-500: #8b5cf6;
-  --color-purple-600: #7c3aed;
-  --color-purple-700: rgba(124, 58, 237, 0.8);
-  --color-purple-800: rgba(124, 58, 237, 0.9);
-  --color-gray-50: rgba(255, 255, 255, 0.02);
-  --color-gray-100: rgba(255, 255, 255, 0.04);
-  --color-gray-200: rgba(255, 255, 255, 0.06);
-  --color-gray-300: rgba(255, 255, 255, 0.08);
-  --color-gray-400: rgba(255, 255, 255, 0.12);
-  --color-gray-500: rgba(255, 255, 255, 0.16);
-  --color-gray-600: rgba(255, 255, 255, 0.24);
-  --color-gray-700: rgba(255, 255, 255, 0.32);
-  --color-gray-800: rgba(255, 255, 255, 0.48);
-  --color-success-solid: oklch(0.77 0.14 163);
-  --color-success-bg: oklch(0.77 0.14 163 / 0.12);
-  --color-success-border: oklch(0.77 0.14 163 / 0.32);
-  --color-warning-solid: oklch(0.79 0.15 75);
-  --color-warning-bg: oklch(0.79 0.15 75 / 0.12);
-  --color-warning-border: oklch(0.79 0.15 75 / 0.32);
-  --color-error-solid: oklch(0.65 0.21 27);
-  --color-error-bg: oklch(0.65 0.21 27 / 0.12);
-  --color-error-border: oklch(0.65 0.21 27 / 0.32);
-  --color-info-solid: oklch(0.85 0.015 270);
-  --color-info-bg: oklch(0.85 0.015 270 / 0.12);
-  --color-info-border: oklch(0.85 0.015 270 / 0.30);
-  --color-overlay: oklch(0.12 0.003 240 / 0.65);
-  --color-feedback-star: #FFD700;
-  --color-highlight-solid: oklch(0.80 0.012 240);
-  --color-highlight-bg: rgba(255, 255, 255, 0.14);
-  --element-bg-subtle: rgba(255, 255, 255, 0.10);
-  --element-bg-soft: rgba(255, 255, 255, 0.14);
-  --element-bg-base: rgba(255, 255, 255, 0.19);
-  --element-bg-medium: rgba(255, 255, 255, 0.28);
-  --element-bg-strong: rgba(255, 255, 255, 0.36);
-  --element-bg-elevated: rgba(255, 255, 255, 0.23);
-  --border-subtle: rgba(255, 255, 255, 0.26);
-  --border-base: rgba(255, 255, 255, 0.35);
-  --border-medium: rgba(255, 255, 255, 0.46);
-  --border-strong: rgba(255, 255, 255, 0.60);
-  --border-prominent: rgba(255, 255, 255, 0.74);
-  --border-accent-solid: rgba(59, 130, 246, 0.4);
-  --border-accent-soft: rgba(59, 130, 246, 0.3);
-  --border-accent-subtle: rgba(59, 130, 246, 0.15);
-  --border-accent-strong: rgba(59, 130, 246, 0.6);
-  --border-purple-solid: rgba(139, 92, 246, 0.4);
-  --border-purple-subtle: rgba(139, 92, 246, 0.15);
-  --git-color-branch-solid: #a1a1aa;
-  --git-color-branch-bg: rgba(255, 255, 255, 0.06);
-  --git-color-branch-bg-hover: rgba(255, 255, 255, 0.10);
-  --git-color-branch-border: rgba(161, 161, 170, 0.3);
-  --git-color-changes-solid: rgb(245, 158, 11);
-  --git-color-changes-bg: rgba(245, 158, 11, 0.1);
-  --git-color-changes-bg-hover: rgba(245, 158, 11, 0.15);
-  --git-color-changes-border: rgba(245, 158, 11, 0.3);
-  --git-color-staged-solid: rgb(34, 197, 94);
-  --git-color-staged-bg: rgba(34, 197, 94, 0.1);
-  --git-color-staged-bg-hover: rgba(34, 197, 94, 0.15);
-  --git-color-staged-border: rgba(34, 197, 94, 0.3);
-  --git-color-deleted-solid: rgb(239, 68, 68);
-  --git-color-deleted-bg: rgba(239, 68, 68, 0.1);
-  --git-color-deleted-bg-hover: rgba(239, 68, 68, 0.15);
-  --git-color-deleted-border: rgba(239, 68, 68, 0.3);
+  --color-text-primary: var(--skin-ink);
+  --color-text-secondary: color-mix(in oklab, var(--skin-ink) 55%, var(--skin-muted));
+  --color-text-muted: var(--skin-muted);
+  --color-text-disabled: color-mix(in oklab, var(--skin-muted) 55%, var(--skin-bg));
+  --color-accent-50: color-mix(in oklab, var(--skin-mark) 6%, var(--skin-bg));
+  --color-accent-100: color-mix(in oklab, var(--skin-mark) 12%, var(--skin-bg));
+  --color-accent-200: color-mix(in oklab, var(--skin-mark) 22%, var(--skin-bg));
+  --color-accent-300: color-mix(in oklab, var(--skin-accent) 50%, var(--skin-bg));
+  --color-accent-400: color-mix(in oklab, var(--skin-accent) 85%, var(--skin-ink));
+  --color-accent-500: var(--skin-accent);
+  --color-accent-600: color-mix(in oklab, var(--skin-accent) 82%, var(--skin-bg));
+  --color-accent-700: color-mix(in oklab, var(--skin-accent) 70%, var(--skin-bg));
+  --color-accent-800: color-mix(in oklab, var(--skin-accent) 58%, var(--skin-bg));
+  --color-accent-foreground: var(--skin-accent-ink);
+  --color-brand-seal: var(--skin-mark);
+  --color-brand-seal-foreground: var(--skin-mark-ink);
+  --color-brand-seal-hover: color-mix(in oklab, var(--skin-mark) 85%, var(--skin-ink));
+  --color-brand-glyph: var(--skin-signature);
+  --color-purple-50: color-mix(in oklab, var(--skin-info) 4%, transparent);
+  --color-purple-100: color-mix(in oklab, var(--skin-info) 8%, transparent);
+  --color-purple-200: color-mix(in oklab, var(--skin-info) 15%, transparent);
+  --color-purple-300: color-mix(in oklab, var(--skin-info) 25%, transparent);
+  --color-purple-400: color-mix(in oklab, var(--skin-info) 40%, transparent);
+  --color-purple-500: var(--skin-info);
+  --color-purple-600: color-mix(in oklab, var(--skin-info) 85%, var(--skin-ink));
+  --color-purple-700: color-mix(in oklab, var(--skin-info) 80%, transparent);
+  --color-purple-800: color-mix(in oklab, var(--skin-info) 90%, transparent);
+  --color-gray-50: color-mix(in oklab, var(--skin-ink) 2%, transparent);
+  --color-gray-100: color-mix(in oklab, var(--skin-ink) 4%, transparent);
+  --color-gray-200: color-mix(in oklab, var(--skin-ink) 6%, transparent);
+  --color-gray-300: color-mix(in oklab, var(--skin-ink) 8%, transparent);
+  --color-gray-400: color-mix(in oklab, var(--skin-ink) 12%, transparent);
+  --color-gray-500: color-mix(in oklab, var(--skin-ink) 16%, transparent);
+  --color-gray-600: color-mix(in oklab, var(--skin-ink) 24%, transparent);
+  --color-gray-700: color-mix(in oklab, var(--skin-ink) 32%, transparent);
+  --color-gray-800: color-mix(in oklab, var(--skin-ink) 48%, transparent);
+  --color-success-solid: var(--skin-success);
+  --color-success-bg: color-mix(in oklab, var(--skin-success) 12%, transparent);
+  --color-success-border: color-mix(in oklab, var(--skin-success) 32%, transparent);
+  --color-warning-solid: var(--skin-warning);
+  --color-warning-bg: color-mix(in oklab, var(--skin-warning) 12%, transparent);
+  --color-warning-border: color-mix(in oklab, var(--skin-warning) 32%, transparent);
+  --color-error-solid: var(--skin-error);
+  --color-error-bg: color-mix(in oklab, var(--skin-error) 12%, transparent);
+  --color-error-border: color-mix(in oklab, var(--skin-error) 32%, transparent);
+  --color-info-solid: var(--skin-info);
+  --color-info-bg: color-mix(in oklab, var(--skin-info) 12%, transparent);
+  --color-info-border: color-mix(in oklab, var(--skin-info) 32%, transparent);
+  --color-overlay: var(--skin-scrim);
+  --color-feedback-star: var(--skin-warning);
+  --color-highlight-solid: color-mix(in oklab, var(--skin-ink) 70%, var(--skin-muted));
+  --color-highlight-bg: color-mix(in oklab, var(--skin-mark) 28%, transparent);
+  --element-bg-subtle: color-mix(in oklab, var(--skin-ink) 4%, transparent);
+  --element-bg-soft: color-mix(in oklab, var(--skin-ink) 6%, transparent);
+  --element-bg-base: color-mix(in oklab, var(--skin-ink) 8%, transparent);
+  --element-bg-medium: color-mix(in oklab, var(--skin-ink) 12%, transparent);
+  --element-bg-strong: color-mix(in oklab, var(--skin-ink) 17%, transparent);
+  --element-bg-elevated: color-mix(in oklab, var(--skin-ink) 7%, transparent);
+  --border-subtle: color-mix(in oklab, var(--skin-ink) 9%, transparent);
+  --border-base: color-mix(in oklab, var(--skin-ink) 14%, transparent);
+  --border-medium: color-mix(in oklab, var(--skin-ink) 22%, transparent);
+  --border-strong: color-mix(in oklab, var(--skin-ink) 32%, transparent);
+  --border-prominent: color-mix(in oklab, var(--skin-ink) 48%, transparent);
+  --border-accent-solid: color-mix(in oklab, var(--skin-accent) 45%, transparent);
+  --border-accent-soft: color-mix(in oklab, var(--skin-accent) 32%, transparent);
+  --border-accent-subtle: color-mix(in oklab, var(--skin-accent) 16%, transparent);
+  --border-accent-strong: color-mix(in oklab, var(--skin-accent) 65%, transparent);
+  --border-purple-solid: color-mix(in oklab, var(--skin-info) 40%, transparent);
+  --border-purple-subtle: color-mix(in oklab, var(--skin-info) 16%, transparent);
+  --git-color-branch-solid: var(--skin-muted);
+  --git-color-branch-bg: color-mix(in oklab, var(--skin-muted) 10%, transparent);
+  --git-color-branch-bg-hover: color-mix(in oklab, var(--skin-muted) 16%, transparent);
+  --git-color-branch-border: color-mix(in oklab, var(--skin-muted) 30%, transparent);
+  --git-color-changes-solid: var(--skin-warning);
+  --git-color-changes-bg: color-mix(in oklab, var(--skin-warning) 10%, transparent);
+  --git-color-changes-bg-hover: color-mix(in oklab, var(--skin-warning) 16%, transparent);
+  --git-color-changes-border: color-mix(in oklab, var(--skin-warning) 30%, transparent);
+  --git-color-staged-solid: var(--skin-success);
+  --git-color-staged-bg: color-mix(in oklab, var(--skin-success) 10%, transparent);
+  --git-color-staged-bg-hover: color-mix(in oklab, var(--skin-success) 16%, transparent);
+  --git-color-staged-border: color-mix(in oklab, var(--skin-success) 30%, transparent);
+  --git-color-deleted-solid: var(--skin-error);
+  --git-color-deleted-bg: color-mix(in oklab, var(--skin-error) 10%, transparent);
+  --git-color-deleted-bg-hover: color-mix(in oklab, var(--skin-error) 16%, transparent);
+  --git-color-deleted-border: color-mix(in oklab, var(--skin-error) 30%, transparent);
   --badge-border-radius: var(--size-radius-sm);
   --badge-padding-x: var(--size-gap-2);
   --badge-padding-y: 2px;
@@ -251,8 +252,8 @@
   --badge-font-weight: var(--font-weight-medium);
   --badge-neutral-bg: var(--element-bg-base);
   --badge-neutral-text: var(--color-text-secondary);
-  --badge-accent-bg: var(--color-accent-200);
-  --badge-accent-text: var(--color-accent-500);
+  --badge-accent-bg: color-mix(in oklab, var(--skin-mark) 22%, transparent);
+  --badge-accent-text: color-mix(in oklab, var(--skin-ink) 30%, var(--skin-accent));
   --badge-purple-bg: var(--color-purple-200);
   --badge-purple-text: var(--color-purple-500);
   --badge-success-bg: var(--color-success-bg);
@@ -263,27 +264,27 @@
   --badge-error-text: var(--color-error);
   --badge-info-bg: var(--color-info-bg);
   --badge-info-text: var(--color-info);
-  --card-bg-default: rgba(255, 255, 255, 0.16);
-  --card-bg-elevated: rgba(255, 255, 255, 0.20);
-  --card-bg-subtle: rgba(255, 255, 255, 0.09);
-  --card-bg-hover: rgba(255, 255, 255, 0.24);
-  --card-bg-active: rgba(255, 255, 255, 0.32);
-  --card-bg-accent: rgba(152, 164, 255, 0.22);
-  --card-bg-accent-hover: rgba(152, 164, 255, 0.32);
-  --card-bg-purple: rgba(139, 92, 246, 0.18);
-  --card-bg-purple-hover: rgba(139, 92, 246, 0.26);
-  --modal-bg: var(--color-bg-elevated);
+  --card-bg-default: var(--skin-surface);
+  --card-bg-elevated: color-mix(in oklab, var(--skin-surface) 50%, var(--skin-high));
+  --card-bg-subtle: color-mix(in oklab, var(--skin-bg) 50%, var(--skin-surface));
+  --card-bg-hover: color-mix(in oklab, var(--skin-surface) 94%, var(--skin-ink));
+  --card-bg-active: color-mix(in oklab, var(--skin-surface) 90%, var(--skin-ink));
+  --card-bg-accent: color-mix(in oklab, var(--skin-mark) 14%, var(--skin-surface));
+  --card-bg-accent-hover: color-mix(in oklab, var(--skin-mark) 22%, var(--skin-surface));
+  --card-bg-purple: color-mix(in oklab, var(--skin-info) 12%, var(--skin-surface));
+  --card-bg-purple-hover: color-mix(in oklab, var(--skin-info) 18%, var(--skin-surface));
+  --modal-bg: var(--color-bg-modal);
   --modal-border: var(--border-medium);
-  --modal-overlay: rgba(0, 0, 0, 0.78);
-  --nav-bg: var(--color-bg-secondary);
+  --modal-overlay: var(--skin-scrim);
+  --nav-bg: var(--color-bg-sunken);
   --nav-item-bg-hover: var(--element-bg-base);
   --nav-item-bg-active: var(--element-bg-medium);
   --nav-item-text: var(--color-text-secondary);
   --nav-item-text-active: var(--color-text-primary);
-  --panel-bg: var(--color-bg-primary);
-  --panel-header-bg: var(--color-bg-secondary);
+  --panel-bg: var(--color-bg-base);
+  --panel-header-bg: var(--color-bg-sunken);
   --panel-border: var(--border-base);
-  --tooltip-bg: var(--color-bg-elevated);
+  --tooltip-bg: var(--color-bg-tooltip);
   --tooltip-border: var(--border-medium);
   --tooltip-text: var(--color-text-primary);
   --tool-card-bg-primary: var(--element-bg-base);
@@ -295,21 +296,21 @@
   --tool-card-text-primary: var(--color-text-primary);
   --tool-card-text-secondary: var(--color-text-secondary);
   --tool-card-text-muted: var(--color-text-muted);
-  --input-bg: var(--element-bg-base);
-  --input-bg-hover: var(--element-bg-medium);
-  --input-bg-focus: var(--element-bg-soft);
-  --input-bg-disabled: var(--element-bg-subtle);
+  --input-bg: color-mix(in oklab, var(--skin-bg) 70%, var(--skin-surface));
+  --input-bg-hover: color-mix(in oklab, var(--skin-bg) 50%, var(--skin-surface));
+  --input-bg-focus: var(--skin-bg);
+  --input-bg-disabled: color-mix(in oklab, var(--skin-ink) 4%, transparent);
   --input-border: var(--border-base);
   --input-border-hover: var(--border-medium);
   --input-border-focus: var(--color-accent-400);
   --input-border-error: var(--color-error);
   --input-text: var(--color-text-primary);
-  --input-placeholder: color-mix(in srgb, var(--color-text-muted) 40%, var(--color-bg-primary));
-  --scrollbar-thumb: rgba(255, 255, 255, 0.22);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.38);
+  --input-placeholder: color-mix(in oklab, var(--skin-muted) 75%, var(--skin-bg));
+  --scrollbar-thumb: color-mix(in oklab, var(--skin-ink) 20%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--skin-ink) 34%, transparent);
   --scene-viewport-border-width: 1px;
 
-  /* ==== alias · 兼容名与跨引用（key 即完整变量名） ==== */
+  /* ==== alias · 兼容名 ==== */
   --color-primary: var(--color-accent-500);
   --color-primary-hover: var(--color-accent-600);
   --color-accent: var(--color-accent-500);
@@ -386,307 +387,277 @@
   --nav-font-size-5xl: var(--font-size-5xl);
 }
 
-/* ---------- 亮色主题「宣纸」：[data-theme-type="light"] 覆盖（变量名与暗色一一对应；ThemeService 挂 data-theme-type 于 html） ---------- */
-html[data-theme-type='light'] {
+/* ============================================================
+ * @ai00-x/design-system 内置皮肤 — AUTO-GENERATED（勿手改）
+ * 源：skins/*.ai00skin.json（taste-skill 发牌生成）｜ 默认：soot-lime
+ * html[data-skin=<id>] = 暗色档；再加 [data-theme-type='light'] = 亮色档
+ * ============================================================ */
+/* ---- 煤黑青柠（soot-lime） ---- */
+:where(:root), html[data-skin='soot-lime'] {
+  color-scheme: dark;
+  --skin-bg: #0f0f0f;
+  --skin-surface: #1a1a1a;
+  --skin-ink: #ffffff;
+  --skin-muted: #8f8f8f;
+  --skin-accent: #dafa9c;
+  --skin-accent-ink: #0f0f0f;
+  --skin-mark: #dafa9c;
+  --skin-mark-ink: #0f0f0f;
+  --skin-signature: #dafa9c;
+  --skin-success: #4ade80;
+  --skin-warning: #fbbf24;
+  --skin-error: #f87171;
+  --skin-info: #7dd3fc;
+  --skin-deep: #080808;
+  --skin-high: #282828;
+  --skin-scrim: #080808c7;
+  --skin-shadow: #00000080;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 4px;
+  --skin-radius-sm: 3px;
+  --skin-radius-base: 4px;
+  --skin-radius-lg: 6px;
+  --skin-radius-xl: 8px;
+  --skin-radius-2xl: 10px;
+  --skin-radius-3xl: 14px;
+}
+:where(:root)[data-theme-type='light'],
+html[data-skin='soot-lime'][data-theme-type='light'] {
   color-scheme: light;
+  --skin-bg: #ffffff;
+  --skin-surface: #ececec;
+  --skin-ink: #0f0f0f;
+  --skin-muted: #5f5f5f;
+  --skin-accent: #0f0f0f;
+  --skin-accent-ink: #ffffff;
+  --skin-mark: #dafa9c;
+  --skin-mark-ink: #0f0f0f;
+  --skin-signature: #0f0f0f;
+  --skin-success: #15803d;
+  --skin-warning: #a16207;
+  --skin-error: #b91c1c;
+  --skin-info: #0369a1;
+  --skin-deep: #eeeeee;
+  --skin-high: #fcfcfc;
+  --skin-scrim: #0f0f0f59;
+  --skin-shadow: #0f0f0f1f;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 4px;
+  --skin-radius-sm: 3px;
+  --skin-radius-base: 4px;
+  --skin-radius-lg: 6px;
+  --skin-radius-xl: 8px;
+  --skin-radius-2xl: 10px;
+  --skin-radius-3xl: 14px;
+}
 
-  /* ==== semantic · 亮色·宣纸（规范分册一 10.6） ==== */
-  --color-bg-base: oklch(0.96 0.008 90);
-  --color-bg-sunken: oklch(0.93 0.010 90);
-  --color-bg-shell: oklch(0.88 0.010 90);
-  --color-bg-card: oklch(0.99 0.004 90);
-  --color-bg-overlay: oklch(1.00 0 0);
-  --color-bg-modal: oklch(1.00 0 0);
-  --color-bg-primary: var(--color-bg-base);
-  --color-bg-secondary: var(--color-bg-sunken);
-  --color-bg-tertiary: var(--color-bg-card);
-  --color-bg-quaternary: var(--color-bg-overlay);
-  --color-bg-elevated: var(--color-bg-modal);
-  --color-bg-workbench: oklch(0.945 0.009 90);
-  --color-bg-scene: oklch(0.94 0.010 90);
-  --color-bg-flowchat: var(--color-bg-scene);
-  --color-bg-tooltip: oklch(0.995 0.003 90);
-  --color-text-primary: oklch(0.20 0.010 90);
-  --color-text-secondary: oklch(0.37 0.012 90);
-  --color-text-muted: oklch(0.52 0.012 90);
-  --color-text-disabled: oklch(0.64 0.010 90);
-  --color-accent-50: oklch(0.95 calc(var(--chroma, 0.11) * 0.05) var(--hue, 235));
-  --color-accent-100: oklch(0.90 calc(var(--chroma, 0.11) * 0.12) var(--hue, 235));
-  --color-accent-200: oklch(0.82 calc(var(--chroma, 0.11) * 0.28) var(--hue, 235));
-  --color-accent-300: oklch(0.72 calc(var(--chroma, 0.11) * 0.55) var(--hue, 235));
-  --color-accent-400: oklch(0.63 calc(var(--chroma, 0.11) * 0.78) var(--hue, 235));
-  --color-accent-500: oklch(0.55 var(--chroma, 0.11) var(--hue, 235));
-  --color-accent-600: oklch(0.48 var(--chroma, 0.11) var(--hue, 235));
-  --color-accent-700: oklch(0.42 calc(var(--chroma, 0.11) * 0.85) var(--hue, 235));
-  --color-accent-800: oklch(0.38 calc(var(--chroma, 0.11) * 0.70) var(--hue, 235));
-  --color-accent-foreground: oklch(0.97 0.01 90);
-  --color-brand-seal: oklch(0.45 0.17 28);
-  --color-brand-seal-foreground: oklch(0.96 0.02 90);
-  --color-brand-seal-hover: oklch(0.40 0.17 28);
-  --color-purple-50: rgba(109, 76, 192, 0.04);
-  --color-purple-100: rgba(109, 76, 192, 0.08);
-  --color-purple-200: rgba(109, 76, 192, 0.14);
-  --color-purple-300: rgba(109, 76, 192, 0.22);
-  --color-purple-400: rgba(109, 76, 192, 0.35);
-  --color-purple-500: #6d4cc0;
-  --color-purple-600: #5b3fa8;
-  --color-purple-700: rgba(91, 63, 168, 0.8);
-  --color-purple-800: rgba(91, 63, 168, 0.9);
-  --color-gray-50: rgba(28, 25, 20, 0.02);
-  --color-gray-100: rgba(28, 25, 20, 0.04);
-  --color-gray-200: rgba(28, 25, 20, 0.06);
-  --color-gray-300: rgba(28, 25, 20, 0.08);
-  --color-gray-400: rgba(28, 25, 20, 0.12);
-  --color-gray-500: rgba(28, 25, 20, 0.16);
-  --color-gray-600: rgba(28, 25, 20, 0.24);
-  --color-gray-700: rgba(28, 25, 20, 0.32);
-  --color-gray-800: rgba(28, 25, 20, 0.48);
-  --color-success-solid: oklch(0.55 0.12 163);
-  --color-success-bg: oklch(0.55 0.12 163 / 0.10);
-  --color-success-border: oklch(0.55 0.12 163 / 0.30);
-  --color-warning-solid: oklch(0.60 0.13 75);
-  --color-warning-bg: oklch(0.60 0.13 75 / 0.10);
-  --color-warning-border: oklch(0.60 0.13 75 / 0.30);
-  --color-error-solid: oklch(0.50 0.19 27);
-  --color-error-bg: oklch(0.50 0.19 27 / 0.10);
-  --color-error-border: oklch(0.50 0.19 27 / 0.30);
-  --color-info-solid: oklch(0.42 0.02 270);
-  --color-info-bg: oklch(0.42 0.02 270 / 0.08);
-  --color-info-border: oklch(0.42 0.02 270 / 0.24);
-  --color-overlay: oklch(0.30 0.01 90 / 0.35);
-  --color-feedback-star: #E5B800;
-  --color-highlight-solid: oklch(0.40 0.012 90);
-  --color-highlight-bg: rgba(28, 25, 20, 0.08);
-  --element-bg-subtle: rgba(28, 25, 20, 0.04);
-  --element-bg-soft: rgba(28, 25, 20, 0.06);
-  --element-bg-base: rgba(28, 25, 20, 0.08);
-  --element-bg-medium: rgba(28, 25, 20, 0.12);
-  --element-bg-strong: rgba(28, 25, 20, 0.16);
-  --element-bg-elevated: rgba(28, 25, 20, 0.06);
-  --border-subtle: rgba(28, 25, 20, 0.10);
-  --border-base: rgba(28, 25, 20, 0.16);
-  --border-medium: rgba(28, 25, 20, 0.24);
-  --border-strong: rgba(28, 25, 20, 0.36);
-  --border-prominent: rgba(28, 25, 20, 0.50);
-  --border-accent-solid: oklch(0.55 0.11 235 / 0.40);
-  --border-accent-soft: oklch(0.55 0.11 235 / 0.30);
-  --border-accent-subtle: oklch(0.55 0.11 235 / 0.15);
-  --border-accent-strong: oklch(0.55 0.11 235 / 0.55);
-  --border-purple-solid: rgba(109, 76, 192, 0.4);
-  --border-purple-subtle: rgba(109, 76, 192, 0.18);
-  --git-color-branch-solid: #6b7280;
-  --git-color-branch-bg: rgba(28, 25, 20, 0.05);
-  --git-color-branch-bg-hover: rgba(28, 25, 20, 0.08);
-  --git-color-branch-border: rgba(107, 114, 128, 0.3);
-  --git-color-changes-solid: #b45309;
-  --git-color-changes-bg: rgba(180, 83, 9, 0.08);
-  --git-color-changes-bg-hover: rgba(180, 83, 9, 0.13);
-  --git-color-changes-border: rgba(180, 83, 9, 0.3);
-  --git-color-staged-solid: #15803d;
-  --git-color-staged-bg: rgba(21, 128, 61, 0.08);
-  --git-color-staged-bg-hover: rgba(21, 128, 61, 0.13);
-  --git-color-staged-border: rgba(21, 128, 61, 0.3);
-  --git-color-deleted-solid: #b91c1c;
-  --git-color-deleted-bg: rgba(185, 28, 28, 0.08);
-  --git-color-deleted-bg-hover: rgba(185, 28, 28, 0.13);
-  --git-color-deleted-border: rgba(185, 28, 28, 0.3);
-  --badge-border-radius: var(--size-radius-sm);
-  --badge-padding-x: var(--size-gap-2);
-  --badge-padding-y: 2px;
-  --badge-font-size: var(--font-size-xs);
-  --badge-font-weight: var(--font-weight-medium);
-  --badge-neutral-bg: var(--element-bg-base);
-  --badge-neutral-text: var(--color-text-secondary);
-  --badge-accent-bg: oklch(0.55 0.11 235 / 0.10);
-  --badge-accent-text: var(--color-accent-600);
-  --badge-purple-bg: rgba(109, 76, 192, 0.10);
-  --badge-purple-text: var(--color-purple-600);
-  --badge-success-bg: var(--color-success-bg);
-  --badge-success-text: var(--color-success);
-  --badge-warning-bg: var(--color-warning-bg);
-  --badge-warning-text: var(--color-warning);
-  --badge-error-bg: var(--color-error-bg);
-  --badge-error-text: var(--color-error);
-  --badge-info-bg: var(--color-info-bg);
-  --badge-info-text: var(--color-info);
-  --card-bg-default: rgba(255, 255, 255, 0.72);
-  --card-bg-elevated: rgba(255, 255, 255, 0.88);
-  --card-bg-subtle: rgba(255, 255, 255, 0.45);
-  --card-bg-hover: rgba(255, 255, 255, 0.85);
-  --card-bg-active: rgba(255, 255, 255, 0.95);
-  --card-bg-accent: oklch(0.55 0.11 235 / 0.10);
-  --card-bg-accent-hover: oklch(0.55 0.11 235 / 0.16);
-  --card-bg-purple: rgba(109, 76, 192, 0.08);
-  --card-bg-purple-hover: rgba(109, 76, 192, 0.14);
-  --modal-bg: var(--color-bg-modal);
-  --modal-border: var(--border-medium);
-  --modal-overlay: oklch(0.30 0.01 90 / 0.40);
-  --nav-bg: var(--color-bg-sunken);
-  --nav-item-bg-hover: var(--element-bg-base);
-  --nav-item-bg-active: var(--element-bg-medium);
-  --nav-item-text: var(--color-text-secondary);
-  --nav-item-text-active: var(--color-text-primary);
-  --panel-bg: var(--color-bg-base);
-  --panel-header-bg: var(--color-bg-sunken);
-  --panel-border: var(--border-base);
-  --tooltip-bg: var(--color-bg-tooltip);
-  --tooltip-border: var(--border-medium);
-  --tooltip-text: var(--color-text-primary);
-  --tool-card-bg-primary: var(--element-bg-base);
-  --tool-card-bg-secondary: var(--element-bg-soft);
-  --tool-card-bg-hover: var(--element-bg-medium);
-  --tool-card-bg-elevated: var(--element-bg-elevated);
-  --tool-card-border: var(--border-base);
-  --tool-card-border-subtle: var(--border-subtle);
-  --tool-card-text-primary: var(--color-text-primary);
-  --tool-card-text-secondary: var(--color-text-secondary);
-  --tool-card-text-muted: var(--color-text-muted);
-  --input-bg: rgba(255, 255, 255, 0.60);
-  --input-bg-hover: rgba(255, 255, 255, 0.80);
-  --input-bg-focus: rgba(255, 255, 255, 0.70);
-  --input-bg-disabled: rgba(28, 25, 20, 0.04);
-  --input-border: var(--border-base);
-  --input-border-hover: var(--border-medium);
-  --input-border-focus: var(--color-accent-400);
-  --input-border-error: var(--color-error);
-  --input-text: var(--color-text-primary);
-  --input-placeholder: color-mix(in srgb, var(--color-text-muted) 45%, var(--color-bg-primary));
-  --scrollbar-thumb: rgba(28, 25, 20, 0.18);
-  --scrollbar-thumb-hover: rgba(28, 25, 20, 0.32);
-  --scene-viewport-border-width: 1px;
+/* ---- 石墨信号橙（graphite-orange） ---- */
+html[data-skin='graphite-orange'] {
+  color-scheme: dark;
+  --skin-bg: #18191b;
+  --skin-surface: #222427;
+  --skin-ink: #eff0f1;
+  --skin-muted: #9c9ea3;
+  --skin-accent: #ff4a1f;
+  --skin-accent-ink: #18191b;
+  --skin-mark: #ff4a1f;
+  --skin-mark-ink: #18191b;
+  --skin-signature: #ff4a1f;
+  --skin-success: #4ade80;
+  --skin-warning: #fbbf24;
+  --skin-error: #f87171;
+  --skin-info: #7dd3fc;
+  --skin-deep: #101113;
+  --skin-high: #313336;
+  --skin-scrim: #101113c7;
+  --skin-shadow: #00000080;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 8px;
+  --skin-radius-sm: 6px;
+  --skin-radius-base: 8px;
+  --skin-radius-lg: 12px;
+  --skin-radius-xl: 16px;
+  --skin-radius-2xl: 20px;
+  --skin-radius-3xl: 28px;
+}
+html[data-skin='graphite-orange'][data-theme-type='light'] {
+  color-scheme: light;
+  --skin-bg: #eff0f1;
+  --skin-surface: #dedfe0;
+  --skin-ink: #18191b;
+  --skin-muted: #5b5c5e;
+  --skin-accent: #18191b;
+  --skin-accent-ink: #eff0f1;
+  --skin-mark: #ff4a1f;
+  --skin-mark-ink: #18191b;
+  --skin-signature: #18191b;
+  --skin-success: #15803d;
+  --skin-warning: #a16207;
+  --skin-error: #b91c1c;
+  --skin-info: #0369a1;
+  --skin-deep: #dfdfe0;
+  --skin-high: #fafafa;
+  --skin-scrim: #18191b59;
+  --skin-shadow: #18191b1f;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 8px;
+  --skin-radius-sm: 6px;
+  --skin-radius-base: 8px;
+  --skin-radius-lg: 12px;
+  --skin-radius-xl: 16px;
+  --skin-radius-2xl: 20px;
+  --skin-radius-3xl: 28px;
+}
+
+/* ---- 纸上青（teal-paper） ---- */
+html[data-skin='teal-paper'] {
+  color-scheme: dark;
+  --skin-bg: #06525c;
+  --skin-surface: #205d66;
+  --skin-ink: #f7f9f8;
+  --skin-muted: #c1d0d2;
+  --skin-accent: #f7f9f8;
+  --skin-accent-ink: #06525c;
+  --skin-mark: #f7f9f8;
+  --skin-mark-ink: #06525c;
+  --skin-signature: #f7f9f8;
+  --skin-success: #4ade80;
+  --skin-warning: #fbbf24;
+  --skin-error: #f87171;
+  --skin-info: #7dd3fc;
+  --skin-deep: #064850;
+  --skin-high: #336e77;
+  --skin-scrim: #064850c7;
+  --skin-shadow: #00000080;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 10px;
+  --skin-radius-sm: 8px;
+  --skin-radius-base: 10px;
+  --skin-radius-lg: 16px;
+  --skin-radius-xl: 20px;
+  --skin-radius-2xl: 24px;
+  --skin-radius-3xl: 32px;
+}
+html[data-skin='teal-paper'][data-theme-type='light'] {
+  color-scheme: light;
+  --skin-bg: #f7f9f8;
+  --skin-surface: #ebf0ee;
+  --skin-ink: #06525c;
+  --skin-muted: #2f737d;
+  --skin-accent: #06525c;
+  --skin-accent-ink: #f7f9f8;
+  --skin-mark: #06525c;
+  --skin-mark-ink: #f7f9f8;
+  --skin-signature: #06525c;
+  --skin-success: #15803d;
+  --skin-warning: #a16207;
+  --skin-error: #b91c1c;
+  --skin-info: #0369a1;
+  --skin-deep: #e6e8e7;
+  --skin-high: #fcfdfc;
+  --skin-scrim: #06525c59;
+  --skin-shadow: #06525c1f;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 10px;
+  --skin-radius-sm: 8px;
+  --skin-radius-base: 10px;
+  --skin-radius-lg: 16px;
+  --skin-radius-xl: 20px;
+  --skin-radius-2xl: 24px;
+  --skin-radius-3xl: 32px;
 }
 
 /* ============================================================
- * @ai00-x/design-system · 签名纹理「宣纸颗粒」（规范 2.3）
- * 手写文件（非构建产物）。远看纯色，近看有材质。
- * 实现：SVG feTurbulence 灰度噪声 data URI 作为背景图（零图片文件/
- * 零网络请求/静态无重绘）。透明度烘焙进 SVG：暗色 0.06（深墨生宣）
- * / 亮色 0.09（宣纸）——灰噪双向可见（暗底显亮粒/白底显墨点）。
- * v0.10：消费方禁止在 body/html 上用 background shorthand（会重置
- * 本纹理），一律 background-color。禁用场景：高密度数据区、动效表面。
+ * @ai00-x/design-system · 微动效层（手写，非生成物）
+ * 移植自 taste-skill assets/motion/motion.css（2.5）的 App 适用部分：
+ *   按钮 hover 上抬 1px / 按下 1px + 缩 1.5%；可点卡片 hover 抬起 2px；焦点环即时出现不做动画；
+ *   hover 进 150ms、出 120ms；只在精确指针（鼠标）上出现 hover 位移。
+ * 开关：<html data-motion="reduced"> 或系统 prefers-reduced-motion → 只留颜色变化，不位移不缩放。
+ * 不搬：滚动触发、首屏入场、卡片循环、数字滚动（营销页专属，App 里是噪声）。
  * ============================================================ */
 
 :root {
-  /* 深墨生宣（暗色默认） */
-  --ds-paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  --m-in: 150ms;
+  --m-out: 120ms;
+  --m-press: var(--motion-press, 90ms);
+  --m-panel: 200ms;
+  --m-close: 120ms;
+  --m-slide: 240ms;
+  --m-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --m-ease-io: cubic-bezier(0.65, 0, 0.35, 1);
+  --m-ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --m-lift: var(--motion-lift, -2px);
 }
 
-[data-theme-type='light'] {
-  /* 宣纸（亮色）：透明度略高 */
-  --ds-paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E");
+/* ---- 按钮：上抬 / 按下 ---- */
+html:not([data-motion='reduced']) .ds-btn {
+  transition: background-color var(--m-out) var(--m-ease), color var(--m-out) var(--m-ease),
+    border-color var(--m-out) var(--m-ease), box-shadow var(--m-out) var(--m-ease),
+    transform var(--m-press) var(--m-ease);
+}
+html:not([data-motion='reduced']) .ds-btn:hover {
+  transition-duration: var(--m-in), var(--m-in), var(--m-in), var(--m-in), var(--m-press);
+}
+@media (hover: hover) and (pointer: fine) {
+  html:not([data-motion='reduced']) .ds-btn:not(.ds-btn--icon):hover { transform: translateY(-1px); }
+}
+html:not([data-motion='reduced']) .ds-btn:active,
+html:not([data-motion='reduced']) .ds-btn:not(.ds-btn--icon):hover:active {
+  transform: translateY(1px) scale(0.985);
 }
 
-/* 全局纸纹：html + body 双层叠加（防 body 被内联背景遮挡时 html 兜底；
- * 与背景色同层绘制，零额外合成层） */
-.ds-texture,
-html,
-body {
-  background-image: var(--ds-paper-grain);
+/* ---- 可点卡片：抬起 2px（.ds-card 本身在 components.css 已带；任意可点表面挂 .ds-lift） ---- */
+html:not([data-motion='reduced']) .ds-lift {
+  transition: transform var(--m-out) var(--m-ease), box-shadow var(--m-out) var(--m-ease),
+    border-color var(--m-out) var(--m-ease);
 }
-
-/* 卡片表面纸纹（规范 2.3 应用范围：body + 卡片表面）
- * 用法：<div class="surface-paper">…</div>（自动带 L3 墨面底色 + 纸纹） */
-.surface-paper {
-  background-color: var(--color-bg-card);
-  background-image: var(--ds-paper-grain);
-  border-radius: var(--size-radius-base);
-}
-
-/* 尊重对比度偏好：可关纹理（规范 7.5 纸纹不得影响判读） */
-@media (prefers-contrast: more) {
-  .ds-texture,
-  html,
-  body,
-  .surface-paper {
-    background-image: none;
+@media (hover: hover) and (pointer: fine) {
+  html:not([data-motion='reduced']) .ds-lift:hover {
+    transform: translateY(var(--m-lift));
+    transition-duration: var(--m-in);
   }
 }
 
-/* ============================================================
- * @ai00-x/design-system · 签名动效「笔触与墨滴」（规范 2.4）
- * 手写文件（非构建产物）。
- * 应用白名单（仅五类时刻）：标题首次进入 / Tab 指示条 / 主题切换 /
- * 关键按钮点击反馈 / AI 开始生成。高频操作禁用（贬值警告）。
- * ============================================================ */
+/* ---- 下划线描入：.ds-link ---- */
+.ds-link {
+  color: var(--color-accent-500);
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-size: 0% 1px;
+  background-position: right 0 bottom 0;
+  transition: background-size var(--m-out) var(--m-ease);
+  padding-bottom: 1px;
+}
+.ds-link:is(:hover, :focus-visible) {
+  background-size: 100% 1px;
+  background-position: left 0 bottom 0;
+  transition-duration: var(--m-in);
+}
 
-/* ---- 笔触揭示 brush-reveal：clip-path 从左至右扫入，毛笔提按缓动 ---- */
-@keyframes ds-brush-reveal {
+/* ---- 进入：浮层 / 面板淡入并沉降 6px（替代旧签名动效 brush-reveal） ---- */
+@keyframes ds-settle {
   from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
-/* ---- 墨滴扩散 ink-ripple：径向渐变 scale + 渐隐，黛青 ---- */
-@keyframes ds-ink-ripple {
-  from {
-    transform: scale(0);
-    opacity: 0.5;
-  }
-  to {
-    transform: scale(1);
     opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
-
-/* 工具类：标题/内容首次进入（白名单场景 1、3） */
-.ds-brush-reveal {
-  animation: ds-brush-reveal 0.5s var(--easing-brush) both;
-}
-
-/* 工具类：Tab 指示条移动（白名单场景 2）——用时挂在指示条上 */
-.ds-brush-reveal-fast {
-  animation: ds-brush-reveal 0.35s var(--easing-brush) both;
-}
-
-/* 工具类：独立墨滴元素（白名单场景 5：loading/AI 生成起始） */
-.ds-ink-ripple {
-  position: relative;
-  overflow: hidden;
-}
-.ds-ink-ripple::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle, var(--color-accent-400) 0%, transparent 65%);
-  animation: ds-ink-ripple 0.45s var(--easing-decelerate) both;
-  pointer-events: none;
-}
-
-/* 关键按钮点击反馈（白名单场景 4）：JS 挂 .ds-ink-ripple 类一次或用
- * CSS :active 即时反馈（性能更优，推荐按钮直接用这个） */
-.ds-seal:active,
-.ds-btn-primary:active {
-  position: relative;
-}
-.ds-seal:active::after,
-.ds-btn-primary:active::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle, oklch(1 0 0 / 0.18) 0%, transparent 62%);
-  animation: ds-ink-ripple 0.4s var(--easing-decelerate) both;
-  pointer-events: none;
-}
-
-/* 减动效：签名动效退化为淡入（规范 7.3） */
-@media (prefers-reduced-motion: reduce) {
-  .ds-brush-reveal,
-  .ds-brush-reveal-fast {
-    animation: ds-fade-in 0.3s ease both;
-  }
-  .ds-ink-ripple::after,
-  .ds-seal:active::after,
-  .ds-btn-primary:active::after {
-    animation: none;
-    opacity: 0.12;
-  }
-}
-
 @keyframes ds-fade-in {
   from {
     opacity: 0;
@@ -695,13 +666,42 @@ body {
     opacity: 1;
   }
 }
+.ds-enter {
+  animation: ds-settle var(--m-panel) var(--m-ease-enter) both;
+}
+/* 兼容旧类名（存量调用点仍在用）：一律退化为 settle */
+.ds-brush-reveal,
+.ds-brush-reveal-fast {
+  animation: ds-settle var(--m-panel) var(--m-ease-enter) both;
+}
+
+/* ---- 减动效：只留颜色 ---- */
+html[data-motion='reduced'] .ds-card:hover,
+html[data-motion='reduced'] .ds-hover-glow:hover {
+  transform: none;
+}
+html[data-motion='reduced'] :is(.ds-enter, .ds-brush-reveal, .ds-brush-reveal-fast) {
+  animation: ds-fade-in var(--m-in) linear both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-btn,
+  .ds-lift,
+  .ds-card {
+    transform: none !important;
+  }
+  .ds-enter,
+  .ds-brush-reveal,
+  .ds-brush-reveal-fast {
+    animation: ds-fade-in var(--m-in) linear both;
+  }
+}
 
 /* ============================================================
  * @ai00-x/design-system · 组件样式（规范 第五节）
  * 手写文件（非构建产物）。全部色值/圆角/间距/动效走 CSS 变量 token。
  * 2026-08 同质去重：仅保留 ds 系有消费者的组件（Button/Card/Input/
  * ContextMenu/BrandMark）——富 API 组件样式随 web 系 BEM SCSS 走。
- * 依赖：tokens.css（变量）、texture.css、motion.css
+ * 依赖：tokens.css（变量）、skins.css（皮肤种子）、motion.css（taste-skill 微动效层）
  * ============================================================ */
 
 /* ==================== Button（规范 5.1） ==================== */
@@ -711,7 +711,7 @@ body {
   justify-content: center;
   gap: var(--size-gap-2);
   border: 1px solid transparent;
-  border-radius: var(--size-radius-base);
+  border-radius: var(--button-radius);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
@@ -736,7 +736,7 @@ body {
 .ds-btn--lg { height: var(--button-height-lg); padding: 0 var(--size-gap-6); font-size: var(--font-size-lg); }
 .ds-btn--icon { height: var(--button-height-sm); width: var(--button-height-sm); padding: 0; }
 
-/* 主按钮：黛青实体 + 纸白文字（对比 5.69，规范 5.1） */
+/* 主按钮：交互色实体 + 皮肤给定的按钮字色（对比度由皮肤体检保证 ≥4.5） */
 .ds-btn--primary {
   background: var(--color-accent-500);
   color: var(--color-accent-foreground);
@@ -744,7 +744,14 @@ body {
 .ds-btn--primary:hover { background: var(--color-accent-600); }
 .ds-btn--primary:active { transform: translateY(1px); }
 
-/* 印章按钮：朱砂，全页唯一 CTA（一屏一处） */
+/* 高亮按钮：皮肤高亮笔色（mark），一屏一处的签名 CTA */
+/* tonal 按钮档（data-buttons='tonal'）：主按钮改为浅底 + 交互色字 */
+html[data-buttons='tonal'] .ds-btn--primary {
+  background: var(--color-accent-100);
+  color: var(--badge-accent-text);
+}
+html[data-buttons='tonal'] .ds-btn--primary:hover { background: var(--color-accent-200); }
+
 .ds-btn--seal {
   background: var(--color-brand-seal);
   color: var(--color-brand-seal-foreground);
@@ -784,54 +791,22 @@ body {
   border-color: var(--color-error-border);
 }
 
-/* ==================== Card（规范 5.2：墨面 + 纸纹实体） ==================== */
-/* v0.14：默认悬停反馈 = 黛青径向光晕淡入 + 上浮 -2px（沿旧版官网效果，守唯一交互色） */
+/* ==================== Card（实体表面；hover = taste-skill 抬起 2px + 描边亮化，无光晕） ==================== */
 .ds-card {
   position: relative;
-  z-index: 0; /* 建 stacking context：让 ::before(-1) 沉到内容之下、背景之上 */
   background-color: var(--color-bg-card);
-  background-image: var(--ds-paper-grain);
   border-radius: var(--size-radius-lg);
-  box-shadow: var(--shadow-sm), var(--inner-glow-top);
+  box-shadow: 0 0 0 var(--style-stroke-width, 1px) var(--border-subtle);
   transition: transform var(--motion-fast) var(--easing-standard),
     box-shadow var(--motion-fast) var(--easing-standard);
 }
-.ds-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1; /* 光晕沉底：纸纹之上、文本之下 */
-  border-radius: inherit; /* 圆角自适应，不裁浮层（不用 overflow:hidden） */
-  opacity: 0;
-  transition: opacity 0.3s var(--easing-standard);
-  background: var(--ds-glow-card);
-  pointer-events: none;
-}
 .ds-card:hover {
-  transform: translateY(-2px);
-  /* 1px 亮环 = 暗色主信号（Linear 式）；无实体 border 避免 1px 抖动 */
-  box-shadow: var(--shadow-base), var(--inner-glow-top),
-    0 0 0 1px var(--ds-card-hover-ring);
+  transform: translateY(var(--motion-lift));
+  box-shadow: var(--shadow-base), 0 0 0 var(--style-stroke-width, 1px) var(--ds-card-hover-ring);
 }
-.ds-card:hover::before {
-  opacity: 1;
-}
-
-/* 悬停反馈配方（v0.14.2 · 暗色重调）：参考 Linear/Vercel 暗色卡惯例——
- * 主信号 = 边框亮化（白 16% 环），辅以表面微提亮（白 3%），
- * 彩色光只做左上角 9% 点缀（16% 青光在墨面上发闷，弃）。
- * 亮色维持原：青 12% 光 + 墨阶边框。
- * 白/墨由 --color-text-primary 派生（暗≈白、亮≈墨），天然主题自适应且零硬编码。 */
 :root {
-  --ds-glow-card: radial-gradient(ellipse 90% 70% at 10% 0%,
-    color-mix(in srgb, var(--color-accent-300) 9%, transparent), transparent 60%),
-    color-mix(in srgb, var(--color-text-primary) 3%, transparent);
-  --ds-card-hover-ring: color-mix(in srgb, var(--color-text-primary) 16%, transparent);
-}
-[data-theme-type="light"] {
-  --ds-glow-card: radial-gradient(ellipse 80% 60% at 10% 0%,
-    color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent);
-  --ds-card-hover-ring: var(--border-medium);
+  --ds-glow-card: color-mix(in oklab, var(--color-text-primary) 3%, transparent);
+  --ds-card-hover-ring: var(--border-strong);
 }
 
 /* 通用悬停光晕工具类（任意卡面/区块可挂）：与 ds-card 同款 */
@@ -853,7 +828,7 @@ body {
   pointer-events: none;
 }
 .ds-hover-glow:hover {
-  transform: translateY(-2px);
+  transform: translateY(var(--motion-lift));
   box-shadow: 0 0 0 1px var(--ds-card-hover-ring);
 }
 .ds-hover-glow:hover::before {
@@ -1149,7 +1124,7 @@ body {
 }
 .ds-empty__icon { color: var(--color-text-muted); }
 .ds-empty__title {
-  font-family: var(--font-family-serif);
+  font-family: var(--font-family-display);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
@@ -1490,7 +1465,7 @@ body {
 
 /* ==================== 签名排版工具类（规范 2.2） ==================== */
 .ds-display {
-  font-family: var(--font-family-serif);
+  font-family: var(--font-family-display);
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.01em;
@@ -1576,7 +1551,7 @@ body {
 }
 .ds-timeline__title {
   margin: 0 0 var(--size-gap-1);
-  font-family: var(--font-family-serif);
+  font-family: var(--font-family-display);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
@@ -1616,7 +1591,6 @@ body {
   border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-lg);
   background-color: var(--color-bg-card);
-  background-image: var(--ds-paper-grain);
   overflow: hidden;
 }
 .ds-collapse__item + .ds-collapse__item {
@@ -1785,400 +1759,5 @@ body {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
-}
-
-/* ============================================================
- * @ai00-x/design-system style pack — 新东方极简 (xindongfang)
- * AUTO-GENERATED（pnpm build 产物，勿手改）｜ 源：styles/xindongfang/
- * 规范第九节：html[data-style='xindongfang'] 覆盖基底 token；文件末尾为该风格专属组件形态
- * ============================================================ */
-
-/* 默认风格：零覆盖（基底 tokens 即本风格本身） */
-html[data-style='xindongfang'] {}
-
-/* ---- styles/xindongfang/components.css（风格专属组件形态） ---- */
-/* ============================================================
- * 默认风格（新东方极简）· 风格专属组件形态 —— 刻意为空
- *
- * 本风格就是组件基座本身（css/components.css + web 系 BEM SCSS），
- * 没有任何"只在默认风格下才成立"的额外形态，因此无需任何规则。
- * 其他风格包在此文件写 [data-style='<id>'] 作用域内的形态覆盖；
- * 基座组件形态差异请优先用 --style-* 形态变量表达（规范 9.4）。
- * ============================================================ */
-
-/* ============================================================
- * @ai00-x/design-system style pack — 漫画风 (comic)
- * AUTO-GENERATED（pnpm build 产物，勿手改）｜ 源：styles/comic/
- * 规范第九节：html[data-style='comic'] 覆盖基底 token；文件末尾为该风格专属组件形态
- * ============================================================ */
-
-/* 全模式覆盖（明暗通用；在 tokens.css 之后引入，故可压过 [data-theme-type='light'] 块） */
-html[data-style='comic'] {
-  --style-stroke-width: 2px;
-  --style-focus-ring: var(--color-text-primary);
-  --size-radius-sm: 10px;
-  --size-radius-base: 12px;
-  --size-radius-lg: 15px;
-  --size-radius-xl: 19px;
-  --size-radius-2xl: 22px;
-  --radius-sm: var(--size-radius-sm);
-  --radius-base: var(--size-radius-base);
-  --radius-lg: var(--size-radius-lg);
-  --radius-xl: var(--size-radius-xl);
-  --radius-2xl: var(--size-radius-2xl);
-  --shadow-xs: 2px 3px 0 var(--color-text-primary);
-  --shadow-sm: 3px 4px 0 var(--color-text-primary);
-  --shadow-base: 4px 5px 0 var(--color-text-primary);
-  --shadow-lg: 5px 6px 0 var(--color-text-primary);
-  --shadow-xl: 6px 7px 0 var(--color-text-primary);
-  --shadow-2xl: 8px 9px 0 var(--color-text-primary);
-  --font-family-serif: var(--font-family-sans);
-  --font-weight-semibold: 700;
-  --font-weight-bold: 800;
-}
-
-html[data-style='comic'][data-theme-type='light'] {
-  --color-bg-base: #FFF4DD;
-  --color-bg-sunken: #F7E9C9;
-  --color-bg-shell: #E9D3A8;
-  --color-bg-card: #FFFDF7;
-  --color-bg-overlay: #FFFEFB;
-  --color-bg-modal: #FFFEFB;
-  --color-bg-workbench: #F8ECD1;
-  --color-bg-scene: #FAF1DA;
-  --color-bg-tooltip: #FFFDF7;
-  --color-text-primary: #29261F;
-  --color-text-secondary: #69614F;
-  --color-text-muted: #8B8270;
-  --color-text-disabled: #ADA48F;
-  --color-accent-50: #FCEBDD;
-  --color-accent-100: #F7D2B8;
-  --color-accent-200: #EDA87E;
-  --color-accent-300: #E0703A;
-  --color-accent-400: #D2521B;
-  --color-accent-500: #B8461A;
-  --color-accent-600: #9E3A12;
-  --color-accent-700: #85300E;
-  --color-accent-800: #6A260A;
-  --color-accent-foreground: #FFFDF7;
-  --color-brand-seal: #A8382A;
-  --color-brand-seal-foreground: #FFFDF7;
-  --color-brand-seal-hover: #8E2E22;
-  --color-success-solid: #1F7A4D;
-  --color-success-bg: rgba(31, 122, 77, 0.14);
-  --color-success-border: rgba(31, 122, 77, 0.55);
-  --color-warning-solid: #8A6000;
-  --color-warning-bg: rgba(138, 96, 0, 0.14);
-  --color-warning-border: rgba(138, 96, 0, 0.55);
-  --color-error-solid: #B3261E;
-  --color-error-bg: rgba(179, 38, 30, 0.14);
-  --color-error-border: rgba(179, 38, 30, 0.55);
-  --color-info-solid: #17658B;
-  --color-info-bg: rgba(23, 101, 139, 0.12);
-  --color-info-border: rgba(23, 101, 139, 0.50);
-  --color-highlight-solid: #FFE071;
-  --color-highlight-bg: rgba(255, 224, 113, 0.40);
-  --color-overlay: rgba(41, 38, 31, 0.45);
-  --color-feedback-star: #D9A400;
-  --element-bg-subtle: rgba(41, 38, 31, 0.06);
-  --element-bg-soft: rgba(41, 38, 31, 0.09);
-  --element-bg-base: rgba(41, 38, 31, 0.12);
-  --element-bg-medium: rgba(41, 38, 31, 0.18);
-  --element-bg-strong: rgba(41, 38, 31, 0.26);
-  --element-bg-elevated: rgba(41, 38, 31, 0.10);
-  --border-subtle: rgba(41, 38, 31, 0.35);
-  --border-base: #29261F;
-  --border-medium: #29261F;
-  --border-strong: #29261F;
-  --border-prominent: #29261F;
-  --border-accent-solid: rgba(184, 70, 26, 0.55);
-  --border-accent-soft: rgba(184, 70, 26, 0.45);
-  --border-accent-subtle: rgba(184, 70, 26, 0.25);
-  --border-accent-strong: rgba(184, 70, 26, 0.75);
-  --card-bg-default: rgba(255, 253, 247, 0.92);
-  --card-bg-elevated: rgba(255, 254, 251, 0.98);
-  --card-bg-subtle: rgba(255, 253, 247, 0.70);
-  --card-bg-hover: rgba(255, 254, 251, 0.96);
-  --card-bg-active: rgba(255, 255, 255, 1.00);
-  --card-bg-accent: rgba(184, 70, 26, 0.12);
-  --card-bg-accent-hover: rgba(184, 70, 26, 0.20);
-  --input-bg: #FFFDF7;
-  --input-bg-hover: #FFFEFB;
-  --input-bg-focus: #FFFEFB;
-  --input-bg-disabled: rgba(41, 38, 31, 0.05);
-  --scrollbar-thumb: rgba(41, 38, 31, 0.25);
-  --scrollbar-thumb-hover: rgba(41, 38, 31, 0.40);
-  --modal-overlay: rgba(41, 38, 31, 0.50);
-  --badge-accent-bg: rgba(184, 70, 26, 0.14);
-  --color-success: var(--color-success-solid);
-  --color-warning: var(--color-warning-solid);
-  --color-error: var(--color-error-solid);
-  --color-info: var(--color-info-solid);
-  --color-highlight: var(--color-highlight-solid);
-}
-
-html[data-style='comic'][data-theme-type='dark'] {
-  --color-bg-base: #221C14;
-  --color-bg-sunken: #1B1610;
-  --color-bg-shell: #150F0A;
-  --color-bg-card: #2C251B;
-  --color-bg-overlay: #332B20;
-  --color-bg-modal: #3A3126;
-  --color-bg-workbench: #191410;
-  --color-bg-scene: #262019;
-  --color-bg-tooltip: #3A3126;
-  --color-text-primary: #F3EAD3;
-  --color-text-secondary: #D6CCB2;
-  --color-text-muted: #A79D86;
-  --color-text-disabled: #7C7462;
-  --color-accent-50: #3A2418;
-  --color-accent-100: #4D2E1B;
-  --color-accent-200: #6B3D20;
-  --color-accent-300: #B35F2A;
-  --color-accent-400: #D97636;
-  --color-accent-500: #E86E2E;
-  --color-accent-600: #F7A06A;
-  --color-accent-700: #FBB98D;
-  --color-accent-800: #FDD3B3;
-  --color-accent-foreground: #1A150C;
-  --color-brand-seal: #E0553A;
-  --color-brand-seal-foreground: #1A150C;
-  --color-brand-seal-hover: #EF6A4F;
-  --color-success-solid: #4ECB8B;
-  --color-success-bg: rgba(78, 203, 139, 0.14);
-  --color-success-border: rgba(78, 203, 139, 0.50);
-  --color-warning-solid: #E8A33D;
-  --color-warning-bg: rgba(232, 163, 61, 0.14);
-  --color-warning-border: rgba(232, 163, 61, 0.50);
-  --color-error-solid: #FF6B5E;
-  --color-error-bg: rgba(255, 107, 94, 0.14);
-  --color-error-border: rgba(255, 107, 94, 0.50);
-  --color-info-solid: #9FB3D9;
-  --color-info-bg: rgba(159, 179, 217, 0.14);
-  --color-info-border: rgba(159, 179, 217, 0.45);
-  --color-highlight-solid: #FFE071;
-  --color-highlight-bg: rgba(255, 224, 113, 0.22);
-  --color-overlay: rgba(0, 0, 0, 0.70);
-  --color-feedback-star: #FFD24A;
-  --element-bg-subtle: rgba(243, 234, 211, 0.06);
-  --element-bg-soft: rgba(243, 234, 211, 0.09);
-  --element-bg-base: rgba(243, 234, 211, 0.12);
-  --element-bg-medium: rgba(243, 234, 211, 0.18);
-  --element-bg-strong: rgba(243, 234, 211, 0.26);
-  --element-bg-elevated: rgba(243, 234, 211, 0.10);
-  --border-subtle: rgba(243, 234, 211, 0.30);
-  --border-base: rgba(243, 234, 211, 0.80);
-  --border-medium: rgba(243, 234, 211, 0.90);
-  --border-strong: rgba(243, 234, 211, 0.95);
-  --border-prominent: rgba(243, 234, 211, 1.00);
-  --border-accent-solid: rgba(232, 110, 46, 0.60);
-  --border-accent-soft: rgba(232, 110, 46, 0.45);
-  --border-accent-subtle: rgba(232, 110, 46, 0.25);
-  --border-accent-strong: rgba(232, 110, 46, 0.80);
-  --card-bg-default: rgba(243, 234, 211, 0.05);
-  --card-bg-elevated: rgba(243, 234, 211, 0.08);
-  --card-bg-subtle: rgba(243, 234, 211, 0.03);
-  --card-bg-hover: rgba(243, 234, 211, 0.09);
-  --card-bg-active: rgba(243, 234, 211, 0.13);
-  --card-bg-accent: rgba(232, 110, 46, 0.16);
-  --card-bg-accent-hover: rgba(232, 110, 46, 0.26);
-  --input-bg: rgba(243, 234, 211, 0.05);
-  --input-bg-hover: rgba(243, 234, 211, 0.08);
-  --input-bg-focus: rgba(243, 234, 211, 0.08);
-  --input-bg-disabled: rgba(243, 234, 211, 0.03);
-  --scrollbar-thumb: rgba(243, 234, 211, 0.25);
-  --scrollbar-thumb-hover: rgba(243, 234, 211, 0.40);
-  --modal-overlay: rgba(0, 0, 0, 0.75);
-  --badge-accent-bg: rgba(232, 110, 46, 0.16);
-  --color-success: var(--color-success-solid);
-  --color-warning: var(--color-warning-solid);
-  --color-error: var(--color-error-solid);
-  --color-info: var(--color-info-solid);
-  --color-highlight: var(--color-highlight-solid);
-}
-
-/* ---- styles/comic/components.css（风格专属组件形态） ---- */
-/* ============================================================
- * 漫画风（comic）· 风格专属组件形态（规范总则 1.5；形态定义见分册二 11.5）
- *
- * 形态语言取自参考站 discuss.flarum.org.cn/extensions 的实测设计语言：
- *   「现代网格骨架 + 漫画贴纸细节」的克制派——
- *   统一 2px 暖墨描边 / 零模糊硬偏移投影阶梯 / hover 上浮 4px 并加长投影 /
- *   药丸标签 / 1px dashed 分隔线 / 小面积贴纸旋转（±2°~±7°）/ 无网点纹理。
- *
- * 作用域：全部规则自持 [data-style='comic'] 前缀（构建期原文追加到
- * css/style-packs/comic.css 末尾，在 components.css 与各 BEM SCSS 之后，
- * 故同特异性下可覆盖基座形态）。
- *
- * 分工纪律（规范总则 1.4/1.6）——能用 token 表达的绝不在本文件重复：
- *   ✅ 描边色/宽   → tokens.json 覆盖 border.* + style.stroke.width = 2px
- *   ✅ 硬投影阶梯  → tokens.json 覆盖 shadow.*（2/3 → 8/9px，零模糊）
- *   ✅ 圆角        → tokens.json 覆盖 size.radius.* + radius.*（10/12/15/19/22px）
- *   ✅ 焦点环      → tokens.json 覆盖 style.focus.ring（= 墨色）
- *   ✅ 字重/字体   → tokens.json 覆盖 font.weight.semibold·bold（700/800）+ serif→sans
- *   ✅ 交互色/高亮 → tokens.json 覆盖 color.accent.*（珊瑚深档）/ color.highlight.*（亮黄）
- *   本文件只写"变量表达不了的形态"：hover 上浮、按下位移与投影收平、
- *   药丸标签、贴纸旋转、虚线分隔、气泡尾巴。
- * ============================================================ */
-
-/* ==================== 1. 卡片/贴纸面：hover 上浮 + 投影加长 ====================
- * 参考站实测：hover `translateY(-4px)`，阴影 4px/5px → 5px/9px，
- * transition transform/box-shadow .2s。卡片本身已有 2px 墨框（token 给定）。 */
-[data-style='comic'] .ds-card,
-[data-style='comic'] .v-card,
-[data-style='comic'] .ai-tool-card {
-  transition: transform var(--motion-base) var(--easing-standard),
-    box-shadow var(--motion-base) var(--easing-standard);
-}
-[data-style='comic'] .ds-card:hover,
-[data-style='comic'] .v-card:hover,
-[data-style='comic'] .ai-tool-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-}
-
-/* ==================== 2. 可按压控件：抬出 → 压平 ====================
- * 贴纸手感：hover 抬出硬投影并微微上抬，:active 压平并右下位移，
- * 按下投影收平到 `0 1px 0`（参考站实测同款）。 */
-[data-style='comic'] .ds-btn:not(:disabled),
-[data-style='comic'] .icon-btn:not(:disabled),
-[data-style='comic'] .ai-tool-card__btn:not(:disabled),
-[data-style='comic'] .ds-pagination__btn:not(:disabled) {
-  transition: transform var(--motion-instant) var(--easing-standard),
-    box-shadow var(--motion-instant) var(--easing-standard),
-    background-color var(--motion-fast) var(--easing-standard);
-}
-[data-style='comic'] .ds-btn:not(:disabled):hover,
-[data-style='comic'] .icon-btn:not(:disabled):hover,
-[data-style='comic'] .ai-tool-card__btn:not(:disabled):hover {
-  box-shadow: var(--shadow-xs);
-  transform: translateY(-2px);
-}
-[data-style='comic'] .ds-btn:not(:disabled):active,
-[data-style='comic'] .icon-btn:not(:disabled):active,
-[data-style='comic'] .ai-tool-card__btn:not(:disabled):active,
-[data-style='comic'] .ds-pagination__btn:not(:disabled):active {
-  box-shadow: 0 1px 0 var(--color-text-primary);
-  transform: translate(2px, 2px);
-}
-
-/* 主按钮 / 印章按钮：一律带墨框（贴纸感的来源） */
-[data-style='comic'] .ds-btn--primary,
-[data-style='comic'] .ds-btn--seal {
-  border: 2px solid var(--border-base);
-  font-weight: var(--font-weight-semibold);
-}
-
-/* ==================== 3. 表单控件：墨框 + 墨色焦点环 ====================
- * 漫画风的输入框是"手写的格子"：2px 墨框、聚焦时出墨色环（不用柔光）。 */
-[data-style='comic'] .ai00-x-input:focus,
-[data-style='comic'] .ai00-x-textarea:focus,
-[data-style='comic'] .ai00-x-number-input:focus-within,
-[data-style='comic'] .ds-input:focus,
-[data-style='comic'] .ds-textarea:focus {
-  box-shadow: 0 0 0 2px var(--style-focus-ring, var(--color-text-primary));
-}
-
-/* 开关 / 复选框：墨框 + 小投影 */
-[data-style='comic'] .ai00-x-switch,
-[data-style='comic'] .ai00-x-checkbox__box {
-  box-shadow: var(--shadow-xs);
-}
-
-/* ==================== 4. 标签 / 徽章：药丸 + 小面积贴纸旋转 ====================
- * 参考站标签＝底 #FFFDF7 + 1px 描边 + 20px 圆角（药丸）+ 3px/8px padding + 9px 字；
- * 旋转只用在"图标块/徽章"这类小面积装饰（±2°），不做整块倾斜。 */
-[data-style='comic'] .tag,
-[data-style='comic'] .badge,
-[data-style='comic'] .ds-badge {
-  border: 1px solid var(--border-base);
-  border-radius: var(--size-radius-full);
-  padding: 3px var(--size-gap-2);
-  font-size: var(--font-size-xxs);
-  background-color: var(--color-bg-card);
-}
-[data-style='comic'] .badge,
-[data-style='comic'] .ds-badge {
-  transform: rotate(-2deg);
-}
-[data-style='comic'] .ds-avatar,
-[data-style='comic'] .v-card__icon,
-[data-style='comic'] .ai-tool-card__icon {
-  border: 2px solid var(--border-base);
-  border-radius: var(--size-radius-lg);
-  box-shadow: var(--shadow-xs);
-  transform: rotate(-3deg);
-}
-
-/* ==================== 5. 数据区：分格墨线与虚线 ====================
- * 表格/树的线是"分格线"；分隔线用 1px dashed（参考站同款）。 */
-[data-style='comic'] .ds-table__head {
-  border-bottom-color: var(--border-base);
-}
-[data-style='comic'] .ds-tree__item--selected,
-[data-style='comic'] .ds-pagination__page--active {
-  border-color: var(--border-base);
-  box-shadow: var(--shadow-xs);
-}
-[data-style='comic'] .ds-separator--horizontal {
-  border-top: 1px dashed var(--border-subtle);
-  background-color: transparent;
-}
-
-/* ==================== 6. 浮层：投影收一档，避免糊出画框 ==================== */
-[data-style='comic'] .modal,
-[data-style='comic'] .confirm-dialog,
-[data-style='comic'] .input-dialog,
-[data-style='comic'] .ds-dialog,
-[data-style='comic'] .ds-popover,
-[data-style='comic'] .ds-menu,
-[data-style='comic'] .ds-tooltip,
-[data-style='comic'] .ai00-x-tooltip,
-[data-style='comic'] .ds-drawer__content,
-[data-style='comic'] .ds-toast {
-  border: 2px solid var(--border-base);
-}
-
-/* ==================== 7. 滚动条：墨块而非药丸 ==================== */
-[data-style='comic'] .ds-scroll-area__thumb {
-  border-radius: 0;
-  box-shadow: var(--shadow-xs);
-}
-
-/* ==================== 8. 对话气泡：手绘尾巴 ====================
- * 参考站是列表页、无对话 UI，此处按漫画分镜语言补：尾巴用旋转方块 + 两条墨边。 */
-[data-style='comic'] .ai-msg__bubble {
-  position: relative;
-  overflow: visible;
-  border: 2px solid var(--border-base);
-}
-[data-style='comic'] .ai-msg__bubble::after {
-  content: '';
-  position: absolute;
-  left: 12px;
-  bottom: -8px;
-  width: 13px;
-  height: 13px;
-  background-color: inherit;
-  border-right: 2px solid var(--border-base);
-  border-bottom: 2px solid var(--border-base);
-  transform: rotate(45deg) skew(8deg, 8deg);
-}
-
-/* ==================== 9. 动效克制（规范总则 1.2 契约） ====================
- * 漫画风不加新动效；位移反馈在 reduce 模式下退化为纯颜色变化。 */
-@media (prefers-reduced-motion: reduce) {
-  [data-style='comic'] .ds-card:hover,
-  [data-style='comic'] .v-card:hover,
-  [data-style='comic'] .ai-tool-card:hover,
-  [data-style='comic'] .ds-btn:not(:disabled):hover,
-  [data-style='comic'] .icon-btn:not(:disabled):hover,
-  [data-style='comic'] .ai-tool-card__btn:not(:disabled):hover,
-  [data-style='comic'] .ds-btn:not(:disabled):active,
-  [data-style='comic'] .icon-btn:not(:disabled):active,
-  [data-style='comic'] .ai-tool-card__btn:not(:disabled):active,
-  [data-style='comic'] .ds-pagination__btn:not(:disabled):active {
-    transform: none;
-  }
 }
 

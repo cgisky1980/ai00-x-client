@@ -22,9 +22,9 @@ web-ui 消费方统一走 `'@/component-library'` barrel（re-export 全部 web 
 
 ## 硬纪律（生成代码前自查）
 
-1. **黛青 `--color-accent-*` 是唯一交互色**（hover/选中/焦点/链接/主按钮）；主按钮底色 = `--color-accent-500`（hover 加深 `--color-accent-600`，文字 `--color-accent-foreground`）；朱砂 `--color-brand-seal` 一屏最多一处（灵印或唯一 CTA）；语义色只表状态。**（本条是「默认风格」纪律；非默认风格包见下方「风格包」章）**
+1. **交互色 `--color-accent-*` 是唯一交互色**（hover/选中/焦点/链接/主按钮）；主按钮底色 = `--color-accent-500`（hover 加深 `--color-accent-600`，文字 `--color-accent-foreground`）；高亮笔 `--color-brand-seal` 一屏最多一处（灵印或唯一 CTA）；语义色只表状态。**（本条是「默认风格」纪律；非默认风格包见下方「风格包」章）**
 2. **禁止手写下拉/弹出菜单** —— 一律用 DropdownMenu（菜单）/Popover（锚定面板）。禁止 getBoundingClientRect 定位 + outside-click 轮子。
-3. **body/html/全屏容器禁用 `background:` shorthand**（会重置宣纸纹理）—— 一律 `background-color:`。
+3. **body/html/全屏容器禁用 `background:` shorthand**（会重置表面）—— 一律 `background-color:`。
 4. **禁止硬编码色值/px/z-index** —— 全用 CSS 变量 token；数字/时间戳/版本号用 mono + `tabular-nums`（`.ds-data`）。
 5. `backdrop-blur` 仅限浮层（dialog/dropdown/tooltip/popover/toast/drawer）；卡片一律实体表面。
 6. 动效走 token 刻度：浮层微动效 `--motion-fast`（0.15s）、Drawer `--motion-base`（0.3s）、骨架脉冲 ≈1.6s。签名动效（brush-reveal/ink-ripple）不进组件常规态。
@@ -82,7 +82,7 @@ border-radius: var(--size-radius-lg);        // 圆角/阴影/字体 直接用 t
 ```
 BrandMark          props: variant?: 'ink'|'seal'|'inverse'|'line'|'lockup'; size?: number; subtitle?: string(lockup)
 Button             props: variant?: 'primary'|'seal'|'default'|'ghost'|'destructive'; size?: 'sm'|'base'|'lg'
-Card               复合: Card/CardHeader/CardTitle/CardContent/CardFooter（className 定制）；v0.14 起默认悬停反馈=黛青径向光晕淡入+上浮-2px；任意元素可挂 `.ds-hover-glow` 获同款
+Card               复合: Card/CardHeader/CardTitle/CardContent/CardFooter（className 定制）；v0.14 起默认悬停反馈=交互色径向光晕淡入+上浮-2px；任意元素可挂 `.ds-hover-glow` 获同款
 Input/Textarea     薄封装（.ds-input）
 ContextMenu        复合: ContextMenu(Trigger/Content/Item/Separator/Label)（Radix；.ds-menu）
 DropdownMenu       复合: Root/Trigger/Content/Item(checkbox?/radio?/destructive?)/ItemIndicator/Label/Separator/Sub(Trigger/Content)
@@ -100,7 +100,7 @@ Table              复合: Table(dense?)/TableHeader/TableBody/TableRow/TableHea
 Drawer             复合: Drawer(Trigger/Close)/DrawerContent(side?: 'right'|'left'|'top'|'bottom')/DrawerTitle/DrawerDescription；快捷 <DrawerPanel title description side>{children}</DrawerPanel>
 Pagination         props: page/total/onChange(page)/siblingCount?=1（页码 mono+tabular）
 Tree               props: nodes: {id, label, children?, icon?, actions?}[]/defaultExpandedIds?/selectedId?/onSelect?/renderLabel?（非虚拟化）
-Timeline           复合: Timeline → TimelineItem(time?/title?/description?/status?: 'finish'|'active'|'pending'/dot?/itemKey?)（竖向；连接线随 finish 流转黛青；时间列 mono+tabular）
+Timeline           复合: Timeline → TimelineItem(time?/title?/description?/status?: 'finish'|'active'|'pending'/dot?/itemKey?)（竖向；连接线随 finish 流转交互色；时间列 mono+tabular）
 Statistic          props: value/precision?=0/groupSeparator?=','/title?/prefix?/suffix?/motion?=true（值变化 rAF count-up 600ms；reduced-motion 直出；mono+tabular）
 Collapse           复合: Collapse(defaultActiveKeys?/activeKeys?/onChange?/accordion?) → CollapseItem(itemKey/header/open?/defaultOpen?/disabled?)（grid-rows 高度过渡；button[aria-expanded]+region）
 Steps              props: steps: {title, description?}[]/current（横向；finish 勾/process 实心呼吸/wait 墨阶；≤640px 纵排）
@@ -109,13 +109,13 @@ Steps              props: steps: {title, description?}[]/current（横向；fini
 ## AI 系组件（v0.16 · ./web 出口；源 src/components/web/ai/；类前缀 `.ai-`；纯 UI / props 数据注入 / 零 store 依赖）
 
 ```
-ChatMessage        props: role: 'user'|'assistant'/avatar?/children（Markdown 由消费方渲染后传入）/time?/actions?/streaming?（antd X Bubble 对位；user=右侧浅青气泡，暗色自动反转黛青透底）
+ChatMessage        props: role: 'user'|'assistant'/avatar?/children（Markdown 由消费方渲染后传入）/time?/actions?/streaming?（antd X Bubble 对位；user=右侧浅青气泡，暗色自动反转交互色透底）
 PromptInput        props: value/onChange/onSubmit?/onStop?/loading?/running?/steering?/stopping?/showShortcutHint?=true/placeholder?/disabled?/maxHeight?=200/variant?: 'default'|'hero'/leading?/controls?/trailing?/overlay?/menuOpen?/onMenuKeyDown?(e)=>boolean/activeDescendantId?/onCaretContext?(ctx)（composer 形态：一张卡片=文本区+卡内工具行（leading/controls/trailing+提交键）+卡下 dock；无 footer 分隔线；Enter 发送+IME 守卫+Shift+Enter 换行；发送 34px 圆键/停止 28px 呼吸；候选浮层开在卡片上方、menuOpen 时 Enter 交给 onMenuKeyDown；running 表达执行态，steering 表达是否允许插话，缺省跟随 running）
 ModelSelector      props: groups: {id, name?, models: {id, name, description?, badge?, disabled?, disabledReason?}[]}[]/currentId?/onSelect(groupId, modelId)/loading?/size?: 'sm'|'md'/side?/align?（标准模型选择器：胶囊 Trigger+Popover 分组列表；当前项 Check 高亮/disabled 置灰；数据注入零 store——与 PromptInput trailing 搭配成标准对话输入框）
 Conversations      props: items: {id, label, icon?, group?, timestamp?}[]/activeId?/onSelect?/itemActions?(id)（antd X Conversations 对位；分组+激活左缘指示条；时间 mono+tabular）
 ThinkingPanel      props: children/phase: 'thinking'|'done'/duration?/defaultOpen?=false/open?/onToggle?/label?/cursor?=true（antd X ThoughtChain 对位；thinking→done 自动折叠仅非受控；open 提供时受控；折叠头呼吸三点+用时；展开/折叠 grid 动画）
 AIToolCard         props: icon?/title/status: 'running'|'success'|'error'|'confirm'|'cancelled'/meta?/expandable?/defaultExpanded?/confirm?: {onConfirm, onReject, confirmText?, rejectText?}/error?/children（antd X Tool 对位；确认态强制展开显示按钮组）
-StreamingText      props: text/streaming?/className?（数据驱动增量；streaming 末尾黛青光标 blink；无内部定时器）
+StreamingText      props: text/streaming?/className?（数据驱动增量；streaming 末尾交互色光标 blink；无内部定时器）
 AIProcessingIndicator  props: visible/text?（默认「正在思考…」；三点波浪呼吸）
 CodeBlock          props: code/language?（仅标签）/streaming?（自动滚底）/showLineNumbers?=true/maxHeight?=320/header?（顶栏+内置复制；mono 无语法高亮）
 DiffView           props: lines: {type: 'add'|'del'|'ctx'|'hunk', oldNo?, newNo?, content}[]/filePath?/stats?: {additions, deletions}/maxHeight?=320（diff 算法归消费方；语义色 add=success/del=error）
@@ -128,7 +128,7 @@ Prompts            props: items: {key, icon?, title, description?}[]/onSelect?/c
 ```
 Alert        type?: 'success'|'error'|'warning'|'info'; title?; message; description?; closable?; onClose?; showIcon?=true
 Badge        variant?: 'neutral'|'accent'|'purple'|'success'|'warning'|'error'|'info'
-Button       variant?: 'primary'|'secondary'|'ghost'|'dashed'|'danger'|'success'|'accent'|'ai'（accent/ai/success→黛青）; size?: 'small'|'medium'|'large'; isLoading?; iconOnly?; +原生 button 属性
+Button       variant?: 'primary'|'secondary'|'ghost'|'dashed'|'danger'|'success'|'accent'|'ai'（accent/ai/success→交互色）; size?: 'small'|'medium'|'large'; isLoading?; iconOnly?; +原生 button 属性
 Card         Card: variant?: 'default'|'elevated'|'subtle'|'accent'|'purple'; interactive?; padding?: 'none'|'small'|'medium'|'large'; radius?; fullWidth? —— 复合 Card/Header(title?/subtitle?/extra?)/Body/Footer(align?)
 Checkbox     label?/description?/size?: 'small'|'medium'|'large'/indeterminate?/error? +原生 input 属性
 ConfigPage   ConfigPageLoading(text)/ConfigPageMessage(message: {type, text}|null)/ConfigPageRefreshButton(tooltip, onClick, loading?, disabled?)
@@ -169,5 +169,5 @@ WindowControls onMinimize?/onMaximize?/onClose?/showMinimize?/showMaximize?/show
 ## 环境事实
 
 - React 19 + 源码直出（无 dist，消费方 Vite 编译）；`sideEffects: ["*.css"]`。
-- 换肤：ThemeService 覆盖 `--hue/--chroma/--chroma-surface`（只旋转黛青，墨阶恒定）。
+- 换肤：ThemeService 覆盖 `--hue/--chroma/--chroma-surface`（只旋转交互色，墨阶恒定）。
 - 构建产物：`pnpm build`（=node scripts/build-tokens.mjs）生成 tokens.css/tw-theme.css/index.css/tokens.standalone.css/tokens.ts；css/components.css 为手写（勿脚本覆盖）。

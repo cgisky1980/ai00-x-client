@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "id": "teal-paper",
+  "name": "纸上青",
+  "description": "冷白纸面，一种青色写满所有字、形与按钮。",
+  "source": "taste-skill palette teal-on-paper + type geist（scripts/skin-from-taste.mjs 生成，勿手改；改动请重新发牌）",
+  "modes": {
+    "dark": {
+      "bg": "#06525c",
+      "surface": "#205d66",
+      "ink": "#f7f9f8",
+      "muted": "#c1d0d2",
+      "accent": "#f7f9f8",
+      "accentInk": "#06525c"
+    },
+    "light": {
+      "bg": "#f7f9f8",
+      "surface": "#ebf0ee",
+      "ink": "#06525c",
+      "muted": "#2f737d",
+      "accent": "#06525c",
+      "accentInk": "#f7f9f8",
+      "mark": "#06525c",
+      "markInk": "#f7f9f8"
+    }
+  },
+  "type": {
+    "display": "geist",
+    "text": "geist",
+    "mono": "geist-mono"
+  },
+  "shape": {
+    "radius": "round",
+    "buttons": "solid"
+  },
+  "motion": "full"
+}

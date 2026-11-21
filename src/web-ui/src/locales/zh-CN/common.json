@@ -1239,12 +1239,8 @@
   "theme": {
     "dark": "深色",
     "light": "浅色",
-    "style": "视觉风格",
-    "styleTooltip": "切换视觉风格",
-    "stylePacks": {
-      "xindongfang": "新东方极简",
-      "comic": "漫画风"
-    }
+    "skin": "界面皮肤",
+    "skinTooltip": "切换界面皮肤"
   },
   "mcpDialog": {
     "server": "服务器：",

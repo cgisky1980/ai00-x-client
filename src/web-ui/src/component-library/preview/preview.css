@@ -17,7 +17,7 @@ body {
   font-family: var(--font-family-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* 只设 background-color：shorthand 会重置 texture.css 的宣纸颗粒（v0.10 教训）
+  /* 只设 background-color（全屏容器不用 background shorthand）
    * 展示页是浏览面，走 L1 base（非 workbench 编辑沉浸区） */
   background-color: var(--color-bg-base);
   color: var(--color-text-primary);
@@ -27,9 +27,7 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  /* 宣纸颗粒纹理（texture.css 签名资产）：全屏容器会遮住 body，须自带 */
   background-color: var(--color-bg-base);
-  background-image: var(--ds-paper-grain);
   color: var(--color-text-primary);
   overflow: hidden;
 }

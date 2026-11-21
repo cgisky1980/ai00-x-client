@@ -1,9 +1,9 @@
 /**
  * Button component — 薄壳适配层
  * props API 保持不变（调用点零改动），内部样式切换到 @ai00-x/design-system 的
- * ds-btn 类体系（黛青唯一交互色，规范 参考/前端视觉设计规范.md 分册一 10.8）。
+ * ds-btn 类体系（交互色唯一交互色，规范 参考/前端视觉设计规范.md 分册一 10.8）。
  * variant 映射（新东方极简语义重解释）：
- *   primary/accent/ai/success → ds-btn--primary（黛青；AI 紫与语义色按钮退役，统一黛青）
+ *   primary/accent/ai/success → ds-btn--primary（交互色；AI 紫与语义色按钮退役，统一交互色）
  *   secondary → ds-btn--default；ghost → ds-btn--ghost
  *   danger → ds-btn--destructive（de-escalated：hover 才红）
  *   dashed → ds-btn--default + 虚线补充

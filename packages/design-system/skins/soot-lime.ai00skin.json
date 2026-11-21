@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "id": "soot-lime",
+  "name": "煤黑青柠",
+  "description": "煤黑底、白字，荧光青柠是唯一的强调色；亮色档改为墨黑按钮配青柠高亮。",
+  "source": "taste-skill palette soot-pale-lime + type geist（scripts/skin-from-taste.mjs 生成，勿手改；改动请重新发牌）",
+  "modes": {
+    "dark": {
+      "bg": "#0f0f0f",
+      "surface": "#1a1a1a",
+      "ink": "#ffffff",
+      "muted": "#8f8f8f",
+      "accent": "#dafa9c",
+      "accentInk": "#0f0f0f",
+      "mark": "#dafa9c",
+      "markInk": "#0f0f0f"
+    },
+    "light": {
+      "bg": "#ffffff",
+      "surface": "#ececec",
+      "ink": "#0f0f0f",
+      "muted": "#5f5f5f",
+      "accent": "#0f0f0f",
+      "accentInk": "#ffffff",
+      "mark": "#dafa9c",
+      "markInk": "#0f0f0f"
+    }
+  },
+  "type": {
+    "display": "geist",
+    "text": "geist",
+    "mono": "geist-mono"
+  },
+  "shape": {
+    "radius": "sharp",
+    "buttons": "solid"
+  },
+  "motion": "full"
+}

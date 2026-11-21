@@ -1,0 +1,191 @@
+/* ============================================================
+ * @ai00-x/design-system 内置皮肤 — AUTO-GENERATED（勿手改）
+ * 源：skins/*.ai00skin.json（taste-skill 发牌生成）｜ 默认：soot-lime
+ * html[data-skin=<id>] = 暗色档；再加 [data-theme-type='light'] = 亮色档
+ * ============================================================ */
+/* ---- 煤黑青柠（soot-lime） ---- */
+:where(:root), html[data-skin='soot-lime'] {
+  color-scheme: dark;
+  --skin-bg: #0f0f0f;
+  --skin-surface: #1a1a1a;
+  --skin-ink: #ffffff;
+  --skin-muted: #8f8f8f;
+  --skin-accent: #dafa9c;
+  --skin-accent-ink: #0f0f0f;
+  --skin-mark: #dafa9c;
+  --skin-mark-ink: #0f0f0f;
+  --skin-signature: #dafa9c;
+  --skin-success: #4ade80;
+  --skin-warning: #fbbf24;
+  --skin-error: #f87171;
+  --skin-info: #7dd3fc;
+  --skin-deep: #080808;
+  --skin-high: #282828;
+  --skin-scrim: #080808c7;
+  --skin-shadow: #00000080;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 4px;
+  --skin-radius-sm: 3px;
+  --skin-radius-base: 4px;
+  --skin-radius-lg: 6px;
+  --skin-radius-xl: 8px;
+  --skin-radius-2xl: 10px;
+  --skin-radius-3xl: 14px;
+}
+:where(:root)[data-theme-type='light'],
+html[data-skin='soot-lime'][data-theme-type='light'] {
+  color-scheme: light;
+  --skin-bg: #ffffff;
+  --skin-surface: #ececec;
+  --skin-ink: #0f0f0f;
+  --skin-muted: #5f5f5f;
+  --skin-accent: #0f0f0f;
+  --skin-accent-ink: #ffffff;
+  --skin-mark: #dafa9c;
+  --skin-mark-ink: #0f0f0f;
+  --skin-signature: #0f0f0f;
+  --skin-success: #15803d;
+  --skin-warning: #a16207;
+  --skin-error: #b91c1c;
+  --skin-info: #0369a1;
+  --skin-deep: #eeeeee;
+  --skin-high: #fcfcfc;
+  --skin-scrim: #0f0f0f59;
+  --skin-shadow: #0f0f0f1f;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 4px;
+  --skin-radius-sm: 3px;
+  --skin-radius-base: 4px;
+  --skin-radius-lg: 6px;
+  --skin-radius-xl: 8px;
+  --skin-radius-2xl: 10px;
+  --skin-radius-3xl: 14px;
+}
+
+/* ---- 石墨信号橙（graphite-orange） ---- */
+html[data-skin='graphite-orange'] {
+  color-scheme: dark;
+  --skin-bg: #18191b;
+  --skin-surface: #222427;
+  --skin-ink: #eff0f1;
+  --skin-muted: #9c9ea3;
+  --skin-accent: #ff4a1f;
+  --skin-accent-ink: #18191b;
+  --skin-mark: #ff4a1f;
+  --skin-mark-ink: #18191b;
+  --skin-signature: #ff4a1f;
+  --skin-success: #4ade80;
+  --skin-warning: #fbbf24;
+  --skin-error: #f87171;
+  --skin-info: #7dd3fc;
+  --skin-deep: #101113;
+  --skin-high: #313336;
+  --skin-scrim: #101113c7;
+  --skin-shadow: #00000080;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 8px;
+  --skin-radius-sm: 6px;
+  --skin-radius-base: 8px;
+  --skin-radius-lg: 12px;
+  --skin-radius-xl: 16px;
+  --skin-radius-2xl: 20px;
+  --skin-radius-3xl: 28px;
+}
+html[data-skin='graphite-orange'][data-theme-type='light'] {
+  color-scheme: light;
+  --skin-bg: #eff0f1;
+  --skin-surface: #dedfe0;
+  --skin-ink: #18191b;
+  --skin-muted: #5b5c5e;
+  --skin-accent: #18191b;
+  --skin-accent-ink: #eff0f1;
+  --skin-mark: #ff4a1f;
+  --skin-mark-ink: #18191b;
+  --skin-signature: #18191b;
+  --skin-success: #15803d;
+  --skin-warning: #a16207;
+  --skin-error: #b91c1c;
+  --skin-info: #0369a1;
+  --skin-deep: #dfdfe0;
+  --skin-high: #fafafa;
+  --skin-scrim: #18191b59;
+  --skin-shadow: #18191b1f;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 8px;
+  --skin-radius-sm: 6px;
+  --skin-radius-base: 8px;
+  --skin-radius-lg: 12px;
+  --skin-radius-xl: 16px;
+  --skin-radius-2xl: 20px;
+  --skin-radius-3xl: 28px;
+}
+
+/* ---- 纸上青（teal-paper） ---- */
+html[data-skin='teal-paper'] {
+  color-scheme: dark;
+  --skin-bg: #06525c;
+  --skin-surface: #205d66;
+  --skin-ink: #f7f9f8;
+  --skin-muted: #c1d0d2;
+  --skin-accent: #f7f9f8;
+  --skin-accent-ink: #06525c;
+  --skin-mark: #f7f9f8;
+  --skin-mark-ink: #06525c;
+  --skin-signature: #f7f9f8;
+  --skin-success: #4ade80;
+  --skin-warning: #fbbf24;
+  --skin-error: #f87171;
+  --skin-info: #7dd3fc;
+  --skin-deep: #064850;
+  --skin-high: #336e77;
+  --skin-scrim: #064850c7;
+  --skin-shadow: #00000080;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 10px;
+  --skin-radius-sm: 8px;
+  --skin-radius-base: 10px;
+  --skin-radius-lg: 16px;
+  --skin-radius-xl: 20px;
+  --skin-radius-2xl: 24px;
+  --skin-radius-3xl: 32px;
+}
+html[data-skin='teal-paper'][data-theme-type='light'] {
+  color-scheme: light;
+  --skin-bg: #f7f9f8;
+  --skin-surface: #ebf0ee;
+  --skin-ink: #06525c;
+  --skin-muted: #2f737d;
+  --skin-accent: #06525c;
+  --skin-accent-ink: #f7f9f8;
+  --skin-mark: #06525c;
+  --skin-mark-ink: #f7f9f8;
+  --skin-signature: #06525c;
+  --skin-success: #15803d;
+  --skin-warning: #a16207;
+  --skin-error: #b91c1c;
+  --skin-info: #0369a1;
+  --skin-deep: #e6e8e7;
+  --skin-high: #fcfdfc;
+  --skin-scrim: #06525c59;
+  --skin-shadow: #06525c1f;
+  --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-text: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  --skin-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', monospace;
+  --skin-button-radius: 10px;
+  --skin-radius-sm: 8px;
+  --skin-radius-base: 10px;
+  --skin-radius-lg: 16px;
+  --skin-radius-xl: 20px;
+  --skin-radius-2xl: 24px;
+  --skin-radius-3xl: 32px;
+}

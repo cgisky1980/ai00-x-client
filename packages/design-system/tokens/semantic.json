@@ -1,0 +1,765 @@
+{
+  "$description": "语义 token（明暗共用一套公式）：全部从 --skin-* 种子经 color-mix 派生。种子由皮肤给出（skins/*.ai00skin.json → src/skin/core.js skinVars）。改公式只改这里后 pnpm build；变量名禁止改动（全仓 scss 依赖）。",
+  "color": {
+    "bg": {
+      "$description": "墨阶 5 级（规范 4.1，v0.12 松烟墨）：base 最深 → sunken 工作区 → card 卡片 → overlay 浮层 → modal 弹窗；hue 240 冷青（松烟墨，与黛青 235 同族一体）；L 定位 ≈ #262a2c 冷墨灰（高级深灰档，兼顾墨色质感与暗色可读性，对标 Notion/Discord 暗度量级）",
+      "base": {
+        "$value": "var(--skin-bg)",
+        "$type": "color"
+      },
+      "sunken": {
+        "$value": "color-mix(in oklab, var(--skin-bg) 50%, var(--skin-surface))",
+        "$type": "color"
+      },
+      "shell": {
+        "$value": "var(--skin-deep)",
+        "$type": "color"
+      },
+      "card": {
+        "$value": "var(--skin-surface)",
+        "$type": "color"
+      },
+      "overlay": {
+        "$value": "color-mix(in oklab, var(--skin-surface) 50%, var(--skin-high))",
+        "$type": "color"
+      },
+      "modal": {
+        "$value": "var(--skin-high)",
+        "$type": "color"
+      },
+      "primary": {
+        "$value": "{color.bg.base}",
+        "$type": "color"
+      },
+      "secondary": {
+        "$value": "{color.bg.sunken}",
+        "$type": "color"
+      },
+      "tertiary": {
+        "$value": "{color.bg.card}",
+        "$type": "color"
+      },
+      "quaternary": {
+        "$value": "{color.bg.overlay}",
+        "$type": "color"
+      },
+      "elevated": {
+        "$value": "{color.bg.modal}",
+        "$type": "color"
+      },
+      "workbench": {
+        "$value": "color-mix(in oklab, var(--skin-deep) 50%, var(--skin-bg))",
+        "$type": "color"
+      },
+      "scene": {
+        "$value": "color-mix(in oklab, var(--skin-bg) 40%, var(--skin-surface))",
+        "$type": "color"
+      },
+      "flowchat": {
+        "$value": "{color.bg.scene}",
+        "$type": "color"
+      },
+      "tooltip": {
+        "$value": "{color.bg.modal}",
+        "$type": "color"
+      }
+    },
+    "text": {
+      "$description": "四级亮度陡峭阶梯（规范 4.5）。primary 0.92 减晕光（halation）+冷白（松烟同域）。muted 0.64 保证 L3 卡片上 ≥3:1（辅助文字档）",
+      "primary": {
+        "$value": "var(--skin-ink)",
+        "$type": "color"
+      },
+      "secondary": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 55%, var(--skin-muted))",
+        "$type": "color"
+      },
+      "muted": {
+        "$value": "var(--skin-muted)",
+        "$type": "color"
+      },
+      "disabled": {
+        "$value": "color-mix(in oklab, var(--skin-muted) 55%, var(--skin-bg))",
+        "$type": "color"
+      }
+    },
+    "accent": {
+      "50": {
+        "$value": "color-mix(in oklab, var(--skin-mark) 6%, var(--skin-bg))",
+        "$type": "color"
+      },
+      "100": {
+        "$value": "color-mix(in oklab, var(--skin-mark) 12%, var(--skin-bg))",
+        "$type": "color"
+      },
+      "200": {
+        "$value": "color-mix(in oklab, var(--skin-mark) 22%, var(--skin-bg))",
+        "$type": "color"
+      },
+      "300": {
+        "$value": "color-mix(in oklab, var(--skin-accent) 50%, var(--skin-bg))",
+        "$type": "color"
+      },
+      "400": {
+        "$value": "color-mix(in oklab, var(--skin-accent) 85%, var(--skin-ink))",
+        "$type": "color"
+      },
+      "500": {
+        "$value": "var(--skin-accent)",
+        "$type": "color"
+      },
+      "600": {
+        "$value": "color-mix(in oklab, var(--skin-accent) 82%, var(--skin-bg))",
+        "$type": "color"
+      },
+      "700": {
+        "$value": "color-mix(in oklab, var(--skin-accent) 70%, var(--skin-bg))",
+        "$type": "color"
+      },
+      "800": {
+        "$value": "color-mix(in oklab, var(--skin-accent) 58%, var(--skin-bg))",
+        "$type": "color"
+      },
+      "$description": "签名色·黛青（规范 2.1）：唯一交互色。默认 hue 235；随 --hue/--chroma 运行时调节（web-ui 换肤机制）。基名 --color-accent 在 aliases.json",
+      "foreground": {
+        "$value": "var(--skin-accent-ink)",
+        "$type": "color"
+      }
+    },
+    "brand": {
+      "$description": "品牌签名·朱砂印（规范 2.1/2.5）：不随 hue 联动（印章永远是朱的），一屏一处。对比度验证（WCAG）：朱砂对 L1/L3 墨阶 6.67/6.35（正文✓）；CTA 文字用深墨 seal-foreground 6.67 ✓（纸白字仅 2.63 不达标，v0.3 修订）",
+      "seal": {
+        "$value": "var(--skin-mark)",
+        "$type": "color"
+      },
+      "seal-foreground": {
+        "$value": "var(--skin-mark-ink)",
+        "$type": "color"
+      },
+      "seal-hover": {
+        "$value": "color-mix(in oklab, var(--skin-mark) 85%, var(--skin-ink))",
+        "$type": "color"
+      },
+      "glyph": {
+        "$value": "var(--skin-signature)",
+        "$type": "color"
+      }
+    },
+    "purple": {
+      "50": {
+        "$value": "color-mix(in oklab, var(--skin-info) 4%, transparent)",
+        "$type": "color"
+      },
+      "100": {
+        "$value": "color-mix(in oklab, var(--skin-info) 8%, transparent)",
+        "$type": "color"
+      },
+      "200": {
+        "$value": "color-mix(in oklab, var(--skin-info) 15%, transparent)",
+        "$type": "color"
+      },
+      "300": {
+        "$value": "color-mix(in oklab, var(--skin-info) 25%, transparent)",
+        "$type": "color"
+      },
+      "400": {
+        "$value": "color-mix(in oklab, var(--skin-info) 40%, transparent)",
+        "$type": "color"
+      },
+      "500": {
+        "$value": "var(--skin-info)",
+        "$type": "color"
+      },
+      "600": {
+        "$value": "color-mix(in oklab, var(--skin-info) 85%, var(--skin-ink))",
+        "$type": "color"
+      },
+      "700": {
+        "$value": "color-mix(in oklab, var(--skin-info) 80%, transparent)",
+        "$type": "color"
+      },
+      "800": {
+        "$value": "color-mix(in oklab, var(--skin-info) 90%, transparent)",
+        "$type": "color"
+      },
+      "$description": "历史遗留（web-ui 兼容保留，新代码禁止作为交互色，规范 2.1 纪律 2）"
+    },
+    "gray": {
+      "50": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 2%, transparent)",
+        "$type": "color"
+      },
+      "100": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 4%, transparent)",
+        "$type": "color"
+      },
+      "200": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 6%, transparent)",
+        "$type": "color"
+      },
+      "300": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 8%, transparent)",
+        "$type": "color"
+      },
+      "400": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 12%, transparent)",
+        "$type": "color"
+      },
+      "500": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 16%, transparent)",
+        "$type": "color"
+      },
+      "600": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 24%, transparent)",
+        "$type": "color"
+      },
+      "700": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 32%, transparent)",
+        "$type": "color"
+      },
+      "800": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 48%, transparent)",
+        "$type": "color"
+      },
+      "$description": "白色透明度刻度（历史遗留，新代码避免直接使用）"
+    },
+    "success": {
+      "solid": {
+        "$value": "var(--skin-success)",
+        "$type": "color"
+      },
+      "bg": {
+        "$value": "color-mix(in oklab, var(--skin-success) 12%, transparent)",
+        "$type": "color"
+      },
+      "border": {
+        "$value": "color-mix(in oklab, var(--skin-success) 32%, transparent)",
+        "$type": "color"
+      }
+    },
+    "warning": {
+      "solid": {
+        "$value": "var(--skin-warning)",
+        "$type": "color"
+      },
+      "bg": {
+        "$value": "color-mix(in oklab, var(--skin-warning) 12%, transparent)",
+        "$type": "color"
+      },
+      "border": {
+        "$value": "color-mix(in oklab, var(--skin-warning) 32%, transparent)",
+        "$type": "color"
+      }
+    },
+    "error": {
+      "solid": {
+        "$value": "var(--skin-error)",
+        "$type": "color"
+      },
+      "bg": {
+        "$value": "color-mix(in oklab, var(--skin-error) 12%, transparent)",
+        "$type": "color"
+      },
+      "border": {
+        "$value": "color-mix(in oklab, var(--skin-error) 32%, transparent)",
+        "$type": "color"
+      }
+    },
+    "info": {
+      "solid": {
+        "$value": "var(--skin-info)",
+        "$type": "color"
+      },
+      "bg": {
+        "$value": "color-mix(in oklab, var(--skin-info) 12%, transparent)",
+        "$type": "color"
+      },
+      "border": {
+        "$value": "color-mix(in oklab, var(--skin-info) 32%, transparent)",
+        "$type": "color"
+      }
+    },
+    "overlay": {
+      "$value": "var(--skin-scrim)",
+      "$type": "color"
+    },
+    "feedback": {
+      "star": {
+        "$value": "var(--skin-warning)",
+        "$type": "color"
+      }
+    },
+    "highlight": {
+      "solid": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 70%, var(--skin-muted))",
+        "$type": "color"
+      },
+      "bg": {
+        "$value": "color-mix(in oklab, var(--skin-mark) 28%, transparent)",
+        "$type": "color"
+      }
+    }
+  },
+  "element": {
+    "bg": {
+      "subtle": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 4%, transparent)",
+        "$type": "color"
+      },
+      "soft": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 6%, transparent)",
+        "$type": "color"
+      },
+      "base": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 8%, transparent)",
+        "$type": "color"
+      },
+      "medium": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 12%, transparent)",
+        "$type": "color"
+      },
+      "strong": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 17%, transparent)",
+        "$type": "color"
+      },
+      "elevated": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 7%, transparent)",
+        "$type": "color"
+      }
+    }
+  },
+  "border": {
+    "subtle": {
+      "$value": "color-mix(in oklab, var(--skin-ink) 9%, transparent)",
+      "$type": "color"
+    },
+    "base": {
+      "$value": "color-mix(in oklab, var(--skin-ink) 14%, transparent)",
+      "$type": "color"
+    },
+    "medium": {
+      "$value": "color-mix(in oklab, var(--skin-ink) 22%, transparent)",
+      "$type": "color"
+    },
+    "strong": {
+      "$value": "color-mix(in oklab, var(--skin-ink) 32%, transparent)",
+      "$type": "color"
+    },
+    "prominent": {
+      "$value": "color-mix(in oklab, var(--skin-ink) 48%, transparent)",
+      "$type": "color"
+    },
+    "accent": {
+      "solid": {
+        "$value": "color-mix(in oklab, var(--skin-accent) 45%, transparent)",
+        "$type": "color"
+      },
+      "soft": {
+        "$value": "color-mix(in oklab, var(--skin-accent) 32%, transparent)",
+        "$type": "color"
+      },
+      "subtle": {
+        "$value": "color-mix(in oklab, var(--skin-accent) 16%, transparent)",
+        "$type": "color"
+      },
+      "strong": {
+        "$value": "color-mix(in oklab, var(--skin-accent) 65%, transparent)",
+        "$type": "color"
+      }
+    },
+    "purple": {
+      "solid": {
+        "$value": "color-mix(in oklab, var(--skin-info) 40%, transparent)",
+        "$type": "color"
+      },
+      "subtle": {
+        "$value": "color-mix(in oklab, var(--skin-info) 16%, transparent)",
+        "$type": "color"
+      }
+    }
+  },
+  "git": {
+    "color": {
+      "$description": "Git 状态色。各基名（--git-color-branch 等）与派生别名（added/pull/push）在 aliases.json 引用 *.solid",
+      "branch": {
+        "solid": {
+          "$value": "var(--skin-muted)",
+          "$type": "color"
+        },
+        "bg": {
+          "$value": "color-mix(in oklab, var(--skin-muted) 10%, transparent)",
+          "$type": "color"
+        },
+        "bg-hover": {
+          "$value": "color-mix(in oklab, var(--skin-muted) 16%, transparent)",
+          "$type": "color"
+        },
+        "border": {
+          "$value": "color-mix(in oklab, var(--skin-muted) 30%, transparent)",
+          "$type": "color"
+        }
+      },
+      "changes": {
+        "solid": {
+          "$value": "var(--skin-warning)",
+          "$type": "color"
+        },
+        "bg": {
+          "$value": "color-mix(in oklab, var(--skin-warning) 10%, transparent)",
+          "$type": "color"
+        },
+        "bg-hover": {
+          "$value": "color-mix(in oklab, var(--skin-warning) 16%, transparent)",
+          "$type": "color"
+        },
+        "border": {
+          "$value": "color-mix(in oklab, var(--skin-warning) 30%, transparent)",
+          "$type": "color"
+        }
+      },
+      "staged": {
+        "solid": {
+          "$value": "var(--skin-success)",
+          "$type": "color"
+        },
+        "bg": {
+          "$value": "color-mix(in oklab, var(--skin-success) 10%, transparent)",
+          "$type": "color"
+        },
+        "bg-hover": {
+          "$value": "color-mix(in oklab, var(--skin-success) 16%, transparent)",
+          "$type": "color"
+        },
+        "border": {
+          "$value": "color-mix(in oklab, var(--skin-success) 30%, transparent)",
+          "$type": "color"
+        }
+      },
+      "deleted": {
+        "solid": {
+          "$value": "var(--skin-error)",
+          "$type": "color"
+        },
+        "bg": {
+          "$value": "color-mix(in oklab, var(--skin-error) 10%, transparent)",
+          "$type": "color"
+        },
+        "bg-hover": {
+          "$value": "color-mix(in oklab, var(--skin-error) 16%, transparent)",
+          "$type": "color"
+        },
+        "border": {
+          "$value": "color-mix(in oklab, var(--skin-error) 30%, transparent)",
+          "$type": "color"
+        }
+      }
+    }
+  },
+  "badge": {
+    "border": {
+      "radius": {
+        "$value": "{size.radius.sm}",
+        "$type": "dimension"
+      }
+    },
+    "padding": {
+      "x": {
+        "$value": "{size.gap.2}",
+        "$type": "dimension"
+      },
+      "y": {
+        "$value": "2px",
+        "$type": "dimension"
+      }
+    },
+    "font": {
+      "size": {
+        "$value": "{font.size.xs}",
+        "$type": "dimension"
+      },
+      "weight": {
+        "$value": "{font.weight.medium}",
+        "$type": "fontWeight"
+      }
+    },
+    "neutral": {
+      "bg": {
+        "$value": "{element.bg.base}",
+        "$type": "color"
+      },
+      "text": {
+        "$value": "{color.text.secondary}",
+        "$type": "color"
+      }
+    },
+    "accent": {
+      "bg": {
+        "$value": "color-mix(in oklab, var(--skin-mark) 22%, transparent)",
+        "$type": "color"
+      },
+      "text": {
+        "$value": "color-mix(in oklab, var(--skin-ink) 30%, var(--skin-accent))",
+        "$type": "color"
+      }
+    },
+    "purple": {
+      "bg": {
+        "$value": "{color.purple.200}",
+        "$type": "color"
+      },
+      "text": {
+        "$value": "{color.purple.500}",
+        "$type": "color"
+      }
+    },
+    "success": {
+      "bg": {
+        "$value": "{color.success.bg}",
+        "$type": "color"
+      },
+      "text": {
+        "$value": "{color.success}",
+        "$type": "color"
+      }
+    },
+    "warning": {
+      "bg": {
+        "$value": "{color.warning.bg}",
+        "$type": "color"
+      },
+      "text": {
+        "$value": "{color.warning}",
+        "$type": "color"
+      }
+    },
+    "error": {
+      "bg": {
+        "$value": "{color.error.bg}",
+        "$type": "color"
+      },
+      "text": {
+        "$value": "{color.error}",
+        "$type": "color"
+      }
+    },
+    "info": {
+      "bg": {
+        "$value": "{color.info.bg}",
+        "$type": "color"
+      },
+      "text": {
+        "$value": "{color.info}",
+        "$type": "color"
+      }
+    }
+  },
+  "card": {
+    "bg": {
+      "default": {
+        "$value": "var(--skin-surface)",
+        "$type": "color"
+      },
+      "elevated": {
+        "$value": "color-mix(in oklab, var(--skin-surface) 50%, var(--skin-high))",
+        "$type": "color"
+      },
+      "subtle": {
+        "$value": "color-mix(in oklab, var(--skin-bg) 50%, var(--skin-surface))",
+        "$type": "color"
+      },
+      "hover": {
+        "$value": "color-mix(in oklab, var(--skin-surface) 94%, var(--skin-ink))",
+        "$type": "color"
+      },
+      "active": {
+        "$value": "color-mix(in oklab, var(--skin-surface) 90%, var(--skin-ink))",
+        "$type": "color"
+      },
+      "accent": {
+        "$value": "color-mix(in oklab, var(--skin-mark) 14%, var(--skin-surface))",
+        "$type": "color"
+      },
+      "accent-hover": {
+        "$value": "color-mix(in oklab, var(--skin-mark) 22%, var(--skin-surface))",
+        "$type": "color"
+      },
+      "purple": {
+        "$value": "color-mix(in oklab, var(--skin-info) 12%, var(--skin-surface))",
+        "$type": "color"
+      },
+      "purple-hover": {
+        "$value": "color-mix(in oklab, var(--skin-info) 18%, var(--skin-surface))",
+        "$type": "color"
+      }
+    }
+  },
+  "modal": {
+    "bg": {
+      "$value": "{color.bg.modal}",
+      "$type": "color"
+    },
+    "border": {
+      "$value": "{border.medium}",
+      "$type": "color"
+    },
+    "overlay": {
+      "$value": "var(--skin-scrim)",
+      "$type": "color"
+    }
+  },
+  "nav": {
+    "bg": {
+      "$value": "{color.bg.sunken}",
+      "$type": "color"
+    },
+    "item": {
+      "bg-hover": {
+        "$value": "{element.bg.base}",
+        "$type": "color"
+      },
+      "bg-active": {
+        "$value": "{element.bg.medium}",
+        "$type": "color"
+      },
+      "text": {
+        "$value": "{color.text.secondary}",
+        "$type": "color"
+      },
+      "text-active": {
+        "$value": "{color.text.primary}",
+        "$type": "color"
+      }
+    }
+  },
+  "panel": {
+    "bg": {
+      "$value": "{color.bg.base}",
+      "$type": "color"
+    },
+    "header": {
+      "bg": {
+        "$value": "{color.bg.sunken}",
+        "$type": "color"
+      }
+    },
+    "border": {
+      "$value": "{border.base}",
+      "$type": "color"
+    }
+  },
+  "tooltip": {
+    "bg": {
+      "$value": "{color.bg.tooltip}",
+      "$type": "color"
+    },
+    "border": {
+      "$value": "{border.medium}",
+      "$type": "color"
+    },
+    "text": {
+      "$value": "{color.text.primary}",
+      "$type": "color"
+    }
+  },
+  "tool": {
+    "card": {
+      "bg-primary": {
+        "$value": "{element.bg.base}",
+        "$type": "color"
+      },
+      "bg-secondary": {
+        "$value": "{element.bg.soft}",
+        "$type": "color"
+      },
+      "bg-hover": {
+        "$value": "{element.bg.medium}",
+        "$type": "color"
+      },
+      "bg-elevated": {
+        "$value": "{element.bg.elevated}",
+        "$type": "color"
+      },
+      "border": {
+        "$value": "{border.base}",
+        "$type": "color"
+      },
+      "border-subtle": {
+        "$value": "{border.subtle}",
+        "$type": "color"
+      },
+      "text-primary": {
+        "$value": "{color.text.primary}",
+        "$type": "color"
+      },
+      "text-secondary": {
+        "$value": "{color.text.secondary}",
+        "$type": "color"
+      },
+      "text-muted": {
+        "$value": "{color.text.muted}",
+        "$type": "color"
+      }
+    }
+  },
+  "input": {
+    "bg": {
+      "$value": "color-mix(in oklab, var(--skin-bg) 70%, var(--skin-surface))",
+      "$type": "color"
+    },
+    "bg-hover": {
+      "$value": "color-mix(in oklab, var(--skin-bg) 50%, var(--skin-surface))",
+      "$type": "color"
+    },
+    "bg-focus": {
+      "$value": "var(--skin-bg)",
+      "$type": "color"
+    },
+    "bg-disabled": {
+      "$value": "color-mix(in oklab, var(--skin-ink) 4%, transparent)",
+      "$type": "color"
+    },
+    "border": {
+      "$value": "{border.base}",
+      "$type": "color"
+    },
+    "border-hover": {
+      "$value": "{border.medium}",
+      "$type": "color"
+    },
+    "border-focus": {
+      "$value": "{color.accent.400}",
+      "$type": "color"
+    },
+    "border-error": {
+      "$value": "{color.error}",
+      "$type": "color"
+    },
+    "text": {
+      "$value": "{color.text.primary}",
+      "$type": "color"
+    },
+    "placeholder": {
+      "$value": "color-mix(in oklab, var(--skin-muted) 75%, var(--skin-bg))"
+    }
+  },
+  "scrollbar": {
+    "thumb": {
+      "$value": "color-mix(in oklab, var(--skin-ink) 20%, transparent)",
+      "$type": "color"
+    },
+    "thumb-hover": {
+      "$value": "color-mix(in oklab, var(--skin-ink) 34%, transparent)",
+      "$type": "color"
+    }
+  },
+  "scene": {
+    "viewport": {
+      "border": {
+        "width": {
+          "$value": "1px",
+          "$type": "dimension"
+        }
+      }
+    }
+  }
+}

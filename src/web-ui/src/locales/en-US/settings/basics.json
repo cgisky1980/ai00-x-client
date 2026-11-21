@@ -40,18 +40,6 @@
     "darkMode": "Dark",
     "mode": "Mode",
     "modeRowHint": "Switch between light and dark mode.",
-    "style": "Style",
-    "styleRowHint": "Choose the overall visual style. Combines freely with light/dark mode.",
-    "stylePacks": {
-      "xindongfang": {
-        "name": "Neo-Oriental Minimal",
-        "description": "Ink as bone, cyan as spirit, vermilion as seal, paper as breath. The default brand style."
-      },
-      "comic": {
-        "name": "Comic",
-        "description": "Paper base, true-black ink, brand orange. Bold outlines, hard offset shadows, hand-drawn feel."
-      }
-    },
     "systemTheme": "Match system",
     "systemThemeDescription": "Use light or dark theme based on your OS appearance. Updates when the system switches.",
     "presets": {
@@ -223,6 +211,32 @@
       "modePerMonitor": "Per Monitor",
       "monitorLabel": "Monitor {{id}}",
       "monitorPrimary": "Primary"
+    }
+  },
+  "skins": {
+    "title": "Skin",
+    "hint": "Every skin has a dark and a light mode. Copy any skin, change its colours, and export a .ai00skin.json to share.",
+    "builtin": "Built-in",
+    "mine": "Mine",
+    "fork": "New from this",
+    "edit": "Edit",
+    "export": "Export",
+    "delete": "Delete",
+    "new": "New skin",
+    "import": "Import .ai00skin.json",
+    "imported": "Imported “{{name}}”",
+    "editor": {
+      "newTitle": "New skin",
+      "editTitle": "Edit skin",
+      "name": "Name",
+      "author": "Author",
+      "mode": "Mode",
+      "radius": "Corners",
+      "buttons": "Buttons",
+      "motion": "Motion",
+      "ok": "Both modes pass the contrast check",
+      "cancel": "Cancel",
+      "save": "Save skin"
     }
   }
 }

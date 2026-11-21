@@ -1238,12 +1238,8 @@
   "theme": {
     "dark": "Dark",
     "light": "Light",
-    "style": "Visual style",
-    "styleTooltip": "Switch visual style",
-    "stylePacks": {
-      "xindongfang": "Neo-Oriental Minimal",
-      "comic": "Comic"
-    }
+    "skin": "Skin",
+    "skinTooltip": "Switch skin"
   },
   "mcpDialog": {
     "server": "Server:",

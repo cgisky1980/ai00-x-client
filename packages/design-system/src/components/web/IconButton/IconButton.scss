@@ -1,8 +1,8 @@
 /**
  * IconButton — token 清理版
- * 全部色值走 design-system token（规范：黛青唯一交互色；语义色仅表状态）。
+ * 全部色值走 design-system token（规范：交互色唯一交互色；语义色仅表状态）。
  * variant 色彩映射（新东方极简）：
- *   default/ghost 中性；primary/ai → 黛青（AI 紫退役）；
+ *   default/ghost 中性；primary/ai → 交互色（AI 紫退役）；
  *   danger → 语义红 hover 态；success/warning → 语义三件套（状态操作）。
  */
 
@@ -89,7 +89,7 @@
     border-radius: 50%;
   }
 
-  /* primary/ai：黛青浅底深字（明暗主题下对比均达标） */
+  /* primary/ai：交互色浅底深字（明暗主题下对比均达标） */
   &--primary,
   &--ai {
     background: var(--color-accent-200);

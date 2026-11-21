@@ -9,13 +9,13 @@ export function useTheme() {
     currentTheme,
     currentThemeId,
     themes,
-    stylePackId,
-    stylePacks,
+    skinId,
+    skins,
     loading,
     error,
     initialize,
     setTheme,
-    setStylePack,
+    setSkin,
     refreshThemes,
   } = useThemeStore();
 
@@ -31,10 +31,10 @@ export function useTheme() {
     themeId: currentThemeId,
     themeType: currentTheme?.type || 'dark' as ThemeType,
     themes,
-    /** 风格包（第二正交轴，规范第九节） */
-    stylePackId,
-    stylePacks,
-    setStylePack,
+    /** 皮肤（规范 v1.0）：当前 id / 全部皮肤 / 切换 */
+    skinId,
+    skins,
+    setSkin,
     loading,
     error,
     setTheme,
@@ -72,25 +72,6 @@ export function useThemeColors() {
 export function useThemeEffects() {
   const { theme } = useTheme();
   return theme?.effects || null;
-}
-
- 
-export function useThemeManagement() {
-  const {
-    themes,
-    addTheme,
-    removeTheme,
-    exportTheme,
-    refreshThemes,
-  } = useThemeStore();
-  
-  return {
-    themes,
-    addTheme,
-    removeTheme,
-    exportTheme,
-    refreshThemes,
-  };
 }
 
  

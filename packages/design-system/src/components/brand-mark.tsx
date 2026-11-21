@@ -9,21 +9,18 @@
  *
  * 变体（单色印，无框无底）：
  *   ink（默认） currentColor——主题自适应，日常场景
- *   seal        朱砂色字形（--color-brand-seal）——门面仪式，一屏一处朱
- *   inverse     宣纸白字形（#f6f2e8 固定资产色）——暗色门面
+ *   seal        皮肤签名色字形（--color-brand-glyph：高亮笔色，对比不足时回落交互色）——门面仪式，一屏一处
+ *   inverse     底色字形（--color-bg-base）——放在交互色/墨色实体块上
  *   line        同 ink 字形，muted 色——装饰水印
  *   lockup      seal 缩小 + Ai00-X wordmark 横排
  *
  * 灵韵态（animated）：圆环呼吸 + 双眼眨眼（复用 CubeLoading 动画语言），
  *   仅用于 loading / 启动等「AI 运行」场景；X 静止为骨。
  *
- * 纪律：一屏一印；不拉伸不加特效（灵韵态除外）；seal 的朱砂不随 hue 换肤联动。
+ * 纪律：一屏一印；不拉伸不加特效（灵韵态除外）；字形跨皮肤不变，颜色随皮肤。
  */
 import { useId } from 'react';
 import { cn } from '../lib/cn';
-
-/** inverse 版字形用品牌资产宣纸白（不随主题） */
-const INVERSE_PAPER = '#f6f2e8';
 
 export type BrandMarkVariant = 'ink' | 'seal' | 'inverse' | 'line' | 'lockup';
 
@@ -97,9 +94,9 @@ export function BrandMark({
 
   const color =
     variant === 'seal'
-      ? 'var(--color-brand-seal)'
+      ? 'var(--color-brand-glyph)'
       : variant === 'inverse'
-        ? INVERSE_PAPER
+        ? 'var(--color-bg-base)'
         : 'currentColor';
 
   return (

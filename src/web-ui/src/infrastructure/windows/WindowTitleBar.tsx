@@ -28,7 +28,6 @@ import {
 import { BrandMark } from '@ai00-x/design-system/react';
 import { useWindowControls } from '@/app/hooks/useWindowControls';
 import { useTheme, useThemeToggle } from '@/infrastructure/theme/hooks/useTheme';
-import type { StylePackId } from '@/infrastructure/theme';
 import './WindowTitleBar.scss';
 
 export interface WindowTitleBarProps {
@@ -46,8 +45,8 @@ export function WindowTitleBar({ title, leading, actions, children }: WindowTitl
   const { handleMinimize, handleMaximize, handleClose, isMaximized } = useWindowControls();
   const { toggleTheme, isDark } = useThemeToggle();
   const { t } = useTranslation('common');
-  /** 风格包（规范第九节，第二正交轴）：与设置页同一持久化链路 */
-  const { stylePackId, stylePacks, setStylePack } = useTheme();
+  /** 皮肤：与设置页同一持久化链路 */
+  const { skinId, skins, setSkin } = useTheme();
   /** 窗口置顶（钉住）状态 */
   const [pinned, setPinned] = useState(false);
 
@@ -80,7 +79,7 @@ export function WindowTitleBar({ title, leading, actions, children }: WindowTitl
             variant="ghost"
             size="small"
             className="app-window-titlebar__tool-btn"
-            tooltip={isDark ? '切换亮色（宣纸）' : '切换暗色（墨）'}
+            tooltip={isDark ? '切换亮色' : '切换暗色'}
             onClick={() => toggleTheme()}
           >
             {isDark ? <Sun size={16} /> : <Moon size={16} />}
@@ -91,21 +90,21 @@ export function WindowTitleBar({ title, leading, actions, children }: WindowTitl
                 variant="ghost"
                 size="small"
                 className="app-window-titlebar__tool-btn"
-                tooltip={t('theme.styleTooltip', { defaultValue: '视觉风格' })}
-                aria-label={t('theme.styleTooltip', { defaultValue: '视觉风格' })}
+                tooltip={t('theme.skinTooltip', { defaultValue: '界面皮肤' })}
+                aria-label={t('theme.skinTooltip', { defaultValue: '界面皮肤' })}
               >
                 <Palette size={16} />
               </IconButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>{t('theme.style', { defaultValue: '视觉风格' })}</DropdownMenuLabel>
+              <DropdownMenuLabel>{t('theme.skin', { defaultValue: '界面皮肤' })}</DropdownMenuLabel>
               <DropdownMenuRadioGroup
-                value={stylePackId}
-                onValueChange={(value) => void setStylePack(value as StylePackId)}
+                value={skinId}
+                onValueChange={(value) => void setSkin(value)}
               >
-                {stylePacks.map((pack) => (
-                  <DropdownMenuRadioItem key={pack.id} value={pack.id}>
-                    {t(`theme.stylePacks.${pack.id}`, { defaultValue: pack.name })}
+                {skins.map((skin) => (
+                  <DropdownMenuRadioItem key={skin.id} value={skin.id}>
+                    {skin.name}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>

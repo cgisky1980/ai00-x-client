@@ -4,7 +4,7 @@
  */
 
 /* 暗色修正：勾选框 accent-100 亮底 × accent-500 勾对比弱——
-   反转为黛青透底 + 亮青勾 */
+   反转为交互色透底 + 亮青勾 */
 [data-theme-type='dark'] .ai00-x-checkbox__input:checked + .ai00-x-checkbox__box,
 [data-theme-type='dark'] .ai00-x-checkbox__input:indeterminate + .ai00-x-checkbox__box,
 html:not([data-theme-type='light']) .ai00-x-checkbox__input:checked + .ai00-x-checkbox__box,

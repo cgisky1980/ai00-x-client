@@ -17,7 +17,7 @@ import type { ShellInfo } from '@/tools/terminal/types/session';
 import {
   useTheme,
 } from '@/infrastructure/theme';
-import type { StylePackId } from '@/infrastructure/theme';
+import { SkinGallery } from './SkinGallery';
 import { useLanguageSelector } from '@/infrastructure/i18n';
 import type { LocaleId } from '@/infrastructure/i18n/types';
 import {
@@ -36,7 +36,7 @@ const log = createLogger('BasicsConfig');
 
 export function BasicsAppearanceSection() {
   const { t } = useTranslation('settings/basics');
-  const { isDark, isLight, themes, setTheme, stylePackId, stylePacks, setStylePack, loading } = useTheme();
+  const { isDark, isLight, themes, setTheme, loading } = useTheme();
   const { currentLanguage, supportedLocales, selectLanguage, isChanging } = useLanguageSelector();
 
   const handleThemeTypeToggle = useCallback(async () => {
@@ -46,8 +46,6 @@ export function BasicsAppearanceSection() {
       await setTheme(targetTheme.id);
     }
   }, [isDark, themes, setTheme]);
-
-  const activeStylePack = stylePacks.find((p) => p.id === stylePackId) ?? stylePacks[0];
 
   return (
     <div className="theme-config">
@@ -104,30 +102,13 @@ export function BasicsAppearanceSection() {
             </div>
           </ConfigPageRow>
           <ConfigPageRow
-            label={t('appearance.style', { defaultValue: 'Style' })}
-            description={
-              activeStylePack
-                ? t(`appearance.stylePacks.${activeStylePack.id}.description`, {
-                    defaultValue: activeStylePack.description,
-                  })
-                : t('appearance.styleRowHint', { defaultValue: 'Choose the overall visual style.' })
-            }
-            align="center"
+            label={t('skins.title', { defaultValue: '界面皮肤' })}
+            description={t('skins.hint', {
+              defaultValue: '每个皮肤都有暗色和亮色两档。可从任意皮肤复制后改色，导出 .ai00skin.json 分享给别人。',
+            })}
+            multiline
           >
-            <div className="theme-config__language-select">
-              <select
-                value={stylePackId}
-                onChange={(e) => setStylePack(e.target.value as StylePackId)}
-                disabled={loading}
-                className="theme-config__native-select"
-              >
-                {stylePacks.map((pack) => (
-                  <option key={pack.id} value={pack.id}>
-                    {t(`appearance.stylePacks.${pack.id}.name`, { defaultValue: pack.name })}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SkinGallery />
           </ConfigPageRow>
         </ConfigPageSection>
       </div>

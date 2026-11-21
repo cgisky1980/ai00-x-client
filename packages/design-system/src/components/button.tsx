@@ -1,9 +1,9 @@
 /**
  * Button —— 规范 5.1
- * primary：黛青实体 + 纸白文字（对比 5.69）
- * seal：朱砂印章按钮，全页唯一 CTA（一屏一处！文字 seal-foreground）
+ * primary：交互色实体 + 皮肤按钮字色（皮肤体检保证 ≥4.5）；data-buttons=tonal 时为浅底
+ * seal：高亮笔色签名按钮，一屏一处的唯一 CTA（文字 seal-foreground）
  * default：墨阶次级按钮；ghost：透明幽灵；destructive：语义危险
- * active 反馈走 motion.css 的 ink-ripple（白名单场景 4）
+ * hover 上抬 / 按下反馈走 motion.css（taste-skill 微动效层）
  */
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';

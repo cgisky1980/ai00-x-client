@@ -1,6 +1,6 @@
 /**
  * Timeline —— 竖向时间线（规范 5.8）
- * 节点三态：finish（黛青实心）/ active（黛青 + 呼吸光环）/ pending（墨点）。
+ * 节点三态：finish（交互色实心）/ active（交互色 + 呼吸光环）/ pending（墨点）。
  * 连接线由 item::before 自绘，末项自动断线；数字/时间走 mono + tabular-nums。
  */
 import { forwardRef, type HTMLAttributes, type ReactNode } from 'react';

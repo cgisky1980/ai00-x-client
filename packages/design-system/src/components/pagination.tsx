@@ -1,6 +1,6 @@
 /**
  * Pagination —— 自绘组合（规范 5.8）
- * 页码 mono+tabular-nums；当前页黛青；与 Table 组合而非内嵌。
+ * 页码 mono+tabular-nums；当前页交互色；与 Table 组合而非内嵌。
  */
 import { useMemo } from 'react';
 import { cn } from '../lib/cn';

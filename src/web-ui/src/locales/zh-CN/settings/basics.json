@@ -40,18 +40,6 @@
     "darkMode": "深色",
     "mode": "模式",
     "modeRowHint": "在浅色和深色模式之间切换。",
-    "style": "风格",
-    "styleRowHint": "选择整体视觉风格，与明暗模式独立组合。",
-    "stylePacks": {
-      "xindongfang": {
-        "name": "新东方极简",
-        "description": "墨为骨，青为神，朱为印，白为息。品牌默认风格。"
-      },
-      "comic": {
-        "name": "漫画风",
-        "description": "纸底 + 真黑墨 + 品牌橙。粗黑描边、右下硬投影、手绘感。"
-      }
-    },
     "systemTheme": "跟随系统",
     "systemThemeDescription": "根据系统浅色/深色外观自动在亮暗主题间切换，并随系统切换而更新。",
     "presets": {
@@ -223,6 +211,32 @@
       "modePerMonitor": "每屏独立",
       "monitorLabel": "显示器 {{id}}",
       "monitorPrimary": "主屏"
+    }
+  },
+  "skins": {
+    "title": "界面皮肤",
+    "hint": "每个皮肤都有暗色和亮色两档。可从任意皮肤复制后改色，导出 .ai00skin.json 分享给别人。",
+    "builtin": "内置",
+    "mine": "我的",
+    "fork": "以此为底新建",
+    "edit": "编辑",
+    "export": "导出",
+    "delete": "删除",
+    "new": "新建皮肤",
+    "import": "导入 .ai00skin.json",
+    "imported": "已导入「{{name}}」",
+    "editor": {
+      "newTitle": "新建皮肤",
+      "editTitle": "编辑皮肤",
+      "name": "名称",
+      "author": "作者",
+      "mode": "明暗档",
+      "radius": "圆角",
+      "buttons": "按钮",
+      "motion": "动效",
+      "ok": "两档对比度全部合格",
+      "cancel": "取消",
+      "save": "保存皮肤"
     }
   }
 }

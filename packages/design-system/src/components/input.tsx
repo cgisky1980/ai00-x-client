@@ -1,5 +1,5 @@
 /**
- * Input / Textarea —— 规范 5.4：沉底表面 + radius.sm；focus ring 黛青
+ * Input / Textarea —— 规范 5.4：沉底表面 + radius.sm；focus ring 交互色
  */
 import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { cn } from '../lib/cn';

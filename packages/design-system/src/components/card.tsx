@@ -1,5 +1,5 @@
 /**
- * Card —— 规范 5.2：墨面（L3）+ 宣纸纹理 + 实体表面（禁玻璃/彩色边框）
+ * Card —— 实体表面（禁玻璃/彩色边框），hover 抬起 2px（taste-skill 微动效）
  */
 import { forwardRef, type HTMLAttributes } from 'react';
 import { cn } from '../lib/cn';
