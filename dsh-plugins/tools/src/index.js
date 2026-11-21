@@ -636,6 +636,29 @@ function parsePlanSteps(markdown) {
 }
 
 /**
+ * DoD 签名：人当初批准的那份契约——目标 + 步骤清单（编号 / 标题 / 验收）+ 全局验收条目。
+ *
+ * 刻意不含勾选态、验证/证据/状态/打回行，也不含范围 / 实施细则 / 风险 / 依赖：
+ * 那些是执行细节，改它们不该逼人重新批一遍计划。反之，改「验什么」必须重新待批，
+ * 否则 agent 只要把判据改得容易过，就能在不改交付物的情况下过验收（实测发生过：
+ * 被打回后把「语义与契约一致」改写成「正文恰有 3 个句号」）。
+ */
+export function dodSignature(markdown) {
+  if (typeof markdown !== "string" || !markdown.trim()) return "";
+  const goal = (sectionLines(markdown, /^##\s*(目标|Goal)/i) ?? [])
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const steps = parsePlanSteps(markdown).map((step) => ({
+    id: step.id,
+    title: step.title.replace(/\s+/g, " "),
+    acceptance: step.acceptance.map((a) => a.text.replace(/\s+/g, " ")),
+  }));
+  const acceptance = parseAcceptance(markdown).items.map((t) => t.replace(/\s+/g, " "));
+  return JSON.stringify({ goal, steps, acceptance });
+}
+
+/**
  * 写入/替换计划里的「## 验证记录」段（集成验收摘要）。
  *
  * 集成验收的结论原本只活在这一次工具返回里：模型看得到，**人看不到**——
@@ -2109,7 +2132,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_plan_write",
     description:
-      "Write (replace) the plan document (Markdown) of a Zhixing board card. The 策 window refreshes it live, so the user sees your updates. Prefer ai00_plan_check for status flips; use this only for structural edits. Verification/evidence lines already written by ai00_task_verify are preserved automatically, and a step cannot be newly ticked here without that evidence (the write is refused). The FIRST write of a task's plan is a hard stop: after it, end the turn and wait for the user to confirm the plan — never dispatch a worker in the same turn.",
+      "Write (replace) the plan document (Markdown) of a Zhixing board card. The 策 window refreshes it live, so the user sees your updates. Prefer ai00_plan_check for status flips; use this only for structural edits. Verification/evidence lines already written by ai00_task_verify are preserved automatically, and a step cannot be newly ticked here without that evidence (the write is refused). The FIRST write of a task's plan is a hard stop: after it, end the turn and wait for the user to confirm the plan — never dispatch a worker in the same turn. Editing the goal, the step list or any acceptance wording AFTER approval resets the approval: the write succeeds, but you must end the turn and wait for the user to approve again (never loosen an acceptance item to make it pass — fix the deliverable instead).",
     parameters: {
       type: "object",
       properties: {
@@ -2131,6 +2154,8 @@ function defineTools(ctx, api) {
           firstPlan: { type: "boolean" },
           // 旧计划里的「验证/证据」行被保留并补回（模型重写时容易漏）
           evidencePreserved: { type: "boolean" },
+          // 批准后改了 DoD（目标 / 步骤清单 / 验收措辞）：批准已复位，必须重新等人批
+          reapprovalRequired: { type: "boolean" },
         },
         required: ["ok"],
         additionalProperties: false,
@@ -2142,7 +2167,9 @@ function defineTools(ctx, api) {
         return text(
           value.firstPlan
             ? "plan document saved (first version).\nSTOP NOW: end this turn and wait for the user to confirm the plan. Do not call ai00_plan_read, do not dispatch any worker, do not call ai00_task_complete in this turn. Reply with a 3–6 line plan summary."
-            : "plan document updated"
+            : value.reapprovalRequired
+              ? "plan document updated, but it changes the approved contract (goal, step list or acceptance wording), so approval was reset.\nSTOP NOW: end this turn, summarize in 2–4 lines what changed and why, and wait for the user to approve the plan again. Do not dispatch any worker in this turn. Never make an acceptance item easier to pass just to clear it — fix the deliverable, or ask the user to change the criterion."
+              : "plan document updated"
         );
       },
     },
@@ -2223,7 +2250,30 @@ function defineTools(ctx, api) {
         );
       }
       await api.put("/plan", { taskId, markdown: merged }, exec.signal);
-      return { ok: true, firstPlan, evidencePreserved: merged !== markdown };
+      // 批准之后改 DoD = 人当初批准的那份契约变了：批准必须复位（与人在卡片上改计划同一口径），
+      // 否则 agent 可以靠「把验收判据改松」来过验收，而不是把交付物改对。
+      let reapprovalRequired = false;
+      if (!firstPlan && dodSignature(prevMarkdown) !== dodSignature(merged)) {
+        try {
+          const data = await api.get("/todo", exec.signal);
+          const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+          const task = tasks.find((t) => t.id === taskId);
+          if (task?.planApprovedAt) {
+            await api.put(
+              "/todo",
+              {
+                ...data,
+                tasks: tasks.map((t) => (t.id === taskId ? { ...t, planApprovedAt: null } : t)),
+              },
+              exec.signal
+            );
+            reapprovalRequired = true;
+          }
+        } catch {
+          // 任务读不到 / 写不进：不阻断计划落盘，卡片上仍能看到新计划
+        }
+      }
+      return { ok: true, firstPlan, evidencePreserved: merged !== markdown, reapprovalRequired };
     },
   });
 
