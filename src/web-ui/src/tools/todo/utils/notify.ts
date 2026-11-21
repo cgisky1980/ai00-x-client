@@ -8,13 +8,27 @@
  *
  * `tone` 约定：`warning` = 需要你动手（待批准 / 待验收 / 静默告警）；`error` = 需要人工处理
  * （不自动消失）；`info` = 只需知悉。
+ *
+ * `actions` = 通知上的动作按钮（如「去批准」→ 开工作台并定位到该任务）。点按钮即执行
+ * 回调并收起该条通知（NotificationItem 的既有行为）。
  */
 import { notificationService } from '@/shared/notification-system';
+
+export interface NotifyAction {
+  label: string;
+  onClick: () => void;
+  variant?: 'primary' | 'secondary';
+}
 
 export function notifyTask(
   title: string,
   message: string,
   tone: 'info' | 'warning' | 'error' = 'info',
+  actions?: NotifyAction[],
 ): void {
-  notificationService[tone](message, { title, duration: tone === 'error' ? 0 : 8000 });
+  notificationService[tone](message, {
+    title,
+    duration: tone === 'error' ? 0 : 8000,
+    ...(actions && actions.length > 0 ? { actions } : {}),
+  });
 }

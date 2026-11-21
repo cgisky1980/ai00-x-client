@@ -18,7 +18,9 @@ import { CalendarClock, FolderKanban, House, LayoutGrid, MessageSquare, PanelRig
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useWorkbenches } from '@/infrastructure/plugins/workbenchRegistry';
 import {
+  WORKBENCH_FOCUS_TASK,
   WORKBENCH_OPEN_SESSION,
+  type WorkbenchFocusTaskIntent,
   type WorkbenchOpenSessionIntent,
 } from '@/infrastructure/plugins/workbenchSession';
 import {
@@ -105,6 +107,27 @@ const WorkbenchWindowApp: React.FC = () => {
   }, [applyExternalSession]);
 
   const exitExternalSession = useCallback((): void => setExternalSession(null), []);
+
+  /**
+   * 「需要你」通知的入口（overlay → 本窗口）：切到任务场景并定位到那张卡。
+   * 与外部会话一样双时序收敛：启动时取 pending，之后走广播。
+   * 顺手清掉 pending，避免本窗口关闭后在 TTL 内重开被同一条再次定位。
+   */
+  useEffect(() => {
+    const applyFocus = (taskId: string | undefined): void => {
+      if (!taskId) return;
+      setExternalSession(null);
+      setTaskFocus(taskId);
+      setActiveId(TASKS_SCENE_ID);
+    };
+    const pending = takePendingIntents<WorkbenchFocusTaskIntent>(WORKBENCH_FOCUS_TASK);
+    if (pending[0]?.taskId) applyFocus(pending[0].taskId);
+    return subscribeWindowMessage((message) => {
+      if (message.type !== WORKBENCH_FOCUS_TASK) return;
+      applyFocus((message.payload as WorkbenchFocusTaskIntent | undefined)?.taskId);
+      takePendingIntents<WorkbenchFocusTaskIntent>(WORKBENCH_FOCUS_TASK);
+    });
+  }, []);
 
   // 工作台窗口持有工作台任务（看板/任务场景）：订阅策的跨窗口数据广播，
   // 别处（如插件工作台会话补登的任务卡、设置窗口）写入后这里能即时对齐。

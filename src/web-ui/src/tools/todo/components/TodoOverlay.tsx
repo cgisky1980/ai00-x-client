@@ -30,6 +30,23 @@ import {
 } from '../utils/watchdog';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
 import { notifyTask } from '../utils/notify';
+import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
+import { requestWorkbenchTaskFocus } from '@/infrastructure/plugins/workbenchSession';
+
+/**
+ * 「需要你」通知的动作：开（或聚焦）工作台窗口并定位到这张任务卡。
+ * 通知是人在别的场景里唯一的信号，只给文字就等于逼人自己去翻列表。
+ */
+function goToTask(taskId: string, label: string): { label: string; variant: 'primary'; onClick: () => void } {
+  return {
+    label,
+    variant: 'primary',
+    onClick: () => {
+      void WindowAPI.open('workbench').catch(() => undefined);
+      requestWorkbenchTaskFocus(taskId);
+    },
+  };
+}
 
 // ---- 执行看门狗（AI 评估 + 自适应复查，无绝对时间强制干预）----
 // 软阈值（5m 无事件）→ 派评估 agent 判断「正常长任务 vs 卡死」并给 ETA：
@@ -144,6 +161,7 @@ export const TodoOverlay: React.FC = () => {
             '审核 · 需要你',
             `「${t.title}」已自检${t.deliverables?.length ? ` · ${t.deliverables.length} 项交付物` : ''}，等你验收`,
             'warning',
+            [goToTask(t.id, '去验收')],
           );
           return;
         }
@@ -156,6 +174,7 @@ export const TodoOverlay: React.FC = () => {
           '审核 · 需要你',
           `${fresh.length} 个任务等你验收：${names}${fresh.length > 2 ? ' 等' : ''}`,
           'warning',
+          [goToTask(fresh[0].id, '去验收')],
         );
       });
     });
@@ -181,7 +200,9 @@ export const TodoOverlay: React.FC = () => {
         const at = approvalToastAtRef.current.get(taskId) ?? 0;
         if (Date.now() - at < 5 * 60_000) return;
         approvalToastAtRef.current.set(taskId, Date.now());
-        notifyTask('计划 · 需要你', `「${task.title}」的计划等你批准后开工`, 'warning');
+        notifyTask('计划 · 需要你', `「${task.title}」的计划等你批准后开工`, 'warning', [
+          goToTask(task.id, '去批准'),
+        ]);
       }, 900);
     });
     return () => {
