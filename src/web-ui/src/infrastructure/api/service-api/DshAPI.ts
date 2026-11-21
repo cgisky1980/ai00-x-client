@@ -2229,6 +2229,14 @@ export interface DshSessionRunState {
   pendingTools: number;
   lastTurnErrored: boolean;
   /**
+   * 已开启的轮次数（turn/start 计数）。
+   *
+   * `turns === 0` = 会话建好了但**一轮都没跑起来**（首轮任务书没送到 / 模型直接拒了）。
+   * 这类卡没有计划、没有失败、也没有在跑，只看别的信号全是「正常」，
+   * 于是永远停在列表里没人叫——只有这个计数能把它们挑出来。
+   */
+  turns: number;
+  /**
    * 最后一轮失败的原文（`code` 来自引擎的 failure 对象，`message` 是给排查用的原话）。
    * 失败通知要把「为什么失败」直接说出来：只写「以错误收尾」等于让人再开窗口找。
    */
@@ -2258,6 +2266,7 @@ function readFailure(reason: unknown): { code?: string; message: string } | null
 export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunState {
   let openTurn = false;
   let turnErrored = false;
+  let turns = 0;
   let lastError: { code?: string; message: string } | undefined;
   const calledIds = new Set<string>();
   const resultIds = new Set<string>();
@@ -2267,6 +2276,7 @@ export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunS
     switch (event.type) {
       case 'turn/start': {
         openTurn = true;
+        turns += 1;
         turnErrored = false;
         lastError = undefined;
         break;
@@ -2333,6 +2343,7 @@ export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunS
     openTurn,
     pendingTools,
     lastTurnErrored: turnErrored,
+    turns,
     ...(turnErrored && lastError ? { lastError } : {}),
   };
 }
