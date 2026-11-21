@@ -83,6 +83,19 @@ function resumeTask(task: TodoTask, variant: 'primary' | 'secondary' = 'primary'
   };
 }
 
+/**
+ * 失败原因的一句话摘要（通知用）：`code · 首个分句`，超长截断。
+ *
+ * 只写「以错误收尾」等于让人再开窗口找出错原因；完整原文仍在卡片/对话里，
+ * 通知里给到「是哪一类错、报在哪」就够判断了。
+ */
+function summarizeFailure(err?: { code?: string; message?: string }): string {
+  if (!err) return '';
+  const clause = (err.message ?? '').split(/[;；]/)[0].trim();
+  const short = clause.length > 80 ? `${clause.slice(0, 80)}…` : clause;
+  return [err.code, short].filter(Boolean).join(' · ');
+}
+
 // ---- 执行看门狗（AI 评估 + 自适应复查，无绝对时间强制干预）----
 // 软阈值（5m 无事件）→ 派评估 agent 判断「正常长任务 vs 卡死」并给 ETA：
 // 判卡死 → 自动中断 + 发「继续」（上限 2 次，超过转人工）；
@@ -429,9 +442,10 @@ export const TodoOverlay: React.FC = () => {
             if (notifiedFailureStampRef.current.get(sid) === stamp) continue;
             const previous = failureToastRef.current.get(task.id);
             if (previous) dismissTaskNotification(previous);
+            const reason = summarizeFailure(runStateMap[sid]?.lastError);
             const toastId = notifyTask(
               '任务出错 · 需要你',
-              `「${task.title}」这一轮以错误收尾——点开卡片查看错误，或点「继续执行」重试`,
+              `「${task.title}」这一轮以错误收尾${reason ? `：${reason}` : ''}——点开卡片查看错误，或点「继续执行」重试`,
               'error',
               // 文案里让用户点「继续执行」，按钮就必须真的在：只给「去查看」等于
               // 逼人开窗口再找一次入口。整卡点击仍是「去查看」（primary）。
