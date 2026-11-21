@@ -90,6 +90,48 @@ export function uncheckAcceptance(md: string): string {
   return lines.join('\n');
 }
 
+/** 解析 MD 的「## 验证记录」段（集成验收摘要，ai00_task_verify 写入；无段 → 空）。 */
+export function parseVerifyRecord(md: string | null): string[] {
+  if (!md) return [];
+  const lines = md.split('\n');
+  const out: string[] = [];
+  let inSection = false;
+  for (const line of lines) {
+    if (/^##\s/.test(line)) {
+      inSection = /^##\s*(验证记录|Verify log)/i.test(line);
+      continue;
+    }
+    if (!inSection) continue;
+    const item = /^\s*-\s+(.*)$/.exec(line);
+    if (item && item[1].trim()) out.push(item[1].trim());
+  }
+  return out;
+}
+
+/**
+ * 删除「## 验证记录」段（打回时用）。
+ *
+ * 打回意味着上一轮集成验收的结论**已过期**：留在卡上会让人把旧结论当成
+ * 这一轮的证据，也会让「最近一次集成验收」标题说谎。下轮 verify 会重写新的一份。
+ */
+export function clearVerifyRecord(md: string): string {
+  const lines = md.split('\n');
+  let start = -1;
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^##\s/.test(lines[i])) continue;
+    if (start >= 0) {
+      end = i;
+      break;
+    }
+    if (/^##\s*(验证记录|Verify log)/i.test(lines[i])) start = i;
+  }
+  if (start < 0) return md;
+  while (end > start + 1 && (lines[end - 1] ?? '').trim() === '') end -= 1;
+  lines.splice(start, end - start);
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
 /** 在「## 验收」段末尾追加一行打回记录（非 checkbox，不参与勾选统计）。 */
 export function appendRejectNote(md: string, reason: string, stamp = ''): string {
   const lines = md.split('\n');

@@ -633,6 +633,35 @@ function parsePlanSteps(markdown) {
 }
 
 /**
+ * 写入/替换计划里的「## 验证记录」段（集成验收摘要）。
+ *
+ * 集成验收的结论原本只活在这一次工具返回里：模型看得到，**人看不到**——
+ * 验收卡只展示步骤与验收勾选。把结论落进计划文档，验收人打开卡片就能看到
+ * 「交付物齐 / 有计划外文件 / 有复核记录 / 有编码损坏」，也不必依赖聊天记录。
+ */
+export function upsertVerifyRecord(markdown, items) {
+  const md = String(markdown ?? "");
+  if (!items?.length) return md;
+  const block = ["## 验证记录", ...items.map((t) => `- ${t}`)];
+  const src = md.split("\n");
+  let start = -1;
+  let end = src.length;
+  for (let i = 0; i < src.length; i++) {
+    if (!/^##\s/.test(src[i])) continue;
+    if (start >= 0) {
+      end = i;
+      break;
+    }
+    if (/^##\s*(验证记录|Verify log)/i.test(src[i])) start = i;
+  }
+  const out =
+    start < 0
+      ? [...src, ...(src[src.length - 1]?.trim() ? [""] : []), ...block]
+      : [...src.slice(0, start), ...block, "", ...src.slice(end)];
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+/**
  * 把「验证 / 证据」两行写回指定步骤块（展示层的事实来源）。
  *
  * 只做行级 upsert：已有则替换，没有则插到该步骤块最后一条子行之后；
@@ -1448,6 +1477,33 @@ function defineTools(ctx, api) {
         : manualItems.length > 0 || insufficient || scopeMissing.length > 0 || unrunnable.length > 0
           ? "needs-review"
           : "passed";
+
+      // 集成验收摘要写进计划：这是**人**在验收卡上能看到的唯一证据面
+      // （工具返回只有模型看得到）。清理类列表为空时不占行。
+      if (!stepId && markdown) {
+        const summary = [
+          `结论: ${verdict} · ${localStamp()}`,
+          `交付物: ${
+            deliverables.length
+              ? deliverables
+                  .map((d) => `${d.name}${d.exists ? " ✓" : " ✗ 缺失"}`)
+                  .join("、")
+              : "（计划未声明）"
+          }`,
+          ...(extras.length ? [`计划外文件: ${extras.join("、")}`] : []),
+          ...(reviewNotes.length ? [`复核记录: ${reviewNotes.join("、")}`] : []),
+          ...(corrupt.length ? [`编码损坏: ${corrupt.join("、")}`] : []),
+          ...(unrunnable.length ? [`不可执行命令: ${unrunnable.length} 条`] : []),
+        ];
+        const withRecord = upsertVerifyRecord(markdown, summary);
+        if (withRecord !== markdown) {
+          await api
+            .put("/plan", { taskId, markdown: withRecord }, exec.signal)
+            .catch((error) =>
+              ctx.logger.warn(`ai00-x-tools: verify record write skipped: ${error.message}`)
+            );
+        }
+      }
 
       // 把验证结果写回计划（展示层读「验证/证据」两行）；失败不阻断验证结论。
       // 可选同调用勾选（args.tick）：每步编排者原本要多一次 ai00_plan_check，

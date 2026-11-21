@@ -32,9 +32,11 @@ import { useTodoStore } from '../../store/todoStore';
 import { useGrowthStore } from '../../store/growthStore';
 import {
   appendRejectNote,
+  clearVerifyRecord,
   parseAcceptance,
   parseStepItems,
   parseSteps,
+  parseVerifyRecord,
   toggleAcceptanceLine,
   uncheckAcceptance,
   type AcceptanceItem,
@@ -143,6 +145,8 @@ export const PlanDocPanel: React.FC<{
 
   // 验收段解析（唯一真源 = 计划 MD 勾选态）：回填看板徽标缓存 + 「验收通过」门控
   const acceptanceItems = useMemo(() => parseAcceptance(md), [md]);
+  // 集成验收摘要（agent 最近一次 ai00_task_verify 落盘的 `## 验证记录`）
+  const verifyRecord = useMemo(() => parseVerifyRecord(md), [md]);
   const accDone = acceptanceItems.filter(i => i.done).length;
   const accTotal = acceptanceItems.length;
   useEffect(() => {
@@ -258,9 +262,10 @@ export const PlanDocPanel: React.FC<{
     if (input == null) return;
     const reason = input.trim() || '请继续完善：验收未通过';
     // 验收清单必须清零：否则 agent 下一轮可直接重新提交自检（打回变摆设）
+    // 同时作废上一轮集成验收结论（验证记录）——它的结论已过期。
     if (md != null) {
       const stamp = new Date().toLocaleString('zh-CN', { hour12: false });
-      const nextMd = appendRejectNote(uncheckAcceptance(md), reason, stamp);
+      const nextMd = appendRejectNote(clearVerifyRecord(uncheckAcceptance(md)), reason, stamp);
       try {
         await invoke('todo_plan_set', { taskId: task.id, markdown: nextMd });
         setMd(nextMd);
@@ -443,6 +448,16 @@ export const PlanDocPanel: React.FC<{
                       <span className="td-plandoc__acctext">{a.text}</span>
                     </button>
                   ))}
+                  {verifyRecord.length > 0 && (
+                    <div className="td-plandoc__verify">
+                      <div className="td-plandoc__verify-head">最近一次集成验收</div>
+                      {verifyRecord.map((line, index) => (
+                        <div className="td-plandoc__verify-line" key={`${index}-${line.slice(0, 10)}`}>
+                          {line}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </Drawer>

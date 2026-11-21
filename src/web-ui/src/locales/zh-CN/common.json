@@ -295,6 +295,7 @@
         "noPlan": "尚无计划书——任务会话里 AI 会先写计划书",
         "acceptance": "验收",
         "noAcceptance": "无验收项（免验收）",
+        "verifyRecord": "最近一次集成验收",
         "accept": "验收通过",
         "acceptHint": "人类验收通过，标记完成",
         "acceptBlocked": "还有 {{count}} 项验收未通过（可点击代勾）",

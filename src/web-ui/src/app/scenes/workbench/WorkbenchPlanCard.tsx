@@ -34,8 +34,10 @@ import type { TodoTask } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import {
   appendRejectNote,
+  clearVerifyRecord,
   parseAcceptance,
   parseStepItems,
+  parseVerifyRecord,
   toggleAcceptanceLine,
   uncheckAcceptance,
 } from '@/tools/todo/utils/planAcceptance';
@@ -181,6 +183,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const steps = useMemo(() => parsePlanSteps(shownMd), [shownMd]);
   const legacySteps = useMemo(() => parseStepItems(shownMd), [shownMd]);
   const acceptance = useMemo(() => parseAcceptance(shownMd), [shownMd]);
+  // 集成验收摘要（ai00_task_verify 写入计划）：验收人不必翻聊天记录就能看到
+  // 「交付物齐 / 计划外文件 / 复核记录 / 编码损坏」。
+  const verifyRecord = useMemo(() => parseVerifyRecord(shownMd), [shownMd]);
   const policy = useMemo(() => parsePlanPolicy(shownMd), [shownMd]);
   const goal = useMemo(
     () => parsePlanGoal(shownMd) || task.plan?.goal || task.title,
@@ -367,10 +372,12 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       const reason = input.trim() || t('nav.workbenchWindow.board.rejectDefault');
       // 打回 = DoD 不成立：验收勾选必须清零并留痕。
       // 只清 agentCompletedAt 的话 agent 可以直接重新提交自检（自检只要求勾选齐全），
-      // 打回就变成摆设。
+      // 打回就变成摆设。上一轮的集成验收结论同时作废（否则「最近一次」会指向上轮）。
       if (planMd != null) {
         const stamp = new Date().toLocaleString('zh-CN', { hour12: false });
-        void writePlan(appendRejectNote(uncheckAcceptance(planMd), reason, stamp));
+        void writePlan(
+          appendRejectNote(clearVerifyRecord(uncheckAcceptance(planMd)), reason, stamp),
+        );
       }
       useTodoStore.getState().updateTask(task.id, { agentCompletedAt: null });
       // 退回必须把意见发回会话，否则 agent 完全不知道被打回
@@ -716,6 +723,18 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           </ul>
         )}
       </section>
+      {verifyRecord.length > 0 && (
+        <section className="ai00-x-plan-card__block">
+          <h3 className="ai00-x-plan-card__block-title">
+            {t('nav.workbenchWindow.board.verifyRecord')}
+          </h3>
+          <ul className="ai00-x-plan-card__verify-list">
+            {verifyRecord.map((line, index) => (
+              <li key={`${index}-${line.slice(0, 12)}`}>{line}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       {deliverables}
       {!readOnly && !completed && (
         <div className="ai00-x-plan-card__actions">
