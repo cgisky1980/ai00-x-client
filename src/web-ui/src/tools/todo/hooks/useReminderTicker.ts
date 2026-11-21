@@ -17,6 +17,7 @@
 import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { useTranslation } from 'react-i18next';
 import { useTodoStore } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
 import { useAgentDelegate } from './useAgentDelegate';
@@ -45,6 +46,7 @@ async function notify(title: string, body: string) {
 
 export function useReminderTicker(): void {
   const { delegate } = useAgentDelegate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     let stopped = false;
@@ -138,8 +140,41 @@ export function useReminderTicker(): void {
         ? Boolean(runtimeState.runtime[sessionId]?.running) ||
           (runtimeState.delegating[sessionId] ?? 0) > 0
         : false;
+      // 触发链路是「外部→宿主→前端」三跳，出问题时要能从 webview 日志定位到底停在哪一跳
+      console.info(
+        `[task-trigger] ${taskId} session=${sessionId ?? '-'} workbench=${task.workbenchId ?? '-'} running=${running}`,
+      );
       if (running) {
         useGrowthStore.getState().showToast('已忽略外部触发', `「${task.title}」正在执行中`);
+        return;
+      }
+      // 工作台卡片必须走工作台会话链路（任务专属目录 + workbench preset）：
+      // 旧 useAgentDelegate 按 `agent` 模块解析 cwd，对这类卡片会落到默认工作区，
+      // 表现是「触发返回 202 但没有新会话」。
+      if (task.workbenchId) {
+        const workbenchTitle =
+          task.workbenchId === 'tasks'
+            ? t('nav.workbenchWindow.tasks.title')
+            : task.workbenchId;
+        // 动态 import：taskSession 依赖整个工作台场景栈，静态引入会把
+        // todo → scenes → todo 连成环，实测直接白屏（首页 JS 未挂载）。
+        void import('@/app/scenes/tasks/taskSession')
+          .then(({ resumeTaskRun }) => resumeTaskRun(task, workbenchTitle))
+          .then(() => {
+            console.info(`[task-trigger] ${taskId} resumed via workbench path`);
+            useGrowthStore
+              .getState()
+              .showToast('外部触发已启动', `「${task.title}」已继续执行`);
+          })
+          .catch((e: unknown) => {
+            console.warn(`[task-trigger] ${taskId} resume failed:`, e);
+            useGrowthStore
+              .getState()
+              .showToast(
+                '外部触发失败',
+                e instanceof Error ? e.message : String(e),
+              );
+          });
         return;
       }
       void delegate(task, evt.payload?.module).then(ok => {
@@ -154,5 +189,5 @@ export function useReminderTicker(): void {
     return () => {
       void un.then(f => f());
     };
-  }, [delegate]);
+  }, [delegate, t]);
 }

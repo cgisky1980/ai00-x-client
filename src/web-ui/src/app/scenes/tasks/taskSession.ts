@@ -218,3 +218,63 @@ export async function ensureTaskSession(
   await dshSession.prompt(sessionId, buildTaskBrief(task, ctx.projectRoot, project === null));
   return { sessionId, cwd: ctx.projectRoot };
 }
+
+/**
+ * 会话实际挂的 preset（工具面的权威来源）。
+ *
+ * 不能用 `task.executionMode` 单独判断：旧数据可能根本没有该字段，
+ * 而卡片已按 quick 建了会话——实测「今日英伟达股价」就是这种情况，
+ * 按 executionMode 走交付提示词会让模型在只有检索工具时会话里空转一轮。
+ * 也不能用 `session/list`：它的 `projections` 常为空。查不到就回落到任务字段。
+ */
+async function sessionPresetOf(sessionId: string): Promise<string> {
+  try {
+    const values = await dshSession.projections(sessionId);
+    return typeof values.agentPreset === 'string' ? values.agentPreset : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 恢复一次工作台任务的执行（外部触发 / 重跑 / 看板「继续」）。
+ *
+ * 为什么不能复用 `useAgentDelegate`：那条链路按 `agent` 模块解析 cwd，工作台卡片
+ * 不属于任何项目，cwd 会落到默认工作区（甚至弹目录选择框），实机表现为
+ * 「`tasks/trigger` 返回 202，但没有任何新会话」。
+ *
+ * 语义与计划契约一致：计划存在 → 从第一个未勾选步骤继续；计划不存在 → 按 loop
+ * 契约先写计划并停机等确认，绝不代用户跳过批准闸口。
+ */
+export async function resumeTaskRun(task: TodoTask, workbenchTitle: string): Promise<string> {
+  // 先对齐执行模式：旧数据可能丢了 executionMode，但会话建的是 quick preset。
+  // 不补这一步，`prepareTaskWorkspace` 会把「交付 loop 契约」写进 AGENTS.local.md，
+  // 只有检索工具的快速会话每轮都会读到它，于是白转一轮问能不能写计划。
+  let resolved = task;
+  if (task.agentSessionId) {
+    const preset = await sessionPresetOf(task.agentSessionId);
+    const mode = preset === 'workbench-quick' ? 'quick' : preset ? 'delivery' : task.executionMode;
+    if (mode && mode !== task.executionMode) {
+      useTodoStore.getState().updateTask(task.id, { executionMode: mode });
+      resolved = { ...task, executionMode: mode };
+    }
+  }
+  const { sessionId } = await ensureTaskSession(resolved, workbenchTitle, null, null, {
+    allowTrunk: true,
+  });
+  const plan = await invoke<string | null>('todo_plan_get', { taskId: task.id }).catch(
+    () => null,
+  );
+  // 提示词必须兼容「快速问答」会话：那类 preset 只挂了检索+通知，没有
+  // ai00_plan_write / 工人 / verify（实测继续执行时模型正确地拒绝了假装写计划，
+  // 但整轮就白跑了）。所以先看清会话真实工具面再决定让它做什么。
+  const quick = resolved.executionMode === 'quick';
+  const prompt = quick
+    ? '继续回答本任务的问题（快速问答模式：不写计划、不派子代理、不落文件）。若已有结论，用一两句话说明是否还有未回答的部分即可。'
+    : plan && plan.trim()
+      ? '继续执行本任务：按计划里第一个未勾选的步骤推进（先按 loop 契约派发并验证，再更新计划）。计划已全部完成时，汇报当前状态、剩余验收项与交付物路径，不要新建计划，也不要重写整份计划。'
+      : '继续执行本任务：目前还没有计划。按 loop 契约先写计划，然后结束本轮等待用户确认——不要在写计划的同一轮派发任何 worker。';
+  await dshSession.prompt(sessionId, prompt);
+  useTodoStore.getState().updateTask(task.id, { status: 'doing' });
+  return sessionId;
+}

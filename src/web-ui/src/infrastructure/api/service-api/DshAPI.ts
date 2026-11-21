@@ -950,6 +950,20 @@ export const dshSession = {
     return { events: page.records.map(r => ({ event: r.event })) as DshHistoryEntry[], hasMore: page.hasMore };
   },
 
+  /**
+   * 会话投影值（`agentPreset` / `modelSelection` / `plan` 等）。
+   *
+   * `session/list` 的项目列表里 `projections` 可能为空（引擎只带缓存快照），
+   * 需要单个会话的真实工具面时必须走这个端点——判断「会话挂的是哪个 preset」
+   * 只有这里能拿到权威值。
+   */
+  projections: async (sessionId: string): Promise<Record<string, unknown>> => {
+    const res = await rpc<{ values?: Record<string, unknown> }>('session/projections', {
+      request: { sessionId },
+    });
+    return res.values ?? {};
+  },
+
   /** 模型目录 = session/modelCatalog；current 从会话投影 modelSelection 取。 */
   models: async (sessionId: string): Promise<DshSessionModels> => {
     const catalog = await rpc<WireModelCatalog>('session/modelCatalog');

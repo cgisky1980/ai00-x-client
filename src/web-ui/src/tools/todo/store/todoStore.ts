@@ -263,6 +263,12 @@ function sanitize(raw: unknown): TodoData {
             typeof t.worktreePath === 'string' && t.worktreePath ? t.worktreePath : null,
           // 计划书确认时刻（工作台门禁；缺失=还没确认）
           planApprovedAt: typeof t.planApprovedAt === 'number' ? t.planApprovedAt : null,
+          // 执行模式（quick=快速问答 / delivery=交付流水线）。
+          // 必须保留：掉这个字段会让快速问答卡片在下次 load 后从任务列表消失，
+          // 且恢复执行时无法判断会话工具面（实测「今日英伟达股价」即被吞掉）。
+          ...(t.executionMode === 'quick' || t.executionMode === 'delivery'
+            ? { executionMode: t.executionMode }
+            : {}),
         }))
     : [];
 
