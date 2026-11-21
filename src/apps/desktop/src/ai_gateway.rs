@@ -2260,6 +2260,16 @@ fn last_successful_tool_result(messages: &[Value]) -> Option<String> {
         if is_failed_tool_text(&text) {
             continue;
         }
+        // 空写入不是证据（0 字节文件曾被当作交付物，见 write_call_is_empty）
+        let call_id = messages
+            .get(index)
+            .and_then(|m| m.get("tool_call_id"))
+            .and_then(|v| v.as_str());
+        let is_empty_write = find_tool_call_name(messages, call_id).as_deref() == Some("write")
+            && write_call_is_empty(messages, call_id);
+        if is_empty_write {
+            continue;
+        }
         if text.contains("<path>") {
             return Some(summarize_tool_text(&text, MAX_CHARS));
         }
@@ -2340,7 +2350,56 @@ fn terminal_tool_completion(messages: &[Value]) -> Option<String> {
     if !TERMINAL_TOOLS.contains(&name.as_str()) {
         return None;
     }
+    if name == "write" && write_call_is_empty(messages, call_id) {
+        return None;
+    }
     Some(summarize_tool_text(&text, 160))
+}
+
+/// `write` 调用是否写了空内容。
+///
+/// 实测（2026-11-21 会话 511e40de）：本地 3B 在长文退化后发出
+/// `{"content":"","file_path":"report.md"}`，`write` **成功**返回 `<path>…</path>`，
+/// 终结短路据此判定「任务达成」并以 `DONE:` 收尾——留下一个 0 字节交付物，
+/// 直到验收才发现。空写入不算交付证据。
+fn write_call_is_empty(messages: &[Value], call_id: Option<&str>) -> bool {
+    let Some(args) = find_tool_call_arguments(messages, call_id) else {
+        return false;
+    };
+    let Ok(parsed) = serde_json::from_str::<Value>(&args) else {
+        return false;
+    };
+    parsed
+        .get("content")
+        .and_then(Value::as_str)
+        .map(|content| content.trim().is_empty())
+        .unwrap_or(true)
+}
+
+/// 反查某个 tool_call id 对应的调用参数（与 `find_tool_call_name` 同源遍历）。
+fn find_tool_call_arguments(messages: &[Value], call_id: Option<&str>) -> Option<String> {
+    for msg in messages.iter().rev() {
+        let Some(calls) = msg.get("tool_calls").and_then(|c| c.as_array()) else {
+            continue;
+        };
+        for call in calls.iter().rev() {
+            let Some(function) = call.get("function") else {
+                continue;
+            };
+            let id = call.get("id").and_then(|v| v.as_str());
+            if let (Some(want), Some(have)) = (call_id, id) {
+                if want != have {
+                    continue;
+                }
+            }
+            let arguments = function.get("arguments")?;
+            return Some(match arguments {
+                Value::String(s) => s.clone(),
+                other => other.to_string(),
+            });
+        }
+    }
+    None
 }
 
 /// 反查某个 tool_call id 对应的工具名（无 id 时取最近一次 assistant 的最后一个调用）。
@@ -3482,6 +3541,24 @@ mod tests {
             "{done:?}"
         );
         assert!(last_successful_tool_result(&messages).is_some());
+    }
+
+    #[test]
+    fn empty_write_is_not_delivery_evidence() {
+        // 实测：3B 退化后发出 content 为空的 write，write 成功 → 终结短路把 0 字节文件当 DONE
+        let messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "write", "arguments": "{\"file_path\":\"report.md\",\"content\":\"\"}"}}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "<path>C:/ws/report.md</path>"}),
+        ];
+        assert_eq!(terminal_tool_completion(&messages), None);
+        assert_eq!(last_successful_tool_result(&messages), None);
+        // 非空写入仍然算交付证据
+        let ok = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "c2", "function": {"name": "write", "arguments": "{\"file_path\":\"report.md\",\"content\":\"# hi\"}"}}]}),
+            json!({"role": "tool", "tool_call_id": "c2", "content": "<path>C:/ws/report.md</path>"}),
+        ];
+        assert!(terminal_tool_completion(&ok).is_some());
+        assert!(last_successful_tool_result(&ok).is_some());
     }
 
     #[test]
