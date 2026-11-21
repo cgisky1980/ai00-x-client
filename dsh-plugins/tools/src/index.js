@@ -1680,7 +1680,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_complete",
     description:
-      "Submit a Zhixing task's SELF-CHECK for HUMAN acceptance by id (dual-stage acceptance — this does NOT complete the task; the human reviews and accepts in the Zhixing board). The call is REJECTED when `deliverables` is empty or any listed path does not exist on disk (relative paths resolve against snapshotDir). Self-check gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot of all changes is taken automatically — do NOT commit manually. MUST pass `deliverables`: the absolute paths of every artifact file you produced for this task (report/summary/output files — at least one; write them as real files in the working directory BEFORE calling, e.g. report.md). After submitting, REPORT to the user in the conversation: a short result summary (≤200 words) + the deliverables list (filename + one-line description). XP and completion are granted by the human, not by this tool.",
+      "Submit a Zhixing task's SELF-CHECK for HUMAN acceptance by id (dual-stage acceptance — this does NOT complete the task; the human reviews and accepts in the Zhixing board). The call is REJECTED when `deliverables` is empty or any listed path does not exist on disk (relative paths resolve against snapshotDir). Self-check gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot of all changes is taken automatically — do NOT commit manually. MUST pass `deliverables`: the absolute paths of every artifact file you produced for this task (report/summary/output files — at least one; write them as real files in the working directory BEFORE calling, e.g. report.md). After submitting, REPORT to the user in the conversation: a short result summary (≤200 words) + the deliverables list (filename + one-line description). XP and completion are granted by the human, not by this tool. For local-first plans the call is also REJECTED while the plan has not been approved by the human (and again whenever an edit to the goal / step list / acceptance wording reset that approval) — end the turn and wait for the approval message.",
     parameters: {
       type: "object",
       properties: {
@@ -1784,6 +1784,27 @@ function defineTools(ctx, api) {
       // 旧计划（无「## 执行策略」段）保持原判定，策任务行为不变。
       const policy = parseExecutionPolicy(plan?.markdown);
       if (policy.execution === "local-first") {
+        // 批准门兜底：人没批准过这份计划，就不能走「提交自检 → 人验收」这条快车道。
+        // 没有它，7.37 的「改 DoD 自动重新待批」会被一次 complete 直接绕过——
+        // 改完判据、勾完验收、提交自检，人只看到「待验收」而没看到「计划未批准」。
+        // 读不到任务时按未知处理（不拦，避免一次读失败把 agent 卡死）。
+        let planApproved;
+        try {
+          const data = await api.get("/todo", exec.signal);
+          const task = (Array.isArray(data?.tasks) ? data.tasks : []).find((t) => t.id === taskId);
+          planApproved = Boolean(task?.planApprovedAt);
+        } catch {
+          planApproved = undefined;
+        }
+        if (planApproved === false) {
+          throw new Error(
+            [
+              "这份计划还没有得到人的批准，不能提交自检。",
+              "请结束这一轮等我批准：计划卡上出现「批准并执行」后，我点一下你就会收到放行消息。",
+              "（批准之后如果你改了目标 / 步骤清单 / 验收措辞，批准会自动复位，需要我再批一次。）",
+            ].join("\n")
+          );
+        }
         const unfinished = parsePlanSteps(plan?.markdown).filter((step) => !step.done);
         if (unfinished.length > 0) {
           throw new Error(
