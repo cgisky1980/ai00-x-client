@@ -67,3 +67,48 @@ export function toggleAcceptanceLine(md: string, lineIndex: number, done: boolea
   lines[lineIndex] = line.replace(/^\s*-\s+\[([ xX])\]/, done ? '- [x]' : '- [ ]');
   return lines.join('\n');
 }
+
+/**
+ * 把「## 验收」段所有勾选清零。
+ *
+ * 人类打回时的必要动作：只清 `agentCompletedAt` 的话，验收清单仍是全勾，
+ * agent 下一轮可以直接重新提交自检（`ai00_task_complete` 只要求勾选齐全），
+ * 打回就变成摆设。清零后 DoD 重新不成立，必须先修正产物再逐项确认。
+ */
+export function uncheckAcceptance(md: string): string {
+  const lines = md.split('\n');
+  let inSection = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^##\s/.test(line)) {
+      inSection = /^##\s*(验收|acceptance)/i.test(line);
+      continue;
+    }
+    if (!inSection) continue;
+    lines[i] = line.replace(/^(\s*-\s+)\[[xX]\]/, '$1[ ]');
+  }
+  return lines.join('\n');
+}
+
+/** 在「## 验收」段末尾追加一行打回记录（非 checkbox，不参与勾选统计）。 */
+export function appendRejectNote(md: string, reason: string, stamp = ''): string {
+  const lines = md.split('\n');
+  let start = -1;
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^##\s/.test(lines[i])) continue;
+    if (start >= 0) {
+      end = i;
+      break;
+    }
+    if (/^##\s*(验收|acceptance)/i.test(lines[i])) start = i;
+  }
+  if (start < 0) return md;
+  const clean = reason.replace(/\s+/g, ' ').trim().slice(0, 200);
+  const note = `- 打回: ${clean}${stamp ? ` · ${stamp}` : ''}`;
+  // 段尾若有空行，插在空行之前，保持 Markdown 段结构
+  let at = end;
+  while (at > start + 1 && (lines[at - 1] ?? '').trim() === '') at -= 1;
+  lines.splice(at, 0, note);
+  return lines.join('\n');
+}

@@ -31,10 +31,12 @@ import { DeliverablePreview } from '../DeliverablePreview';
 import { useTodoStore } from '../../store/todoStore';
 import { useGrowthStore } from '../../store/growthStore';
 import {
+  appendRejectNote,
   parseAcceptance,
   parseStepItems,
   parseSteps,
   toggleAcceptanceLine,
+  uncheckAcceptance,
   type AcceptanceItem,
 } from '../../utils/planAcceptance';
 
@@ -250,17 +252,28 @@ export const PlanDocPanel: React.FC<{
   /** 验收后经验蒸馏（fire-and-forget）：讨论模型判断值得记则写入记忆库，
    *  下次委托时随任务书注入——形成"做过→记住→复用"闭环。失败静默。 */
 
-  /** 打回：清模型自检态，理由发回会话（agent 重读计划，继续完善）。 */
+  /** 打回：清模型自检态 + 验收勾选清零留痕，理由发回会话（agent 重读计划，继续完善）。 */
   const handleReject = async () => {
     const input = await window.prompt('打回理由（将发给 agent，可留空）', '请继续完善：验收未通过');
     if (input == null) return;
     const reason = input.trim() || '请继续完善：验收未通过';
+    // 验收清单必须清零：否则 agent 下一轮可直接重新提交自检（打回变摆设）
+    if (md != null) {
+      const stamp = new Date().toLocaleString('zh-CN', { hour12: false });
+      const nextMd = appendRejectNote(uncheckAcceptance(md), reason, stamp);
+      try {
+        await invoke('todo_plan_set', { taskId: task.id, markdown: nextMd });
+        setMd(nextMd);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    }
     updateTask(task.id, { agentCompletedAt: null });
     if (task.agentSessionId) {
       void dshSession
         .prompt(
           task.agentSessionId,
-          `【验收打回】${reason}。请先用 ai00_plan_read 重读计划文档；若打回涉及需求/方案变化，先更新计划再继续执行。`,
+          `【验收打回】${reason}。计划的验收项已全部取消勾选（DoD 重新不成立，直接重新提交自检会被拒）：请先用 ai00_plan_read 重读计划；若打回涉及需求/方案变化，先更新计划再继续执行；修正产物后重跑 ai00_task_verify，只勾选真正满足的验收项（可用 ai00_plan_check {matches: [...]} 一次勾多条）。`,
         )
         .catch(() => undefined);
     }

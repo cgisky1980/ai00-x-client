@@ -55,7 +55,7 @@ export const DELEGATE_SUBAGENT_NOTIFY = (localFirst = false): string =>
 
 /** 人类验收打回时发回会话的固定话术（对话内退回与详情页退回共用一份）。 */
 export const buildRejectPrompt = (reason: string): string =>
-  `[Acceptance rejected] ${reason}. Re-read the plan with ai00_plan_read first; if the rejection changes requirements or the approach, update the plan before continuing.`;
+  `[Acceptance rejected] ${reason}. The acceptance checklist in the plan has been reset to unchecked — overall acceptance is red again, so re-submitting ai00_task_complete without new work will be refused. Re-read the plan with ai00_plan_read; if the rejection changes requirements or the approach, update the plan first. Then fix the deliverables, re-run ai00_task_verify, and only re-tick the acceptance lines you have actually satisfied (batch them with ai00_plan_check {matches: [...]}).`;
 
 /** 长耗时操作预告（有计划文档时注入）。 */
 export const DELEGATE_LONG_OP_NOTICE =

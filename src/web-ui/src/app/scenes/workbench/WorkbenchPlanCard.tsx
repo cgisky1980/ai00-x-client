@@ -33,9 +33,11 @@ import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
 import type { TodoTask } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import {
+  appendRejectNote,
   parseAcceptance,
   parseStepItems,
   toggleAcceptanceLine,
+  uncheckAcceptance,
 } from '@/tools/todo/utils/planAcceptance';
 import {
   deriveStepState,
@@ -363,13 +365,20 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const reject = useCallback(
     (input: string): void => {
       const reason = input.trim() || t('nav.workbenchWindow.board.rejectDefault');
+      // 打回 = DoD 不成立：验收勾选必须清零并留痕。
+      // 只清 agentCompletedAt 的话 agent 可以直接重新提交自检（自检只要求勾选齐全），
+      // 打回就变成摆设。
+      if (planMd != null) {
+        const stamp = new Date().toLocaleString('zh-CN', { hour12: false });
+        void writePlan(appendRejectNote(uncheckAcceptance(planMd), reason, stamp));
+      }
       useTodoStore.getState().updateTask(task.id, { agentCompletedAt: null });
       // 退回必须把意见发回会话，否则 agent 完全不知道被打回
       if (sessionId) {
         void dshSession.prompt(sessionId, buildRejectPrompt(reason)).catch(() => undefined);
       }
     },
-    [sessionId, t, task.id],
+    [planMd, sessionId, t, task.id, writePlan],
   );
 
   const toggleAcceptance = useCallback(
