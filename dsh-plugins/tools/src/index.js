@@ -111,6 +111,28 @@ function parseDeliverables(markdown) {
   return out;
 }
 
+/**
+ * `## Deliverables` 里承诺、但 `## Steps` 段**从未提及**的文件名。
+ *
+ * 2026-11-21 实测：模型写单步计划（Scope: brief.md）时，把上一份调研任务的
+ * `report.md` 一并抄进 Deliverables。这份「幽灵交付物」永远不存在，
+ * `ai00_task_verify` 的整体验收会因此恒判 `failed`，任务走进死胡同。
+ * 这里在写计划时就把不自洽的承诺拦下来（Steps 里提到即视为有意产出）。
+ */
+export function ghostDeliverables(markdown) {
+  const deliverables = parseDeliverables(markdown);
+  if (!deliverables.length) return [];
+  const stepsText = (sectionLines(markdown, /^##\s*(步骤|Steps?)/i) ?? [])
+    .join("\n")
+    .replace(/`/g, "");
+  if (!stepsText.trim()) return deliverables;
+  return deliverables.filter((name) => {
+    if (stepsText.includes(name)) return false;
+    const base = name.split("/").pop();
+    return base ? !stepsText.includes(base) : true;
+  });
+}
+
 /** 本地时间戳 `YYYY-MM-DD HH:mm`（计划文档给人读，不用 UTC）。 */
 function localStamp() {
   const d = new Date();
@@ -1762,6 +1784,14 @@ function defineTools(ctx, api) {
             "refused: this rewrite only flips checkboxes or evidence lines — use ai00_plan_check {taskId, match} instead (a few dozen tokens). Nothing was written."
           );
         }
+      }
+      // 「幽灵交付物」：Deliverables 承诺了 Steps 里根本没提的文件。
+      // 这类承诺永远不成立 → 整体验收恒 failed，必须在写盘前拦。
+      const ghosts = ghostDeliverables(merged);
+      if (ghosts.length) {
+        throw new Error(
+          `refused: Deliverables lists ${ghosts.join(", ")} but no step mentions it — overall acceptance would always fail. Either add it to the producing step's Scope, or remove it from Deliverables. Nothing was written.`
+        );
       }
       await api.put("/plan", { taskId, markdown: merged }, exec.signal);
       return { ok: true, firstPlan, evidencePreserved: merged !== markdown };
