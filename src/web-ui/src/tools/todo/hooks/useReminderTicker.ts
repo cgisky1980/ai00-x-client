@@ -20,6 +20,7 @@ import { listen } from '@tauri-apps/api/event';
 import { useTodoStore } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
 import { useAgentDelegate } from './useAgentDelegate';
+import { useWorkbenchTaskStore } from '@/app/scenes/tasks/workbenchTaskStore';
 import type { TodoTask } from '../api/types';
 
 const REMINDER_WINDOW_MS = 7 * 86400000;
@@ -128,8 +129,16 @@ export function useReminderTicker(): void {
         useGrowthStore.getState().showToast('外部触发失败', `未找到卡片 ${taskId}`);
         return;
       }
-      // Rust 侧已做权威防重入；此处兜底事件与状态之间的竞争窗口
-      if ((task.status ?? 'requirement') === 'doing') {
+      // 防重入必须用**真实运行态**（session/list 快照 + 子代理聚合），
+      // 不能用看板列 `status`：工作台卡片建卡即 `doing`，worker 跑完也不回落，
+      // 实测导致「卡片停在 doing → 外部触发永远被拒」。
+      const sessionId = task.agentSessionId;
+      const runtimeState = useWorkbenchTaskStore.getState();
+      const running = sessionId
+        ? Boolean(runtimeState.runtime[sessionId]?.running) ||
+          (runtimeState.delegating[sessionId] ?? 0) > 0
+        : false;
+      if (running) {
         useGrowthStore.getState().showToast('已忽略外部触发', `「${task.title}」正在执行中`);
         return;
       }

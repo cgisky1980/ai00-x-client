@@ -798,7 +798,7 @@ async fn tasks_trigger(req: &mut Request, res: &mut Response) {
             return;
         }
     };
-    let Some(task) = store
+    let Some(_task) = store
         .get("tasks")
         .and_then(Value::as_array)
         .and_then(|arr| {
@@ -813,18 +813,10 @@ async fn tasks_trigger(req: &mut Request, res: &mut Response) {
         );
         return;
     };
-    let status = task
-        .get("status")
-        .and_then(Value::as_str)
-        .unwrap_or("requirement");
-    if status == "doing" {
-        err(
-            res,
-            StatusCode::CONFLICT,
-            format!("task already running: {task_id}"),
-        );
-        return;
-    }
+    // 防重入不在这里做：看板列 `status` 是给用户看的（工作台卡片建卡即 doing，
+    // worker 跑完也不回落），拿它当运行态会让外部触发永远 409（实测 2026-11-21）。
+    // 真实运行态只有前端知道（session/list 的 running + 子代理聚合），
+    // 由 `todo://task-trigger` 的接收方判断并提示「正在执行中」。
     let Some(app) = crate::dsh_manager::app_handle() else {
         err(res, StatusCode::SERVICE_UNAVAILABLE, "app not ready".into());
         return;
