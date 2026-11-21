@@ -15,6 +15,7 @@ import type { TodoTask, WorkbenchProject } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
 import { WorkbenchTaskHost } from '../workbench/WorkbenchTaskHost';
+import { needsYou } from '../workbench/workbenchStage';
 import { PlanCardGenerating } from '../workbench/WorkbenchPlanCard';
 import {
   TASKS_WORKBENCH_ID,
@@ -134,6 +135,26 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
     );
   const askingOf = (task: TodoTask): boolean =>
     Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking);
+
+  /**
+   * 列表显示顺序：「需要你」的任务置顶（待批准 / 待验收 / 正在提问——人只在这里被卡住），
+   * 组内与其余任务仍按新→旧。判断与状态标签同源（taskPhase + needsYou），不另立口径。
+   */
+  const orderedTasks = useMemo(() => {
+    const rank = (task: TodoTask): number => {
+      const phase = taskPhase(
+        task,
+        plans[task.id] ?? null,
+        task.agentSessionId ? runtime[task.agentSessionId] : undefined,
+      );
+      const asking = Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking);
+      return needsYou(phase, asking) ? 0 : 1;
+    };
+    return tasks
+      .map((task, index) => ({ task, index, rank: rank(task) }))
+      .sort((a, b) => a.rank - b.rank || a.index - b.index)
+      .map((row) => row.task);
+  }, [plans, runtime, tasks]);
 
   useEffect(() => {
     if (!loaded) void load();
@@ -295,7 +316,7 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
         </div>
 
         <div className="ai00-x-task-scene__items">
-          {tasks.map((task) => (
+          {orderedTasks.map((task) => (
             <div key={task.id} className="ai00-x-task-row">
               <button
                 type="button"
