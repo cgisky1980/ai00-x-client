@@ -229,6 +229,11 @@ pub async fn todo_task_create(app: &AppHandle, body: &Value) -> Result<Value, St
         "remindAt": null,
         "remindedAt": null,
         "status": "requirement",
+        // 归属默认「任务」工作台：任务场景 / 看板只列 origin='workbench' 的卡。
+        // 不写这个字段时 agent 建的想法卡会落在「策任务」一侧——而策窗口早已下线，
+        // 卡片就完全没有入口（实测 ai00_task_create 建出来的卡在列表里查无此人）。
+        "origin": "workbench",
+        "workbenchId": "tasks",
     });
 
     let tasks = data
