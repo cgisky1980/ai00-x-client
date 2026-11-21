@@ -866,6 +866,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           </>
         )}
       </div>
+      {/* 打回返工期间也要看得到「为什么被打回、哪几项不成立」：打回会清空验收与集成验收记录，
+          执行段若不展示，卡片只剩「已完成 1/1」——读起来像没发生过打回。 */}
+      {rejectBlock}
       {!readOnly && allDone && !running && !task.agentCompletedAt && (
         <div className="ai00-x-plan-card__nudge">
           <p className="ai00-x-plan-card__hint">{t('nav.workbenchWindow.progress.nudgeSelfCheck')}</p>
