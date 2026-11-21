@@ -480,6 +480,7 @@
         "resume": "Resume",
         "continuePlanning": "Keep planning",
         "emptyStoppedHint": "The agent stopped before writing a plan. Continue below to have it break down the goal again.",
+        "sendFailed": "The message did not reach the agent: {{message}}. The plan state is updated; you can resend it in the chat.",
         "editStep": "Edit step",
         "stepTitle": "Step title",
         "stepCommand": "Acceptance command (optional, e.g. pnpm run type-check)",

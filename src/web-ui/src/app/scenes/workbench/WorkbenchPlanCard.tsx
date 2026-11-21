@@ -293,6 +293,23 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     [t],
   );
 
+  /** 给 agent 发一句话；没送到必须让人看见（以前是静默 catch，卡片状态变了但 agent 毫无所知）。 */
+  const promptAgent = useCallback(
+    (message: string): void => {
+      if (!sessionId) return;
+      void dshSession
+        .prompt(sessionId, message, { mode: 'queue' })
+        .catch((e: unknown) =>
+          setError(
+            t('nav.workbenchWindow.planCard.sendFailed', {
+              message: e instanceof Error ? e.message : String(e),
+            }),
+          ),
+        );
+    },
+    [sessionId, t],
+  );
+
   /**
    * 用户改计划 = 需求变更（规范 §9.6「改计划即重新待批」）：
    * 写盘；若已批准则清除批准，并把 diff 摘要排进会话，让 agent 重读计划。
@@ -306,15 +323,16 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       if (task.planApprovedAt) {
         useTodoStore.getState().updateTask(task.id, { planApprovedAt: null });
         if (sessionId) {
-          const message = t('nav.workbenchWindow.planCard.changedMessage', {
-            summary: describeDiff(diff),
-          });
-          void dshSession.prompt(sessionId, message, { mode: 'queue' }).catch(() => undefined);
+          promptAgent(
+            t('nav.workbenchWindow.planCard.changedMessage', {
+              summary: describeDiff(diff),
+            }),
+          );
         }
       }
       return true;
     },
-    [describeDiff, planMd, sessionId, t, task.id, task.planApprovedAt, writePlan],
+    [describeDiff, planMd, promptAgent, sessionId, t, task.id, task.planApprovedAt, writePlan],
   );
 
   const saveStep = useCallback(async (): Promise<void> => {
@@ -353,11 +371,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     }
     // 批准消息进队列（agent 收尾中也不丢）；它同时是消息流里的留痕行
     if (sessionId) {
-      void dshSession
-        .prompt(sessionId, t('nav.workbenchWindow.progress.approvePlanMessage'), { mode: 'queue' })
-        .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+      promptAgent(t('nav.workbenchWindow.progress.approvePlanMessage'));
     }
-  }, [planReview, sessionId, t, task.id]);
+  }, [planReview, promptAgent, sessionId, task.id, t]);
 
   /** exit_plan_mode 退回：拒绝审批，agent 留在计划模式继续改（意见写在对话里）。 */
   const rejectReview = useCallback((): void => {
@@ -368,11 +384,8 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   }, [planReview, sessionId]);
 
   const nudgeSelfCheck = useCallback((): void => {
-    if (!sessionId) return;
-    void dshSession
-      .prompt(sessionId, t('nav.workbenchWindow.progress.nudgeSelfCheckMessage'), { mode: 'queue' })
-      .catch(() => undefined);
-  }, [sessionId, t]);
+    promptAgent(t('nav.workbenchWindow.progress.nudgeSelfCheckMessage'));
+  }, [promptAgent, t]);
 
   /** 继续执行：停住的任务按计划从第一个未勾选步骤续跑（与外部触发同一份话术）。 */
   const resume = useCallback((): void => {
@@ -432,10 +445,10 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       useTodoStore.getState().updateTask(task.id, { agentCompletedAt: null });
       // 退回必须把意见发回会话，否则 agent 完全不知道被打回
       if (sessionId) {
-        void dshSession.prompt(sessionId, buildRejectPrompt(reason)).catch(() => undefined);
+        promptAgent(buildRejectPrompt(reason));
       }
     },
-    [planMd, sessionId, t, task.id, writePlan],
+    [planMd, promptAgent, sessionId, t, task.id, writePlan],
   );
 
   /** 确认打回：人写的意见 + 勾选的不成立验收项（打回本身仍是整份 DoD 重来）。 */
