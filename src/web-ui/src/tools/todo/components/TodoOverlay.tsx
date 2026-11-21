@@ -130,6 +130,8 @@ export const TodoOverlay: React.FC = () => {
   const planToastRef = useRef(new Map<string, string>());
   /** 任务 → 「审核 · 需要你」通知 id：验收/打回/归档后收起。 */
   const acceptToastRef = useRef(new Map<string, string>());
+  /** 会话 → 上次历史重放结论（updatedAt 未变就复用，避免每 30s 重放几百条事件）。 */
+  const historyCacheRef = useRef(new Map<string, { updatedAt: number; state: DshSessionRunState }>());
 
   useEffect(() => {
     void load();
@@ -367,21 +369,38 @@ export const TodoOverlay: React.FC = () => {
 
         // 失败态回填（R2-9）：事件流水账重放派生——只看「最后一个轮次是否以错误收尾」，
         // 不再读历史尾找 error（折叠规则一变就漂、且工具失败被后续轮次救回也误报）
+        //
+        // ⚠️ 历史重放很贵（一次可能几百条事件）。以前每 30s 对**所有**停住的 doing 任务
+        // 重拉一遍：十几张停滞卡 = 每分钟二十多次 history RPC，纯属空转。
+        // 现在按 `session/list` 的 `updatedAt` 做缓存：会话没有新事件就直接复用上次的结论。
         const doingSessions = tasks
           .filter(t => (t.status ?? 'requirement') === 'doing' && t.agentSessionId)
           .map(t => t.agentSessionId as string);
+        const updatedAtOf = new Map(items.map(s => [s.sessionId, s.updatedAt ?? 0]));
         const failedMap: Record<string, boolean> = {};
         const runStateMap: Record<string, DshSessionRunState> = {};
         for (const sid of doingSessions) {
           if (map[sid]) continue; // 仍在跑，不判
+          const stamp = updatedAtOf.get(sid);
+          const cached = historyCacheRef.current.get(sid);
+          if (cached && stamp !== undefined && cached.updatedAt === stamp) {
+            runStateMap[sid] = cached.state;
+            failedMap[sid] = cached.state.lastTurnErrored;
+            continue;
+          }
           try {
             const { events } = await dshSession.history(sid);
             const state = deriveSessionRunState(events.map(e => e.event));
+            historyCacheRef.current.set(sid, { updatedAt: stamp ?? 0, state });
             runStateMap[sid] = state;
             failedMap[sid] = state.lastTurnErrored;
           } catch {
             // 历史拉不到 → 不标（宁可不报，不误报）
           }
+        }
+        // 会话消失（被清理 / 换了数据目录）→ 丢掉缓存，免得 id 复用时套用旧结论
+        for (const sid of [...historyCacheRef.current.keys()]) {
+          if (!updatedAtOf.has(sid)) historyCacheRef.current.delete(sid);
         }
         setAgentFailed(failedMap);
 
