@@ -23,11 +23,13 @@ import {
   buildRecoverPromptForTask,
   judgeModelFor,
   judgeStall,
+  WATCH_CHILD_STALL_MS,
   WATCH_JUDGE_MIN_INTERVAL_MS,
   WATCH_MAX_DELAY_MS,
   WATCH_MAX_RECOVER,
   WATCH_STALL_SOFT_MS,
 } from '../utils/watchdog';
+import { buildChildStallPrompt } from '../ai/prompts';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
 import { dismissTaskNotification, notifyTask } from '../utils/notify';
 import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
@@ -87,6 +89,10 @@ export const TodoOverlay: React.FC = () => {
   const idlePollsRef = useRef(new Map<string, number>());
   /** 任务 → 「任务停下」通知 id：恢复运行/改状态后收起。 */
   const stallToastRef = useRef(new Map<string, string>());
+  /** 子代理会话 → 处理阶段：1 = 已请 agent 中断自查，2 = 已转人工（不再重复提示）。 */
+  const childStallRef = useRef(new Map<string, 1 | 2>());
+  /** 子代理会话 → 转人工通知 id：子代理恢复/结束后收起。 */
+  const childStallToastRef = useRef(new Map<string, string>());
 
   useEffect(() => {
     void load();
@@ -405,6 +411,64 @@ export const TodoOverlay: React.FC = () => {
               { duration: 0 },
             ),
           );
+        }
+
+        // 子代理长时间无事件：worker 是子会话，主会话看门狗看不见它（主会话早已 turn/end），
+        // 于是任务显示「执行中」而实际什么也没在推进（实测 sandbox `bash sleep 45` 挂 5 分钟
+        // 以上不返回）。先请编排者自己中断重派（只有它有 interrupt_agent；宿主直接 cancel
+        // 子会话会被引擎以「owned by subagent routing」拒绝），再犯才转人工。
+        const stuckChildren = new Set<string>();
+        for (const child of items) {
+          const parentSid = child.parentSessionId;
+          if (!parentSid || !child.running) continue;
+          const parentTask = tasks.find(
+            (t) =>
+              t.agentSessionId === parentSid &&
+              t.origin === 'workbench' &&
+              !t.archivedAt &&
+              !t.completedAt,
+          );
+          if (!parentTask) continue;
+          const childIdleMs = Date.now() - (child.updatedAt ?? 0);
+          if (childIdleMs < WATCH_CHILD_STALL_MS) continue;
+          stuckChildren.add(child.sessionId);
+          if (map[parentSid]) continue; // 主会话还在跑：可能正在与子代理交互
+          const stage = childStallRef.current.get(child.sessionId);
+          const childIdleMinutes = Math.round(childIdleMs / 60_000);
+          if (stage === 1) {
+            childStallRef.current.set(child.sessionId, 2);
+            childStallToastRef.current.set(
+              child.sessionId,
+              notifyTask(
+                '子代理卡住 · 需要你',
+                `「${parentTask.title}」的子代理已经 ${childIdleMinutes} 分钟没有任何事件，已请 agent 中断仍未恢复——点开卡片看看，必要时中断任务重新规划`,
+                'error',
+                [goToTask(parentTask.id, '去查看')],
+              ),
+            );
+            continue;
+          }
+          if (stage === 2) continue;
+          childStallRef.current.set(child.sessionId, 1);
+          void dshSession
+            .prompt(parentSid, buildChildStallPrompt({ childId: child.sessionId, idleMinutes: childIdleMinutes }))
+            .then(() =>
+              notifyTask(
+                '子代理无响应 · 已请 agent 处理',
+                `「${parentTask.title}」的子代理已 ${childIdleMinutes} 分钟无事件，已提醒编排者中断并重新评估`,
+                'info',
+              ),
+            )
+            .catch(() => childStallRef.current.delete(child.sessionId)); // 消息送不到：下一轮再试
+        }
+        // 子代理恢复/结束 → 收起转人工提示并重置阶段（下次卡住重新走一遍）
+        for (const [childId, toastId] of [...childStallToastRef.current]) {
+          if (stuckChildren.has(childId)) continue;
+          childStallToastRef.current.delete(childId);
+          dismissTaskNotification(toastId);
+        }
+        for (const childId of [...childStallRef.current.keys()]) {
+          if (!stuckChildren.has(childId)) childStallRef.current.delete(childId);
         }
 
         // 启动首次轮询（R2-9）：客户端退出会杀引擎——按事件重放判「被中断」：

@@ -28,6 +28,17 @@ export const WATCH_JUDGE_MIN_INTERVAL_MS = 10 * 60_000;
 export const WATCH_MAX_DELAY_MS = 60 * 60_000;
 /** 判卡死自动恢复次数上限（超过转人工） */
 export const WATCH_MAX_RECOVER = 2;
+/**
+ * 子代理（worker 子会话）静默阈值。
+ *
+ * 主会话的看门狗只在主会话 running 时评估；派出去的 worker 是**子会话**，
+ * 它卡住时主会话已经 `turn/end`，整条链路就谁都不看。实测 sandbox 里
+ * `bash sleep 45` 挂 5 分钟以上不返回，子会话一直是 running、updatedAt 不动
+ * ——任务显示「执行中」，实际什么也没在推进。
+ *
+ * 与主会话软阈值同档（5m）：引擎的事件粒度一样，5 分钟没有任何事件就值得问一次。
+ */
+export const WATCH_CHILD_STALL_MS = 5 * 60_000;
 
 export interface StallJudgment {
   verdict: 'normal' | 'stuck';
