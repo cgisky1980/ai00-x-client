@@ -19,7 +19,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
 import { useTodoStore } from '../store/todoStore';
-import { useGrowthStore } from '../store/growthStore';
+import { notifyTask } from '../utils/notify';
 import { useAgentDelegate } from './useAgentDelegate';
 import { useWorkbenchTaskStore } from '@/app/scenes/tasks/workbenchTaskStore';
 import type { TodoTask } from '../api/types';
@@ -128,7 +128,7 @@ export function useReminderTicker(): void {
       if (!taskId) return;
       const task = useTodoStore.getState().data.tasks.find(t => t.id === taskId);
       if (!task) {
-        useGrowthStore.getState().showToast('外部触发失败', `未找到卡片 ${taskId}`);
+        notifyTask('外部触发失败', `未找到卡片 ${taskId}`, 'error');
         return;
       }
       // 防重入必须用**真实运行态**（session/list 快照 + 子代理聚合），
@@ -145,7 +145,7 @@ export function useReminderTicker(): void {
         `[task-trigger] ${taskId} session=${sessionId ?? '-'} workbench=${task.workbenchId ?? '-'} running=${running}`,
       );
       if (running) {
-        useGrowthStore.getState().showToast('已忽略外部触发', `「${task.title}」正在执行中`);
+        notifyTask('已忽略外部触发', `「${task.title}」正在执行中`, 'info');
         return;
       }
       // 工作台卡片必须走工作台会话链路（任务专属目录 + workbench preset）：
@@ -162,28 +162,20 @@ export function useReminderTicker(): void {
           .then(({ resumeTaskRun }) => resumeTaskRun(task, workbenchTitle))
           .then(() => {
             console.info(`[task-trigger] ${taskId} resumed via workbench path`);
-            useGrowthStore
-              .getState()
-              .showToast('外部触发已启动', `「${task.title}」已继续执行`);
+            notifyTask('外部触发已启动', `「${task.title}」已继续执行`, 'info');
           })
           .catch((e: unknown) => {
             console.warn(`[task-trigger] ${taskId} resume failed:`, e);
-            useGrowthStore
-              .getState()
-              .showToast(
-                '外部触发失败',
-                e instanceof Error ? e.message : String(e),
-              );
+            notifyTask('外部触发失败', e instanceof Error ? e.message : String(e), 'error');
           });
         return;
       }
       void delegate(task, evt.payload?.module).then(ok => {
-        useGrowthStore
-          .getState()
-          .showToast(
-            ok ? '外部触发已启动' : '外部触发失败',
-            ok ? `「${task.title}」已开始执行` : '委托未成功，请检查引擎状态',
-          );
+        notifyTask(
+          ok ? '外部触发已启动' : '外部触发失败',
+          ok ? `「${task.title}」已开始执行` : '委托未成功，请检查引擎状态',
+          ok ? 'info' : 'error',
+        );
       });
     });
     return () => {

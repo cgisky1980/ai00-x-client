@@ -29,6 +29,7 @@ import {
   WATCH_STALL_SOFT_MS,
 } from '../utils/watchdog';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
+import { notifyTask } from '../utils/notify';
 
 // ---- 执行看门狗（AI 评估 + 自适应复查，无绝对时间强制干预）----
 // 软阈值（5m 无事件）→ 派评估 agent 判断「正常长任务 vs 卡死」并给 ETA：
@@ -119,9 +120,10 @@ export const TodoOverlay: React.FC = () => {
           if (!t.agentCompletedAt || t.completedAt) continue;
           current.add(t.id);
           if (!knownCompletedRef.current.has(t.id)) {
-            useGrowthStore.getState().showToast(
+            notifyTask(
               '待验收',
               `「${t.title}」已自检${t.deliverables?.length ? ` · ${t.deliverables.length} 项交付物` : ''}`,
+              'warning',
             );
           }
         }
@@ -130,6 +132,31 @@ export const TodoOverlay: React.FC = () => {
     });
     return () => {
       void un.then(f => f());
+    };
+  }, []);
+
+  // 计划落盘 → 若这份计划还没被人批准（首次成文，或 agent 改了目标/步骤/验收措辞
+  // 导致批准复位），弹一次「待批准」：否则人在别的场景里根本不知道轮到自己了。
+  // 冷却 5 分钟：agent 在批准前反复调整计划时不要连着刷。
+  const approvalToastAtRef = useRef(new Map<string, number>());
+  useEffect(() => {
+    const un = listen<{ taskId: string }>('todo-plan-updated', (event) => {
+      const taskId = event.payload?.taskId;
+      if (!taskId) return;
+      // 计划写盘与「批准复位」是两次写入（plan → todo），等后者落定再判；
+      // 这里只读内存态（todo-agent-updated 会负责重读盘），不额外读文件。
+      window.setTimeout(() => {
+        const task = useTodoStore.getState().data.tasks.find((t) => t.id === taskId);
+        if (!task || task.origin !== 'workbench') return;
+        if (task.completedAt || task.agentCompletedAt || task.planApprovedAt) return;
+        const at = approvalToastAtRef.current.get(taskId) ?? 0;
+        if (Date.now() - at < 5 * 60_000) return;
+        approvalToastAtRef.current.set(taskId, Date.now());
+        notifyTask('待批准', `「${task.title}」的计划已就绪，等你批准后开工`, 'warning');
+      }, 900);
+    });
+    return () => {
+      void un.then((f) => f());
     };
   }, []);
 
@@ -213,12 +240,11 @@ export const TodoOverlay: React.FC = () => {
             return state ? state.openTurn || state.pendingTools > 0 : false;
           });
           if (interrupted.length) {
-            useGrowthStore
-              .getState()
-              .showToast(
-                `有 ${interrupted.length} 个执行任务被中断`,
-                '上次客户端退出时中断——点开卡片查看，直接发消息或点「继续执行」续跑',
-              );
+            notifyTask(
+              `有 ${interrupted.length} 个执行任务被中断`,
+              '上次客户端退出时中断——点开卡片查看，直接发消息或点「继续执行」续跑',
+              'warning',
+            );
           }
         }
 
@@ -266,9 +292,11 @@ export const TodoOverlay: React.FC = () => {
               recoveriesRef.current.delete(sid);
               const cur = useTodoStore.getState().agentFailed;
               useTodoStore.getState().setAgentFailed({ ...cur, [sid]: true });
-              useGrowthStore
-                .getState()
-                .showToast('执行卡住 · 需要人工处理', `${why}——自动恢复次数已用完，点开卡片干预或重新规划`);
+              notifyTask(
+                '执行卡住 · 需要人工处理',
+                `${why}——自动恢复次数已用完，点开卡片干预或重新规划`,
+                'error',
+              );
               return;
             }
             recoveriesRef.current.set(sid, count + 1);
@@ -280,9 +308,7 @@ export const TodoOverlay: React.FC = () => {
                 // R1-2：恢复词带进度快照（计划勾选状态 + 近期工具动作）
                 const recoverPrompt = await buildRecoverPromptForTask(task.id, sid, why);
                 await dshSession.prompt(sid, recoverPrompt);
-                useGrowthStore
-                  .getState()
-                  .showToast(`执行卡住 · 已自动恢复（第 ${attempt} 次）`, why);
+                notifyTask(`执行卡住 · 已自动恢复（第 ${attempt} 次）`, why, 'info');
               } catch {
                 // 引擎不可达等 → 下个观察窗再试
               }
@@ -314,12 +340,11 @@ export const TodoOverlay: React.FC = () => {
                 activityRef.current.set(sid, Date.now());
                 if (!warnedRef.current.has(sid)) {
                   warnedRef.current.add(sid);
-                  useGrowthStore
-                    .getState()
-                    .showToast(
-                      `执行静默 ${idleMinutes} 分钟 · 暂无法自动评估`,
-                      '请人工留意；可点开卡片用「中断并继续」',
-                    );
+                  notifyTask(
+                    `执行静默 ${idleMinutes} 分钟 · 暂无法自动评估`,
+                    '请人工留意；可点开卡片用「中断并继续」',
+                    'warning',
+                  );
                 }
                 return;
               }
@@ -335,12 +360,11 @@ export const TodoOverlay: React.FC = () => {
                 Math.min(Math.max(etaBased, WATCH_JUDGE_MIN_INTERVAL_MS), WATCH_MAX_DELAY_MS),
               );
               activityRef.current.set(sid, Date.now());
-              useGrowthStore
-                .getState()
-                .showToast(
-                  'AI 评估：正常长任务',
-                  `预计还需 ${j.etaMinutes ?? '?'} 分钟${j.reason ? `——${j.reason}` : ''}，到时自动复查`,
-                );
+              notifyTask(
+                'AI 评估：正常长任务',
+                `预计还需 ${j.etaMinutes ?? '?'} 分钟${j.reason ? `——${j.reason}` : ''}，到时自动复查`,
+                'info',
+              );
             } catch {
               judgingRef.current.delete(sid);
             }

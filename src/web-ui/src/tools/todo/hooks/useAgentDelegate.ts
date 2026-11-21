@@ -25,7 +25,7 @@ import { getAllMemories } from '@/infrastructure/api/aiMemoryApi';
 import type { AIMemory } from '@/infrastructure/api/aiMemoryApi';
 import type { TodoTask } from '../api/types';
 import { useTodoStore } from '../store/todoStore';
-import { useGrowthStore } from '../store/growthStore';
+import { notifyTask } from '../utils/notify';
 import {
   getDefaultWorkspace,
   pickWorkspaceDir,
@@ -141,7 +141,7 @@ export function useAgentDelegate() {
       });
       return true;
     } catch (e) {
-      useGrowthStore.getState().showToast('委托失败', e instanceof Error ? e.message : String(e));
+      notifyTask('委托失败', e instanceof Error ? e.message : String(e), 'error');
       // 会话已创建但后续步骤失败 → 兜底 cancel，避免无卡片关联的孤儿会话残留
       // （DshAPI 无 delete，cancel 停止轮次；会话仍在 dsh 列表但不再耗资源）
       if (sessionId) {
