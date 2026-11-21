@@ -31,30 +31,9 @@ import {
 } from '../utils/watchdog';
 import { buildChildStallPrompt } from '../ai/prompts';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
-import { dismissTaskNotification, notifyTask } from '../utils/notify';
+import { dismissTaskNotification, goToTask, notifyTask } from '../utils/notify';
 import { continueTaskRun } from '../utils/continueRun';
 import { invoke } from '@tauri-apps/api/core';
-import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
-import { requestWorkbenchTaskFocus } from '@/infrastructure/plugins/workbenchSession';
-
-/**
- * 「需要你」通知的动作：开（或聚焦）工作台窗口并定位到这张任务卡。
- * 通知是人在别的场景里唯一的信号，只给文字就等于逼人自己去翻列表。
- */
-function goToTask(
-  taskId: string,
-  label: string,
-  variant: 'primary' | 'secondary' = 'primary',
-): { label: string; variant: 'primary' | 'secondary'; onClick: () => void } {
-  return {
-    label,
-    variant,
-    onClick: () => {
-      void WindowAPI.open('workbench').catch(() => undefined);
-      requestWorkbenchTaskFocus(taskId);
-    },
-  };
-}
 
 /**
  * 「继续执行」动作：不动窗口，直接给会话补一条按计划续跑的消息（与计划卡同一份话术）。

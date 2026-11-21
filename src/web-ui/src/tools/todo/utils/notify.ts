@@ -13,11 +13,34 @@
  * 回调并收起该条通知（NotificationItem 的既有行为）。
  */
 import { notificationService } from '@/shared/notification-system';
+import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
+import { requestWorkbenchTaskFocus } from '@/infrastructure/plugins/workbenchSession';
 
 export interface NotifyAction {
   label: string;
   onClick: () => void;
   variant?: 'primary' | 'secondary';
+}
+
+/**
+ * 「需要你」通知的动作：开（或聚焦）工作台窗口并定位到这张任务卡。
+ *
+ * 通知是人在别的场景里唯一的信号，只给文字就等于逼人自己去翻列表。
+ * 放这里而不是留在 `TodoOverlay`：提醒 ticker 等非组件模块也要给可点的动作。
+ */
+export function goToTask(
+  taskId: string,
+  label: string,
+  variant: 'primary' | 'secondary' = 'primary',
+): NotifyAction {
+  return {
+    label,
+    variant,
+    onClick: () => {
+      void WindowAPI.open('workbench').catch(() => undefined);
+      requestWorkbenchTaskFocus(taskId);
+    },
+  };
 }
 
 export function notifyTask(

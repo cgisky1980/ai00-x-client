@@ -19,7 +19,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
 import { useTodoStore } from '../store/todoStore';
-import { notifyTask } from '../utils/notify';
+import { goToTask, notifyTask } from '../utils/notify';
 import { useAgentDelegate } from './useAgentDelegate';
 import { useWorkbenchTaskStore } from '@/app/scenes/tasks/workbenchTaskStore';
 import type { TodoTask } from '../api/types';
@@ -71,7 +71,15 @@ export function useReminderTicker(): void {
 
         const overdue = now - at > REMINDER_WINDOW_MS;
         if (!overdue) {
-          notify('待办提醒' + (now - at > 600000 ? '（已过期）' : ''), t.title);
+          const title = '待办提醒' + (now - at > 600000 ? '（已过期）' : '');
+          // 系统通知负责「人不在应用里」；应用内再给一条可点的——
+          // 系统 toast 点不进具体任务，而提醒的第一动作就是打开那张卡。
+          // 只有工作台里的卡（origin=workbench）能落到具体位置，普通待办没有
+          // 可定位的界面，给个点不动的「去查看」不如不给。
+          notify(title, t.title);
+          if (t.origin === 'workbench') {
+            notifyTask(title, t.title, 'info', [goToTask(t.id, '去查看')]);
+          }
         }
         updateTask(t.id, { remindedAt: now });
       }
