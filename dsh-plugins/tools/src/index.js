@@ -150,6 +150,24 @@ function tickStepLine(markdown, stepId) {
   return null;
 }
 
+/**
+ * 两份计划的差异是否只在「勾选状态 / 验证证据行」。
+ *
+ * 这种重写没有任何结构变化，却要重发整篇（计划通常 2–3k 字）。命中就拒绝，
+ * 让模型改用 ai00_plan_check（几十 token）。
+ */
+function isStatusOnlyRewrite(prev, next) {
+  const norm = (md) =>
+    String(md ?? "")
+      .split("\n")
+      .map((line) => line.replace(/^(\s*-\s*)\[[ xX]\]/, "$1[ ]"))
+      .filter((line) => !/^\s*-\s*(验证|证据|verification)\s*[:：]/i.test(line))
+      .map((line) => line.replace(/\s+$/, ""))
+      .join("\n")
+      .trim();
+  return norm(prev) === norm(next);
+}
+
 /** 步骤 id → 是否已勾选（用于比较重写前后的勾选变化）。 */
 function tickedSteps(markdown) {
   const map = new Map();
@@ -1736,6 +1754,12 @@ function defineTools(ctx, api) {
         if (offenders.length) {
           throw new Error(
             `refused: no verification evidence for ${offenders.join(", ")} — call ai00_task_verify (stepId) first, then tick with ai00_plan_check. Nothing was written.`
+          );
+        }
+        // 只为翻状态而整篇重写 = 白花 2–3k 输出 token（实测一个任务里发生 3 次）
+        if (isStatusOnlyRewrite(prevMarkdown, merged)) {
+          throw new Error(
+            "refused: this rewrite only flips checkboxes or evidence lines — use ai00_plan_check {taskId, match} instead (a few dozen tokens). Nothing was written."
           );
         }
       }
