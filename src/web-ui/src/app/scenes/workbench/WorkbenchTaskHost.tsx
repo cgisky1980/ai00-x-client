@@ -5,7 +5,7 @@
  * 运行态上报、阶段判定全部只在这里写一次。左侧列表由各场景自己渲染。
  * 快速问答没有中央区：对话独占主区。
  */
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { FileText } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useResizablePane } from '@/hooks/useResizablePane';
@@ -17,7 +17,7 @@ import { WorkbenchFilePreview } from './WorkbenchFilePreview';
 import { WorkbenchPlanPage } from './WorkbenchPlanPage';
 import { WorkbenchStatusTag } from './WorkbenchStageBar';
 import { WorkbenchTabs, type WorkbenchTabItem } from './WorkbenchTabs';
-import { activeFilePath, useWorkbenchTabs } from './useWorkbenchTabs';
+import { activeFilePath, HOME_TAB_KEY, useWorkbenchTabs } from './useWorkbenchTabs';
 import { needsYou } from './workbenchStage';
 import './WorkbenchTaskHost.scss';
 
@@ -52,6 +52,26 @@ export const WorkbenchTaskHost: React.FC<WorkbenchTaskHostProps> = ({
 
   const tabs = useWorkbenchTabs(task.id);
   const currentPath = activeFilePath(tabs.activeKey);
+
+  /**
+   * 进入「需要你」时把中区落回计划页：批准与验收只在计划卡上，若上次停在某个
+   * 交付物标签，人点进任务会找不到唯一的推进入口。只在「刚进入该阶段」触发一次——
+   * 之后人自己点交付物查看不会被拽回来。
+   */
+  const landedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (quick) return;
+    const key = `${task.id}:${phase}`;
+    if (needsYou(phase)) {
+      if (landedRef.current !== key) {
+        landedRef.current = key;
+        tabs.setActiveKey(HOME_TAB_KEY);
+      }
+      return;
+    }
+    landedRef.current = null;
+  }, [quick, task.id, phase, tabs]);
+
   const tabItems = useMemo<WorkbenchTabItem[]>(
     () => [
       {
