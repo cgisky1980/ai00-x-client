@@ -112,6 +112,12 @@ export const TodoOverlay: React.FC = () => {
    * 一定再弹一次。
    */
   const notifiedFailureStampRef = useRef(new Map<string, number>());
+  /**
+   * 会话 → 连续「同一个错误」的次数（key = code + 首个分句）。
+   * 连续 3 次相同错误后不再劝人「继续执行」：凭据缺失 / 额度不足这类失败重试
+   * 一定是同样结果，一直摆着重试按钮等于让人反复撞墙。
+   */
+  const failureStreakRef = useRef(new Map<string, { key: string; count: number }>());
   /** 任务 → 最近一条「任务出错」通知 id：同一张卡反复失败时先收旧条，不叠一摞。 */
   const failureToastRef = useRef(new Map<string, string>());
   /** 会话 → 提问通知 id：问一次只留一条，答完即收（同一时刻允许覆盖）。 */
@@ -421,15 +427,31 @@ export const TodoOverlay: React.FC = () => {
             if (notifiedFailureStampRef.current.get(sid) === stamp) continue;
             const previous = failureToastRef.current.get(task.id);
             if (previous) dismissTaskNotification(previous);
-            const reason = summarizeFailure(runStateMap[sid]?.lastError);
-            const toastId = notifyTask(
-              '任务出错 · 需要你',
-              `「${task.title}」这一轮以错误收尾${reason ? `：${reason}` : ''}——点开卡片查看错误，或点「继续执行」重试`,
-              'error',
-              // 文案里让用户点「继续执行」，按钮就必须真的在：只给「去查看」等于
-              // 逼人开窗口再找一次入口。整卡点击仍是「去查看」（primary）。
-              [goToTask(task.id, '去查看'), resumeTask(task, 'secondary')],
-            );
+            const err = runStateMap[sid]?.lastError;
+            const reason = summarizeFailure(err);
+            // 连续同一个错误计数：同 code + 同首个分句才算「同一个」，
+            // 换了错误就重新从 1 开始（说明重试确实推进了事情）。
+            const streakKey = `${err?.code ?? ''}|${(err?.message ?? '').split(/[;；]/)[0].trim().slice(0, 60)}`;
+            const prevStreak = failureStreakRef.current.get(sid);
+            const streak = prevStreak && prevStreak.key === streakKey ? prevStreak.count + 1 : 1;
+            failureStreakRef.current.set(sid, { key: streakKey, count: streak });
+            const toastId =
+              streak >= 3 && reason
+                ? notifyTask(
+                    '任务出错 · 需要你',
+                    `「${task.title}」连续 ${streak} 次同样的错误：${reason}——重试大概率还是同样结果，先按提示修环境（凭据 / 模型 / 额度）`,
+                    'error',
+                    // 反复撞同一堵墙时不再给「继续执行」：它只会再失败一次。
+                    [goToTask(task.id, '去查看')],
+                  )
+                : notifyTask(
+                    '任务出错 · 需要你',
+                    `「${task.title}」这一轮以错误收尾${reason ? `：${reason}` : ''}——点开卡片查看错误，或点「继续执行」重试`,
+                    'error',
+                    // 文案里让用户点「继续执行」，按钮就必须真的在：只给「去查看」等于
+                    // 逼人开窗口再找一次入口。整卡点击仍是「去查看」（primary）。
+                    [goToTask(task.id, '去查看'), resumeTask(task, 'secondary')],
+                  );
             failureToastRef.current.set(task.id, toastId);
             notifiedFailureStampRef.current.set(sid, stamp);
           }
@@ -444,6 +466,9 @@ export const TodoOverlay: React.FC = () => {
         // 失败已消失（回合成功 / 会话被清）→ 清掉记录，下次失败照常报
         for (const sid of [...notifiedFailureStampRef.current.keys()]) {
           if (!failedNow.get(sid)) notifiedFailureStampRef.current.delete(sid);
+        }
+        for (const sid of [...failureStreakRef.current.keys()]) {
+          if (!failedNow.get(sid)) failureStreakRef.current.delete(sid);
         }
         // 失败已恢复（重新在跑 / 回合成功 / 已验收或归档）→ 收起「任务出错」通知。
         // 它是 error 档常驻通知，不跟随状态收就会一直挂在角上说「需要你」，
