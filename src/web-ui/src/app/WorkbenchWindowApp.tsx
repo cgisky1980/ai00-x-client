@@ -35,6 +35,7 @@ import { TASKS_SCENE_ID } from './scenes/tasks/taskSession';
 import ProjectsScene, { PROJECTS_SCENE_ID } from './scenes/projects/ProjectsScene';
 import AutomationsScene, { AUTOMATIONS_SCENE_ID } from './scenes/automations/AutomationsScene';
 import { initTodoWindowSync } from '@/tools/todo/sync/todoWindowSync';
+import { useTodoStore } from '@/tools/todo/store/todoStore';
 import './WorkbenchWindowApp.scss';
 
 /** 窄窗口断点：低于它 AI 区以浮层形式出现（与样式表保持一致）。 */
@@ -81,6 +82,8 @@ const WorkbenchWindowApp: React.FC = () => {
   const [externalSession, setExternalSession] = useState<WorkbenchOpenSessionIntent | null>(null);
   /** 看板 →「任务」场景的任务交接（场景内 state，不走 windowBus）。 */
   const [taskFocus, setTaskFocus] = useState<string | null>(null);
+  /** 通知 →「项目」场景的任务交接（项目任务在上面那个场景里没有列表行）。 */
+  const [projectFocus, setProjectFocus] = useState<string | null>(null);
 
   /** 接收外部会话：直接展开 AI 区，不建会话、不改 cwd。 */
   const applyExternalSession = useCallback((intent: WorkbenchOpenSessionIntent | null): void => {
@@ -117,8 +120,22 @@ const WorkbenchWindowApp: React.FC = () => {
     const applyFocus = (taskId: string | undefined): void => {
       if (!taskId) return;
       setExternalSession(null);
-      setTaskFocus(taskId);
-      setActiveId(TASKS_SCENE_ID);
+      // 项目任务在「任务」场景没有列表行，交给「项目」场景打开所属项目的会话；
+      // 任务列表可能尚未读盘，这里先确保加载再判定（失败就按默认工作区处理）。
+      void (async () => {
+        const store = useTodoStore.getState();
+        if (!store.loaded) await store.load().catch(() => undefined);
+        const task = useTodoStore.getState().data.tasks.find((item) => item.id === taskId);
+        if (task?.projectId) {
+          setTaskFocus(null);
+          setProjectFocus(taskId);
+          setActiveId(PROJECTS_SCENE_ID);
+          return;
+        }
+        setProjectFocus(null);
+        setTaskFocus(taskId);
+        setActiveId(TASKS_SCENE_ID);
+      })();
     };
     const pending = takePendingIntents<WorkbenchFocusTaskIntent>(WORKBENCH_FOCUS_TASK);
     if (pending[0]?.taskId) applyFocus(pending[0].taskId);
@@ -339,7 +356,10 @@ const WorkbenchWindowApp: React.FC = () => {
 
       <main className="ai00-x-workbench-window__stage">
         {activeId === PROJECTS_SCENE_ID ? (
-          <ProjectsScene />
+          <ProjectsScene
+            focusTaskId={projectFocus}
+            onFocusHandled={() => setProjectFocus(null)}
+          />
         ) : activeId === AUTOMATIONS_SCENE_ID ? (
           <AutomationsScene />
         ) : activeId === TASKS_SCENE_ID ? (

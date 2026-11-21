@@ -48,7 +48,17 @@ interface ActiveConversation {
   cwd: string;
 }
 
-export const ProjectsScene: React.FC = () => {
+export interface ProjectsSceneProps {
+  /** 「需要你」通知定位过来的任务（跨场景交接，不走 windowBus）。 */
+  focusTaskId?: string | null;
+  /** 定位已处理（宿主清掉交接值，避免切换场景时重复打开）。 */
+  onFocusHandled?: () => void;
+}
+
+export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
+  focusTaskId = null,
+  onFocusHandled,
+}) => {
   const { t } = useI18n('common');
   const loaded = useTodoStore((s) => s.loaded);
   const load = useTodoStore((s) => s.load);
@@ -227,6 +237,28 @@ export const ProjectsScene: React.FC = () => {
     },
     [openConversation, selected?.id],
   );
+
+  /**
+   * 「需要你」通知定位：切到任务所属项目并打开它的会话。
+   * 同一 taskId 只处理一次；任务/项目尚未加载时不标记已处理，等数据到位再重试。
+   */
+  const focusHandledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusTaskId || focusHandledRef.current === focusTaskId) return;
+    const task = allTasks.find((item) => item.id === focusTaskId);
+    if (!task) return;
+    const project = projects.find((p) => p.id === task.projectId);
+    if (!project) return;
+    focusHandledRef.current = focusTaskId;
+    onFocusHandled?.();
+    if (project.id !== selected?.id) {
+      // 跨项目：交给「切换项目」的 effect 接着打开
+      pendingOpenRef.current = task.id;
+      setSelectedId(project.id);
+      return;
+    }
+    void openConversation(task, project, null);
+  }, [focusTaskId, allTasks, projects, selected?.id, openConversation, onFocusHandled]);
 
   const toggleExpanded = useCallback((projectId: string): void => {
     setExpanded((prev) => {
