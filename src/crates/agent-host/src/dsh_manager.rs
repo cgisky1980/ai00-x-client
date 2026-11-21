@@ -137,6 +137,64 @@ pub fn dsh_home() -> PathBuf {
         .join("dsh")
 }
 
+/// 清理陈旧的**子代理（worker）会话**目录，返回删除数量。
+///
+/// 工作台每派一次 worker 就是一个子会话（目录名是裸 UUID，父会话是
+/// `session-<uuid>`），一次多步任务会留下十几个；引擎没有删除会话的 RPC，
+/// 只能由宿主清盘。判据：目录名不以 `session-` 开头（= 从属会话）+ 会话文件
+/// mtime 早于 `max_age_days`。删除 `sessions/<slug>/<id>/` 与对应 projcache 文件。
+///
+/// 安全性（2026-11-21 实机验证）：删掉一个子会话目录后重启客户端，
+/// `session/list` 仍返回 ok（239 项）、无该 id、无报错——父会话记录与 UI 不受影响。
+pub fn prune_stale_worker_sessions(max_age_days: u64) -> usize {
+    prune_worker_sessions_in(&dsh_home(), max_age_days)
+}
+
+fn prune_worker_sessions_in(home: &std::path::Path, max_age_days: u64) -> usize {
+    let root = home.join("sessions");
+    let cache_dir = home
+        .join("storages")
+        .join("session_projcache")
+        .join("sessions");
+    let Some(cutoff) = std::time::SystemTime::now().checked_sub(std::time::Duration::from_secs(
+        max_age_days.saturating_mul(86_400),
+    )) else {
+        return 0;
+    };
+    let Ok(slugs) = std::fs::read_dir(&root) else {
+        return 0;
+    };
+    let mut removed = 0usize;
+    for slug in slugs.flatten() {
+        let Ok(entries) = std::fs::read_dir(slug.path()) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("session-") {
+                continue; // 父会话：永远保留（任务卡绑定的就是它）
+            }
+            let file = entry.path().join("session.v4.jsonl.zstd");
+            let Ok(modified) = std::fs::metadata(&file).and_then(|m| m.modified()) else {
+                continue;
+            };
+            if modified > cutoff {
+                continue; // 新会话（可能在跑）：不动
+            }
+            if std::fs::remove_dir_all(entry.path()).is_ok() {
+                removed += 1;
+                let _ = std::fs::remove_file(cache_dir.join(format!("{name}.json")));
+            }
+        }
+    }
+    if removed > 0 {
+        log::info!(
+            "[DshManager] pruned {removed} stale worker session(s) older than {max_age_days}d"
+        );
+    }
+    removed
+}
+
 // 引擎权限档（dsh-base permission-presets 读 DSH_PERMISSION_MODE）：
 // read-only / workspace-write / danger-full-access。桌面设置页选择 →
 // set_permission_mode → 下次 spawn_sidecar 注入（重启引擎后生效）。
@@ -2225,6 +2283,10 @@ pub async fn start() -> Result<(), String> {
         stage: "starting engine".into(),
     });
 
+    // 会话卫生：引擎启动前清掉 7 天前的 worker 子会话（一次多步任务会留下十几个，
+    // 引擎没有删除 RPC）。失败/无目录都静默，不阻塞启动。
+    prune_stale_worker_sessions(7);
+
     spawn_sidecar().await?;
 
     // 健康等待：0.1.5 鉴权链——stdout 捕获 token → GET /?token= 换签名 cookie
@@ -3250,5 +3312,42 @@ mod tests {
         assert!(!deny_block.contains("web_search"), "{deny_block}");
         assert!(!deny_block.contains("code_worker"), "{deny_block}");
         assert!(!deny_block.contains("ask_user_question"), "{deny_block}");
+    }
+
+    /// 会话清理：只删「裸 UUID」子会话且按年龄过滤；父会话与新鲜子会话必须保留。
+    #[test]
+    fn prune_only_stale_worker_sessions() {
+        let base = std::env::temp_dir().join(format!(
+            "ai00x-prune-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let slug = base.join("sessions").join("--slug--");
+        let mk = |name: &str| {
+            let dir = slug.join(name);
+            std::fs::create_dir_all(&dir).expect("create session dir");
+            std::fs::write(dir.join("session.v4.jsonl.zstd"), b"x").expect("write session file");
+        };
+        mk("session-parent");
+        mk("11111111-2222-3333-4444-555555555555");
+        // 缓存目录：被删会话的投影缓存也要一起清
+        let cache = base
+            .join("storages")
+            .join("session_projcache")
+            .join("sessions");
+        std::fs::create_dir_all(&cache).expect("create cache dir");
+        let cache_file = cache.join("11111111-2222-3333-4444-555555555555.json");
+        std::fs::write(&cache_file, b"{}").expect("write cache");
+
+        let removed = prune_worker_sessions_in(&base, 0);
+
+        assert_eq!(removed, 1, "only the child session is removed");
+        assert!(slug.join("session-parent").exists(), "parent kept");
+        assert!(!slug.join("11111111-2222-3333-4444-555555555555").exists());
+        assert!(!cache_file.exists(), "projection cache removed too");
+        let _ = std::fs::remove_dir_all(&base);
     }
 }
