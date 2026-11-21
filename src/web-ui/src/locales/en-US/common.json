@@ -296,6 +296,7 @@
         "acceptance": "Acceptance",
         "noAcceptance": "No acceptance items",
         "verifyRecord": "Last integration verify",
+        "rejectRecord": "Rejections",
         "accept": "Accept",
         "acceptHint": "Human acceptance passed — mark as done",
         "acceptBlocked": "{{count}} acceptance item(s) still unchecked (click to check)",

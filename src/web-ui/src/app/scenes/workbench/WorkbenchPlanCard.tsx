@@ -37,6 +37,7 @@ import {
   clearVerifyRecord,
   localizeVerifyLine,
   parseAcceptance,
+  parseRejectNotes,
   parseStepItems,
   parseVerifyRecord,
   toggleAcceptanceLine,
@@ -188,6 +189,8 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   // 集成验收摘要（ai00_task_verify 写入计划）：验收人不必翻聊天记录就能看到
   // 「交付物齐 / 计划外文件 / 复核记录 / 编码损坏」。
   const verifyRecord = useMemo(() => parseVerifyRecord(shownMd), [shownMd]);
+  /** 打回记录（写在「## 验收」段的 `- 打回:` 行）。 */
+  const rejectNotes = useMemo(() => parseRejectNotes(shownMd), [shownMd]);
   const policy = useMemo(() => parsePlanPolicy(shownMd), [shownMd]);
   const goal = useMemo(
     () => parsePlanGoal(shownMd) || task.plan?.goal || task.title,
@@ -710,6 +713,20 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     </section>
   );
 
+  /** 打回记录（最近两条）：人回看时知道为什么被打回、改了什么。 */
+  const rejectBlock = rejectNotes.length > 0 && (
+    <section className="ai00-x-plan-card__block">
+      <h3 className="ai00-x-plan-card__block-title">
+        {t('nav.workbenchWindow.board.rejectRecord')}
+      </h3>
+      <ul className="ai00-x-plan-card__reject-list">
+        {rejectNotes.slice(0, 2).map((note) => (
+          <li key={note}>{note}</li>
+        ))}
+      </ul>
+    </section>
+  );
+
   const acceptedCount = acceptance.filter((item) => item.done).length;
   const acceptBlocked = acceptance.length > 0 && acceptedCount < acceptance.length;
 
@@ -744,6 +761,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           </ul>
         )}
       </section>
+      {rejectBlock}
       {verifyBlock}
       {deliverables}
       {!readOnly && !completed && (
@@ -830,6 +848,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
         <Check size={12} />
         {t('nav.workbenchWindow.planCard.accepted')}
       </p>
+      {rejectBlock}
       {verifyBlock}
       {deliverables}
     </div>

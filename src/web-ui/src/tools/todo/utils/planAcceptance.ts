@@ -131,6 +131,28 @@ export function verifyVerdictTone(line: string): 'ok' | 'warn' | 'bad' | null {
 }
 
 /**
+ * 解析「## 验收」段里的打回记录（`- 打回: 理由 · 时间`）。
+ *
+ * 打回理由此前只留在计划原文里，验收卡上看不到——人隔天回看会忘了为什么打回、
+ * 已经改到哪一步。倒序返回（最近一次在前）。
+ */
+export function parseRejectNotes(md: string | null): string[] {
+  if (!md) return [];
+  const out: string[] = [];
+  let inSection = false;
+  for (const line of md.split('\n')) {
+    if (/^##\s/.test(line)) {
+      inSection = /^##\s*(验收|acceptance)/i.test(line);
+      continue;
+    }
+    if (!inSection) continue;
+    const m = /^\s*-\s*打回\s*[:：]\s*(.*)$/.exec(line);
+    if (m && m[1].trim()) out.push(m[1].trim());
+  }
+  return out.reverse();
+}
+
+/**
  * 删除「## 验证记录」段（打回时用）。
  *
  * 打回意味着上一轮集成验收的结论**已过期**：留在卡上会让人把旧结论当成
