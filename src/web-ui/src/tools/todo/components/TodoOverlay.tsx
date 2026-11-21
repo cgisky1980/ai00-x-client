@@ -16,7 +16,7 @@ import { listen } from '@tauri-apps/api/event';
 import { useTodoStore } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
 import { useReminderTicker } from '../hooks/useReminderTicker';
-import { XpKinds, type FocusSession } from '../api/types';
+import { XpKinds, type FocusSession, type TodoTask } from '../api/types';
 import { connectMux, deriveSessionRunState, dshApproval, dshSession, type DshMuxFrame, type DshSessionRunState } from '@/infrastructure/api/service-api/DshAPI';
 import { isApprovalAllowed } from '@/shared/agent-approval-rules';
 import {
@@ -32,6 +32,8 @@ import {
 import { buildChildStallPrompt } from '../ai/prompts';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
 import { dismissTaskNotification, notifyTask } from '../utils/notify';
+import { continueTaskRun } from '../utils/continueRun';
+import { invoke } from '@tauri-apps/api/core';
 import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
 import { requestWorkbenchTaskFocus } from '@/infrastructure/plugins/workbenchSession';
 
@@ -39,13 +41,44 @@ import { requestWorkbenchTaskFocus } from '@/infrastructure/plugins/workbenchSes
  * 「需要你」通知的动作：开（或聚焦）工作台窗口并定位到这张任务卡。
  * 通知是人在别的场景里唯一的信号，只给文字就等于逼人自己去翻列表。
  */
-function goToTask(taskId: string, label: string): { label: string; variant: 'primary'; onClick: () => void } {
+function goToTask(
+  taskId: string,
+  label: string,
+  variant: 'primary' | 'secondary' = 'primary',
+): { label: string; variant: 'primary' | 'secondary'; onClick: () => void } {
   return {
     label,
-    variant: 'primary',
+    variant,
     onClick: () => {
       void WindowAPI.open('workbench').catch(() => undefined);
       requestWorkbenchTaskFocus(taskId);
+    },
+  };
+}
+
+/**
+ * 「继续执行」动作：不动窗口，直接给会话补一条按计划续跑的消息（与计划卡同一份话术）。
+ *
+ * 停住的任务最常见的下一步就是「接着跑」——以前必须开工作台、等面板加载、再点一次；
+ * 窗口冷启动就要十几秒，通知的价值被这段路吃掉。失败时回一条 error 通知，不做静默。
+ */
+function resumeTask(task: TodoTask): {
+  label: string;
+  variant: 'primary';
+  onClick: () => void;
+} {
+  return {
+    label: '继续执行',
+    variant: 'primary',
+    onClick: () => {
+      void invoke<string | null>('todo_plan_get', { taskId: task.id })
+        .catch(() => null)
+        .then((plan) => continueTaskRun(task, plan))
+        .catch((e) =>
+          notifyTask('继续执行失败', String(e).slice(0, 160), 'error', [
+            goToTask(task.id, '去查看'),
+          ]),
+        );
     },
   };
 }
@@ -407,7 +440,7 @@ export const TodoOverlay: React.FC = () => {
               '任务停下 · 需要你',
               `「${task.title}」这一轮结束了，但没有自检收口，也没有子代理在跑——点「继续执行」让它按计划接着走`,
               'warning',
-              [goToTask(task.id, '去继续')],
+              [resumeTask(task), goToTask(task.id, '去查看', 'secondary')],
               { duration: 0 },
             ),
           );
