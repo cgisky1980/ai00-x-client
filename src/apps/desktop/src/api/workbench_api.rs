@@ -110,9 +110,9 @@ fn quick_rules_section() -> String {
     "## Quick answer mode (Ai00-X workbench)\n\n\
 This task is a quick question. Answer it directly in this chat.\n\
 - Do NOT write a plan, do NOT call ai00_plan_write, do NOT spawn subagents, do NOT create files, do NOT ask for approval.\n\
-- Use ai00_web_extract (query = web search + per-page summaries) only when fresh facts are needed; at most 3 tool calls, as few pages as possible.\n\
-- Reply in the user's UI language, concise and grounded; cite source URLs inline when web results were used.\n\
-- If the question really needs files or multi-step delivery, say so in one sentence and suggest switching the task to delivery mode — never start the heavy flow on your own.\n"
+- Use ai00_web_extract (query = web search + per-page summaries) only when the answer needs fresh facts; keep it to at most 3 tool calls and read as few pages as possible.\n\
+- Reply in the user's UI language, concise and grounded; when web results were used, cite the source URLs inline.\n\
+- If the question actually needs files or multi-step delivery, say so in one sentence and suggest switching the task to 完整交付 (delivery mode) — never start the heavy flow on your own.\n"
         .to_string()
 }
 
