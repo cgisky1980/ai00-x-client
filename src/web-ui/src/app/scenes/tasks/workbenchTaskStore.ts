@@ -89,6 +89,13 @@ interface WorkbenchTaskState {
    * 「执行中」。宿主定时回填后，停下的任务才能落到「已停止」。
    */
   seedRunning: (entries: Array<{ sessionId: string; running: boolean }>) => void;
+  /**
+   * 回填会话「最后一轮是否报错」（`todoStore.agentFailed`，由 overlay 轮询回填）。
+   *
+   * 没被打开过的任务只有引擎快照，面板不上报 failed，卡片会一直显示「执行」而看不出
+   * 这一轮已经以错误收尾——把轮询结论并进来，列表/看板的阶段点才能落到失败态。
+   */
+  seedFailed: (entries: Array<{ sessionId: string; failed: boolean }>) => void;
   /** 回填子代理运行数（parentSessionId → 运行中的子会话数）。 */
   seedDelegating: (entries: Array<{ parentSessionId: string; running: boolean }>) => void;
   /** 回填子代理活动列表（对话流展示）。`since` 由本 store 维护。 */
@@ -228,6 +235,24 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
         runtime[entry.sessionId] = {
           running: entry.running,
           failed: prev?.failed ?? false,
+          asking: prev?.asking ?? false,
+          at: Date.now(),
+        };
+        changed = true;
+      }
+      return changed ? { runtime } : s;
+    }),
+  seedFailed: (entries) =>
+    set((s) => {
+      if (entries.length === 0) return s;
+      let changed = false;
+      const runtime = { ...s.runtime };
+      for (const entry of entries) {
+        const prev = runtime[entry.sessionId];
+        if (prev?.failed === entry.failed) continue;
+        runtime[entry.sessionId] = {
+          running: prev?.running ?? false,
+          failed: entry.failed,
           asking: prev?.asking ?? false,
           at: Date.now(),
         };

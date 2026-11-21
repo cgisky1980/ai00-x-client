@@ -33,6 +33,7 @@ const REFRESH_MS = 5_000;
 
 export function useSessionRunningSync(): void {
   const seedRunning = useWorkbenchTaskStore((s) => s.seedRunning);
+  const seedFailed = useWorkbenchTaskStore((s) => s.seedFailed);
   const seedDelegating = useWorkbenchTaskStore((s) => s.seedDelegating);
   const seedChildren = useWorkbenchTaskStore((s) => s.seedChildren);
 
@@ -76,6 +77,14 @@ export function useSessionRunningSync(): void {
             )
             .map((task) => ({ sessionId: task.agentSessionId as string, running: false }));
           if (vanished.length > 0) seedRunning(vanished);
+          // 失败态同样回填：轮询（overlay）已按「最后一轮是否报错」算好，没打开过的
+          // 任务只有靠它才能落到失败态，否则卡片会一直停在「执行」看不出报错。
+          const agentFailed = useTodoStore.getState().agentFailed;
+          seedFailed(
+            Object.entries(agentFailed)
+              .filter(([sessionId]) => listed.has(sessionId))
+              .map(([sessionId, failed]) => ({ sessionId, failed: Boolean(failed) })),
+          );
           seedDelegating(
             items
               .filter((item) => Boolean(item.parentSessionId))
@@ -137,5 +146,5 @@ export function useSessionRunningSync(): void {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [seedRunning, seedDelegating, seedChildren]);
+  }, [seedRunning, seedFailed, seedDelegating, seedChildren]);
 }
