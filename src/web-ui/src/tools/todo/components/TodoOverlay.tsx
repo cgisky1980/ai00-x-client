@@ -126,6 +126,10 @@ export const TodoOverlay: React.FC = () => {
   const childStallRef = useRef(new Map<string, 1 | 2>());
   /** 子代理会话 → 转人工通知 id：子代理恢复/结束后收起。 */
   const childStallToastRef = useRef(new Map<string, string>());
+  /** 任务 → 「计划 · 需要你」通知 id：批准/归档/完成后收起（不靠 8s 自动消失）。 */
+  const planToastRef = useRef(new Map<string, string>());
+  /** 任务 → 「审核 · 需要你」通知 id：验收/打回/归档后收起。 */
+  const acceptToastRef = useRef(new Map<string, string>());
 
   useEffect(() => {
     void load();
@@ -211,11 +215,19 @@ export const TodoOverlay: React.FC = () => {
         if (!completedSeededRef.current || fresh.length === 0) return;
         if (fresh.length === 1) {
           const t = fresh[0];
-          notifyTask(
-            '审核 · 需要你',
-            `「${t.title}」已自检${t.deliverables?.length ? ` · ${t.deliverables.length} 项交付物` : ''}，等你验收`,
-            'warning',
-            [goToTask(t.id, '去验收')],
+          // 等验收是**轮到人**的信号：常驻到验收/打回为止（8s 自动消失等于白弹），
+          // 同一张卡重复自检先收旧条，不叠一摞。
+          const previous = acceptToastRef.current.get(t.id);
+          if (previous) dismissTaskNotification(previous);
+          acceptToastRef.current.set(
+            t.id,
+            notifyTask(
+              '审核 · 需要你',
+              `「${t.title}」已自检${t.deliverables?.length ? ` · ${t.deliverables.length} 项交付物` : ''}，等你验收`,
+              'warning',
+              [goToTask(t.id, '去验收')],
+              { duration: 0 },
+            ),
           );
           return;
         }
@@ -256,9 +268,19 @@ export const TodoOverlay: React.FC = () => {
         const at = approvalToastAtRef.current.get(taskId) ?? 0;
         if (Date.now() - at < 5 * 60_000) return;
         approvalToastAtRef.current.set(taskId, Date.now());
-        notifyTask('计划 · 需要你', `「${task.title}」的计划等你批准后开工`, 'warning', [
-          goToTask(task.id, '去批准'),
-        ]);
+        // 批准是「轮到人」的信号，常驻到批准/改计划/归档为止；同一张卡先收旧条。
+        const previous = planToastRef.current.get(taskId);
+        if (previous) dismissTaskNotification(previous);
+        planToastRef.current.set(
+          taskId,
+          notifyTask(
+            '计划 · 需要你',
+            `「${task.title}」的计划等你批准后开工`,
+            'warning',
+            [goToTask(task.id, '去批准')],
+            { duration: 0 },
+          ),
+        );
       }, 900);
     });
     return () => {
@@ -389,6 +411,25 @@ export const TodoOverlay: React.FC = () => {
           failedSeededRef.current = true;
         }
         prevFailedRef.current = failedNow;
+
+        // 「轮到你了」的两类常驻通知：状态一变就收（批准 / 验收 / 打回 / 归档 / 删卡），
+        // 否则它们会一直挂在角上，人还得自己点叉。
+        // ⚠️ 任务在轮询快照里查不到时**不能**当成「已处理」：刚 reload 的新卡可能比
+        // 本轮闭包里的 tasks 更新，误判会把刚弹出的通知立刻收掉（实测踩过）。
+        for (const [taskId, toastId] of [...planToastRef.current]) {
+          const t = tasks.find((x) => x.id === taskId);
+          if (!t) continue;
+          if (!t.planApprovedAt && !t.completedAt && !t.agentCompletedAt && !t.archivedAt) continue;
+          planToastRef.current.delete(taskId);
+          dismissTaskNotification(toastId);
+        }
+        for (const [taskId, toastId] of [...acceptToastRef.current]) {
+          const t = tasks.find((x) => x.id === taskId);
+          if (!t) continue;
+          if (t.agentCompletedAt && !t.completedAt && !t.archivedAt) continue;
+          acceptToastRef.current.delete(taskId);
+          dismissTaskNotification(toastId);
+        }
 
         // 回合正常结束但没有收口：agent 停了（常见话术是「已派发，等结果」，
         // 实际没有任何会话在跑），卡片只是从「执行中」变成「已停止」。
