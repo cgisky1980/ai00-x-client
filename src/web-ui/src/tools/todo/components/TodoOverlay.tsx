@@ -235,6 +235,21 @@ export const TodoOverlay: React.FC = () => {
       } else if (frame.type === 'question/requested') {
         activityRef.current.set(frame.sessionId, Date.now());
         store.upsertAgentQuestion(frame.sessionId, { rpcId, questions: frame.questions });
+        // 提问会卡住整轮：人不在工作台时也该被叫回来（列表里的「需要你」在别的窗口看不见）。
+        const task = store.data.tasks.find(
+          (t) => t.agentSessionId === frame.sessionId && !t.archivedAt && !t.completedAt,
+        );
+        if (task) {
+          const first = frame.questions[0]?.question?.trim() ?? '';
+          notifyTask(
+            '提问 · 需要你',
+            first
+              ? `「${task.title}」在等你回答：${first.slice(0, 40)}`
+              : `「${task.title}」有 ${frame.questions.length} 个问题等你回答`,
+            'warning',
+            [goToTask(task.id, '去回答')],
+          );
+        }
       } else if (frame.type === 'question/resolved') {
         activityRef.current.set(frame.sessionId, Date.now());
         store.removeAgentQuestion(frame.sessionId, frame.questionRpcId);
