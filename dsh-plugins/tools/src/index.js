@@ -844,9 +844,22 @@ function submitSelfCheckInData(data, taskId, deliverables) {
   if (task.completedAt) {
     throw new Error(`task already completed (human-accepted): ${task.title}`);
   }
-  // 幂等：已提交过自检 → 再次调用直接成功（不重复写时间戳）
+  // 幂等：已提交过自检 → 不重复写时间戳，但允许**补登记交付物**。
+  // 实测：模型首次用相对路径提交，面板没有产物链接；人类让它用绝对路径再提一次时，
+  // 旧实现对新增路径静默丢弃（"0 deliverables registered"），产物始终挂不上。
   if (task.agentCompletedAt) {
-    return { data, task, already: true };
+    const incoming = Array.isArray(deliverables) ? deliverables.map(String).filter(Boolean) : [];
+    const before = Array.isArray(task.deliverables) ? task.deliverables : [];
+    const merged = [...new Set([...before, ...incoming])].slice(0, 20);
+    const added = merged.filter((p) => !before.includes(p));
+    const nextTasks = [...tasks];
+    nextTasks[index] = added.length ? { ...task, deliverables: merged } : task;
+    return {
+      data: { ...data, tasks: nextTasks },
+      task: nextTasks[index],
+      already: true,
+      added,
+    };
   }
   const now = Date.now();
   const nextTasks = [...tasks];
@@ -1681,12 +1694,27 @@ function defineTools(ctx, api) {
             items: { type: "string" },
             description: "Verification commands actually executed and passed (whitelist-gated).",
           },
+          already: {
+            type: "boolean",
+            description:
+              "True when this task was already submitted for human acceptance earlier (idempotent call; no second timestamp).",
+          },
+          addedDeliverables: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Only on an idempotent call: newly registered deliverable paths merged into the existing list.",
+          },
         },
         required: ["ok", "title", "xp"],
         additionalProperties: false,
       },
       render: (_args, value) =>
-        text(`self-check submitted for human acceptance: ${value.title} (${(value.deliverables ?? []).length} deliverables registered; awaiting user review in the Zhixing board)`),
+        value.already
+          ? text(
+              `self-check was already submitted earlier: ${value.title} (${(value.deliverables ?? []).length} deliverables registered${(value.addedDeliverables ?? []).length ? `, ${value.addedDeliverables.length} added now` : ""}; still awaiting human review in the Zhixing board)`
+            )
+          : text(`self-check submitted for human acceptance: ${value.title} (${(value.deliverables ?? []).length} deliverables registered; awaiting user review in the Zhixing board)`),
     },
     async execute(args, exec) {
       const taskId = String(args?.taskId ?? "").trim();
@@ -1850,9 +1878,25 @@ function defineTools(ctx, api) {
       }
 
       const data = await api.get("/todo", exec.signal);
-      const { data: next, task, already } = submitSelfCheckInData(data, taskId, deliverables);
+      // 登记一律用绝对路径：相对路径（如 "brief.md"）在面板上打不开，链接等于没有。
+      // 有 snapshotDir 时按它解析；没有时保持原样（调用方本来就该给绝对路径）。
+      const registered = deliverables.map((raw) => resolveDeliverable(raw));
+      const { data: next, task, already, added = [] } = submitSelfCheckInData(
+        data,
+        taskId,
+        registered
+      );
       if (already) {
-        return { ok: true, title: task.title ?? "", xp: 0 };
+        // 补登记的交付物需要落盘（否则面板永远看不到产物链接）
+        if (added.length) await api.put("/todo", next, exec.signal);
+        return {
+          ok: true,
+          title: task.title ?? "",
+          xp: 0,
+          already: true,
+          deliverables: Array.isArray(task.deliverables) ? task.deliverables : [],
+          ...(added.length ? { addedDeliverables: added } : {}),
+        };
       }
 
       // 自检快照（执行产物定格；commit 回写任务卡——验收 diff/回滚用；失败静默）
