@@ -1187,6 +1187,12 @@ function defineTools(ctx, api) {
             description:
               "Integration verify only: files in the working directory that no step Scope and no Deliverable mentions (worker scratch files). Informational — list them to the user or ask for cleanup.",
           },
+          reviewNotes: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Integration verify only: review records in the working directory (review*.md). Expected when a review_worker ran — keep them, do not treat them as scratch.",
+          },
           corrupt: {
             type: "array",
             items: { type: "string" },
@@ -1243,6 +1249,11 @@ function defineTools(ctx, api) {
         if ((value.extras ?? []).length) {
           lines.push(
             `files outside plan scope: ${value.extras.join(", ")} — worker scratch; mention them to the user (delete or add to the plan)`
+          );
+        }
+        if ((value.reviewNotes ?? []).length) {
+          lines.push(
+            `review record: ${value.reviewNotes.join(", ")} — expected output of review_worker; keep it (list it under Deliverables if the user should see it)`
           );
         }
         if ((value.deliverables ?? []).length) {
@@ -1396,6 +1407,9 @@ function defineTools(ctx, api) {
       // 多是 worker 留下的草稿（实测 note.txt / 第二份 review.md），会让交付目录变脏。
       // 只作为提示回传，不改判据（Scope 外新增本身不违反「Scope 内文件必须存在」）。
       const extras = [];
+      // 复核记录是**契约允许**的产物（review_worker 只写一份 review*），
+      // 不能混进「草稿」一起劝删——实测 7.12 的 review.md 就被当成 scratch。
+      const reviewNotes = [];
       if (!stepId && cwd) {
         const known = new Set([
           "AGENTS.local.md",
@@ -1412,7 +1426,9 @@ function defineTools(ctx, api) {
           const isFile = await stat(join(cwd, entry))
             .then((s) => s.isFile())
             .catch(() => false);
-          if (isFile) extras.push(entry);
+          if (!isFile) continue;
+          if (/^review\b.*\.md$/i.test(entry)) reviewNotes.push(entry);
+          else extras.push(entry);
         }
         if (extras.length) {
           ctx.logger.warn(`ai00-x-tools: files outside plan scope: ${extras.join(", ")}`);
@@ -1479,6 +1495,7 @@ function defineTools(ctx, api) {
         deliverables,
         ...(scopeMissing.length ? { scopeMissing } : {}),
         ...(extras.length ? { extras } : {}),
+        ...(reviewNotes.length ? { reviewNotes } : {}),
         ...(corrupt.length ? { corrupt } : {}),
         ...(unrunnable.length ? { unrunnable } : {}),
         ...(ticked ? { ticked: true } : {}),
