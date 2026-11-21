@@ -555,6 +555,14 @@ interface TodoState {
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * 本窗口删过、还没落盘确认的任务 id。
+ *
+ * 落盘前会读盘并合并「盘上多出来的卡」（Rust 侧 agent 建卡是读改写，不经过本
+ * store）；合并时要排除这些刚被删掉的 id，否则删除会被盘上的旧卡加回来。
+ */
+const deletedTaskIds = new Set<string>();
+
 /** 工作台来源的任务（看板/任务场景的唯一数据源；与策任务按 origin 逻辑隔离）。 */
 export const selectWorkbenchTasks = (state: { data: TodoData }): TodoTask[] =>
   state.data.tasks.filter((t) => t.origin === 'workbench');
@@ -608,10 +616,30 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveTimer = null;
-      invoke('todo_store_set', { value: get().data })
+      void (async () => {
+        // 落盘前先并一次盘：Rust 侧的读改写（agent `ai00_task_create` 建卡、
+        // 专注记录追加）不经过本 store，整份覆盖会把这些新东西写没。
+        // 实测：点「通过」后 400ms 防抖窗口内 agent 建一张卡 → 卡永久消失。
+        let payload = get().data;
+        let adopted = false;
+        try {
+          const disk = sanitize(await invoke<unknown>('todo_store_get'));
+          const localIds = new Set(payload.tasks.map((t) => t.id));
+          const extra = disk.tasks.filter((t) => !localIds.has(t.id) && !deletedTaskIds.has(t.id));
+          if (extra.length > 0) {
+            payload = { ...payload, tasks: [...payload.tasks, ...extra] };
+            adopted = true;
+          }
+        } catch {
+          // 读盘失败 → 按本地写，不阻断保存
+        }
+        await invoke('todo_store_set', { value: payload });
+        // 删除已经落盘，墓碑可以清了（避免长期压制同名 id 的合法新卡）
+        deletedTaskIds.clear();
+        if (adopted) set({ data: payload });
         // 落盘成功后再广播：接收方据此重读文件，保证读到的是新值
-        .then(() => publishWindowMessage(TODO_DATA_CHANGED))
-        .catch((e) => console.error('[todo] save failed:', e));
+        publishWindowMessage(TODO_DATA_CHANGED);
+      })().catch((e) => console.error('[todo] save failed:', e));
     }, SAVE_DEBOUNCE_MS);
   },
 
@@ -849,6 +877,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   },
 
   deleteTask: (id) => {
+    deletedTaskIds.add(id);
     set((s) => ({
       expandedId: s.expandedId === id ? null : s.expandedId,
       data: { ...s.data, tasks: s.data.tasks.filter((t) => t.id !== id) },
