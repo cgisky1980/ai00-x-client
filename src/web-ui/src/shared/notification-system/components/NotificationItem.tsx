@@ -45,12 +45,15 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
   };
 
   /**
-   * 「去查看 / 去批准 / 去验收」这类只有一个主动作的通知：整张卡都可以点。
+   * 「去查看 / 去批准 / 去验收」这类主动作：整张卡都可以点。
    * overlay 窗口是有鼠标穿透的，只有带 `data-no-penetrate` 的区域才收得到点击——
    * 不加这个标记，通知看起来正常但按钮点不动（实测用户反馈）。
+   *
+   * 判定从「只有一个动作」放宽为「恰好一个 primary」：任务出错这类通知要同时给
+   * 「去查看」（primary）和一个直接重试的次要按钮，整卡可点不能被次要按钮顶掉。
    */
-  const singleAction =
-    actions && actions.length === 1 && actions[0].variant === 'primary' ? actions[0] : null;
+  const primaryActions = (actions ?? []).filter((a) => (a.variant ?? 'secondary') === 'primary');
+  const singleAction = primaryActions.length === 1 ? primaryActions[0] : null;
   const handleCardClick = (): void => {
     if (singleAction) handleAction(singleAction.onClick);
   };

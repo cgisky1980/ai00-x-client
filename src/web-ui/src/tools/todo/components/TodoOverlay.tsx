@@ -62,14 +62,14 @@ function goToTask(
  * 停住的任务最常见的下一步就是「接着跑」——以前必须开工作台、等面板加载、再点一次；
  * 窗口冷启动就要十几秒，通知的价值被这段路吃掉。失败时回一条 error 通知，不做静默。
  */
-function resumeTask(task: TodoTask): {
+function resumeTask(task: TodoTask, variant: 'primary' | 'secondary' = 'primary'): {
   label: string;
-  variant: 'primary';
+  variant: 'primary' | 'secondary';
   onClick: () => void;
 } {
   return {
     label: '继续执行',
-    variant: 'primary',
+    variant,
     onClick: () => {
       void invoke<string | null>('todo_plan_get', { taskId: task.id })
         .catch(() => null)
@@ -109,9 +109,17 @@ export const TodoOverlay: React.FC = () => {
   const awaitingApprovalRef = useRef(new Set<string>());
   // 首次轮询标记（启动中断提醒用一次）
   const firstPollRef = useRef(true);
-  // 失败态基线（启动时的历史失败只进基线，不弹通知）+ 上一轮快照（只报 false→true）
+  // 失败态基线（启动时的历史失败只进基线，不弹通知）
   const failedSeededRef = useRef(false);
-  const prevFailedRef = useRef(new Map<string, boolean>());
+  /**
+   * 会话 → 已经报过的那份失败的 `updatedAt`。
+   *
+   * 以前记的是布尔（只报 false→true），但「继续执行」重试后很可能在下一次轮询前
+   * 就又整轮跑完并失败——false 的中间态根本没被采样到，于是第二次失败静默消失。
+   * 改成记「哪一次写入的失败已报过」：同一份失败不重复弹，新的失败（updatedAt 变了）
+   * 一定再弹一次。
+   */
+  const notifiedFailureStampRef = useRef(new Map<string, number>());
   /** 任务 → 最近一条「任务出错」通知 id：同一张卡反复失败时先收旧条，不叠一摞。 */
   const failureToastRef = useRef(new Map<string, string>());
   /** 会话 → 提问通知 id：问一次只留一条，答完即收（同一时刻允许覆盖）。 */
@@ -404,9 +412,10 @@ export const TodoOverlay: React.FC = () => {
         }
         setAgentFailed(failedMap);
 
-        // 新一轮失败提醒：只报「刚变成失败」的任务。以前一轮报错只落在卡片的
-        // 「失败」态里，人不开卡片就完全不知道——任务静默停在执行段，也不知道
-        // 该点「继续执行」。启动时的历史失败只进基线（否则重启会连弹一串旧账）。
+        // 新一轮失败提醒：同一份失败只报一次，新的失败（updatedAt 变了）必报。
+        // 以前一轮报错只落在卡片的「失败」态里，人不开卡片就完全不知道——任务静默
+        // 停在执行段，也不知道该点「继续执行」。启动时的历史失败只进基线
+        // （否则重启会连弹一串旧账）。
         const failedNow = new Map<string, boolean>();
         for (const task of tasks) {
           if (task.agentSessionId) failedNow.set(task.agentSessionId, failedMap[task.agentSessionId] === true);
@@ -415,21 +424,34 @@ export const TodoOverlay: React.FC = () => {
           for (const task of tasks) {
             const sid = task.agentSessionId;
             if (!sid || task.archivedAt || task.completedAt) continue;
-            if (!failedNow.get(sid) || prevFailedRef.current.get(sid)) continue;
+            if (!failedNow.get(sid)) continue;
+            const stamp = updatedAtOf.get(sid) ?? 0;
+            if (notifiedFailureStampRef.current.get(sid) === stamp) continue;
             const previous = failureToastRef.current.get(task.id);
             if (previous) dismissTaskNotification(previous);
             const toastId = notifyTask(
               '任务出错 · 需要你',
               `「${task.title}」这一轮以错误收尾——点开卡片查看错误，或点「继续执行」重试`,
               'error',
-              [goToTask(task.id, '去查看')],
+              // 文案里让用户点「继续执行」，按钮就必须真的在：只给「去查看」等于
+              // 逼人开窗口再找一次入口。整卡点击仍是「去查看」（primary）。
+              [goToTask(task.id, '去查看'), resumeTask(task, 'secondary')],
             );
             failureToastRef.current.set(task.id, toastId);
+            notifiedFailureStampRef.current.set(sid, stamp);
           }
         } else {
+          for (const task of tasks) {
+            const sid = task.agentSessionId;
+            if (!sid || !failedNow.get(sid)) continue;
+            notifiedFailureStampRef.current.set(sid, updatedAtOf.get(sid) ?? 0);
+          }
           failedSeededRef.current = true;
         }
-        prevFailedRef.current = failedNow;
+        // 失败已消失（回合成功 / 会话被清）→ 清掉记录，下次失败照常报
+        for (const sid of [...notifiedFailureStampRef.current.keys()]) {
+          if (!failedNow.get(sid)) notifiedFailureStampRef.current.delete(sid);
+        }
 
         // 「轮到你了」的两类常驻通知：状态一变就收（批准 / 验收 / 打回 / 归档 / 删卡），
         // 否则它们会一直挂在角上，人还得自己点叉。
