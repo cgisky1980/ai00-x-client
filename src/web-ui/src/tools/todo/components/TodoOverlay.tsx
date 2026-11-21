@@ -80,6 +80,17 @@ function summarizeFailure(err?: { code?: string; message?: string }): string {
   return [err.code, short].filter(Boolean).join(' · ');
 }
 
+/**
+ * 「已经进入执行」的判据：**有会话且没验收**。
+ *
+ * 不再要求 `status === 'doing'`：agent 自主建的想法卡落盘是 `requirement`，
+ * 打开跑起来后 status 可能仍是 requirement——按 status 过滤会让这类卡
+ * 完全逃过失败提醒 / 停住判定 / 启动合并提醒（实测跑完不自检无人叫）。
+ */
+function inExecution(task: TodoTask): boolean {
+  return Boolean(task.agentSessionId) && !task.completedAt;
+}
+
 // ---- 执行看门狗（AI 评估 + 自适应复查，无绝对时间强制干预）----
 // 软阈值（5m 无事件）→ 派评估 agent 判断「正常长任务 vs 卡死」并给 ETA：
 // 判卡死 → 自动中断 + 发「继续」（上限 2 次，超过转人工）；
@@ -385,7 +396,7 @@ export const TodoOverlay: React.FC = () => {
         // 重拉一遍：十几张停滞卡 = 每分钟二十多次 history RPC，纯属空转。
         // 现在按 `session/list` 的 `updatedAt` 做缓存：会话没有新事件就直接复用上次的结论。
         const doingSessions = tasks
-          .filter(t => (t.status ?? 'requirement') === 'doing' && t.agentSessionId)
+          .filter(t => inExecution(t) && !t.archivedAt)
           .map(t => t.agentSessionId as string);
         const updatedAtOf = new Map(items.map(s => [s.sessionId, s.updatedAt ?? 0]));
         const failedMap: Record<string, boolean> = {};
@@ -539,7 +550,7 @@ export const TodoOverlay: React.FC = () => {
             !task.archivedAt &&
             !task.completedAt &&
             !task.agentCompletedAt &&
-            (task.status ?? 'requirement') === 'doing' &&
+            inExecution(task) &&
             Boolean(task.planApprovedAt) &&
             !map[sid as string] &&
             !runningParents.has(sid as string) &&
@@ -637,7 +648,7 @@ export const TodoOverlay: React.FC = () => {
           const interrupted = tasks.filter(t => {
             const sid = t.agentSessionId;
             if (t.archivedAt) return false; // 已归档：不催人处理
-            if ((t.status ?? 'requirement') !== 'doing' || !sid || map[sid]) return false;
+            if (!inExecution(t) || !sid || map[sid]) return false;
             const state = runStateMap[sid];
             return state ? state.openTurn || state.pendingTools > 0 : false;
           });
@@ -647,6 +658,8 @@ export const TodoOverlay: React.FC = () => {
               '上次客户端退出时中断——点开卡片查看，直接发消息或点「继续执行」续跑',
               'warning',
               [goToTask(interrupted[0].id, '去查看')],
+              // 「轮到人」的信号必须常驻：默认 8s 就蒸发的提示，人不在屏幕前等于没提。
+              { duration: 0 },
             );
           }
           // 还有一种「重启后静默停住」：上一轮**正常结束**却没自检收口（轮次是闭合的，
@@ -662,7 +675,7 @@ export const TodoOverlay: React.FC = () => {
               !t.archivedAt &&
               !t.completedAt &&
               !t.agentCompletedAt &&
-              (t.status ?? 'requirement') === 'doing' &&
+              inExecution(t) &&
               Boolean(t.planApprovedAt) &&
               !map[sid as string] &&
               !failedMap[sid as string] &&
@@ -679,6 +692,7 @@ export const TodoOverlay: React.FC = () => {
               `${names}${stalledAtStart.length > 2 ? ' 等' : ''}上次停在半路没自检收口——点开卡片按计划继续`,
               'warning',
               [goToTask(stalledAtStart[0].id, '去查看')],
+              { duration: 0 },
             );
           }
         }
@@ -687,7 +701,7 @@ export const TodoOverlay: React.FC = () => {
         // 连续正常超限/静默超 FORCE → 自动恢复或转人工
         const doingTaskMap = new Map(
           tasks
-            .filter(t => (t.status ?? 'requirement') === 'doing' && t.agentSessionId)
+            .filter(t => inExecution(t) && !t.archivedAt)
             .map(t => [t.agentSessionId as string, t]),
         );
         for (const [sid, task] of doingTaskMap) {
