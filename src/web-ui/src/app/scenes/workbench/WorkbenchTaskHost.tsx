@@ -51,6 +51,11 @@ export const WorkbenchTaskHost: React.FC<WorkbenchTaskHostProps> = ({
   const quick = task.executionMode === 'quick';
   const phase = taskPhase(task, planMd, runtime);
   const running = Boolean(runtime?.running);
+  /** 已归档 = 只读查看：计划卡不给批准/验收/编辑，输入框换成「恢复任务」。 */
+  const archived = Boolean(task.archivedAt);
+  const restoreTask = useCallback((): void => {
+    updateTask(task.id, { archivedAt: null });
+  }, [task.id, updateTask]);
 
   /**
    * 待验收时人在对话里追加要求 = 还有活要干：自检结论立即作废，任务退回执行段。
@@ -141,6 +146,7 @@ export const WorkbenchTaskHost: React.FC<WorkbenchTaskHostProps> = ({
                 onPlanChange={onPlanChange}
                 onOpenFile={tabs.openFile}
                 running={running}
+                readOnly={archived}
                 header={
                   <>
                     {title}
@@ -179,6 +185,8 @@ export const WorkbenchTaskHost: React.FC<WorkbenchTaskHostProps> = ({
           externalSession={{ sessionId, ...(cwd ? { cwd } : {}), title: task.title }}
           onRuntimeChange={(state) => reportRuntime(sessionId, state)}
           onUserMessage={handleUserMessage}
+          readOnly={archived}
+          onRestore={restoreTask}
           // 快速问答没有计划：相关 props 一律不传（状态卡 / 计划卡托管都不会出现）
           {...(quick
             ? {}

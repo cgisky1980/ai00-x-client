@@ -148,6 +148,8 @@
         "hideArchived": "Back to active tasks",
         "archivedTitle": "Archived",
         "archivedEmpty": "No archived tasks yet",
+        "archivedReadOnly": "Archived · read-only. The plan, deliverables and chat history are kept; restore the task to keep talking or accept it.",
+        "archivedReadOnlyHint": "Archived: open for a read-only view",
         "reviewHint": "The agent has finished its self-check. Review the delivery.",
         "reviewAction": "Review",
         "empty": "No tasks yet",

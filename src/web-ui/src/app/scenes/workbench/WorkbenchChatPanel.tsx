@@ -66,6 +66,10 @@ interface WorkbenchChatPanelProps {
    * 只在人真的提交了非空文本时触发，排队/重试也算。
    */
   onUserMessage?: () => void;
+  /** 只读（已归档查看）：保留对话历史，输入框换成「取消归档」提示。 */
+  readOnly?: boolean;
+  /** 只读态下的恢复入口。 */
+  onRestore?: () => void;
 }
 
 export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
@@ -80,6 +84,8 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   planFinished = false,
   planHosted = false,
   onUserMessage,
+  readOnly = false,
+  onRestore,
 }) => {
   const { t } = useTranslation('common');
 
@@ -181,11 +187,22 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
             planFinished={planFinished}
           />
 
-          <WorkbenchComposerDock
-            session={session}
-            externalSession={externalSession}
-            showWorkspace={showWorkspace}
-          />
+          {readOnly ? (
+            <div className="ai00-x-workbench-chat__empty" role="status">
+              <p>{t('nav.workbenchWindow.tasks.archivedReadOnly')}</p>
+              {onRestore && (
+                <button type="button" className="ai00-x-workbench-chat__retry" onClick={onRestore}>
+                  {t('nav.workbenchWindow.tasks.unarchive')}
+                </button>
+              )}
+            </div>
+          ) : (
+            <WorkbenchComposerDock
+              session={session}
+              externalSession={externalSession}
+              showWorkspace={showWorkspace}
+            />
+          )}
         </>
       )}
     </div>

@@ -89,7 +89,7 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
     (id: string | null): TodoTask | null =>
       id
         ? (allTasks.find(
-            (task) => task.id === id && task.origin === 'workbench' && !task.archivedAt,
+            (task) => task.id === id && task.origin === 'workbench',
           ) ?? null)
         : null,
     [allTasks],
@@ -322,7 +322,10 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
                 type="button"
                 className={`ai00-x-task-scene__item${task.id === selectedId ? ' is-active' : ''}`}
                 aria-current={task.id === selectedId ? 'true' : undefined}
-                disabled={Boolean(task.archivedAt)}
+                // 已归档：仍可打开只读查看（计划 / 交付物 / 对话历史），但不能继续驱动 agent。
+                // 没有会话的归档卡没有可看的内容，保持禁用。
+                disabled={Boolean(task.archivedAt) && !task.agentSessionId}
+                title={task.archivedAt ? t('nav.workbenchWindow.tasks.archivedReadOnlyHint') : undefined}
                 onClick={() => void openTask(task)}
               >
                 <span className="ai00-x-task-scene__item-title">{task.title}</span>

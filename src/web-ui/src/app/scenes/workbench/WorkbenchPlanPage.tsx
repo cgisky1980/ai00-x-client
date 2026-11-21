@@ -27,6 +27,8 @@ export interface WorkbenchPlanPageProps {
   running?: boolean;
   /** page = 工作台中区；compact = 看板抽屉内只读预览（默认 page）。 */
   variant?: 'page' | 'compact';
+  /** 只读（已归档查看）：与 compact 同一条只读路径，保证入口唯一。 */
+  readOnly?: boolean;
 }
 
 export const WorkbenchPlanPage: React.FC<WorkbenchPlanPageProps> = ({
@@ -38,6 +40,7 @@ export const WorkbenchPlanPage: React.FC<WorkbenchPlanPageProps> = ({
   actions,
   running = false,
   variant = 'page',
+  readOnly = false,
 }) => {
   const runtime = useWorkbenchTaskStore((s) =>
     task.agentSessionId ? s.runtime[task.agentSessionId] : undefined,
@@ -60,7 +63,7 @@ export const WorkbenchPlanPage: React.FC<WorkbenchPlanPageProps> = ({
           running={running}
           onPlanChange={onPlanChange}
           onOpenFile={onOpenFile}
-          readOnly={variant === 'compact'}
+          readOnly={readOnly || variant === 'compact'}
         />
       </div>
     </div>
