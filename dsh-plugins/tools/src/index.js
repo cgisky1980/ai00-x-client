@@ -968,7 +968,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_verify",
     description:
-      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Passing verdict + `tick: true` also ticks that step in the same call (one round trip instead of verify + plan_check). Integration verify (no stepId) also checks that every file promised in the plan's '## Deliverables' exists and returns failed when one is missing — a worker writing `report.part1.md` instead of `report.md` can no longer pass. Also returns planPending (unticked step ids + acceptance lines) so you can tick acceptance lines with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
+      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Passing verdict + `tick: true` also ticks that step in the same call (one round trip instead of verify + plan_check). Integration verify (no stepId) also checks that every file promised in the plan's '## Deliverables' exists and returns failed when one is missing — a worker writing `report.part1.md` instead of `report.md` can no longer pass. A stepId verify also reports `scopeMissing` (step Scope files that do not exist) and downgrades to needs-review. Also returns planPending (unticked step ids + acceptance lines) so you can tick acceptance lines with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
     parameters: {
       type: "object",
       properties: {
@@ -1024,6 +1024,12 @@ function defineTools(ctx, api) {
           },
           manualItems: { type: "array", items: { type: "string" } },
           changedFiles: { type: "array", items: { type: "string" } },
+          scopeMissing: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Files listed in this step's Scope that do not exist after the run (downgrades the verdict to needs-review).",
+          },
           deliverables: {
             type: "array",
             items: {
@@ -1073,6 +1079,9 @@ function defineTools(ctx, api) {
         }
         if ((value.changedFiles ?? []).length) {
           lines.push(`changed: ${value.changedFiles.slice(0, 40).join(", ")}`);
+        }
+        if ((value.scopeMissing ?? []).length) {
+          lines.push(`scope missing: ${value.scopeMissing.join(", ")} — check the worker's file names`);
         }
         if ((value.deliverables ?? []).length) {
           lines.push(
@@ -1176,6 +1185,28 @@ function defineTools(ctx, api) {
         );
       }
 
+      // 步骤 Scope 对账：worker 常把 `report.md` 写成 `report.part1.md`
+      // （2026-11-21 实测），验收命令只测 report.md 的长度时错误要到整体验收才
+      // 暴露。这里在步内就对账「Scope 里承诺的文件是否存在」，缺失按
+      // needs-review 上报（Scope 也可能列只读引用的既有文件，不能判 failed）。
+      const scopeMissing = [];
+      if (step && cwd) {
+        for (const raw of step.paths ?? []) {
+          const name = String(raw).replace(/`/g, "").trim().replace(/^\.\//, "");
+          if (!name || name === "." || /[*?]/.test(name)) continue;
+          if (!/\.[A-Za-z0-9]{1,8}$/.test(name)) continue; // 目录/通配路径跳过
+          const exists = await stat(join(cwd, name))
+            .then(() => true)
+            .catch(() => false);
+          if (!exists) scopeMissing.push(name);
+        }
+      }
+      if (scopeMissing.length) {
+        ctx.logger.warn(
+          `ai00-x-tools: step scope files missing: ${scopeMissing.join(", ")}`
+        );
+      }
+
       // 证据不足必须交人工/云端评审，不能假装通过。
       // 注意不再把「工作目录不是 git 仓库」算作证据不足：很多任务目录本就没有 git，
       // 而验收命令全过本身就是硬证据（实测非 git 目录里每步都掉进 needs-review，
@@ -1186,7 +1217,7 @@ function defineTools(ctx, api) {
         (includeDiff && evidence.diffTruncated && evidence.changedFiles.length > 50);
       const verdict = failed || missingDeliverables.length
         ? "failed"
-        : manualItems.length > 0 || insufficient
+        : manualItems.length > 0 || insufficient || scopeMissing.length > 0
           ? "needs-review"
           : "passed";
 
@@ -1234,6 +1265,7 @@ function defineTools(ctx, api) {
         manualItems,
         changedFiles: evidence.changedFiles,
         deliverables,
+        ...(scopeMissing.length ? { scopeMissing } : {}),
         ...(ticked ? { ticked: true } : {}),
         // 计划剩余项随证据一起回传：编排者据此用 ai00_plan_check 精确勾选，
         // 不必再为了看状态调一次 ai00_plan_read（实测一次读回 ~7k 输入）。

@@ -962,13 +962,11 @@ async fn local_rwkv_sse(
         // 引擎侧 deriveTurnTokenUsage 拿不到数字 → 本地模型的对话回合用量条全空。
         if let Some((name, arguments)) = tool_call_from_text(&text, has_tools) {
             let arguments = normalize_tool_arguments(&name, &arguments);
-            if let Some(reason) = empty_write_reason(&name, &arguments) {
-                // 空写会整文件覆盖 → 清空既有交付物（2026-11-21 实测两次）。
+            if let Some(reason) = write_rejection(&name, &arguments) {
+                // 空写会整文件覆盖 → 清空既有交付物；超长写会让 3B 退化。
                 // 强制本地路径（rwkv-local）也必须拦，工人正是走这条路。
                 log::warn!("[ai-gateway] rejected {name} call: {reason}");
-                let blocked = format!(
-                    "BLOCKED: {reason}. Never send an empty write — read the target file and write real content (or use edit to append)."
-                );
+                let blocked = format!("BLOCKED: {reason}");
                 let chunk = sse_text_delta(&model_name, &blocked);
                 let _ = tx.send(Ok(Bytes::from(chunk)));
                 let chunk = sse_usage(&model_name, input_tokens, output_tokens);
@@ -1339,12 +1337,10 @@ async fn local_tool_round(
         // 空内容 write 会把已有文件截成 0 字节：实测 T2/T3 的本地工人在"追加"
         // 失败后都发出了 {"content":"","file_path":"report.md"}，直接把刚写好的
         // 报告清空（2026-11-21 会话 87c876ca / caeffa9d）。拒绝执行，按 BLOCKED 收尾。
-        if let Some(reason) = empty_write_reason(&name, &arguments) {
+        if let Some(reason) = write_rejection(&name, &arguments) {
             log::warn!("[ai-gateway] rejected {name} call: {reason}");
             return Ok(ToolRoundOutcome::Draft {
-                text: format!(
-                    "BLOCKED: {reason}. Never send an empty write — read the target file and write real content (or use edit to append)."
-                ),
+                text: format!("BLOCKED: {reason}"),
                 hit_len: false,
                 input_tokens,
                 output_tokens,
@@ -2715,22 +2711,51 @@ fn repair_tool_call_text(text: &str) -> Option<(String, String)> {
     Some((name, arguments))
 }
 
-/// 空内容 `write` 的拒绝原因（None = 允许执行）。
+/// 本地模型单次 `write` 的字符上限（≈120 行中文）。超过这个量，3B 会先在正文里
+/// 退化（`应应应应` 级复读），再交出畸形参数——不如直接让它分节写或升级云端。
+const LOCAL_WRITE_MAX_CHARS: usize = 6000;
+
+/// 拒绝本地 `write` 调用的原因（None = 允许执行）。
 ///
-/// 这不是"写得少"，而是**破坏性**：`write` 是整文件覆盖，空内容等于清空目标文件。
-/// 2026-11-21 实测两次：本地工人想"追加"时发出 `{"content":"","file_path":"report.md"}`
-/// （87c876ca）与再次尝试同样的空写（caeffa9d），把已完成的第 1–3 章清零。
-fn empty_write_reason(name: &str, arguments: &str) -> Option<&'static str> {
+/// 两类都是**确定性破坏**，不是"写得不好"：
+/// - 空内容：`write` 是整文件覆盖，空内容等于清空目标文件。实测 2026-11-21
+///   两次（87c876ca / caeffa9d）把已完成的第 1–3 章清零。
+/// - 超长内容：本地 3B 在长文上退化并交出畸形 tool_call（同一轮 4 次
+///   malformed arguments），最终产出仍是垃圾文件。
+///
+/// `edit` 不在此列（`new_string` 为空 = 删除段落，是合法操作）。
+fn write_rejection(name: &str, arguments: &str) -> Option<String> {
     if name != "write" {
         return None;
     }
     let Ok(parsed) = serde_json::from_str::<Value>(arguments) else {
         return None; // 参数坏到解析不了时交给下游报错，别在这里静默吞掉
     };
-    match parsed.get("content") {
-        Some(Value::String(content)) if !content.trim().is_empty() => None,
-        _ => Some("write content is empty and would truncate the target file"),
+    let content =
+        match parsed.get("content") {
+            Some(Value::String(content)) => content,
+            _ => return Some(
+                "write content is empty and would truncate the target file. Never send an empty \
+                 write — read the target file and write real content (or use edit to append)."
+                    .to_string(),
+            ),
+        };
+    if content.trim().is_empty() {
+        return Some(
+            "write content is empty and would truncate the target file. Never send an empty write \
+             — read the target file and write real content (or use edit to append)."
+                .to_string(),
+        );
     }
+    let chars = content.chars().count();
+    if chars > LOCAL_WRITE_MAX_CHARS {
+        return Some(format!(
+            "local write of {chars} chars exceeds the local-model budget ({LOCAL_WRITE_MAX_CHARS}). \
+             Write a skeleton with write, then append section by section with edit — long documents \
+             belong to the cloud code_worker."
+        ));
+    }
+    None
 }
 
 /// 工具参数归一：3B 本地模型常见两类"参数漂移"，这里确定性修掉，
@@ -3590,23 +3615,38 @@ mod tests {
 
     #[test]
     fn empty_write_is_rejected_before_touching_the_file() {
-        assert!(empty_write_reason("write", r#"{"file_path":"report.md","content":""}"#).is_some());
+        assert!(write_rejection("write", r#"{"file_path":"report.md","content":""}"#).is_some());
         assert!(
-            empty_write_reason("write", r#"{"file_path":"report.md","content":"  \n "}"#).is_some()
+            write_rejection("write", r#"{"file_path":"report.md","content":"  \n "}"#).is_some()
         );
         // 缺 content 字段同样会清空文件
-        assert!(empty_write_reason("write", r#"{"file_path":"report.md"}"#).is_some());
+        assert!(write_rejection("write", r#"{"file_path":"report.md"}"#).is_some());
         // 正常写入放行
         assert!(
-            empty_write_reason("write", r##"{"file_path":"report.md","content":"# hi"}"##)
-                .is_none()
+            write_rejection("write", r##"{"file_path":"report.md","content":"# hi"}"##).is_none()
         );
         // edit 删空一段内容（new_string 为空）是合法操作，不拦
-        assert!(empty_write_reason(
+        assert!(write_rejection(
             "edit",
             r#"{"file_path":"x.md","old_string":"a","new_string":""}"#
         )
         .is_none());
+    }
+
+    #[test]
+    fn oversized_local_write_is_rejected() {
+        // 本地 3B 写长文会退化：超过预算的单次 write 直接拒绝，让它分节写或升级云端
+        let big = "字".repeat(LOCAL_WRITE_MAX_CHARS + 1);
+        let args = json!({ "file_path": "report.md", "content": big }).to_string();
+        let reason = write_rejection("write", &args).expect("must reject");
+        assert!(
+            reason.contains("exceeds the local-model budget"),
+            "{reason}"
+        );
+        // 刚好到上限放行
+        let ok = "字".repeat(LOCAL_WRITE_MAX_CHARS);
+        let args = json!({ "file_path": "report.md", "content": ok }).to_string();
+        assert!(write_rejection("write", &args).is_none());
     }
 
     #[test]
