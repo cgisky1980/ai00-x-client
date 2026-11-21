@@ -304,6 +304,8 @@
         "reject": "打回",
         "rejectHint": "打回：agent 重读计划继续完善",
         "rejectPrompt": "打回理由（将发给 agent，可留空）",
+        "rejectPickLabel": "勾选不成立的验收项（会一并发给 agent；不勾=整体退回）",
+        "rejectCancel": "取消",
         "rejectDefault": "请继续完善：验收未通过",
         "deliverables": "交付物",
         "deliverablesMissing": "agent 未登记产物——可打回要求补交",

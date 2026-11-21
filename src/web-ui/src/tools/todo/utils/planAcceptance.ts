@@ -152,6 +152,19 @@ export function parseRejectNotes(md: string | null): string[] {
   return out.reverse();
 }
 
+/**
+ * 组合打回理由：人写的意见 + 勾选的「未通过」验收项。
+ *
+ * 打回会把整份验收清零，agent 因此**看不出**具体哪几条不成立——把勾选项拼进理由，
+ * 它才知道该修什么（不改变打回语义：DoD 仍然整体重来）。
+ */
+export function composeRejectReason(reason: string, picks: string[], fallback: string): string {
+  const base = (reason.trim() || fallback).trim();
+  const items = picks.map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const full = items.length ? `${base}｜未通过：${items.join('；')}` : base;
+  return full.slice(0, 400);
+}
+
 /** 集成验收结论是否为「未通过」（人点验收通过前需要一次确认，防误点）。 */
 export function hasFailedVerify(record: string[]): boolean {
   return record.some((line) => /^结论\s*[:：]/.test(line) && /\bfailed\b/.test(line));

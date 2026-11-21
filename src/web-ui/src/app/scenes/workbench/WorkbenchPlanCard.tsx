@@ -19,8 +19,8 @@ import {
   CollapseItem,
   Empty,
   Input,
-  InputDialog,
   Markdown,
+  Modal,
   Skeleton,
   Statistic,
   Steps,
@@ -35,6 +35,7 @@ import { useTodoStore } from '@/tools/todo/store/todoStore';
 import {
   appendRejectNote,
   clearVerifyRecord,
+  composeRejectReason,
   hasFailedVerify,
   localizeVerifyLine,
   parseAcceptance,
@@ -166,6 +167,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
+  /** 打回对话框：人写的意见 + 勾选的未通过验收项（行号）。 */
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectPicks, setRejectPicks] = useState<Set<number>>(new Set());
   const [sourceOpen, setSourceOpen] = useState(false);
   /** 源码全文编辑（次要入口）；null = 只读预览。 */
   const [sourceDraft, setSourceDraft] = useState<string | null>(null);
@@ -369,6 +373,21 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       .catch(() => undefined);
   }, [sessionId, t]);
 
+  const openReject = useCallback((): void => {
+    setRejectReason('');
+    setRejectPicks(new Set());
+    setRejectOpen(true);
+  }, []);
+
+  const toggleRejectPick = useCallback((lineIndex: number): void => {
+    setRejectPicks((prev) => {
+      const next = new Set(prev);
+      if (next.has(lineIndex)) next.delete(lineIndex);
+      else next.add(lineIndex);
+      return next;
+    });
+  }, []);
+
   const accept = useCallback((): void => {
     // 最近一次集成验收判「未通过」时，验收通过前多问一句：这是人最容易误点的一步。
     if (hasFailedVerify(verifyRecord) && !window.confirm(t('nav.workbenchWindow.board.acceptFailedConfirm'))) {
@@ -397,6 +416,17 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     },
     [planMd, sessionId, t, task.id, writePlan],
   );
+
+  /** 确认打回：人写的意见 + 勾选的不成立验收项（打回本身仍是整份 DoD 重来）。 */
+  const confirmReject = useCallback((): void => {
+    const picks = acceptance
+      .filter((item) => rejectPicks.has(item.lineIndex))
+      .map((item) => item.text);
+    setRejectOpen(false);
+    reject(
+      composeRejectReason(rejectReason, picks, t('nav.workbenchWindow.board.rejectDefault')),
+    );
+  }, [acceptance, reject, rejectPicks, rejectReason, t]);
 
   const toggleAcceptance = useCallback(
     (lineIndex: number, done: boolean): void => {
@@ -771,7 +801,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       {deliverables}
       {!readOnly && !completed && (
         <div className="ai00-x-plan-card__actions">
-          <Button variant="secondary" size="small" onClick={() => setRejectOpen(true)}>
+          <Button variant="secondary" size="small" onClick={openReject}>
             <Undo2 size={12} />
             {t('nav.workbenchWindow.review.reject')}
           </Button>
@@ -953,16 +983,56 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
         </div>
       )}
 
-      <InputDialog
+      <Modal
         isOpen={rejectOpen}
         onClose={() => setRejectOpen(false)}
-        onConfirm={(value) => reject(value)}
         title={t('nav.workbenchWindow.review.reject')}
-        description={t('nav.workbenchWindow.board.rejectPrompt')}
-        defaultValue={t('nav.workbenchWindow.board.rejectDefault')}
-        confirmText={t('nav.workbenchWindow.review.reject')}
-        required={false}
-      />
+        size="medium"
+      >
+        <div className="ai00-x-plan-card__reject-dialog">
+          <p className="ai00-x-plan-card__reject-hint">
+            {t('nav.workbenchWindow.board.rejectPrompt')}
+          </p>
+          {acceptance.length > 0 && (
+            <>
+              <p className="ai00-x-plan-card__reject-label">
+                {t('nav.workbenchWindow.board.rejectPickLabel')}
+              </p>
+              <ul className="ai00-x-plan-card__reject-picks">
+                {acceptance.map((item) => (
+                  <li key={item.lineIndex}>
+                    <label className="ai00-x-plan-card__accept">
+                      <input
+                        type="checkbox"
+                        checked={rejectPicks.has(item.lineIndex)}
+                        onChange={() => toggleRejectPick(item.lineIndex)}
+                      />
+                      <span>{item.text}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <textarea
+            className="ai00-x-plan-card__reject-reason"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={3}
+            placeholder={t('nav.workbenchWindow.board.rejectDefault')}
+            aria-label={t('nav.workbenchWindow.board.rejectPrompt')}
+          />
+          <div className="ai00-x-plan-card__reject-actions">
+            <Button variant="secondary" size="small" onClick={() => setRejectOpen(false)}>
+              {t('nav.workbenchWindow.board.rejectCancel')}
+            </Button>
+            <Button variant="primary" size="small" onClick={confirmReject}>
+              <Undo2 size={12} />
+              {t('nav.workbenchWindow.review.reject')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </article>
   );
 };

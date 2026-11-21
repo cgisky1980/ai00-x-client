@@ -304,6 +304,8 @@
         "reject": "Send back",
         "rejectHint": "Send back: the agent rereads the plan and keeps working",
         "rejectPrompt": "Reason for sending back (sent to the agent; may be empty)",
+        "rejectPickLabel": "Tick the acceptance items that fail (sent to the agent; none = send back the whole task)",
+        "rejectCancel": "Cancel",
         "rejectDefault": "Please keep improving: acceptance not passed",
         "deliverables": "Deliverables",
         "deliverablesMissing": "The agent registered no deliverables — send it back to add them",

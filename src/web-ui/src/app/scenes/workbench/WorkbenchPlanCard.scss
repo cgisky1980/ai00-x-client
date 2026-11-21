@@ -448,6 +448,56 @@
     font-size: var(--font-size-xs);
   }
 
+  // ---- 打回对话框 ----
+  &__reject-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+  }
+
+  &__reject-hint,
+  &__reject-label {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+  }
+
+  &__reject-picks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    max-height: 32vh;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow-y: auto;
+  }
+
+  &__reject-reason {
+    box-sizing: border-box;
+    width: 100%;
+    padding: var(--spacing-2) var(--spacing-3);
+    border: var(--style-stroke-width, 1px) solid var(--border-base);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    resize: vertical;
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
+  }
+
+  &__reject-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-2);
+  }
+
   // ---- 源码（次要入口） ----
   &__source-bar {
     display: flex;
