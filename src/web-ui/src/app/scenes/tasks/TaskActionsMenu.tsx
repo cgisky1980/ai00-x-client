@@ -4,7 +4,7 @@
  * 任务卡本身只有「打开」，这里补可维护动作：重命名标题、归档（从列表收起，
  * 可在「任务」工作台的已归档视图恢复）、删除（连卡片一起移除，引擎会话保留）。
  */
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   Archive,
   ArchiveRestore,
@@ -22,10 +22,11 @@ import {
   InputDialog,
 } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
-import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
+import { dshSession, subagentInterrupt } from '@/infrastructure/api/service-api/DshAPI';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import type { TodoTask } from '@/tools/todo/api/types';
 import { releaseWorktree } from '../projects/projectGit';
+import { useWorkbenchTaskStore } from './workbenchTaskStore';
 import './TaskActionsMenu.scss';
 
 export interface TaskActionsMenuProps {
@@ -50,8 +51,29 @@ export const TaskActionsMenu: React.FC<TaskActionsMenuProps> = ({
   /** 菜单点选后要打开的对话框：等菜单层卸载完再开（见 onOpenChange 注释）。 */
   const pendingDialogRef = useRef<'rename' | 'delete' | null>(null);
   const archived = Boolean(task.archivedAt);
+  const sessionId = task.agentSessionId ?? '';
+  const turnRunning = useWorkbenchTaskStore((s) =>
+    Boolean(sessionId && s.runtime[sessionId]?.running),
+  );
+  const children = useWorkbenchTaskStore((s) => (sessionId ? s.children[sessionId] : undefined));
+  const runningChildIds = (children ?? []).filter((c) => c.running).map((c) => c.sessionId);
+  const runningChildKey = runningChildIds.join(',');
+  const running = turnRunning || runningChildIds.length > 0;
+
+  /**
+   * 归档 / 删除后卡片不可再打开（归档行禁用、删除连卡带面板一起消失），
+   * 正在跑的回合就没地方按「停止」了——变成看不见的烧钱。这里先把主回合与子代理停掉。
+   */
+  const stopTaskSession = useCallback((): void => {
+    if (!sessionId) return;
+    if (turnRunning) void dshSession.cancel(sessionId).catch(() => undefined);
+    for (const childId of runningChildKey ? runningChildKey.split(',') : []) {
+      void subagentInterrupt(sessionId, childId).catch(() => undefined);
+    }
+  }, [runningChildKey, sessionId, turnRunning]);
 
   const handleArchive = (): void => {
+    if (!archived && running) stopTaskSession();
     updateTask(task.id, { archivedAt: archived ? null : Date.now() });
     onArchived?.(!archived);
   };
@@ -102,7 +124,9 @@ export const TaskActionsMenu: React.FC<TaskActionsMenuProps> = ({
               {t(
                 archived
                   ? 'nav.workbenchWindow.tasks.unarchive'
-                  : 'nav.workbenchWindow.tasks.archive',
+                  : running
+                    ? 'nav.workbenchWindow.tasks.archiveStopRunning'
+                    : 'nav.workbenchWindow.tasks.archive',
               )}
             </span>
           </DropdownMenuItem>
@@ -141,7 +165,11 @@ export const TaskActionsMenu: React.FC<TaskActionsMenuProps> = ({
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         title={t('nav.workbenchWindow.tasks.deleteTitle')}
-        message={t('nav.workbenchWindow.tasks.deleteMessage')}
+        message={t(
+          running
+            ? 'nav.workbenchWindow.tasks.deleteMessageRunning'
+            : 'nav.workbenchWindow.tasks.deleteMessage',
+        )}
         confirmDanger
         confirmText={t('nav.workbenchWindow.tasks.delete')}
         onConfirm={() => {
@@ -149,6 +177,8 @@ export const TaskActionsMenu: React.FC<TaskActionsMenuProps> = ({
           // 同一帧卸载会跳过 Radix 的 body pointer-events 恢复（整页点不动）。
           setDeleteOpen(false);
           window.setTimeout(() => {
+            // 卡片一删就再也按不到「停止」：先在跑的回合与子代理停掉。
+            if (running) stopTaskSession();
             // 隔离执行的任务：顺手回收 worktree。脏目录会被 Git 拒绝——刻意保留，
             // 交回用户处理，避免删卡时连未提交改动一起抹掉。
             if (task.worktreePath) {
