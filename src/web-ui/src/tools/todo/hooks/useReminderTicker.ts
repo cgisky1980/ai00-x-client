@@ -74,10 +74,11 @@ export function useReminderTicker(): void {
           const title = '待办提醒' + (now - at > 600000 ? '（已过期）' : '');
           // 系统通知负责「人不在应用里」；应用内再给一条可点的——
           // 系统 toast 点不进具体任务，而提醒的第一动作就是打开那张卡。
-          // 只有工作台里的卡（origin=workbench）能落到具体位置，普通待办没有
-          // 可定位的界面，给个点不动的「去查看」不如不给。
+          // 两条门：① 只有工作台卡（origin=workbench）有可定位的界面；
+          // ② 必须已有会话——工作台打开「无会话的卡」会顺手建会话并发首轮任务书，
+          // 提醒点一下不该连带启动一个 agent（实测点完立刻开跑）。
           notify(title, t.title);
-          if (t.origin === 'workbench') {
+          if (t.origin === 'workbench' && t.agentSessionId) {
             notifyTask(title, t.title, 'info', [goToTask(t.id, '去查看')]);
           }
         }
