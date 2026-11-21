@@ -108,26 +108,55 @@ export const TodoOverlay: React.FC = () => {
 
   // agent 侧 todo 写入（ai00_task_complete / ai00_todo_write / ai00_task_create）
   // → 宿主广播 → 重读盘同步内存态（load 内部 save 幂等无害）。
-  // 自检提交（agentCompletedAt 新出现）→ 弹「待验收」toast（产物清单 + 链接
+  // 自检提交（agentCompletedAt 新出现）→ 弹「审核 · 需要你」（产物清单 + 链接
   // 在计划面板交付物抽屉）。
+  //
+  // 只提示**新出现**的待验收：首帧把已有状态记为已知，否则一启动（或重启后第一条
+  // 无关广播）就会把历史上所有待验收任务连弹一遍——实测 3 条任务弹 3 个 toast。
   const knownCompletedRef = useRef<Set<string>>(new Set());
+  const completedSeededRef = useRef(false);
+  useEffect(() => {
+    if (!loaded || completedSeededRef.current) return;
+    completedSeededRef.current = true;
+    const seed = new Set<string>();
+    for (const t of useTodoStore.getState().data.tasks) {
+      if (t.agentCompletedAt && !t.completedAt) seed.add(t.id);
+    }
+    knownCompletedRef.current = seed;
+  }, [loaded]);
   useEffect(() => {
     const un = listen('todo-agent-updated', () => {
       void useTodoStore.getState().load().then(() => {
         const { data } = useTodoStore.getState();
         const current = new Set<string>();
+        const fresh: typeof data.tasks = [];
         for (const t of data.tasks) {
           if (!t.agentCompletedAt || t.completedAt) continue;
           current.add(t.id);
-          if (!knownCompletedRef.current.has(t.id)) {
-            notifyTask(
-              '待验收',
-              `「${t.title}」已自检${t.deliverables?.length ? ` · ${t.deliverables.length} 项交付物` : ''}`,
-              'warning',
-            );
-          }
+          if (!knownCompletedRef.current.has(t.id)) fresh.push(t);
         }
         knownCompletedRef.current = current;
+        // 首帧种子还没建好就到达的广播：只记状态、不补发历史提示。
+        if (!completedSeededRef.current || fresh.length === 0) return;
+        if (fresh.length === 1) {
+          const t = fresh[0];
+          notifyTask(
+            '审核 · 需要你',
+            `「${t.title}」已自检${t.deliverables?.length ? ` · ${t.deliverables.length} 项交付物` : ''}，等你验收`,
+            'warning',
+          );
+          return;
+        }
+        // 同一刻有多条（两个 worker 同时收口等）：合成一条，别叠一摞
+        const names = fresh
+          .slice(0, 2)
+          .map((t) => `「${t.title.slice(0, 14)}」`)
+          .join('、');
+        notifyTask(
+          '审核 · 需要你',
+          `${fresh.length} 个任务等你验收：${names}${fresh.length > 2 ? ' 等' : ''}`,
+          'warning',
+        );
       });
     });
     return () => {
@@ -152,7 +181,7 @@ export const TodoOverlay: React.FC = () => {
         const at = approvalToastAtRef.current.get(taskId) ?? 0;
         if (Date.now() - at < 5 * 60_000) return;
         approvalToastAtRef.current.set(taskId, Date.now());
-        notifyTask('待批准', `「${task.title}」的计划已就绪，等你批准后开工`, 'warning');
+        notifyTask('计划 · 需要你', `「${task.title}」的计划等你批准后开工`, 'warning');
       }, 900);
     });
     return () => {
