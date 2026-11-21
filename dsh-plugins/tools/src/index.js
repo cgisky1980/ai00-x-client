@@ -132,6 +132,24 @@ function usableEvidence(block) {
   return { ok: verdict === "passed" || verdict === "needs-review", verdict };
 }
 
+/**
+ * 把某步的 `- [ ] T1 …` 勾成 `- [x] …`（只用于已拿到 passed 证据的步骤）。
+ *
+ * 返回 null = 没找到该步的未勾选行（或它已经是 [x]）——调用方按「没勾上」处理。
+ */
+function tickStepLine(markdown, stepId) {
+  const escaped = String(stepId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^(\\s*-\\s+)\\[ \\]\\s+(${escaped}(?:\\s|$))`);
+  const lines = String(markdown ?? "").split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    if (re.test(lines[i])) {
+      lines[i] = lines[i].replace("[ ]", "[x]");
+      return lines.join("\n");
+    }
+  }
+  return null;
+}
+
 /** 步骤 id → 是否已勾选（用于比较重写前后的勾选变化）。 */
 function tickedSteps(markdown) {
   const map = new Map();
@@ -950,7 +968,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_verify",
     description:
-      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Integration verify (no stepId) also checks that every file promised in the plan's '## Deliverables' exists and returns failed when one is missing — a worker writing `report.part1.md` instead of `report.md` can no longer pass. Also returns planPending (unticked step ids + acceptance lines) so you can tick with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
+      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Passing verdict + `tick: true` also ticks that step in the same call (one round trip instead of verify + plan_check). Integration verify (no stepId) also checks that every file promised in the plan's '## Deliverables' exists and returns failed when one is missing — a worker writing `report.part1.md` instead of `report.md` can no longer pass. Also returns planPending (unticked step ids + acceptance lines) so you can tick acceptance lines with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
     parameters: {
       type: "object",
       properties: {
@@ -972,6 +990,11 @@ function defineTools(ctx, api) {
           type: "boolean",
           description: "Include a truncated diff. Pass true for strict mode, high-risk steps and cloud fallback.",
         },
+        tick: {
+          type: "boolean",
+          description:
+            "When the verdict is passed and stepId is given, also tick that step's checkbox in the same call (saves one ai00_plan_check round trip). Ignored for failed/needs-review.",
+        },
       },
       required: ["taskId"],
       additionalProperties: false,
@@ -983,6 +1006,7 @@ function defineTools(ctx, api) {
           taskId: { type: "string" },
           stepId: { type: "string" },
           verdict: { type: "string" },
+          ticked: { type: "boolean" },
           reviewRequired: { type: "boolean" },
           risk: { type: "string" },
           reviewMode: { type: "string" },
@@ -1039,7 +1063,7 @@ function defineTools(ctx, api) {
       },
       render: (_args, value) => {
         const lines = [
-          `verdict: ${value.verdict} (${value.stepId || "integration"}; risk=${value.risk || "-"}; review=${value.reviewMode || "-"}; reviewRequired=${value.reviewRequired})`,
+          `verdict: ${value.verdict} (${value.stepId || "integration"}; risk=${value.risk || "-"}; review=${value.reviewMode || "-"}; reviewRequired=${value.reviewRequired})${value.ticked ? " [step ticked]" : ""}`,
         ];
         for (const c of value.commands ?? []) {
           lines.push(`${c.ok ? "✓" : "✗"} ${c.cmd}${c.ok ? "" : `\n  ${(c.output || "").slice(0, 1200)}`}`);
@@ -1166,20 +1190,36 @@ function defineTools(ctx, api) {
           ? "needs-review"
           : "passed";
 
-      // 把验证结果写回计划（展示层读「验证/证据」两行）；失败不阻断验证结论
+      // 把验证结果写回计划（展示层读「验证/证据」两行）；失败不阻断验证结论。
+      // 可选同调用勾选（args.tick）：每步编排者原本要多一次 ai00_plan_check，
+      // 勾选规则与 plan_check 一致（只认 passed），只是省掉一次往返。
+      let currentMd = markdown;
+      let ticked = false;
       if (stepId && markdown) {
         try {
-          const nextMd = upsertStepEvidence(
+          currentMd = upsertStepEvidence(
             markdown,
             stepId,
             verdict,
             summarizeEvidence(commands, evidence.changedFiles)
           );
-          if (nextMd !== markdown) {
-            await api.put("/plan", { taskId, markdown: nextMd }, exec.signal);
-          }
         } catch (error) {
           ctx.logger.warn(`ai00-x-tools: step evidence write-back skipped: ${error.message}`);
+        }
+        if (args?.tick === true && verdict === "passed") {
+          const tickedMd = tickStepLine(currentMd, stepId);
+          if (tickedMd) {
+            currentMd = tickedMd;
+            ticked = true;
+          }
+        }
+        if (currentMd !== markdown) {
+          try {
+            await api.put("/plan", { taskId, markdown: currentMd }, exec.signal);
+          } catch (error) {
+            ctx.logger.warn(`ai00-x-tools: plan write-back failed: ${error.message}`);
+            ticked = false;
+          }
         }
       }
 
@@ -1194,6 +1234,7 @@ function defineTools(ctx, api) {
         manualItems,
         changedFiles: evidence.changedFiles,
         deliverables,
+        ...(ticked ? { ticked: true } : {}),
         // 计划剩余项随证据一起回传：编排者据此用 ai00_plan_check 精确勾选，
         // 不必再为了看状态调一次 ai00_plan_read（实测一次读回 ~7k 输入）。
         planPending: {
