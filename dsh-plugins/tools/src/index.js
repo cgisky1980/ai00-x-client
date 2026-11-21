@@ -133,6 +133,30 @@ export function ghostDeliverables(markdown) {
   });
 }
 
+/** 可能被当作「人读交付物」检查编码污染的文本扩展名（二进制一律跳过）。 */
+const TEXT_DELIVERABLE_EXT =
+  /\.(md|markdown|txt|json|jsonl|csv|tsv|html?|css|scss|js|mjs|cjs|ts|tsx|jsx|py|rs|go|java|c|h|cpp|yaml|yml|toml|ini|tex|sql|sh|ps1|log)$/i;
+
+/**
+ * 交付物里出现 U+FFFD（替换符）的文件名 = 编码损坏。
+ *
+ * 2026-11-21 实测：编排者写 brief 时正文里带进了两个替换符，云端 worker 照抄，
+ * `brief.md` 里出现「人工在任��面板点击批准」；验收命令只查标题存在，判 passed，
+ * 最后靠编排者自己读文件才发现，又花两次派工修正。这类损坏不靠人眼很难发现，
+ * 所以放进交付物门禁直接拦。
+ */
+export async function corruptDeliverables(cwd, names) {
+  const out = [];
+  for (const name of names) {
+    if (!TEXT_DELIVERABLE_EXT.test(name)) continue;
+    const target = isAbsolute(name) || !cwd ? name : resolve(cwd, name);
+    const text = await readFile(target, "utf8").catch(() => null);
+    if (text == null) continue; // 不存在/非 UTF-8：交给「缺失」那条判定
+    if (text.includes("\uFFFD")) out.push(name);
+  }
+  return out;
+}
+
 /** 本地时间戳 `YYYY-MM-DD HH:mm`（计划文档给人读，不用 UTC）。 */
 function localStamp() {
   const d = new Date();
@@ -1089,6 +1113,12 @@ function defineTools(ctx, api) {
             description:
               "Integration verify only: files in the working directory that no step Scope and no Deliverable mentions (worker scratch files). Informational — list them to the user or ask for cleanup.",
           },
+          corrupt: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Integration verify only: text deliverables containing U+FFFD replacement characters (encoding damage). Fails the verdict — rewrite those files clean.",
+          },
           planPending: {
             type: "object",
             properties: {
@@ -1139,6 +1169,11 @@ function defineTools(ctx, api) {
             `deliverables: ${value.deliverables
               .map((d) => `${d.name}${d.exists ? " ✓" : " ✗ MISSING"}`)
               .join(", ")}`
+          );
+        }
+        if ((value.corrupt ?? []).length) {
+          lines.push(
+            `corrupted text (U+FFFD): ${value.corrupt.join(", ")} — rewrite these files clean; do not tick`
           );
         }
         if (value.planPending) {
@@ -1235,6 +1270,17 @@ function defineTools(ctx, api) {
           `ai00-x-tools: deliverables missing at integration verify: ${missingDeliverables.join(", ")}`
         );
       }
+      // 编码污染：文件里有 U+FFFD 替换符（模型输出带进来再被 worker 照抄）。
+      // 与「缺件」同级判 failed——人打开看到的是乱码，等于没交付。
+      const corrupt = stepId
+        ? []
+        : await corruptDeliverables(
+            cwd,
+            deliverables.filter((d) => d.exists).map((d) => d.name)
+          );
+      if (corrupt.length) {
+        ctx.logger.warn(`ai00-x-tools: deliverables with U+FFFD: ${corrupt.join(", ")}`);
+      }
 
       // 步骤 Scope 对账：worker 常把 `report.md` 写成 `report.part1.md`
       // （2026-11-21 实测），验收命令只测 report.md 的长度时错误要到整体验收才
@@ -1293,7 +1339,7 @@ function defineTools(ctx, api) {
         acceptance.length === 0 ||
         (commands.length === 0 && manualItems.length > 0) ||
         (includeDiff && evidence.diffTruncated && evidence.changedFiles.length > 50);
-      const verdict = failed || missingDeliverables.length
+      const verdict = failed || missingDeliverables.length || corrupt.length
         ? "failed"
         : manualItems.length > 0 || insufficient || scopeMissing.length > 0
           ? "needs-review"
@@ -1345,6 +1391,7 @@ function defineTools(ctx, api) {
         deliverables,
         ...(scopeMissing.length ? { scopeMissing } : {}),
         ...(extras.length ? { extras } : {}),
+        ...(corrupt.length ? { corrupt } : {}),
         ...(ticked ? { ticked: true } : {}),
         // 计划剩余项随证据一起回传：编排者据此用 ai00_plan_check 精确勾选，
         // 不必再为了看状态调一次 ai00_plan_read（实测一次读回 ~7k 输入）。
@@ -1478,6 +1525,21 @@ function defineTools(ctx, api) {
             `计划承诺的交付物不存在（共 ${promisedMissing.length} 个），不能提交自检：`,
             ...promisedMissing.slice(0, 8).map((p) => `  - ${p}`),
             "先把它们写进工作目录再提交；写不出来就改计划（ai00_plan_write）把承诺降到真实范围，不要只勾验收。",
+          ].join("\n")
+        );
+      }
+      // 编码损坏门禁：文本交付物里有 U+FFFD = 人打开看到乱码，不算交付。
+      // 去重：deliverables 参数与计划的「## Deliverables」常是同一批文件。
+      const corruptText = await corruptDeliverables(
+        snapshotDir,
+        [...new Set([...deliverables, ...parseDeliverables(plan?.markdown)].map((p) => String(p).trim()))]
+      );
+      if (corruptText.length > 0) {
+        throw new Error(
+          [
+            `以下交付物含 U+FFFD 替换符（编码损坏），不能提交自检：`,
+            ...corruptText.slice(0, 8).map((p) => `  - ${p}`),
+            "请派 worker 按原文重写这些文件（不要重新生成内容），再提交。",
           ].join("\n")
         );
       }
