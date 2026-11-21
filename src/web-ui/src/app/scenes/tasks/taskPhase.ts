@@ -38,6 +38,9 @@ export function taskPhase(
   // 子代理仍在跑时回合报错不应把任务钉在「出错」。
   if (runtime?.running) return 'running';
   if (runtime?.failed) return 'failed';
+  // 快速问答没有计划、也没有批准门：它只活在「执行」段里。
+  // 以前落到「规划中」——列表上显示「计划」，可它压根没有计划可批（实测两条问答任务都这样）。
+  if (task.executionMode === 'quick') return 'stopped';
   // 计划书已写好但没被人类确认：明确标「待批准」，让用户知道轮到自己了
   if (!task.planApprovedAt) {
     return planMd && planMd.trim() ? 'approving' : 'planning';
