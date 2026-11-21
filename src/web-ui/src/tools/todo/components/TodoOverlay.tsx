@@ -466,6 +466,18 @@ export const TodoOverlay: React.FC = () => {
         for (const sid of [...notifiedFailureStampRef.current.keys()]) {
           if (!failedNow.get(sid)) notifiedFailureStampRef.current.delete(sid);
         }
+        // 失败已恢复（重新在跑 / 回合成功 / 已验收或归档）→ 收起「任务出错」通知。
+        // 它是 error 档常驻通知，不跟随状态收就会一直挂在角上说「需要你」，
+        // 而任务其实早就继续跑了。查不到任务时不动（快照可能比闭包新）。
+        for (const [taskId, toastId] of [...failureToastRef.current]) {
+          const t = tasks.find((x) => x.id === taskId);
+          if (!t) continue;
+          const sid = t.agentSessionId;
+          const stillFailed = !!sid && failedNow.get(sid) === true && !t.completedAt && !t.archivedAt;
+          if (stillFailed) continue;
+          failureToastRef.current.delete(taskId);
+          dismissTaskNotification(toastId);
+        }
 
         // 「轮到你了」的两类常驻通知：状态一变就收（批准 / 验收 / 打回 / 归档 / 删卡），
         // 否则它们会一直挂在角上，人还得自己点叉。
