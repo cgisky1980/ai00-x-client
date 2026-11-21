@@ -51,7 +51,10 @@ export const ProgressNotification: React.FC<ProgressNotificationProps> = ({ noti
   };
 
   return (
-    <div className={`progress-notification progress-notification--${status || 'active'} ${mode === 'text-only' ? 'progress-notification--text-only' : ''}`}>
+    <div
+      className={`progress-notification progress-notification--${status || 'active'} ${mode === 'text-only' ? 'progress-notification--text-only' : ''}`}
+      data-no-penetrate
+    >
       
       <div className="progress-notification__icon">
         {getStatusIcon()}

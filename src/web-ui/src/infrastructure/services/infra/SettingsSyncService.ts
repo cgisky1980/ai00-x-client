@@ -1,6 +1,6 @@
 import {
   themeService,
-  STYLE_PACK_STORAGE_KEY,
+  SKIN_STORAGE_KEY,
   THEME_SELECTION_STORAGE_KEY,
 } from '@/infrastructure/theme';
 import { i18nService } from '@/infrastructure/i18n';
@@ -10,7 +10,7 @@ import { createLogger } from '@/shared/utils/logger';
 
 const log = createLogger('SettingsSyncService');
 
-type SettingsEventType = 'theme:changed' | 'style:changed' | 'language:changed' | 'workspace:changed';
+type SettingsEventType = 'theme:changed' | 'skin:changed' | 'skins:changed' | 'language:changed' | 'workspace:changed';
 
 interface SettingsSyncMessage {
   type: SettingsEventType;
@@ -79,11 +79,11 @@ class SettingsSyncServiceImpl {
 
   private resyncFromStorage(): void {
     try {
-      const style = localStorage.getItem(STYLE_PACK_STORAGE_KEY);
-      const currentStyle = themeService.getStylePackId();
-      if (style && style !== currentStyle) {
-        log.info('Resync style pack from storage', { from: currentStyle, to: style });
-        void themeService.applyStylePack(style, { persist: false });
+      const skin = localStorage.getItem(SKIN_STORAGE_KEY);
+      const currentSkin = themeService.getSkinId();
+      if (skin && skin !== currentSkin) {
+        log.info('Resync skin from storage', { from: currentSkin, to: skin });
+        void themeService.reloadUserSkins().then(() => themeService.applySkin(skin, { persist: false }));
       }
 
       const theme = localStorage.getItem(THEME_SELECTION_STORAGE_KEY);
@@ -134,8 +134,11 @@ class SettingsSyncServiceImpl {
         case 'theme:changed':
           await this.syncTheme(message.payload as string);
           break;
-        case 'style:changed':
-          await this.syncStylePack(message.payload as string);
+        case 'skin:changed':
+          await this.syncSkin(message.payload as string, false);
+          break;
+        case 'skins:changed':
+          await this.syncSkin(message.payload as string, true);
           break;
         case 'language:changed':
           await this.syncLanguage(message.payload as string);
@@ -160,14 +163,14 @@ class SettingsSyncServiceImpl {
     }
   }
 
-  private async syncStylePack(stylePackId: string): Promise<void> {
+  private async syncSkin(skinId: string, reload: boolean): Promise<void> {
     try {
-      const current = themeService.getStylePackId();
-      if (current === stylePackId) return;
-      await themeService.applyStylePack(stylePackId);
-      log.info('Synced style pack from other window', { stylePackId });
+      if (reload || !themeService.hasSkin(skinId)) await themeService.reloadUserSkins();
+      if (themeService.getSkinId() === skinId) return;
+      await themeService.applySkin(skinId, { persist: false });
+      log.info('Synced skin from other window', { skinId });
     } catch (error) {
-      log.warn('Failed to sync style pack', error);
+      log.warn('Failed to sync skin', error);
     }
   }
 

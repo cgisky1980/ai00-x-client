@@ -31,10 +31,15 @@ import { DeliverablePreview } from '../DeliverablePreview';
 import { useTodoStore } from '../../store/todoStore';
 import { useGrowthStore } from '../../store/growthStore';
 import {
+  appendRejectNote,
+  clearVerifyRecord,
+  localizeVerifyLine,
   parseAcceptance,
   parseStepItems,
   parseSteps,
+  parseVerifyRecord,
   toggleAcceptanceLine,
+  uncheckAcceptance,
   type AcceptanceItem,
 } from '../../utils/planAcceptance';
 
@@ -141,6 +146,8 @@ export const PlanDocPanel: React.FC<{
 
   // 验收段解析（唯一真源 = 计划 MD 勾选态）：回填看板徽标缓存 + 「验收通过」门控
   const acceptanceItems = useMemo(() => parseAcceptance(md), [md]);
+  // 集成验收摘要（agent 最近一次 ai00_task_verify 落盘的 `## 验证记录`）
+  const verifyRecord = useMemo(() => parseVerifyRecord(md), [md]);
   const accDone = acceptanceItems.filter(i => i.done).length;
   const accTotal = acceptanceItems.length;
   useEffect(() => {
@@ -250,17 +257,29 @@ export const PlanDocPanel: React.FC<{
   /** 验收后经验蒸馏（fire-and-forget）：讨论模型判断值得记则写入记忆库，
    *  下次委托时随任务书注入——形成"做过→记住→复用"闭环。失败静默。 */
 
-  /** 打回：清模型自检态，理由发回会话（agent 重读计划，继续完善）。 */
+  /** 打回：清模型自检态 + 验收勾选清零留痕，理由发回会话（agent 重读计划，继续完善）。 */
   const handleReject = async () => {
     const input = await window.prompt('打回理由（将发给 agent，可留空）', '请继续完善：验收未通过');
     if (input == null) return;
     const reason = input.trim() || '请继续完善：验收未通过';
+    // 验收清单必须清零：否则 agent 下一轮可直接重新提交自检（打回变摆设）
+    // 同时作废上一轮集成验收结论（验证记录）——它的结论已过期。
+    if (md != null) {
+      const stamp = new Date().toLocaleString('zh-CN', { hour12: false });
+      const nextMd = appendRejectNote(clearVerifyRecord(uncheckAcceptance(md)), reason, stamp);
+      try {
+        await invoke('todo_plan_set', { taskId: task.id, markdown: nextMd });
+        setMd(nextMd);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    }
     updateTask(task.id, { agentCompletedAt: null });
     if (task.agentSessionId) {
       void dshSession
         .prompt(
           task.agentSessionId,
-          `【验收打回】${reason}。请先用 ai00_plan_read 重读计划文档；若打回涉及需求/方案变化，先更新计划再继续执行。`,
+          `【验收打回】${reason}。计划的验收项已全部取消勾选（DoD 重新不成立，直接重新提交自检会被拒）：请先用 ai00_plan_read 重读计划；若打回涉及需求/方案变化，先更新计划再继续执行；修正产物后重跑 ai00_task_verify，只勾选真正满足的验收项（可用 ai00_plan_check {matches: [...]} 一次勾多条）。`,
         )
         .catch(() => undefined);
     }
@@ -430,6 +449,16 @@ export const PlanDocPanel: React.FC<{
                       <span className="td-plandoc__acctext">{a.text}</span>
                     </button>
                   ))}
+                  {verifyRecord.length > 0 && (
+                    <div className="td-plandoc__verify">
+                      <div className="td-plandoc__verify-head">最近一次集成验收</div>
+                      {verifyRecord.map((line, index) => (
+                        <div className="td-plandoc__verify-line" key={`${index}-${line.slice(0, 10)}`}>
+                          {localizeVerifyLine(line)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </Drawer>

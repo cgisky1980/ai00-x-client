@@ -950,6 +950,20 @@ export const dshSession = {
     return { events: page.records.map(r => ({ event: r.event })) as DshHistoryEntry[], hasMore: page.hasMore };
   },
 
+  /**
+   * 会话投影值（`agentPreset` / `modelSelection` / `plan` 等）。
+   *
+   * `session/list` 的项目列表里 `projections` 可能为空（引擎只带缓存快照），
+   * 需要单个会话的真实工具面时必须走这个端点——判断「会话挂的是哪个 preset」
+   * 只有这里能拿到权威值。
+   */
+  projections: async (sessionId: string): Promise<Record<string, unknown>> => {
+    const res = await rpc<{ values?: Record<string, unknown> }>('session/projections', {
+      request: { sessionId },
+    });
+    return res.values ?? {};
+  },
+
   /** 模型目录 = session/modelCatalog；current 从会话投影 modelSelection 取。 */
   models: async (sessionId: string): Promise<DshSessionModels> => {
     const catalog = await rpc<WireModelCatalog>('session/modelCatalog');
@@ -2202,8 +2216,10 @@ export function aggregateSessionStats(events: DshSessionEvent[]): DshSessionStat
  * 判定依据全部是引擎权威事件的闭合性，不依赖消息折叠规则：
  * - `openTurn`：最后一个轮次未闭合（turn/start 之后没有 turn/end）——被中断的确定性信号；
  * - `pendingTools`：工具调用未返回数（tool/call 无对应 tool/result）——含「卡在审批上」；
- * - `lastTurnErrored`：最后一个轮次以错误收尾（assistant/chunk 的 finish.reason.kind === 'error'），
- *   每遇 turn/start 重置，故只看最后一轮。
+ * - `lastTurnErrored`：最后一个轮次以错误收尾（turn/end 的 reason.kind === 'error'，或
+ *   `assistant/attempt` 内嵌 stream 的 finish.reason.kind === 'error'），每遇 turn/start
+ *   重置，故只看最后一轮。★ 落盘时助手输出只存在于 `assistant/attempt` 的紧凑 stream 里
+ *   （`assistant/chunk` 不逐条落盘），只看 assistant/chunk 会永远判不出失败。
  *
  * 注意：审批/提问是 $events 瀑布流信号（不进会话事件日志），但它们发生时必然
  * 表现为「轮次未闭合 + 工具未返回」，故本函数已覆盖，无需单独判定。
@@ -2230,6 +2246,8 @@ export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunS
       }
       case 'turn/end': {
         openTurn = false;
+        const reason = (data?.reason ?? data?.error) as { kind?: string } | undefined;
+        if (reason?.kind === 'error') turnErrored = true;
         break;
       }
       case 'assistant/chunk': {
@@ -2238,6 +2256,18 @@ export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunS
           | undefined;
         if (chunk?.type === 'finish' && chunk.reason?.kind === 'error') {
           turnErrored = true;
+        }
+        break;
+      }
+      case 'assistant/attempt': {
+        // 落盘形态：一次 attempt 的流式块收敛在 data.stream 里，失败信号也跟着进来。
+        const stream = data?.stream as
+          | Array<{ chunk?: { type?: string; reason?: { kind?: string } } }>
+          | undefined;
+        for (const entry of stream ?? []) {
+          if (entry?.chunk?.type === 'finish' && entry.chunk.reason?.kind === 'error') {
+            turnErrored = true;
+          }
         }
         break;
       }

@@ -17,9 +17,11 @@
 import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { useTranslation } from 'react-i18next';
 import { useTodoStore } from '../store/todoStore';
-import { useGrowthStore } from '../store/growthStore';
+import { notifyTask } from '../utils/notify';
 import { useAgentDelegate } from './useAgentDelegate';
+import { useWorkbenchTaskStore } from '@/app/scenes/tasks/workbenchTaskStore';
 import type { TodoTask } from '../api/types';
 
 const REMINDER_WINDOW_MS = 7 * 86400000;
@@ -44,6 +46,7 @@ async function notify(title: string, body: string) {
 
 export function useReminderTicker(): void {
   const { delegate } = useAgentDelegate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     let stopped = false;
@@ -125,25 +128,58 @@ export function useReminderTicker(): void {
       if (!taskId) return;
       const task = useTodoStore.getState().data.tasks.find(t => t.id === taskId);
       if (!task) {
-        useGrowthStore.getState().showToast('外部触发失败', `未找到卡片 ${taskId}`);
+        notifyTask('外部触发失败', `未找到卡片 ${taskId}`, 'error');
         return;
       }
-      // Rust 侧已做权威防重入；此处兜底事件与状态之间的竞争窗口
-      if ((task.status ?? 'requirement') === 'doing') {
-        useGrowthStore.getState().showToast('已忽略外部触发', `「${task.title}」正在执行中`);
+      // 防重入必须用**真实运行态**（session/list 快照 + 子代理聚合），
+      // 不能用看板列 `status`：工作台卡片建卡即 `doing`，worker 跑完也不回落，
+      // 实测导致「卡片停在 doing → 外部触发永远被拒」。
+      const sessionId = task.agentSessionId;
+      const runtimeState = useWorkbenchTaskStore.getState();
+      const running = sessionId
+        ? Boolean(runtimeState.runtime[sessionId]?.running) ||
+          (runtimeState.delegating[sessionId] ?? 0) > 0
+        : false;
+      // 触发链路是「外部→宿主→前端」三跳，出问题时要能从 webview 日志定位到底停在哪一跳
+      console.info(
+        `[task-trigger] ${taskId} session=${sessionId ?? '-'} workbench=${task.workbenchId ?? '-'} running=${running}`,
+      );
+      if (running) {
+        notifyTask('已忽略外部触发', `「${task.title}」正在执行中`, 'info');
+        return;
+      }
+      // 工作台卡片必须走工作台会话链路（任务专属目录 + workbench preset）：
+      // 旧 useAgentDelegate 按 `agent` 模块解析 cwd，对这类卡片会落到默认工作区，
+      // 表现是「触发返回 202 但没有新会话」。
+      if (task.workbenchId) {
+        const workbenchTitle =
+          task.workbenchId === 'tasks'
+            ? t('nav.workbenchWindow.tasks.title')
+            : task.workbenchId;
+        // 动态 import：taskSession 依赖整个工作台场景栈，静态引入会把
+        // todo → scenes → todo 连成环，实测直接白屏（首页 JS 未挂载）。
+        void import('@/app/scenes/tasks/taskSession')
+          .then(({ resumeTaskRun }) => resumeTaskRun(task, workbenchTitle))
+          .then(() => {
+            console.info(`[task-trigger] ${taskId} resumed via workbench path`);
+            notifyTask('外部触发已启动', `「${task.title}」已继续执行`, 'info');
+          })
+          .catch((e: unknown) => {
+            console.warn(`[task-trigger] ${taskId} resume failed:`, e);
+            notifyTask('外部触发失败', e instanceof Error ? e.message : String(e), 'error');
+          });
         return;
       }
       void delegate(task, evt.payload?.module).then(ok => {
-        useGrowthStore
-          .getState()
-          .showToast(
-            ok ? '外部触发已启动' : '外部触发失败',
-            ok ? `「${task.title}」已开始执行` : '委托未成功，请检查引擎状态',
-          );
+        notifyTask(
+          ok ? '外部触发已启动' : '外部触发失败',
+          ok ? `「${task.title}」已开始执行` : '委托未成功，请检查引擎状态',
+          ok ? 'info' : 'error',
+        );
       });
     });
     return () => {
       void un.then(f => f());
     };
-  }, [delegate]);
+  }, [delegate, t]);
 }

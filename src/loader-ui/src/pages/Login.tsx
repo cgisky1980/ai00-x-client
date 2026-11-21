@@ -302,7 +302,7 @@ export function LoginPage() {
     <div className="h-screen w-screen flex items-center justify-center bg-transparent p-5">
       <div
         className="w-full h-full relative overflow-hidden rounded-lg border loader-card"
-        style={{ borderColor: "var(--border-base)", backgroundColor: "var(--color-bg-base)", backgroundImage: "var(--ds-paper-grain)" }}
+        style={{ borderColor: "var(--border-base)", backgroundColor: "var(--color-bg-base)" }}
       >
         <div className="absolute top-0 left-0 right-0 h-10 z-0" data-tauri-drag-region />
         <div className="absolute top-2 right-4 z-50 flex items-center gap-2">

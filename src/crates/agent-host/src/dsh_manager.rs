@@ -15,7 +15,7 @@
 //! sidecar：`dsh.cmd web --no-open --host 127.0.0.1 --port <DSH_PORT>`，
 //! DSH_HOME 隔离到 app data；崩溃退避自动重启；退出随主进程（Job Object）。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -135,6 +135,64 @@ pub fn dsh_home() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join("Ai00-X")
         .join("dsh")
+}
+
+/// 清理陈旧的**子代理（worker）会话**目录，返回删除数量。
+///
+/// 工作台每派一次 worker 就是一个子会话（目录名是裸 UUID，父会话是
+/// `session-<uuid>`），一次多步任务会留下十几个；引擎没有删除会话的 RPC，
+/// 只能由宿主清盘。判据：目录名不以 `session-` 开头（= 从属会话）+ 会话文件
+/// mtime 早于 `max_age_days`。删除 `sessions/<slug>/<id>/` 与对应 projcache 文件。
+///
+/// 安全性（2026-11-21 实机验证）：删掉一个子会话目录后重启客户端，
+/// `session/list` 仍返回 ok（239 项）、无该 id、无报错——父会话记录与 UI 不受影响。
+pub fn prune_stale_worker_sessions(max_age_days: u64) -> usize {
+    prune_worker_sessions_in(&dsh_home(), max_age_days)
+}
+
+fn prune_worker_sessions_in(home: &std::path::Path, max_age_days: u64) -> usize {
+    let root = home.join("sessions");
+    let cache_dir = home
+        .join("storages")
+        .join("session_projcache")
+        .join("sessions");
+    let Some(cutoff) = std::time::SystemTime::now().checked_sub(std::time::Duration::from_secs(
+        max_age_days.saturating_mul(86_400),
+    )) else {
+        return 0;
+    };
+    let Ok(slugs) = std::fs::read_dir(&root) else {
+        return 0;
+    };
+    let mut removed = 0usize;
+    for slug in slugs.flatten() {
+        let Ok(entries) = std::fs::read_dir(slug.path()) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("session-") {
+                continue; // 父会话：永远保留（任务卡绑定的就是它）
+            }
+            let file = entry.path().join("session.v4.jsonl.zstd");
+            let Ok(modified) = std::fs::metadata(&file).and_then(|m| m.modified()) else {
+                continue;
+            };
+            if modified > cutoff {
+                continue; // 新会话（可能在跑）：不动
+            }
+            if std::fs::remove_dir_all(entry.path()).is_ok() {
+                removed += 1;
+                let _ = std::fs::remove_file(cache_dir.join(format!("{name}.json")));
+            }
+        }
+    }
+    if removed > 0 {
+        log::info!(
+            "[DshManager] pruned {removed} stale worker session(s) older than {max_age_days}d"
+        );
+    }
+    removed
 }
 
 // 引擎权限档（dsh-base permission-presets 读 DSH_PERMISSION_MODE）：
@@ -1024,8 +1082,9 @@ async fn ensure_default_model_setting() -> Result<(), String> {
 /// 工具名为 dsh 引擎注册名（dsh-tool-fs: read/read_image/edit/write、
 /// dsh-tool-fs-search: glob/grep、dsh-tool-pwsh: pwsh、dsh-tool-bash: bash、
 /// dsh-tool-skill: skill、dsh-tool-todo: todo_write）。web 检索走全局插件
-/// @ai00-x/dsh-tools 的 ai00_search / ai00_web_extract（自托管免 key，2026-11-11
-/// 起替代 dsh-tool-web——引擎 web_search 需 DeepSeek key/登录，本部署不可用）。
+/// @ai00-x/dsh-tools 的 ai00_web_extract（query=搜索+取正文 / url=单页）与
+/// ai00_research_collect（一次调用完成多源采集落盘），自托管免 key，
+/// 2026-11-11 起替代 dsh-tool-web——引擎 web_search 需 DeepSeek key/登录，本部署不可用。
 /// 改动组合后用
 /// `dsh --profile ai00x --dump-config` 验证（DSH_HOME 指向 dsh_home()）。
 /// 组合行为 boot 时装配——本文件变更需 sidecar 重启生效。
@@ -1055,7 +1114,7 @@ const WORKBENCH_ORCHESTRATOR_PERSONA: &str = "You are the Ai00-X orchestrator, p
 ///
 /// 编排者按契约为「只规划 + 派发，从不自己执行」，这些工具的 schema 每轮都会
 /// 进入**远程**请求的上下文（实测 27 个工具 ≈ 10k tokens），却按契约用不上：
-/// - `tool-web`（web_fetch / web_search）：与 `ai00_search` / `ai00_web_extract` 重复；
+/// - `tool-web`（web_fetch / web_search）：与 `ai00_web_extract` 重复；
 /// - `tool-subagent-fork` / `workflow-ptc` / `tool-workflow`：统一走 spawn 工人；
 /// - `present` / `tool-plugin-manager` / `tool-jobs` / `tool-schedule`：工作台不用；
 /// - `planning`（plan-mode → exit_plan_mode）：工作台计划走 `ai00_plan_write`，
@@ -1095,7 +1154,7 @@ const WORKBENCH_TASK_DENIED_TOOLS: &[&str] = &[
 /// 缺了这两项，research_worker 只能看到一个调不通的 `web_search`，实测会把
 /// 工具调用直接写成 JSON 文本当收尾（`{"arguments":{…},"name":"web_search"}`），
 /// 整轮调研无产出。
-const WORKER_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract"];
+const WORKER_KEPT_TOOLS: &[&str] = &["ai00_web_extract", "ai00_research_collect"];
 
 /// 帮手（叶子工人）preset 里 deny 掉的全局业务工具 = 全部业务工具 − 保留的检索工具。
 ///
@@ -1108,9 +1167,11 @@ const WORKER_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract"];
 /// 是让该 preset 不挂对应插件行（见 `WORKBENCH_DROPPED_PLUGIN_IDS` /
 /// `WORKBENCH_QUICK_DROPPED_PLUGIN_IDS`）。
 fn worker_denied_tools(worker: &str) -> Vec<&'static str> {
-    // 检索工具只留给 research_worker：写码工人带上 ai00_search 会被 3B 模型
-    // 当成"万能工具"滥用（实测写文件的任务连调十次搜索），也是纯 schema 成本。
-    let keeps_search = worker == "research_worker";
+    // 检索工具留给 research_worker 与云端 code_worker：后者要查证/补资料，
+    // 缺了它只能自造爬虫（2026-11-21 实测：curl/Invoke-WebRequest 在引擎沙箱里
+    // TLS 失败，worker 花 9 步试代理/找 node，整轮跑到 22 分钟）。
+    // 本地 local_code_worker 仍 deny：3B 会把搜索当"万能工具"滥用（实测十连搜）。
+    let keeps_search = matches!(worker, "research_worker" | "code_worker");
     AI00_TOOL_NAMES
         .iter()
         .copied()
@@ -1133,8 +1194,8 @@ const AI00_TOOL_NAMES: &[&str] = &[
     "ai00_plan_read",
     "ai00_plan_write",
     "ai00_plan_check",
-    "ai00_search",
     "ai00_web_extract",
+    "ai00_research_collect",
     "ai00_text_summarize",
 ];
 
@@ -1143,11 +1204,11 @@ const AI00_TOOL_NAMES: &[&str] = &[
 /// 按契约从不执行命令、也不建目标。
 const WORKBENCH_TASK_DROPPED_PLUGIN_IDS: &[&str] = &["tool-pwsh", "tool-goal"];
 
-/// 快速问答保留的业务工具：搜索 + 正文提取 + 桌面通知。
+/// 快速问答保留的业务工具：正文提取（query 模式即搜索）+ 桌面通知。
 /// 契约是「不写计划、不派子代理、不落文件」，其余业务工具都不挂。
-const WORKBENCH_QUICK_KEPT_TOOLS: &[&str] = &["ai00_search", "ai00_web_extract", "ai00_notify"];
+const WORKBENCH_QUICK_KEPT_TOOLS: &[&str] = &["ai00_web_extract", "ai00_notify"];
 
-/// 快速问答 deny 的业务工具 = 全部业务工具减去保留的 3 个（单一来源，避免两处漏改）。
+/// 快速问答 deny 的业务工具 = 全部业务工具减去保留的 2 个（单一来源，避免两处漏改）。
 ///
 /// 只列本插件工具名；引擎工具走 `WORKBENCH_QUICK_DROPPED_PLUGIN_IDS` 摘插件行
 /// （restrict 只认全局注册，引擎工具是 preset 行，写进来会让整条限制失效）。
@@ -1197,7 +1258,7 @@ struct WorkbenchPresetSpec<'a> {
 }
 
 /// 快速问答的编排者 persona：只回答，不规划、不派发、不落文件。
-const WORKBENCH_QUICK_PERSONA: &str = "You are Ai00-X answering a quick question.\nAnswer directly in this chat, in the user's language, concise and grounded. Never write a plan, never dispatch subagents, never create or modify files, never ask for approval. Use ai00_search / ai00_web_extract only when the answer needs fresh facts, and cite source URLs inline. If the question really needs files or multi-step delivery, say so in one sentence and suggest switching the task to delivery mode. All tools must go through the tool-call channel, never simulated in text.";
+const WORKBENCH_QUICK_PERSONA: &str = "You are Ai00-X answering a quick question.\nAnswer directly in this chat, in the user's language, concise and grounded. Never write a plan, never dispatch subagents, never create or modify files, never ask for approval. Use ai00_web_extract (query = search + per-page summaries) only when the answer needs fresh facts, and cite source URLs inline. If the question really needs files or multi-step delivery, say so in one sentence and suggest switching the task to delivery mode. All tools must go through the tool-call channel, never simulated in text.";
 
 impl<'a> WorkbenchPresetSpec<'a> {
     fn denied_tools(&self) -> Option<Vec<&'static str>> {
@@ -1507,7 +1568,7 @@ struct WorkerDef {
 
 const DEFAULT_WORKER_RESEARCH_MD: &str = r#"---
 name: research_worker
-description: 只读调研帮手：读文件、搜索、网络查证（智能路由，低成本）
+description: 只读调研帮手：一次采集落到 sources.md，再读文件做归纳（本地模型友好）
 model: ai00-auto
 tools:
   - read
@@ -1516,11 +1577,11 @@ tools:
   - grep
 ---
 You are a research worker dispatched by the Ai00-X orchestrator.
-Read-only investigation only (read files / search / verify online). Never modify files or run commands.
-Stay strictly within the assigned task; return concise findings plus evidence locations (file:line or URL).
-Use ai00_search (Ai00-X self-hosted search, no key) for web search; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.
-Always use the real tool-call channel — never write a tool call as JSON or prose text. If a needed tool is unavailable, state exactly what is missing instead of pretending to call it.
-Keep search queries short and specific (one topic per call); never concatenate many keywords or languages into one query.
+Read-only investigation: never modify code or run commands. You may produce exactly ONE notes file per dispatch.
+Collecting sources is ONE tool call: call ai00_research_collect with `topic` and optional short `queries` (English, <=6 words each) plus `save_to` (default sources.md). Never pass a working directory — the host resolves it. Do NOT chain many separate search calls — that is out of scope for a small local model.
+If you need one specific page, use ai00_web_extract with `url`; if the collect tool failed, use ai00_web_extract with `query` once.
+After the file is written, read it and return compact findings with the source URLs. Never invent links or results.
+Always use the real tool-call channel — never write a tool call as JSON or prose text.
 "#;
 
 const DEFAULT_WORKER_LOCAL_CODE_MD: &str = r#"---
@@ -1540,23 +1601,25 @@ tools:
 You are a local code worker dispatched by the Ai00-X orchestrator.
 Implement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.
 Always use real tool calls; never simulate tools in text. Run the given acceptance commands before finishing.
-Use ai00_search (self-hosted, no key) for web lookup; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.
+Use ai00_web_extract for web lookup: `query` searches the web and returns distilled per-page summaries, `url` returns one page body.
 Never write a tool call as JSON or prose text; if a needed tool is unavailable, state exactly what is missing.
 Return compact evidence only: changed files, commands with exit codes, remaining risks/exceptions. No long narratives.
 "#;
 
 const DEFAULT_WORKER_REVIEW_MD: &str = r#"---
 name: review_worker
-description: 证据评审帮手：读计划、diff 与验证结果，判定通过或给出最小返工意见
+description: 证据评审帮手：读计划、diff 与验证结果，判定通过或给出最小返工意见（可写一份审查记录）
 model: ai00-api
 tools:
   - read
   - read_image
   - glob
   - grep
+  - write
 ---
 You are an evidence reviewer dispatched by the Ai00-X orchestrator.
-Read-only review: never modify files or run commands. Check the diff and command evidence against the step acceptance criteria.
+Review only: never modify code, never run commands. You may write exactly ONE review record file (e.g. review.md) in the working directory.
+Check the diff and command evidence against the step acceptance criteria.
 Output exactly three parts: verdict (pass / reject), evidence gaps or problems (specific files and symbols), and minimal rework instructions (actionable and scoped).
 If the evidence is insufficient, reject explicitly; never approve on guesses.
 "#;
@@ -1577,6 +1640,8 @@ tools:
 ---
 You are a code worker dispatched by the Ai00-X orchestrator.
 Implement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.
+Web lookup uses ai00_web_extract (query = search + per-page summaries, url = page body) or ai00_research_collect — never curl, Invoke-WebRequest or hand-written fetchers.
+Write long files in sections: write a skeleton first, then append section by section with edit.
 Report: what changed, how it was verified, and remaining risks.
 "#;
 
@@ -1657,21 +1722,154 @@ fn parse_worker_md(file_name: &str, content: &str) -> Option<WorkerDef> {
     })
 }
 
-/// 存量 worker 文件 persona 的搜索规则句归一（2026-11-11 工具换代：引擎
-/// web_fetch/web_search → 全局插件 ai00_search/ai00_web_extract）。
+/// 存量 worker 文件 persona 的搜索规则句归一（2026-11-21 工具收口：`ai00_search`
+/// 已删除，检索统一为 `ai00_web_extract`（query/url）+ `ai00_research_collect`）。
 /// 与 normalize_worker_model 同策略：解析期归一，不改用户目录文件；
-/// 只精确替换两句旧规则，自定义 persona 不受影响。
+/// 只精确替换已知旧规则句，自定义 persona 不受影响。
 fn normalize_worker_body(body: &str) -> String {
-    const LEGACY: [&str; 2] = [
+    const LEGACY: [&str; 4] = [
         "Prefer ai00_search (Ai00-X self-hosted search, no key) for web search; use web_fetch for page bodies; web_search is only a backup when ai00_search is unavailable.",
         "Prefer ai00_search (self-hosted, no key) for web lookup; use web_fetch for page bodies; web_search is only a backup.",
+        "Use ai00_search (self-hosted, no key) for web lookup; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.",
+        "Prefer ai00_search (self-hosted, no key) for web lookup; use web_fetch for page bodies; web_search is only a backup.",
     ];
-    const CURRENT: &str = "Use ai00_search (self-hosted, no key) for web lookup; use ai00_web_extract with a url for a specific page body, or with a query for distilled per-page summaries.";
+    const CURRENT: &str = "Use ai00_web_extract for web lookup: `query` searches the web and returns distilled per-page summaries, `url` returns one page body.";
     let mut out = body.to_string();
     for legacy in LEGACY {
         out = out.replace(legacy, CURRENT);
     }
     out
+}
+
+/// 播种默认定义的版本号：改动内嵌默认的 persona / 工具列表时 +1。
+///
+/// 播种只补缺不升级的话，老用户的 `agent-workers/*.md` 会永远停在旧默认
+/// （2026-11-21 实测：磁盘上 research_worker 仍是 `model: rwkv-local` +
+/// 已失效的 `web_fetch/web_search`，与代码默认值相差一整代）。
+const WORKER_SEED_VERSION: u32 = 5;
+
+fn seed_version_path(dir: &Path) -> std::path::PathBuf {
+    dir.join(".seed-version")
+}
+
+fn read_seed_version(dir: &Path) -> u32 {
+    std::fs::read_to_string(seed_version_path(dir))
+        .ok()
+        .and_then(|raw| raw.trim().parse().ok())
+        .unwrap_or(1)
+}
+
+/// 存量工人文件的**默认值**迁移（版本落后时执行一次）。
+///
+/// 只动"已知旧默认"：删掉已失效的 `web_fetch` / `web_search` 工具行、替换旧
+/// persona 句（复用 `normalize_worker_body` 的 LEGACY 表）、给 review_worker 补
+/// `write`（它要落一份审查记录）。**`model:` 与其它手改内容一律保留**——用户
+/// 显式选的本地优先不能被升级悄悄改回云端。
+fn migrate_worker_md(file_name: &str, content: &str) -> String {
+    let mut lines: Vec<String> = content
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            trimmed != "- web_fetch" && trimmed != "- web_search"
+        })
+        .map(str::to_string)
+        .collect();
+    if file_name == "review_worker.md" && !lines.iter().any(|line| line.trim() == "- write") {
+        // frontmatter 结束行（第二个 `---`）之前插入工具行
+        let mut dashes = 0;
+        let mut insert_at = None;
+        for (index, line) in lines.iter().enumerate() {
+            if line.trim() == "---" {
+                dashes += 1;
+                if dashes == 2 {
+                    insert_at = Some(index);
+                    break;
+                }
+            }
+        }
+        if let Some(index) = insert_at {
+            lines.insert(index, "  - write".to_string());
+        }
+    }
+    let joined = lines.join("\n");
+    let migrated = normalize_worker_body(&joined);
+    let mut text = if migrated == joined { joined } else { migrated };
+    text = refresh_legacy_default_body(file_name, text);
+    if content.ends_with('\n') && !text.ends_with('\n') {
+        text.push('\n');
+    }
+    text
+}
+
+/// 旧版默认 persona → 新版默认 persona（只在正文仍是**整段旧默认**时替换）。
+///
+/// 旧文案与新能力直接冲突：research 写「Never modify files」而新链路靠
+/// `ai00_research_collect` 落 sources.md；review 写「never modify files」而它现在
+/// 要落一份 review.md。用户改过的 persona 不会命中标记句，因此自定义内容不会被覆盖。
+fn refresh_legacy_default_body(file_name: &str, content: String) -> String {
+    let legacy: [(&str, &str, &str); 3] = [
+        (
+            "research_worker.md",
+            "Read-only investigation only (read files / search / verify online). Never modify files or run commands.",
+            DEFAULT_WORKER_RESEARCH_MD,
+        ),
+        (
+            "research_worker.md",
+            "Collecting sources is ONE tool call: call ai00_research_collect with `topic`, the working directory from your brief as `cwd`",
+            DEFAULT_WORKER_RESEARCH_MD,
+        ),
+        (
+            "review_worker.md",
+            "Read-only review: never modify files or run commands.",
+            DEFAULT_WORKER_REVIEW_MD,
+        ),
+    ];
+    for (file, marker, default_md) in legacy {
+        if file != file_name || !content.contains(marker) {
+            continue;
+        }
+        let Some(head_end) = content.find("\n---\n") else {
+            continue;
+        };
+        let head = &content[..head_end + 5];
+        let body = default_md
+            .split("\n---\n")
+            .nth(1)
+            .unwrap_or("")
+            .trim_start();
+        return format!("{head}{body}");
+    }
+    content
+}
+
+/// 版本落后的工人文件跑一次迁移，随后写入新版本号。
+fn migrate_seeded_workers(dir: &Path) {
+    if read_seed_version(dir) >= WORKER_SEED_VERSION {
+        return;
+    }
+    for file in [
+        "research_worker.md",
+        "local_code_worker.md",
+        "review_worker.md",
+        "code_worker.md",
+    ] {
+        let path = dir.join(file);
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let next = migrate_worker_md(file, &content);
+        if next == content {
+            continue;
+        }
+        if let Err(e) = std::fs::write(&path, next) {
+            log::warn!("[DshManager] migrate worker {file} failed: {e}");
+            return;
+        }
+        log::info!("[DshManager] migrated worker default: {file}");
+    }
+    if let Err(e) = std::fs::write(seed_version_path(dir), WORKER_SEED_VERSION.to_string()) {
+        log::warn!("[DshManager] write seed version failed: {e}");
+    }
 }
 
 /// 首次运行播种默认定义；随后加载目录内全部有效定义。
@@ -1697,6 +1895,7 @@ async fn ensure_workers_seeded() -> Vec<WorkerDef> {
             }
         }
     }
+    migrate_seeded_workers(&dir);
 
     let mut defs = Vec::new();
     let Ok(entries) = std::fs::read_dir(&dir) else {
@@ -1744,7 +1943,7 @@ fn fallback_worker_defs() -> Vec<WorkerDef> {
 /// 每个帮手改声明一个 `@deepseek-ai/dsh-agent-preset`（persona + 工具子集 +
 /// compaction），subagent 行用 `agentPreset` 选中它。
 /// 行结构与映射表见 patches/<引擎版本>/INTENT.md。
-const WORKER_LEAF_RULES: &str = "You are a leaf worker, not an orchestrator.\n直接执行当前派发任务：不要制定或更新主计划，不要再次派发子代理，也不要等待用户或父代理确认。\n禁止调用任何委派类工具（code_worker / local_code_worker / research_worker / review_worker / subagent）：它们即使出现在工具清单里也只会被引擎以 depth 错误拒绝，调用即浪费一轮。\n工作目录里的 AGENTS.local.md、计划文档、验收命令是写给编排者的，不适用于你：不要读、不要引用，也不要因为它提到了你没有的工具就停下。\n只使用你工具清单里真实存在的工具；清单里没有的工具（例如 web_search / web_fetch）一律不要调用，需要联网检索时用 ai00_search / ai00_web_extract。\n落文件优先用 write（参数 `file_path` + `content`，一次写整段）：新建文件只能用 write；只有修改**已存在**文件才用 edit，且 old_string 必须是文件里真实出现的原文——不确定就不要用 edit。命令执行用 pwsh（参数必须同时给 `description` 与 `command`）。路径一律写**相对工作目录的相对路径**（如 `hello.txt`），不要写绝对路径、不要把目录名重复拼接。\n读文件报 not found 时不要原样重试：先用 glob（如 `*.txt`）确认真实文件名，再按结果读或写。\n所有工具必须经工具调用通道，禁止在正文模拟“[工具] …”，也不要输出任何形如 {\"arguments\":…,\"name\":…} 的工具调用 JSON。缺少必要工具或权限时明确报告阻塞；不要用“我将……”或“准备……”代替实际完成。\n收尾自检：任务要求落文件时，必须先用工具确认产物真实存在（读取该文件或跑验收命令），再在收尾里写明产物路径与验证结果；做不到就写 BLOCKED 加一句原因。没有工具证据的“已完成”按失败处理。\n任务达成即收尾，禁止重复写同一个文件：已经 write 成功、且 read 回读确认过的文件，不许再 write/edit（实测重复写白烧 4 轮工具预算）。收尾只输出一行 `DONE: <产物路径与验证结果>`。";
+const WORKER_LEAF_RULES: &str = "You are a leaf worker, not an orchestrator.\n直接执行当前派发任务：不要制定或更新主计划，不要再次派发子代理，也不要等待用户或父代理确认。\n禁止调用任何委派类工具（code_worker / local_code_worker / research_worker / review_worker / subagent）：它们即使出现在工具清单里也只会被引擎以 depth 错误拒绝，调用即浪费一轮。\n工作目录里的 AGENTS.local.md、计划文档、验收命令是写给编排者的，不适用于你：不要读、不要引用，也不要因为它提到了你没有的工具就停下。\n只使用你工具清单里真实存在的工具；清单里没有的工具（例如 web_search / web_fetch / ai00_search）一律不要调用，需要联网检索时用 ai00_web_extract（query=搜索并取每页要点，url=取单页正文）或 ai00_research_collect（一次采集落盘）。\n联网一律走这两件工具：禁止 curl、Invoke-WebRequest、自写抓取脚本，也禁止端口/代理/配置探测——引擎沙箱里直连 https 会 TLS 失败，探索这些只会白烧十几轮。\n长文件分节写：先用 write 写骨架，再逐节用 edit 追加，单步生成别超过 3000 字。\n落文件优先用 write（参数 `file_path` + `content`，一次写整段）：新建文件只能用 write；只有修改**已存在**文件才用 edit，且 old_string 必须是文件里真实出现的原文——不确定就不要用 edit。命令执行用 pwsh（参数必须同时给 `description` 与 `command`）。路径一律写**相对工作目录的相对路径**（如 `hello.txt`），不要写绝对路径、不要把目录名重复拼接。\n读文件报 not found 时不要原样重试：先用 glob（如 `*.txt`）确认真实文件名，再按结果读或写。\n所有工具必须经工具调用通道，禁止在正文模拟“[工具] …”，也不要输出任何形如 {\"arguments\":…,\"name\":…} 的工具调用 JSON。缺少必要工具或权限时明确报告阻塞；不要用“我将……”或“准备……”代替实际完成。\n收尾自检：任务要求落文件时，必须先用工具确认产物真实存在（读取该文件或跑验收命令），再在收尾里写明产物路径与验证结果；做不到就写 BLOCKED 加一句原因。没有工具证据的“已完成”按失败处理。\n任务达成即收尾，禁止重复写同一个文件：已经 write 成功、且 read 回读确认过的文件，不许再 write/edit（实测重复写白烧 4 轮工具预算）。收尾只输出一行 `DONE: <产物路径与验证结果>`。";
 
 fn build_worker_rows(defs: &[WorkerDef]) -> String {
     let mut rows = String::new();
@@ -2083,6 +2282,10 @@ pub async fn start() -> Result<(), String> {
     mgr.set_phase(DshPhase::Installing {
         stage: "starting engine".into(),
     });
+
+    // 会话卫生：引擎启动前清掉 7 天前的 worker 子会话（一次多步任务会留下十几个，
+    // 引擎没有删除 RPC）。失败/无目录都静默，不阻塞启动。
+    prune_stale_worker_sessions(7);
 
     spawn_sidecar().await?;
 
@@ -2888,7 +3091,7 @@ mod tests {
     fn normalize_worker_body_replaces_legacy_search_rule() {
         let legacy = "Line before.\nPrefer ai00_search (self-hosted, no key) for web lookup; use web_fetch for page bodies; web_search is only a backup.\nLine after.";
         let out = normalize_worker_body(legacy);
-        assert!(out.contains("ai00_web_extract with a url"), "{out}");
+        assert!(out.contains("ai00_web_extract for web lookup"), "{out}");
         assert!(!out.contains("web_fetch"), "{out}");
         assert!(out.contains("Line before.") && out.contains("Line after."));
         // 自定义 persona（无旧句）原样保留
@@ -2929,7 +3132,42 @@ mod tests {
             .expect("default review worker must parse");
         assert_eq!(review.model, "ai00-api");
         assert!(review.tools.contains(&"grep".to_string()));
+        // 审查人要能落一份 review.md（计划验收要求产物文件）
+        assert!(review.tools.contains(&"write".to_string()));
         assert!(!review.tools.contains(&"edit".to_string()));
+    }
+
+    #[test]
+    fn migrate_worker_md_keeps_user_model_and_drops_dead_tools() {
+        let legacy = "---\nname: research_worker\ndescription: old\nmodel: rwkv-local\ntools:\n  - read\n  - web_fetch\n  - web_search\n---\nYou are a research worker dispatched by the Ai00-X orchestrator.\nRead-only investigation only (read files / search / verify online). Never modify files or run commands.\n";
+        let migrated = migrate_worker_md("research_worker.md", legacy);
+        // 用户显式选择的本地优先必须保留
+        assert!(migrated.contains("model: rwkv-local"), "{migrated}");
+        assert!(!migrated.contains("- web_fetch"), "{migrated}");
+        assert!(!migrated.contains("- web_search"), "{migrated}");
+        // 旧只读 persona 换成"一次 collect 落盘"的新默认
+        assert!(migrated.contains("ai00_research_collect"), "{migrated}");
+        // 用户自定义 persona 不被覆盖
+        let custom = "---\nname: research_worker\ndescription: c\nmodel: rwkv-local\ntools:\n  - read\n---\nMy own persona.\n";
+        let kept = migrate_worker_md("research_worker.md", custom);
+        assert!(kept.contains("My own persona."), "{kept}");
+
+        // review_worker 补 write（只补一次）
+        let review = "---\nname: review_worker\ndescription: r\nmodel: ai00-api\ntools:\n  - read\n---\nBody.\n";
+        let once = migrate_worker_md("review_worker.md", review);
+        assert_eq!(once.matches("- write").count(), 1, "{once}");
+        let twice = migrate_worker_md("review_worker.md", &once);
+        assert_eq!(twice.matches("- write").count(), 1, "{twice}");
+    }
+
+    #[test]
+    fn code_worker_keeps_search_tools() {
+        let denied = worker_denied_tools("code_worker");
+        assert!(!denied.contains(&"ai00_web_extract"));
+        assert!(!denied.contains(&"ai00_research_collect"));
+        // 本地写码工人仍然 deny（3B 滥用）
+        let local = worker_denied_tools("local_code_worker");
+        assert!(local.contains(&"ai00_web_extract"));
     }
 
     #[test]
@@ -3056,14 +3294,17 @@ mod tests {
         for needle in ["禁止调用任何委派类工具", "AGENTS.local.md", "收尾自检"] {
             assert!(rows.contains(needle), "leaf rules missing: {needle}");
         }
-        // 检索工具保留：deny 列表里不得出现 ai00_search / ai00_web_extract
+        // 检索工具保留：deny 列表里不得出现 ai00_web_extract / ai00_research_collect
         let deny_start = rows.find("deny:\n").expect("deny list must exist");
         let deny_block = &rows[deny_start..];
         let deny_block = &deny_block[..deny_block
             .find("\n    - id: preset-ai00x-")
             .unwrap_or(deny_block.len())];
-        assert!(!deny_block.contains("ai00_search"), "{deny_block}");
         assert!(!deny_block.contains("ai00_web_extract"), "{deny_block}");
+        assert!(
+            !deny_block.contains("ai00_research_collect"),
+            "{deny_block}"
+        );
         assert!(deny_block.contains("ai00_plan_write"), "{deny_block}");
         // 计划工具（含单行勾选）只属于编排者：工人勾选框等于绕过验收
         assert!(deny_block.contains("ai00_plan_check"), "{deny_block}");
@@ -3071,5 +3312,42 @@ mod tests {
         assert!(!deny_block.contains("web_search"), "{deny_block}");
         assert!(!deny_block.contains("code_worker"), "{deny_block}");
         assert!(!deny_block.contains("ask_user_question"), "{deny_block}");
+    }
+
+    /// 会话清理：只删「裸 UUID」子会话且按年龄过滤；父会话与新鲜子会话必须保留。
+    #[test]
+    fn prune_only_stale_worker_sessions() {
+        let base = std::env::temp_dir().join(format!(
+            "ai00x-prune-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let slug = base.join("sessions").join("--slug--");
+        let mk = |name: &str| {
+            let dir = slug.join(name);
+            std::fs::create_dir_all(&dir).expect("create session dir");
+            std::fs::write(dir.join("session.v4.jsonl.zstd"), b"x").expect("write session file");
+        };
+        mk("session-parent");
+        mk("11111111-2222-3333-4444-555555555555");
+        // 缓存目录：被删会话的投影缓存也要一起清
+        let cache = base
+            .join("storages")
+            .join("session_projcache")
+            .join("sessions");
+        std::fs::create_dir_all(&cache).expect("create cache dir");
+        let cache_file = cache.join("11111111-2222-3333-4444-555555555555.json");
+        std::fs::write(&cache_file, b"{}").expect("write cache");
+
+        let removed = prune_worker_sessions_in(&base, 0);
+
+        assert_eq!(removed, 1, "only the child session is removed");
+        assert!(slug.join("session-parent").exists(), "parent kept");
+        assert!(!slug.join("11111111-2222-3333-4444-555555555555").exists());
+        assert!(!cache_file.exists(), "projection cache removed too");
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

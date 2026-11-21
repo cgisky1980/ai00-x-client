@@ -12,7 +12,7 @@ export interface ThemeSelectorProps {
 }
 
 /**
- * 明暗档切换器（换肤滑杆已随自定义调色功能移除——黛青唯一交互色，色板固定）
+ * 明暗档切换器（皮肤在设置页「外观」里选；这里只切明暗）
  */
 export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
     mode = 'compact',

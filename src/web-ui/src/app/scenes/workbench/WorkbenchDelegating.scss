@@ -12,6 +12,14 @@
 }
 
 // 长时间无新事件：给「已等待多久 + 两个出口」，避免界面看起来像卡死
+// 事实行：动作结束后的留痕（计划已验收等），弱化居中，不做卡片
+.ai00-x-workbench-chat__fact {
+  margin: var(--spacing-3) 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+
 .ai00-x-workbench-chat__stall {
   display: flex;
   align-items: center;

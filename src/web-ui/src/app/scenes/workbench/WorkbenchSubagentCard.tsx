@@ -74,6 +74,10 @@ export interface WorkbenchSubagentCardProps {
   parentSessionId: string;
 }
 
+/** 长跑预警阈值：10 分钟提示偏长，20 分钟提示疑似卡住。 */
+const SLOW_MS = 10 * 60 * 1000;
+const STALLED_MS = 20 * 60 * 1000;
+
 export const WorkbenchSubagentCard: React.FC<WorkbenchSubagentCardProps> = ({
   call,
   parentSessionId,
@@ -165,6 +169,16 @@ export const WorkbenchSubagentCard: React.FC<WorkbenchSubagentCardProps> = ({
         : state === 'done'
           ? t('nav.workbenchWindow.subagentDone')
           : t('nav.workbenchWindow.subagentPending');
+  // 长跑预警（无新协议：用已有 subagentTiming 的计时）：
+  // 10 分钟提示"耗时偏长"，20 分钟提示"疑似卡住"——实测云端 worker 曾静默跑
+  // 22 分钟，父会话期间只收到一条 started 通知，用户只能自己发现。
+  const stalled = running && durationMs >= STALLED_MS;
+  const slow = running && !stalled && durationMs >= SLOW_MS;
+  const runtimeHint = stalled
+    ? t('nav.workbenchWindow.subagentStalled')
+    : slow
+      ? t('nav.workbenchWindow.subagentSlow')
+      : '';
 
   /** 展开态：默认收起（不挤占对话），展开后在卡内滚动看完整过程。 */
   const [open, setOpen] = useState(false);
@@ -208,6 +222,14 @@ export const WorkbenchSubagentCard: React.FC<WorkbenchSubagentCardProps> = ({
             </span>
           )}
         </span>
+        {runtimeHint && (
+          <span
+            className={`ai00-x-wb-subagent__hint ${stalled ? 'is-stalled' : 'is-slow'}`}
+            role="status"
+          >
+            {runtimeHint}
+          </span>
+        )}
         <span className="ai00-x-wb-subagent__actions">
           {canStop && (
             <button

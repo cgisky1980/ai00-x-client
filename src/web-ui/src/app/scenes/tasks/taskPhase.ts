@@ -1,5 +1,7 @@
 /**
- * taskPhase — 工作台任务状态推导（看板分组 + 卡片标签）。
+ * taskPhase — 工作台任务技术状态推导（内部映射，不直接出 UI 文案）。
+ *
+ * UI 一律经 `workbenchStage.ts` 的 `stageOf()` / `stageKeyOf()` / `needsYou()` 呈现（规范 §9.2）。
  *
  * 状态真源全部是既有字段（不新增持久化状态）：
  * - 已完成 = `completedAt` 非空（人类验收通过）
@@ -25,17 +27,6 @@ export type TaskPhase =
   | 'done'
   | 'failed';
 
-/** 看板列顺序。 */
-export const TASK_PHASES: TaskPhase[] = [
-  'planning',
-  'approving',
-  'running',
-  'stopped',
-  'awaiting',
-  'done',
-  'failed',
-];
-
 export function taskPhase(
   task: TodoTask,
   planMd: string | null,
@@ -47,11 +38,18 @@ export function taskPhase(
   // 子代理仍在跑时回合报错不应把任务钉在「出错」。
   if (runtime?.running) return 'running';
   if (runtime?.failed) return 'failed';
+  // 快速问答没有计划、也没有批准门：它只活在「执行」段里。
+  // 以前落到「规划中」——列表上显示「计划」，可它压根没有计划可批（实测两条问答任务都这样）。
+  if (task.executionMode === 'quick') return 'stopped';
   // 计划书已写好但没被人类确认：明确标「待批准」，让用户知道轮到自己了
   if (!task.planApprovedAt) {
     return planMd && planMd.trim() ? 'approving' : 'planning';
   }
   // 运行态已知且不在跑：有会话就是「已停止」，没有会话又没计划书才是「规划中」
   if (runtime) return task.agentSessionId || (planMd && planMd.trim()) ? 'stopped' : 'planning';
+  // 运行态未知：没有会话的任务永远不可能在跑（引擎没这个会话），不能回落「执行中」，
+  // 否则（历史数据/会话被清）卡片会永远挂「执行中」，也没有「继续执行」可点。
+  if (!task.agentSessionId) return planMd && planMd.trim() ? 'stopped' : 'planning';
+  // 有会话但快照还没回来（挂载后 5s 内）：暂时沿用「执行中」，避免首屏误报「已停止」。
   return planMd && planMd.trim() ? 'running' : 'planning';
 }

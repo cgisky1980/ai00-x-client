@@ -1,6 +1,6 @@
 /**
  * Conversations —— AI 会话列表（v0.15 AI 系，antd X Conversations 对位）
- * 分组标题 + 激活项黛青左缘指示条；时间 mono+tabular。
+ * 分组标题 + 激活项交互色左缘指示条；时间 mono+tabular。
  */
 import React, { useMemo } from 'react';
 import './Conversations.scss';

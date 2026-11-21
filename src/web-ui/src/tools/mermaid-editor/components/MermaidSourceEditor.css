@@ -106,12 +106,12 @@
 /* Selection highlight */
 .source-textarea::selection {
   background: var(--color-accent-500);
-  color:var(--color-text-primary);
+  color: var(--color-accent-foreground);
 }
 
 .source-textarea::-moz-selection {
   background: var(--color-accent-500);
-  color:var(--color-text-primary);
+  color: var(--color-accent-foreground);
 }
 
 .source-textarea::placeholder {

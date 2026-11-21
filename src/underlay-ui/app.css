@@ -37,7 +37,6 @@ body,
 /* 桌面层底色：走 token（默认深墨 + 宣纸颗粒） */
 body {
   background-color: var(--color-bg-base);
-  background-image: var(--ds-paper-grain);
   color: var(--color-text-primary);
   font-family: var(--font-family-sans);
 }

@@ -1,3 +1,8 @@
+// 消耗辅行在输入框纸卡中独占一行时，允许长 token 串换行而不撑破卡片。
+.ai00-x-turn-usage-dock {
+  min-width: 0;
+}
+
 // 本轮消耗：辅行两端对齐——左侧弱化指标（可换行），右侧云端积分为唯一强调读数。
 .ai00-x-turn-usage {
   display: flex;

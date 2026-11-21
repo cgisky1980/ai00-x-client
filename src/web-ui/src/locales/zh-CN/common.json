@@ -96,8 +96,6 @@
     },
     "workbenchWindow": {
       "empty": "还没有安装任何工作台",
-      "collapseRail": "收起导航",
-      "expandRail": "展开导航",
       "showChat": "显示 AI 对话",
       "hideChat": "隐藏 AI 对话",
       "resizeChat": "拖动调整 AI 对话宽度（双击复位）",
@@ -129,7 +127,7 @@
         "modeQuick": "快速问答",
         "modeQuickHint": "直接回答，不写计划、不派子代理、不生成文件",
         "modeDelivery": "完整交付",
-        "modeDeliveryHint": "规划 → 你审批 → 子代理执行 → 证据验收 → 落文件",
+        "modeDeliveryHint": "规划 → 你批准 → 子代理执行 → 证据验收 → 你验收",
         "modeLabel": "执行模式",
         "requestPlaceholder": "描述你的任务，按 Enter 开始…",
         "flowHint": "先规划 → 执行 → 自检 → 你验收",
@@ -138,27 +136,44 @@
         "renameTitle": "重命名任务",
         "renameSave": "保存",
         "archive": "归档",
+        "archiveStopRunning": "归档（并停止执行）",
         "unarchive": "取消归档",
         "delete": "删除",
         "deleteTitle": "删除任务",
         "deleteMessage": "卡片会从列表移除（引擎会话记录保留）。确定删除？",
+        "deleteMessageRunning": "卡片会从列表移除，正在执行的回合会被立即停止（引擎会话记录保留）。确定删除？",
         "showArchived": "查看已归档任务",
         "hideArchived": "返回进行中的任务",
         "archivedTitle": "已归档",
         "archivedEmpty": "还没有归档的任务",
+        "archivedReadOnly": "已归档 · 只读查看。计划、交付物与对话历史都还在，恢复后可以继续对话与验收。",
+        "archivedReadOnlyHint": "已归档：点开只读查看",
         "reviewHint": "Agent 已完成自检，请确认交付结果。",
         "reviewAction": "去验收",
         "empty": "还没有任务",
         "preparing": "正在准备会话…",
         "openFailed": "打开任务会话失败：{{message}}",
-        "status": {
-          "planning": "规划中",
-          "approving": "待批准",
-          "running": "执行中",
-          "stopped": "已停止",
-          "awaiting": "待验收",
-          "done": "已完成",
-          "failed": "出错"
+        "starters": {
+          "bug": {
+            "title": "修一个 bug",
+            "description": "描述现象和复现步骤，Agent 定位并修复",
+            "prompt": "修复这个问题：\n现象：\n复现步骤：\n期望结果："
+          },
+          "feature": {
+            "title": "加一个功能",
+            "description": "说清目标和验收标准，先出计划再动手",
+            "prompt": "实现一个新功能：\n目标：\n验收标准："
+          },
+          "docs": {
+            "title": "写一份文档",
+            "description": "说明读者和范围，产出 Markdown 文件",
+            "prompt": "写一份文档：\n读者：\n要覆盖的内容："
+          },
+          "research": {
+            "title": "做一次调研",
+            "description": "给出问题和约束，产出调研结论",
+            "prompt": "调研这个问题并给出结论：\n问题：\n约束条件："
+          }
         }
       },
       "projects": {
@@ -171,6 +186,7 @@
         "taskPlaceholder": "在这个项目里要做的事…",
         "recentTasks": "最近任务",
         "noTasks": "这个项目还没有任务",
+        "needsYouCount": "{{count}} 个任务在等你（批准 / 验收 / 回答）",
         "remove": "移除项目（不删除文件与任务）",
         "reveal": "在文件夹中显示",
         "back": "返回项目概览",
@@ -274,29 +290,27 @@
         "title": "任务看板",
         "hasPlan": "已有计划书",
         "columnEmpty": "暂无任务",
-        "phases": {
-          "planning": "规划中",
-          "approving": "待批准",
-          "running": "执行中",
-          "stopped": "已停止",
-          "awaiting": "待验收",
-          "done": "已完成",
-          "failed": "出错"
-        },
         "noSelection": "点击左侧卡片查看计划书与验收",
         "filterLabel": "范围",
         "filterAll": "全部",
         "steps": "步骤",
         "noSteps": "计划书还没有可勾选的步骤",
         "noPlan": "尚无计划书——任务会话里 AI 会先写计划书",
+        "quickNoPlan": "快速问答没有计划书：这类任务只回答你的问题，不写计划、不派子代理、不落文件。",
         "acceptance": "验收",
         "noAcceptance": "无验收项（免验收）",
+        "verifyRecord": "最近一次集成验收",
+        "rejectRecord": "打回记录",
         "accept": "验收通过",
         "acceptHint": "人类验收通过，标记完成",
         "acceptBlocked": "还有 {{count}} 项验收未通过（可点击代勾）",
+        "acceptRunningHint": "Agent 还在跑这一轮，等它停下再验收——现在验收会把正在改的文件算成已交付。",
+        "acceptFailedConfirm": "最近一次集成验收的结论是「未通过」。仍要验收通过吗？",
         "reject": "打回",
         "rejectHint": "打回：agent 重读计划继续完善",
         "rejectPrompt": "打回理由（将发给 agent，可留空）",
+        "rejectPickLabel": "勾选不成立的验收项（会一并发给 agent；不勾=整体退回）",
+        "rejectCancel": "取消",
         "rejectDefault": "请继续完善：验收未通过",
         "deliverables": "交付物",
         "deliverablesMissing": "agent 未登记产物——可打回要求补交",
@@ -310,7 +324,9 @@
         "label": "任务流程",
         "plan": "计划",
         "execute": "执行",
-        "review": "审核"
+        "review": "审核",
+        "done": "已完成",
+        "needsYou": "需要你"
       },
       "review": {
         "title": "待你验收",
@@ -369,7 +385,7 @@
         "stateActive": "进行中",
         "stateReview": "待评审",
         "stateRework": "返工",
-        "stateDone": "已通过",
+        "stateDone": "已验证",
         "stateFallback": "云端兜底",
         "stateFailed": "失败",
         "currentStage": "当前阶段",
@@ -417,6 +433,8 @@
       "subagentDone": "已完成",
       "subagentPending": "派发中",
       "subagentAbnormal": "非正常结束",
+      "subagentSlow": "耗时偏长",
+      "subagentStalled": "疑似卡住，建议停止并降级",
       "subagentSession": "会话",
       "subagentPromptToggle": "查看任务书",
       "subagentOverview": "子代理 {{count}}",
@@ -447,6 +465,41 @@
         "truncated": "文件较大，仅显示前 256KB",
         "unsupported": "该文件类型暂不支持内置预览",
         "fileTooLarge": "文件超过 {{size}}MB，不支持内置预览"
+      },
+      "planCard": {
+        "generating": "Ai00-X 正在拆解目标…",
+        "emptyTitle": "还没有计划",
+        "approve": "批准并执行",
+        "approveHint": "要改计划？直接编辑步骤，或在对话里说明——改完会再请你确认。",
+        "statsDone": "已完成",
+        "statsRework": "返工",
+        "statsTools": "工具调用",
+        "statsToolFailures": "工具失败",
+        "details": "验证与证据",
+        "accepted": "已验收，任务完成",
+        "undoAccept": "撤销验收",
+        "undoAcceptConfirm": "撤销后任务回到验收中（交付物、证据与打回记录都保留），可以重新验收或退回重做。确定撤销？",
+        "resume": "继续执行",
+        "continuePlanning": "继续规划",
+        "emptyStoppedHint": "Agent 在写出计划之前就停下了。点下面继续，让它重新拆解目标。",
+        "emptyFailedHint": "这一轮以错误收尾（原因见右侧对话），还没写出计划。修好原因后点下面重试。",
+        "sendFailed": "发给 Agent 的消息没有送达：{{message}}。计划状态已更新，可在对话框重发。",
+        "editStep": "编辑步骤",
+        "stepTitle": "步骤标题",
+        "stepCommand": "验收命令（可选，如 pnpm run type-check）",
+        "saveStep": "保存",
+        "deleteStep": "删除步骤",
+        "addStep": "添加步骤",
+        "newStep": "新步骤",
+        "diffChanged": "修改 {{ids}}",
+        "diffAdded": "新增 {{ids}}",
+        "diffRemoved": "删除 {{ids}}",
+        "diffJoin": "、",
+        "diffBody": "修改了计划正文",
+        "changedMessage": "计划已修改：用户{{summary}}。请先用 ai00_plan_read 重新读取计划；计划已回到待批准，等用户在计划页批准后再按新计划继续。",
+        "needsYouNotice": "需要你：请在计划页批准或验收。",
+        "acceptedFact": "—— 已验收，任务完成 ——",
+        "revise": "退回修改"
       }
     },
     "modes": {
@@ -1186,12 +1239,8 @@
   "theme": {
     "dark": "深色",
     "light": "浅色",
-    "style": "视觉风格",
-    "styleTooltip": "切换视觉风格",
-    "stylePacks": {
-      "xindongfang": "新东方极简",
-      "comic": "漫画风"
-    }
+    "skin": "界面皮肤",
+    "skinTooltip": "切换界面皮肤"
   },
   "mcpDialog": {
     "server": "服务器：",

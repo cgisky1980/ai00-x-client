@@ -45,7 +45,7 @@ const FETCH_TIMEOUT_SECS: u64 = 10;
 const FETCH_BYTES_CAP: usize = 2 * 1024 * 1024;
 const PAGE_MD_CHARS: usize = 3000;
 const SCREEN_TIMEOUT_SECS: u64 = 60;
-const SCREEN_MAX_TOKENS: usize = 256;
+const SCREEN_MAX_TOKENS: usize = 320;
 
 /// 长文总结阈值：≤ 6000 字符单次总结；> 6000 切块 map-reduce。
 const SUMMARIZE_SINGLE_SHOT_CHARS: usize = 6000;
@@ -84,6 +84,69 @@ fn maybe_lazy_init(err: &str) {
     }
 }
 
+/// 按查询脚本判定搜索语言（**不再作为第一跳**）：AnySearch 在 `zh-CN` / `zh` 下
+/// 对中英文查询都只回 cqvip 中文期刊页（非空但无关，零结果回退永不触发）。
+fn detect_search_language(query: &str) -> &'static str {
+    let cjk = query
+        .chars()
+        .filter(|c| ('\u{4e00}'..='\u{9fff}').contains(c))
+        .count();
+    let latin = query.chars().filter(|c| c.is_ascii_alphabetic()).count();
+    if cjk * 2 >= latin.max(1) {
+        "zh-CN"
+    } else {
+        "en"
+    }
+}
+
+/// 搜索（回退链）：`all` → 查询语言 → 截前 6 词。
+///
+/// 实测（2026-11-21，直连 AnySearch 对照）：
+/// - `language=all` + 英文查询 → reddit / redis / mem0 / aws（正常）
+/// - `language=all` + 中文查询 → rwkv.cn / 知乎 / arxiv / bilibili（正常）
+/// - `language=zh-CN|zh` + 任一查询 → 清一色 cqvip 中文期刊页（无关）
+/// - SearXNG（自建 s.ai00-x.com）+ 英文查询 → `results: []`（上游引擎全限流）
+///
+/// 所以第一跳固定 `all`；语言定向只作为零结果的第二跳兜底，最后再截词重试。
+async fn search_with_fallback(
+    query: &str,
+    max_results: usize,
+) -> (Vec<ai00_x_core::websearch::SearchResultItem>, String) {
+    let attempt = |q: String, language: &'static str| async move {
+        WebSearchTool::new()
+            .with_searxng_enabled(true)
+            .search_simple(&q, language, max_results)
+            .await
+            .unwrap_or_else(|e| {
+                log::warn!("[web-extract] search failed ({language}): {e}");
+                Vec::new()
+            })
+    };
+
+    let results = attempt(query.to_string(), "all").await;
+    if !results.is_empty() {
+        return (results, query.to_string());
+    }
+    let language = detect_search_language(query);
+    log::warn!("[web-extract] query={query:?} returned 0 results (all), retrying with {language}");
+    let results = attempt(query.to_string(), language).await;
+    if !results.is_empty() {
+        return (results, query.to_string());
+    }
+    let words: Vec<&str> = query.split_whitespace().collect();
+    if words.len() > 6 {
+        let shortened = words[..6].join(" ");
+        log::warn!(
+            "[web-extract] query={query:?} returned 0 results, retrying shortened {shortened:?}"
+        );
+        let results = attempt(shortened.clone(), "all").await;
+        if !results.is_empty() {
+            return (results, shortened);
+        }
+    }
+    (Vec::new(), query.to_string())
+}
+
 /// web 有效信息提取主流程：搜索 → 并发抓取 → 并发本地筛选。
 pub async fn extract(query: &str, max_results: Option<usize>) -> Vec<PageExtract> {
     let max_results = max_results
@@ -91,20 +154,13 @@ pub async fn extract(query: &str, max_results: Option<usize>) -> Vec<PageExtract
         .clamp(1, MAX_RESULTS_CAP);
     // SearXNG 自建实例（s.ai00-x.com，2026-10-02 部署）已作为主搜索源，
     // 此处显式开启 fallback 链：AnySearch（有 key）→ SearXNG →（无则空）
-    let results = WebSearchTool::new()
-        .with_searxng_enabled(true)
-        .search_simple(query, "zh-CN", max_results)
-        .await
-        .unwrap_or_else(|e| {
-            log::warn!("[web-extract] search failed: {e}");
-            Vec::new()
-        });
+    let (results, effective_query) = search_with_fallback(query, max_results).await;
     if results.is_empty() {
-        log::warn!("[web-extract] query={query:?} returned 0 results");
+        log::warn!("[web-extract] query={query:?} returned 0 results after fallbacks");
         return Vec::new();
     }
     log::info!(
-        "[web-extract] query={query:?} {} results, fetching concurrently",
+        "[web-extract] query={query:?} (effective={effective_query:?}) {} results, fetching concurrently",
         results.len()
     );
 
@@ -153,6 +209,222 @@ pub async fn extract(query: &str, max_results: Option<usize>) -> Vec<PageExtract
             .collect();
     }
     pages
+}
+
+// ---------------------------------------------------------------------------
+// ai00_research_collect：把"多步检索 → 整理 → 落盘"下沉到宿主
+// ---------------------------------------------------------------------------
+//
+// 为什么需要：本地 3B 的可靠区只有**单次**工具调用（见
+// 参考/2026-11-11-rwkv-本地模型执行边界与最佳提示词模板-实验记录.md §二）。
+// 让它连续检索 10 次再整理，实测查询串退化、同一查询连发 4 次、最后喊 BLOCKED。
+// 这里把整条链路做成一个确定性工具：模型只发一次调用，宿主完成搜索、并发抓取、
+// 本地筛选、去重、拼 Markdown 与落盘。
+
+/// 调研采集结果（工具输出，供插件渲染一行摘要）。
+#[derive(Debug, Clone, Serialize)]
+pub struct ResearchCollectOutcome {
+    /// 落盘文件名（相对工作目录）。
+    pub saved: String,
+    /// 实际写入的来源条数（去重后）。
+    pub sources: usize,
+    /// 实际执行的查询数。
+    pub queries: usize,
+    /// 零结果的查询数（>0 表示部分主题没搜到）。
+    pub failed: usize,
+}
+
+/// 单次采集上限：查询数 / 种子 URL 数 / 每条查询取几页。
+const RESEARCH_QUERY_CAP: usize = 8;
+const RESEARCH_URL_CAP: usize = 12;
+const RESEARCH_PER_QUERY: usize = 6;
+/// 并发上限（与 web_extract 的 12 页上限同量级，避免把搜索源打爆）。
+const RESEARCH_CONCURRENCY: usize = 4;
+
+/// topic → 查询集（模型省略 queries 时使用；确定性派生，不需要模型多想一步）。
+pub fn derived_queries(topic: &str) -> Vec<String> {
+    let topic = topic.trim();
+    if topic.is_empty() {
+        return Vec::new();
+    }
+    vec![
+        topic.to_string(),
+        format!("{topic} survey"),
+        format!("{topic} architecture comparison"),
+        format!("{topic} 2025 2026"),
+    ]
+}
+
+/// 采集：查询集并发执行（上限 4），种子 URL 并发抓取，按 URL 去重。
+///
+/// 返回 (去重后的页面, 执行的查询数, 零结果查询数)。工具永不失败：抓取失败的
+/// 页面直接丢弃，全空时由调用方写成 `0 sources`（不冒充实成功）。
+pub async fn collect_pages(
+    queries: &[String],
+    urls: &[String],
+) -> (Vec<PageExtract>, usize, usize) {
+    use futures::StreamExt;
+
+    let queries: Vec<String> = queries
+        .iter()
+        .map(|q| q.trim().to_string())
+        .filter(|q| !q.is_empty())
+        .take(RESEARCH_QUERY_CAP)
+        .collect();
+    let query_count = queries.len();
+
+    let batches: Vec<(String, Vec<PageExtract>)> = futures::stream::iter(queries)
+        .map(|query| async move {
+            let pages = extract(&query, Some(RESEARCH_PER_QUERY)).await;
+            (query, pages)
+        })
+        .buffer_unordered(RESEARCH_CONCURRENCY)
+        .collect()
+        .await;
+
+    let failed = batches.iter().filter(|(_, pages)| pages.is_empty()).count();
+    let mut pages: Vec<PageExtract> = Vec::new();
+    for (_, mut item) in batches {
+        pages.append(&mut item);
+    }
+
+    let urls: Vec<String> = urls
+        .iter()
+        .map(|u| u.trim().to_string())
+        .filter(|u| u.starts_with("http"))
+        .take(RESEARCH_URL_CAP)
+        .collect();
+    if !urls.is_empty() {
+        let fetched = futures::future::join_all(urls.iter().map(|url| extract_url(url))).await;
+        pages.extend(fetched.into_iter().flatten());
+    }
+
+    // 去重（保留首次出现的顺序）
+    let mut seen = std::collections::HashSet::new();
+    pages.retain(|page| !page.url.is_empty() && seen.insert(page.url.clone()));
+    (pages, query_count, failed)
+}
+
+/// 把采集结果写成 Markdown 来源汇编并落盘。
+///
+/// `cwd` 必须是宿主认可的工作目录（工作台工程目录 / 工作区 / git 仓库根），
+/// `save_to` 必须是单层相对文件名且以 `.md` 结尾——两者都由 `resolve_save_target`
+/// 做确定性校验，避免模型把文件写到任意路径。
+pub fn write_research_markdown(
+    cwd: &std::path::Path,
+    save_to: &str,
+    topic: &str,
+    pages: &[PageExtract],
+) -> Result<ResearchCollectOutcome, String> {
+    let target = resolve_save_target(cwd, save_to)?;
+    let out = render_research_markdown(topic, pages);
+    std::fs::write(&target, out.as_bytes())
+        .map_err(|e| format!("write {} failed: {e}", target.display()))?;
+    Ok(ResearchCollectOutcome {
+        saved: save_to.to_string(),
+        sources: pages.len(),
+        queries: 0,
+        failed: 0,
+    })
+}
+
+/// 来源汇编的 Markdown 渲染（纯函数，便于单测）。
+fn render_research_markdown(topic: &str, pages: &[PageExtract]) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("# Sources — {}\n\n", sanitize_inline(topic)));
+    out.push_str(&format!(
+        "Collected by ai00_research_collect · {} sources\n\n",
+        pages.len()
+    ));
+    for (index, page) in pages.iter().enumerate() {
+        out.push_str(&format!(
+            "## {}. {}\n\n- URL: {}\n",
+            index + 1,
+            sanitize_inline(&page.title),
+            page.url
+        ));
+        let summary = page.summary.trim().replace("\r\n", "\n");
+        if summary.is_empty() {
+            out.push_str("- Summary: (empty)\n");
+        } else {
+            out.push_str("- Summary:\n");
+            for line in summary.lines().take(12) {
+                let line = line.trim();
+                if !line.is_empty() {
+                    out.push_str(&format!("  {line}\n"));
+                }
+            }
+        }
+        if page.degraded {
+            out.push_str("- Note: [degraded] snippet fallback (local screening skipped)\n");
+        }
+        out.push('\n');
+    }
+    out
+}
+
+/// 标题/主题里的换行与首尾空白清洗（Markdown 结构不被模型产出的文本打散）。
+fn sanitize_inline(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// 校验并解析落盘目标：单层相对 `.md` 文件名 + cwd 在允许根内。
+pub fn resolve_save_target(
+    cwd: &std::path::Path,
+    save_to: &str,
+) -> Result<std::path::PathBuf, String> {
+    let name = save_to.trim();
+    if name.is_empty() {
+        return Err("save_to is empty".to_string());
+    }
+    if name.starts_with('/') || name.starts_with('\\') || name.contains(':') {
+        return Err("save_to must be a relative file name (no drive/absolute path)".to_string());
+    }
+    if name.contains("..") || name.contains('/') || name.contains('\\') {
+        return Err("save_to must be a single file name (no directory separators)".to_string());
+    }
+    if !name.to_lowercase().ends_with(".md") {
+        return Err("save_to must end with .md".to_string());
+    }
+    let dir = std::fs::canonicalize(cwd)
+        .map_err(|e| format!("cwd does not exist ({}): {e}", cwd.display()))?;
+    if !dir.is_dir() {
+        return Err(format!("cwd is not a directory: {}", dir.display()));
+    }
+    if !is_allowed_research_root(&dir) {
+        return Err(format!(
+            "cwd is outside the allowed research roots: {}",
+            dir.display()
+        ));
+    }
+    Ok(dir.join(name))
+}
+
+/// 允许落盘的目录：宿主生成的工作台工程目录（带 `AGENTS.local.md`）、
+/// 工作台/工作区根内，或一个 git 仓库根（用户自带工程目录的任务）。
+fn is_allowed_research_root(dir: &std::path::Path) -> bool {
+    // Windows 文件系统大小写不敏感，但 `Path::starts_with` 区分大小写：
+    // 统一按小写字符串前缀比较，避免盘符/目录大小写差异误拒。
+    let dir_key = dir.to_string_lossy().to_lowercase();
+    for root in research_allowed_roots() {
+        let root_key = root.to_string_lossy().to_lowercase();
+        if dir_key.starts_with(&root_key) {
+            return true;
+        }
+    }
+    dir.join("AGENTS.local.md").exists() || dir.join(".git").exists()
+}
+
+/// 允许根：`<APPDATA>/Ai00-X/workbenches` 与 `<exe_dir>/data/workspaces`。
+fn research_allowed_roots() -> Vec<std::path::PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(data_dir) = dirs::data_dir() {
+        roots.push(data_dir.join("Ai00-X").join("workbenches"));
+    }
+    if let Ok(exe_dir) = ai00_x_core::infrastructure::PathManager::exe_dir() {
+        roots.push(exe_dir.join("data").join("workspaces"));
+    }
+    roots
 }
 
 /// url 直达模式：抓取指定单页 → 提正文（web_fetch 的本机替代）。
@@ -369,6 +641,7 @@ fn clean_markdown_noise(md: &str) -> String {
 }
 
 /// 筛选输出解析结果。
+#[derive(Debug)]
 enum ScreenOutcome {
     /// 相关，附模型摘要。
     Relevant(String),
@@ -376,9 +649,13 @@ enum ScreenOutcome {
     NotRelevant,
 }
 
-/// 解析筛选输出：JSON 优先；散文协议兜底（3B 模型稳定产出
-/// 「相关：<要点>」/「要点：…」/「不相关…」散文，2026-09-11 三轮实录）。
-/// 返回 None = 完全无法解析（调用方 snippet 降级收录）。
+/// 解析筛选输出：JSON 优先；散文兜底。
+///
+/// 3B 的散文变体远比最初设想的多（2026-11-21 实测日志）：
+/// 「是的，…相关，并提取到要点：…」「网页内容与查询「…」相关，并提取到要点：…」
+/// 「是\n<正文>」「根据网页内容，「…」…」「…并不相关，因为…」「不相關，無法提取」，
+/// 还有直接复述指令「判断网页内容与查询…只输出一行 JSON。」。
+/// 这些此前全部判 unparseable → 页面以 degraded 片段保留，报告混入大量无关站点。
 fn parse_screen_output(text: &str) -> Option<ScreenOutcome> {
     // 1) JSON 优先（salvage 支持多候选跳模板复述）
     if let Some(json) = crate::ai_gateway::salvage_balanced_json(text) {
@@ -398,28 +675,126 @@ fn parse_screen_output(text: &str) -> Option<ScreenOutcome> {
             .map(|s| s.chars().take(500).collect::<String>());
         return summary.map(ScreenOutcome::Relevant);
     }
-    // 2) 散文协议兜底
     let t = text.trim();
-    let body = t
-        .strip_prefix("相关：")
-        .or_else(|| t.strip_prefix("相关:"))
-        .map(str::trim);
-    if let Some(mut body) = body {
-        // 「相关：…\n要点：…」→ 优先取要点段（注意「要点：」全角冒号为 9 字节）
-        if let Some(pos) = body.find("要点：") {
-            body = body[pos + "要点：".len()..].trim();
-        } else if let Some(pos) = body.find("要点:") {
-            body = body[pos + "要点:".len()..].trim();
-        }
-        if !body.is_empty() {
-            return Some(ScreenOutcome::Relevant(body.chars().take(500).collect()));
-        }
-        return None;
-    }
-    if t.starts_with("不相关") || t.starts_with("不 相关") {
+    // 2) 否定信号（含繁简与"无法提取"类拒绝）：先于正向判定，否则
+    //    「…是否相关并不相关…」会被当成相关。
+    if NEGATIVE_MARKERS.iter().any(|m| t.contains(m)) {
         return Some(ScreenOutcome::NotRelevant);
     }
+    // 3) 弱相关判定（3B 的实际结论常写成「相关性较弱，仅部分相关」）：
+    //    模型没给正文要点，按无法解析处理 → 调用方用 snippet 降级收录，
+    //    既不留伪摘要，也不丢掉这个 URL。
+    if WEAK_MARKERS.iter().any(|m| t.contains(m)) {
+        return None;
+    }
+    // 4) 指令复述（模型把提示词照抄，没有任何判定）
+    if t.starts_with("判断网页内容") || t.contains("只输出一行 JSON") {
+        return None;
+    }
+    // 5) 显式「相关：…」
+    if let Some(body) = t.strip_prefix("相关：").or_else(|| t.strip_prefix("相关:")) {
+        let summary = extract_prose_summary(body);
+        // 没有「要点」标记时，冒号后的整段就是要点本身
+        let summary = if summary.is_empty() {
+            trim_summary(body)
+        } else {
+            summary
+        };
+        return (!summary.is_empty()).then_some(ScreenOutcome::Relevant(summary));
+    }
+    // 5) 含「相关」/ 肯定句「是…」/「根据网页内容…」→ 抽正文
+    if t.contains("相关") || t.starts_with('是') || t.starts_with("根据网页内容") {
+        let summary = extract_prose_summary(t);
+        return (!summary.is_empty()).then_some(ScreenOutcome::Relevant(summary));
+    }
     None
+}
+
+/// 页面不相关的散文信号（2026-11-21 实测：3B 用这些说法明确拒绝页面）。
+const NEGATIVE_MARKERS: [&str; 8] = [
+    "不相关",
+    "不相關",
+    "没有提取到",
+    "未提取到",
+    "无法提取",
+    "無法提取",
+    "没有直接提及",
+    "未提及",
+];
+
+/// 弱相关判定（3B 不确定时的说法）：没有正文要点，按无法解析降级。
+const WEAK_MARKERS: [&str; 4] = ["较弱", "弱相关", "仅部分相关", "不太相关"];
+
+/// 从散文里抽要点正文字符串（500 字符上限）。
+fn extract_prose_summary(text: &str) -> String {
+    // ① 要点标记优先：「相关：…\n要点：…」「…并提取到要点：…」
+    for marker in [
+        "提取要点：",
+        "提取到要点：",
+        "要点：",
+        "提取要点:",
+        "提取到要点:",
+        "要点:",
+    ] {
+        if let Some(pos) = text.find(marker) {
+            let body = trim_summary(&text[pos + marker.len()..]);
+            if !body.is_empty() {
+                return body;
+            }
+        }
+    }
+    // ② 「…相关，<正文>」：先把「是否相关」这类疑问表述抹掉再定位
+    let normalized = text.replace("是否相关", "是否");
+    if let Some(pos) = normalized.find("相关") {
+        let body = trim_summary(&normalized[pos + "相关".len()..]);
+        if body.chars().count() >= 6 {
+            return body;
+        }
+    }
+    // ③ 肯定句「是的」「是」→ 取其余部分（先试「是的」，否则「的，…」会残留）
+    if let Some(rest) = text
+        .strip_prefix("是的")
+        .or_else(|| text.strip_prefix("是"))
+    {
+        let body = trim_summary(rest);
+        if body.chars().count() >= 6 {
+            return body;
+        }
+    }
+    // ④ 「根据网页内容，…」→ 取其余部分
+    for prefix in ["根据网页内容", "根据提供的网页内容", "根据内容"] {
+        if let Some(rest) = text.strip_prefix(prefix) {
+            let body = trim_summary(rest);
+            if body.chars().count() >= 6 {
+                return body;
+            }
+        }
+    }
+    String::new()
+}
+
+/// 去掉摘要首尾的连接词与标点，并截到 500 字符。
+fn trim_summary(raw: &str) -> String {
+    let head = raw.trim_start_matches(|c: char| {
+        c.is_whitespace()
+            || matches!(
+                c,
+                '，' | '。' | '、' | '：' | ':' | '；' | ';' | '并' | '且'
+            )
+    });
+    let body: String = head.chars().take(500).collect();
+    body.trim_end_matches(|c: char| {
+        c.is_whitespace() || matches!(c, '，' | '。' | '、' | '；' | ';')
+    })
+    .to_string()
+}
+
+/// 3B 把示例答案整段复述（示例固定为「RWKV…」，与真实查询无关时即为编造）。
+fn is_example_parrot(query: &str, summary: &str) -> bool {
+    summary.contains("RWKV")
+        && summary.contains("RNN")
+        && summary.contains("Transformer")
+        && !query.to_ascii_lowercase().contains("rwkv")
 }
 
 /// 单页本地筛选：1-shot 对话格式 JSON 输出，散文协议兜底；
@@ -509,12 +884,22 @@ async fn screen_page(query: &str, page: &FetchedPage, markdown: &str) -> Option<
     };
 
     match parse_screen_output(&text) {
-        Some(ScreenOutcome::Relevant(summary)) => Some(PageExtract {
-            title: page.title.clone(),
-            url: page.url.clone(),
-            summary,
-            degraded: false,
-        }),
+        Some(ScreenOutcome::Relevant(summary)) => {
+            if is_example_parrot(query, &summary) {
+                // 模型没有真读正文，只是复述示例答案 → 不能算相关证据
+                log::warn!(
+                    "[web-extract] screen parroted example answer for {}; dropping page",
+                    page.url
+                );
+                return None;
+            }
+            Some(PageExtract {
+                title: page.title.clone(),
+                url: page.url.clone(),
+                summary,
+                degraded: false,
+            })
+        }
         Some(ScreenOutcome::NotRelevant) => None,
         None => {
             let head: String = text.chars().take(200).collect();
@@ -781,8 +1166,127 @@ mod tests {
         // 实录 3：不相关散文
         let v = parse_screen_output("不相关，无要点");
         assert!(matches!(v, Some(ScreenOutcome::NotRelevant)));
-        // 完全无法解析 → None（调用方 snippet 降级）
-        assert!(parse_screen_output("根据提供的网页内容，没有直接提及……因此无法判断").is_none());
+        // 实测：无法判断也按不相关丢弃（保留会让无关页以 degraded 片段混进报告）
+        let v = parse_screen_output("根据提供的网页内容，没有直接提及……因此无法判断");
+        assert!(matches!(v, Some(ScreenOutcome::NotRelevant)), "{v:?}");
+    }
+
+    #[test]
+    fn parse_screen_accepts_affirmative_prose_variant() {
+        // 3B 实测输出：「是的，…相关，并提取要点：…」
+        let v = parse_screen_output(
+            "是的，网页内容与查询「agent memory」相关，并提取要点：Mem0 用向量库做长期记忆。",
+        );
+        assert!(
+            matches!(v, Some(ScreenOutcome::Relevant(ref s)) if s.contains("Mem0")),
+            "{v:?}"
+        );
+        // 纯肯定句、无要点标记
+        let v = parse_screen_output("是，相关。该文讨论了 MemGPT 的分层内存。");
+        assert!(
+            matches!(v, Some(ScreenOutcome::Relevant(ref s)) if s.contains("MemGPT")),
+            "{v:?}"
+        );
+    }
+
+    /// 2026-11-21 实录变体（此前全部判 unparseable → 无关页以片段混进报告）。
+    #[test]
+    fn parse_screen_handles_recorded_variants() {
+        // 「并提取到要点：」（比「提取要点：」多一个「到」）
+        let v = parse_screen_output(
+            "网页内容与查询「agent memory architecture primary sources」相关，并提取到要点：「Memory tradeoffs and failure modes」、「The proactive memory problem」",
+        );
+        assert!(
+            matches!(v, Some(ScreenOutcome::Relevant(ref s)) if s.starts_with("「Memory tradeoffs")),
+            "{v:?}"
+        );
+        // 肯定 + 换行正文
+        let v = parse_screen_output("是\n该文讨论 agent memory 的分层存储设计。");
+        assert!(
+            matches!(v, Some(ScreenOutcome::Relevant(ref s)) if s.contains("分层存储")),
+            "{v:?}"
+        );
+        // 「根据网页内容，…」肯定句
+        let v = parse_screen_output(
+            "根据网页内容，「Agent Memory Architecture」是一种结合了RNN和Transformer优点的大模型架构。",
+        );
+        assert!(
+            matches!(v, Some(ScreenOutcome::Relevant(ref s)) if s.contains("Agent Memory Architecture")),
+            "{v:?}"
+        );
+        // 繁体拒绝
+        let v = parse_screen_output("不相關，無法提取到要點");
+        assert!(matches!(v, Some(ScreenOutcome::NotRelevant)), "{v:?}");
+        // 「是否相关并不相关」不得被当成相关
+        let v = parse_screen_output(
+            "该内容与「RWKV 是什么」是否相关并不相关，因为它讨论的是 agent memory。",
+        );
+        assert!(matches!(v, Some(ScreenOutcome::NotRelevant)), "{v:?}");
+        // 指令复述（没有任何判定）→ None
+        assert!(parse_screen_output(
+            "判断网页内容与查询「agent memory」是否相关并提取要点，只输出一行 JSON。网页内容中包含了…"
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn example_parrot_is_detected() {
+        let parrot = "RWKV 是一种结合了 RNN 和 Transformer 优点的大模型架构，推理快速、节省显存，支持无限上下文";
+        assert!(is_example_parrot("agent memory architecture", parrot));
+        // 查询本身就是 RWKV 时，内容提到 RWKV 属正常
+        assert!(!is_example_parrot("RWKV 是什么", parrot));
+    }
+
+    #[test]
+    fn weak_relevance_degrades_instead_of_fake_summary() {
+        // 实测输出「性较弱，仅部分相关」曾被抽成摘要 → 改为降级用 snippet
+        assert!(parse_screen_output("相关性较弱，仅部分相关").is_none());
+    }
+
+    #[test]
+    fn search_language_follows_query_script() {
+        // 英文查询不得走 zh-CN（AnySearch 在 zh-CN 下只回 cqvip 中文期刊页）
+        assert_eq!(detect_search_language("agent memory architecture"), "en");
+        assert_eq!(detect_search_language("RWKV-7 architecture survey"), "en");
+        assert_eq!(detect_search_language("智能体记忆架构"), "zh-CN");
+        assert_eq!(detect_search_language("RWKV-7 架构 论文"), "zh-CN");
+    }
+
+    #[test]
+    fn derived_queries_covers_topic() {
+        let queries = derived_queries("agent memory architecture");
+        assert_eq!(queries.len(), 4);
+        assert_eq!(queries[0], "agent memory architecture");
+        assert!(derived_queries("   ").is_empty());
+    }
+
+    #[test]
+    fn resolve_save_target_rejects_unsafe_names() {
+        let cwd = std::env::temp_dir();
+        assert!(resolve_save_target(&cwd, "").is_err());
+        assert!(resolve_save_target(&cwd, "../escape.md").is_err());
+        assert!(resolve_save_target(&cwd, "sub/sources.md").is_err());
+        assert!(resolve_save_target(&cwd, "C:/abs/sources.md").is_err());
+        assert!(resolve_save_target(&cwd, "sources.txt").is_err());
+    }
+
+    #[test]
+    fn research_markdown_contains_sources_and_degraded_mark() {
+        // 允许根之外的目录应被拒（否则模型可把文件写到任意路径）
+        let outside = std::path::Path::new("C:/Windows");
+        assert!(resolve_save_target(outside, "sources.md").is_err());
+
+        let pages = vec![PageExtract {
+            title: "Mem0: Building Production-Ready".to_string(),
+            url: "https://arxiv.org/abs/2504.19413".to_string(),
+            summary: "点一\n点二".to_string(),
+            degraded: true,
+        }];
+        let md = render_research_markdown("agent memory", &pages);
+        assert!(md.starts_with("# Sources — agent memory"));
+        assert!(md.contains("1 sources"));
+        assert!(md.contains("https://arxiv.org/abs/2504.19413"));
+        assert!(md.contains("[degraded] snippet fallback"));
     }
 }
 

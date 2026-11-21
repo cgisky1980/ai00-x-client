@@ -3,7 +3,7 @@
  * 手写文件（非构建产物）。全部色值/圆角/间距/动效走 CSS 变量 token。
  * 2026-08 同质去重：仅保留 ds 系有消费者的组件（Button/Card/Input/
  * ContextMenu/BrandMark）——富 API 组件样式随 web 系 BEM SCSS 走。
- * 依赖：tokens.css（变量）、texture.css、motion.css
+ * 依赖：tokens.css（变量）、skins.css（皮肤种子）、motion.css（taste-skill 微动效层）
  * ============================================================ */
 
 /* ==================== Button（规范 5.1） ==================== */
@@ -13,7 +13,7 @@
   justify-content: center;
   gap: var(--size-gap-2);
   border: 1px solid transparent;
-  border-radius: var(--size-radius-base);
+  border-radius: var(--button-radius);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
@@ -38,7 +38,7 @@
 .ds-btn--lg { height: var(--button-height-lg); padding: 0 var(--size-gap-6); font-size: var(--font-size-lg); }
 .ds-btn--icon { height: var(--button-height-sm); width: var(--button-height-sm); padding: 0; }
 
-/* 主按钮：黛青实体 + 纸白文字（对比 5.69，规范 5.1） */
+/* 主按钮：交互色实体 + 皮肤给定的按钮字色（对比度由皮肤体检保证 ≥4.5） */
 .ds-btn--primary {
   background: var(--color-accent-500);
   color: var(--color-accent-foreground);
@@ -46,7 +46,14 @@
 .ds-btn--primary:hover { background: var(--color-accent-600); }
 .ds-btn--primary:active { transform: translateY(1px); }
 
-/* 印章按钮：朱砂，全页唯一 CTA（一屏一处） */
+/* 高亮按钮：皮肤高亮笔色（mark），一屏一处的签名 CTA */
+/* tonal 按钮档（data-buttons='tonal'）：主按钮改为浅底 + 交互色字 */
+html[data-buttons='tonal'] .ds-btn--primary {
+  background: var(--color-accent-100);
+  color: var(--badge-accent-text);
+}
+html[data-buttons='tonal'] .ds-btn--primary:hover { background: var(--color-accent-200); }
+
 .ds-btn--seal {
   background: var(--color-brand-seal);
   color: var(--color-brand-seal-foreground);
@@ -86,54 +93,22 @@
   border-color: var(--color-error-border);
 }
 
-/* ==================== Card（规范 5.2：墨面 + 纸纹实体） ==================== */
-/* v0.14：默认悬停反馈 = 黛青径向光晕淡入 + 上浮 -2px（沿旧版官网效果，守唯一交互色） */
+/* ==================== Card（实体表面；hover = taste-skill 抬起 2px + 描边亮化，无光晕） ==================== */
 .ds-card {
   position: relative;
-  z-index: 0; /* 建 stacking context：让 ::before(-1) 沉到内容之下、背景之上 */
   background-color: var(--color-bg-card);
-  background-image: var(--ds-paper-grain);
   border-radius: var(--size-radius-lg);
-  box-shadow: var(--shadow-sm), var(--inner-glow-top);
+  box-shadow: 0 0 0 var(--style-stroke-width, 1px) var(--border-subtle);
   transition: transform var(--motion-fast) var(--easing-standard),
     box-shadow var(--motion-fast) var(--easing-standard);
 }
-.ds-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1; /* 光晕沉底：纸纹之上、文本之下 */
-  border-radius: inherit; /* 圆角自适应，不裁浮层（不用 overflow:hidden） */
-  opacity: 0;
-  transition: opacity 0.3s var(--easing-standard);
-  background: var(--ds-glow-card);
-  pointer-events: none;
-}
 .ds-card:hover {
-  transform: translateY(-2px);
-  /* 1px 亮环 = 暗色主信号（Linear 式）；无实体 border 避免 1px 抖动 */
-  box-shadow: var(--shadow-base), var(--inner-glow-top),
-    0 0 0 1px var(--ds-card-hover-ring);
+  transform: translateY(var(--motion-lift));
+  box-shadow: var(--shadow-base), 0 0 0 var(--style-stroke-width, 1px) var(--ds-card-hover-ring);
 }
-.ds-card:hover::before {
-  opacity: 1;
-}
-
-/* 悬停反馈配方（v0.14.2 · 暗色重调）：参考 Linear/Vercel 暗色卡惯例——
- * 主信号 = 边框亮化（白 16% 环），辅以表面微提亮（白 3%），
- * 彩色光只做左上角 9% 点缀（16% 青光在墨面上发闷，弃）。
- * 亮色维持原：青 12% 光 + 墨阶边框。
- * 白/墨由 --color-text-primary 派生（暗≈白、亮≈墨），天然主题自适应且零硬编码。 */
 :root {
-  --ds-glow-card: radial-gradient(ellipse 90% 70% at 10% 0%,
-    color-mix(in srgb, var(--color-accent-300) 9%, transparent), transparent 60%),
-    color-mix(in srgb, var(--color-text-primary) 3%, transparent);
-  --ds-card-hover-ring: color-mix(in srgb, var(--color-text-primary) 16%, transparent);
-}
-[data-theme-type="light"] {
-  --ds-glow-card: radial-gradient(ellipse 80% 60% at 10% 0%,
-    color-mix(in srgb, var(--color-accent-500) 12%, transparent), transparent);
-  --ds-card-hover-ring: var(--border-medium);
+  --ds-glow-card: color-mix(in oklab, var(--color-text-primary) 3%, transparent);
+  --ds-card-hover-ring: var(--border-strong);
 }
 
 /* 通用悬停光晕工具类（任意卡面/区块可挂）：与 ds-card 同款 */
@@ -155,7 +130,7 @@
   pointer-events: none;
 }
 .ds-hover-glow:hover {
-  transform: translateY(-2px);
+  transform: translateY(var(--motion-lift));
   box-shadow: 0 0 0 1px var(--ds-card-hover-ring);
 }
 .ds-hover-glow:hover::before {
@@ -451,7 +426,7 @@
 }
 .ds-empty__icon { color: var(--color-text-muted); }
 .ds-empty__title {
-  font-family: var(--font-family-serif);
+  font-family: var(--font-family-display);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
@@ -792,7 +767,7 @@
 
 /* ==================== 签名排版工具类（规范 2.2） ==================== */
 .ds-display {
-  font-family: var(--font-family-serif);
+  font-family: var(--font-family-display);
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.01em;
@@ -878,7 +853,7 @@
 }
 .ds-timeline__title {
   margin: 0 0 var(--size-gap-1);
-  font-family: var(--font-family-serif);
+  font-family: var(--font-family-display);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
@@ -918,7 +893,6 @@
   border: var(--style-stroke-width, 1px) solid var(--border-subtle);
   border-radius: var(--size-radius-lg);
   background-color: var(--color-bg-card);
-  background-image: var(--ds-paper-grain);
   overflow: hidden;
 }
 .ds-collapse__item + .ds-collapse__item {

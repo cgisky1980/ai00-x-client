@@ -1,5 +1,5 @@
 /**
- * Progress —— Radix Progress 封装（规范 5.8）；轨道沉底，填充黛青或语义色
+ * Progress —— Radix Progress 封装（规范 5.8）；轨道沉底，填充交互色或语义色
  */
 import { forwardRef } from 'react';
 import * as ProgressPrimitive from '@radix-ui/react-progress';
@@ -9,7 +9,7 @@ export interface ProgressProps
   extends React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> {
   /** 0–100 */
   value?: number;
-  /** default=黛青；语义变体仅表状态（规范 4.6） */
+  /** default=交互色；语义变体仅表状态（规范 4.6） */
   variant?: 'default' | 'success' | 'warning' | 'error';
 }
 

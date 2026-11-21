@@ -1,6 +1,6 @@
 /**
  * Steps —— 横向步骤条（规范 5.8）
- * current 之前 finish（黛青）、当前 process（黛青实心+呼吸）、之后 wait（墨阶）。
+ * current 之前 finish（交互色）、当前 process（交互色实心+呼吸）、之后 wait（墨阶）。
  * 连接线随 finish 流转填充；序号 mono + tabular-nums。
  */
 import { forwardRef, type HTMLAttributes } from 'react';

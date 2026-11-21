@@ -234,6 +234,11 @@
     white-space: nowrap;
   }
 
+  /** 项目行上的「需要你」徽标：折叠时也提示该项目有任务在等人。 */
+  &__needs {
+    flex: 0 0 auto;
+  }
+
   &__task-time {
     flex: 0 0 auto;
     color: var(--color-text-muted);
@@ -262,50 +267,6 @@
     &.is-conversation {
       overflow: hidden;
     }
-  }
-
-  // 三栏主体：中间标签区 + 右常驻对话
-  &__row {
-    display: flex;
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  &__stage {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  &__chat {
-    display: flex;
-    flex-direction: column;
-    flex: 0 0 auto;
-    min-height: 0;
-    border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
-  }
-
-  &__chat-resizer {
-    flex: 0 0 var(--spacing-1);
-    cursor: col-resize;
-    background-color: transparent;
-    transition: background-color var(--motion-fast) var(--easing-standard);
-
-    &:hover,
-    &.is-dragging {
-      background-color: var(--color-accent);
-    }
-  }
-
-  &__chat .ai00-x-workbench-chat {
-    width: 100%;
-    max-width: none;
-    border-left: none;
   }
 
   &__back {
@@ -419,29 +380,6 @@
     font-size: var(--font-size-xs);
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  // 状态词：与任务场景同一套语义色
-  &__status {
-    flex: none;
-    padding: 0 var(--spacing-2);
-    border-radius: var(--radius-full);
-    background-color: var(--element-bg-subtle);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-2xs);
-    line-height: 1.8;
-
-    &.is-running {
-      color: var(--color-accent);
-    }
-
-    &.is-awaiting {
-      color: var(--color-warning);
-    }
-
-    &.is-failed {
-      color: var(--color-danger);
-    }
   }
 
   &__error {

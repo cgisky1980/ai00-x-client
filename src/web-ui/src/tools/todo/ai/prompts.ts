@@ -86,6 +86,22 @@ export function buildWatchdogRecoverPrompt(opts?: {
   return lines.join('\n');
 }
 
+/**
+ * 子代理无响应：让编排者自己处理（它才有 `interrupt_agent`，宿主直接 cancel
+ * 子会话会被引擎以「owned by subagent routing」拒绝）。
+ */
+export function buildChildStallPrompt(opts: {
+  childId: string;
+  idleMinutes: number;
+}): string {
+  return [
+    '【自动恢复：子代理无响应】',
+    `你派出的子代理 ${opts.childId} 已经 ${opts.idleMinutes} 分钟没有任何事件（可能卡在一个不会返回的命令或工具上），而主会话处于空闲状态。`,
+    '请立刻用 interrupt_agent 中断这个子代理，然后判断：它的产出是否已足够（检查工作区文件/命令结果），不够就重新派发一个范围更小、命令带超时的任务。',
+    '不要重复派发同一份任务，也不要自己直接执行命令。处理完用一两句话说明结论。',
+  ].join('\n');
+}
+
 // ===== 规划对话哨兵协议与 few-shot（consult） =====
 
 /** 快思考预填（官方 G1 格式：<think> + 换行 + </think>）。生成从 </think> 后立即开始。 */

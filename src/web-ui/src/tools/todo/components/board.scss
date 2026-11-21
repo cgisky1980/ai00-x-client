@@ -563,7 +563,7 @@
     .is-done & {
       background-color: var(--color-success);
       border-color: var(--color-success);
-      color: var(--color-bg-canvas);
+      color: var(--color-accent-foreground);
     }
   }
 
@@ -571,6 +571,31 @@
     font-size: var(--font-size-sm, 13px);
     line-height: 1.45;
     color: var(--color-text-primary);
+    word-break: break-word;
+  }
+
+  // 最近一次集成验收摘要（agent ai00_task_verify 落盘的 `## 验证记录`）
+  &__verify {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-gap-1, 4px);
+    margin-top: var(--size-gap-2, 8px);
+    padding: var(--size-gap-2, 8px);
+    border-radius: var(--size-radius-sm, 6px);
+    background-color: var(--color-bg-sunken);
+  }
+
+  &__verify-head {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs, 10px);
+  }
+
+  &__verify-line {
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-mono, monospace);
+    font-size: var(--font-size-xs, 12px);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.5;
     word-break: break-word;
   }
 

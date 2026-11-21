@@ -29,3 +29,22 @@ export function stageOf(phase: TaskPhase): { index: number; state: WorkbenchStag
       return { index: WORKBENCH_STAGES.length, state: 'done' };
   }
 }
+
+/** UI 上唯一的状态词汇：三阶段 + 完成（规范 §9.2）。 */
+export type WorkbenchStageKey = WorkbenchStage | 'done';
+
+/** 看板列 = 三阶段 + 完成。 */
+export const WORKBENCH_STAGE_KEYS: WorkbenchStageKey[] = [...WORKBENCH_STAGES, 'done'];
+
+export function stageKeyOf(phase: TaskPhase): WorkbenchStageKey {
+  const { index } = stageOf(phase);
+  return WORKBENCH_STAGES[index] ?? 'done';
+}
+
+/**
+ * 「需要你」：轮到人类动手的三种情形——待批准、待验收、agent 正在提问。
+ * 提问只在面板打开过时可知（运行态 `asking`）。
+ */
+export function needsYou(phase: TaskPhase, asking = false): boolean {
+  return asking || phase === 'approving' || phase === 'awaiting';
+}

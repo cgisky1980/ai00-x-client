@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "id": "graphite-orange",
+  "name": "石墨信号橙",
+  "description": "石墨灰底配信号橙，工业感、硬朗。",
+  "source": "taste-skill palette graphite-safety-orange + type geist（scripts/skin-from-taste.mjs 生成，勿手改；改动请重新发牌）",
+  "modes": {
+    "dark": {
+      "bg": "#18191b",
+      "surface": "#222427",
+      "ink": "#eff0f1",
+      "muted": "#9c9ea3",
+      "accent": "#ff4a1f",
+      "accentInk": "#18191b",
+      "mark": "#ff4a1f",
+      "markInk": "#18191b"
+    },
+    "light": {
+      "bg": "#eff0f1",
+      "surface": "#dedfe0",
+      "ink": "#18191b",
+      "muted": "#5b5c5e",
+      "accent": "#18191b",
+      "accentInk": "#eff0f1",
+      "mark": "#ff4a1f",
+      "markInk": "#18191b"
+    }
+  },
+  "type": {
+    "display": "geist",
+    "text": "geist",
+    "mono": "geist-mono"
+  },
+  "shape": {
+    "radius": "soft",
+    "buttons": "solid"
+  },
+  "motion": "full"
+}

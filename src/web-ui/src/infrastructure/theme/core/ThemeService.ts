@@ -1,10 +1,20 @@
- 
+/**
+ * ThemeService —— 皮肤 × 明暗（规范 v1.0 第二节）
+ *
+ * 两个选择，各自持久化：
+ *   明暗：themes.current = 'ai00-x-dark' | 'ai00-x-light' | 'system'
+ *   皮肤：themes.skin    = 内置皮肤 id 或用户皮肤 id（用户皮肤存 themes.skins: Skin[]）
+ *
+ * 生效方式只有「属性 + 样式表」，**不写任何 inline 变量**：
+ *   <html data-skin data-theme data-theme-type data-buttons data-radius data-motion>
+ *   内置皮肤的种子块已在 design-system css/skins.css 里；
+ *   用户皮肤由 skinCss() 生成后写入唯一的 <style id="ai00-skin">。
+ * 所有 token 都是 var(--skin-*) 的派生公式，换种子即整体换肤。
+ */
 import {
   ThemeConfig,
   ThemeId,
   ThemeMetadata,
-  ThemeExport,
-  ThemeValidationResult,
   ThemeEventType,
   ThemeEvent,
   ThemeEventListener,
@@ -13,95 +23,66 @@ import {
   ThemeSelectionId,
 } from '../types';
 import {
-  builtinThemes,
+  BUILTIN_THEME_IDS,
+  DEFAULT_DARK_THEME_ID,
+  DEFAULT_LIGHT_THEME_ID,
   getSystemPreferredDefaultThemeId,
   LEGACY_BUILTIN_THEME_FALLBACK,
+  modeOfThemeId,
+  themeConfigFromSkin,
 } from '../presets';
 import { configAPI } from '@/infrastructure/api';
 import { monacoThemeSync } from '../integrations/MonacoThemeSync';
 import { createLogger } from '@/shared/utils/logger';
 import {
-  DEFAULT_STYLE_PACK_ID,
-  resolveStylePackTokens,
-  stylePackTokens,
-  stylePacks,
-  type StylePackId,
-} from '@ai00-x/design-system/packs-meta';
+  builtinSkins,
+  checkSkin,
+  DEFAULT_SKIN_ID,
+  parseSkin,
+  skinAttributes,
+  skinCss,
+  type Skin,
+} from '@ai00-x/design-system/skin';
 
 const log = createLogger('ThemeService');
 
-const STYLE_PACK_IDS: readonly string[] = stylePacks.map((p) => p.id);
-
 /**
- * 所有风格包可能写过的 CSS 变量名并集（各包 × base/light/dark 的 key）。
- * 切换风格包前必须逐个 removeProperty 清除，理由见 injectCSSVariables。
+ * 选择项的 localStorage 镜像键：多 WebView2 窗口间 BroadcastChannel 不保证送达，
+ * 窗口获得焦点时据此自检收敛（SettingsSyncService.resyncFromStorage）。
  */
-const STYLE_PACK_OWNED_VARS: readonly string[] = [
-  ...new Set(
-    Object.values(stylePackTokens).flatMap((pack) => [
-      ...Object.keys(pack.base),
-      ...Object.keys(pack.light),
-      ...Object.keys(pack.dark),
-    ]),
-  ),
-];
-
-/**
- * 选择项的 localStorage 镜像键。
- *
- * 为什么需要：跨窗口同步走 SettingsSyncService（BroadcastChannel），但多 WebView2 窗口间
- * 该通道不保证可靠到达 —— 一旦漏收，那个窗口就会保持在旧风格上（表现为「一个窗口换了
- * 风格，别的窗口没变」）。localStorage 是同源共享存储，**读取**不依赖任何消息投递，
- * 因此这里额外镜像一份，供窗口获得焦点时自检收敛（见 SettingsSyncService.resyncFromStorage）。
- */
-export const STYLE_PACK_STORAGE_KEY = 'ai00-x:style-pack';
+export const SKIN_STORAGE_KEY = 'ai00-x:skin';
 export const THEME_SELECTION_STORAGE_KEY = 'ai00-x:theme-selection';
 
-/** 写 localStorage 镜像（隐私模式/配额异常时静默失败，不影响主链路） */
+const USER_SKIN_STYLE_ID = 'ai00-skin';
+
 function mirrorToStorage(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
   } catch (_error) {
-    /* 忽略：镜像只是兜底通道 */
+    /* 镜像只是兜底通道 */
   }
 }
 
-/** 未知/缺失的风格包 id → 默认风格（新东方极简） */
-function normalizeStylePackId(raw: unknown): StylePackId {
-  return typeof raw === 'string' && STYLE_PACK_IDS.includes(raw)
-    ? (raw as StylePackId)
-    : DEFAULT_STYLE_PACK_ID;
-}
+const isBuiltinSkin = (id: string) => builtinSkins.some((s) => s.id === id);
 
 export class ThemeService {
-  private themes: Map<ThemeId, ThemeConfig> = new Map();
-  /** User choice from settings (including follow-system). */
+  /** 设置里的明暗选择（可为 system） */
   private themeSelection: ThemeSelectionId = SYSTEM_THEME_ID;
-  /** Currently applied built-in or custom theme (never `system`). */
+  /** 实际生效的明暗档 id（不会是 system） */
   private resolvedThemeId: ThemeId = getSystemPreferredDefaultThemeId();
-  /** 风格包选择（规范第九节；第二正交轴，与明暗独立）。 */
-  private styleSelection: StylePackId = DEFAULT_STYLE_PACK_ID;
+  private skinId: string = DEFAULT_SKIN_ID;
+  private userSkins: Skin[] = [];
+  private currentTheme: ThemeConfig;
   private systemThemeCleanup: (() => void) | null = null;
   private listeners: Map<ThemeEventType, Set<ThemeEventListener>> = new Map();
   private hooks: ThemeHooks = {};
-  /** 首次 initialize 的在途 Promise：入口（main/member-chat-main）与 themeStore 引导都会调 initialize，重入会重复读配置并重放 applyTheme */
+  /** initialize 幂等守卫（入口与 themeStore 都会调） */
   private initPromise: Promise<void> | null = null;
 
   constructor() {
-    this.initializeBuiltinThemes();
+    this.currentTheme = themeConfigFromSkin(this.getSkin(), modeOfThemeId(this.resolvedThemeId));
   }
-  
-  
-  
-   
-  private initializeBuiltinThemes(): void {
-    builtinThemes.forEach(theme => {
-      this.themes.set(theme.id, theme);
-    });
-    log.info('Loaded builtin themes', { count: builtinThemes.length });
-  }
-  
-   
+
   async initialize(): Promise<void> {
     if (!this.initPromise) {
       this.initPromise = this.doInitialize();
@@ -111,539 +92,51 @@ export class ThemeService {
 
   private async doInitialize(): Promise<void> {
     try {
-      const saved = await this.loadThemeSelection();
+      await this.loadUserSkins();
+      this.skinId = await this.loadSkinSelection();
 
-      if (saved === SYSTEM_THEME_ID) {
+      const saved = await this.loadThemeSelection();
+      if (saved === SYSTEM_THEME_ID || !saved) {
         await this.applyTheme(SYSTEM_THEME_ID);
-      } else if (saved && this.themes.has(saved)) {
+      } else if (BUILTIN_THEME_IDS.includes(saved)) {
         await this.applyTheme(saved);
-      } else if (saved && LEGACY_BUILTIN_THEME_FALLBACK[saved]) {
-        // 裁撤的多风格预设（slate/midnight/china/cyber）→ 平滑落到同明暗档
+      } else if (LEGACY_BUILTIN_THEME_FALLBACK[saved]) {
         log.info('Migrating legacy builtin theme', { from: saved, to: LEGACY_BUILTIN_THEME_FALLBACK[saved] });
         await this.applyTheme(LEGACY_BUILTIN_THEME_FALLBACK[saved]);
       } else {
-        const preInjectedThemeId = document.documentElement.getAttribute('data-theme');
-        const migratedPreInjected = preInjectedThemeId && LEGACY_BUILTIN_THEME_FALLBACK[preInjectedThemeId]
-          ? LEGACY_BUILTIN_THEME_FALLBACK[preInjectedThemeId]
-          : preInjectedThemeId;
-        if (migratedPreInjected && this.themes.has(migratedPreInjected as ThemeId)) {
-          await this.applyTheme(migratedPreInjected as ThemeId);
-        } else {
-          await this.applyTheme(SYSTEM_THEME_ID);
-        }
+        // 旧版自定义 ThemeConfig id：按其明暗档落位
+        const legacy = await this.legacyCustomThemeType(saved);
+        await this.applyTheme(legacy === 'light' ? DEFAULT_LIGHT_THEME_ID : legacy === 'dark' ? DEFAULT_DARK_THEME_ID : SYSTEM_THEME_ID);
       }
-
-      // 自定义调色功能已移除（黛青唯一交互色，色板固定）：
-      // 一次性清理历史残留的 themes.accentHue 配置值，避免脏数据。
-      await this.resetLegacyAccentHue();
-
-      // 风格包（规范第九节，第二正交轴）：读选择并应用；应用会重放一次变量注入，
-      // 使包 token 在主题变量之后 inline 写入（后写者胜）。
-      const savedStyle = await this.loadStyleSelection();
-      await this.applyStylePack(savedStyle, { persist: false });
-
-      this.loadUserThemes().catch(() => {
-
-      });
     } catch (error) {
       log.error('Theme system initialization failed', error);
-      
       await this.applyTheme(SYSTEM_THEME_ID);
     }
   }
-  
-   
-  private async loadUserThemes(): Promise<void> {
-    try {
-      // Read the whole themes section so missing optional `custom` does not surface
-      // as an expected backend error during startup.
-      const themesConfig = await configAPI.getConfig('themes', {
-        skipRetryOnNotFound: true,
-      }) as { custom?: ThemeConfig[] } | undefined;
-      const themes = themesConfig?.custom;
-      
-      if (Array.isArray(themes) && themes.length > 0) {
-        themes.forEach(theme => {
-          this.themes.set(theme.id, theme);
-        });
-        log.info('Loaded user themes', { count: themes.length });
-      }
-    } catch (_error) {
-      
-    }
-  }
-  
-   
+
+  /* ---------------- 读写配置 ---------------- */
+
   private async loadThemeSelection(): Promise<ThemeSelectionId | null> {
     try {
-      
-      const raw = await configAPI.getConfig('themes.current', {
-        skipRetryOnNotFound: true
-      }) as string | undefined;
-      
-      if (raw === SYSTEM_THEME_ID) {
-        return SYSTEM_THEME_ID;
-      }
+      const raw = (await configAPI.getConfig('themes.current', { skipRetryOnNotFound: true })) as string | undefined;
       return raw || null;
     } catch (_error) {
       return null;
     }
   }
-  
-  
-  
-   
-  registerTheme(theme: ThemeConfig): void {
-    if (theme.id === SYSTEM_THEME_ID) {
-      log.error('Reserved theme id', { id: theme.id });
-      throw new Error(`Theme id "${SYSTEM_THEME_ID}" is reserved`);
-    }
-    if (this.themes.has(theme.id)) {
-      log.warn('Theme already exists, will override', { id: theme.id });
-    }
-    
-    this.themes.set(theme.id, theme);
-    this.emitEvent('theme:register', theme.id, theme);
-    log.info('Theme registered', { id: theme.id, name: theme.name });
-  }
-  
-   
-  unregisterTheme(themeId: ThemeId): boolean {
-    const theme = this.themes.get(themeId);
-    if (!theme) {
-      log.warn('Theme not found', { id: themeId });
-      return false;
-    }
-    
-    
-    const isBuiltin = builtinThemes.some(t => t.id === themeId);
-    if (isBuiltin) {
-      log.error('Cannot delete builtin theme', { id: themeId });
-      return false;
-    }
-    
-    
-    if (this.themeSelection === themeId) {
-      void this.applyTheme(SYSTEM_THEME_ID);
-    }
-    
-    this.themes.delete(themeId);
-    this.emitEvent('theme:unregister', themeId, theme);
-    log.info('Theme unregistered', { id: themeId, name: theme.name });
-    
-    
-    this.saveUserThemes();
-    
-    return true;
-  }
-  
-   
-  getTheme(themeId: ThemeId): ThemeConfig | undefined {
-    return this.themes.get(themeId);
-  }
-  
-   
-  getCurrentTheme(): ThemeConfig {
-    return this.themes.get(this.resolvedThemeId) || builtinThemes[0];
-  }
-  
-   
-  /** User selection for UI (may be `system`). */
-  getCurrentThemeId(): ThemeSelectionId {
-    return this.themeSelection;
-  }
 
-  /** Actually applied theme id (never `system`). */
-  getResolvedThemeId(): ThemeId {
-    return this.resolvedThemeId;
-  }
-
-  /** 当前风格包 id（规范第九节；与明暗轴独立）。 */
-  getStylePackId(): StylePackId {
-    return this.styleSelection;
-  }
-
-  /**
-   * 切换风格包（第二正交轴，独立于明暗）。
-   * 会重放一次变量注入，确保风格包 token 在主题变量之后 inline 写入（inline 后写者胜）。
-   */
-  async applyStylePack(styleId: string, options: { persist?: boolean } = {}): Promise<void> {
-    const persist = options.persist !== false;
-    const next = normalizeStylePackId(styleId);
-
-    if (persist) {
-      await this.saveStyleSelection(next);
-    }
-    this.styleSelection = next;
-
-    if (this.themes.has(this.resolvedThemeId)) {
-      // 注入顺序即优先级：主题变量 → 风格包 token
-      this.injectCSSVariables(this.getCurrentTheme());
-    } else {
-      document.documentElement.setAttribute('data-style', next);
-    }
-
-    this.emitEvent('style:after-change', this.resolvedThemeId, this.getCurrentTheme());
-    log.info('Style pack applied', { id: next, persisted: persist });
-
-    if (persist) {
-      import('@/infrastructure/services/infra/SettingsSyncService').then(({ settingsSyncService }) => {
-        settingsSyncService.broadcast('style:changed', next);
-      });
-    }
-  }
-
-  private async loadStyleSelection(): Promise<StylePackId> {
+  private async legacyCustomThemeType(id: string): Promise<'dark' | 'light' | null> {
     try {
-      const raw = await configAPI.getConfig('themes.style', {
-        skipRetryOnNotFound: true,
-      });
-      return normalizeStylePackId(raw);
+      const custom = (await configAPI.getConfig('themes.custom', { skipRetryOnNotFound: true })) as
+        | Array<{ id?: string; type?: string }>
+        | undefined;
+      const hit = Array.isArray(custom) ? custom.find((t) => t?.id === id) : undefined;
+      return hit?.type === 'light' || hit?.type === 'dark' ? hit.type : null;
     } catch (_error) {
-      return DEFAULT_STYLE_PACK_ID;
+      return null;
     }
   }
 
-  private async saveStyleSelection(styleId: StylePackId): Promise<void> {
-    mirrorToStorage(STYLE_PACK_STORAGE_KEY, styleId);
-    try {
-      await configAPI.setConfig('themes.style', styleId);
-    } catch (error) {
-      log.warn('Failed to save style pack id', error);
-    }
-  }
-
-  /** 一次性清理已移除的自定义调色残留（themes.accentHue）。 */
-  private async resetLegacyAccentHue(): Promise<void> {
-    try {
-      const raw = await configAPI.getConfig('themes.accentHue', {
-        skipRetryOnNotFound: true,
-      }) as number | undefined;
-      if (typeof raw === 'number' && raw >= 0) {
-        await configAPI.setConfig('themes.accentHue', -1);
-        log.info('Reset legacy accent hue override', { from: raw });
-      }
-    } catch (_error) {
-      // 配置键不存在或后端已删字段 — 无需处理
-    }
-  }
-
-  getThemeList(): ThemeMetadata[] {
-    return Array.from(this.themes.values()).map(theme => ({
-      id: theme.id,
-      name: theme.name,
-      type: theme.type,
-      description: theme.description,
-      author: theme.author,
-      version: theme.version,
-      builtin: builtinThemes.some(t => t.id === theme.id),
-    }));
-  }
-  
-  
-  
-   
-  private detachSystemThemeListener(): void {
-    if (this.systemThemeCleanup) {
-      this.systemThemeCleanup();
-      this.systemThemeCleanup = null;
-    }
-  }
-
-  private attachSystemThemeListener(): void {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return;
-    }
-    if (this.systemThemeCleanup) {
-      return;
-    }
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      if (this.themeSelection !== SYSTEM_THEME_ID) {
-        return;
-      }
-      const next = getSystemPreferredDefaultThemeId();
-      if (next === this.resolvedThemeId) {
-        return;
-      }
-      void this.applyResolvedTheme(next);
-    };
-    mq.addEventListener('change', handler);
-    this.systemThemeCleanup = () => mq.removeEventListener('change', handler);
-  }
-
-  private async applyResolvedTheme(resolvedId: ThemeId): Promise<void> {
-    const theme = this.themes.get(resolvedId);
-    if (!theme) {
-      log.error('Theme not found', { id: resolvedId });
-      throw new Error(`Theme ${resolvedId} not found`);
-    }
-
-    const oldTheme = this.getCurrentTheme();
-
-    try {
-      if (this.hooks.beforeChange) {
-        await this.hooks.beforeChange(theme, oldTheme);
-      }
-      this.emitEvent('theme:before-change', resolvedId, theme, oldTheme);
-
-      this.resolvedThemeId = resolvedId;
-
-      this.injectCSSVariables(theme);
-
-      try {
-        monacoThemeSync.syncTheme(theme);
-      } catch (error) {
-        log.warn('Monaco Editor theme sync failed', error);
-      }
-
-      if (this.hooks.afterChange) {
-        await this.hooks.afterChange(theme, oldTheme);
-      }
-      this.emitEvent('theme:after-change', resolvedId, theme, oldTheme);
-
-      log.info('Theme applied', { id: resolvedId, name: theme.name, selection: this.themeSelection });
-    } catch (error) {
-      log.error('Failed to apply theme', error);
-      throw error;
-    }
-  }
-
-  async applyTheme(themeId: ThemeId | typeof SYSTEM_THEME_ID): Promise<void> {
-    if (themeId !== SYSTEM_THEME_ID && !this.themes.has(themeId)) {
-      log.error('Theme not found', { id: themeId });
-      throw new Error(`Theme ${themeId} not found`);
-    }
-
-    this.detachSystemThemeListener();
-
-    if (themeId === SYSTEM_THEME_ID) {
-      this.themeSelection = SYSTEM_THEME_ID;
-      await this.saveThemeSelection(SYSTEM_THEME_ID);
-      this.attachSystemThemeListener();
-      const resolved = getSystemPreferredDefaultThemeId();
-      await this.applyResolvedTheme(resolved);
-    } else {
-      this.themeSelection = themeId;
-      await this.saveThemeSelection(themeId);
-      await this.applyResolvedTheme(themeId);
-    }
-
-    import('@/infrastructure/services/infra/SettingsSyncService').then(({ settingsSyncService }) => {
-      settingsSyncService.broadcast('theme:changed', themeId);
-    });
-  }
-  
-   
-  private injectCSSVariables(theme: ThemeConfig): void {
-    const root = document.documentElement;
-
-    // ⚠️ 顺序即正确性（规范第九节）：
-    // 1) 先清除「所有风格包可能写过的」inline 变量。inline 的 setProperty 只覆盖同名
-    //    属性，**不会**因为「新风格包零覆盖」而自行消失——切回默认包 xindongfang 时
-    //    其 token 覆盖为空，若不清理，上一个包写下的几十个 inline 值会继续压住
-    //    :root 基座值，表现为「切不回默认风格」。
-    // 2) 再重写主题变量：清除会连带删掉同名主题变量（--shadow-* / --radius-* /
-    //    --color-success 等都被 comic 覆盖过），必须补回主题预设值。
-    // 3) 最后写当前风格包的值（后写者胜，压过主题预设的遗留值）。
-    for (const name of STYLE_PACK_OWNED_VARS) {
-      root.style.removeProperty(name);
-    }
-
-    this.applyThemeTokens(theme);
-
-    root.setAttribute('data-theme', theme.id);
-    root.setAttribute('data-theme-type', theme.type);
-    root.setAttribute('data-style', this.styleSelection);
-
-    this.injectStylePackTokens(theme.type);
-  }
-
-  /** 主题预设 token → inline CSS 变量 */
-  private applyThemeTokens(theme: ThemeConfig): void {
-    const root = document.documentElement;
-    const { colors, effects, motion, typography } = theme;
-
-    if (colors.background.tooltip) {
-      root.style.setProperty('--color-bg-tooltip', colors.background.tooltip);
-    }
-
-    if (colors.scrollbar) {
-      root.style.setProperty('--scrollbar-thumb', colors.scrollbar.thumb);
-      root.style.setProperty('--scrollbar-thumb-hover', colors.scrollbar.thumbHover);
-    }
-
-    if (colors.purple) {
-      Object.entries(colors.purple).forEach(([key, value]) => {
-        root.style.setProperty(`--color-purple-${key}`, value);
-      });
-    }
-
-    root.style.setProperty('--color-success', colors.semantic.success);
-    root.style.setProperty('--color-success-bg', colors.semantic.successBg);
-    root.style.setProperty('--color-success-border', colors.semantic.successBorder);
-    root.style.setProperty('--color-warning', colors.semantic.warning);
-    root.style.setProperty('--color-warning-bg', colors.semantic.warningBg);
-    root.style.setProperty('--color-warning-border', colors.semantic.warningBorder);
-    root.style.setProperty('--color-error', colors.semantic.error);
-    root.style.setProperty('--color-error-bg', colors.semantic.errorBg);
-    root.style.setProperty('--color-error-border', colors.semantic.errorBorder);
-    root.style.setProperty('--color-info', colors.semantic.info);
-    root.style.setProperty('--color-info-bg', colors.semantic.infoBg);
-    root.style.setProperty('--color-info-border', colors.semantic.infoBorder);
-    root.style.setProperty('--color-highlight', colors.semantic.highlight);
-    root.style.setProperty('--color-highlight-bg', colors.semantic.highlightBg);
-
-    if (colors.purple) {
-      root.style.setProperty('--border-purple-subtle', colors.purple[200]);
-      root.style.setProperty('--border-purple', colors.purple[400]);
-    }
-
-    const sceneViewportBorder = theme.layout?.sceneViewportBorder ?? true;
-    root.style.setProperty(
-      '--scene-viewport-border-width',
-      sceneViewportBorder ? '1px' : '0'
-    );
-
-    root.style.setProperty('--git-color-branch', colors.git.branch);
-    root.style.setProperty('--git-color-branch-bg', colors.git.branchBg);
-    root.style.setProperty('--git-color-branch-bg-hover', colors.git.branchBg);
-    root.style.setProperty('--git-color-branch-border', colors.git.branchBg);
-    root.style.setProperty('--git-color-changes', colors.git.changes);
-    root.style.setProperty('--git-color-changes-bg', colors.git.changesBg);
-    root.style.setProperty('--git-color-changes-bg-hover', colors.git.changesBg);
-    root.style.setProperty('--git-color-changes-border', colors.git.changesBg);
-    root.style.setProperty('--git-color-added', colors.git.added);
-    root.style.setProperty('--git-color-added-bg', colors.git.addedBg);
-    root.style.setProperty('--git-color-added-bg-hover', colors.git.addedBg);
-    root.style.setProperty('--git-color-deleted', colors.git.deleted);
-    root.style.setProperty('--git-color-deleted-bg', colors.git.deletedBg);
-    root.style.setProperty('--git-color-deleted-bg-hover', colors.git.deletedBg);
-    root.style.setProperty('--git-color-deleted-border', colors.git.deletedBg);
-    root.style.setProperty('--git-color-staged', colors.git.staged);
-    root.style.setProperty('--git-color-staged-bg', colors.git.stagedBg);
-    root.style.setProperty('--git-color-staged-bg-hover', colors.git.stagedBg);
-    root.style.setProperty('--git-color-staged-border', colors.git.stagedBg);
-    root.style.setProperty('--git-color-pull', colors.git.branch);
-    root.style.setProperty('--git-color-pull-bg', colors.git.branchBg);
-    root.style.setProperty('--git-color-pull-bg-hover', colors.git.branchBg);
-    root.style.setProperty('--git-color-push', colors.git.staged);
-    root.style.setProperty('--git-color-push-bg', colors.git.stagedBg);
-    root.style.setProperty('--git-color-push-bg-hover', colors.git.stagedBg);
-
-    if (effects?.shadow) {
-      Object.entries(effects.shadow).forEach(([key, value]) => {
-        root.style.setProperty(`--shadow-${key}`, value);
-      });
-    }
-
-    if (effects?.glow) {
-      root.style.setProperty('--glow-purple', effects.glow.purple);
-      root.style.setProperty('--glow-mixed', effects.glow.mixed);
-      root.style.setProperty('--glow-shadow-purple', effects.glow.purple);
-      root.style.setProperty('--glow-shadow-mixed', effects.glow.mixed);
-    }
-
-    if (effects?.blur) {
-      Object.entries(effects.blur).forEach(([key, value]) => {
-        root.style.setProperty(`--blur-${key}`, value);
-      });
-    }
-
-    if (effects?.radius) {
-      Object.entries(effects.radius).forEach(([key, value]) => {
-        root.style.setProperty(`--radius-${key}`, value);
-        root.style.setProperty(`--size-radius-${key}`, value);
-      });
-    }
-
-    if (effects?.spacing) {
-      Object.entries(effects.spacing).forEach(([key, value]) => {
-        root.style.setProperty(`--spacing-${key}`, value);
-        root.style.setProperty(`--size-gap-${key}`, value);
-      });
-    }
-
-    if (effects?.opacity) {
-      root.style.setProperty('--opacity-disabled', String(effects.opacity.disabled));
-      root.style.setProperty('--opacity-hover', String(effects.opacity.hover));
-      root.style.setProperty('--opacity-focus', String(effects.opacity.focus));
-      root.style.setProperty('--opacity-overlay', String(effects.opacity.overlay));
-    }
-
-    if (motion?.duration) {
-      Object.entries(motion.duration).forEach(([key, value]) => {
-        root.style.setProperty(`--motion-${key}`, value);
-      });
-    }
-
-    if (motion?.easing) {
-      Object.entries(motion.easing).forEach(([key, value]) => {
-        root.style.setProperty(`--easing-${key}`, value);
-      });
-    }
-
-    if (typography?.font) {
-      root.style.setProperty('--font-sans', typography.font.sans);
-      root.style.setProperty('--font-mono', typography.font.mono);
-      root.style.setProperty('--font-family-sans', typography.font.sans);
-      root.style.setProperty('--font-family-mono', typography.font.mono);
-    }
-
-    if (typography?.weight) {
-      Object.entries(typography.weight).forEach(([key, value]) => {
-        root.style.setProperty(`--font-weight-${key}`, String(value));
-      });
-    }
-
-    if (typography?.size) {
-      Object.entries(typography.size).forEach(([key, value]) => {
-        root.style.setProperty(`--font-size-${key}`, value);
-      });
-    }
-
-    if (typography?.lineHeight) {
-      Object.entries(typography.lineHeight).forEach(([key, value]) => {
-        root.style.setProperty(`--line-height-${key}`, String(value));
-      });
-    }
-
-    const windowControlsConfig = theme.components?.windowControls;
-    if (windowControlsConfig) {
-      root.style.setProperty('--window-control-close-dot', windowControlsConfig.close.dot);
-      root.style.setProperty('--window-control-close-dot-shadow', windowControlsConfig.close.dotShadow || 'none');
-      root.style.setProperty('--window-control-close-hover-bg', windowControlsConfig.close.hoverBg);
-      root.style.setProperty('--window-control-close-hover-color', windowControlsConfig.close.hoverColor);
-      root.style.setProperty('--window-control-close-hover-border', windowControlsConfig.close.hoverBorder);
-      root.style.setProperty('--window-control-close-hover-shadow', windowControlsConfig.close.hoverShadow || 'none');
-      root.style.setProperty('--window-control-default-color', windowControlsConfig.common.defaultColor);
-      root.style.setProperty('--window-control-default-dot', windowControlsConfig.common.defaultDot);
-      root.style.setProperty('--window-control-disabled-dot', windowControlsConfig.common.disabledDot);
-      root.style.setProperty('--window-control-flow-gradient', windowControlsConfig.common.flowGradient || 'none');
-    } else {
-      root.style.setProperty('--window-control-close-dot', colors.semantic.error);
-      root.style.setProperty('--window-control-close-dot-shadow', 'none');
-      root.style.setProperty('--window-control-close-hover-bg', colors.semantic.errorBg);
-      root.style.setProperty('--window-control-close-hover-color', colors.semantic.error);
-      root.style.setProperty('--window-control-close-hover-border', colors.semantic.errorBorder);
-      root.style.setProperty('--window-control-close-hover-shadow', 'none');
-      root.style.setProperty('--window-control-default-color', colors.text.primary);
-      root.style.setProperty('--window-control-default-dot', colors.text.muted);
-      root.style.setProperty('--window-control-disabled-dot', colors.text.disabled);
-      root.style.setProperty('--window-control-flow-gradient', 'none');
-    }
-  }
-
-  /** 当前风格包的 token → inline CSS 变量（只写不清；清除由 injectCSSVariables 统一负责） */
-  private injectStylePackTokens(mode: 'dark' | 'light'): void {
-    const root = document.documentElement;
-    const vars = resolveStylePackTokens(this.styleSelection, mode);
-    for (const [name, value] of Object.entries(vars)) {
-      root.style.setProperty(name, value);
-    }
-  }
-  
-   
   private async saveThemeSelection(selection: ThemeSelectionId): Promise<void> {
     mirrorToStorage(THEME_SELECTION_STORAGE_KEY, selection);
     try {
@@ -653,126 +146,283 @@ export class ThemeService {
     }
   }
 
-  private async saveUserThemes(): Promise<void> {
+  /** 皮肤选择；旧版 themes.style（风格包）一律落到默认皮肤 */
+  private async loadSkinSelection(): Promise<string> {
     try {
-      const userThemes = Array.from(this.themes.values()).filter(
-        theme => !builtinThemes.some(t => t.id === theme.id)
-      );
-      await configAPI.setConfig('themes.custom', userThemes);
+      const raw = await configAPI.getConfig('themes.skin', { skipRetryOnNotFound: true });
+      if (typeof raw === 'string' && this.hasSkin(raw)) return raw;
+    } catch (_error) {
+      /* 未设置 */
+    }
+    return DEFAULT_SKIN_ID;
+  }
+
+  private async saveSkinSelection(id: string): Promise<void> {
+    mirrorToStorage(SKIN_STORAGE_KEY, id);
+    try {
+      await configAPI.setConfig('themes.skin', id);
     } catch (error) {
-      log.warn('Failed to save user themes', error);
+      log.warn('Failed to save skin id', error);
     }
   }
-  
-  
-  
-   
-  exportTheme(themeId: ThemeId): ThemeExport | null {
-    const theme = this.themes.get(themeId);
-    if (!theme) {
-      log.error('Theme not found', { id: themeId });
-      return null;
+
+  /** 读用户皮肤（逐个 parse；坏数据丢弃并记日志，不阻断启动） */
+  async loadUserSkins(): Promise<void> {
+    try {
+      const raw = await configAPI.getConfig('themes.skins', { skipRetryOnNotFound: true });
+      const list = Array.isArray(raw) ? raw : [];
+      this.userSkins = list.flatMap((item) => {
+        const { skin, errors } = parseSkin(item);
+        if (!skin || isBuiltinSkin(skin.id)) {
+          if (errors.length) log.warn('Dropped invalid user skin', { errors });
+          return [];
+        }
+        return [skin];
+      });
+    } catch (_error) {
+      this.userSkins = [];
     }
-    
-    const metadata: ThemeMetadata = {
-      id: theme.id,
-      name: theme.name,
-      type: theme.type,
-      description: theme.description,
-      author: theme.author,
-      version: theme.version,
-      builtin: builtinThemes.some(t => t.id === theme.id),
-    };
-    
-    return {
-      schema: '2.0.0',
-      theme,
-      metadata,
-      exportedAt: new Date().toISOString(),
-    };
   }
-  
-  
-  
-   
-  validateTheme(theme: ThemeConfig): ThemeValidationResult {
-    const errors: ThemeValidationResult['errors'] = [];
-    const warnings: ThemeValidationResult['warnings'] = [];
-    
-    
-    if (!theme.id) {
-      errors.push({ path: 'id', message: 'Missing theme id', code: 'MISSING_ID' });
+
+  private async saveUserSkins(): Promise<void> {
+    try {
+      await configAPI.setConfig('themes.skins', this.userSkins);
+    } catch (error) {
+      log.warn('Failed to save user skins', error);
     }
-    if (!theme.name) {
-      errors.push({ path: 'name', message: 'Missing theme name', code: 'MISSING_NAME' });
-    }
-    if (!theme.type || !['dark', 'light'].includes(theme.type)) {
-      errors.push({ path: 'type', message: 'Invalid theme type', code: 'INVALID_TYPE' });
-    }
-    
-    
-    if (!theme.colors) {
-      errors.push({ path: 'colors', message: 'Missing color configuration', code: 'MISSING_COLORS' });
-    }
-    
-    return {
-      valid: errors.length === 0,
-      errors,
-      warnings,
-    };
   }
-  
-  
-  
-   
+
+  /* ---------------- 皮肤 ---------------- */
+
+  getSkinId(): string {
+    return this.skinId;
+  }
+
+  getSkin(id: string = this.skinId): Skin {
+    return (
+      this.userSkins.find((s) => s.id === id) ??
+      builtinSkins.find((s) => s.id === id) ??
+      builtinSkins.find((s) => s.id === DEFAULT_SKIN_ID)!
+    );
+  }
+
+  hasSkin(id: string): boolean {
+    return isBuiltinSkin(id) || this.userSkins.some((s) => s.id === id);
+  }
+
+  isBuiltinSkin(id: string): boolean {
+    return isBuiltinSkin(id);
+  }
+
+  /** 内置在前、用户皮肤在后 */
+  getSkins(): Skin[] {
+    return [...builtinSkins, ...this.userSkins];
+  }
+
+  async applySkin(id: string, options: { persist?: boolean } = {}): Promise<void> {
+    const next = this.hasSkin(id) ? id : DEFAULT_SKIN_ID;
+    const persist = options.persist !== false;
+    this.skinId = next;
+    if (persist) await this.saveSkinSelection(next);
+    this.render();
+    this.emitEvent('skin:after-change', this.resolvedThemeId, this.currentTheme);
+    log.info('Skin applied', { id: next, persisted: persist });
+    if (persist) {
+      import('@/infrastructure/services/infra/SettingsSyncService').then(({ settingsSyncService }) => {
+        settingsSyncService.broadcast('skin:changed', next);
+      });
+    }
+  }
+
+  /**
+   * 保存（新建或覆盖）一份用户皮肤。对比度 error 拒绝保存；内置 id 不可覆盖。
+   * 返回规范化后的皮肤。
+   */
+  async saveUserSkin(raw: unknown): Promise<Skin> {
+    const { skin, errors } = parseSkin(raw);
+    if (!skin) throw new Error(errors.join('\n'));
+    if (isBuiltinSkin(skin.id)) throw new Error(`「${skin.id}」是内置皮肤 id，请换一个`);
+    const bad = checkSkin(skin).filter((i) => i.level === 'error');
+    if (bad.length) {
+      throw new Error(bad.map((i) => `${i.mode === 'dark' ? '暗色' : '亮色'}·${i.label} ${i.ratio.toFixed(2)} < ${i.min}`).join('\n'));
+    }
+    const idx = this.userSkins.findIndex((s) => s.id === skin.id);
+    if (idx >= 0) this.userSkins[idx] = skin;
+    else this.userSkins.push(skin);
+    await this.saveUserSkins();
+    if (this.skinId === skin.id) this.render();
+    this.emitEvent('skin:register', this.resolvedThemeId, this.currentTheme);
+    this.broadcastSkinsChanged();
+    return skin;
+  }
+
+  async deleteUserSkin(id: string): Promise<boolean> {
+    if (isBuiltinSkin(id)) return false;
+    const before = this.userSkins.length;
+    this.userSkins = this.userSkins.filter((s) => s.id !== id);
+    if (this.userSkins.length === before) return false;
+    await this.saveUserSkins();
+    if (this.skinId === id) await this.applySkin(DEFAULT_SKIN_ID);
+    this.emitEvent('skin:unregister', this.resolvedThemeId, this.currentTheme);
+    this.broadcastSkinsChanged();
+    return true;
+  }
+
+  /** 导出为 .ai00skin.json 文本 */
+  exportSkin(id: string): string {
+    const { format, ...rest } = this.getSkin(id);
+    return `${JSON.stringify({ format, ...rest }, null, 2)}\n`;
+  }
+
+  private broadcastSkinsChanged(): void {
+    import('@/infrastructure/services/infra/SettingsSyncService').then(({ settingsSyncService }) => {
+      settingsSyncService.broadcast('skins:changed', this.skinId);
+    });
+  }
+
+  /** 其他窗口改了用户皮肤：重读配置并重绘 */
+  async reloadUserSkins(): Promise<void> {
+    await this.loadUserSkins();
+    if (!this.hasSkin(this.skinId)) this.skinId = DEFAULT_SKIN_ID;
+    this.render();
+    this.emitEvent('skin:register', this.resolvedThemeId, this.currentTheme);
+  }
+
+  /**
+   * 预览：把一份未保存的皮肤临时套到界面上（编辑器实时预览用）。传 null 结束预览。
+   * 不持久化、不广播。
+   */
+  previewSkin(skin: Skin | null): void {
+    this.render(skin ?? undefined);
+  }
+
+  /* ---------------- 明暗 ---------------- */
+
+  getCurrentTheme(): ThemeConfig {
+    return this.currentTheme;
+  }
+
+  /** 设置里的选择（可为 system） */
+  getCurrentThemeId(): ThemeSelectionId {
+    return this.themeSelection;
+  }
+
+  getResolvedThemeId(): ThemeId {
+    return this.resolvedThemeId;
+  }
+
+  getThemeList(): ThemeMetadata[] {
+    return [DEFAULT_LIGHT_THEME_ID, DEFAULT_DARK_THEME_ID].map((id) => {
+      const t = themeConfigFromSkin(this.getSkin(), modeOfThemeId(id));
+      return { id, name: id === DEFAULT_DARK_THEME_ID ? 'Dark' : 'Light', type: t.type, builtin: true };
+    });
+  }
+
+  private detachSystemThemeListener(): void {
+    this.systemThemeCleanup?.();
+    this.systemThemeCleanup = null;
+  }
+
+  private attachSystemThemeListener(): void {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function' || this.systemThemeCleanup) return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => {
+      if (this.themeSelection !== SYSTEM_THEME_ID) return;
+      const next = getSystemPreferredDefaultThemeId();
+      if (next !== this.resolvedThemeId) void this.applyResolvedTheme(next);
+    };
+    mq.addEventListener('change', handler);
+    this.systemThemeCleanup = () => mq.removeEventListener('change', handler);
+  }
+
+  private async applyResolvedTheme(resolvedId: ThemeId): Promise<void> {
+    const oldTheme = this.currentTheme;
+    const next = themeConfigFromSkin(this.getSkin(), modeOfThemeId(resolvedId));
+    await this.hooks.beforeChange?.(next, oldTheme);
+    this.emitEvent('theme:before-change', resolvedId, next, oldTheme);
+    this.resolvedThemeId = resolvedId;
+    this.render();
+    await this.hooks.afterChange?.(this.currentTheme, oldTheme);
+    this.emitEvent('theme:after-change', resolvedId, this.currentTheme, oldTheme);
+    log.info('Theme applied', { id: resolvedId, selection: this.themeSelection, skin: this.skinId });
+  }
+
+  async applyTheme(themeId: ThemeId | typeof SYSTEM_THEME_ID): Promise<void> {
+    const id = LEGACY_BUILTIN_THEME_FALLBACK[themeId] ?? themeId;
+    if (id !== SYSTEM_THEME_ID && !BUILTIN_THEME_IDS.includes(id)) {
+      throw new Error(`Theme ${themeId} not found`);
+    }
+    this.detachSystemThemeListener();
+    this.themeSelection = id;
+    await this.saveThemeSelection(id);
+    if (id === SYSTEM_THEME_ID) {
+      this.attachSystemThemeListener();
+      await this.applyResolvedTheme(getSystemPreferredDefaultThemeId());
+    } else {
+      await this.applyResolvedTheme(id);
+    }
+    import('@/infrastructure/services/infra/SettingsSyncService').then(({ settingsSyncService }) => {
+      settingsSyncService.broadcast('theme:changed', id);
+    });
+  }
+
+  /* ---------------- 渲染：只写属性与一个 <style> ---------------- */
+
+  private render(override?: Skin): void {
+    const skin = override ?? this.getSkin();
+    const mode = modeOfThemeId(this.resolvedThemeId);
+    this.currentTheme = themeConfigFromSkin(skin, mode);
+    if (typeof document === 'undefined') return;
+
+    const root = document.documentElement;
+    root.setAttribute('data-theme', this.resolvedThemeId);
+    root.setAttribute('data-theme-type', mode);
+    for (const [k, v] of Object.entries(skinAttributes(skin))) root.setAttribute(k, v);
+
+    // 内置皮肤由 css/skins.css 供给；用户皮肤 / 预览写唯一的 <style>
+    let style = document.getElementById(USER_SKIN_STYLE_ID) as HTMLStyleElement | null;
+    if (override || !isBuiltinSkin(skin.id)) {
+      if (!style) {
+        style = document.createElement('style');
+        style.id = USER_SKIN_STYLE_ID;
+        document.head.appendChild(style);
+      }
+      style.textContent = skinCss(skin, `html[data-skin='${skin.id}']`);
+    } else if (style) {
+      style.remove();
+    }
+
+    try {
+      monacoThemeSync.syncTheme(this.currentTheme);
+    } catch (error) {
+      log.warn('Monaco Editor theme sync failed', error);
+    }
+  }
+
+  /* ---------------- 事件 ---------------- */
+
   on(eventType: ThemeEventType, listener: ThemeEventListener): () => void {
-    if (!this.listeners.has(eventType)) {
-      this.listeners.set(eventType, new Set());
-    }
-    
+    if (!this.listeners.has(eventType)) this.listeners.set(eventType, new Set());
     this.listeners.get(eventType)!.add(listener);
-    
-    
     return () => {
       this.listeners.get(eventType)?.delete(listener);
     };
   }
-  
-   
-  private emitEvent(
-    type: ThemeEventType,
-    themeId: ThemeId,
-    theme?: ThemeConfig,
-    previousTheme?: ThemeConfig
-  ): void {
-    const event: ThemeEvent = {
-      type,
-      themeId,
-      theme,
-      previousTheme,
-      timestamp: Date.now(),
-    };
-    
-    const listeners = this.listeners.get(type);
-    if (listeners) {
-      listeners.forEach(listener => {
-        try {
-          listener(event);
-        } catch (error) {
-          log.error('Event listener execution failed', { type, error });
-        }
-      });
-    }
+
+  private emitEvent(type: ThemeEventType, themeId: ThemeId, theme?: ThemeConfig, previousTheme?: ThemeConfig): void {
+    const event: ThemeEvent = { type, themeId, theme, previousTheme, timestamp: Date.now() };
+    this.listeners.get(type)?.forEach((listener) => {
+      try {
+        listener(event);
+      } catch (error) {
+        log.error('Event listener execution failed', { type, error });
+      }
+    });
   }
-  
-  
-  
-   
+
   registerHooks(hooks: ThemeHooks): void {
     this.hooks = { ...this.hooks, ...hooks };
   }
 }
 
-
 export const themeService = new ThemeService();
-

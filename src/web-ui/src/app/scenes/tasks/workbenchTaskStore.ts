@@ -8,6 +8,7 @@
  */
 import { create } from 'zustand';
 import type {
+  DshSessionStats,
   DshSubagentCatalogEntry,
   DshSubagentMode,
   DshSubagentTiming,
@@ -16,6 +17,8 @@ import type {
 export interface WorkbenchTaskRuntime {
   running: boolean;
   failed: boolean;
+  /** 会话有未回答的 ask user 提问（「需要你」徽标用；仅面板打开时可知）。 */
+  asking?: boolean;
   /** 最后更新时刻（调试/排序用） */
   at: number;
 }
@@ -31,6 +34,17 @@ export interface WorkbenchChildAgent {
   updatedAt: number;
   /** 本端首次看到该子会话的时刻（引擎不给开始时间，用首次观测近似）。 */
   since: number;
+}
+
+/**
+ * 待人类批准的 exit_plan_mode 审批（规范 §9.6：与 ai00_plan_write 路径汇入计划卡同一个「待批准」态）。
+ * 对话面板收到审批帧后登记，计划卡负责应答；approval/resolved 帧到达后面板清除。
+ */
+export interface WorkbenchPlanReview {
+  rpcId: string;
+  approvalId: string;
+  /** exit_plan_mode 的 plan 参数（计划文件缺失时计划卡用它渲染）。 */
+  planText?: string;
 }
 
 /** 子代理目录条目（引擎 `subagentCatalog` 投影；label 是派发时冻结的任务标题）。 */
@@ -52,13 +66,22 @@ interface WorkbenchTaskState {
   subagentCatalog: Record<string, WorkbenchSubagentMeta[]>;
   /** 子会话 → turn 计时（`subagentTiming` 投影，挂在子会话 id 上，durable）。 */
   subagentTiming: Record<string, DshSubagentTiming>;
+  /** 主会话 → 待批准的 exit_plan_mode 审批。 */
+  planReviews: Record<string, WorkbenchPlanReview>;
+  /** 主会话 → 执行过程统计（对话面板由事件流水账算出后上报；计划卡读）。 */
+  sessionStats: Record<string, DshSessionStats>;
   /** 跨任务/看板场景保持选中；仅进程内 UI 状态，不写入任务数据。 */
   selectedTaskId: string | null;
   /** 主区是否展示新任务输入（与「未选中任何任务」区分）。 */
   creatingNew: boolean;
   selectTask: (taskId: string) => void;
   startNewTask: () => void;
-  reportRuntime: (sessionId: string, next: { running: boolean; failed: boolean }) => void;
+  reportStats: (sessionId: string, stats: DshSessionStats) => void;
+  setPlanReview: (sessionId: string, review: WorkbenchPlanReview | null) => void;
+  reportRuntime: (
+    sessionId: string,
+    next: { running: boolean; failed: boolean; asking?: boolean },
+  ) => void;
   /**
    * 用引擎 `session/list` 的 running 快照回填全量会话运行态。
    *
@@ -66,6 +89,13 @@ interface WorkbenchTaskState {
    * 「执行中」。宿主定时回填后，停下的任务才能落到「已停止」。
    */
   seedRunning: (entries: Array<{ sessionId: string; running: boolean }>) => void;
+  /**
+   * 回填会话「最后一轮是否报错」（`todoStore.agentFailed`，由 overlay 轮询回填）。
+   *
+   * 没被打开过的任务只有引擎快照，面板不上报 failed，卡片会一直显示「执行」而看不出
+   * 这一轮已经以错误收尾——把轮询结论并进来，列表/看板的阶段点才能落到失败态。
+   */
+  seedFailed: (entries: Array<{ sessionId: string; failed: boolean }>) => void;
   /** 回填子代理运行数（parentSessionId → 运行中的子会话数）。 */
   seedDelegating: (entries: Array<{ parentSessionId: string; running: boolean }>) => void;
   /** 回填子代理活动列表（对话流展示）。`since` 由本 store 维护。 */
@@ -151,18 +181,46 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
   children: {},
   subagentCatalog: {},
   subagentTiming: {},
+  sessionStats: {},
+  planReviews: {},
   selectedTaskId: null,
   creatingNew: true,
   selectTask: (taskId) => set({ selectedTaskId: taskId, creatingNew: false }),
   startNewTask: () => set({ selectedTaskId: null, creatingNew: true }),
+  setPlanReview: (sessionId, review) =>
+    set((s) => {
+      const prev = s.planReviews[sessionId];
+      if (!review) {
+        if (!prev) return s;
+        const next = { ...s.planReviews };
+        delete next[sessionId];
+        return { planReviews: next };
+      }
+      if (prev && prev.rpcId === review.rpcId && prev.planText === review.planText) return s;
+      return { planReviews: { ...s.planReviews, [sessionId]: review } };
+    }),
+  reportStats: (sessionId, stats) =>
+    set((s) => {
+      const prev = s.sessionStats[sessionId];
+      if (prev && JSON.stringify(prev) === JSON.stringify(stats)) return s;
+      return { sessionStats: { ...s.sessionStats, [sessionId]: stats } };
+    }),
   reportRuntime: (sessionId, next) =>
     set((s) => {
       const prev = s.runtime[sessionId];
-      if (prev && prev.running === next.running && prev.failed === next.failed) return s;
+      const asking = Boolean(next.asking);
+      if (
+        prev &&
+        prev.running === next.running &&
+        prev.failed === next.failed &&
+        Boolean(prev.asking) === asking
+      ) {
+        return s;
+      }
       return {
         runtime: {
           ...s.runtime,
-          [sessionId]: { running: next.running, failed: next.failed, at: Date.now() },
+          [sessionId]: { running: next.running, failed: next.failed, asking, at: Date.now() },
         },
       };
     }),
@@ -177,6 +235,25 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
         runtime[entry.sessionId] = {
           running: entry.running,
           failed: prev?.failed ?? false,
+          asking: prev?.asking ?? false,
+          at: Date.now(),
+        };
+        changed = true;
+      }
+      return changed ? { runtime } : s;
+    }),
+  seedFailed: (entries) =>
+    set((s) => {
+      if (entries.length === 0) return s;
+      let changed = false;
+      const runtime = { ...s.runtime };
+      for (const entry of entries) {
+        const prev = runtime[entry.sessionId];
+        if (prev?.failed === entry.failed) continue;
+        runtime[entry.sessionId] = {
+          running: prev?.running ?? false,
+          failed: entry.failed,
+          asking: prev?.asking ?? false,
           at: Date.now(),
         };
         changed = true;

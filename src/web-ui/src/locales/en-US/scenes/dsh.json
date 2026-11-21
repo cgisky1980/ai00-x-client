@@ -72,7 +72,8 @@
       "engineUnavailable": "The engine is temporarily unavailable ({{detail}}). It reconnects automatically, so retry in a moment.",
       "authExpired": "Your session has expired. Sign in again and retry.",
       "quota": "Not enough credits. Top up or switch to another model.",
-      "network": "Network request failed. Check your connection and the server address."
+      "network": "Network request failed. Check your connection and the server address.",
+      "upstreamBroken": "The model service cut this turn short (upstream response failed to decode) — usually transient. Retry to send it again."
     }
   },
   "approval": {

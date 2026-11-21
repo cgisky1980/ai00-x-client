@@ -288,7 +288,7 @@ $_diff-padding-desktop: 32px;
 
     &--accepted {
       background: linear-gradient(135deg, 
-        color.adjust($color-success, $lightness: 10%) 0%, 
+        color-mix(in oklab, var(--color-success) 80%, var(--color-text-primary)) 0%, 
         $color-success 100%
       );
       color: var(--color-accent-foreground);
@@ -299,7 +299,7 @@ $_diff-padding-desktop: 32px;
 
     &--rejected {
       background: linear-gradient(135deg, 
-        color.adjust($color-error, $lightness: 10%) 0%, 
+        color-mix(in oklab, var(--color-error) 80%, var(--color-text-primary)) 0%, 
         $color-error 100%
       );
       color: var(--color-accent-foreground);

@@ -10,12 +10,11 @@
  * - 对话：在本场景内直接进入该项目的任务会话（不跳到「任务」工作台）。
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronRight, FileText, FolderOpen, FolderPlus, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, FolderOpen, FolderPlus, Loader2, Trash2 } from 'lucide-react';
 import { Switch } from '@/component-library';
 import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { workspaceAPI } from '@/infrastructure/api/service-api/WorkspaceAPI';
-import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
 import { pickWorkspaceDir } from '@/tools/todo/ai/workspace';
 import type { TodoTask, WorkbenchProject } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
@@ -27,15 +26,9 @@ import { TrunkBranchDialog, type TrunkBranchRequest } from '../tasks/TrunkBranch
 import { taskPhase } from '../tasks/taskPhase';
 import { useSessionRunningSync } from '../tasks/useSessionRunningSync';
 import { dirTail, relativeTime } from '../tasks/display';
-import { WorkbenchChatPanel } from '../workbench/WorkbenchChatPanel';
-import { WorkbenchStageBar, WorkbenchStageDots } from '../workbench/WorkbenchStageBar';
-import { WorkbenchTabs, type WorkbenchTabItem } from '../workbench/WorkbenchTabs';
-import { WorkbenchPlanPage } from '../workbench/WorkbenchPlanPage';
-import { WorkbenchFilePreview } from '../workbench/WorkbenchFilePreview';
-import { activeFilePath, useWorkbenchTabs } from '../workbench/useWorkbenchTabs';
-import { useResizablePane } from '@/hooks/useResizablePane';
-import { WorkbenchReviewPanel } from '../workbench/WorkbenchReviewPanel';
-import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
+import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
+import { needsYou } from '../workbench/workbenchStage';
+import { WorkbenchTaskHost } from '../workbench/WorkbenchTaskHost';
 import { ProjectGitBadge } from './ProjectGitBadge';
 import {
   TrunkBranchError,
@@ -55,7 +48,17 @@ interface ActiveConversation {
   cwd: string;
 }
 
-export const ProjectsScene: React.FC = () => {
+export interface ProjectsSceneProps {
+  /** 「需要你」通知定位过来的任务（跨场景交接，不走 windowBus）。 */
+  focusTaskId?: string | null;
+  /** 定位已处理（宿主清掉交接值，避免切换场景时重复打开）。 */
+  onFocusHandled?: () => void;
+}
+
+export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
+  focusTaskId = null,
+  onFocusHandled,
+}) => {
   const { t } = useI18n('common');
   const loaded = useTodoStore((s) => s.loaded);
   const load = useTodoStore((s) => s.load);
@@ -64,9 +67,6 @@ export const ProjectsScene: React.FC = () => {
   const createProject = useTodoStore((s) => s.createProject);
   const removeProject = useTodoStore((s) => s.removeProject);
   const updateProject = useTodoStore((s) => s.updateProject);
-  const completeTask = useTodoStore((s) => s.completeTask);
-  const updateTask = useTodoStore((s) => s.updateTask);
-  const reportRuntime = useWorkbenchTaskStore((s) => s.reportRuntime);
   const runtime = useWorkbenchTaskStore((s) => s.runtime);
   // 引擎会话运行态校准（最近任务的「执行中/已停止」以真实运行态为准）
   useSessionRunningSync();
@@ -113,11 +113,23 @@ export const ProjectsScene: React.FC = () => {
       list.push(task);
       map.set(task.projectId, list);
     }
+    // 排序与工作台任务列表同一口径：需要你 → 失败 → 其余，同档内新→旧。
+    // 项目侧栏/概览如果只按时间排，刚报错的任务会被压在最新卡下面。
+    const rank = (task: TodoTask): number => {
+      const phase = taskPhase(
+        task,
+        plans[task.id] ?? null,
+        task.agentSessionId ? runtime[task.agentSessionId] : undefined,
+      );
+      const asking = Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking);
+      if (needsYou(phase, asking)) return 0;
+      return phase === 'failed' ? 1 : 2;
+    };
     for (const list of map.values()) {
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      list.sort((a, b) => rank(a) - rank(b) || (b.createdAt || 0) - (a.createdAt || 0));
     }
     return map;
-  }, [allTasks]);
+  }, [allTasks, plans, runtime]);
 
   const projectTasks = useMemo(
     () => (selected ? (tasksByProject.get(selected.id) ?? []) : []),
@@ -125,49 +137,6 @@ export const ProjectsScene: React.FC = () => {
   );
 
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-
-  // ---- 中间标签区：首页=计划页，其余=文件预览 / 子代理子会话；按任务记忆 ----
-  const tabs = useWorkbenchTabs(conversation?.task.id ?? 'projects-new');
-  const currentPath = activeFilePath(tabs.activeKey);
-  const tabItems = useMemo<WorkbenchTabItem[]>(
-    () => [
-      {
-        key: 'home',
-        kind: 'home',
-        title: t('nav.workbenchWindow.tabs.plan'),
-        icon: <FileText size={13} />,
-      },
-      ...tabs.fileTabs.map((tab) => ({
-        key: tab.key,
-        kind: 'file' as const,
-        title: tab.title,
-        tooltip: tab.path,
-        icon: <FileText size={13} />,
-      })),
-    ],
-    [tabs.fileTabs, t],
-  );
-  /** 对话区宽度（与任务/插件工作台共用记忆键）。 */
-  const chat = useResizablePane({
-    storageKey: 'workbench.chatWidth',
-    defaultWidth: 380,
-    min: 300,
-    max: 640,
-    edge: 'left',
-    label: t('nav.workbenchWindow.resizeChat'),
-  });
-
-  const pickFile = useCallback((): void => {
-    void import('@tauri-apps/plugin-dialog').then(({ open }) =>
-      open({
-        multiple: false,
-        directory: false,
-        title: t('nav.workbenchWindow.tabs.pickFile'),
-      }).then((picked) => {
-        if (typeof picked === 'string') tabs.openFile(picked);
-      }),
-    );
-  }, [tabs, t]);
 
   const openProject = useCallback(async (): Promise<void> => {
     setError(null);
@@ -281,6 +250,28 @@ export const ProjectsScene: React.FC = () => {
     [openConversation, selected?.id],
   );
 
+  /**
+   * 「需要你」通知定位：切到任务所属项目并打开它的会话。
+   * 同一 taskId 只处理一次；任务/项目尚未加载时不标记已处理，等数据到位再重试。
+   */
+  const focusHandledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusTaskId || focusHandledRef.current === focusTaskId) return;
+    const task = allTasks.find((item) => item.id === focusTaskId);
+    if (!task) return;
+    const project = projects.find((p) => p.id === task.projectId);
+    if (!project) return;
+    focusHandledRef.current = focusTaskId;
+    onFocusHandled?.();
+    if (project.id !== selected?.id) {
+      // 跨项目：交给「切换项目」的 effect 接着打开
+      pendingOpenRef.current = task.id;
+      setSelectedId(project.id);
+      return;
+    }
+    void openConversation(task, project, null);
+  }, [focusTaskId, allTasks, projects, selected?.id, openConversation, onFocusHandled]);
+
   const toggleExpanded = useCallback((projectId: string): void => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -351,6 +342,17 @@ export const ProjectsScene: React.FC = () => {
           {projects.map((project) => {
             const items = tasksByProject.get(project.id) ?? [];
             const open = expanded.has(project.id);
+            /** 该项目下有几个任务在等人（待批准 / 待验收 / 正在提问）：折叠时也要能看见。 */
+            const needsYouCount = items.filter((task) =>
+              needsYou(
+                taskPhase(
+                  task,
+                  null,
+                  task.agentSessionId ? runtime[task.agentSessionId] : undefined,
+                ),
+                Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking),
+              ),
+            ).length;
             return (
               <div key={project.id} className="ai00-x-projects-scene__group">
                 <div
@@ -385,6 +387,18 @@ export const ProjectsScene: React.FC = () => {
                   >
                     <span className="ai00-x-projects-scene__item-title">{project.name}</span>
                   </button>
+                  {needsYouCount > 0 && (
+                    <span
+                      className="ai00-x-status-tag ai00-x-projects-scene__needs"
+                      title={t('nav.workbenchWindow.projects.needsYouCount', {
+                        count: needsYouCount,
+                      })}
+                    >
+                      <span className="ai00-x-status-tag__needs">
+                        {t('nav.workbenchWindow.stages.needsYou')}
+                      </span>
+                    </span>
+                  )}
                   <ProjectGitBadge dir={project.dir} onError={setError} />
                 </div>
 
@@ -461,122 +475,32 @@ export const ProjectsScene: React.FC = () => {
             </button>
           </section>
         ) : conversation ? (
-          <div className="ai00-x-projects-scene__row">
-            <div className="ai00-x-projects-scene__stage">
-              <WorkbenchTabs
-                tabs={tabItems}
-                activeKey={tabs.activeKey}
-                onChange={tabs.setActiveKey}
-                onClose={tabs.closeTab}
-                onPickFile={pickFile}
-              >
-                {currentPath ? (
-                  <WorkbenchFilePreview path={currentPath} />
-                ) : (
-                  <WorkbenchPlanPage
-                    task={conversation.task}
-                    planMd={plans[conversation.task.id] ?? null}
-                    onPlanChange={setPlan}
-                    onOpenFile={tabs.openFile}
-                    header={
-                      <>
-                        <button
-                          type="button"
-                          className="ai00-x-projects-scene__back"
-                          onClick={backToOverview}
-                          title={t('nav.workbenchWindow.projects.back')}
-                          aria-label={t('nav.workbenchWindow.projects.back')}
-                        >
-                          <ArrowLeft size={14} />
-                        </button>
-                        <h1 className="ai00-x-projects-scene__title">
-                          {conversation.task.title}
-                        </h1>
-                        <span className="ai00-x-projects-scene__dir" title={selected.dir}>
-                          {selected.name}
-                        </span>
-                        <WorkbenchStageBar
-                          phase={taskPhase(
-                            conversation.task,
-                            null,
-                            runtime[conversation.sessionId],
-                          )}
-                          size="compact"
-                        />
-                        <span
-                          className={`ai00-x-projects-scene__status is-${taskPhase(
-                            conversation.task,
-                            null,
-                            runtime[conversation.sessionId],
-                          )}`}
-                        >
-                          {t(
-                            `nav.workbenchWindow.tasks.status.${taskPhase(
-                              conversation.task,
-                              null,
-                              runtime[conversation.sessionId],
-                            )}`,
-                          )}
-                        </span>
-                      </>
-                    }
-                  />
-                )}
-              </WorkbenchTabs>
-            </div>
-            <div
-              className={`ai00-x-projects-scene__chat-resizer${
-                chat.dragging ? ' is-dragging' : ''
-              }`}
-              {...chat.handleProps}
-            />
-            <div className="ai00-x-projects-scene__chat" style={{ width: `${chat.width}px` }}>
-              {error && (
-                <p className="ai00-x-projects-scene__error" role="alert">
-                  {error}
-                </p>
-              )}
-              <WorkbenchChatPanel
-                key={conversation.sessionId}
-                variant="conversation"
-                showWorkspace={false}
-                initialRequest={conversation.task.notes || conversation.task.title}
-                externalSession={{
-                  sessionId: conversation.sessionId,
-                  ...(conversation.cwd ? { cwd: conversation.cwd } : {}),
-                  title: conversation.task.title,
-                }}
-                onRuntimeChange={(state) => reportRuntime(conversation.sessionId, state)}
-                planMd={plans[conversation.task.id] ?? null}
-                planAutoOpen={
-                  taskPhase(conversation.task, null, runtime[conversation.sessionId]) ===
-                  'awaiting'
-                }
-                planFinished={Boolean(conversation.task.completedAt)}
-                planApproved={Boolean(conversation.task.planApprovedAt)}
-                agentSelfChecked={Boolean(conversation.task.agentCompletedAt)}
-                onPlanApprove={() =>
-                  updateTask(conversation.task.id, { planApprovedAt: Date.now() })
-                }
-                dock={
-                  taskPhase(conversation.task, null, runtime[conversation.sessionId]) ===
-                  'awaiting' ? (
-                    <WorkbenchReviewPanel
-                      task={conversation.task}
-                      planMd={plans[conversation.task.id] ?? null}
-                      onApprove={() => completeTask(conversation.task.id, true)}
-                      onReject={(reason) => {
-                        updateTask(conversation.task.id, { agentCompletedAt: null });
-                        void dshSession
-                          .prompt(conversation.sessionId, buildRejectPrompt(reason))
-                          .catch(() => undefined);
-                      }}
-                    />
-                  ) : undefined
-                }
-              />
-            </div>
-          </div>
+          <WorkbenchTaskHost
+            key={conversation.task.id}
+            task={allTasks.find((item) => item.id === conversation.task.id) ?? conversation.task}
+            sessionId={conversation.sessionId}
+            cwd={conversation.cwd}
+            planMd={plans[conversation.task.id] ?? null}
+            onPlanChange={setPlan}
+            error={error}
+            title={
+              <>
+                <button
+                  type="button"
+                  className="ai00-x-projects-scene__back"
+                  onClick={backToOverview}
+                  title={t('nav.workbenchWindow.projects.back')}
+                  aria-label={t('nav.workbenchWindow.projects.back')}
+                >
+                  <ArrowLeft size={14} />
+                </button>
+                <h1 className="ai00-x-projects-scene__title">{conversation.task.title}</h1>
+                <span className="ai00-x-projects-scene__dir" title={selected.dir}>
+                  {selected.name}
+                </span>
+              </>
+            }
+          />
         ) : (
           <>
             <header className="ai00-x-projects-scene__head">
@@ -667,15 +591,16 @@ export const ProjectsScene: React.FC = () => {
                       onClick={() => void openConversation(task, selected, null)}
                     >
                       <span className="ai00-x-projects-scene__task-title">{task.title}</span>
-                      <span className="ai00-x-projects-scene__task-meta">
-                        {t(
-                          `nav.workbenchWindow.tasks.status.${taskPhase(
-                            task,
-                            null,
-                            task.agentSessionId ? runtime[task.agentSessionId] : undefined,
-                          )}`,
+                      <WorkbenchStatusTag
+                        className="ai00-x-projects-scene__task-meta"
+                        phase={taskPhase(
+                          task,
+                          null,
+                          task.agentSessionId ? runtime[task.agentSessionId] : undefined,
                         )}
-                      </span>
+                        asking={Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking)}
+                        quick={task.executionMode === 'quick'}
+                      />
                       <span className="ai00-x-projects-scene__task-time">
                         {relativeTime(task.createdAt)}
                       </span>

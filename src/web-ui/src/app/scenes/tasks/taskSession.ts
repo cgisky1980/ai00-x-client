@@ -218,3 +218,61 @@ export async function ensureTaskSession(
   await dshSession.prompt(sessionId, buildTaskBrief(task, ctx.projectRoot, project === null));
   return { sessionId, cwd: ctx.projectRoot };
 }
+
+/**
+ * 会话实际挂的 preset（工具面的权威来源）。
+ *
+ * 不能用 `task.executionMode` 单独判断：旧数据可能根本没有该字段，
+ * 而卡片已按 quick 建了会话——实测「今日英伟达股价」就是这种情况，
+ * 按 executionMode 走交付提示词会让模型在只有检索工具时会话里空转一轮。
+ * 也不能用 `session/list`：它的 `projections` 常为空。查不到就回落到任务字段。
+ */
+async function sessionPresetOf(sessionId: string): Promise<string> {
+  try {
+    const values = await dshSession.projections(sessionId);
+    return typeof values.agentPreset === 'string' ? values.agentPreset : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 「继续执行」的话术与动作统一收口在 `tools/todo/utils/continueRun`（overlay 通知同源）。
+ * 这里只做转出，保持既有调用点（计划卡 / 外部触发）不变。
+ */
+import { buildContinuePrompt } from '@/tools/todo/utils/continueRun';
+export { buildContinuePrompt, continueTaskRun } from '@/tools/todo/utils/continueRun';
+
+/**
+ * 恢复一次工作台任务的执行（外部触发 / 重跑 / 看板「继续」）。
+ *
+ * 为什么不能复用 `useAgentDelegate`：那条链路按 `agent` 模块解析 cwd，工作台卡片
+ * 不属于任何项目，cwd 会落到默认工作区（甚至弹目录选择框），实机表现为
+ * 「`tasks/trigger` 返回 202，但没有任何新会话」。
+ *
+ * 语义与计划契约一致：计划存在 → 从第一个未勾选步骤继续；计划不存在 → 按 loop
+ * 契约先写计划并停机等确认，绝不代用户跳过批准闸口。
+ */
+export async function resumeTaskRun(task: TodoTask, workbenchTitle: string): Promise<string> {
+  // 先对齐执行模式：旧数据可能丢了 executionMode，但会话建的是 quick preset。
+  // 不补这一步，`prepareTaskWorkspace` 会把「交付 loop 契约」写进 AGENTS.local.md，
+  // 只有检索工具的快速会话每轮都会读到它，于是白转一轮问能不能写计划。
+  let resolved = task;
+  if (task.agentSessionId) {
+    const preset = await sessionPresetOf(task.agentSessionId);
+    const mode = preset === 'workbench-quick' ? 'quick' : preset ? 'delivery' : task.executionMode;
+    if (mode && mode !== task.executionMode) {
+      useTodoStore.getState().updateTask(task.id, { executionMode: mode });
+      resolved = { ...task, executionMode: mode };
+    }
+  }
+  const { sessionId } = await ensureTaskSession(resolved, workbenchTitle, null, null, {
+    allowTrunk: true,
+  });
+  const plan = await invoke<string | null>('todo_plan_get', { taskId: task.id }).catch(
+    () => null,
+  );
+  await dshSession.prompt(sessionId, buildContinuePrompt(resolved.executionMode, plan));
+  useTodoStore.getState().updateTask(task.id, { status: 'doing' });
+  return sessionId;
+}

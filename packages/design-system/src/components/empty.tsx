@@ -12,7 +12,7 @@ export interface EmptyProps {
   description?: ReactNode;
   /** 自定义图标；默认 BrandMark line muted */
   icon?: ReactNode;
-  /** 唯一主行动（朱砂合法落点之一） */
+  /** 唯一主行动（高亮笔合法落点之一） */
   action?: ReactNode;
   className?: string;
 }

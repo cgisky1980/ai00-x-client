@@ -14,11 +14,13 @@
  * （plugin_data_* 命令）自持，窗口只是宿主。
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { CalendarClock, FolderKanban, House, LayoutGrid, MessageSquare, PanelRight, PanelRightClose, PanelLeftClose, PanelLeftOpen, SquareKanban } from 'lucide-react';
+import { CalendarClock, FolderKanban, House, LayoutGrid, MessageSquare, PanelRight, PanelRightClose, SquareKanban } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useWorkbenches } from '@/infrastructure/plugins/workbenchRegistry';
 import {
+  WORKBENCH_FOCUS_TASK,
   WORKBENCH_OPEN_SESSION,
+  type WorkbenchFocusTaskIntent,
   type WorkbenchOpenSessionIntent,
 } from '@/infrastructure/plugins/workbenchSession';
 import {
@@ -33,12 +35,12 @@ import { TASKS_SCENE_ID } from './scenes/tasks/taskSession';
 import ProjectsScene, { PROJECTS_SCENE_ID } from './scenes/projects/ProjectsScene';
 import AutomationsScene, { AUTOMATIONS_SCENE_ID } from './scenes/automations/AutomationsScene';
 import { initTodoWindowSync } from '@/tools/todo/sync/todoWindowSync';
+import { useTodoStore } from '@/tools/todo/store/todoStore';
 import './WorkbenchWindowApp.scss';
 
 /** 窄窗口断点：低于它 AI 区以浮层形式出现（与样式表保持一致）。 */
 const NARROW_QUERY = '(max-width: 980px)';
 
-const RAIL_KEY = 'workbench.railCollapsed';
 const CHAT_KEY = 'workbench.chatVisible';
 
 function readFlag(key: string, fallback: boolean): boolean {
@@ -70,7 +72,6 @@ const WorkbenchWindowApp: React.FC = () => {
       return TASKS_SCENE_ID;
     }
   });
-  const [railCollapsed, setRailCollapsed] = useState(() => readFlag(RAIL_KEY, false));
   const [chatVisible, setChatVisible] = useState(() => readFlag(CHAT_KEY, true));
   const [narrow, setNarrow] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(NARROW_QUERY).matches,
@@ -79,6 +80,8 @@ const WorkbenchWindowApp: React.FC = () => {
   const [externalSession, setExternalSession] = useState<WorkbenchOpenSessionIntent | null>(null);
   /** 看板 →「任务」场景的任务交接（场景内 state，不走 windowBus）。 */
   const [taskFocus, setTaskFocus] = useState<string | null>(null);
+  /** 通知 →「项目」场景的任务交接（项目任务在上面那个场景里没有列表行）。 */
+  const [projectFocus, setProjectFocus] = useState<string | null>(null);
 
   /** 接收外部会话：直接展开 AI 区，不建会话、不改 cwd。 */
   const applyExternalSession = useCallback((intent: WorkbenchOpenSessionIntent | null): void => {
@@ -105,6 +108,41 @@ const WorkbenchWindowApp: React.FC = () => {
   }, [applyExternalSession]);
 
   const exitExternalSession = useCallback((): void => setExternalSession(null), []);
+
+  /**
+   * 「需要你」通知的入口（overlay → 本窗口）：切到任务场景并定位到那张卡。
+   * 与外部会话一样双时序收敛：启动时取 pending，之后走广播。
+   * 顺手清掉 pending，避免本窗口关闭后在 TTL 内重开被同一条再次定位。
+   */
+  useEffect(() => {
+    const applyFocus = (taskId: string | undefined): void => {
+      if (!taskId) return;
+      setExternalSession(null);
+      // 项目任务在「任务」场景没有列表行，交给「项目」场景打开所属项目的会话；
+      // 任务列表可能尚未读盘，这里先确保加载再判定（失败就按默认工作区处理）。
+      void (async () => {
+        const store = useTodoStore.getState();
+        if (!store.loaded) await store.load().catch(() => undefined);
+        const task = useTodoStore.getState().data.tasks.find((item) => item.id === taskId);
+        if (task?.projectId) {
+          setTaskFocus(null);
+          setProjectFocus(taskId);
+          setActiveId(PROJECTS_SCENE_ID);
+          return;
+        }
+        setProjectFocus(null);
+        setTaskFocus(taskId);
+        setActiveId(TASKS_SCENE_ID);
+      })();
+    };
+    const pending = takePendingIntents<WorkbenchFocusTaskIntent>(WORKBENCH_FOCUS_TASK);
+    if (pending[0]?.taskId) applyFocus(pending[0].taskId);
+    return subscribeWindowMessage((message) => {
+      if (message.type !== WORKBENCH_FOCUS_TASK) return;
+      applyFocus((message.payload as WorkbenchFocusTaskIntent | undefined)?.taskId);
+      takePendingIntents<WorkbenchFocusTaskIntent>(WORKBENCH_FOCUS_TASK);
+    });
+  }, []);
 
   // 工作台窗口持有工作台任务（看板/任务场景）：订阅策的跨窗口数据广播，
   // 别处（如插件工作台会话补登的任务卡、设置窗口）写入后这里能即时对齐。
@@ -151,13 +189,6 @@ const WorkbenchWindowApp: React.FC = () => {
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  const toggleRail = useCallback((): void => {
-    setRailCollapsed(prev => {
-      writeFlag(RAIL_KEY, !prev);
-      return !prev;
-    });
-  }, []);
-
   const toggleChat = useCallback((): void => {
     setChatVisible(prev => {
       writeFlag(CHAT_KEY, !prev);
@@ -180,7 +211,7 @@ const WorkbenchWindowApp: React.FC = () => {
 
   return (
     <div
-      className={`ai00-x-workbench-window${railCollapsed ? ' is-rail-collapsed' : ''}${
+      className={`ai00-x-workbench-window${
         activeEntry && chatVisible ? ' is-chat-visible' : ''
       }`}
     >
@@ -189,23 +220,6 @@ const WorkbenchWindowApp: React.FC = () => {
           <span className="ai00-x-workbench-window__rail-title">
             {t('nav.sections.workbench')}
           </span>
-          <button
-            type="button"
-            className="ai00-x-workbench-window__rail-toggle"
-            onClick={toggleRail}
-            aria-label={
-              railCollapsed
-                ? t('nav.workbenchWindow.expandRail')
-                : t('nav.workbenchWindow.collapseRail')
-            }
-            title={
-              railCollapsed
-                ? t('nav.workbenchWindow.expandRail')
-                : t('nav.workbenchWindow.collapseRail')
-            }
-          >
-            {railCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
-          </button>
         </div>
         <div className="ai00-x-workbench-window__items">
           <button
@@ -316,7 +330,10 @@ const WorkbenchWindowApp: React.FC = () => {
 
       <main className="ai00-x-workbench-window__stage">
         {activeId === PROJECTS_SCENE_ID ? (
-          <ProjectsScene />
+          <ProjectsScene
+            focusTaskId={projectFocus}
+            onFocusHandled={() => setProjectFocus(null)}
+          />
         ) : activeId === AUTOMATIONS_SCENE_ID ? (
           <AutomationsScene />
         ) : activeId === TASKS_SCENE_ID ? (

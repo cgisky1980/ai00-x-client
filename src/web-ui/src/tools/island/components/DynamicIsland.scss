@@ -33,15 +33,12 @@
   cursor: pointer;
   user-select: none;
 
-  // 固定松烟墨暗色（悬浮岛不随明暗主题切换，同 iOS 灵动岛）；
-  // 公式取自 design-system tokens.css :root 暗档——hue-ink/chroma-surface 为
-  // 主题不变 primitive，亮色主题下本作用域仍解析为暗墨值。
-  // accent 交互色仍跟随全局主题。
-  --color-bg-primary: oklch(0.27 calc(var(--chroma-surface, 0.012) * 0.5) var(--hue-ink, 240));
-  --color-bg-elevated: oklch(0.45 calc(var(--chroma-surface, 0.012) * 0.85) var(--hue-ink, 240));
-  --color-text-primary: oklch(0.92 calc(var(--chroma-surface, 0.012) * 0.33) var(--hue-ink, 240));
-  --color-text-secondary: oklch(0.78 calc(var(--chroma-surface, 0.012) * 0.25) var(--hue-ink, 240));
-  --color-text-muted: oklch(0.64 calc(var(--chroma-surface, 0.012) * 0.06) var(--hue-ink, 240));
+  // 悬浮岛固定暗色（不随明暗切换，同 iOS 灵动岛）：中性墨黑 + 白字；交互色仍跟随皮肤。
+  --color-bg-primary: oklch(0.18 0 0);
+  --color-bg-elevated: oklch(0.32 0 0);
+  --color-text-primary: oklch(0.96 0 0);
+  --color-text-secondary: oklch(0.82 0 0);
+  --color-text-muted: oklch(0.66 0 0);
 
   // Base pill shape — bg-primary (deep ink 0.27) at 96% keeps text/buttons
   // legible over bright wallpapers; the previous bg-elevated(0.45) 92% let

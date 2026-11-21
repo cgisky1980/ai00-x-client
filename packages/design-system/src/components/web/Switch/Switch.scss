@@ -3,7 +3,7 @@
  */
 
 /* 暗色修正：选中轨道 accent-100/200 亮底 × text-muted 亮字对比不足——
-   反转为黛青透底（轨道亮青、滑块墨色，antd 暗色范式） */
+   反转为交互色透底（轨道亮青、滑块墨色，antd 暗色范式） */
 [data-theme-type='dark'] .ai00-x-switch__track--checked,
 html:not([data-theme-type='light']) .ai00-x-switch__track--checked {
   background: color-mix(in srgb, var(--color-accent-500) 45%, transparent);

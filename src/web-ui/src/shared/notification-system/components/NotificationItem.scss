@@ -16,6 +16,21 @@
   animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: $font-family-sans;
 
+  // 只有一个主动作的通知：整张卡可点（点哪儿都走「去查看 / 去批准 / 去验收」）。
+  &.is-clickable {
+    cursor: pointer;
+    transition: border-color var(--motion-fast) var(--easing-standard);
+
+    &:hover {
+      border-color: var(--border-medium);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent);
+      outline-offset: 2px;
+    }
+  }
+
   
   &--success {
     
@@ -118,7 +133,7 @@
 
     &--primary {
       background: var(--color-accent-600);
-      color: var(--color-text-primary);
+      color: var(--color-accent-foreground);
 
       &:hover {
         background: var(--color-accent-500);
@@ -145,7 +160,7 @@
 
     &--danger {
       background: var(--color-error);
-      color: var(--color-text-primary);
+      color: var(--color-accent-foreground);
 
       &:hover {
         background: $git-color-deleted;

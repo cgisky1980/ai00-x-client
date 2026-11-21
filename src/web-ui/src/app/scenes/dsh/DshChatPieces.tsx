@@ -214,6 +214,14 @@ function describeChatError(raw: string): ChatErrorDescription | null {
   if (/HTTP 401|unauthorized|invalid internal token/i.test(text)) return { key: 'authExpired' };
   if (/quota|insufficient_quota|额度不足|余额不足/i.test(text)) return { key: 'quota' };
   if (/fetch failed|ECONNREFUSED|network error/i.test(text)) return { key: 'network' };
+  // 上游响应被截断/解码失败（网关透传的 reqwest 原文，实测一条中文都读不出来）
+  if (
+    /error decoding response body|upstream stream (interrupted|error)|upstream request failed|upstream returned empty body|upstream 50[234]/i.test(
+      text,
+    )
+  ) {
+    return { key: 'upstreamBroken' };
+  }
   return null;
 }
 

@@ -1,20 +1,35 @@
 /**
- * TaskBoardScene — 工作台任务五态总览；详情与验收复用 TaskDetail。
+ * TaskBoardScene — 工作台任务看板：三阶段（计划 / 执行 / 审核）+ 完成，规范 §9.2。
+ * 详情与验收复用 TaskDetail。
  * 只列 origin='workbench'，与策任务展示/归属保持隔离。
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { TodoTask } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
-import { TASK_PHASES, taskPhase, type TaskPhase } from './taskPhase';
+import { taskPhase, type TaskPhase } from './taskPhase';
 import TaskDetail from './TaskDetail';
 import { TaskActionsMenu } from './TaskActionsMenu';
 import { useTaskPlans } from './useTaskPlans';
 import { useSessionRunningSync } from './useSessionRunningSync';
 import { useWorkbenchTaskStore } from './workbenchTaskStore';
-import { WorkbenchStageDots } from '../workbench/WorkbenchStageBar';
+import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
+import {
+  WORKBENCH_STAGE_KEYS,
+  needsYou,
+  stageKeyOf,
+  type WorkbenchStageKey,
+} from '../workbench/workbenchStage';
 import './TaskBoardScene.scss';
+
+/** 列头圆点用的代表技术状态（只决定三点哪一段亮）。 */
+const COLUMN_PHASE: Record<WorkbenchStageKey, TaskPhase> = {
+  plan: 'planning',
+  execute: 'running',
+  review: 'awaiting',
+  done: 'done',
+};
 
 /** 看板场景在 rail 中的保留 id。 */
 export const BOARD_SCENE_ID = '@board';
@@ -59,23 +74,39 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
     if (!loaded) void load();
   }, [loaded, load]);
 
+  const phaseOf = useCallback(
+    (task: TodoTask): TaskPhase =>
+      taskPhase(
+        task,
+        plans[task.id] ?? null,
+        task.agentSessionId ? runtime[task.agentSessionId] : undefined,
+      ),
+    [plans, runtime],
+  );
+
   const grouped = useMemo(() => {
-    const map: Record<TaskPhase, TodoTask[]> = {
-      planning: [],
-      approving: [],
-      running: [],
-      stopped: [],
-      awaiting: [],
+    const map: Record<WorkbenchStageKey, TodoTask[]> = {
+      plan: [],
+      execute: [],
+      review: [],
       done: [],
-      failed: [],
     };
-    for (const task of tasks) {
-      const state = task.agentSessionId ? runtime[task.agentSessionId] : undefined;
-      map[taskPhase(task, plans[task.id] ?? null, state)].push(task);
-    }
+    for (const task of tasks) map[stageKeyOf(phaseOf(task))].push(task);
     map.done = map.done.slice(0, 20);
+    // 列内排序与任务列表同一口径：需要你 → 失败 → 其余，组内仍按新→旧
+    // （tasks 已按 createdAt 倒序，稳定排序保序）。
+    const rankOf = (task: TodoTask): number => {
+      const phase = phaseOf(task);
+      if (needsYou(phase, Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking))) {
+        return 0;
+      }
+      return phase === 'failed' ? 1 : 2;
+    };
+    for (const key of WORKBENCH_STAGE_KEYS) {
+      map[key] = [...map[key]].sort((a, b) => rankOf(a) - rankOf(b));
+    }
     return map;
-  }, [tasks, plans, runtime]);
+  }, [tasks, phaseOf, runtime]);
 
   const selected = tasks.find((task) => task.id === selectedId) ?? null;
 
@@ -90,10 +121,22 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
         onClick={() => setSelectedId(task.id)}
       >
         <span className="ai00-x-task-board__card-title">{task.title}</span>
-        {md && md.trim() && (
+        <WorkbenchStatusTag
+          phase={phaseOf(task)}
+          asking={Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking)}
+          hideStage
+        />
+        {task.executionMode === 'quick' ? (
           <span className="ai00-x-task-board__card-meta">
-            {t('nav.workbenchWindow.board.hasPlan')}
+            {t('nav.workbenchWindow.tasks.modeQuick')}
           </span>
+        ) : (
+          md &&
+          md.trim() && (
+            <span className="ai00-x-task-board__card-meta">
+              {t('nav.workbenchWindow.board.hasPlan')}
+            </span>
+          )
         )}
         {task.projectId && (
           <span className="ai00-x-task-board__card-source">
@@ -122,18 +165,18 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
       )}
       <div className="ai00-x-task-board__body">
       <div className="ai00-x-task-board__columns">
-        {TASK_PHASES.map((phase) => (
-          <section key={phase} className="ai00-x-task-board__column">
+        {WORKBENCH_STAGE_KEYS.map((stage) => (
+          <section key={stage} className="ai00-x-task-board__column">
             <header className="ai00-x-task-board__column-head">
-              <WorkbenchStageDots phase={phase} />
+              <WorkbenchStageDots phase={COLUMN_PHASE[stage]} />
               <span className="ai00-x-task-board__column-label">
-                {t(`nav.workbenchWindow.board.phases.${phase}`)}
+                {t(`nav.workbenchWindow.stages.${stage}`)}
               </span>
-              <span className="ai00-x-task-board__count">{grouped[phase].length}</span>
+              <span className="ai00-x-task-board__count">{grouped[stage].length}</span>
             </header>
             <div className="ai00-x-task-board__cards">
-              {grouped[phase].map(renderCard)}
-              {grouped[phase].length === 0 && (
+              {grouped[stage].map(renderCard)}
+              {grouped[stage].length === 0 && (
                 <p className="ai00-x-task-board__column-empty">
                   {t('nav.workbenchWindow.board.columnEmpty')}
                 </p>

@@ -17,7 +17,7 @@
  * - ai00_plan_write    — 写卡片计划文档 MD（策窗口热刷新可见）
  * - ai00_web_extract   — web 有效信息提取（全本地闭环：搜索→并发抓取→本地并发筛选）
  * - ai00_text_summarize— 长文总结（全本地闭环：≤6000 单次 / >6000 map-reduce 并发）
- * - ai00_search        — 搜索兜底（自建 SearXNG s.ai00-x.com，web_search 不可用/空结果时用）
+ * - ai00_research_collect — 一次调用完成「多查询检索 → 抓取 → 筛选 → 落盘来源汇编」
  *
  * 本插件只做协议薄壳：业务逻辑在宿主侧（D7 决策）。
  * 不 import @deepseek-ai/dsh-tools（pnpm 严格解析下不可达），用原始
@@ -32,11 +32,11 @@
 
 import { exec, execFile } from "node:child_process";
 import { statSync } from "node:fs";
-import { stat, readFile } from "node:fs/promises";
+import { stat, readFile, readdir } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 
 const name = "ai00-x-tools";
-const inject = ["tools"];
+const inject = ["tools", "workingDirectory"];
 
 /** 插件标识（npm 包名；宿主内部 API 按此头做 per-plugin scope 授权）。 */
 const PLUGIN_ID = "@ai00-x/dsh-tools";
@@ -99,13 +99,128 @@ function parseDeliverables(markdown) {
   for (const line of lines) {
     const item = /^\s*(?:[-*+]|\d+\.)\s+(.+)$/.exec(line);
     if (!item) continue;
-    const token = item[1]
-      .replace(/`/g, "")
-      .trim()
-      .split(/\s+/)[0]
-      .replace(/[，。；、,;:：)）】」>]+$/g, "");
-    if (!/[\w.-]+\.[A-Za-z0-9]{1,8}$/.test(token)) continue;
-    if (!out.includes(token)) out.push(token);
+    // 只取条目开头的文件名：中文计划常写成「`report.md`：调研主报告（…）」，
+    // 按空白切词会连说明一起拿到，文件名判不出来。
+    const match = /^([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,8})/.exec(
+      item[1].replace(/`/g, "").trim()
+    );
+    if (!match) continue;
+    const name = match[1].replace(/^\.\//, "");
+    if (!out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
+/**
+ * `## Deliverables` 里承诺、但 `## Steps` 段**从未提及**的文件名。
+ *
+ * 2026-11-21 实测：模型写单步计划（Scope: brief.md）时，把上一份调研任务的
+ * `report.md` 一并抄进 Deliverables。这份「幽灵交付物」永远不存在，
+ * `ai00_task_verify` 的整体验收会因此恒判 `failed`，任务走进死胡同。
+ * 这里在写计划时就把不自洽的承诺拦下来（Steps 里提到即视为有意产出）。
+ */
+export function ghostDeliverables(markdown) {
+  const deliverables = parseDeliverables(markdown);
+  if (!deliverables.length) return [];
+  const stepsText = (sectionLines(markdown, /^##\s*(步骤|Steps?)/i) ?? [])
+    .join("\n")
+    .replace(/`/g, "");
+  if (!stepsText.trim()) return deliverables;
+  return deliverables.filter((name) => {
+    if (stepsText.includes(name)) return false;
+    const base = name.split("/").pop();
+    return base ? !stepsText.includes(base) : true;
+  });
+}
+
+/** 可能被当作「人读交付物」检查编码污染的文本扩展名（二进制一律跳过）。 */
+const TEXT_DELIVERABLE_EXT =
+  /\.(md|markdown|txt|json|jsonl|csv|tsv|html?|css|scss|js|mjs|cjs|ts|tsx|jsx|py|rs|go|java|c|h|cpp|yaml|yml|toml|ini|tex|sql|sh|ps1|log)$/i;
+
+/**
+ * 交付物里出现 U+FFFD（替换符）的文件名 = 编码损坏。
+ *
+ * 2026-11-21 实测：编排者写 brief 时正文里带进了两个替换符，云端 worker 照抄，
+ * `brief.md` 里出现「人工在任��面板点击批准」；验收命令只查标题存在，判 passed，
+ * 最后靠编排者自己读文件才发现，又花两次派工修正。这类损坏不靠人眼很难发现，
+ * 所以放进交付物门禁直接拦。
+ */
+export async function corruptDeliverables(cwd, names) {
+  const out = [];
+  for (const name of names) {
+    if (!TEXT_DELIVERABLE_EXT.test(name)) continue;
+    const target = isAbsolute(name) || !cwd ? name : resolve(cwd, name);
+    const text = await readFile(target, "utf8").catch(() => null);
+    if (text == null) continue; // 不存在/非 UTF-8：交给「缺失」那条判定
+    if (text.includes("\uFFFD")) out.push(name);
+  }
+  return out;
+}
+
+/**
+ * 「只量长度」的验收命令（`t.length < 4000`、`test -s f`、`statSync(f).size`…）。
+ *
+ * loop 契约要求验收断言**内容**（章节/表格/引用），但没有任何机制拦住
+ * 「if (t.length < 4000) exit 1」这类弱判据：填充文本就能过，而真正的问题
+ * （缺章节、文件名错、乱码）全被放过。这里在写计划时把这类条目挑出来。
+ *
+ * 判定：命令里出现长度/体积比较，且没有任何内容信号（includes/match/grep…）。
+ * `test -f`（存在性）不算——它常与内容断言并列，且对非文档产物是合理判据。
+ */
+const LENGTH_ONLY_CMD =
+  /(\.length\b|byteLength|statSync\([^)]*\)\s*\.\s*size|\.size\b|\btest\s+-s\b|wc\s+-c)/;
+const CONTENT_SIGNAL_CMD =
+  /(includes\(|\.match\(|\.test\(|indexOf\(|\bgrep\b|\bfindstr\b|Select-String|\brg\b|contains\(|\bassert\b)/i;
+
+/** 计划里所有「只量长度」的验收条目（含步骤级 `Acceptance:` 与 `## 验收`）。 */
+export function weakAcceptance(markdown) {
+  const out = [];
+  let section = "";
+  for (const line of String(markdown ?? "").split("\n")) {
+    if (/^##\s/.test(line)) {
+      section = line.replace(/^##\s*/, "").trim();
+      continue;
+    }
+    const item = /^\s*-\s+\[[ xX]\]\s+(.*)$/.exec(line);
+    const stepProp = /^\s*-\s*(?:Acceptance|验收)\s*[:：]\s*(.*)$/i.exec(line);
+    const text = item ? item[1] : stepProp ? stepProp[1] : "";
+    if (!text) continue;
+    const cmd = extractCmd(text);
+    if (!cmd) continue;
+    if (!LENGTH_ONLY_CMD.test(cmd)) continue;
+    if (CONTENT_SIGNAL_CMD.test(cmd)) continue;
+    out.push({ where: item ? section || "## Acceptance" : "step", text: text.trim(), cmd });
+  }
+  return out;
+}
+
+/**
+ * 计划里写了 `{cmd: …}` 但**实际不会被执行的**验收条目。
+ *
+ * `extractCmd` 有几道护栏（>500 字符、含反引号、含 `$(`），超了就不当命令，
+ * 静默降级成「人工判据」——2026-11-21 实测：一份 600 字符的 node 校验命令
+ * 就这样从没跑过，步骤永远停在 needs-review，而计划表面看起来「有命令」。
+ * 写计划时就拦掉，让模型改用短命令或把逻辑挪进 Scope 里的脚本。
+ */
+export function unrunnableCmds(markdown) {
+  const out = [];
+  let section = "";
+  for (const line of String(markdown ?? "").split("\n")) {
+    if (/^##\s/.test(line)) {
+      section = line.replace(/^##\s*/, "").trim();
+      continue;
+    }
+    const item = /^\s*-\s+\[[ xX]\]\s+(.*)$/.exec(line);
+    const stepProp = /^\s*-\s*(?:Acceptance|验收)\s*[:：]\s*(.*)$/i.exec(line);
+    const text = item ? item[1] : stepProp ? stepProp[1] : "";
+    if (!text || !/\{cmd:/.test(text)) continue;
+    if (extractCmd(text)) continue;
+    const inner = /\{cmd:\s*(.+?)\}\s*$/.exec(text);
+    out.push({
+      where: item ? section || "## Acceptance" : "step",
+      text: text.trim(),
+      len: inner ? inner[1].trim().length : 0,
+    });
   }
   return out;
 }
@@ -129,6 +244,42 @@ function usableEvidence(block) {
   if (!match) return { ok: false, verdict: "" };
   const verdict = match[2].toLowerCase();
   return { ok: verdict === "passed" || verdict === "needs-review", verdict };
+}
+
+/**
+ * 把某步的 `- [ ] T1 …` 勾成 `- [x] …`（只用于已拿到 passed 证据的步骤）。
+ *
+ * 返回 null = 没找到该步的未勾选行（或它已经是 [x]）——调用方按「没勾上」处理。
+ */
+function tickStepLine(markdown, stepId) {
+  const escaped = String(stepId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^(\\s*-\\s+)\\[ \\]\\s+(${escaped}(?:\\s|$))`);
+  const lines = String(markdown ?? "").split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    if (re.test(lines[i])) {
+      lines[i] = lines[i].replace("[ ]", "[x]");
+      return lines.join("\n");
+    }
+  }
+  return null;
+}
+
+/**
+ * 两份计划的差异是否只在「勾选状态 / 验证证据行」。
+ *
+ * 这种重写没有任何结构变化，却要重发整篇（计划通常 2–3k 字）。命中就拒绝，
+ * 让模型改用 ai00_plan_check（几十 token）。
+ */
+function isStatusOnlyRewrite(prev, next) {
+  const norm = (md) =>
+    String(md ?? "")
+      .split("\n")
+      .map((line) => line.replace(/^(\s*-\s*)\[[ xX]\]/, "$1[ ]"))
+      .filter((line) => !/^\s*-\s*(验证|证据|verification)\s*[:：]/i.test(line))
+      .map((line) => line.replace(/\s+$/, ""))
+      .join("\n")
+      .trim();
+  return norm(prev) === norm(next);
 }
 
 /** 步骤 id → 是否已勾选（用于比较重写前后的勾选变化）。 */
@@ -223,10 +374,11 @@ const text = (s) => [{ type: "text", text: String(s) }];
 
 /**
  * 解析计划 MD「## 验收」段的 `- [ ]`/`- [x]` 勾选态（与策窗口
- * utils/planAcceptance.ts 同口径）。返回 {total, done, unchecked[]}。
+ * utils/planAcceptance.ts 同口径）。返回 {total, done, unchecked[], items[]}；
+ * items = 全部条目（集成验收要连已勾选的一起重跑）。
  */
 function parseAcceptance(markdown) {
-  const result = { total: 0, done: 0, unchecked: [] };
+  const result = { total: 0, done: 0, unchecked: [], items: [] };
   if (typeof markdown !== "string" || !markdown) return result;
   let inSection = false;
   for (const line of markdown.split("\n")) {
@@ -237,9 +389,11 @@ function parseAcceptance(markdown) {
     if (!inSection) continue;
     const m = line.match(/^\s*-\s+\[([ xX])\]\s+(.*)$/);
     if (m) {
+      const text = m[2].trim();
       result.total += 1;
+      result.items.push(text);
       if (m[1].toLowerCase() === "x") result.done += 1;
-      else result.unchecked.push(m[2].trim());
+      else result.unchecked.push(text);
     }
   }
   return result;
@@ -482,6 +636,58 @@ function parsePlanSteps(markdown) {
 }
 
 /**
+ * DoD 签名：人当初批准的那份契约——目标 + 步骤清单（编号 / 标题 / 验收）+ 全局验收条目。
+ *
+ * 刻意不含勾选态、验证/证据/状态/打回行，也不含范围 / 实施细则 / 风险 / 依赖：
+ * 那些是执行细节，改它们不该逼人重新批一遍计划。反之，改「验什么」必须重新待批，
+ * 否则 agent 只要把判据改得容易过，就能在不改交付物的情况下过验收（实测发生过：
+ * 被打回后把「语义与契约一致」改写成「正文恰有 3 个句号」）。
+ */
+export function dodSignature(markdown) {
+  if (typeof markdown !== "string" || !markdown.trim()) return "";
+  const goal = (sectionLines(markdown, /^##\s*(目标|Goal)/i) ?? [])
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const steps = parsePlanSteps(markdown).map((step) => ({
+    id: step.id,
+    title: step.title.replace(/\s+/g, " "),
+    acceptance: step.acceptance.map((a) => a.text.replace(/\s+/g, " ")),
+  }));
+  const acceptance = parseAcceptance(markdown).items.map((t) => t.replace(/\s+/g, " "));
+  return JSON.stringify({ goal, steps, acceptance });
+}
+
+/**
+ * 写入/替换计划里的「## 验证记录」段（集成验收摘要）。
+ *
+ * 集成验收的结论原本只活在这一次工具返回里：模型看得到，**人看不到**——
+ * 验收卡只展示步骤与验收勾选。把结论落进计划文档，验收人打开卡片就能看到
+ * 「交付物齐 / 有计划外文件 / 有复核记录 / 有编码损坏」，也不必依赖聊天记录。
+ */
+export function upsertVerifyRecord(markdown, items) {
+  const md = String(markdown ?? "");
+  if (!items?.length) return md;
+  const block = ["## 验证记录", ...items.map((t) => `- ${t}`)];
+  const src = md.split("\n");
+  let start = -1;
+  let end = src.length;
+  for (let i = 0; i < src.length; i++) {
+    if (!/^##\s/.test(src[i])) continue;
+    if (start >= 0) {
+      end = i;
+      break;
+    }
+    if (/^##\s*(验证记录|Verify log)/i.test(src[i])) start = i;
+  }
+  const out =
+    start < 0
+      ? [...src, ...(src[src.length - 1]?.trim() ? [""] : []), ...block]
+      : [...src.slice(0, start), ...block, "", ...src.slice(end)];
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+/**
  * 把「验证 / 证据」两行写回指定步骤块（展示层的事实来源）。
  *
  * 只做行级 upsert：已有则替换，没有则插到该步骤块最后一条子行之后；
@@ -661,9 +867,22 @@ function submitSelfCheckInData(data, taskId, deliverables) {
   if (task.completedAt) {
     throw new Error(`task already completed (human-accepted): ${task.title}`);
   }
-  // 幂等：已提交过自检 → 再次调用直接成功（不重复写时间戳）
+  // 幂等：已提交过自检 → 不重复写时间戳，但允许**补登记交付物**。
+  // 实测：模型首次用相对路径提交，面板没有产物链接；人类让它用绝对路径再提一次时，
+  // 旧实现对新增路径静默丢弃（"0 deliverables registered"），产物始终挂不上。
   if (task.agentCompletedAt) {
-    return { data, task, already: true };
+    const incoming = Array.isArray(deliverables) ? deliverables.map(String).filter(Boolean) : [];
+    const before = Array.isArray(task.deliverables) ? task.deliverables : [];
+    const merged = [...new Set([...before, ...incoming])].slice(0, 20);
+    const added = merged.filter((p) => !before.includes(p));
+    const nextTasks = [...tasks];
+    nextTasks[index] = added.length ? { ...task, deliverables: merged } : task;
+    return {
+      data: { ...data, tasks: nextTasks },
+      task: nextTasks[index],
+      already: true,
+      added,
+    };
   }
   const now = Date.now();
   const nextTasks = [...tasks];
@@ -949,7 +1168,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_verify",
     description:
-      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Also returns planPending (unticked step ids + acceptance lines) so you can tick with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
+      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. When the global '## 验收' section has no executable `{cmd:}` checks, integration verify re-runs every step's acceptance command as regression (up to 8) and reports `regression` — plain-text acceptance items are left to the human reviewer and no longer downgrade the verdict by themselves. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Passing verdict + `tick: true` also ticks that step in the same call (one round trip instead of verify + plan_check). Integration verify (no stepId) also checks that every file promised in the plan's '## Deliverables' exists and returns failed when one is missing — a worker writing `report.part1.md` instead of `report.md` can no longer pass. A stepId verify also reports `scopeMissing` (step Scope files that do not exist) and downgrades to needs-review. Also returns planPending (unticked step ids + acceptance lines) so you can tick acceptance lines with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
     parameters: {
       type: "object",
       properties: {
@@ -971,6 +1190,11 @@ function defineTools(ctx, api) {
           type: "boolean",
           description: "Include a truncated diff. Pass true for strict mode, high-risk steps and cloud fallback.",
         },
+        tick: {
+          type: "boolean",
+          description:
+            "When the verdict is passed and stepId is given, also tick that step's checkbox in the same call (saves one ai00_plan_check round trip). Ignored for failed/needs-review.",
+        },
       },
       required: ["taskId"],
       additionalProperties: false,
@@ -982,6 +1206,7 @@ function defineTools(ctx, api) {
           taskId: { type: "string" },
           stepId: { type: "string" },
           verdict: { type: "string" },
+          ticked: { type: "boolean" },
           reviewRequired: { type: "boolean" },
           risk: { type: "string" },
           reviewMode: { type: "string" },
@@ -998,7 +1223,64 @@ function defineTools(ctx, api) {
             },
           },
           manualItems: { type: "array", items: { type: "string" } },
+          regression: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                step: { type: "string" },
+                cmd: { type: "string" },
+                ok: { type: "boolean" },
+              },
+              required: ["step", "cmd", "ok"],
+            },
+            description:
+              "Integration verify only: step acceptance commands re-run as regression when the global '## 验收' section has no executable checks. A failing regression downgrades the verdict to needs-review.",
+          },
+          unrunnable: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Acceptance items written with {cmd: …} whose command could not run (longer than 500 chars, backticks, or not whitelisted). They were NOT executed — the plan needs a shorter command or a checker script.",
+          },
           changedFiles: { type: "array", items: { type: "string" } },
+          scopeMissing: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Files listed in this step's Scope that do not exist after the run (downgrades the verdict to needs-review).",
+          },
+          deliverables: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                exists: { type: "boolean" },
+              },
+              required: ["name", "exists"],
+            },
+            description:
+              "Promised files from the plan's '## Deliverables' and whether each exists in snapshotDir (integration verify fails when one is missing).",
+          },
+          extras: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Integration verify only: files in the working directory that no step Scope and no Deliverable mentions (worker scratch files). Informational — list them to the user or ask for cleanup.",
+          },
+          reviewNotes: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Integration verify only: review records in the working directory (review*.md). Expected when a review_worker ran — keep them, do not treat them as scratch.",
+          },
+          corrupt: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Integration verify only: text deliverables containing U+FFFD replacement characters (encoding damage). Fails the verdict — rewrite those files clean.",
+          },
           planPending: {
             type: "object",
             properties: {
@@ -1025,7 +1307,7 @@ function defineTools(ctx, api) {
       },
       render: (_args, value) => {
         const lines = [
-          `verdict: ${value.verdict} (${value.stepId || "integration"}; risk=${value.risk || "-"}; review=${value.reviewMode || "-"}; reviewRequired=${value.reviewRequired})`,
+          `verdict: ${value.verdict} (${value.stepId || "integration"}; risk=${value.risk || "-"}; review=${value.reviewMode || "-"}; reviewRequired=${value.reviewRequired})${value.ticked ? " [step ticked]" : ""}`,
         ];
         for (const c of value.commands ?? []) {
           lines.push(`${c.ok ? "✓" : "✗"} ${c.cmd}${c.ok ? "" : `\n  ${(c.output || "").slice(0, 1200)}`}`);
@@ -1033,8 +1315,46 @@ function defineTools(ctx, api) {
         if ((value.manualItems ?? []).length) {
           lines.push(`manual: ${value.manualItems.join(" | ")}`);
         }
+        if ((value.regression ?? []).length) {
+          const bad = value.regression.filter((r) => !r.ok).length;
+          lines.push(
+            `step command regression: ${value.regression.length - bad}/${value.regression.length} passed${bad ? " — re-check those steps before submitting the self-check" : ""}`
+          );
+        }
+        if ((value.unrunnable ?? []).length) {
+          lines.push(
+            `acceptance commands that cannot run (too long / backticks / not whitelisted — they were NOT executed): ${value.unrunnable
+              .map((t) => `"${t.slice(0, 80)}"`)
+              .join(" | ")} — shorten them (≤500 ASCII chars) or move the logic into a checker script, then re-run verify`
+          );
+        }
         if ((value.changedFiles ?? []).length) {
           lines.push(`changed: ${value.changedFiles.slice(0, 40).join(", ")}`);
+        }
+        if ((value.scopeMissing ?? []).length) {
+          lines.push(`scope missing: ${value.scopeMissing.join(", ")} — check the worker's file names`);
+        }
+        if ((value.extras ?? []).length) {
+          lines.push(
+            `files outside plan scope: ${value.extras.join(", ")} — worker scratch; mention them to the user (delete or add to the plan)`
+          );
+        }
+        if ((value.reviewNotes ?? []).length) {
+          lines.push(
+            `review record: ${value.reviewNotes.join(", ")} — expected output of review_worker; keep it (list it under Deliverables if the user should see it)`
+          );
+        }
+        if ((value.deliverables ?? []).length) {
+          lines.push(
+            `deliverables: ${value.deliverables
+              .map((d) => `${d.name}${d.exists ? " ✓" : " ✗ MISSING"}`)
+              .join(", ")}`
+          );
+        }
+        if ((value.corrupt ?? []).length) {
+          lines.push(
+            `corrupted text (U+FFFD): ${value.corrupt.join(", ")} — rewrite these files clean; do not tick`
+          );
         }
         if (value.planPending) {
           const pendingSteps = value.planPending.steps ?? [];
@@ -1048,7 +1368,7 @@ function defineTools(ctx, api) {
             lines.push(`pending acceptance: ${pendingAcceptance.join(" | ")}`);
           }
           lines.push(
-            "tick with ai00_plan_check (match = step id) — do not re-read the plan just to update it"
+            "tick with ai00_plan_check: one call per step (match = step id), but pass several acceptance fragments as {matches: [...]} in a SINGLE call — do not re-read the plan just to update it"
           );
         }
         if (value.diff) lines.push(`diff${value.diffTruncated ? " (truncated)" : ""}:\n${value.diff}`);
@@ -1075,21 +1395,30 @@ function defineTools(ctx, api) {
         throw new Error(`plan step not found: ${stepId}`);
       }
 
-      // 验收来源：指定步骤 → 该步骤验收；否则全局「## 验收」
+      // 验收来源：指定步骤 → 该步骤验收；否则全局「## 验收」**全部条目**。
+      // 集成验收曾经只取未勾选项——模型按流程先勾选再验，这时条目为空，
+      // 结论恒为 needs-review（实测每条任务都这样），等于把信号作废。
       const acceptance = step
         ? step.acceptance
-        : parseAcceptance(markdown).unchecked.map((item) => ({ text: item, cmd: extractCmd(item) }));
+        : parseAcceptance(markdown).items.map((item) => ({
+            text: item,
+            cmd: extractCmd(item),
+          }));
       const risk = step?.risk ?? "medium";
       const reviewRequired =
         policy.review === "strict" || risk === "high" || acceptance.length === 0;
 
       const commands = [];
       const manualItems = [];
+      // 写了 `{cmd:}` 却跑不起来的条目（超长/含反引号/非白名单）：单独点名，
+      // 否则它们混在 manual 里，看起来像「人工判据」而不是计划缺陷。
+      const unrunnable = [];
       let failed = false;
       for (const item of acceptance) {
         const cmd = item.cmd;
         if (!cmd) {
-          manualItems.push(item.text);
+          if (/\{cmd:/.test(item.text)) unrunnable.push(item.text);
+          else manualItems.push(item.text);
           continue;
         }
         // test -f/-d/-e 与 [ -f … ] 走内置 fs 判定（不在命令白名单里，但语义确定）
@@ -1100,17 +1429,138 @@ function defineTools(ctx, api) {
           continue;
         }
         if (!isCmdAllowed(cmd)) {
-          manualItems.push(item.text);
+          unrunnable.push(item.text);
           continue;
         }
         const verdict = await runVerification(cmd, cwd || undefined, exec.signal);
         commands.push({ cmd, ok: verdict.ok, output: verdict.output });
         if (!verdict.ok) failed = true;
       }
+      if (unrunnable.length) {
+        ctx.logger.warn(`ai00-x-tools: acceptance commands not runnable: ${unrunnable.length}`);
+      }
+
+      // 集成验收的「## 验收」常常全是纯文字判据（无 `{cmd:}`）：只看它永远凑不出
+      // 机器证据，结论恒为 needs-review，人被迫逐条自查。这里重跑各步骤已写下的
+      // 验收命令做回归——它们才是这条任务真正的硬证据。回归失败只降 needs-review
+      // （命令未必要幂等，失败不等于交付坏）。
+      const regression = [];
+      if (!stepId && commands.length === 0) {
+        const seen = new Set();
+        for (const s of steps) {
+          for (const item of s.acceptance ?? []) {
+            const cmd = item.cmd;
+            if (!cmd || seen.has(cmd)) continue;
+            seen.add(cmd);
+            const builtin = builtinFileCheck(cmd, cwd);
+            if (builtin) {
+              regression.push({ step: s.id, cmd, ok: builtin.ok, output: builtin.output });
+            } else if (isCmdAllowed(cmd)) {
+              const r = await runVerification(cmd, cwd || undefined, exec.signal);
+              regression.push({ step: s.id, cmd, ok: r.ok, output: r.output });
+            } else {
+              continue;
+            }
+            if (regression.length >= 8) break;
+          }
+          if (regression.length >= 8) break;
+        }
+        for (const r of regression) {
+          commands.push({ cmd: `[${r.step}] ${r.cmd}`, ok: r.ok, output: r.output });
+        }
+        if (regression.some((r) => !r.ok)) {
+          ctx.logger.warn("ai00-x-tools: step command regression failed at integration verify");
+        }
+      }
+      const regressionFailed = regression.filter((r) => !r.ok).length;
 
       const includeDiff =
         args?.includeDiff === true || reviewRequired || failed || policy.review === "strict";
       const evidence = await collectGitEvidence(cwd, pathFilter, includeDiff);
+
+      // 交付物文件名对账（2026-11-21 实测：worker 把 `report.md` 写成
+      // `report.part1.md`，验收命令只测长度/标题就"通过"，人类打开的是错文件名）。
+      // 只在整体验收（无 stepId）强制缺件判失败：子步骤未必产出全部交付物。
+      const deliverables = [];
+      for (const name of cwd ? parseDeliverables(markdown) : []) {
+        const exists = await stat(join(cwd, name))
+          .then(() => true)
+          .catch(() => false);
+        deliverables.push({ name, exists });
+      }
+      const missingDeliverables = stepId
+        ? []
+        : deliverables.filter((d) => d.exists === false).map((d) => d.name);
+      if (missingDeliverables.length) {
+        ctx.logger.warn(
+          `ai00-x-tools: deliverables missing at integration verify: ${missingDeliverables.join(", ")}`
+        );
+      }
+      // 编码污染：文件里有 U+FFFD 替换符（模型输出带进来再被 worker 照抄）。
+      // 与「缺件」同级判 failed——人打开看到的是乱码，等于没交付。
+      const corrupt = stepId
+        ? []
+        : await corruptDeliverables(
+            cwd,
+            deliverables.filter((d) => d.exists).map((d) => d.name)
+          );
+      if (corrupt.length) {
+        ctx.logger.warn(`ai00-x-tools: deliverables with U+FFFD: ${corrupt.join(", ")}`);
+      }
+
+      // 步骤 Scope 对账：worker 常把 `report.md` 写成 `report.part1.md`
+      // （2026-11-21 实测），验收命令只测 report.md 的长度时错误要到整体验收才
+      // 暴露。这里在步内就对账「Scope 里承诺的文件是否存在」，缺失按
+      // needs-review 上报（Scope 也可能列只读引用的既有文件，不能判 failed）。
+      const scopeMissing = [];
+      if (step && cwd) {
+        for (const raw of step.paths ?? []) {
+          const name = String(raw).replace(/`/g, "").trim().replace(/^\.\//, "");
+          if (!name || name === "." || /[*?]/.test(name)) continue;
+          if (!/\.[A-Za-z0-9]{1,8}$/.test(name)) continue; // 目录/通配路径跳过
+          const exists = await stat(join(cwd, name))
+            .then(() => true)
+            .catch(() => false);
+          if (!exists) scopeMissing.push(name);
+        }
+      }
+      if (scopeMissing.length) {
+        ctx.logger.warn(
+          `ai00-x-tools: step scope files missing: ${scopeMissing.join(", ")}`
+        );
+      }
+
+      // 集成验收时顺手对一眼工作目录：计划（各步 Scope + Deliverables）没提到的文件
+      // 多是 worker 留下的草稿（实测 note.txt / 第二份 review.md），会让交付目录变脏。
+      // 只作为提示回传，不改判据（Scope 外新增本身不违反「Scope 内文件必须存在」）。
+      const extras = [];
+      // 复核记录是**契约允许**的产物（review_worker 只写一份 review*），
+      // 不能混进「草稿」一起劝删——实测 7.12 的 review.md 就被当成 scratch。
+      const reviewNotes = [];
+      if (!stepId && cwd) {
+        const known = new Set([
+          "AGENTS.local.md",
+          ...deliverables.map((d) => d.name),
+          ...steps.flatMap((s) =>
+            (s.paths ?? []).map((p) =>
+              String(p).replace(/`/g, "").trim().replace(/^\.\//, "")
+            )
+          ),
+        ]);
+        const entries = await readdir(cwd).catch(() => []);
+        for (const entry of entries) {
+          if (entry.startsWith(".") || known.has(entry)) continue;
+          const isFile = await stat(join(cwd, entry))
+            .then((s) => s.isFile())
+            .catch(() => false);
+          if (!isFile) continue;
+          if (/^review\b.*\.md$/i.test(entry)) reviewNotes.push(entry);
+          else extras.push(entry);
+        }
+        if (extras.length) {
+          ctx.logger.warn(`ai00-x-tools: files outside plan scope: ${extras.join(", ")}`);
+        }
+      }
 
       // 证据不足必须交人工/云端评审，不能假装通过。
       // 注意不再把「工作目录不是 git 仓库」算作证据不足：很多任务目录本就没有 git，
@@ -1120,22 +1570,79 @@ function defineTools(ctx, api) {
         acceptance.length === 0 ||
         (commands.length === 0 && manualItems.length > 0) ||
         (includeDiff && evidence.diffTruncated && evidence.changedFiles.length > 50);
-      const verdict = failed ? "failed" : manualItems.length > 0 || insufficient ? "needs-review" : "passed";
+      // 纯文字验收项不再单独把结论压成 needs-review：它们本来就是**人**在验收卡上
+      // 判定的事项（人点「验收通过」时逐条看）。needs-review 保留给真正的证据缺口
+      // （无任何可执行证据、命令跑不起来、Scope 缺件、回归失败）。
+      const verdict = failed || missingDeliverables.length || corrupt.length
+        ? "failed"
+        : regressionFailed > 0 ||
+            insufficient ||
+            scopeMissing.length > 0 ||
+            unrunnable.length > 0
+          ? "needs-review"
+          : "passed";
 
-      // 把验证结果写回计划（展示层读「验证/证据」两行）；失败不阻断验证结论
+      // 集成验收摘要写进计划：这是**人**在验收卡上能看到的唯一证据面
+      // （工具返回只有模型看得到）。清理类列表为空时不占行。
+      if (!stepId && markdown) {
+        const summary = [
+          `结论: ${verdict} · ${localStamp()}`,
+          `交付物: ${
+            deliverables.length
+              ? deliverables
+                  .map((d) => `${d.name}${d.exists ? " ✓" : " ✗ 缺失"}`)
+                  .join("、")
+              : "（计划未声明）"
+          }`,
+          ...(regression.length
+            ? [`步骤命令回归: ${regression.length - regressionFailed}/${regression.length} 通过`]
+            : []),
+          ...(manualItems.length ? [`人工验收项: ${manualItems.length} 条（由你判定）`] : []),
+          ...(extras.length ? [`计划外文件: ${extras.join("、")}`] : []),
+          ...(reviewNotes.length ? [`复核记录: ${reviewNotes.join("、")}`] : []),
+          ...(corrupt.length ? [`编码损坏: ${corrupt.join("、")}`] : []),
+          ...(unrunnable.length ? [`不可执行命令: ${unrunnable.length} 条`] : []),
+        ];
+        const withRecord = upsertVerifyRecord(markdown, summary);
+        if (withRecord !== markdown) {
+          await api
+            .put("/plan", { taskId, markdown: withRecord }, exec.signal)
+            .catch((error) =>
+              ctx.logger.warn(`ai00-x-tools: verify record write skipped: ${error.message}`)
+            );
+        }
+      }
+
+      // 把验证结果写回计划（展示层读「验证/证据」两行）；失败不阻断验证结论。
+      // 可选同调用勾选（args.tick）：每步编排者原本要多一次 ai00_plan_check，
+      // 勾选规则与 plan_check 一致（只认 passed），只是省掉一次往返。
+      let currentMd = markdown;
+      let ticked = false;
       if (stepId && markdown) {
         try {
-          const nextMd = upsertStepEvidence(
+          currentMd = upsertStepEvidence(
             markdown,
             stepId,
             verdict,
             summarizeEvidence(commands, evidence.changedFiles)
           );
-          if (nextMd !== markdown) {
-            await api.put("/plan", { taskId, markdown: nextMd }, exec.signal);
-          }
         } catch (error) {
           ctx.logger.warn(`ai00-x-tools: step evidence write-back skipped: ${error.message}`);
+        }
+        if (args?.tick === true && verdict === "passed") {
+          const tickedMd = tickStepLine(currentMd, stepId);
+          if (tickedMd) {
+            currentMd = tickedMd;
+            ticked = true;
+          }
+        }
+        if (currentMd !== markdown) {
+          try {
+            await api.put("/plan", { taskId, markdown: currentMd }, exec.signal);
+          } catch (error) {
+            ctx.logger.warn(`ai00-x-tools: plan write-back failed: ${error.message}`);
+            ticked = false;
+          }
         }
       }
 
@@ -1148,7 +1655,15 @@ function defineTools(ctx, api) {
         reviewMode: policy.review,
         commands,
         manualItems,
+        ...(regression.length ? { regression } : {}),
         changedFiles: evidence.changedFiles,
+        deliverables,
+        ...(scopeMissing.length ? { scopeMissing } : {}),
+        ...(extras.length ? { extras } : {}),
+        ...(reviewNotes.length ? { reviewNotes } : {}),
+        ...(corrupt.length ? { corrupt } : {}),
+        ...(unrunnable.length ? { unrunnable } : {}),
+        ...(ticked ? { ticked: true } : {}),
         // 计划剩余项随证据一起回传：编排者据此用 ai00_plan_check 精确勾选，
         // 不必再为了看状态调一次 ai00_plan_read（实测一次读回 ~7k 输入）。
         planPending: {
@@ -1165,7 +1680,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_complete",
     description:
-      "Submit a Zhixing task's SELF-CHECK for HUMAN acceptance by id (dual-stage acceptance — this does NOT complete the task; the human reviews and accepts in the Zhixing board). The call is REJECTED when `deliverables` is empty or any listed path does not exist on disk (relative paths resolve against snapshotDir). Self-check gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot of all changes is taken automatically — do NOT commit manually. MUST pass `deliverables`: the absolute paths of every artifact file you produced for this task (report/summary/output files — at least one; write them as real files in the working directory BEFORE calling, e.g. report.md). After submitting, REPORT to the user in the conversation: a short result summary (≤200 words) + the deliverables list (filename + one-line description). XP and completion are granted by the human, not by this tool.",
+      "Submit a Zhixing task's SELF-CHECK for HUMAN acceptance by id (dual-stage acceptance — this does NOT complete the task; the human reviews and accepts in the Zhixing board). The call is REJECTED when `deliverables` is empty or any listed path does not exist on disk (relative paths resolve against snapshotDir). Self-check gate: if the task's plan document has an '## 验收' (acceptance) section, the call FAILS unless every criterion passes — plain criteria must be checked off in the plan document first (ai00_plan_read then ai00_plan_write with '- [x]'); criteria annotated with {cmd: <shell command>} are executed automatically (in snapshotDir, 120s timeout) and must exit 0 — fix the issue from the command output and retry. On success, if snapshotDir is provided (the working directory from your task brief), a git snapshot of all changes is taken automatically — do NOT commit manually. MUST pass `deliverables`: the absolute paths of every artifact file you produced for this task (report/summary/output files — at least one; write them as real files in the working directory BEFORE calling, e.g. report.md). After submitting, REPORT to the user in the conversation: a short result summary (≤200 words) + the deliverables list (filename + one-line description). XP and completion are granted by the human, not by this tool. For local-first plans the call is also REJECTED while the plan has not been approved by the human (and again whenever an edit to the goal / step list / acceptance wording reset that approval) — end the turn and wait for the approval message.",
     parameters: {
       type: "object",
       properties: {
@@ -1202,12 +1717,27 @@ function defineTools(ctx, api) {
             items: { type: "string" },
             description: "Verification commands actually executed and passed (whitelist-gated).",
           },
+          already: {
+            type: "boolean",
+            description:
+              "True when this task was already submitted for human acceptance earlier (idempotent call; no second timestamp).",
+          },
+          addedDeliverables: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Only on an idempotent call: newly registered deliverable paths merged into the existing list.",
+          },
         },
         required: ["ok", "title", "xp"],
         additionalProperties: false,
       },
       render: (_args, value) =>
-        text(`self-check submitted for human acceptance: ${value.title} (${(value.deliverables ?? []).length} deliverables registered; awaiting user review in the Zhixing board)`),
+        value.already
+          ? text(
+              `self-check was already submitted earlier: ${value.title} (${(value.deliverables ?? []).length} deliverables registered${(value.addedDeliverables ?? []).length ? `, ${value.addedDeliverables.length} added now` : ""}; still awaiting human review in the Zhixing board)`
+            )
+          : text(`self-check submitted for human acceptance: ${value.title} (${(value.deliverables ?? []).length} deliverables registered; awaiting user review in the Zhixing board)`),
     },
     async execute(args, exec) {
       const taskId = String(args?.taskId ?? "").trim();
@@ -1254,6 +1784,27 @@ function defineTools(ctx, api) {
       // 旧计划（无「## 执行策略」段）保持原判定，策任务行为不变。
       const policy = parseExecutionPolicy(plan?.markdown);
       if (policy.execution === "local-first") {
+        // 批准门兜底：人没批准过这份计划，就不能走「提交自检 → 人验收」这条快车道。
+        // 没有它，7.37 的「改 DoD 自动重新待批」会被一次 complete 直接绕过——
+        // 改完判据、勾完验收、提交自检，人只看到「待验收」而没看到「计划未批准」。
+        // 读不到任务时按未知处理（不拦，避免一次读失败把 agent 卡死）。
+        let planApproved;
+        try {
+          const data = await api.get("/todo", exec.signal);
+          const task = (Array.isArray(data?.tasks) ? data.tasks : []).find((t) => t.id === taskId);
+          planApproved = Boolean(task?.planApprovedAt);
+        } catch {
+          planApproved = undefined;
+        }
+        if (planApproved === false) {
+          throw new Error(
+            [
+              "这份计划还没有得到人的批准，不能提交自检。",
+              "请结束这一轮等我批准：计划卡上出现「批准并执行」后，我点一下你就会收到放行消息。",
+              "（批准之后如果你改了目标 / 步骤清单 / 验收措辞，批准会自动复位，需要我再批一次。）",
+            ].join("\n")
+          );
+        }
         const unfinished = parsePlanSteps(plan?.markdown).filter((step) => !step.done);
         if (unfinished.length > 0) {
           throw new Error(
@@ -1266,6 +1817,21 @@ function defineTools(ctx, api) {
         }
       }
       const acceptance = parseAcceptance(plan?.markdown);
+      // 集成验收记录门禁：验收人唯一能看到的证据是计划里的「## 验证记录」
+      // （ai00_task_verify 不带 stepId 写入，打回时会被清掉）。缺了它，卡片上只剩
+      // 勾选态——人无法判断交付物齐不齐、有没有计划外文件/编码损坏/回归失败。
+      // 只对 local-first 且确有步骤的计划生效（旧卡/空计划保持原行为）。
+      if (policy.execution === "local-first" && parsePlanSteps(plan?.markdown).length > 0) {
+        if (!/^##\s*(验证记录|Verify log)/im.test(String(plan?.markdown ?? ""))) {
+          throw new Error(
+            [
+              "计划里没有集成验收记录，不能提交自检。",
+              "请先调用 ai00_task_verify（不传 stepId）跑一次整体验收——它会把「结论 / 交付物 / 步骤命令回归 / 人工验收项」写进计划的「## 验证记录」段，验收人只认这一份证据。",
+              "整体验收判 failed / needs-review 时先修交付物再重跑；纯文字验收项由人判定，不要为了过门而临时造命令。",
+            ].join("\n")
+          );
+        }
+      }
       // 计划「## 交付物」承诺的文件也必须真实落盘：deliverables 参数由模型自报，
       // 实测出现过承诺 report.md / blueprint 却从未生成仍提交自检。
       const promisedMissing = [];
@@ -1281,6 +1847,21 @@ function defineTools(ctx, api) {
             `计划承诺的交付物不存在（共 ${promisedMissing.length} 个），不能提交自检：`,
             ...promisedMissing.slice(0, 8).map((p) => `  - ${p}`),
             "先把它们写进工作目录再提交；写不出来就改计划（ai00_plan_write）把承诺降到真实范围，不要只勾验收。",
+          ].join("\n")
+        );
+      }
+      // 编码损坏门禁：文本交付物里有 U+FFFD = 人打开看到乱码，不算交付。
+      // 去重：deliverables 参数与计划的「## Deliverables」常是同一批文件。
+      const corruptText = await corruptDeliverables(
+        snapshotDir,
+        [...new Set([...deliverables, ...parseDeliverables(plan?.markdown)].map((p) => String(p).trim()))]
+      );
+      if (corruptText.length > 0) {
+        throw new Error(
+          [
+            `以下交付物含 U+FFFD 替换符（编码损坏），不能提交自检：`,
+            ...corruptText.slice(0, 8).map((p) => `  - ${p}`),
+            "请派 worker 按原文重写这些文件（不要重新生成内容），再提交。",
           ].join("\n")
         );
       }
@@ -1341,9 +1922,25 @@ function defineTools(ctx, api) {
       }
 
       const data = await api.get("/todo", exec.signal);
-      const { data: next, task, already } = submitSelfCheckInData(data, taskId, deliverables);
+      // 登记一律用绝对路径：相对路径（如 "brief.md"）在面板上打不开，链接等于没有。
+      // 有 snapshotDir 时按它解析；没有时保持原样（调用方本来就该给绝对路径）。
+      const registered = deliverables.map((raw) => resolveDeliverable(raw));
+      const { data: next, task, already, added = [] } = submitSelfCheckInData(
+        data,
+        taskId,
+        registered
+      );
       if (already) {
-        return { ok: true, title: task.title ?? "", xp: 0 };
+        // 补登记的交付物需要落盘（否则面板永远看不到产物链接）
+        if (added.length) await api.put("/todo", next, exec.signal);
+        return {
+          ok: true,
+          title: task.title ?? "",
+          xp: 0,
+          already: true,
+          deliverables: Array.isArray(task.deliverables) ? task.deliverables : [],
+          ...(added.length ? { addedDeliverables: added } : {}),
+        };
       }
 
       // 自检快照（执行产物定格；commit 回写任务卡——验收 diff/回滚用；失败静默）
@@ -1556,7 +2153,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_plan_write",
     description:
-      "Write (replace) the plan document (Markdown) of a Zhixing board card. The 策 window refreshes it live, so the user sees your updates. Prefer ai00_plan_check for status flips; use this only for structural edits. Verification/evidence lines already written by ai00_task_verify are preserved automatically, and a step cannot be newly ticked here without that evidence (the write is refused). The FIRST write of a task's plan is a hard stop: after it, end the turn and wait for the user to confirm the plan — never dispatch a worker in the same turn.",
+      "Write (replace) the plan document (Markdown) of a Zhixing board card. The 策 window refreshes it live, so the user sees your updates. Prefer ai00_plan_check for status flips; use this only for structural edits. Verification/evidence lines already written by ai00_task_verify are preserved automatically, and a step cannot be newly ticked here without that evidence (the write is refused). The FIRST write of a task's plan is a hard stop: after it, end the turn and wait for the user to confirm the plan — never dispatch a worker in the same turn. Editing the goal, the step list or any acceptance wording AFTER approval resets the approval: the write succeeds, but you must end the turn and wait for the user to approve again (never loosen an acceptance item to make it pass — fix the deliverable instead).",
     parameters: {
       type: "object",
       properties: {
@@ -1578,6 +2175,8 @@ function defineTools(ctx, api) {
           firstPlan: { type: "boolean" },
           // 旧计划里的「验证/证据」行被保留并补回（模型重写时容易漏）
           evidencePreserved: { type: "boolean" },
+          // 批准后改了 DoD（目标 / 步骤清单 / 验收措辞）：批准已复位，必须重新等人批
+          reapprovalRequired: { type: "boolean" },
         },
         required: ["ok"],
         additionalProperties: false,
@@ -1589,7 +2188,9 @@ function defineTools(ctx, api) {
         return text(
           value.firstPlan
             ? "plan document saved (first version).\nSTOP NOW: end this turn and wait for the user to confirm the plan. Do not call ai00_plan_read, do not dispatch any worker, do not call ai00_task_complete in this turn. Reply with a 3–6 line plan summary."
-            : "plan document updated"
+            : value.reapprovalRequired
+              ? "plan document updated, but it changes the approved contract (goal, step list or acceptance wording), so approval was reset.\nSTOP NOW: end this turn, summarize in 2–4 lines what changed and why, and wait for the user to approve the plan again. Do not dispatch any worker in this turn. Never make an acceptance item easier to pass just to clear it — fix the deliverable, or ask the user to change the criterion."
+              : "plan document updated"
         );
       },
     },
@@ -1620,9 +2221,80 @@ function defineTools(ctx, api) {
             `refused: no verification evidence for ${offenders.join(", ")} — call ai00_task_verify (stepId) first, then tick with ai00_plan_check. Nothing was written.`
           );
         }
+        // 只为翻状态而整篇重写 = 白花 2–3k 输出 token（实测一个任务里发生 3 次）
+        if (isStatusOnlyRewrite(prevMarkdown, merged)) {
+          throw new Error(
+            "refused: this rewrite only flips checkboxes or evidence lines — use ai00_plan_check {taskId, match} instead (a few dozen tokens). Nothing was written."
+          );
+        }
+      }
+      // 「幽灵交付物」：Deliverables 承诺了 Steps 里根本没提的文件。
+      // 这类承诺永远不成立 → 整体验收恒 failed，必须在写盘前拦。
+      const ghosts = ghostDeliverables(merged);
+      if (ghosts.length) {
+        throw new Error(
+          `refused: Deliverables lists ${ghosts.join(", ")} but no step mentions it — overall acceptance would always fail. Either add it to the producing step's Scope, or remove it from Deliverables. Nothing was written.`
+        );
+      }
+      // 弱验收（只量长度/体积）：填充文本就能过，等于没验。只拦**本次新引入**的
+      // 条目——旧计划里的历史弱判据仍可编辑（否则改造中任务会被自己的旧计划锁死）。
+      const prevWeak = new Set(
+        weakAcceptance(prevMarkdown).map((w) => w.text.replace(/\s+/g, " "))
+      );
+      const weak = weakAcceptance(merged).filter(
+        (w) => !prevWeak.has(w.text.replace(/\s+/g, " "))
+      );
+      if (weak.length) {
+        throw new Error(
+          [
+            `refused: ${weak.length} acceptance check(s) only measure length/size — filler text would pass and real defects (missing section, wrong file name, mojibake) would slip through:`,
+            ...weak.slice(0, 4).map((w) => `  - ${w.cmd}`),
+            'Rewrite each with a content assertion (required heading/table/citation), e.g. node -e "const s=require(\'fs\').readFileSync(\'report.md\',\'utf8\');if(!s.includes(\'## 结论\'))process.exit(1)". Nothing was written.',
+          ].join("\n")
+        );
+      }
+      // 写了 `{cmd:}` 但过不了护栏（>500 字符 / 含反引号 / 含 `$(`）：这类命令
+      // 会被静默降级成「人工判据」，步骤永远停在 needs-review。
+      const prevUnrunnable = new Set(
+        unrunnableCmds(prevMarkdown).map((c) => c.text.replace(/\s+/g, " "))
+      );
+      const unrunnable = unrunnableCmds(merged).filter(
+        (c) => !prevUnrunnable.has(c.text.replace(/\s+/g, " "))
+      );
+      if (unrunnable.length) {
+        throw new Error(
+          [
+            `refused: ${unrunnable.length} acceptance command(s) will never run — extractCmd refuses commands longer than 500 chars or containing backticks/\`$(\`, so they silently degrade to manual checks and the step can never pass verification:`,
+            ...unrunnable.slice(0, 4).map((c) => `  - (${c.len} chars) ${c.text.slice(0, 120)}`),
+            "Keep the command under 500 ASCII chars: assert one or two key facts (heading present, table rows, key phrase), or put the logic in a short checker script listed in Scope and call it (e.g. `node check.mjs`). Nothing was written.",
+          ].join("\n")
+        );
       }
       await api.put("/plan", { taskId, markdown: merged }, exec.signal);
-      return { ok: true, firstPlan, evidencePreserved: merged !== markdown };
+      // 批准之后改 DoD = 人当初批准的那份契约变了：批准必须复位（与人在卡片上改计划同一口径），
+      // 否则 agent 可以靠「把验收判据改松」来过验收，而不是把交付物改对。
+      let reapprovalRequired = false;
+      if (!firstPlan && dodSignature(prevMarkdown) !== dodSignature(merged)) {
+        try {
+          const data = await api.get("/todo", exec.signal);
+          const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+          const task = tasks.find((t) => t.id === taskId);
+          if (task?.planApprovedAt) {
+            await api.put(
+              "/todo",
+              {
+                ...data,
+                tasks: tasks.map((t) => (t.id === taskId ? { ...t, planApprovedAt: null } : t)),
+              },
+              exec.signal
+            );
+            reapprovalRequired = true;
+          }
+        } catch {
+          // 任务读不到 / 写不进：不阻断计划落盘，卡片上仍能看到新计划
+        }
+      }
+      return { ok: true, firstPlan, evidencePreserved: merged !== markdown, reapprovalRequired };
     },
   });
 
@@ -1633,7 +2305,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_plan_check",
     description:
-      "Toggle one checkbox line of a Zhixing board card plan (Markdown) without rewriting the document. Cheapest way to mark a step done/undone or tick an acceptance item: pass a short fragment that appears on that line. Ticking a STEP requires prior evidence: the step block must already contain a `- 验证: passed` line written by ai00_task_verify, otherwise the call is refused (no evidence = no progress). Only use ai00_plan_write for structural edits (new steps, changed acceptance wording).",
+      "Toggle checkbox lines of a Zhixing board card plan (Markdown) without rewriting the document. Cheapest way to mark steps done/undone or tick acceptance items: pass short fragments that appear on those lines — use `matches` to tick several lines in ONE call (e.g. the 3–4 acceptance items after an integration review). Ticking a STEP requires prior evidence: the step block must already contain a `- 验证: passed` line written by ai00_task_verify, otherwise the call is refused (no evidence = no progress). Only use ai00_plan_write for structural edits (new steps, changed acceptance wording).",
     parameters: {
       type: "object",
       properties: {
@@ -1643,12 +2315,18 @@ function defineTools(ctx, api) {
           description:
             "Short fragment that identifies exactly one line, e.g. a step id (\"S2\") or a few words of the step title.",
         },
+        matches: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Batch form: fragments identifying several lines. All are applied in one write; the call is refused as a whole if any fragment is unmatched or lacks evidence.",
+        },
         checked: {
           type: "boolean",
           description: "true = mark done ([x]), false = uncheck ([ ]). Default true.",
         },
       },
-      required: ["taskId", "match"],
+      required: ["taskId"],
       additionalProperties: false,
     },
     output: {
@@ -1657,13 +2335,23 @@ function defineTools(ctx, api) {
         properties: {
           ok: { type: "boolean" },
           line: { type: "string", description: "The updated line (trimmed)." },
+          lines: {
+            type: "array",
+            items: { type: "string" },
+            description: "Batch form: every updated line.",
+          },
           hint: { type: "string", description: "Present when nothing matched." },
         },
         required: ["ok"],
         additionalProperties: false,
       },
       render: (_args, value) => {
-        if (value.ok) return text(`plan line updated: ${value.line ?? ""}`);
+        if (value.ok) {
+          if (Array.isArray(value.lines) && value.lines.length) {
+            return text(`plan lines updated (${value.lines.length}):\n${value.lines.join("\n")}`);
+          }
+          return text(`plan line updated: ${value.line ?? ""}`);
+        }
         return text(
           `no line matched (${value.hint ?? "no match"}). Call ai00_plan_read and use ai00_plan_write instead.`
         );
@@ -1671,139 +2359,65 @@ function defineTools(ctx, api) {
     },
     async execute(args, exec) {
       const taskId = String(args?.taskId ?? "").trim();
-      const match = String(args?.match ?? "").trim();
+      const batch = Array.isArray(args?.matches)
+        ? args.matches.map((m) => String(m ?? "").trim()).filter(Boolean)
+        : [];
+      const single = String(args?.match ?? "").trim();
+      const fragments = batch.length ? batch : single ? [single] : [];
       const checked = args?.checked !== false;
-      if (!taskId || !match) throw new Error("taskId and match are required");
+      if (!taskId || !fragments.length) throw new Error("taskId and match/matches are required");
       const prev = await api.get(`/plan?taskId=${encodeURIComponent(taskId)}`, exec.signal);
       if (!prev?.found) return { ok: false, hint: "no plan document yet" };
       const markdown = String(prev.markdown ?? "");
       const lines = markdown.split("\n");
-      const index = lines.findIndex((line) => line.includes("]") && line.includes(match));
-      if (index < 0) {
-        return { ok: false, hint: `no checkbox line contains "${match}"` };
+      // 先全部解析、全部过闸，再一次性写盘：批量里只要有一条不合格就整体拒绝，
+      // 避免「勾了一半」的半成品计划（用户看不到哪几条真的生效）。
+      const picked = [];
+      for (const match of fragments) {
+        const index = lines.findIndex(
+          (line, i) => !picked.some((p) => p.index === i) && line.includes("]") && line.includes(match)
+        );
+        if (index < 0) {
+          return { ok: false, hint: `no unchecked-by-this-call line contains "${match}"` };
+        }
+        const original = lines[index];
+        if (!/\[( |x|X)\]/.test(original)) {
+          return { ok: false, hint: `matched line for "${match}" has no checkbox` };
+        }
+        // 勾选**步骤**前必须有该步的验证证据（ai00_task_verify 会写回「- 验证: passed」）。
+        // 没证据就勾选＝假进度：用户看到「已完成」，但没有任何命令或证据支撑。
+        const stepHead = /^\s*-\s+\[[ xX]\]\s+(T[0-9A-Za-z_-]+)\s/.exec(original);
+        if (checked && stepHead) {
+          const stepId = stepHead[1];
+          const evidence = usableEvidence(stepBlock(lines, index));
+          if (!evidence.ok) {
+            return {
+              ok: false,
+              hint: evidence.verdict
+                ? `verification for ${stepId} is "${evidence.verdict}" — fix it and re-run ai00_task_verify before ticking`
+                : `no verification evidence for ${stepId} — call ai00_task_verify (stepId: "${stepId}") before ticking`,
+            };
+          }
+        }
+        picked.push({ index, original, match });
       }
-      const original = lines[index];
-      if (!/\[( |x|X)\]/.test(original)) {
-        return { ok: false, hint: "matched line has no checkbox" };
-      }
-      // 勾选**步骤**前必须有该步的验证证据（ai00_task_verify 会写回「- 验证: passed」）。
-      // 没证据就勾选＝假进度：用户看到「已完成」，但没有任何命令或证据支撑。
-      const stepHead = /^\s*-\s+\[[ xX]\]\s+(T[0-9A-Za-z_-]+)\s/.exec(original);
-      if (checked && stepHead) {
-        const stepId = stepHead[1];
-        const evidence = usableEvidence(stepBlock(lines, index));
-        if (!evidence.ok) {
-          return {
-            ok: false,
-            hint: evidence.verdict
-              ? `verification for ${stepId} is "${evidence.verdict}" — fix it and re-run ai00_task_verify before ticking`
-              : `no verification evidence for ${stepId} — call ai00_task_verify (stepId: "${stepId}") before ticking`,
-          };
+      const changed = [];
+      for (const p of picked) {
+        const next = checked
+          ? p.original.replace(/\[( |x|X)\]/, "[x]")
+          : p.original.replace(/\[( |x|X)\]/, "[ ]");
+        if (next !== p.original) {
+          lines[p.index] = next;
+          changed.push(next.trim());
         }
       }
-      const next = checked
-        ? original.replace(/\[( |x|X)\]/, "[x]")
-        : original.replace(/\[( |x|X)\]/, "[ ]");
-      if (next === original) {
+      if (!changed.length) {
         // 已是目标状态：不写盘，省一次 PUT
-        return { ok: true, line: original.trim() };
+        const all = picked.map((p) => p.original.trim());
+        return batch.length ? { ok: true, lines: all } : { ok: true, line: all[0] };
       }
-      lines[index] = next;
       await api.put("/plan", { taskId, markdown: lines.join("\n") }, exec.signal);
-      return { ok: true, line: next.trim() };
-    },
-  });
-
-  // ---- ai00_search：搜索兜底（自建 SearXNG）----
-  // 引擎的 web_search 由 dsh-web 选单一提供方（DeepSeek 搜索需 API key/登录），
-  // 不可用或空结果时用本工具走自建服务，避免 agent 完全搜不到东西。
-  ctx.tools.register({
-    name: "ai00_search",
-    description:
-      "Search the web through Ai00-X's self-hosted SearXNG (no API key) — the primary web search tool. Returns title/url/snippet only; pass a result's URL to ai00_web_extract to get the page body, or call ai00_web_extract with a query directly for distilled per-page summaries.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Search query." },
-        max_results: {
-          type: "number",
-          description: "Results to return (1-10, default 8).",
-        },
-        language: {
-          type: "string",
-          description: "Language tag, default zh-CN.",
-        },
-      },
-      required: ["query"],
-      additionalProperties: false,
-    },
-    output: {
-      schema: {
-        type: "object",
-        properties: {
-          results: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                title: { type: "string" },
-                url: { type: "string" },
-                snippet: { type: "string" },
-              },
-              required: ["title", "url", "snippet"],
-            },
-          },
-        },
-        required: ["results"],
-      },
-      render: (_args, value) => {
-        const items = Array.isArray(value?.results) ? value.results : [];
-        if (items.length === 0) return text("ai00_search: no results");
-        return text(
-          items
-            .map(
-              (item, index) =>
-                `${index + 1}. ${item.title}\n   ${item.url}\n   ${item.snippet}`
-            )
-            .join("\n")
-        );
-      },
-    },
-    isConcurrencySafe: () => true,
-    async execute(args, exec) {
-      const query = String(args?.query ?? "").trim();
-      if (!query) throw new Error("query is required");
-      const max = Math.min(Math.max(Number(args?.max_results) || 8, 1), 10);
-      const language = String(args?.language ?? "zh-CN");
-      const base = (process.env.AI00_SEARCH_URL || "https://s.ai00-x.com").replace(/\/+$/, "");
-      const params = new URLSearchParams({
-        q: query,
-        format: "json",
-        language,
-        pageno: "1",
-      });
-      const response = await fetch(`${base}/search?${params.toString()}`, {
-        headers: { accept: "application/json", "user-agent": "Ai00-X/1.0" },
-        signal: exec.signal,
-      });
-      const body = await response.text();
-      if (!response.ok) {
-        throw new Error(`search HTTP ${response.status}: ${body.slice(0, 200)}`);
-      }
-      let data;
-      try {
-        data = JSON.parse(body);
-      } catch {
-        throw new Error("search returned non-JSON (SearXNG json format may be disabled)");
-      }
-      const results = Array.isArray(data?.results) ? data.results : [];
-      return {
-        results: results.slice(0, max).map((item) => ({
-          title: String(item?.title ?? ""),
-          url: String(item?.url ?? ""),
-          snippet: String(item?.content ?? item?.snippet ?? "").slice(0, 500),
-        })),
-      };
+      return batch.length ? { ok: true, lines: changed } : { ok: true, line: changed[0] };
     },
   });
 
@@ -1811,7 +2425,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_web_extract",
     description:
-      "Fetch and extract web content, entirely locally (no API key). Two modes — pass exactly one: `url` fetches that page and returns its cleaned body text (use for a specific page, e.g. a link from ai00_search results); `query` searches up to 12 pages, fetches them concurrently, and the LOCAL model screens/summarizes each — returns per-page key points (title/url/summary). Pages marked [degraded] fell back to raw snippets. For a distilled summary of a long body, follow up with ai00_text_summarize.",
+      "Fetch and extract web content, entirely locally (no API key). Two modes — pass exactly one: `url` fetches that page and returns its cleaned body text (use for a specific page); `query` SEARCHES the web (self-hosted SearXNG, no key), fetches up to 12 pages concurrently, and the LOCAL model screens/summarizes each — returns per-page key points (title/url/summary). This is the single search entry point. Pages marked [degraded] fell back to raw snippets. For a distilled summary of a long body, follow up with ai00_text_summarize.",
     parameters: {
       type: "object",
       properties: {
@@ -1866,6 +2480,91 @@ function defineTools(ctx, api) {
       const body = url ? { url } : { query };
       if (!url && Number.isFinite(args?.max_results)) body.max_results = args.max_results;
       return api.post("/web/extract", body, exec.signal);
+    },
+  });
+
+  // ---- ai00_research_collect：一次调用完成「检索 → 抓取 → 筛选 → 落盘」----
+  // 本地 3B 的可靠区只有单次工具调用；连续检索多轮必然退化（查询串乱码、
+  // 同一查询复读、最后喊 BLOCKED）。把整条链路下沉到宿主，模型只发一次。
+  ctx.tools.register({
+    name: "ai00_research_collect",
+    description:
+      "One-shot research collection. Searches the web for `topic`, fetches and locally screens the pages, de-duplicates them and WRITES a Markdown source list (`save_to`, default sources.md) into the session working directory. Use this INSTEAD of many separate search calls. Do not pass `cwd` — the working directory is resolved by the host.",
+    parameters: {
+      type: "object",
+      properties: {
+        topic: { type: "string", description: "Research topic, e.g. 'agent memory architecture'." },
+        cwd: {
+          type: "string",
+          description: "Optional; leave empty. The host resolves the session working directory.",
+        },
+        queries: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional short queries (≤8, ≤6 words each, English preferred).",
+        },
+        urls: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional seed URLs to fetch directly (≤12).",
+        },
+        save_to: {
+          type: "string",
+          description: "Relative .md file name, default sources.md.",
+        },
+      },
+      required: ["topic"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          saved: { type: "string" },
+          sources: { type: "number" },
+          queries: { type: "number" },
+          failed: { type: "number" },
+        },
+        required: ["saved", "sources"],
+      },
+      render: (_args, value) => {
+        const saved = String(value?.saved ?? "sources.md");
+        const sources = Number(value?.sources ?? 0);
+        const queries = Number(value?.queries ?? 0);
+        const failed = Number(value?.failed ?? 0);
+        if (sources === 0) {
+          return text(
+            `ai00_research_collect: no results (wrote ${saved}: 0 sources from ${queries} queries, ${failed} failed)`
+          );
+        }
+        return text(`wrote ${saved}: ${sources} sources from ${queries} queries, ${failed} failed`);
+      },
+    },
+    isConcurrencySafe: () => false,
+    async execute(args, exec) {
+      const topic = String(args?.topic ?? "").trim();
+      if (!topic) throw new Error("topic is required");
+      // 工作目录由宿主解析：3B 抄长路径必然出错（实测把 t-1795207736548-5kr
+      // 抄成 t-179520207736548-5kr），所以模型给的 cwd 只当提示，最终以引擎的
+      // 会话工作目录为准。
+      let cwd = "";
+      try {
+        cwd = await ctx.workingDirectory.ensure(exec.agent, exec.signal);
+      } catch {
+        cwd = String(args?.cwd ?? "").trim();
+      }
+      if (!cwd) throw new Error("cannot resolve the session working directory");
+      const body = { topic, cwd };
+      if (Array.isArray(args?.queries)) {
+        const queries = args.queries.filter((q) => typeof q === "string" && q.trim());
+        if (queries.length > 0) body.queries = queries;
+      }
+      if (Array.isArray(args?.urls)) {
+        const urls = args.urls.filter((u) => typeof u === "string" && u.trim());
+        if (urls.length > 0) body.urls = urls;
+      }
+      if (typeof args?.save_to === "string" && args.save_to.trim()) body.save_to = args.save_to.trim();
+      return api.post("/web/research", body, exec.signal);
     },
   });
 
@@ -1933,8 +2632,8 @@ const TOOL_NAMES = [
   "ai00_plan_read",
   "ai00_plan_write",
   "ai00_plan_check",
-  "ai00_search",
   "ai00_web_extract",
+  "ai00_research_collect",
   "ai00_text_summarize",
 ];
 

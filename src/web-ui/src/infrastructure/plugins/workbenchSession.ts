@@ -14,6 +14,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import { dshEngine, dshSession } from '@/infrastructure/api/service-api/DshAPI';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
+import {
+  publishWindowMessage,
+  queueWindowIntent,
+} from '@/infrastructure/windows/windowBus';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import type { WorkbenchEntry } from './workbenchRegistry';
 
@@ -26,6 +30,26 @@ const STORAGE_KEY = 'ai00-x.workbench-sessions.v1';
  * 宿主不复制、不迁移（P1 边界：只迁入口）。
  */
 export const WORKBENCH_OPEN_SESSION = 'workbench:open-session';
+
+/**
+ * 跨窗口「定位到某张任务卡」的总线消息类型（overlay 通知 → 工作台任务场景）。
+ *
+ * 和 open-session 一样走「先落 pending 再广播」：工作台窗口可能没开，
+ * 刚拉起的窗口订阅建立前的广播会丢，启动时从 pending 里取回来。
+ */
+export const WORKBENCH_FOCUS_TASK = 'workbench:focus-task';
+
+export interface WorkbenchFocusTaskIntent {
+  taskId: string;
+}
+
+/** 通知里的「去批准 / 去验收」：开窗（或聚焦）+ 定位到该任务。 */
+export function requestWorkbenchTaskFocus(taskId: string): void {
+  const payload: WorkbenchFocusTaskIntent = { taskId };
+  // 冷启动（先建窗再加载页面）可能远超默认 10s：与 open-session 用同一档 TTL。
+  queueWindowIntent<WorkbenchFocusTaskIntent>(WORKBENCH_FOCUS_TASK, payload, 120_000);
+  publishWindowMessage<WorkbenchFocusTaskIntent>(WORKBENCH_FOCUS_TASK, payload);
+}
 
 export interface WorkbenchOpenSessionIntent {
   sessionId: string;

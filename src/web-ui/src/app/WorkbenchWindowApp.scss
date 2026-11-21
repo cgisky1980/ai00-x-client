@@ -20,33 +20,8 @@
   &__rail-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: var(--spacing-1);
     padding: 0 var(--spacing-1) var(--spacing-2) var(--spacing-2);
-  }
-
-  &__rail-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--spacing-6);
-    height: var(--spacing-6);
-    padding: 0;
-    border: none;
-    border-radius: var(--radius-sm);
-    background-color: transparent;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-
-    &:hover {
-      color: var(--color-accent);
-      background-color: var(--element-bg-subtle);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--style-focus-ring, var(--color-accent));
-      outline-offset: 1px;
-    }
   }
 
   &__rail-title {
@@ -153,27 +128,8 @@
     }
   }
 
-  // ---- 导航折叠：只由用户决定（点按钮），不随场景/窗口宽度自动变化 ----
-  &.is-rail-collapsed {
-    .ai00-x-workbench-window__rail {
-      flex-basis: var(--size-gap-14);
-      padding-inline: var(--spacing-1);
-    }
-
-    .ai00-x-workbench-window__rail-title,
-    .ai00-x-workbench-window__item-label {
-      display: none;
-    }
-
-    .ai00-x-workbench-window__rail-head {
-      display: none;
-    }
-
-    .ai00-x-workbench-window__item {
-      justify-content: center;
-      padding-inline: var(--spacing-1);
-    }
-  }
+  // 侧边栏不支持折叠：旧版折叠后没有可靠恢复入口（折叠按钮自己被隐藏），
+  // 干脆去掉这个能力，导航始终完整可见。
 }
 
 // ---- 响应式：窄窗口 AI 区转为浮层抽屉（侧边栏宽度不自动变） ----

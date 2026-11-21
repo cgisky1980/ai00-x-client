@@ -324,11 +324,11 @@ When developing frontend features, reuse existing infrastructure:
 
 ### Frontend Visual Specification
 
-> **★ 权威来源已迁移（2026-08-23）**：Ai00-X 统一视觉设计规范 = **[参考/前端视觉设计规范.md](../参考/前端视觉设计规范.md)（v0.20 起 = 总则 + 风格分册：分册一 新东方极简 · 分册二 漫画风）**，token 单一事实来源 = **`packages/design-system/tokens/*.json`**（DTCG，1:1 直出 CSS 变量，`pnpm build` 生成 `css/tokens.css` 等产物）。
+> **★ 权威来源**：Ai00-X 视觉设计规范 = **[参考/前端视觉设计规范.md](../参考/前端视觉设计规范.md)（v1.0 起 = 总则 + 皮肤目录）**。体系 = **皮肤 = 种子 → 派生**：`packages/design-system/skins/*.ai00skin.json`（taste-skill 发牌生成，暗/亮两档必填）给出 `--skin-*` 种子，`tokens/semantic.json` 全部语义 token 是种子的 color-mix 公式（`pnpm build` 生成 `css/tokens.css` + `css/skins.css`）。
 >
-> **Agent 硬规则**（色彩/动效为默认风格纪律，其他风格见规范总则 1.2 契约）：黛青 `--color-accent` 是唯一交互色；朱砂 `--color-brand-seal` 一屏一处（灵印或唯一 CTA）；LOGO=`<BrandMark>` 灵印（包组件）；品牌名一律 "Ai00-X"；表面走表面层级 token；门面大标题 Display 级（`--font-family-serif` 随风格）；机器输出 mono+tabular；backdrop-blur 仅浮层；签名动效仅分册白名单场景；禁止硬编码色值/px/z-index。
+> **Agent 硬规则**：皮肤 accent `--color-accent-*` 是唯一交互色；高亮笔 `--color-brand-seal` 一屏一处；LOGO=`<BrandMark>` 灵印（印色 `--color-brand-glyph` 随皮肤）；品牌名一律 "Ai00-X"；表面走表面层级 token；门面大标题 Display 级（`--font-family-display` 随皮肤）；机器输出 mono+tabular；backdrop-blur 仅浮层；动效只走 taste-skill 微动效层；禁止硬编码色值/px/z-index；**禁止 `root.style.setProperty('--…')` 覆盖 token**。
 >
-> **风格包（v0.16 落地，2026-10-06；v0.20 起为规范总则第一章）**：上述四签名纪律是**默认风格（新东方极简）**的纪律。设计系统已支持**可插拔风格包**——两轴正交 `data-theme-type`（明/暗）× `data-style`（风格包 id，默认 `xindongfang`）。风格包 = `packages/design-system/styles/<id>/`，构建期双通道产出；非默认风格以「风格包契约」（对比度 ≥4.5/≥3、交互三态可辨识、focus ring 不可移除、色值只许出现在风格包内、只能覆盖既有 token）替代四签名约束。现有风格包：`xindongfang`（默认）、`comic`（漫画风）。形态差异一律走 `--style-stroke-width` / `--style-focus-ring`（或覆盖既有 token），组件不得写死形态字面值。
+> **皮肤（v1.0，2026-11-22 取代风格包）**：`<html data-skin data-theme data-theme-type data-buttons data-radius data-motion>`；ThemeService（`infrastructure/theme/core/ThemeService.ts`）只设属性，用户皮肤写唯一 `<style id="ai00-skin">`。设置·外观有皮肤画廊与编辑器（`infrastructure/config/components/SkinGallery.tsx` / `SkinEditor.tsx`）。JS 侧要字面色值用 `themeConfigFromSkin()`（`infrastructure/theme/presets`）。
 >
 > 下表为 web-ui 存量 SCSS 编译期体系（`tokens.scss` 仍服务于 web-ui 编译期变量与 mixin；CSS 变量层与 design-system 同名兼容，新代码优先用包 token/组件）。新页面/新前端接入按规范第八节 checklist 逐项检查。
 
@@ -337,7 +337,7 @@ All UI MUST follow the design tokens defined in `src/web-ui/src/component-librar
 #### Design Tokens Source of Truth
 
 - **SCSS tokens**: `src/web-ui/src/component-library/styles/tokens.scss`
-- **CSS variables**: exported via `@mixin apply-design-tokens` (consumed through `:root`)
+- **CSS variables**: `@ai00-x/design-system` `css/tokens.css` (+ `css/skins.css` seeds). SCSS `$x` variables are aliases `$x: var(--x)` — never use Sass color functions on them; use `color-mix()`.
 - **Usage**: prefer CSS variables (`var(--token, fallback)`) in component SCSS for runtime theme support; use SCSS variables (`$token`) only for compile-time calculations
 
 #### Spacing / Padding (间距)

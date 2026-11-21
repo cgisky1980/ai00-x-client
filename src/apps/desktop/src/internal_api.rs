@@ -12,6 +12,7 @@
 //! - `POST /ai00-internal/git/snapshot`    — 工作区 git 快照（libgit2）
 //! - `POST /ai00-internal/xp`              — XP 事件转发远端（member JWT；服务端按 kind 幂等去重）
 //! - `POST /ai00-internal/web/extract`     — web 有效信息提取（全本地闭环：query=搜索→并发抓取→并发本地筛选；url=直达抓单页提正文，web_fetch 替代）
+//! - `POST /ai00-internal/web/research`    — 调研采集（搜索→抓取→筛选→去重→写 sources.md，本地 3B 单次调用即可完成）
 //! - `POST /ai00-internal/text/summarize`  — 长文总结（全本地闭环：≤6000 单次 / >6000 map-reduce）
 //!
 //! 鉴权分两层：
@@ -276,6 +277,11 @@ pub fn router() -> Router {
                 .post(web_extract),
         )
         .push(
+            Router::with_path("web/research")
+                .hoop(no_cache)
+                .post(web_research),
+        )
+        .push(
             Router::with_path("text/summarize")
                 .hoop(no_cache)
                 .post(text_summarize),
@@ -381,6 +387,82 @@ async fn web_extract(req: &mut Request, res: &mut Response) {
         .map(|v| v as usize);
     let pages = crate::web_extract::extract(query, max_results).await;
     res.body(json!({"pages": pages}).to_string());
+}
+
+// ---------------------------------------------------------------------------
+// 调研采集（ai00_research_collect 宿主侧：搜索→并发抓取→本地筛选→去重→落盘）
+// ---------------------------------------------------------------------------
+
+/// 一次调用完成整条调研链路（本地 3B 只发一次工具调用，见 web_extract.rs 说明）。
+#[handler]
+async fn web_research(req: &mut Request, res: &mut Response) {
+    if !authorize(req, res, SCOPE_WEB_EXTRACT) {
+        return;
+    }
+    let Some(body) = parse_body(req, res).await else {
+        return;
+    };
+    let Some(topic) = body
+        .get("topic")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    else {
+        err(res, StatusCode::BAD_REQUEST, "missing field: topic".into());
+        return;
+    };
+    let Some(cwd) = body
+        .get("cwd")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+    else {
+        err(
+            res,
+            StatusCode::BAD_REQUEST,
+            "missing field: cwd (pass your working directory verbatim)".into(),
+        );
+        return;
+    };
+    let save_to = body
+        .get("save_to")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("sources.md");
+    let cwd_path = std::path::PathBuf::from(cwd);
+    // 先校验落点：路径不合法直接 400，避免白跑一轮采集。
+    if let Err(message) = crate::web_extract::resolve_save_target(&cwd_path, save_to) {
+        err(res, StatusCode::BAD_REQUEST, message);
+        return;
+    }
+    let string_list = |key: &str| -> Vec<String> {
+        body.get(key)
+            .and_then(|v| v.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let mut queries = string_list("queries");
+    if queries.is_empty() {
+        queries = crate::web_extract::derived_queries(topic);
+    }
+    let urls = string_list("urls");
+    let (pages, query_count, failed) = crate::web_extract::collect_pages(&queries, &urls).await;
+    match crate::web_extract::write_research_markdown(&cwd_path, save_to, topic, &pages) {
+        Ok(mut outcome) => {
+            outcome.queries = query_count;
+            outcome.failed = failed;
+            res.body(json!(outcome).to_string());
+        }
+        Err(e) => err(res, StatusCode::INTERNAL_SERVER_ERROR, e),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -716,7 +798,7 @@ async fn tasks_trigger(req: &mut Request, res: &mut Response) {
             return;
         }
     };
-    let Some(task) = store
+    let Some(_task) = store
         .get("tasks")
         .and_then(Value::as_array)
         .and_then(|arr| {
@@ -731,18 +813,10 @@ async fn tasks_trigger(req: &mut Request, res: &mut Response) {
         );
         return;
     };
-    let status = task
-        .get("status")
-        .and_then(Value::as_str)
-        .unwrap_or("requirement");
-    if status == "doing" {
-        err(
-            res,
-            StatusCode::CONFLICT,
-            format!("task already running: {task_id}"),
-        );
-        return;
-    }
+    // 防重入不在这里做：看板列 `status` 是给用户看的（工作台卡片建卡即 doing，
+    // worker 跑完也不回落），拿它当运行态会让外部触发永远 409（实测 2026-11-21）。
+    // 真实运行态只有前端知道（session/list 的 running + 子代理聚合），
+    // 由 `todo://task-trigger` 的接收方判断并提示「正在执行中」。
     let Some(app) = crate::dsh_manager::app_handle() else {
         err(res, StatusCode::SERVICE_UNAVAILABLE, "app not ready".into());
         return;

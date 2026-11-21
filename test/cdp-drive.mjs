@@ -12,7 +12,7 @@
  *   send <text>    — type into chat composer and submit
  *   watch <sec>    — watch chat messages grow for N seconds
  */
-const BASE = 'http://127.0.0.1:9222';
+const BASE = process.env.CDP_BASE || 'http://127.0.0.1:9223';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -145,6 +145,16 @@ try {
     const expr = readFileSync(arg, 'utf8');
     const target = await findTarget((t) => t.url.includes('workbench.html'));
     if (!target) throw new Error('no workbench window');
+    const c = await attach(target);
+    console.log(JSON.stringify(await c.ev(expr), null, 1));
+    c.close();
+  } else if (step === 'eval-overlay') {
+    // 在 overlay 窗口（http://127.0.0.1:2100/main/，App.tsx → TodoOverlay +
+    // NotificationContainer 所在）里执行表达式文件：eval-overlay <file>
+    const { readFileSync } = await import('node:fs');
+    const expr = readFileSync(arg, 'utf8');
+    const target = await findTarget((t) => /\/main\/$/.test(t.url));
+    if (!target) throw new Error('no overlay window');
     const c = await attach(target);
     console.log(JSON.stringify(await c.ev(expr), null, 1));
     c.close();

@@ -2,7 +2,7 @@
   "name": "@ai00-x/design-system",
   "version": "0.1.0",
   "private": true,
-  "description": "Ai00-X 统一设计系统（可插拔风格包体系，默认新东方极简）：DTCG 设计令牌单一事实来源（tokens/*.json）+ React 组件套件（Radix+CVA+token CSS）。规范见 参考/前端视觉设计规范.md。改 token 只改 tokens/*.json 然后 pnpm build；组件样式在 css/components.css。",
+  "description": "Ai00-X 统一设计系统（皮肤体系，默认皮肤「煤黑青柠」）：DTCG 设计令牌（tokens/*.json，全部由 --skin-* 种子派生）+ 皮肤（skins/*.ai00skin.json，taste-skill 发牌生成）+ React 组件套件。规范见 参考/前端视觉设计规范.md。",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -13,18 +13,18 @@
     "./css": "./css/tokens.css",
     "./styles": "./css/index.css",
     "./styles.css": "./css/index.css",
-    "./packs": "./css/style-packs.css",
-    "./packs-meta": "./src/stylePacks.ts",
     "./tw": "./css/tw-theme.css",
     "./tw.css": "./css/tw-theme.css",
     "./standalone": "./css/tokens.standalone.css",
-    "./tokens": "./src/tokens.ts"
+    "./tokens": "./src/tokens.ts",
+    "./skins": "./css/skins.css",
+    "./skin": "./src/skin/index.ts"
   },
   "scripts": {
-    "build": "node scripts/build-tokens.mjs && node scripts/check-style-packs.mjs",
+    "build": "node scripts/build-tokens.mjs && node scripts/check-skins.mjs",
     "brand:icons": "node scripts/generate-brand-icons.mjs",
-    "build:fonts": "uv run --with \"fonttools[woff]\" python scripts/subset-display-font.py",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "skin:taste": "node scripts/skin-from-taste.mjs"
   },
   "sideEffects": [
     "*.css"

@@ -96,8 +96,6 @@
     },
     "workbenchWindow": {
       "empty": "No workbench installed yet",
-      "collapseRail": "Collapse navigation",
-      "expandRail": "Expand navigation",
       "showChat": "Show AI chat",
       "hideChat": "Hide AI chat",
       "resizeChat": "Drag to resize AI chat (double-click to reset)",
@@ -129,7 +127,7 @@
         "modeQuick": "Quick answer",
         "modeQuickHint": "Answer right in chat — no plan, no subagents, no files",
         "modeDelivery": "Full delivery",
-        "modeDeliveryHint": "Plan → your approval → subagents → evidence gate → files",
+        "modeDeliveryHint": "Plan → you approve → subagents run → evidence check → you accept",
         "modeLabel": "Execution mode",
         "requestPlaceholder": "Describe your task and press Enter to start…",
         "flowHint": "Plan → Execute → Self-check → Your review",
@@ -138,27 +136,44 @@
         "renameTitle": "Rename task",
         "renameSave": "Save",
         "archive": "Archive",
+        "archiveStopRunning": "Archive (stops the running turn)",
         "unarchive": "Unarchive",
         "delete": "Delete",
         "deleteTitle": "Delete task",
         "deleteMessage": "The card is removed from the list (the engine session record is kept). Delete?",
+        "deleteMessageRunning": "The card is removed from the list and the running turn is stopped immediately (the engine session record is kept). Delete?",
         "showArchived": "Show archived tasks",
         "hideArchived": "Back to active tasks",
         "archivedTitle": "Archived",
         "archivedEmpty": "No archived tasks yet",
+        "archivedReadOnly": "Archived · read-only. The plan, deliverables and chat history are kept; restore the task to keep talking or accept it.",
+        "archivedReadOnlyHint": "Archived: open for a read-only view",
         "reviewHint": "The agent has finished its self-check. Review the delivery.",
         "reviewAction": "Review",
         "empty": "No tasks yet",
         "preparing": "Preparing session…",
         "openFailed": "Failed to open the task session: {{message}}",
-        "status": {
-          "planning": "Planning",
-          "approving": "Awaiting approval",
-          "running": "Running",
-          "stopped": "Stopped",
-          "awaiting": "Awaiting review",
-          "done": "Done",
-          "failed": "Failed"
+        "starters": {
+          "bug": {
+            "title": "Fix a bug",
+            "description": "Describe the symptom and repro; the agent locates and fixes it",
+            "prompt": "Fix this issue:\nSymptom:\nSteps to reproduce:\nExpected result:"
+          },
+          "feature": {
+            "title": "Add a feature",
+            "description": "State the goal and acceptance criteria; a plan comes first",
+            "prompt": "Implement a new feature:\nGoal:\nAcceptance criteria:"
+          },
+          "docs": {
+            "title": "Write docs",
+            "description": "Name the audience and scope; outputs a Markdown file",
+            "prompt": "Write a document:\nAudience:\nWhat it should cover:"
+          },
+          "research": {
+            "title": "Research a question",
+            "description": "Give the question and constraints; outputs a conclusion",
+            "prompt": "Research this question and give a conclusion:\nQuestion:\nConstraints:"
+          }
         }
       },
       "projects": {
@@ -171,6 +186,7 @@
         "taskPlaceholder": "What should be done in this project…",
         "recentTasks": "Recent tasks",
         "noTasks": "No tasks in this project yet",
+        "needsYouCount": "{{count}} task(s) waiting for you (approve / review / answer)",
         "remove": "Remove project (keeps files and tasks)",
         "reveal": "Show in folder",
         "back": "Back to project overview",
@@ -274,29 +290,27 @@
         "title": "Task board",
         "hasPlan": "Has a plan",
         "columnEmpty": "No tasks",
-        "phases": {
-          "planning": "Planning",
-          "approving": "Awaiting approval",
-          "running": "Running",
-          "stopped": "Stopped",
-          "awaiting": "Awaiting review",
-          "done": "Done",
-          "failed": "Failed"
-        },
         "noSelection": "Pick a card on the left to see its plan and acceptance",
         "filterLabel": "Scope",
         "filterAll": "All",
         "steps": "Steps",
         "noSteps": "The plan has no checkable steps yet",
         "noPlan": "No plan yet — the AI writes one in the task session first",
+        "quickNoPlan": "Quick answers have no plan: the task just answers your question — no plan, no subagents, no files.",
         "acceptance": "Acceptance",
         "noAcceptance": "No acceptance items",
+        "verifyRecord": "Last integration verify",
+        "rejectRecord": "Rejections",
         "accept": "Accept",
         "acceptHint": "Human acceptance passed — mark as done",
         "acceptBlocked": "{{count}} acceptance item(s) still unchecked (click to check)",
+        "acceptRunningHint": "The agent is still running this turn. Accept after it stops — accepting now would count files it is still editing as delivered.",
+        "acceptFailedConfirm": "The last integration verify verdict is \"failed\". Accept anyway?",
         "reject": "Send back",
         "rejectHint": "Send back: the agent rereads the plan and keeps working",
         "rejectPrompt": "Reason for sending back (sent to the agent; may be empty)",
+        "rejectPickLabel": "Tick the acceptance items that fail (sent to the agent; none = send back the whole task)",
+        "rejectCancel": "Cancel",
         "rejectDefault": "Please keep improving: acceptance not passed",
         "deliverables": "Deliverables",
         "deliverablesMissing": "The agent registered no deliverables — send it back to add them",
@@ -310,7 +324,9 @@
         "label": "Task flow",
         "plan": "Plan",
         "execute": "Execute",
-        "review": "Review"
+        "review": "Review",
+        "done": "Done",
+        "needsYou": "Needs you"
       },
       "review": {
         "title": "Awaiting your review",
@@ -369,7 +385,7 @@
         "stateActive": "Running",
         "stateReview": "In review",
         "stateRework": "Rework",
-        "stateDone": "Passed",
+        "stateDone": "Verified",
         "stateFallback": "Cloud fallback",
         "stateFailed": "Failed",
         "currentStage": "Stage",
@@ -417,6 +433,8 @@
       "subagentDone": "Finished",
       "subagentPending": "Dispatching",
       "subagentAbnormal": "Ended abnormally",
+      "subagentSlow": "Taking long",
+      "subagentStalled": "Looks stuck — stop it and degrade",
       "subagentSession": "Session",
       "subagentPromptToggle": "Show task brief",
       "subagentOverview": "Subagents {{count}}",
@@ -447,6 +465,41 @@
         "truncated": "Large file — showing the first 256KB",
         "unsupported": "This file type has no built-in preview",
         "fileTooLarge": "File exceeds {{size}}MB; built-in preview unavailable"
+      },
+      "planCard": {
+        "generating": "Ai00-X is breaking down the goal…",
+        "emptyTitle": "No plan yet",
+        "approve": "Approve & run",
+        "approveHint": "Want changes? Edit the steps directly or say so in the chat — you will be asked to confirm again.",
+        "statsDone": "Done",
+        "statsRework": "Rework",
+        "statsTools": "Tool calls",
+        "statsToolFailures": "Tool failures",
+        "details": "Verification & evidence",
+        "accepted": "Accepted — task complete",
+        "undoAccept": "Undo acceptance",
+        "undoAcceptConfirm": "The task goes back to review (deliverables, evidence and the reject log are kept) so you can accept again or send it back for rework. Undo?",
+        "resume": "Resume",
+        "continuePlanning": "Keep planning",
+        "emptyStoppedHint": "The agent stopped before writing a plan. Continue below to have it break down the goal again.",
+        "emptyFailedHint": "This turn ended with an error (see the chat on the right) before any plan was written. Fix the cause, then retry below.",
+        "sendFailed": "The message did not reach the agent: {{message}}. The plan state is updated; you can resend it in the chat.",
+        "editStep": "Edit step",
+        "stepTitle": "Step title",
+        "stepCommand": "Acceptance command (optional, e.g. pnpm run type-check)",
+        "saveStep": "Save",
+        "deleteStep": "Delete step",
+        "addStep": "Add step",
+        "newStep": "New step",
+        "diffChanged": "changed {{ids}}",
+        "diffAdded": "added {{ids}}",
+        "diffRemoved": "removed {{ids}}",
+        "diffJoin": ", ",
+        "diffBody": "edited the plan text",
+        "changedMessage": "Plan changed: the user {{summary}}. Re-read the plan with ai00_plan_read first; it is back to pending approval — continue with the new plan once the user approves it on the plan page.",
+        "needsYouNotice": "Needs you: approve or review on the plan page.",
+        "acceptedFact": "— Accepted, task complete —",
+        "revise": "Send back"
       }
     },
     "modes": {
@@ -1185,12 +1238,8 @@
   "theme": {
     "dark": "Dark",
     "light": "Light",
-    "style": "Visual style",
-    "styleTooltip": "Switch visual style",
-    "stylePacks": {
-      "xindongfang": "Neo-Oriental Minimal",
-      "comic": "Comic"
-    }
+    "skin": "Skin",
+    "skinTooltip": "Switch skin"
   },
   "mcpDialog": {
     "server": "Server:",

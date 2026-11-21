@@ -46,6 +46,9 @@ jobs:
       - name: Lint styles (design tokens guard)
         run: pnpm run lint:style
 
+      - name: Workbench loop contract in sync
+        run: pnpm run check:workbench-contract
+
   # ── Rust: syntax checks only (cargo check / fmt / clippy) ─────────
   rust-check:
     name: Rust Check (${{ matrix.os }})

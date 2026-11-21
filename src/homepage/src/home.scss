@@ -62,7 +62,6 @@ html, body, #root { margin: 0; padding: 0; min-height: 100%; }
   min-height: 100vh;
   /* 只设 background-color：shorthand 会重置宣纸纹理（v0.10 教训） */
   background-color: var(--color-bg-base);
-  background-image: var(--ds-paper-grain);
   color: var(--color-text-primary);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-base);
@@ -212,7 +211,6 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   overflow: hidden;
   background-color: var(--color-bg-card);
-  background-image: var(--ds-paper-grain);
   border: 1px solid var(--border-subtle);
   border-radius: var(--size-radius-lg);
   box-shadow: var(--shadow-sm);
@@ -364,7 +362,6 @@ a { color: inherit; text-decoration: none; }
   margin: 0;
   padding: var(--size-gap-6);
   background-color: var(--color-bg-card);
-  background-image: var(--ds-paper-grain);
   border: 1px solid var(--border-subtle);
   border-radius: var(--size-radius-lg);
 

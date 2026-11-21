@@ -28,6 +28,8 @@
   }
 
   &__list-title {
+    flex: 1;
+    min-width: 0;
     color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
@@ -176,8 +178,6 @@
 
   &__item-meta {
     flex: 0 0 auto;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
   }
 
   &__empty {
@@ -201,73 +201,6 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-  }
-
-  // 三栏主体：中间标签区 + 右常驻对话
-  &__row {
-    display: flex;
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  // 快速问答没有中央计划区：对话独占剩余宽度
-  &__row.is-quick {
-    align-items: stretch;
-  }
-
-  &__stage {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  &__chat {
-    display: flex;
-    flex: 0 0 auto;
-    min-height: 0;
-    border-left: var(--style-stroke-width, 1px) solid var(--border-subtle);
-  }
-
-  // 快速问答：对话铺满主区（不限宽、无左侧分隔线）
-  &__chat.is-full {
-    flex: 1 1 auto;
-    width: 100%;
-    min-width: 0;
-    border-left: none;
-  }
-
-  &__chat-resizer {
-    flex: 0 0 var(--spacing-1);
-    cursor: col-resize;
-    background-color: transparent;
-    transition: background-color var(--motion-fast) var(--easing-standard);
-
-    &:hover,
-    &.is-dragging {
-      background-color: var(--color-accent);
-    }
-  }
-
-  // 对话面板铺满自己的列
-  &__chat .ai00-x-workbench-chat {
-    width: 100%;
-    max-width: none;
-    border-left: none;
-  }
-
-  &__conversation-head {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-3);
-    flex-shrink: 0;
-    min-height: var(--size-gap-12);
-    padding: var(--spacing-2) var(--spacing-5);
-    border-bottom: var(--style-stroke-width, 1px) solid var(--color-border);
   }
 
   &__conversation-title {
@@ -294,39 +227,6 @@
     white-space: nowrap;
   }
 
-  &__conversation-status {
-    flex: 0 0 auto;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
-
-    &.is-awaiting,
-    &.is-failed {
-      color: var(--color-accent);
-    }
-  }
-
-  &__review-banner {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-2);
-    flex-shrink: 0;
-    padding: var(--spacing-2) var(--spacing-4);
-    border-bottom: var(--style-stroke-width, 1px) solid var(--color-border);
-    background-color: var(--color-bg-secondary);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-xs);
-
-    button {
-      padding: 0;
-      border: none;
-      background: none;
-      color: var(--color-accent);
-      font-size: var(--font-size-xs);
-      cursor: pointer;
-    }
-  }
-
   &__main-error {
     flex-shrink: 0;
     margin: 0;
@@ -341,10 +241,10 @@
     justify-content: center;
     gap: var(--spacing-5);
     flex: 1;
-    width: min(100%, 72ch);
+    width: min(100%, var(--size-content-chat));
     min-height: 0;
     margin: 0 auto;
-    padding: var(--spacing-8) var(--spacing-5);
+    padding: var(--spacing-8);
   }
 
   &__new-task-copy {
@@ -354,7 +254,7 @@
       margin: 0 0 var(--spacing-2);
       color: var(--color-text-primary);
       font-family: var(--font-family-serif);
-      font-size: var(--font-size-2xl);
+      font-size: var(--font-size-display);
       font-weight: var(--font-weight-semibold);
     }
 
@@ -365,42 +265,24 @@
     }
   }
 
-  &__new-task-mode {
-    display: flex;
-    justify-content: center;
-    gap: var(--spacing-1);
-    padding: var(--spacing-1);
-    margin: 0 auto calc(var(--spacing-2) * -1);
-    border-radius: var(--radius-full);
-    background-color: var(--color-surface-sunken);
-  }
-
-  &__new-task-mode-option {
-    padding: var(--spacing-1) var(--spacing-4);
-    border: none;
-    border-radius: var(--radius-full);
-    background-color: transparent;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
-
-    &:hover {
-      color: var(--color-text-primary);
-    }
-
-    &.is-active {
-      background-color: var(--color-surface-raised);
-      color: var(--color-accent);
-      font-weight: var(--font-weight-medium);
-    }
-  }
-
   &__new-task-flow {
     margin: calc(var(--spacing-3) * -1) 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
     text-align: center;
+  }
+
+  // 提交后的计划卡骨架（与计划页同留白）
+  &__pending {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--spacing-8);
+  }
+
+  &__starters {
+    width: 100%;
   }
 
   &__placeholder {

@@ -46,7 +46,7 @@
     position: relative;
     z-index: 0; /* 建 stacking context：光晕(-1) 沉到内容之下 */
 
-    /* v0.14：黛青径向光晕淡入（与 ds-card 同款，配方 --ds-glow-card 主题自适应） */
+    /* v0.14：交互色径向光晕淡入（与 ds-card 同款，配方 --ds-glow-card 主题自适应） */
     &::before {
       content: '';
       position: absolute;

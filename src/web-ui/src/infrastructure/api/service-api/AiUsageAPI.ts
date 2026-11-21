@@ -89,8 +89,8 @@ export function diffUsage(
  *    （`created_at >= 回合开始 - 2s`）汇总——范围已由入参会话限定，不跨会话。
  *
  * 服务端结算异步落账，未命中时最多重试 3 次（每次 1.2s）。
- * 账本全部不可用（未登录 / 网络）返回 null（未知，不是 0）；
- * 账本可用但本轮确实没扣费（免费模型 / 未结算）返回 0。
+ * 账本全部不可用（未登录 / 网络）或本轮尚未落账返回 null（未知，不是 0）；
+ * 只有账本明确命中条目、合计为 0（免费模型）才返回 0。
  */
 export async function resolveRemoteCredits(params: {
   sessionId: string;
@@ -125,9 +125,9 @@ export async function resolveRemoteCredits(params: {
       });
       if (inWindow.length > 0) return sum(inWindow);
     }
-    // 两条口径都没命中：给异步结算留一次机会，最后一次直接按 0 收
-    if (attempt === 2) return 0;
-    await new Promise(resolve => setTimeout(resolve, 1_200));
+    // 两条口径都没命中：可能是异步结算尚未落账，未命中≠没扣费，
+    // 交给上层有界轮询继续补齐，这里只报"未知"。
+    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1_200));
   }
   return null;
 }
