@@ -152,6 +152,11 @@ export function parseRejectNotes(md: string | null): string[] {
   return out.reverse();
 }
 
+/** 集成验收结论是否为「未通过」（人点验收通过前需要一次确认，防误点）。 */
+export function hasFailedVerify(record: string[]): boolean {
+  return record.some((line) => /^结论\s*[:：]/.test(line) && /\bfailed\b/.test(line));
+}
+
 /**
  * 删除「## 验证记录」段（打回时用）。
  *

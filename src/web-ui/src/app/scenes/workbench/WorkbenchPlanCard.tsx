@@ -35,6 +35,7 @@ import { useTodoStore } from '@/tools/todo/store/todoStore';
 import {
   appendRejectNote,
   clearVerifyRecord,
+  hasFailedVerify,
   localizeVerifyLine,
   parseAcceptance,
   parseRejectNotes,
@@ -369,8 +370,12 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   }, [sessionId, t]);
 
   const accept = useCallback((): void => {
+    // 最近一次集成验收判「未通过」时，验收通过前多问一句：这是人最容易误点的一步。
+    if (hasFailedVerify(verifyRecord) && !window.confirm(t('nav.workbenchWindow.board.acceptFailedConfirm'))) {
+      return;
+    }
     useTodoStore.getState().completeTask(task.id, true);
-  }, [task.id]);
+  }, [t, task.id, verifyRecord]);
 
   const reject = useCallback(
     (input: string): void => {

@@ -300,6 +300,7 @@
         "accept": "Accept",
         "acceptHint": "Human acceptance passed — mark as done",
         "acceptBlocked": "{{count}} acceptance item(s) still unchecked (click to check)",
+        "acceptFailedConfirm": "The last integration verify verdict is \"failed\". Accept anyway?",
         "reject": "Send back",
         "rejectHint": "Send back: the agent rereads the plan and keeps working",
         "rejectPrompt": "Reason for sending back (sent to the agent; may be empty)",
