@@ -96,8 +96,6 @@
     },
     "workbenchWindow": {
       "empty": "还没有安装任何工作台",
-      "collapseRail": "收起导航",
-      "expandRail": "展开导航",
       "showChat": "显示 AI 对话",
       "hideChat": "隐藏 AI 对话",
       "resizeChat": "拖动调整 AI 对话宽度（双击复位）",

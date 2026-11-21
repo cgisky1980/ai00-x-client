@@ -48,7 +48,7 @@
     .is-done & {
       border-color: var(--color-accent);
       background-color: var(--color-accent);
-      color: var(--color-bg-base);
+      color: var(--color-accent-foreground);
     }
 
     .is-active & {

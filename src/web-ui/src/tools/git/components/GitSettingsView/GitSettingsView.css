@@ -76,7 +76,7 @@
 
 .save-btn:hover:not(:disabled) {
   background: var(--color-success);
-  color:var(--color-text-primary);
+  color: var(--color-accent-foreground);
 }
 
 .save-btn:disabled {
@@ -341,7 +341,7 @@
   background: var(--color-primary);
   border: none;
   border-radius: 4px;
-  color:var(--color-text-primary);
+  color: var(--color-accent-foreground);
   font-size: var(--font-size-xs);
   cursor: pointer;
   transition: all 0.2s ease;

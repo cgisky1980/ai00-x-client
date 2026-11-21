@@ -149,6 +149,8 @@ export const TodoOverlay: React.FC = () => {
         const fresh: typeof data.tasks = [];
         for (const t of data.tasks) {
           if (!t.agentCompletedAt || t.completedAt) continue;
+          // 已归档 = 人主动收起了这张卡：它的验收入口在只读视图里，提示过去也验收不了。
+          if (t.archivedAt) continue;
           current.add(t.id);
           if (!knownCompletedRef.current.has(t.id)) fresh.push(t);
         }
@@ -196,6 +198,8 @@ export const TodoOverlay: React.FC = () => {
       window.setTimeout(() => {
         const task = useTodoStore.getState().data.tasks.find((t) => t.id === taskId);
         if (!task || task.origin !== 'workbench') return;
+        // 已归档的卡不弹：验收/批准入口都在只读视图里，提示过去也动不了。
+        if (task.archivedAt) return;
         if (task.completedAt || task.agentCompletedAt || task.planApprovedAt) return;
         const at = approvalToastAtRef.current.get(taskId) ?? 0;
         if (Date.now() - at < 5 * 60_000) return;
@@ -285,6 +289,7 @@ export const TodoOverlay: React.FC = () => {
           firstPollRef.current = false;
           const interrupted = tasks.filter(t => {
             const sid = t.agentSessionId;
+            if (t.archivedAt) return false; // 已归档：不催人处理
             if ((t.status ?? 'requirement') !== 'doing' || !sid || map[sid]) return false;
             const state = runStateMap[sid];
             return state ? state.openTurn || state.pendingTools > 0 : false;
@@ -294,6 +299,7 @@ export const TodoOverlay: React.FC = () => {
               `有 ${interrupted.length} 个执行任务被中断`,
               '上次客户端退出时中断——点开卡片查看，直接发消息或点「继续执行」续跑',
               'warning',
+              [goToTask(interrupted[0].id, '去查看')],
             );
           }
         }

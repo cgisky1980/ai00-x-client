@@ -130,7 +130,7 @@
     &.is-on {
       background: var(--color-accent-500);
       border-color: var(--color-accent-500);
-      color: var(--color-bg-primary);
+      color: var(--color-accent-foreground);
     }
 
     &:disabled {

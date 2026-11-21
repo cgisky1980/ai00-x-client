@@ -629,12 +629,12 @@
 
     &:hover {
       background: var(--color-accent-500);
-      color: var(--color-bg-primary);
+      color: var(--color-accent-foreground);
     }
 
     &--playing {
       background: var(--color-accent-500);
-      color: var(--color-bg-primary);
+      color: var(--color-accent-foreground);
     }
   }
 }
@@ -732,7 +732,7 @@
     justify-content: center;
     font-size: var(--font-size-2xl);
     font-weight: $font-weight-bold;
-    color: var(--color-bg-primary);
+    color: var(--color-accent-foreground);
   }
 
   &__avatar-img {
@@ -957,7 +957,7 @@
     border: none;
     border-radius: $size-radius-base;
     background: var(--color-accent-500);
-    color: var(--color-bg-primary);
+    color: var(--color-accent-foreground);
     cursor: pointer;
     font-size: var(--font-size-xs);
     font-weight: $font-weight-semibold;

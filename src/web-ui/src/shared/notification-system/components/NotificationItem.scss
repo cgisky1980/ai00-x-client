@@ -118,7 +118,7 @@
 
     &--primary {
       background: var(--color-accent-600);
-      color: var(--color-text-primary);
+      color: var(--color-accent-foreground);
 
       &:hover {
         background: var(--color-accent-500);
@@ -145,7 +145,7 @@
 
     &--danger {
       background: var(--color-error);
-      color: var(--color-text-primary);
+      color: var(--color-accent-foreground);
 
       &:hover {
         background: $git-color-deleted;

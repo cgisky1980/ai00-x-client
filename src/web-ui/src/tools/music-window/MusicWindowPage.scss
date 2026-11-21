@@ -1756,7 +1756,7 @@
     padding: 0 calc(var(--size-gap-1) * 0.75); // 3px 微徽标内衬
     border-radius: var(--size-radius-full);
     background: var(--color-accent-400);
-    color: var(--color-bg-primary);
+    color: var(--color-accent-foreground);
     font-size: calc(var(--font-size-xs) * 0.75); // 9px 微徽标数字
     font-weight: 600;
     line-height: 14px;

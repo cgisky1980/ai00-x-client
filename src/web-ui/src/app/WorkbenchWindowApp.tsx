@@ -14,7 +14,7 @@
  * （plugin_data_* 命令）自持，窗口只是宿主。
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { CalendarClock, FolderKanban, House, LayoutGrid, MessageSquare, PanelRight, PanelRightClose, PanelLeftClose, PanelLeftOpen, SquareKanban } from 'lucide-react';
+import { CalendarClock, FolderKanban, House, LayoutGrid, MessageSquare, PanelRight, PanelRightClose, SquareKanban } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useWorkbenches } from '@/infrastructure/plugins/workbenchRegistry';
 import {
@@ -41,7 +41,6 @@ import './WorkbenchWindowApp.scss';
 /** 窄窗口断点：低于它 AI 区以浮层形式出现（与样式表保持一致）。 */
 const NARROW_QUERY = '(max-width: 980px)';
 
-const RAIL_KEY = 'workbench.railCollapsed';
 const CHAT_KEY = 'workbench.chatVisible';
 
 function readFlag(key: string, fallback: boolean): boolean {
@@ -73,7 +72,6 @@ const WorkbenchWindowApp: React.FC = () => {
       return TASKS_SCENE_ID;
     }
   });
-  const [railCollapsed, setRailCollapsed] = useState(() => readFlag(RAIL_KEY, false));
   const [chatVisible, setChatVisible] = useState(() => readFlag(CHAT_KEY, true));
   const [narrow, setNarrow] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(NARROW_QUERY).matches,
@@ -191,13 +189,6 @@ const WorkbenchWindowApp: React.FC = () => {
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  const toggleRail = useCallback((): void => {
-    setRailCollapsed(prev => {
-      writeFlag(RAIL_KEY, !prev);
-      return !prev;
-    });
-  }, []);
-
   const toggleChat = useCallback((): void => {
     setChatVisible(prev => {
       writeFlag(CHAT_KEY, !prev);
@@ -220,7 +211,7 @@ const WorkbenchWindowApp: React.FC = () => {
 
   return (
     <div
-      className={`ai00-x-workbench-window${railCollapsed ? ' is-rail-collapsed' : ''}${
+      className={`ai00-x-workbench-window${
         activeEntry && chatVisible ? ' is-chat-visible' : ''
       }`}
     >
@@ -229,23 +220,6 @@ const WorkbenchWindowApp: React.FC = () => {
           <span className="ai00-x-workbench-window__rail-title">
             {t('nav.sections.workbench')}
           </span>
-          <button
-            type="button"
-            className="ai00-x-workbench-window__rail-toggle"
-            onClick={toggleRail}
-            aria-label={
-              railCollapsed
-                ? t('nav.workbenchWindow.expandRail')
-                : t('nav.workbenchWindow.collapseRail')
-            }
-            title={
-              railCollapsed
-                ? t('nav.workbenchWindow.expandRail')
-                : t('nav.workbenchWindow.collapseRail')
-            }
-          >
-            {railCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
-          </button>
         </div>
         <div className="ai00-x-workbench-window__items">
           <button
