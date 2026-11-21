@@ -17,6 +17,7 @@ import { useWorkbenchTaskStore } from './workbenchTaskStore';
 import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
 import {
   WORKBENCH_STAGE_KEYS,
+  needsYou,
   stageKeyOf,
   type WorkbenchStageKey,
 } from '../workbench/workbenchStage';
@@ -92,8 +93,18 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
     };
     for (const task of tasks) map[stageKeyOf(phaseOf(task))].push(task);
     map.done = map.done.slice(0, 20);
+    // 列内「需要你」置顶（与任务列表同一口径：taskPhase + needsYou）：
+    // 计划列会同时出现「待批准」和「规划中」，前者才是该点的那张。组内仍按新→旧
+    // （tasks 已按 createdAt 倒序，稳定排序保序）。
+    const rankOf = (task: TodoTask): number =>
+      needsYou(phaseOf(task), Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking))
+        ? 0
+        : 1;
+    for (const key of WORKBENCH_STAGE_KEYS) {
+      map[key] = [...map[key]].sort((a, b) => rankOf(a) - rankOf(b));
+    }
     return map;
-  }, [tasks, phaseOf]);
+  }, [tasks, phaseOf, runtime]);
 
   const selected = tasks.find((task) => task.id === selectedId) ?? null;
 
