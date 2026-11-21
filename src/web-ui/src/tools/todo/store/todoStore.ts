@@ -571,6 +571,11 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   agentQuestions: {},
 
   load: async () => {
+    // 本地有未落盘的改动（刚点验收 / 刚写提醒时间）→ 先不重读盘，与
+    // `applyRemoteData` 同一道保护：`todo-agent-updated` 这类广播随时可能到达，
+    // 此时磁盘还是旧值，直接覆盖会把刚做的动作吞掉；等本次 save 落盘后的
+    // 广播再对齐即可。
+    if (saveTimer && get().loaded) return;
     // 一次性迁移：旧插件数据 → 核心存储（schema 同构，直搬 + 标记）。
     try {
       let raw = await invoke<unknown>('todo_store_get');
@@ -584,9 +589,15 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         }
       }
       const data = sanitize(raw);
+      // 只有真的发生了「迁移 / 首次建档」才写回。
+      // ⚠️ 以前无条件 `get().save()`：读盘顺手把刚读到的旧数据又写一遍，
+      // 而另一个窗口（工作台 / overlay）可能正握着还没落盘的改动——
+      // 实测点「通过」后 80ms 内来一条 `todo-agent-updated`，overlay 的
+      // load→save 就把这次验收从盘上抹掉了。读操作不该有写副作用。
+      const migrated = !data.migratedFromPlugin;
       data.migratedFromPlugin = true;
       set({ data, loaded: true });
-      get().save();
+      if (migrated) get().save();
     } catch (e) {
       console.warn('[todo] load failed:', e);
       set({ data: emptyData(), loaded: true });
