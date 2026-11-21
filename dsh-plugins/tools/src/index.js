@@ -32,7 +32,7 @@
 
 import { exec, execFile } from "node:child_process";
 import { statSync } from "node:fs";
-import { stat, readFile } from "node:fs/promises";
+import { stat, readFile, readdir } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 
 const name = "ai00-x-tools";
@@ -1083,6 +1083,12 @@ function defineTools(ctx, api) {
             description:
               "Promised files from the plan's '## Deliverables' and whether each exists in snapshotDir (integration verify fails when one is missing).",
           },
+          extras: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Integration verify only: files in the working directory that no step Scope and no Deliverable mentions (worker scratch files). Informational — list them to the user or ask for cleanup.",
+          },
           planPending: {
             type: "object",
             properties: {
@@ -1123,6 +1129,11 @@ function defineTools(ctx, api) {
         if ((value.scopeMissing ?? []).length) {
           lines.push(`scope missing: ${value.scopeMissing.join(", ")} — check the worker's file names`);
         }
+        if ((value.extras ?? []).length) {
+          lines.push(
+            `files outside plan scope: ${value.extras.join(", ")} — worker scratch; mention them to the user (delete or add to the plan)`
+          );
+        }
         if ((value.deliverables ?? []).length) {
           lines.push(
             `deliverables: ${value.deliverables
@@ -1142,7 +1153,7 @@ function defineTools(ctx, api) {
             lines.push(`pending acceptance: ${pendingAcceptance.join(" | ")}`);
           }
           lines.push(
-            "tick with ai00_plan_check (match = step id) — do not re-read the plan just to update it"
+            "tick with ai00_plan_check: one call per step (match = step id), but pass several acceptance fragments as {matches: [...]} in a SINGLE call — do not re-read the plan just to update it"
           );
         }
         if (value.diff) lines.push(`diff${value.diffTruncated ? " (truncated)" : ""}:\n${value.diff}`);
@@ -1247,6 +1258,33 @@ function defineTools(ctx, api) {
         );
       }
 
+      // 集成验收时顺手对一眼工作目录：计划（各步 Scope + Deliverables）没提到的文件
+      // 多是 worker 留下的草稿（实测 note.txt / 第二份 review.md），会让交付目录变脏。
+      // 只作为提示回传，不改判据（Scope 外新增本身不违反「Scope 内文件必须存在」）。
+      const extras = [];
+      if (!stepId && cwd) {
+        const known = new Set([
+          "AGENTS.local.md",
+          ...deliverables.map((d) => d.name),
+          ...steps.flatMap((s) =>
+            (s.paths ?? []).map((p) =>
+              String(p).replace(/`/g, "").trim().replace(/^\.\//, "")
+            )
+          ),
+        ]);
+        const entries = await readdir(cwd).catch(() => []);
+        for (const entry of entries) {
+          if (entry.startsWith(".") || known.has(entry)) continue;
+          const isFile = await stat(join(cwd, entry))
+            .then((s) => s.isFile())
+            .catch(() => false);
+          if (isFile) extras.push(entry);
+        }
+        if (extras.length) {
+          ctx.logger.warn(`ai00-x-tools: files outside plan scope: ${extras.join(", ")}`);
+        }
+      }
+
       // 证据不足必须交人工/云端评审，不能假装通过。
       // 注意不再把「工作目录不是 git 仓库」算作证据不足：很多任务目录本就没有 git，
       // 而验收命令全过本身就是硬证据（实测非 git 目录里每步都掉进 needs-review，
@@ -1306,6 +1344,7 @@ function defineTools(ctx, api) {
         changedFiles: evidence.changedFiles,
         deliverables,
         ...(scopeMissing.length ? { scopeMissing } : {}),
+        ...(extras.length ? { extras } : {}),
         ...(ticked ? { ticked: true } : {}),
         // 计划剩余项随证据一起回传：编排者据此用 ai00_plan_check 精确勾选，
         // 不必再为了看状态调一次 ai00_plan_read（实测一次读回 ~7k 输入）。
@@ -1805,7 +1844,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_plan_check",
     description:
-      "Toggle one checkbox line of a Zhixing board card plan (Markdown) without rewriting the document. Cheapest way to mark a step done/undone or tick an acceptance item: pass a short fragment that appears on that line. Ticking a STEP requires prior evidence: the step block must already contain a `- 验证: passed` line written by ai00_task_verify, otherwise the call is refused (no evidence = no progress). Only use ai00_plan_write for structural edits (new steps, changed acceptance wording).",
+      "Toggle checkbox lines of a Zhixing board card plan (Markdown) without rewriting the document. Cheapest way to mark steps done/undone or tick acceptance items: pass short fragments that appear on those lines — use `matches` to tick several lines in ONE call (e.g. the 3–4 acceptance items after an integration review). Ticking a STEP requires prior evidence: the step block must already contain a `- 验证: passed` line written by ai00_task_verify, otherwise the call is refused (no evidence = no progress). Only use ai00_plan_write for structural edits (new steps, changed acceptance wording).",
     parameters: {
       type: "object",
       properties: {
@@ -1815,12 +1854,18 @@ function defineTools(ctx, api) {
           description:
             "Short fragment that identifies exactly one line, e.g. a step id (\"S2\") or a few words of the step title.",
         },
+        matches: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Batch form: fragments identifying several lines. All are applied in one write; the call is refused as a whole if any fragment is unmatched or lacks evidence.",
+        },
         checked: {
           type: "boolean",
           description: "true = mark done ([x]), false = uncheck ([ ]). Default true.",
         },
       },
-      required: ["taskId", "match"],
+      required: ["taskId"],
       additionalProperties: false,
     },
     output: {
@@ -1829,13 +1874,23 @@ function defineTools(ctx, api) {
         properties: {
           ok: { type: "boolean" },
           line: { type: "string", description: "The updated line (trimmed)." },
+          lines: {
+            type: "array",
+            items: { type: "string" },
+            description: "Batch form: every updated line.",
+          },
           hint: { type: "string", description: "Present when nothing matched." },
         },
         required: ["ok"],
         additionalProperties: false,
       },
       render: (_args, value) => {
-        if (value.ok) return text(`plan line updated: ${value.line ?? ""}`);
+        if (value.ok) {
+          if (Array.isArray(value.lines) && value.lines.length) {
+            return text(`plan lines updated (${value.lines.length}):\n${value.lines.join("\n")}`);
+          }
+          return text(`plan line updated: ${value.line ?? ""}`);
+        }
         return text(
           `no line matched (${value.hint ?? "no match"}). Call ai00_plan_read and use ai00_plan_write instead.`
         );
@@ -1843,46 +1898,65 @@ function defineTools(ctx, api) {
     },
     async execute(args, exec) {
       const taskId = String(args?.taskId ?? "").trim();
-      const match = String(args?.match ?? "").trim();
+      const batch = Array.isArray(args?.matches)
+        ? args.matches.map((m) => String(m ?? "").trim()).filter(Boolean)
+        : [];
+      const single = String(args?.match ?? "").trim();
+      const fragments = batch.length ? batch : single ? [single] : [];
       const checked = args?.checked !== false;
-      if (!taskId || !match) throw new Error("taskId and match are required");
+      if (!taskId || !fragments.length) throw new Error("taskId and match/matches are required");
       const prev = await api.get(`/plan?taskId=${encodeURIComponent(taskId)}`, exec.signal);
       if (!prev?.found) return { ok: false, hint: "no plan document yet" };
       const markdown = String(prev.markdown ?? "");
       const lines = markdown.split("\n");
-      const index = lines.findIndex((line) => line.includes("]") && line.includes(match));
-      if (index < 0) {
-        return { ok: false, hint: `no checkbox line contains "${match}"` };
+      // 先全部解析、全部过闸，再一次性写盘：批量里只要有一条不合格就整体拒绝，
+      // 避免「勾了一半」的半成品计划（用户看不到哪几条真的生效）。
+      const picked = [];
+      for (const match of fragments) {
+        const index = lines.findIndex(
+          (line, i) => !picked.some((p) => p.index === i) && line.includes("]") && line.includes(match)
+        );
+        if (index < 0) {
+          return { ok: false, hint: `no unchecked-by-this-call line contains "${match}"` };
+        }
+        const original = lines[index];
+        if (!/\[( |x|X)\]/.test(original)) {
+          return { ok: false, hint: `matched line for "${match}" has no checkbox` };
+        }
+        // 勾选**步骤**前必须有该步的验证证据（ai00_task_verify 会写回「- 验证: passed」）。
+        // 没证据就勾选＝假进度：用户看到「已完成」，但没有任何命令或证据支撑。
+        const stepHead = /^\s*-\s+\[[ xX]\]\s+(T[0-9A-Za-z_-]+)\s/.exec(original);
+        if (checked && stepHead) {
+          const stepId = stepHead[1];
+          const evidence = usableEvidence(stepBlock(lines, index));
+          if (!evidence.ok) {
+            return {
+              ok: false,
+              hint: evidence.verdict
+                ? `verification for ${stepId} is "${evidence.verdict}" — fix it and re-run ai00_task_verify before ticking`
+                : `no verification evidence for ${stepId} — call ai00_task_verify (stepId: "${stepId}") before ticking`,
+            };
+          }
+        }
+        picked.push({ index, original, match });
       }
-      const original = lines[index];
-      if (!/\[( |x|X)\]/.test(original)) {
-        return { ok: false, hint: "matched line has no checkbox" };
-      }
-      // 勾选**步骤**前必须有该步的验证证据（ai00_task_verify 会写回「- 验证: passed」）。
-      // 没证据就勾选＝假进度：用户看到「已完成」，但没有任何命令或证据支撑。
-      const stepHead = /^\s*-\s+\[[ xX]\]\s+(T[0-9A-Za-z_-]+)\s/.exec(original);
-      if (checked && stepHead) {
-        const stepId = stepHead[1];
-        const evidence = usableEvidence(stepBlock(lines, index));
-        if (!evidence.ok) {
-          return {
-            ok: false,
-            hint: evidence.verdict
-              ? `verification for ${stepId} is "${evidence.verdict}" — fix it and re-run ai00_task_verify before ticking`
-              : `no verification evidence for ${stepId} — call ai00_task_verify (stepId: "${stepId}") before ticking`,
-          };
+      const changed = [];
+      for (const p of picked) {
+        const next = checked
+          ? p.original.replace(/\[( |x|X)\]/, "[x]")
+          : p.original.replace(/\[( |x|X)\]/, "[ ]");
+        if (next !== p.original) {
+          lines[p.index] = next;
+          changed.push(next.trim());
         }
       }
-      const next = checked
-        ? original.replace(/\[( |x|X)\]/, "[x]")
-        : original.replace(/\[( |x|X)\]/, "[ ]");
-      if (next === original) {
+      if (!changed.length) {
         // 已是目标状态：不写盘，省一次 PUT
-        return { ok: true, line: original.trim() };
+        const all = picked.map((p) => p.original.trim());
+        return batch.length ? { ok: true, lines: all } : { ok: true, line: all[0] };
       }
-      lines[index] = next;
       await api.put("/plan", { taskId, markdown: lines.join("\n") }, exec.signal);
-      return { ok: true, line: next.trim() };
+      return batch.length ? { ok: true, lines: changed } : { ok: true, line: changed[0] };
     },
   });
 
