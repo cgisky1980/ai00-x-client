@@ -113,11 +113,23 @@ export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
       list.push(task);
       map.set(task.projectId, list);
     }
+    // 排序与工作台任务列表同一口径：需要你 → 失败 → 其余，同档内新→旧。
+    // 项目侧栏/概览如果只按时间排，刚报错的任务会被压在最新卡下面。
+    const rank = (task: TodoTask): number => {
+      const phase = taskPhase(
+        task,
+        plans[task.id] ?? null,
+        task.agentSessionId ? runtime[task.agentSessionId] : undefined,
+      );
+      const asking = Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking);
+      if (needsYou(phase, asking)) return 0;
+      return phase === 'failed' ? 1 : 2;
+    };
     for (const list of map.values()) {
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      list.sort((a, b) => rank(a) - rank(b) || (b.createdAt || 0) - (a.createdAt || 0));
     }
     return map;
-  }, [allTasks]);
+  }, [allTasks, plans, runtime]);
 
   const projectTasks = useMemo(
     () => (selected ? (tasksByProject.get(selected.id) ?? []) : []),
