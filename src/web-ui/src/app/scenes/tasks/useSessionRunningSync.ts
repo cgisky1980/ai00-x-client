@@ -7,6 +7,7 @@
  */
 import { useEffect } from 'react';
 import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
+import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { useWorkbenchTaskStore } from './workbenchTaskStore';
 
 /**
@@ -44,6 +45,23 @@ export function useSessionRunningSync(): void {
               running: item.running || (childRunning.get(item.sessionId) ?? 0) > 0,
             })),
           );
+          // 会话已不存在（引擎清了会话 / 换了数据目录）的任务：`session/list` 永远
+          // 不会给它回填，运行态就一直「未知」，卡片永远显示「执行中」，也没有
+          // 「继续执行」可点——用户只能干等。这里按「不在列表 = 没在跑」补一条
+          // 停住的快照，让它落到「已停止」，把推进权交回给人。
+          const listed = new Set(items.map((item) => item.sessionId));
+          const now = useWorkbenchTaskStore.getState().runtime;
+          const vanished = useTodoStore
+            .getState()
+            .data.tasks.filter(
+              (task) =>
+                task.agentSessionId &&
+                !task.completedAt &&
+                !listed.has(task.agentSessionId) &&
+                !now[task.agentSessionId],
+            )
+            .map((task) => ({ sessionId: task.agentSessionId as string, running: false }));
+          if (vanished.length > 0) seedRunning(vanished);
           seedDelegating(
             items
               .filter((item) => Boolean(item.parentSessionId))
