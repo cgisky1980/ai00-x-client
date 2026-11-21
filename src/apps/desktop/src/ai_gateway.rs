@@ -962,7 +962,20 @@ async fn local_rwkv_sse(
         // 引擎侧 deriveTurnTokenUsage 拿不到数字 → 本地模型的对话回合用量条全空。
         if let Some((name, arguments)) = tool_call_from_text(&text, has_tools) {
             let arguments = normalize_tool_arguments(&name, &arguments);
-            if repeated_tool_call(&messages_for_evidence, &name, &arguments) {
+            if let Some(reason) = empty_write_reason(&name, &arguments) {
+                // 空写会整文件覆盖 → 清空既有交付物（2026-11-21 实测两次）。
+                // 强制本地路径（rwkv-local）也必须拦，工人正是走这条路。
+                log::warn!("[ai-gateway] rejected {name} call: {reason}");
+                let blocked = format!(
+                    "BLOCKED: {reason}. Never send an empty write — read the target file and write real content (or use edit to append)."
+                );
+                let chunk = sse_text_delta(&model_name, &blocked);
+                let _ = tx.send(Ok(Bytes::from(chunk)));
+                let chunk = sse_usage(&model_name, input_tokens, output_tokens);
+                let _ = tx.send(Ok(Bytes::from(chunk)));
+                let chunk = sse_finish(&model_name, "stop");
+                let _ = tx.send(Ok(Bytes::from(chunk)));
+            } else if repeated_tool_call(&messages_for_evidence, &name, &arguments) {
                 // 重复调用：直接以证据收尾，不再白烧工具轮（见 repeated_tool_call）
                 log::info!("[ai-gateway] duplicate {name} call, closing turn with evidence");
                 text = finalize_exhausted_text("", &messages_for_evidence);
