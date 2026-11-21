@@ -25,10 +25,15 @@ export function notifyTask(
   message: string,
   tone: 'info' | 'warning' | 'error' = 'info',
   actions?: NotifyAction[],
-): void {
-  notificationService[tone](message, {
+): string {
+  return notificationService[tone](message, {
     title,
     duration: tone === 'error' ? 0 : 8000,
     ...(actions && actions.length > 0 ? { actions } : {}),
   });
+}
+
+/** 收起一条已发出的通知（error 档不自动消失，同一任务重复失败要先收旧条）。 */
+export function dismissTaskNotification(id: string): void {
+  notificationService.dismiss(id);
 }

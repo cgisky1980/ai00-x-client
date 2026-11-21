@@ -29,7 +29,7 @@ import {
   WATCH_STALL_SOFT_MS,
 } from '../utils/watchdog';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
-import { notifyTask } from '../utils/notify';
+import { dismissTaskNotification, notifyTask } from '../utils/notify';
 import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
 import { requestWorkbenchTaskFocus } from '@/infrastructure/plugins/workbenchSession';
 
@@ -77,6 +77,8 @@ export const TodoOverlay: React.FC = () => {
   // 失败态基线（启动时的历史失败只进基线，不弹通知）+ 上一轮快照（只报 false→true）
   const failedSeededRef = useRef(false);
   const prevFailedRef = useRef(new Map<string, boolean>());
+  /** 任务 → 最近一条「任务出错」通知 id：同一张卡反复失败时先收旧条，不叠一摞。 */
+  const failureToastRef = useRef(new Map<string, string>());
 
   useEffect(() => {
     void load();
@@ -297,12 +299,15 @@ export const TodoOverlay: React.FC = () => {
             const sid = task.agentSessionId;
             if (!sid || task.archivedAt || task.completedAt) continue;
             if (!failedNow.get(sid) || prevFailedRef.current.get(sid)) continue;
-            notifyTask(
+            const previous = failureToastRef.current.get(task.id);
+            if (previous) dismissTaskNotification(previous);
+            const toastId = notifyTask(
               '任务出错 · 需要你',
               `「${task.title}」这一轮以错误收尾——点开卡片查看错误，或点「继续执行」重试`,
               'error',
               [goToTask(task.id, '去查看')],
             );
+            failureToastRef.current.set(task.id, toastId);
           }
         } else {
           failedSeededRef.current = true;

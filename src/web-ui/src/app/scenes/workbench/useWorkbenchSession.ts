@@ -13,6 +13,7 @@ import {
   aggregateSessionStats,
   connectMux,
   createDshRequestId,
+  deriveSessionRunState,
   dshApproval,
   dshQuestion,
   dshSession,
@@ -133,6 +134,14 @@ export function useWorkbenchSession({
   const [awaitingAgent, setAwaitingAgent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * 最后一轮以错误收口（模型/凭据/网关级失败）。
+   *
+   * 与 `error` 分开：`error` 是「连接/提交」级故障，会渲染顶部告警条；
+   * 回合级失败在对话里已经有一条可重试的错误气泡，这里只用来把任务标成「失败」，
+   * 否则打开着的卡片要等 overlay 30s 轮询才变色。
+   */
+  const [turnFailed, setTurnFailed] = useState(false);
   const [draft, setDraft] = useState('');
   const [agentRunning, setAgentRunning] = useState(false);
   /** 正在停止当前回合（防重入；回合闭合后复位）。 */
@@ -254,7 +263,7 @@ export function useWorkbenchSession({
     const effectiveRunning = taskRunning;
     // 仍在推进（主回合或子代理任一在跑）时，回合级报错不升级为任务级「出错」——
     // 否则父回合刚报错、子代理还在跑的任务会在看板上闪「出错」。
-    const failed = Boolean(error) && !effectiveRunning;
+    const failed = (Boolean(error) || turnFailed) && !effectiveRunning;
     // 「需要你」：未回答的提问，或交给计划卡的 exit_plan_mode 审批
     const asking =
       questions.length > 0 ||
@@ -263,7 +272,7 @@ export function useWorkbenchSession({
     if (key === lastRuntimeRef.current) return;
     lastRuntimeRef.current = key;
     onRuntimeChangeRef.current({ running: effectiveRunning, failed, asking });
-  }, [taskRunning, error, questions.length, approvals, planHosted]);
+  }, [taskRunning, error, turnFailed, questions.length, approvals, planHosted]);
 
   /** 已结算过的「回合起点 + 子会话集合」键：同键不重复结算，换键则替换结果。 */
   const settledKeyRef = useRef<string | null>(null);
@@ -538,6 +547,12 @@ export function useWorkbenchSession({
         return null;
       })();
       setTurnStartMs(lastTurnStart);
+      // 打开卡片时对齐失败态：最后一轮是否以错误收口（与看门狗回填同一口径）。
+      // 不补这一步，刚打开的历史失败任务会短暂显示「执行」，和列表里的失败态不一致。
+      // 本回合还在跑时不覆盖（live 的 turn/end 会给出最终判定）
+      if (!runningRef.current) {
+        setTurnFailed(deriveSessionRunState(eventsRef.current).lastTurnErrored);
+      }
       // 子代理目录兜底：投影可能还没到（首帧/重启），durable 事件先对齐 label
       useWorkbenchTaskStore
         .getState()
@@ -787,6 +802,10 @@ export function useWorkbenchSession({
         setLive(null);
         setAwaitingAgent(false);
         clearStopping();
+        // 回合级失败（缺凭据 / 网关解码失败等）立即上报失败态：对话里已有错误气泡，
+        // 计划卡/列表不该还停在「执行」等下一次轮询。
+        const reason = (event.data as { reason?: { kind?: string } } | undefined)?.reason;
+        setTurnFailed(reason?.kind === 'error');
         // 回合结束不清队列：Host 仍待处理的输入会在下一回合继续
         void reloadBaseline();
         void refreshRunning();
@@ -965,6 +984,8 @@ export function useWorkbenchSession({
       };
       setSubmissions(prev => [...prev, submission]);
       setError(null);
+      // 人重新发话 = 给这一轮重新机会：清掉上一轮的失败标记
+      setTurnFailed(false);
       setRetryableText(null);
       setDockError(null);
       // 人说话 = 还有活要干：宿主据此把「待验收」退回执行段（自检结论作废）。
