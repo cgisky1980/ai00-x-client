@@ -41,7 +41,12 @@ import { invoke } from '@tauri-apps/api/core';
  * 停住的任务最常见的下一步就是「接着跑」——以前必须开工作台、等面板加载、再点一次；
  * 窗口冷启动就要十几秒，通知的价值被这段路吃掉。失败时回一条 error 通知，不做静默。
  */
-function resumeTask(task: TodoTask, variant: 'primary' | 'secondary' = 'primary'): {
+function resumeTask(
+  task: TodoTask,
+  variant: 'primary' | 'secondary' = 'primary',
+  /** 上一轮失败原文：随续跑消息带给 agent，让它先判断错误是否已排除。 */
+  lastError?: string,
+): {
   label: string;
   variant: 'primary' | 'secondary';
   onClick: () => void;
@@ -52,7 +57,7 @@ function resumeTask(task: TodoTask, variant: 'primary' | 'secondary' = 'primary'
     onClick: () => {
       void invoke<string | null>('todo_plan_get', { taskId: task.id })
         .catch(() => null)
-        .then((plan) => continueTaskRun(task, plan))
+        .then((plan) => continueTaskRun(task, plan, lastError))
         .catch((e) =>
           notifyTask('继续执行失败', String(e).slice(0, 160), 'error', [
             goToTask(task.id, '去查看'),
@@ -450,7 +455,15 @@ export const TodoOverlay: React.FC = () => {
                     'error',
                     // 文案里让用户点「继续执行」，按钮就必须真的在：只给「去查看」等于
                     // 逼人开窗口再找一次入口。整卡点击仍是「去查看」（primary）。
-                    [goToTask(task.id, '去查看'), resumeTask(task, 'secondary')],
+                    // 续跑消息里带上失败原文：让 agent 先判断错误是否已排除，别照原样再撞。
+                    [
+                      goToTask(task.id, '去查看'),
+                      resumeTask(
+                        task,
+                        'secondary',
+                        err ? [err.code, err.message].filter(Boolean).join(' · ') : undefined,
+                      ),
+                    ],
                   );
             failureToastRef.current.set(task.id, toastId);
             notifiedFailureStampRef.current.set(sid, stamp);
