@@ -139,8 +139,9 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
     Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking);
 
   /**
-   * 列表显示顺序：「需要你」的任务置顶（待批准 / 待验收 / 正在提问——人只在这里被卡住），
-   * 组内与其余任务仍按新→旧。判断与状态标签同源（taskPhase + needsYou），不另立口径。
+   * 列表显示顺序：三档——「需要你」置顶（待批准/待验收/提问），其次是**失败**的
+   * （这一轮报错、要人点「继续执行」），其余按新→旧。判断与状态标签同源
+   * （taskPhase + needsYou），不另立口径。
    */
   const orderedTasks = useMemo(() => {
     const rank = (task: TodoTask): number => {
@@ -150,7 +151,8 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
         task.agentSessionId ? runtime[task.agentSessionId] : undefined,
       );
       const asking = Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking);
-      return needsYou(phase, asking) ? 0 : 1;
+      if (needsYou(phase, asking)) return 0;
+      return phase === 'failed' ? 1 : 2;
     };
     return tasks
       .map((task, index) => ({ task, index, rank: rank(task) }))
