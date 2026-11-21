@@ -234,6 +234,11 @@
     white-space: nowrap;
   }
 
+  /** 项目行上的「需要你」徽标：折叠时也提示该项目有任务在等人。 */
+  &__needs {
+    flex: 0 0 auto;
+  }
+
   &__task-time {
     flex: 0 0 auto;
     color: var(--color-text-muted);

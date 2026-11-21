@@ -27,6 +27,7 @@ import { taskPhase } from '../tasks/taskPhase';
 import { useSessionRunningSync } from '../tasks/useSessionRunningSync';
 import { dirTail, relativeTime } from '../tasks/display';
 import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
+import { needsYou } from '../workbench/workbenchStage';
 import { WorkbenchTaskHost } from '../workbench/WorkbenchTaskHost';
 import { ProjectGitBadge } from './ProjectGitBadge';
 import {
@@ -297,6 +298,17 @@ export const ProjectsScene: React.FC = () => {
           {projects.map((project) => {
             const items = tasksByProject.get(project.id) ?? [];
             const open = expanded.has(project.id);
+            /** 该项目下有几个任务在等人（待批准 / 待验收 / 正在提问）：折叠时也要能看见。 */
+            const needsYouCount = items.filter((task) =>
+              needsYou(
+                taskPhase(
+                  task,
+                  null,
+                  task.agentSessionId ? runtime[task.agentSessionId] : undefined,
+                ),
+                Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking),
+              ),
+            ).length;
             return (
               <div key={project.id} className="ai00-x-projects-scene__group">
                 <div
@@ -331,6 +343,18 @@ export const ProjectsScene: React.FC = () => {
                   >
                     <span className="ai00-x-projects-scene__item-title">{project.name}</span>
                   </button>
+                  {needsYouCount > 0 && (
+                    <span
+                      className="ai00-x-status-tag ai00-x-projects-scene__needs"
+                      title={t('nav.workbenchWindow.projects.needsYouCount', {
+                        count: needsYouCount,
+                      })}
+                    >
+                      <span className="ai00-x-status-tag__needs">
+                        {t('nav.workbenchWindow.stages.needsYou')}
+                      </span>
+                    </span>
+                  )}
                   <ProjectGitBadge dir={project.dir} onError={setError} />
                 </div>
 

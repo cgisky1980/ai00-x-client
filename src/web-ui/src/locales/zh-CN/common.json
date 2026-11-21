@@ -186,6 +186,7 @@
         "taskPlaceholder": "在这个项目里要做的事…",
         "recentTasks": "最近任务",
         "noTasks": "这个项目还没有任务",
+        "needsYouCount": "{{count}} 个任务在等你（批准 / 验收 / 回答）",
         "remove": "移除项目（不删除文件与任务）",
         "reveal": "在文件夹中显示",
         "back": "返回项目概览",

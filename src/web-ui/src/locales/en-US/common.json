@@ -186,6 +186,7 @@
         "taskPlaceholder": "What should be done in this project…",
         "recentTasks": "Recent tasks",
         "noTasks": "No tasks in this project yet",
+        "needsYouCount": "{{count}} task(s) waiting for you (approve / review / answer)",
         "remove": "Remove project (keeps files and tasks)",
         "reveal": "Show in folder",
         "back": "Back to project overview",
