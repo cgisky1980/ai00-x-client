@@ -691,6 +691,25 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     </section>
   );
 
+  /** 最近一次集成验收摘要（验收中与已验收都展示：验收后仍可回看证据）。 */
+  const verifyBlock = verifyRecord.length > 0 && (
+    <section className="ai00-x-plan-card__block">
+      <h3 className="ai00-x-plan-card__block-title">
+        {t('nav.workbenchWindow.board.verifyRecord')}
+      </h3>
+      <ul className="ai00-x-plan-card__verify-list">
+        {verifyRecord.map((line, index) => {
+          const tone = verifyVerdictTone(line);
+          return (
+            <li key={`${index}-${line.slice(0, 12)}`} className={tone ? `is-${tone}` : undefined}>
+              {localizeVerifyLine(line)}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+
   const acceptedCount = acceptance.filter((item) => item.done).length;
   const acceptBlocked = acceptance.length > 0 && acceptedCount < acceptance.length;
 
@@ -725,23 +744,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           </ul>
         )}
       </section>
-      {verifyRecord.length > 0 && (
-        <section className="ai00-x-plan-card__block">
-          <h3 className="ai00-x-plan-card__block-title">
-            {t('nav.workbenchWindow.board.verifyRecord')}
-          </h3>
-          <ul className="ai00-x-plan-card__verify-list">
-            {verifyRecord.map((line, index) => {
-              const tone = verifyVerdictTone(line);
-              return (
-                <li key={`${index}-${line.slice(0, 12)}`} className={tone ? `is-${tone}` : undefined}>
-                  {localizeVerifyLine(line)}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      {verifyBlock}
       {deliverables}
       {!readOnly && !completed && (
         <div className="ai00-x-plan-card__actions">
@@ -827,6 +830,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
         <Check size={12} />
         {t('nav.workbenchWindow.planCard.accepted')}
       </p>
+      {verifyBlock}
       {deliverables}
     </div>
   ) : phase === 'awaiting' ? (
