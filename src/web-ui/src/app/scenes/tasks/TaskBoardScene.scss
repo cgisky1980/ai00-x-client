@@ -210,6 +210,15 @@
   }
 }
 
+/* 快速问答没有计划页：详情里只给一句说明（与「尚无计划书」区分开）。 */
+.ai00-x-task-detail__quick {
+  margin: 0;
+  padding: var(--size-gap-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
+}
+
 @media (max-width: 1100px) {
   .ai00-x-task-board__detail {
     flex-basis: 300px;

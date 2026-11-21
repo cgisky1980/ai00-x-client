@@ -6,6 +6,7 @@
  */
 import React, { useState } from 'react';
 import { DeliverablePreview } from '@/tools/todo/components/DeliverablePreview';
+import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { TodoTask } from '@/tools/todo/api/types';
 import { WorkbenchPlanPage } from '../workbench/WorkbenchPlanPage';
 
@@ -23,17 +24,23 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
   onPlanChange,
   running = false,
 }) => {
+  const { t } = useI18n('common');
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   return (
     <div className="ai00-x-task-detail">
-      <WorkbenchPlanPage
-        task={task}
-        planMd={planMd}
-        onPlanChange={onPlanChange}
-        onOpenFile={setPreviewPath}
-        running={running}
-        variant="compact"
-      />
+      {task.executionMode === 'quick' ? (
+        // 快速问答没有计划/交付物/验收这条流水线，套计划页只会显示「尚无计划书」误导人。
+        <p className="ai00-x-task-detail__quick">{t('nav.workbenchWindow.board.quickNoPlan')}</p>
+      ) : (
+        <WorkbenchPlanPage
+          task={task}
+          planMd={planMd}
+          onPlanChange={onPlanChange}
+          onOpenFile={setPreviewPath}
+          running={running}
+          variant="compact"
+        />
+      )}
       <DeliverablePreview path={previewPath} onClose={() => setPreviewPath(null)} />
     </div>
   );

@@ -124,10 +124,17 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
           asking={Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking)}
           hideStage
         />
-        {md && md.trim() && (
+        {task.executionMode === 'quick' ? (
           <span className="ai00-x-task-board__card-meta">
-            {t('nav.workbenchWindow.board.hasPlan')}
+            {t('nav.workbenchWindow.tasks.modeQuick')}
           </span>
+        ) : (
+          md &&
+          md.trim() && (
+            <span className="ai00-x-task-board__card-meta">
+              {t('nav.workbenchWindow.board.hasPlan')}
+            </span>
+          )
         )}
         {task.projectId && (
           <span className="ai00-x-task-board__card-source">

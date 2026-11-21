@@ -296,6 +296,7 @@
         "steps": "Steps",
         "noSteps": "The plan has no checkable steps yet",
         "noPlan": "No plan yet — the AI writes one in the task session first",
+        "quickNoPlan": "Quick answers have no plan: the task just answers your question — no plan, no subagents, no files.",
         "acceptance": "Acceptance",
         "noAcceptance": "No acceptance items",
         "verifyRecord": "Last integration verify",
