@@ -334,6 +334,7 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
                   className="ai00-x-task-scene__item-meta"
                   phase={phaseOf(task)}
                   asking={askingOf(task)}
+                  quick={task.executionMode === 'quick'}
                 />
               </button>
               <TaskActionsMenu

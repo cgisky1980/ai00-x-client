@@ -587,6 +587,7 @@ export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
                           task.agentSessionId ? runtime[task.agentSessionId] : undefined,
                         )}
                         asking={Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking)}
+                        quick={task.executionMode === 'quick'}
                       />
                       <span className="ai00-x-projects-scene__task-time">
                         {relativeTime(task.createdAt)}

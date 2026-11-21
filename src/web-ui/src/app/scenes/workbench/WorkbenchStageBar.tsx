@@ -115,8 +115,13 @@ export const WorkbenchStatusTag: React.FC<{
   asking?: boolean;
   /** 只显示「需要你」徽标（看板卡片：列头已表明阶段）。 */
   hideStage?: boolean;
+  /**
+   * 快速问答任务：它没有计划/执行/审核这条流水线，阶段词会误导
+   * （实测问答任务在列表里长期挂着「执行」）。改为显示「快速问答」。
+   */
+  quick?: boolean;
   className?: string;
-}> = ({ phase, asking = false, hideStage = false, className }) => {
+}> = ({ phase, asking = false, hideStage = false, quick = false, className }) => {
   const { t } = useI18n('common');
   const failed = stageOf(phase).state === 'failed';
   const attention = needsYou(phase, asking);
@@ -129,7 +134,9 @@ export const WorkbenchStatusTag: React.FC<{
     >
       {!hideStage && (
         <span className="ai00-x-status-tag__stage">
-          {t(`nav.workbenchWindow.stages.${stageKeyOf(phase)}`)}
+          {quick
+            ? t('nav.workbenchWindow.tasks.modeQuick')
+            : t(`nav.workbenchWindow.stages.${stageKeyOf(phase)}`)}
         </span>
       )}
       {attention && (
