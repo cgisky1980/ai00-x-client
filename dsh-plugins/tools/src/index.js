@@ -1745,6 +1745,21 @@ function defineTools(ctx, api) {
         }
       }
       const acceptance = parseAcceptance(plan?.markdown);
+      // 集成验收记录门禁：验收人唯一能看到的证据是计划里的「## 验证记录」
+      // （ai00_task_verify 不带 stepId 写入，打回时会被清掉）。缺了它，卡片上只剩
+      // 勾选态——人无法判断交付物齐不齐、有没有计划外文件/编码损坏/回归失败。
+      // 只对 local-first 且确有步骤的计划生效（旧卡/空计划保持原行为）。
+      if (policy.execution === "local-first" && parsePlanSteps(plan?.markdown).length > 0) {
+        if (!/^##\s*(验证记录|Verify log)/im.test(String(plan?.markdown ?? ""))) {
+          throw new Error(
+            [
+              "计划里没有集成验收记录，不能提交自检。",
+              "请先调用 ai00_task_verify（不传 stepId）跑一次整体验收——它会把「结论 / 交付物 / 步骤命令回归 / 人工验收项」写进计划的「## 验证记录」段，验收人只认这一份证据。",
+              "整体验收判 failed / needs-review 时先修交付物再重跑；纯文字验收项由人判定，不要为了过门而临时造命令。",
+            ].join("\n")
+          );
+        }
+      }
       // 计划「## 交付物」承诺的文件也必须真实落盘：deliverables 参数由模型自报，
       // 实测出现过承诺 report.md / blueprint 却从未生成仍提交自检。
       const promisedMissing = [];
