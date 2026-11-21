@@ -17,6 +17,7 @@ import {
   Button,
   Collapse,
   CollapseItem,
+  ConfirmDialog,
   Empty,
   Input,
   Markdown,
@@ -168,6 +169,10 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
+  /** 撤销验收确认（设计系统对话框；原生 confirm 会阻塞渲染线程）。 */
+  const [undoOpen, setUndoOpen] = useState(false);
+  /** 集成验收判「未通过」仍要验收时的二次确认。 */
+  const [failedAcceptOpen, setFailedAcceptOpen] = useState(false);
   /** 打回对话框：人写的意见 + 勾选的未通过验收项（行号）。 */
   const [rejectReason, setRejectReason] = useState('');
   const [rejectPicks, setRejectPicks] = useState<Set<number>>(new Set());
@@ -415,11 +420,13 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     // 双保险：按钮在 running 时已禁用，这里再挡一次（键盘/脚本触发也不放行）。
     if (running) return;
     // 最近一次集成验收判「未通过」时，验收通过前多问一句：这是人最容易误点的一步。
-    if (hasFailedVerify(verifyRecord) && !window.confirm(t('nav.workbenchWindow.board.acceptFailedConfirm'))) {
+    // 用设计系统的确认框而非 window.confirm（原生对话框会阻塞渲染线程，样式也出戏）。
+    if (hasFailedVerify(verifyRecord)) {
+      setFailedAcceptOpen(true);
       return;
     }
     useTodoStore.getState().completeTask(task.id, true);
-  }, [running, t, task.id, verifyRecord]);
+  }, [running, task.id, verifyRecord]);
 
   /**
    * 撤销验收：验收由人授予，但人也会手滑。撤销只清 `completedAt`，
@@ -428,9 +435,8 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
    * 周期任务不提供撤销：验收时已克隆出下一周期，撤了也说不清该回收哪一张。
    */
   const undoAccept = useCallback((): void => {
-    if (!window.confirm(t('nav.workbenchWindow.planCard.undoAcceptConfirm'))) return;
-    useTodoStore.getState().completeTask(task.id, false);
-  }, [t, task.id]);
+    setUndoOpen(true);
+  }, []);
 
   const reject = useCallback(
     (input: string): void => {
@@ -1130,6 +1136,31 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           </div>
         </div>
       </Modal>
+
+      {/* 撤销验收 / 判未通过仍验收：都用设计系统确认框（原生 confirm 会阻塞渲染线程，
+          自动化与截图上还会停在系统对话框里）。 */}
+      <ConfirmDialog
+        isOpen={undoOpen}
+        onClose={() => setUndoOpen(false)}
+        title={t('nav.workbenchWindow.planCard.undoAccept')}
+        message={t('nav.workbenchWindow.planCard.undoAcceptConfirm')}
+        confirmText={t('nav.workbenchWindow.planCard.undoAccept')}
+        onConfirm={() => {
+          setUndoOpen(false);
+          useTodoStore.getState().completeTask(task.id, false);
+        }}
+      />
+      <ConfirmDialog
+        isOpen={failedAcceptOpen}
+        onClose={() => setFailedAcceptOpen(false)}
+        title={t('nav.workbenchWindow.board.accept')}
+        message={t('nav.workbenchWindow.board.acceptFailedConfirm')}
+        confirmText={t('nav.workbenchWindow.board.accept')}
+        onConfirm={() => {
+          setFailedAcceptOpen(false);
+          useTodoStore.getState().completeTask(task.id, true);
+        }}
+      />
     </article>
   );
 };
