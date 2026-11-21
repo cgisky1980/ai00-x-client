@@ -99,13 +99,14 @@ function parseDeliverables(markdown) {
   for (const line of lines) {
     const item = /^\s*(?:[-*+]|\d+\.)\s+(.+)$/.exec(line);
     if (!item) continue;
-    const token = item[1]
-      .replace(/`/g, "")
-      .trim()
-      .split(/\s+/)[0]
-      .replace(/[，。；、,;:：)）】」>]+$/g, "");
-    if (!/[\w.-]+\.[A-Za-z0-9]{1,8}$/.test(token)) continue;
-    if (!out.includes(token)) out.push(token);
+    // 只取条目开头的文件名：中文计划常写成「`report.md`：调研主报告（…）」，
+    // 按空白切词会连说明一起拿到，文件名判不出来。
+    const match = /^([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,8})/.exec(
+      item[1].replace(/`/g, "").trim()
+    );
+    if (!match) continue;
+    const name = match[1].replace(/^\.\//, "");
+    if (!out.includes(name)) out.push(name);
   }
   return out;
 }
@@ -949,7 +950,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_verify",
     description:
-      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Also returns planPending (unticked step ids + acceptance lines) so you can tick with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
+      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Integration verify (no stepId) also checks that every file promised in the plan's '## Deliverables' exists and returns failed when one is missing — a worker writing `report.part1.md` instead of `report.md` can no longer pass. Also returns planPending (unticked step ids + acceptance lines) so you can tick with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
     parameters: {
       type: "object",
       properties: {
@@ -999,6 +1000,19 @@ function defineTools(ctx, api) {
           },
           manualItems: { type: "array", items: { type: "string" } },
           changedFiles: { type: "array", items: { type: "string" } },
+          deliverables: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                exists: { type: "boolean" },
+              },
+              required: ["name", "exists"],
+            },
+            description:
+              "Promised files from the plan's '## Deliverables' and whether each exists in snapshotDir (integration verify fails when one is missing).",
+          },
           planPending: {
             type: "object",
             properties: {
@@ -1035,6 +1049,13 @@ function defineTools(ctx, api) {
         }
         if ((value.changedFiles ?? []).length) {
           lines.push(`changed: ${value.changedFiles.slice(0, 40).join(", ")}`);
+        }
+        if ((value.deliverables ?? []).length) {
+          lines.push(
+            `deliverables: ${value.deliverables
+              .map((d) => `${d.name}${d.exists ? " ✓" : " ✗ MISSING"}`)
+              .join(", ")}`
+          );
         }
         if (value.planPending) {
           const pendingSteps = value.planPending.steps ?? [];
@@ -1112,6 +1133,25 @@ function defineTools(ctx, api) {
         args?.includeDiff === true || reviewRequired || failed || policy.review === "strict";
       const evidence = await collectGitEvidence(cwd, pathFilter, includeDiff);
 
+      // 交付物文件名对账（2026-11-21 实测：worker 把 `report.md` 写成
+      // `report.part1.md`，验收命令只测长度/标题就"通过"，人类打开的是错文件名）。
+      // 只在整体验收（无 stepId）强制缺件判失败：子步骤未必产出全部交付物。
+      const deliverables = [];
+      for (const name of cwd ? parseDeliverables(markdown) : []) {
+        const exists = await stat(join(cwd, name))
+          .then(() => true)
+          .catch(() => false);
+        deliverables.push({ name, exists });
+      }
+      const missingDeliverables = stepId
+        ? []
+        : deliverables.filter((d) => d.exists === false).map((d) => d.name);
+      if (missingDeliverables.length) {
+        ctx.logger.warn(
+          `ai00-x-tools: deliverables missing at integration verify: ${missingDeliverables.join(", ")}`
+        );
+      }
+
       // 证据不足必须交人工/云端评审，不能假装通过。
       // 注意不再把「工作目录不是 git 仓库」算作证据不足：很多任务目录本就没有 git，
       // 而验收命令全过本身就是硬证据（实测非 git 目录里每步都掉进 needs-review，
@@ -1120,7 +1160,11 @@ function defineTools(ctx, api) {
         acceptance.length === 0 ||
         (commands.length === 0 && manualItems.length > 0) ||
         (includeDiff && evidence.diffTruncated && evidence.changedFiles.length > 50);
-      const verdict = failed ? "failed" : manualItems.length > 0 || insufficient ? "needs-review" : "passed";
+      const verdict = failed || missingDeliverables.length
+        ? "failed"
+        : manualItems.length > 0 || insufficient
+          ? "needs-review"
+          : "passed";
 
       // 把验证结果写回计划（展示层读「验证/证据」两行）；失败不阻断验证结论
       if (stepId && markdown) {
@@ -1149,6 +1193,7 @@ function defineTools(ctx, api) {
         commands,
         manualItems,
         changedFiles: evidence.changedFiles,
+        deliverables,
         // 计划剩余项随证据一起回传：编排者据此用 ai00_plan_check 精确勾选，
         // 不必再为了看状态调一次 ai00_plan_read（实测一次读回 ~7k 输入）。
         planPending: {
