@@ -47,5 +47,9 @@ export function taskPhase(
   }
   // 运行态已知且不在跑：有会话就是「已停止」，没有会话又没计划书才是「规划中」
   if (runtime) return task.agentSessionId || (planMd && planMd.trim()) ? 'stopped' : 'planning';
+  // 运行态未知：没有会话的任务永远不可能在跑（引擎没这个会话），不能回落「执行中」，
+  // 否则（历史数据/会话被清）卡片会永远挂「执行中」，也没有「继续执行」可点。
+  if (!task.agentSessionId) return planMd && planMd.trim() ? 'stopped' : 'planning';
+  // 有会话但快照还没回来（挂载后 5s 内）：暂时沿用「执行中」，避免首屏误报「已停止」。
   return planMd && planMd.trim() ? 'running' : 'planning';
 }

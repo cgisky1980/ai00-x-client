@@ -7,6 +7,7 @@
  * 提交后立刻进入计划卡骨架，不停在 spinner。建卡 / 建会话 / 首轮任务书由 taskSession 负责。
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Archive, Bug, BookOpen, Loader2, Plus, Search, Sparkles } from 'lucide-react';
 import { Prompts, Switch } from '@/component-library';
 import { AgentComposer } from '@/app/components/ai/AgentComposer';
@@ -21,6 +22,7 @@ import {
   TASKS_WORKBENCH_ID,
   createTask,
   ensureTaskSession,
+  resumeTaskRun,
   taskTitleFromRequest,
 } from './taskSession';
 import { TaskActionsMenu } from './TaskActionsMenu';
@@ -183,7 +185,19 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
       }
       setBusy('open');
       try {
-        await ensureTaskSession(task, workbenchTitle, projectOf(task), preferredModel, { allowTrunk });
+        const project = projectOf(task);
+        // 计划已批准但会话丢了（历史数据 / 引擎清会话）：不能当新任务重发首轮任务书，
+        // 否则 agent 会从头再规划一遍，和卡片上已有的计划书打架。按计划续跑。
+        // 计划直接从磁盘读，不依赖 state 是否加载完（首次打开可能还在读）。
+        const resumable = !project && task.planApprovedAt && !task.completedAt && !task.agentCompletedAt;
+        const planMd = resumable
+          ? await invoke<string | null>('todo_plan_get', { taskId: task.id }).catch(() => null)
+          : null;
+        if (planMd && planMd.trim()) {
+          await resumeTaskRun(task, workbenchTitle);
+        } else {
+          await ensureTaskSession(task, workbenchTitle, project, preferredModel, { allowTrunk });
+        }
       } catch (e) {
         if (token !== openTokenRef.current) return;
         if (e instanceof TrunkBranchError) {
