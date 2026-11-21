@@ -157,6 +157,43 @@ export async function corruptDeliverables(cwd, names) {
   return out;
 }
 
+/**
+ * 「只量长度」的验收命令（`t.length < 4000`、`test -s f`、`statSync(f).size`…）。
+ *
+ * loop 契约要求验收断言**内容**（章节/表格/引用），但没有任何机制拦住
+ * 「if (t.length < 4000) exit 1」这类弱判据：填充文本就能过，而真正的问题
+ * （缺章节、文件名错、乱码）全被放过。这里在写计划时把这类条目挑出来。
+ *
+ * 判定：命令里出现长度/体积比较，且没有任何内容信号（includes/match/grep…）。
+ * `test -f`（存在性）不算——它常与内容断言并列，且对非文档产物是合理判据。
+ */
+const LENGTH_ONLY_CMD =
+  /(\.length\b|byteLength|statSync\([^)]*\)\s*\.\s*size|\.size\b|\btest\s+-s\b|wc\s+-c)/;
+const CONTENT_SIGNAL_CMD =
+  /(includes\(|\.match\(|\.test\(|indexOf\(|\bgrep\b|\bfindstr\b|Select-String|\brg\b|contains\(|\bassert\b)/i;
+
+/** 计划里所有「只量长度」的验收条目（含步骤级 `Acceptance:` 与 `## 验收`）。 */
+export function weakAcceptance(markdown) {
+  const out = [];
+  let section = "";
+  for (const line of String(markdown ?? "").split("\n")) {
+    if (/^##\s/.test(line)) {
+      section = line.replace(/^##\s*/, "").trim();
+      continue;
+    }
+    const item = /^\s*-\s+\[[ xX]\]\s+(.*)$/.exec(line);
+    const stepProp = /^\s*-\s*(?:Acceptance|验收)\s*[:：]\s*(.*)$/i.exec(line);
+    const text = item ? item[1] : stepProp ? stepProp[1] : "";
+    if (!text) continue;
+    const cmd = extractCmd(text);
+    if (!cmd) continue;
+    if (!LENGTH_ONLY_CMD.test(cmd)) continue;
+    if (CONTENT_SIGNAL_CMD.test(cmd)) continue;
+    out.push({ where: item ? section || "## Acceptance" : "step", text: text.trim(), cmd });
+  }
+  return out;
+}
+
 /** 本地时间戳 `YYYY-MM-DD HH:mm`（计划文档给人读，不用 UTC）。 */
 function localStamp() {
   const d = new Date();
@@ -1892,6 +1929,23 @@ function defineTools(ctx, api) {
       if (ghosts.length) {
         throw new Error(
           `refused: Deliverables lists ${ghosts.join(", ")} but no step mentions it — overall acceptance would always fail. Either add it to the producing step's Scope, or remove it from Deliverables. Nothing was written.`
+        );
+      }
+      // 弱验收（只量长度/体积）：填充文本就能过，等于没验。只拦**本次新引入**的
+      // 条目——旧计划里的历史弱判据仍可编辑（否则改造中任务会被自己的旧计划锁死）。
+      const prevWeak = new Set(
+        weakAcceptance(prevMarkdown).map((w) => w.text.replace(/\s+/g, " "))
+      );
+      const weak = weakAcceptance(merged).filter(
+        (w) => !prevWeak.has(w.text.replace(/\s+/g, " "))
+      );
+      if (weak.length) {
+        throw new Error(
+          [
+            `refused: ${weak.length} acceptance check(s) only measure length/size — filler text would pass and real defects (missing section, wrong file name, mojibake) would slip through:`,
+            ...weak.slice(0, 4).map((w) => `  - ${w.cmd}`),
+            'Rewrite each with a content assertion (required heading/table/citation), e.g. node -e "const s=require(\'fs\').readFileSync(\'report.md\',\'utf8\');if(!s.includes(\'## 结论\'))process.exit(1)". Nothing was written.',
+          ].join("\n")
         );
       }
       await api.put("/plan", { taskId, markdown: merged }, exec.signal);
