@@ -303,6 +303,7 @@
         "accept": "验收通过",
         "acceptHint": "人类验收通过，标记完成",
         "acceptBlocked": "还有 {{count}} 项验收未通过（可点击代勾）",
+        "acceptRunningHint": "Agent 还在跑这一轮，等它停下再验收——现在验收会把正在改的文件算成已交付。",
         "acceptFailedConfirm": "最近一次集成验收的结论是「未通过」。仍要验收通过吗？",
         "reject": "打回",
         "rejectHint": "打回：agent 重读计划继续完善",

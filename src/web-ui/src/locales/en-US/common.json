@@ -303,6 +303,7 @@
         "accept": "Accept",
         "acceptHint": "Human acceptance passed — mark as done",
         "acceptBlocked": "{{count}} acceptance item(s) still unchecked (click to check)",
+        "acceptRunningHint": "The agent is still running this turn. Accept after it stops — accepting now would count files it is still editing as delivered.",
         "acceptFailedConfirm": "The last integration verify verdict is \"failed\". Accept anyway?",
         "reject": "Send back",
         "rejectHint": "Send back: the agent rereads the plan and keeps working",

@@ -412,12 +412,14 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   }, []);
 
   const accept = useCallback((): void => {
+    // 双保险：按钮在 running 时已禁用，这里再挡一次（键盘/脚本触发也不放行）。
+    if (running) return;
     // 最近一次集成验收判「未通过」时，验收通过前多问一句：这是人最容易误点的一步。
     if (hasFailedVerify(verifyRecord) && !window.confirm(t('nav.workbenchWindow.board.acceptFailedConfirm'))) {
       return;
     }
     useTodoStore.getState().completeTask(task.id, true);
-  }, [t, task.id, verifyRecord]);
+  }, [running, t, task.id, verifyRecord]);
 
   /**
    * 撤销验收：验收由人授予，但人也会手滑。撤销只清 `completedAt`，
@@ -842,13 +844,15 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           <Button
             variant="primary"
             size="small"
-            disabled={acceptBlocked}
+            disabled={acceptBlocked || running}
             title={
-              acceptBlocked
-                ? t('nav.workbenchWindow.board.acceptBlocked', {
-                    count: acceptance.length - acceptedCount,
-                  })
-                : t('nav.workbenchWindow.board.acceptHint')
+              running
+                ? t('nav.workbenchWindow.board.acceptRunningHint')
+                : acceptBlocked
+                  ? t('nav.workbenchWindow.board.acceptBlocked', {
+                      count: acceptance.length - acceptedCount,
+                    })
+                  : t('nav.workbenchWindow.board.acceptHint')
             }
             onClick={accept}
           >
@@ -856,6 +860,11 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
             {t('nav.workbenchWindow.review.approve')}
           </Button>
         </div>
+      )}
+      {/* 待验收时人还能在对话里追加要求（不会清掉自检状态），agent 会马上又跑起来。
+          这期间验收会把「还在改的文件」当成已交付——明确劝住，等这一轮停下再验收。 */}
+      {!readOnly && !completed && running && (
+        <p className="ai00-x-plan-card__hint">{t('nav.workbenchWindow.board.acceptRunningHint')}</p>
       )}
     </div>
   );
