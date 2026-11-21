@@ -88,10 +88,25 @@ export function selectRelevantMemories(mems: AIMemory[], taskText: string): AIMe
   return picked.map(x => x.m);
 }
 
-/** R1-3 四段任务书的目标行。 */
+/** 目标行长度上限（notes 是完整需求，仍要防超长污染任务书）。 */
+const GOAL_LINE_MAX_CHARS = 2000;
+
+/**
+ * R1-3 四段任务书的目标行。
+ *
+ * 优先级：计划 goal（用户看过/改过的契约）→ 完整需求 notes → 标题。
+ * 标题只是建卡时的 40 字摘要（`taskTitleFromRequest` 截断加「…」），单靠它
+ * 模型看不到真正要交付什么（2026-11-21 实测：目标行只剩「…形成一份…」，
+ * 编排者只能猜 report.md）。
+ */
 function goalLine(task: DelegationTaskView): string {
   const goal = task.plan?.goal?.trim();
-  return goal ? `${task.title}：${goal}` : task.title;
+  if (goal) return `${task.title}：${goal}`;
+  const request = (task.notes ?? '').trim();
+  if (!request || request === task.title) return task.title;
+  return request.length > GOAL_LINE_MAX_CHARS
+    ? `${request.slice(0, GOAL_LINE_MAX_CHARS)}\n…(request truncated; read the task notes for the rest)`
+    : request;
 }
 
 /**
@@ -130,7 +145,8 @@ export function assembleDelegationPrompt(parts: {
   }
 
   // —— 任务书四段 ——
-  const book: string[] = [DELEGATE_BOOK_TITLE, `[GOAL] ${goalLine(task)}`];
+  const goal = goalLine(task);
+  const book: string[] = [DELEGATE_BOOK_TITLE, `[GOAL] ${goal}`];
   if (planMd && planMd.trim()) {
     book.push(`[DELIVERABLES] See the "## Deliverables" section of the plan. ${DELEGATE_DELIVERABLE_DEFAULT}`);
     const body =
@@ -153,7 +169,9 @@ export function assembleDelegationPrompt(parts: {
     if (body.length) book.push('—— Plan contract ——', ...body);
   } else {
     book.push(`[DELIVERABLES] ${DELEGATE_DELIVERABLE_DEFAULT}`);
-    if (task.notes?.trim()) book.push(task.notes.trim());
+    // 完整需求已作为目标行时不再重复（重复等于同一段付费两次）
+    const notes = task.notes?.trim();
+    if (notes && notes !== goal) book.push(notes);
   }
 
   // [TOOLS & CONTEXT]
