@@ -44,8 +44,34 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
     }
   };
 
+  /**
+   * 「去查看 / 去批准 / 去验收」这类只有一个主动作的通知：整张卡都可以点。
+   * overlay 窗口是有鼠标穿透的，只有带 `data-no-penetrate` 的区域才收得到点击——
+   * 不加这个标记，通知看起来正常但按钮点不动（实测用户反馈）。
+   */
+  const singleAction =
+    actions && actions.length === 1 && actions[0].variant === 'primary' ? actions[0] : null;
+  const handleCardClick = (): void => {
+    if (singleAction) handleAction(singleAction.onClick);
+  };
+
   return (
-    <div className={`notification-item notification-item--${type}`}>
+    <div
+      className={`notification-item notification-item--${type}${singleAction ? ' is-clickable' : ''}`}
+      data-no-penetrate
+      {...(singleAction
+        ? {
+            role: 'button',
+            tabIndex: 0,
+            onClick: handleCardClick,
+            onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              handleCardClick();
+            },
+          }
+        : {})}
+    >
       
       <div className="notification-item__icon">
         {getIcon()}
@@ -63,7 +89,10 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
               <button
                 key={index}
                 className={`notification-item__action notification-item__action--${action.variant || 'secondary'}`}
-                onClick={() => handleAction(action.onClick)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAction(action.onClick);
+                }}
               >
                 {action.label}
               </button>
@@ -76,7 +105,10 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
       {closable && (
         <button
           className="notification-item__close"
-          onClick={handleClose}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleClose();
+          }}
           aria-label={t('actions.close')}
         >
           <X size={14} />

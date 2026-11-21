@@ -74,6 +74,9 @@ export const TodoOverlay: React.FC = () => {
   const awaitingApprovalRef = useRef(new Set<string>());
   // 首次轮询标记（启动中断提醒用一次）
   const firstPollRef = useRef(true);
+  // 失败态基线（启动时的历史失败只进基线，不弹通知）+ 上一轮快照（只报 false→true）
+  const failedSeededRef = useRef(false);
+  const prevFailedRef = useRef(new Map<string, boolean>());
 
   useEffect(() => {
     void load();
@@ -281,6 +284,30 @@ export const TodoOverlay: React.FC = () => {
           }
         }
         setAgentFailed(failedMap);
+
+        // 新一轮失败提醒：只报「刚变成失败」的任务。以前一轮报错只落在卡片的
+        // 「失败」态里，人不开卡片就完全不知道——任务静默停在执行段，也不知道
+        // 该点「继续执行」。启动时的历史失败只进基线（否则重启会连弹一串旧账）。
+        const failedNow = new Map<string, boolean>();
+        for (const task of tasks) {
+          if (task.agentSessionId) failedNow.set(task.agentSessionId, failedMap[task.agentSessionId] === true);
+        }
+        if (failedSeededRef.current) {
+          for (const task of tasks) {
+            const sid = task.agentSessionId;
+            if (!sid || task.archivedAt || task.completedAt) continue;
+            if (!failedNow.get(sid) || prevFailedRef.current.get(sid)) continue;
+            notifyTask(
+              '任务出错 · 需要你',
+              `「${task.title}」这一轮以错误收尾——点开卡片查看错误，或点「继续执行」重试`,
+              'error',
+              [goToTask(task.id, '去查看')],
+            );
+          }
+        } else {
+          failedSeededRef.current = true;
+        }
+        prevFailedRef.current = failedNow;
 
         // 启动首次轮询（R2-9）：客户端退出会杀引擎——按事件重放判「被中断」：
         // 未闭合的轮次（turn/start 无 turn/end）或有工具调用未返回，才算中断；

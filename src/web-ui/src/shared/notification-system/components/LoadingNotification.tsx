@@ -35,7 +35,7 @@ export const LoadingNotification: React.FC<LoadingNotificationProps> = ({ notifi
   };
 
   return (
-    <div className={`loading-notification loading-notification--${status || 'active'}`}>
+    <div className={`loading-notification loading-notification--${status || 'active'}`} data-no-penetrate>
       
       <div className="loading-notification__icon">
         {getStatusIcon()}
