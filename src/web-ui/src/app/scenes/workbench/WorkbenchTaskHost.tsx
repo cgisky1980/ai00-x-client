@@ -10,6 +10,7 @@ import { FileText } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useResizablePane } from '@/hooks/useResizablePane';
 import type { TodoTask } from '@/tools/todo/api/types';
+import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { taskPhase } from '../tasks/taskPhase';
 import { useWorkbenchTaskStore } from '../tasks/workbenchTaskStore';
 import { WorkbenchChatPanel } from './WorkbenchChatPanel';
@@ -46,9 +47,18 @@ export const WorkbenchTaskHost: React.FC<WorkbenchTaskHostProps> = ({
   const { t } = useI18n('common');
   const runtime = useWorkbenchTaskStore((s) => s.runtime[sessionId]);
   const reportRuntime = useWorkbenchTaskStore((s) => s.reportRuntime);
+  const updateTask = useTodoStore((s) => s.updateTask);
   const quick = task.executionMode === 'quick';
   const phase = taskPhase(task, planMd, runtime);
   const running = Boolean(runtime?.running);
+
+  /**
+   * 待验收时人在对话里追加要求 = 还有活要干：自检结论立即作废，任务退回执行段。
+   * 不清的话卡片会一直挂着「待验收」的验收按钮，而 agent 其实已经在改文件了。
+   */
+  const handleUserMessage = useCallback((): void => {
+    if (task.agentCompletedAt) updateTask(task.id, { agentCompletedAt: null });
+  }, [task.agentCompletedAt, task.id, updateTask]);
 
   const tabs = useWorkbenchTabs(task.id);
   const currentPath = activeFilePath(tabs.activeKey);
@@ -168,6 +178,7 @@ export const WorkbenchTaskHost: React.FC<WorkbenchTaskHostProps> = ({
           initialRequest={task.notes || task.title}
           externalSession={{ sessionId, ...(cwd ? { cwd } : {}), title: task.title }}
           onRuntimeChange={(state) => reportRuntime(sessionId, state)}
+          onUserMessage={handleUserMessage}
           // 快速问答没有计划：相关 props 一律不传（状态卡 / 计划卡托管都不会出现）
           {...(quick
             ? {}

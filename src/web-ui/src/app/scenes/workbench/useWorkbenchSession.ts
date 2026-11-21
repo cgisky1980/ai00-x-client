@@ -73,6 +73,11 @@ export interface WorkbenchSessionOptions {
   onRuntimeChange?: (runtime: { running: boolean; failed: boolean; asking: boolean }) => void;
   initialRequest?: string;
   planHosted?: boolean;
+  /**
+   * 人往会话里发了一条新消息（任务宿主用它把「待验收」退回执行段：
+   * 人追加要求 = 还有活要干，自检结论随之作废）。
+   */
+  onUserMessage?: () => void;
 }
 
 interface ActiveProject {
@@ -111,6 +116,7 @@ export function useWorkbenchSession({
   onRuntimeChange,
   initialRequest,
   planHosted = false,
+  onUserMessage,
 }: WorkbenchSessionOptions) {
   const { t } = useTranslation('common');
   const tDsh = useTranslation('scenes/dsh').t;
@@ -238,6 +244,9 @@ export function useWorkbenchSession({
   // 运行态上报（可选）：仅上报真实变化，避免每帧重渲染宿主
   const onRuntimeChangeRef = useRef(onRuntimeChange);
   onRuntimeChangeRef.current = onRuntimeChange;
+  /** 用户提交回调（宿主可能每帧换函数，用 ref 避免提交闭包抖动）。 */
+  const onUserMessageRef = useRef(onUserMessage);
+  onUserMessageRef.current = onUserMessage;
   const lastRuntimeRef = useRef<string>('');
   useEffect(() => {
     if (!onRuntimeChangeRef.current) return;
@@ -958,6 +967,8 @@ export function useWorkbenchSession({
       setError(null);
       setRetryableText(null);
       setDockError(null);
+      // 人说话 = 还有活要干：宿主据此把「待验收」退回执行段（自检结论作废）。
+      onUserMessageRef.current?.();
       if (placement === 'transcript') {
         setAwaitingAgent(true);
         setAgentRunning(true);

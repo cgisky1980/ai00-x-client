@@ -61,6 +61,11 @@ interface WorkbenchChatPanelProps {
   planHosted?: boolean;
   /** 计划卡上有等你动手的事（保留兼容宿主传参；输入框不再提示）。 */
   planNeedsYou?: boolean;
+  /**
+   * 人往会话里发了一条新消息（任务宿主用它把「待验收」退回执行段）。
+   * 只在人真的提交了非空文本时触发，排队/重试也算。
+   */
+  onUserMessage?: () => void;
 }
 
 export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
@@ -74,6 +79,7 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
   showWorkspace = true,
   planFinished = false,
   planHosted = false,
+  onUserMessage,
 }) => {
   const { t } = useTranslation('common');
 
@@ -83,6 +89,7 @@ export const WorkbenchChatPanel: React.FC<WorkbenchChatPanelProps> = ({
     onRuntimeChange,
     initialRequest,
     planHosted,
+    onUserMessage,
   });
   const { project, bound, binding, bindError, bindProject, taskRunning } = session;
 
