@@ -478,6 +478,8 @@
         "undoAccept": "撤销验收",
         "undoAcceptConfirm": "撤销后任务回到验收中（交付物、证据与打回记录都保留），可以重新验收或退回重做。确定撤销？",
         "resume": "继续执行",
+        "continuePlanning": "继续规划",
+        "emptyStoppedHint": "Agent 在写出计划之前就停下了。点下面继续，让它重新拆解目标。",
         "editStep": "编辑步骤",
         "stepTitle": "步骤标题",
         "stepCommand": "验收命令（可选，如 pnpm run type-check）",

@@ -947,16 +947,44 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   // ---------------------------------------------------------------------------
 
   if (!hasPlan) {
+    // 还没有计划就停住了（客户端重启 / 模型报错 / 回合被打断）：以前这里只有一个
+    // 空态，卡片上没有任何推进动作，人只能自己猜要不要去对话框说一句话。
+    // 运行态已确定且不在跑时，给一个「继续规划」，和停住后的「继续执行」同源。
+    const canResume =
+      !readOnly &&
+      !running &&
+      runtimeKnown &&
+      Boolean(sessionId) &&
+      (phase === 'planning' || phase === 'stopped' || phase === 'failed');
     return (
       <article className="ai00-x-plan-card is-empty">
         {/* 运行态未知（刚建会话、还没上报）也按规划中处理，避免先闪一下空态 */}
         {running || !runtimeKnown ? (
           <PlanCardGenerating />
         ) : (
-          <Empty
-            title={t('nav.workbenchWindow.planCard.emptyTitle')}
-            description={t('nav.workbenchWindow.progress.empty')}
-          />
+          <>
+            <Empty
+              title={t('nav.workbenchWindow.planCard.emptyTitle')}
+              description={t(
+                canResume
+                  ? 'nav.workbenchWindow.planCard.emptyStoppedHint'
+                  : 'nav.workbenchWindow.progress.empty',
+              )}
+            />
+            {canResume && (
+              <div className="ai00-x-plan-card__actions">
+                <Button variant="secondary" size="small" disabled={busy} onClick={resume}>
+                  <Play size={12} />
+                  {t('nav.workbenchWindow.planCard.continuePlanning')}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+        {error && (
+          <p className="ai00-x-plan-card__error" role="alert">
+            {error}
+          </p>
         )}
       </article>
     );

@@ -478,6 +478,8 @@
         "undoAccept": "Undo acceptance",
         "undoAcceptConfirm": "The task goes back to review (deliverables, evidence and the reject log are kept) so you can accept again or send it back for rework. Undo?",
         "resume": "Resume",
+        "continuePlanning": "Keep planning",
+        "emptyStoppedHint": "The agent stopped before writing a plan. Continue below to have it break down the goal again.",
         "editStep": "Edit step",
         "stepTitle": "Step title",
         "stepCommand": "Acceptance command (optional, e.g. pnpm run type-check)",
