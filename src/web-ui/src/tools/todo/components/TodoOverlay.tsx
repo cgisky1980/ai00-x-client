@@ -491,6 +491,38 @@ export const TodoOverlay: React.FC = () => {
               [goToTask(interrupted[0].id, '去查看')],
             );
           }
+          // 还有一种「重启后静默停住」：上一轮**正常结束**却没自检收口（轮次是闭合的，
+          // 不算中断），而「任务停下」只认本次运行里见过的会话——不在这里合并报一次，
+          // 这些卡就永远只是列表里一个「已停止」，没人知道要推它。合并成一条，不刷屏。
+          const questionsAtStart = useTodoStore.getState().agentQuestions;
+          const stalledAtStart = tasks.filter((t) => {
+            const sid = t.agentSessionId;
+            return (
+              Boolean(sid) &&
+              t.origin === 'workbench' &&
+              (t.executionMode ?? 'delivery') !== 'quick' &&
+              !t.archivedAt &&
+              !t.completedAt &&
+              !t.agentCompletedAt &&
+              (t.status ?? 'requirement') === 'doing' &&
+              Boolean(t.planApprovedAt) &&
+              !map[sid as string] &&
+              !failedMap[sid as string] &&
+              (questionsAtStart[sid as string]?.length ?? 0) === 0
+            );
+          });
+          if (stalledAtStart.length > 0) {
+            const names = stalledAtStart
+              .slice(0, 2)
+              .map((t) => `「${t.title.slice(0, 14)}」`)
+              .join('、');
+            notifyTask(
+              `有 ${stalledAtStart.length} 个任务停在执行段`,
+              `${names}${stalledAtStart.length > 2 ? ' 等' : ''}上次停在半路没自检收口——点开卡片按计划继续`,
+              'warning',
+              [goToTask(stalledAtStart[0].id, '去查看')],
+            );
+          }
         }
 
         // 执行看门狗（AI 评估流）：软阈值静默 → 派评估 agent 判断；判卡死/
