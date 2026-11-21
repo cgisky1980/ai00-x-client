@@ -1323,6 +1323,20 @@ async fn local_tool_round(
 
     if let Some((name, arguments)) = tool_call_from_text(&full_text, true) {
         let arguments = normalize_tool_arguments(&name, &arguments);
+        // 空内容 write 会把已有文件截成 0 字节：实测 T2/T3 的本地工人在"追加"
+        // 失败后都发出了 {"content":"","file_path":"report.md"}，直接把刚写好的
+        // 报告清空（2026-11-21 会话 87c876ca / caeffa9d）。拒绝执行，按 BLOCKED 收尾。
+        if let Some(reason) = empty_write_reason(&name, &arguments) {
+            log::warn!("[ai-gateway] rejected {name} call: {reason}");
+            return Ok(ToolRoundOutcome::Draft {
+                text: format!(
+                    "BLOCKED: {reason}. Never send an empty write — read the target file and write real content (or use edit to append)."
+                ),
+                hit_len: false,
+                input_tokens,
+                output_tokens,
+            });
+        }
         Ok(ToolRoundOutcome::ToolCall {
             name,
             arguments,
@@ -2688,6 +2702,24 @@ fn repair_tool_call_text(text: &str) -> Option<(String, String)> {
     Some((name, arguments))
 }
 
+/// 空内容 `write` 的拒绝原因（None = 允许执行）。
+///
+/// 这不是"写得少"，而是**破坏性**：`write` 是整文件覆盖，空内容等于清空目标文件。
+/// 2026-11-21 实测两次：本地工人想"追加"时发出 `{"content":"","file_path":"report.md"}`
+/// （87c876ca）与再次尝试同样的空写（caeffa9d），把已完成的第 1–3 章清零。
+fn empty_write_reason(name: &str, arguments: &str) -> Option<&'static str> {
+    if name != "write" {
+        return None;
+    }
+    let Ok(parsed) = serde_json::from_str::<Value>(arguments) else {
+        return None; // 参数坏到解析不了时交给下游报错，别在这里静默吞掉
+    };
+    match parsed.get("content") {
+        Some(Value::String(content)) if !content.trim().is_empty() => None,
+        _ => Some("write content is empty and would truncate the target file"),
+    }
+}
+
 /// 工具参数归一：3B 本地模型常见两类"参数漂移"，这里确定性修掉，
 /// 免得每一轮都因参数名不对被判失败（实测：`path`/`file_path` 混用、
 /// `content` 里又嵌了一层 `{"content":…,"file_path":…}`）。
@@ -3541,6 +3573,27 @@ mod tests {
             "{done:?}"
         );
         assert!(last_successful_tool_result(&messages).is_some());
+    }
+
+    #[test]
+    fn empty_write_is_rejected_before_touching_the_file() {
+        assert!(empty_write_reason("write", r#"{"file_path":"report.md","content":""}"#).is_some());
+        assert!(
+            empty_write_reason("write", r#"{"file_path":"report.md","content":"  \n "}"#).is_some()
+        );
+        // 缺 content 字段同样会清空文件
+        assert!(empty_write_reason("write", r#"{"file_path":"report.md"}"#).is_some());
+        // 正常写入放行
+        assert!(
+            empty_write_reason("write", r##"{"file_path":"report.md","content":"# hi"}"##)
+                .is_none()
+        );
+        // edit 删空一段内容（new_string 为空）是合法操作，不拦
+        assert!(empty_write_reason(
+            "edit",
+            r#"{"file_path":"x.md","old_string":"a","new_string":""}"#
+        )
+        .is_none());
     }
 
     #[test]
