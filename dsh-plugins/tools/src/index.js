@@ -194,6 +194,37 @@ export function weakAcceptance(markdown) {
   return out;
 }
 
+/**
+ * 计划里写了 `{cmd: …}` 但**实际不会被执行的**验收条目。
+ *
+ * `extractCmd` 有几道护栏（>500 字符、含反引号、含 `$(`），超了就不当命令，
+ * 静默降级成「人工判据」——2026-11-21 实测：一份 600 字符的 node 校验命令
+ * 就这样从没跑过，步骤永远停在 needs-review，而计划表面看起来「有命令」。
+ * 写计划时就拦掉，让模型改用短命令或把逻辑挪进 Scope 里的脚本。
+ */
+export function unrunnableCmds(markdown) {
+  const out = [];
+  let section = "";
+  for (const line of String(markdown ?? "").split("\n")) {
+    if (/^##\s/.test(line)) {
+      section = line.replace(/^##\s*/, "").trim();
+      continue;
+    }
+    const item = /^\s*-\s+\[[ xX]\]\s+(.*)$/.exec(line);
+    const stepProp = /^\s*-\s*(?:Acceptance|验收)\s*[:：]\s*(.*)$/i.exec(line);
+    const text = item ? item[1] : stepProp ? stepProp[1] : "";
+    if (!text || !/\{cmd:/.test(text)) continue;
+    if (extractCmd(text)) continue;
+    const inner = /\{cmd:\s*(.+?)\}\s*$/.exec(text);
+    out.push({
+      where: item ? section || "## Acceptance" : "step",
+      text: text.trim(),
+      len: inner ? inner[1].trim().length : 0,
+    });
+  }
+  return out;
+}
+
 /** 本地时间戳 `YYYY-MM-DD HH:mm`（计划文档给人读，不用 UTC）。 */
 function localStamp() {
   const d = new Date();
@@ -1124,6 +1155,12 @@ function defineTools(ctx, api) {
             },
           },
           manualItems: { type: "array", items: { type: "string" } },
+          unrunnable: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Acceptance items written with {cmd: …} whose command could not run (longer than 500 chars, backticks, or not whitelisted). They were NOT executed — the plan needs a shorter command or a checker script.",
+          },
           changedFiles: { type: "array", items: { type: "string" } },
           scopeMissing: {
             type: "array",
@@ -1189,6 +1226,13 @@ function defineTools(ctx, api) {
         }
         if ((value.manualItems ?? []).length) {
           lines.push(`manual: ${value.manualItems.join(" | ")}`);
+        }
+        if ((value.unrunnable ?? []).length) {
+          lines.push(
+            `acceptance commands that cannot run (too long / backticks / not whitelisted — they were NOT executed): ${value.unrunnable
+              .map((t) => `"${t.slice(0, 80)}"`)
+              .join(" | ")} — shorten them (≤500 ASCII chars) or move the logic into a checker script, then re-run verify`
+          );
         }
         if ((value.changedFiles ?? []).length) {
           lines.push(`changed: ${value.changedFiles.slice(0, 40).join(", ")}`);
@@ -1262,11 +1306,15 @@ function defineTools(ctx, api) {
 
       const commands = [];
       const manualItems = [];
+      // 写了 `{cmd:}` 却跑不起来的条目（超长/含反引号/非白名单）：单独点名，
+      // 否则它们混在 manual 里，看起来像「人工判据」而不是计划缺陷。
+      const unrunnable = [];
       let failed = false;
       for (const item of acceptance) {
         const cmd = item.cmd;
         if (!cmd) {
-          manualItems.push(item.text);
+          if (/\{cmd:/.test(item.text)) unrunnable.push(item.text);
+          else manualItems.push(item.text);
           continue;
         }
         // test -f/-d/-e 与 [ -f … ] 走内置 fs 判定（不在命令白名单里，但语义确定）
@@ -1277,12 +1325,15 @@ function defineTools(ctx, api) {
           continue;
         }
         if (!isCmdAllowed(cmd)) {
-          manualItems.push(item.text);
+          unrunnable.push(item.text);
           continue;
         }
         const verdict = await runVerification(cmd, cwd || undefined, exec.signal);
         commands.push({ cmd, ok: verdict.ok, output: verdict.output });
         if (!verdict.ok) failed = true;
+      }
+      if (unrunnable.length) {
+        ctx.logger.warn(`ai00-x-tools: acceptance commands not runnable: ${unrunnable.length}`);
       }
 
       const includeDiff =
@@ -1378,7 +1429,7 @@ function defineTools(ctx, api) {
         (includeDiff && evidence.diffTruncated && evidence.changedFiles.length > 50);
       const verdict = failed || missingDeliverables.length || corrupt.length
         ? "failed"
-        : manualItems.length > 0 || insufficient || scopeMissing.length > 0
+        : manualItems.length > 0 || insufficient || scopeMissing.length > 0 || unrunnable.length > 0
           ? "needs-review"
           : "passed";
 
@@ -1429,6 +1480,7 @@ function defineTools(ctx, api) {
         ...(scopeMissing.length ? { scopeMissing } : {}),
         ...(extras.length ? { extras } : {}),
         ...(corrupt.length ? { corrupt } : {}),
+        ...(unrunnable.length ? { unrunnable } : {}),
         ...(ticked ? { ticked: true } : {}),
         // 计划剩余项随证据一起回传：编排者据此用 ai00_plan_check 精确勾选，
         // 不必再为了看状态调一次 ai00_plan_read（实测一次读回 ~7k 输入）。
@@ -1945,6 +1997,23 @@ function defineTools(ctx, api) {
             `refused: ${weak.length} acceptance check(s) only measure length/size — filler text would pass and real defects (missing section, wrong file name, mojibake) would slip through:`,
             ...weak.slice(0, 4).map((w) => `  - ${w.cmd}`),
             'Rewrite each with a content assertion (required heading/table/citation), e.g. node -e "const s=require(\'fs\').readFileSync(\'report.md\',\'utf8\');if(!s.includes(\'## 结论\'))process.exit(1)". Nothing was written.',
+          ].join("\n")
+        );
+      }
+      // 写了 `{cmd:}` 但过不了护栏（>500 字符 / 含反引号 / 含 `$(`）：这类命令
+      // 会被静默降级成「人工判据」，步骤永远停在 needs-review。
+      const prevUnrunnable = new Set(
+        unrunnableCmds(prevMarkdown).map((c) => c.text.replace(/\s+/g, " "))
+      );
+      const unrunnable = unrunnableCmds(merged).filter(
+        (c) => !prevUnrunnable.has(c.text.replace(/\s+/g, " "))
+      );
+      if (unrunnable.length) {
+        throw new Error(
+          [
+            `refused: ${unrunnable.length} acceptance command(s) will never run — extractCmd refuses commands longer than 500 chars or containing backticks/\`$(\`, so they silently degrade to manual checks and the step can never pass verification:`,
+            ...unrunnable.slice(0, 4).map((c) => `  - (${c.len} chars) ${c.text.slice(0, 120)}`),
+            "Keep the command under 500 ASCII chars: assert one or two key facts (heading present, table rows, key phrase), or put the logic in a short checker script listed in Scope and call it (e.g. `node check.mjs`). Nothing was written.",
           ].join("\n")
         );
       }
