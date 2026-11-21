@@ -995,7 +995,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
               title={t('nav.workbenchWindow.planCard.emptyTitle')}
               description={t(
                 canResume
-                  ? 'nav.workbenchWindow.planCard.emptyStoppedHint'
+                  ? phase === 'failed'
+                    ? 'nav.workbenchWindow.planCard.emptyFailedHint'
+                    : 'nav.workbenchWindow.planCard.emptyStoppedHint'
                   : 'nav.workbenchWindow.progress.empty',
               )}
             />

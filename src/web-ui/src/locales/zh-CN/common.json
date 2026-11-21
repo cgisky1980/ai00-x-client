@@ -482,6 +482,7 @@
         "resume": "继续执行",
         "continuePlanning": "继续规划",
         "emptyStoppedHint": "Agent 在写出计划之前就停下了。点下面继续，让它重新拆解目标。",
+        "emptyFailedHint": "这一轮以错误收尾（原因见右侧对话），还没写出计划。修好原因后点下面重试。",
         "sendFailed": "发给 Agent 的消息没有送达：{{message}}。计划状态已更新，可在对话框重发。",
         "editStep": "编辑步骤",
         "stepTitle": "步骤标题",

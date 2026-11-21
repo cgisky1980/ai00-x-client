@@ -482,6 +482,7 @@
         "resume": "Resume",
         "continuePlanning": "Keep planning",
         "emptyStoppedHint": "The agent stopped before writing a plan. Continue below to have it break down the goal again.",
+        "emptyFailedHint": "This turn ended with an error (see the chat on the right) before any plan was written. Fix the cause, then retry below.",
         "sendFailed": "The message did not reach the agent: {{message}}. The plan state is updated; you can resend it in the chat.",
         "editStep": "Edit step",
         "stepTitle": "Step title",
