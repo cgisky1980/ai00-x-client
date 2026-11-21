@@ -25,10 +25,12 @@ export function notifyTask(
   message: string,
   tone: 'info' | 'warning' | 'error' = 'info',
   actions?: NotifyAction[],
+  /** 覆盖默认停留时长（ms，0 = 不自动消失）。审批这类必须动手再走的提示要常驻。 */
+  opts?: { duration?: number },
 ): string {
   return notificationService[tone](message, {
     title,
-    duration: tone === 'error' ? 0 : 8000,
+    duration: opts?.duration ?? (tone === 'error' ? 0 : 8000),
     ...(actions && actions.length > 0 ? { actions } : {}),
   });
 }

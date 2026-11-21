@@ -79,6 +79,8 @@ export const TodoOverlay: React.FC = () => {
   const prevFailedRef = useRef(new Map<string, boolean>());
   /** 任务 → 最近一条「任务出错」通知 id：同一张卡反复失败时先收旧条，不叠一摞。 */
   const failureToastRef = useRef(new Map<string, string>());
+  /** 会话 → 提问通知 id：问一次只留一条，答完即收（同一时刻允许覆盖）。 */
+  const questionToastRef = useRef(new Map<string, string>());
 
   useEffect(() => {
     void load();
@@ -236,23 +238,37 @@ export const TodoOverlay: React.FC = () => {
         activityRef.current.set(frame.sessionId, Date.now());
         store.upsertAgentQuestion(frame.sessionId, { rpcId, questions: frame.questions });
         // 提问会卡住整轮：人不在工作台时也该被叫回来（列表里的「需要你」在别的窗口看不见）。
+        // 常驻不自动消失——8 秒就蒸发的提示对面是一轮永不继续的执行；同一会话反复提问
+        // 先收旧条（agent 往往一问接一问），答完由 question/resolved 收尾。
         const task = store.data.tasks.find(
           (t) => t.agentSessionId === frame.sessionId && !t.archivedAt && !t.completedAt,
         );
         if (task) {
+          const previous = questionToastRef.current.get(frame.sessionId);
+          if (previous) dismissTaskNotification(previous);
           const first = frame.questions[0]?.question?.trim() ?? '';
-          notifyTask(
+          const toastId = notifyTask(
             '提问 · 需要你',
             first
               ? `「${task.title}」在等你回答：${first.slice(0, 40)}`
               : `「${task.title}」有 ${frame.questions.length} 个问题等你回答`,
             'warning',
             [goToTask(task.id, '去回答')],
+            { duration: 0 },
           );
+          questionToastRef.current.set(frame.sessionId, toastId);
         }
       } else if (frame.type === 'question/resolved') {
         activityRef.current.set(frame.sessionId, Date.now());
         store.removeAgentQuestion(frame.sessionId, frame.questionRpcId);
+        // 本轮问题全部答完（工作台答或取消都算）→ 收起提示，别留一条点不动的旧通知
+        if ((useTodoStore.getState().agentQuestions[frame.sessionId]?.length ?? 0) === 0) {
+          const toastId = questionToastRef.current.get(frame.sessionId);
+          if (toastId) {
+            questionToastRef.current.delete(frame.sessionId);
+            dismissTaskNotification(toastId);
+          }
+        }
       } else if (frame.type === 'approval/requested') {
         activityRef.current.set(frame.sessionId, Date.now());
         // 「总是允许」记忆命中：自动应答放行，不再打扰人工
