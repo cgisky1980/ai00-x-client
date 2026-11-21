@@ -371,7 +371,7 @@ export const TodoOverlay: React.FC = () => {
                   warnedRef.current.add(sid);
                   notifyTask(
                     `执行静默 ${idleMinutes} 分钟 · 暂无法自动评估`,
-                    '请人工留意；可点开卡片用「中断并继续」',
+                    '请人工留意：点开卡片查看，或在对话里发一句话让它继续',
                     'warning',
                   );
                 }

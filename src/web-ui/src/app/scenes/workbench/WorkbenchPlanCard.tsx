@@ -11,7 +11,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Check, FolderOpen, Pencil, Plus, Trash2, Undo2 } from 'lucide-react';
+import { Check, FolderOpen, Pencil, Play, Plus, Trash2, Undo2 } from 'lucide-react';
 import { Button as DsButton } from '@ai00-x/design-system/react';
 import {
   Button,
@@ -63,6 +63,7 @@ import {
   type PlanStepDiff,
 } from '@/tools/todo/utils/planEdit';
 import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
+import { continueTaskRun } from '../tasks/taskSession';
 import { useWorkbenchTaskStore } from '../tasks/workbenchTaskStore';
 import { WORKBENCH_STAGES, stageOf } from './workbenchStage';
 import type { TaskPhase } from '../tasks/taskPhase';
@@ -372,6 +373,15 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       .prompt(sessionId, t('nav.workbenchWindow.progress.nudgeSelfCheckMessage'), { mode: 'queue' })
       .catch(() => undefined);
   }, [sessionId, t]);
+
+  /** 继续执行：停住的任务按计划从第一个未勾选步骤续跑（与外部触发同一份话术）。 */
+  const resume = useCallback((): void => {
+    setBusy(true);
+    setError(null);
+    void continueTaskRun(task, planMd)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(false));
+  }, [planMd, task]);
 
   const openReject = useCallback((): void => {
     setRejectReason('');
@@ -880,6 +890,16 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       {/* 打回返工期间也要看得到「为什么被打回、哪几项不成立」：打回会清空验收与集成验收记录，
           执行段若不展示，卡片只剩「已完成 1/1」——读起来像没发生过打回。 */}
       {rejectBlock}
+      {/* 停住的任务（客户端重启 / 回合被打断 / 出错之后）以前只能靠人再打一句话续跑——
+          看门狗提示里早就写着「点「继续执行」」，可这个按钮一直不存在。 */}
+      {!readOnly && !running && sessionId && (phase === 'stopped' || phase === 'failed') && (
+        <div className="ai00-x-plan-card__actions">
+          <Button variant="secondary" size="small" disabled={busy} onClick={resume}>
+            <Play size={12} />
+            {t('nav.workbenchWindow.planCard.resume')}
+          </Button>
+        </div>
+      )}
       {!readOnly && allDone && !running && !task.agentCompletedAt && (
         <div className="ai00-x-plan-card__nudge">
           <p className="ai00-x-plan-card__hint">{t('nav.workbenchWindow.progress.nudgeSelfCheck')}</p>
