@@ -81,6 +81,12 @@ export const TodoOverlay: React.FC = () => {
   const failureToastRef = useRef(new Map<string, string>());
   /** 会话 → 提问通知 id：问一次只留一条，答完即收（同一时刻允许覆盖）。 */
   const questionToastRef = useRef(new Map<string, string>());
+  /** 本次运行里见过在跑的会话（父会话含「有子代理在跑」）：只在它们身上判「停住」。 */
+  const seenRunningRef = useRef(new Set<string>());
+  /** 任务 → 连续判定为「停住」的轮询次数（≈30s/次）。 */
+  const idlePollsRef = useRef(new Map<string, number>());
+  /** 任务 → 「任务停下」通知 id：恢复运行/改状态后收起。 */
+  const stallToastRef = useRef(new Map<string, string>());
 
   useEffect(() => {
     void load();
@@ -344,6 +350,62 @@ export const TodoOverlay: React.FC = () => {
           failedSeededRef.current = true;
         }
         prevFailedRef.current = failedNow;
+
+        // 回合正常结束但没有收口：agent 停了（常见话术是「已派发，等结果」，
+        // 实际没有任何会话在跑），卡片只是从「执行中」变成「已停止」。
+        // 不叫人的话，任务就停在执行段，谁也不知道要点「继续执行」。
+        // 两条边界：只在**本次运行里见过它在跑**的任务上判（启动时的历史停滞不刷旧账）；
+        // 有子代理在跑 = 还在推进，不算停住。
+        const runningParents = new Set<string>();
+        for (const s of items) {
+          if (!s.running) continue;
+          seenRunningRef.current.add(s.sessionId);
+          if (s.parentSessionId) {
+            runningParents.add(s.parentSessionId);
+            seenRunningRef.current.add(s.parentSessionId);
+          }
+        }
+        const questions = useTodoStore.getState().agentQuestions;
+        for (const task of tasks) {
+          const sid = task.agentSessionId;
+          const stalled =
+            Boolean(sid) &&
+            task.origin === 'workbench' &&
+            (task.executionMode ?? 'delivery') !== 'quick' &&
+            !task.archivedAt &&
+            !task.completedAt &&
+            !task.agentCompletedAt &&
+            (task.status ?? 'requirement') === 'doing' &&
+            Boolean(task.planApprovedAt) &&
+            !map[sid as string] &&
+            !runningParents.has(sid as string) &&
+            !failedMap[sid as string] &&
+            (questions[sid as string]?.length ?? 0) === 0 &&
+            seenRunningRef.current.has(sid as string);
+          if (!stalled) {
+            idlePollsRef.current.delete(task.id);
+            const old = stallToastRef.current.get(task.id);
+            if (old) {
+              stallToastRef.current.delete(task.id);
+              dismissTaskNotification(old);
+            }
+            continue;
+          }
+          const polls = (idlePollsRef.current.get(task.id) ?? 0) + 1;
+          idlePollsRef.current.set(task.id, polls);
+          // 连续两轮（≈60s）都停着才叫人：一轮的间隙里 agent 往往还在写文件/等子代理回调
+          if (polls !== 2 || stallToastRef.current.has(task.id)) continue;
+          stallToastRef.current.set(
+            task.id,
+            notifyTask(
+              '任务停下 · 需要你',
+              `「${task.title}」这一轮结束了，但没有自检收口，也没有子代理在跑——点「继续执行」让它按计划接着走`,
+              'warning',
+              [goToTask(task.id, '去继续')],
+              { duration: 0 },
+            ),
+          );
+        }
 
         // 启动首次轮询（R2-9）：客户端退出会杀引擎——按事件重放判「被中断」：
         // 未闭合的轮次（turn/start 无 turn/end）或有工具调用未返回，才算中断；
