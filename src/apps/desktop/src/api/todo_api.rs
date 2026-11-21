@@ -90,6 +90,26 @@ pub async fn todo_plan_set(
 /// 读取全部 todo 数据；`None` = 尚无数据（首次使用/未迁移）。
 #[tauri::command]
 pub async fn todo_store_get() -> Result<Option<Value>, String> {
+    read_store_raw().await
+}
+
+/// 全量写入 todo 数据（原子写：临时文件 + rename，防半写损坏）。
+#[tauri::command]
+pub async fn todo_store_set(value: Value) -> Result<(), String> {
+    let _guard = TODO_STORE_LOCK.lock().await;
+    write_store_raw(&value).await
+}
+
+/// data.json 的读改写锁——**所有会写这份文件的入口都要先拿它**。
+///
+/// 前端 `todo_store_set`（整份保存）与 Rust 侧读改写（`todo_task_create`
+/// 建卡、`todo_focus_append` 追加专注）改的是同一份 JSON；不串行化时
+/// 「读 → 改 → 写」的后写者会把先写者的改动整段覆盖。实测并发 8 个建卡
+/// 只落地 1 张（其余 7 张被互相覆盖）。
+static TODO_STORE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// 读盘（纯读，不拿锁：写入是 rename 原子替换，读到的要么旧要么新，都是完整文件）。
+async fn read_store_raw() -> Result<Option<Value>, String> {
     match fs::read_to_string(todo_store_path()).await {
         Ok(content) => {
             let value: Value =
@@ -101,16 +121,15 @@ pub async fn todo_store_get() -> Result<Option<Value>, String> {
     }
 }
 
-/// 全量写入 todo 数据（原子写：临时文件 + rename，防半写损坏）。
-#[tauri::command]
-pub async fn todo_store_set(value: Value) -> Result<(), String> {
+/// 写盘（原子替换）。调用方必须已持有 `TODO_STORE_LOCK`。
+async fn write_store_raw(value: &Value) -> Result<(), String> {
     let path = todo_store_path();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .await
             .map_err(|e| format!("create todo dir: {e}"))?;
     }
-    let content = serde_json::to_string(&value).map_err(|e| format!("serialize todo data: {e}"))?;
+    let content = serde_json::to_string(value).map_err(|e| format!("serialize todo data: {e}"))?;
     let tmp = path.with_extension("json.tmp");
     fs::write(&tmp, content)
         .await
@@ -149,7 +168,9 @@ pub async fn todo_task_create(app: &AppHandle, body: &Value) -> Result<Value, St
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty());
 
-    let mut data = match todo_store_get().await? {
+    // 读改写必须持锁（否则并发建卡互相覆盖：实测 8 并发只落地 1 张）
+    let _guard = TODO_STORE_LOCK.lock().await;
+    let mut data = match read_store_raw().await? {
         Some(v) => v,
         None => json!({
             "version": 3,
@@ -229,6 +250,11 @@ pub async fn todo_task_create(app: &AppHandle, body: &Value) -> Result<Value, St
         "remindAt": null,
         "remindedAt": null,
         "status": "requirement",
+        // 归属默认「任务」工作台：任务场景 / 看板只列 origin='workbench' 的卡。
+        // 不写这个字段时 agent 建的想法卡会落在「策任务」一侧——而策窗口早已下线，
+        // 卡片就完全没有入口（实测 ai00_task_create 建出来的卡在列表里查无此人）。
+        "origin": "workbench",
+        "workbenchId": "tasks",
     });
 
     let tasks = data
@@ -236,7 +262,7 @@ pub async fn todo_task_create(app: &AppHandle, body: &Value) -> Result<Value, St
         .and_then(|v| v.as_array_mut())
         .ok_or("todo data missing tasks array")?;
     tasks.push(task.clone());
-    todo_store_set(data).await?;
+    write_store_raw(&data).await?;
     let _ = app.emit("todo-agent-updated", ());
     Ok(task)
 }
@@ -276,18 +302,11 @@ pub async fn todo_focus_append(
         "minutes": minutes.max(0),
         "outcome": outcome,
     });
-    let path = todo_store_path();
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .await
-            .map_err(|e| format!("create todo dir: {e}"))?;
-    }
-    // 读（不存在则骨架）→ 追加 → 原子写
-    let mut root: Value = match fs::read_to_string(&path).await {
-        Ok(content) => {
-            serde_json::from_str(&content).map_err(|e| format!("corrupt todo data: {e}"))?
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => json!({
+    // 与建卡 / 前端整份保存共用一把锁：并发时后写覆盖先写
+    let _guard = TODO_STORE_LOCK.lock().await;
+    let mut root: Value = match read_store_raw().await? {
+        Some(v) => v,
+        None => json!({
             "version": 3,
             "lists": [],
             "goals": [],
@@ -297,7 +316,6 @@ pub async fn todo_focus_append(
             "lastStreakSettleDate": null,
             "migratedFromPlugin": true,
         }),
-        Err(e) => return Err(format!("read todo data: {e}")),
     };
     if !root.is_object() {
         return Err("corrupt todo data: root is not an object".into());
@@ -313,14 +331,7 @@ pub async fn todo_focus_append(
                 .map(|o| o.insert("focusSessions".into(), Value::Array(vec![session.clone()])));
         }
     }
-    let content = serde_json::to_string(&root).map_err(|e| format!("serialize todo data: {e}"))?;
-    let tmp = path.with_extension("json.tmp");
-    fs::write(&tmp, content)
-        .await
-        .map_err(|e| format!("write todo data (tmp): {e}"))?;
-    fs::rename(&tmp, &path)
-        .await
-        .map_err(|e| format!("commit todo data: {e}"))?;
+    write_store_raw(&root).await?;
     let _ = app.emit("todo-focus-appended", session.clone());
     Ok(session)
 }

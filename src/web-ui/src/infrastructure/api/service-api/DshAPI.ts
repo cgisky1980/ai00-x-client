@@ -2228,11 +2228,46 @@ export interface DshSessionRunState {
   openTurn: boolean;
   pendingTools: number;
   lastTurnErrored: boolean;
+  /**
+   * 已开启的轮次数（turn/start 计数）。
+   *
+   * `turns === 0` = 会话建好了但**一轮都没跑起来**（首轮任务书没送到 / 模型直接拒了）。
+   * 这类卡没有计划、没有失败、也没有在跑，只看别的信号全是「正常」，
+   * 于是永远停在列表里没人叫——只有这个计数能把它们挑出来。
+   */
+  turns: number;
+  /**
+   * 最后一轮失败的原文（`code` 来自引擎的 failure 对象，`message` 是给排查用的原话）。
+   * 失败通知要把「为什么失败」直接说出来：只写「以错误收尾」等于让人再开窗口找。
+   */
+  lastError?: { code?: string; message: string };
+}
+
+/** 从 turn/end 的 reason、或 assistant finish 的 reason 里取出失败信息。 */
+function readFailure(reason: unknown): { code?: string; message: string } | null {
+  const r = reason as
+    | { kind?: string; error?: unknown; failure?: unknown; message?: unknown }
+    | undefined;
+  if (!r || r.kind !== 'error') return null;
+  const body = (r.failure ?? r.error) as { code?: unknown; message?: unknown } | undefined;
+  const message =
+    typeof body?.message === 'string' && body.message.trim()
+      ? body.message.trim()
+      : typeof r.message === 'string' && r.message.trim()
+        ? r.message.trim()
+        : '';
+  if (!message) return null;
+  return {
+    ...(typeof body?.code === 'string' && body.code ? { code: body.code } : {}),
+    message,
+  };
 }
 
 export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunState {
   let openTurn = false;
   let turnErrored = false;
+  let turns = 0;
+  let lastError: { code?: string; message: string } | undefined;
   const calledIds = new Set<string>();
   const resultIds = new Set<string>();
 
@@ -2241,13 +2276,19 @@ export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunS
     switch (event.type) {
       case 'turn/start': {
         openTurn = true;
+        turns += 1;
         turnErrored = false;
+        lastError = undefined;
         break;
       }
       case 'turn/end': {
         openTurn = false;
-        const reason = (data?.reason ?? data?.error) as { kind?: string } | undefined;
-        if (reason?.kind === 'error') turnErrored = true;
+        const reason = data?.reason ?? data?.error;
+        const failure = readFailure(reason);
+        if ((reason as { kind?: string } | undefined)?.kind === 'error') {
+          turnErrored = true;
+          if (failure) lastError = failure;
+        }
         break;
       }
       case 'assistant/chunk': {
@@ -2256,6 +2297,8 @@ export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunS
           | undefined;
         if (chunk?.type === 'finish' && chunk.reason?.kind === 'error') {
           turnErrored = true;
+          const failure = readFailure(chunk.reason);
+          if (failure) lastError = failure;
         }
         break;
       }
@@ -2267,6 +2310,8 @@ export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunS
         for (const entry of stream ?? []) {
           if (entry?.chunk?.type === 'finish' && entry.chunk.reason?.kind === 'error') {
             turnErrored = true;
+            const failure = readFailure(entry.chunk.reason);
+            if (failure) lastError = failure;
           }
         }
         break;
@@ -2294,5 +2339,11 @@ export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunS
     if (!resultIds.has(id)) pendingTools += 1;
   }
 
-  return { openTurn, pendingTools, lastTurnErrored: turnErrored };
+  return {
+    openTurn,
+    pendingTools,
+    lastTurnErrored: turnErrored,
+    turns,
+    ...(turnErrored && lastError ? { lastError } : {}),
+  };
 }

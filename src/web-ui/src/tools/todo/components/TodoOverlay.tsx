@@ -31,30 +31,9 @@ import {
 } from '../utils/watchdog';
 import { buildChildStallPrompt } from '../ai/prompts';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
-import { dismissTaskNotification, notifyTask } from '../utils/notify';
+import { dismissTaskNotification, goToTask, notifyTask, type NotifyAction } from '../utils/notify';
 import { continueTaskRun } from '../utils/continueRun';
 import { invoke } from '@tauri-apps/api/core';
-import { WindowAPI } from '@/infrastructure/windows/WindowAPI';
-import { requestWorkbenchTaskFocus } from '@/infrastructure/plugins/workbenchSession';
-
-/**
- * 「需要你」通知的动作：开（或聚焦）工作台窗口并定位到这张任务卡。
- * 通知是人在别的场景里唯一的信号，只给文字就等于逼人自己去翻列表。
- */
-function goToTask(
-  taskId: string,
-  label: string,
-  variant: 'primary' | 'secondary' = 'primary',
-): { label: string; variant: 'primary' | 'secondary'; onClick: () => void } {
-  return {
-    label,
-    variant,
-    onClick: () => {
-      void WindowAPI.open('workbench').catch(() => undefined);
-      requestWorkbenchTaskFocus(taskId);
-    },
-  };
-}
 
 /**
  * 「继续执行」动作：不动窗口，直接给会话补一条按计划续跑的消息（与计划卡同一份话术）。
@@ -62,7 +41,12 @@ function goToTask(
  * 停住的任务最常见的下一步就是「接着跑」——以前必须开工作台、等面板加载、再点一次；
  * 窗口冷启动就要十几秒，通知的价值被这段路吃掉。失败时回一条 error 通知，不做静默。
  */
-function resumeTask(task: TodoTask, variant: 'primary' | 'secondary' = 'primary'): {
+function resumeTask(
+  task: TodoTask,
+  variant: 'primary' | 'secondary' = 'primary',
+  /** 上一轮失败原文：随续跑消息带给 agent，让它先判断错误是否已排除。 */
+  lastError?: string,
+): {
   label: string;
   variant: 'primary' | 'secondary';
   onClick: () => void;
@@ -73,7 +57,7 @@ function resumeTask(task: TodoTask, variant: 'primary' | 'secondary' = 'primary'
     onClick: () => {
       void invoke<string | null>('todo_plan_get', { taskId: task.id })
         .catch(() => null)
-        .then((plan) => continueTaskRun(task, plan))
+        .then((plan) => continueTaskRun(task, plan, lastError))
         .catch((e) =>
           notifyTask('继续执行失败', String(e).slice(0, 160), 'error', [
             goToTask(task.id, '去查看'),
@@ -81,6 +65,30 @@ function resumeTask(task: TodoTask, variant: 'primary' | 'secondary' = 'primary'
         );
     },
   };
+}
+
+/**
+ * 失败原因的一句话摘要（通知用）：`code · 首个分句`，超长截断。
+ *
+ * 只写「以错误收尾」等于让人再开窗口找出错原因；完整原文仍在卡片/对话里，
+ * 通知里给到「是哪一类错、报在哪」就够判断了。
+ */
+function summarizeFailure(err?: { code?: string; message?: string }): string {
+  if (!err) return '';
+  const clause = (err.message ?? '').split(/[;；]/)[0].trim();
+  const short = clause.length > 80 ? `${clause.slice(0, 80)}…` : clause;
+  return [err.code, short].filter(Boolean).join(' · ');
+}
+
+/**
+ * 「已经进入执行」的判据：**有会话且没验收**。
+ *
+ * 不再要求 `status === 'doing'`：agent 自主建的想法卡落盘是 `requirement`，
+ * 打开跑起来后 status 可能仍是 requirement——按 status 过滤会让这类卡
+ * 完全逃过失败提醒 / 停住判定 / 启动合并提醒（实测跑完不自检无人叫）。
+ */
+function inExecution(task: TodoTask): boolean {
+  return Boolean(task.agentSessionId) && !task.completedAt;
 }
 
 // ---- 执行看门狗（AI 评估 + 自适应复查，无绝对时间强制干预）----
@@ -107,8 +115,20 @@ export const TodoOverlay: React.FC = () => {
   const judgeDelayRef = useRef(new Map<string, number>());
   // 合法等人工的场景（不算卡死）：工具审批挂起（approval/requested 未决）
   const awaitingApprovalRef = useRef(new Set<string>());
-  // 首次轮询标记（启动中断提醒用一次）
-  const firstPollRef = useRef(true);
+  /**
+   * 两条「合并式」常驻通知：多个任务共用一条，条件消失就收起。
+   *
+   * 以前它们只在启动首轮扫一次、8 秒后自动消失：人不在屏幕前就等于没提醒；
+   * 而卡被推着继续跑以后通知也不会收。现在按「条件」同步——集合变了重发，
+   * 集合空了收起，点过（被收起）就不再打扰。
+   */
+  const mergedNoticeRef = useRef<{
+    stalled?: { id: string; key: string };
+    interrupted?: { id: string; key: string };
+    notStarted?: { id: string; key: string };
+    planStalled?: { id: string; key: string };
+    failing?: { id: string; key: string };
+  }>({});
   // 失败态基线（启动时的历史失败只进基线，不弹通知）
   const failedSeededRef = useRef(false);
   /**
@@ -120,6 +140,12 @@ export const TodoOverlay: React.FC = () => {
    * 一定再弹一次。
    */
   const notifiedFailureStampRef = useRef(new Map<string, number>());
+  /**
+   * 会话 → 连续「同一个错误」的次数（key = code + 首个分句）。
+   * 连续 3 次相同错误后不再劝人「继续执行」：凭据缺失 / 额度不足这类失败重试
+   * 一定是同样结果，一直摆着重试按钮等于让人反复撞墙。
+   */
+  const failureStreakRef = useRef(new Map<string, { key: string; count: number }>());
   /** 任务 → 最近一条「任务出错」通知 id：同一张卡反复失败时先收旧条，不叠一摞。 */
   const failureToastRef = useRef(new Map<string, string>());
   /** 会话 → 提问通知 id：问一次只留一条，答完即收（同一时刻允许覆盖）。 */
@@ -140,6 +166,14 @@ export const TodoOverlay: React.FC = () => {
   const acceptToastRef = useRef(new Map<string, string>());
   /** 会话 → 上次历史重放结论（updatedAt 未变就复用，避免每 30s 重放几百条事件）。 */
   const historyCacheRef = useRef(new Map<string, { updatedAt: number; state: DshSessionRunState }>());
+  /**
+   * 任务 → 计划文件是否存在（按会话 `updatedAt` 失效）。
+   *
+   * 「有没有计划」只有读文件才知道，而它决定了「停住」该劝人按计划继续、
+   * 还是提醒先写计划——两份话术不能混用。缓存按会话时间戳失效：agent 写计划
+   * 是一次工具调用，必然推进 `updatedAt`，所以不会读到过期结论。
+   */
+  const planCacheRef = useRef(new Map<string, { stamp: number; hasPlan: boolean }>());
 
   useEffect(() => {
     void load();
@@ -367,6 +401,46 @@ export const TodoOverlay: React.FC = () => {
   useEffect(() => {
     if (!loaded) return;
     let stopped = false;
+    /**
+     * 合并式常驻通知的同步器：集合变了重发，集合空了收起。
+     *
+     * 键用任务 id 集合（排序后拼接）——同一批任务只保留一条通知；人点过动作按钮
+     * 后通知已收起，但 `mergedNoticeRef` 仍留着同一个键，条件没变就不会重新弹出来。
+     */
+    const syncMergedNotice = (
+      slot: 'stalled' | 'interrupted' | 'notStarted' | 'planStalled' | 'failing',
+      list: TodoTask[],
+      titleOf: (count: number) => string,
+      messageOf: (names: string, count: number) => string,
+      actionsOf: (list: TodoTask[]) => NotifyAction[],
+    ): void => {
+      const key = list.map((t) => t.id).sort().join(',');
+      const current = mergedNoticeRef.current[slot];
+      if (!key) {
+        if (current) {
+          dismissTaskNotification(current.id);
+          delete mergedNoticeRef.current[slot];
+        }
+        return;
+      }
+      if (current && current.key === key) return;
+      if (current) dismissTaskNotification(current.id);
+      const names = list
+        .slice(0, 2)
+        .map((t) => `「${t.title.slice(0, 14)}」`)
+        .join('、');
+      mergedNoticeRef.current[slot] = {
+        key,
+        id: notifyTask(
+          titleOf(list.length),
+          messageOf(names, list.length),
+          'warning',
+          actionsOf(list),
+          // 「轮到人」的信号必须常驻：默认 8s 就蒸发的提示，人不在屏幕前等于没提。
+          { duration: 0 },
+        ),
+      };
+    };
     const poll = async () => {
       try {
         const { items } = await dshSession.list();
@@ -382,7 +456,7 @@ export const TodoOverlay: React.FC = () => {
         // 重拉一遍：十几张停滞卡 = 每分钟二十多次 history RPC，纯属空转。
         // 现在按 `session/list` 的 `updatedAt` 做缓存：会话没有新事件就直接复用上次的结论。
         const doingSessions = tasks
-          .filter(t => (t.status ?? 'requirement') === 'doing' && t.agentSessionId)
+          .filter(t => inExecution(t) && !t.archivedAt)
           .map(t => t.agentSessionId as string);
         const updatedAtOf = new Map(items.map(s => [s.sessionId, s.updatedAt ?? 0]));
         const failedMap: Record<string, boolean> = {};
@@ -429,14 +503,39 @@ export const TodoOverlay: React.FC = () => {
             if (notifiedFailureStampRef.current.get(sid) === stamp) continue;
             const previous = failureToastRef.current.get(task.id);
             if (previous) dismissTaskNotification(previous);
-            const toastId = notifyTask(
-              '任务出错 · 需要你',
-              `「${task.title}」这一轮以错误收尾——点开卡片查看错误，或点「继续执行」重试`,
-              'error',
-              // 文案里让用户点「继续执行」，按钮就必须真的在：只给「去查看」等于
-              // 逼人开窗口再找一次入口。整卡点击仍是「去查看」（primary）。
-              [goToTask(task.id, '去查看'), resumeTask(task, 'secondary')],
-            );
+            const err = runStateMap[sid]?.lastError;
+            const reason = summarizeFailure(err);
+            // 连续同一个错误计数：同 code + 同首个分句才算「同一个」，
+            // 换了错误就重新从 1 开始（说明重试确实推进了事情）。
+            const streakKey = `${err?.code ?? ''}|${(err?.message ?? '').split(/[;；]/)[0].trim().slice(0, 60)}`;
+            const prevStreak = failureStreakRef.current.get(sid);
+            const streak = prevStreak && prevStreak.key === streakKey ? prevStreak.count + 1 : 1;
+            failureStreakRef.current.set(sid, { key: streakKey, count: streak });
+            const toastId =
+              streak >= 3 && reason
+                ? notifyTask(
+                    '任务出错 · 需要你',
+                    `「${task.title}」连续 ${streak} 次同样的错误：${reason}——重试大概率还是同样结果，先按提示修环境（凭据 / 模型 / 额度）`,
+                    'error',
+                    // 反复撞同一堵墙时不再给「继续执行」：它只会再失败一次。
+                    [goToTask(task.id, '去查看')],
+                  )
+                : notifyTask(
+                    '任务出错 · 需要你',
+                    `「${task.title}」这一轮以错误收尾${reason ? `：${reason}` : ''}——点开卡片查看错误，或点「继续执行」重试`,
+                    'error',
+                    // 文案里让用户点「继续执行」，按钮就必须真的在：只给「去查看」等于
+                    // 逼人开窗口再找一次入口。整卡点击仍是「去查看」（primary）。
+                    // 续跑消息里带上失败原文：让 agent 先判断错误是否已排除，别照原样再撞。
+                    [
+                      goToTask(task.id, '去查看'),
+                      resumeTask(
+                        task,
+                        'secondary',
+                        err ? [err.code, err.message].filter(Boolean).join(' · ') : undefined,
+                      ),
+                    ],
+                  );
             failureToastRef.current.set(task.id, toastId);
             notifiedFailureStampRef.current.set(sid, stamp);
           }
@@ -451,6 +550,21 @@ export const TodoOverlay: React.FC = () => {
         // 失败已消失（回合成功 / 会话被清）→ 清掉记录，下次失败照常报
         for (const sid of [...notifiedFailureStampRef.current.keys()]) {
           if (!failedNow.get(sid)) notifiedFailureStampRef.current.delete(sid);
+        }
+        for (const sid of [...failureStreakRef.current.keys()]) {
+          if (!failedNow.get(sid)) failureStreakRef.current.delete(sid);
+        }
+        // 失败已恢复（重新在跑 / 回合成功 / 已验收或归档）→ 收起「任务出错」通知。
+        // 它是 error 档常驻通知，不跟随状态收就会一直挂在角上说「需要你」，
+        // 而任务其实早就继续跑了。查不到任务时不动（快照可能比闭包新）。
+        for (const [taskId, toastId] of [...failureToastRef.current]) {
+          const t = tasks.find((x) => x.id === taskId);
+          if (!t) continue;
+          const sid = t.agentSessionId;
+          const stillFailed = !!sid && failedNow.get(sid) === true && !t.completedAt && !t.archivedAt;
+          if (stillFailed) continue;
+          failureToastRef.current.delete(taskId);
+          dismissTaskNotification(toastId);
         }
 
         // 「轮到你了」的两类常驻通知：状态一变就收（批准 / 验收 / 打回 / 归档 / 删卡），
@@ -489,6 +603,10 @@ export const TodoOverlay: React.FC = () => {
         const questions = useTodoStore.getState().agentQuestions;
         for (const task of tasks) {
           const sid = task.agentSessionId;
+          // 「停下」= 轮次已闭合却没自检收口；轮次还开着（半轮中断）走 interrupted 那条，
+          // 两处都报会让同一张卡出现两条口径不同的「需要你」。
+          const closed = Boolean(sid) && !runStateMap[sid as string]?.openTurn
+            && (runStateMap[sid as string]?.pendingTools ?? 0) === 0;
           const stalled =
             Boolean(sid) &&
             task.origin === 'workbench' &&
@@ -496,8 +614,9 @@ export const TodoOverlay: React.FC = () => {
             !task.archivedAt &&
             !task.completedAt &&
             !task.agentCompletedAt &&
-            (task.status ?? 'requirement') === 'doing' &&
+            inExecution(task) &&
             Boolean(task.planApprovedAt) &&
+            closed &&
             !map[sid as string] &&
             !runningParents.has(sid as string) &&
             !failedMap[sid as string] &&
@@ -586,65 +705,180 @@ export const TodoOverlay: React.FC = () => {
           if (!stuckChildren.has(childId)) childStallRef.current.delete(childId);
         }
 
-        // 启动首次轮询（R2-9）：客户端退出会杀引擎——按事件重放判「被中断」：
-        // 未闭合的轮次（turn/start 无 turn/end）或有工具调用未返回，才算中断；
-        // 已正常收尾但等人验收的任务不再误报。
-        if (firstPollRef.current) {
-          firstPollRef.current = false;
-          const interrupted = tasks.filter(t => {
-            const sid = t.agentSessionId;
-            if (t.archivedAt) return false; // 已归档：不催人处理
-            if ((t.status ?? 'requirement') !== 'doing' || !sid || map[sid]) return false;
-            const state = runStateMap[sid];
-            return state ? state.openTurn || state.pendingTools > 0 : false;
-          });
-          if (interrupted.length) {
-            notifyTask(
-              `有 ${interrupted.length} 个执行任务被中断`,
-              '上次客户端退出时中断——点开卡片查看，直接发消息或点「继续执行」续跑',
-              'warning',
-              [goToTask(interrupted[0].id, '去查看')],
-            );
+        // 「半轮中断」：客户端退出会杀引擎——按事件重放判：未闭合的轮次
+        // （turn/start 无 turn/end）或有工具调用未返回，才算中断；已正常收尾
+        // 但等人验收的任务不再误报。集合空（继续跑了 / 验收了 / 归档了）就收起。
+        //
+        // 下面两条不再只扫启动首轮：任务可能在运行中途停住，且「条件还在 = 还需要你」，
+        // 只报一次会让提醒在 8 秒后蒸发，条件消失后也无从收起。
+        const interrupted = tasks.filter((t) => {
+          const sid = t.agentSessionId;
+          if (t.archivedAt) return false; // 已归档：不催人处理
+          if (!inExecution(t) || !sid || map[sid]) return false;
+          const state = runStateMap[sid];
+          return state ? state.openTurn || state.pendingTools > 0 : false;
+        });
+        syncMergedNotice(
+          'interrupted',
+          interrupted,
+          (n) => `有 ${n} 个执行任务中断`,
+          () => '停在半轮上（客户端退出或引擎重启）——点开卡片查看，直接发消息或点「继续执行」续跑',
+          (l) => [goToTask(l[0].id, '去查看')],
+        );
+
+        // 「静默停住」：上一轮**正常结束**却没自检收口（轮次是闭合的，不算中断）。
+        // live 停住判定要求「本次运行里见过它在跑」，重启后的旧卡永远轮不到它；
+        // 已在 live 判定里拿到单独通知（stallToastRef）的卡不重复进合并条。
+        const idleStalled = tasks.filter((t) => {
+          const sid = t.agentSessionId;
+          return (
+            Boolean(sid) &&
+            t.origin === 'workbench' &&
+            (t.executionMode ?? 'delivery') !== 'quick' &&
+            !t.archivedAt &&
+            !t.completedAt &&
+            !t.agentCompletedAt &&
+            inExecution(t) &&
+            Boolean(t.planApprovedAt) &&
+            !map[sid as string] &&
+            !failedMap[sid as string] &&
+            (questions[sid as string]?.length ?? 0) === 0 &&
+            !runStateMap[sid as string]?.openTurn &&
+            (runStateMap[sid as string]?.pendingTools ?? 0) === 0 &&
+            !stallToastRef.current.has(t.id)
+          );
+        });
+        syncMergedNotice(
+          'stalled',
+          idleStalled,
+          (n) => `有 ${n} 个任务停在执行段`,
+          (names, n) => `${names}${n > 2 ? ' 等' : ''}停在半路没自检收口——点开卡片按计划继续`,
+          (l) => [goToTask(l[0].id, '去查看')],
+        );
+
+        // 「一轮跑完了，但连计划都没写出来」：模型把工具调用写成了纯文本、或直接
+        // 回一句废话就收尾时，卡片既没有计划（不会触发「计划 · 需要你」）、
+        // 也没有失败、更没有在跑——只看状态信号全是「正常」，谁也收不到提醒。
+        // 计划文件有没有必须读盘才知道，逐卡读一次（缓存按会话时间戳失效）。
+        const planStalledCandidates = tasks.filter((t) => {
+          const sid = t.agentSessionId;
+          if (!sid) return false;
+          const state = runStateMap[sid];
+          return (
+            t.origin === 'workbench' &&
+            (t.executionMode ?? 'delivery') !== 'quick' &&
+            !t.archivedAt &&
+            !t.completedAt &&
+            !t.agentCompletedAt &&
+            !t.planApprovedAt &&
+            !map[sid] &&
+            !failedMap[sid] &&
+            (questions[sid]?.length ?? 0) === 0 &&
+            Boolean(state) &&
+            !state.openTurn &&
+            state.pendingTools === 0 &&
+            state.turns > 0
+          );
+        });
+        const planStalled: TodoTask[] = [];
+        for (const candidate of planStalledCandidates) {
+          const sid = candidate.agentSessionId as string;
+          const stamp = updatedAtOf.get(sid) ?? 0;
+          const cached = planCacheRef.current.get(candidate.id);
+          let hasPlan = cached && cached.stamp === stamp ? cached.hasPlan : null;
+          if (hasPlan === null) {
+            const md = await invoke<string | null>('todo_plan_get', {
+              taskId: candidate.id,
+            }).catch(() => null);
+            hasPlan = Boolean(md && md.trim());
+            planCacheRef.current.set(candidate.id, { stamp, hasPlan });
           }
-          // 还有一种「重启后静默停住」：上一轮**正常结束**却没自检收口（轮次是闭合的，
-          // 不算中断），而「任务停下」只认本次运行里见过的会话——不在这里合并报一次，
-          // 这些卡就永远只是列表里一个「已停止」，没人知道要推它。合并成一条，不刷屏。
-          const questionsAtStart = useTodoStore.getState().agentQuestions;
-          const stalledAtStart = tasks.filter((t) => {
-            const sid = t.agentSessionId;
-            return (
-              Boolean(sid) &&
-              t.origin === 'workbench' &&
-              (t.executionMode ?? 'delivery') !== 'quick' &&
-              !t.archivedAt &&
-              !t.completedAt &&
-              !t.agentCompletedAt &&
-              (t.status ?? 'requirement') === 'doing' &&
-              Boolean(t.planApprovedAt) &&
-              !map[sid as string] &&
-              !failedMap[sid as string] &&
-              (questionsAtStart[sid as string]?.length ?? 0) === 0
-            );
-          });
-          if (stalledAtStart.length > 0) {
-            const names = stalledAtStart
-              .slice(0, 2)
-              .map((t) => `「${t.title.slice(0, 14)}」`)
-              .join('、');
-            notifyTask(
-              `有 ${stalledAtStart.length} 个任务停在执行段`,
-              `${names}${stalledAtStart.length > 2 ? ' 等' : ''}上次停在半路没自检收口——点开卡片按计划继续`,
-              'warning',
-              [goToTask(stalledAtStart[0].id, '去查看')],
-            );
-          }
+          if (!hasPlan) planStalled.push(candidate);
         }
+        syncMergedNotice(
+          'planStalled',
+          planStalled,
+          (n) => `有 ${n} 个任务停在规划段`,
+          (names, n) =>
+            `${names}${n > 2 ? ' 等' : ''}这一轮结束了却没写出计划——点「继续执行」让它先补计划`,
+          (l) => [goToTask(l[0].id, '去查看'), resumeTask(l[0], 'secondary')],
+        );
+
+        // 「建了会话却一轮都没跑起来」：首轮任务书没送到 / 模型直接拒了 / 人开了卡就走开。
+        // 这类卡没有计划（不会触发「计划 · 需要你」）、没有失败、也没有在跑——
+        // 所有状态信号都「正常」，卡片却永远停在规划中，谁也收不到提醒。
+        // `turns === 0` 是唯一能把它挑出来的权威信号。
+        const notStarted = tasks.filter((t) => {
+          const sid = t.agentSessionId;
+          if (!sid) return false;
+          return (
+            t.origin === 'workbench' &&
+            (t.executionMode ?? 'delivery') !== 'quick' &&
+            !t.archivedAt &&
+            !t.completedAt &&
+            !t.agentCompletedAt &&
+            !t.planApprovedAt &&
+            !map[sid] &&
+            !failedMap[sid] &&
+            (questions[sid]?.length ?? 0) === 0 &&
+            runStateMap[sid]?.turns === 0
+          );
+        });
+        syncMergedNotice(
+          'notStarted',
+          notStarted,
+          (n) => `有 ${n} 个任务还没开跑`,
+          (names, n) =>
+            `${names}${n > 2 ? ' 等' : ''}建了会话但一轮都没跑起来——点「继续执行」让它先写计划`,
+          (l) => [goToTask(l[0].id, '去查看'), resumeTask(l[0], 'secondary')],
+        );
+
+        // 「上一轮失败」的历史卡：失败发生在客户端没开（或刚重启）时，逐条失败提醒
+        // 走的是「启动基线」——只记不报（否则每次重启都弹一串旧账）。于是这些卡
+        // 只剩工作台列表里的「失败」标，人不在工作台就完全不知道。
+        // 合成一条常驻提醒：条件（最后一轮仍是错误）消失即收起；已经拿到单独
+        // 「任务出错」通知的卡不重复进合并条。
+        const historicFailing = tasks.filter((t) => {
+          const sid = t.agentSessionId;
+          if (!sid) return false;
+          return (
+            !t.archivedAt &&
+            !t.completedAt &&
+            !t.agentCompletedAt &&
+            !map[sid] &&
+            failedMap[sid] === true &&
+            !failureToastRef.current.has(t.id)
+          );
+        });
+        const firstFailure = historicFailing[0];
+        const firstFailureReason = firstFailure
+          ? summarizeFailure(runStateMap[firstFailure.agentSessionId as string]?.lastError)
+          : '';
+        syncMergedNotice(
+          'failing',
+          historicFailing,
+          (n) => `有 ${n} 个任务上一轮失败`,
+          (names, n) =>
+            `${names}${n > 2 ? ' 等' : ''}上一轮以错误收尾${firstFailureReason ? `：${firstFailureReason}` : ''}——点「继续执行」重试，或点开卡片看错误`,
+          (l) => [
+            goToTask(l[0].id, '去查看'),
+            resumeTask(
+              l[0],
+              'secondary',
+              l[0].agentSessionId
+                ? [runStateMap[l[0].agentSessionId]?.lastError?.code, runStateMap[l[0].agentSessionId]?.lastError?.message]
+                    .filter(Boolean)
+                    .join(' · ') || undefined
+                : undefined,
+            ),
+          ],
+        );
 
         // 执行看门狗（AI 评估流）：软阈值静默 → 派评估 agent 判断；判卡死/
         // 连续正常超限/静默超 FORCE → 自动恢复或转人工
         const doingTaskMap = new Map(
           tasks
-            .filter(t => (t.status ?? 'requirement') === 'doing' && t.agentSessionId)
+            .filter(t => inExecution(t) && !t.archivedAt)
             .map(t => [t.agentSessionId as string, t]),
         );
         for (const [sid, task] of doingTaskMap) {

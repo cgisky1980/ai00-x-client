@@ -203,7 +203,11 @@ export async function ensureTaskSession(
   // （快速问答不写计划/不派子代理/不落文件 → 只留检索+通知+提问）。
   const agentPreset = task.executionMode === 'quick' ? 'workbench-quick' : 'workbench-task';
   const sessionId = await createWorkbenchPresetSession(ctx.projectRoot, agentPreset);
-  useTodoStore.getState().updateTask(task.id, { agentSessionId: sessionId });
+  // 建会话 = 这张卡真的开工了：把 status 从 `requirement`（想法池）提到 `doing`。
+  // 运行看门狗（失败提醒 / 停住判定 / 启动合并提醒）一直按 status=doing 过滤，
+  // 不提升的话 agent 自己建的想法卡虽然打开能跑，却得不到任何「需要你」提醒
+  // （实测：跑完不提交自检，5 分钟也没人叫）。
+  useTodoStore.getState().updateTask(task.id, { agentSessionId: sessionId, status: 'doing' });
   // 主会话模型：用户手动预选优先，否则用组合的「规划」阶段。
   // 不切的话会话停在 Auto（SmartRouter），实测会被路由到 GLM 系，
   // 它把工具调用写成纯文本 → 批准后整轮空转。
