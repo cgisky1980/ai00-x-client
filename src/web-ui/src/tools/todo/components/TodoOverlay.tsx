@@ -115,8 +115,17 @@ export const TodoOverlay: React.FC = () => {
   const judgeDelayRef = useRef(new Map<string, number>());
   // 合法等人工的场景（不算卡死）：工具审批挂起（approval/requested 未决）
   const awaitingApprovalRef = useRef(new Set<string>());
-  // 首次轮询标记（启动中断提醒用一次）
-  const firstPollRef = useRef(true);
+  /**
+   * 两条「合并式」常驻通知：多个任务共用一条，条件消失就收起。
+   *
+   * 以前它们只在启动首轮扫一次、8 秒后自动消失：人不在屏幕前就等于没提醒；
+   * 而卡被推着继续跑以后通知也不会收。现在按「条件」同步——集合变了重发，
+   * 集合空了收起，点过（被收起）就不再打扰。
+   */
+  const mergedNoticeRef = useRef<{
+    stalled?: { id: string; key: string };
+    interrupted?: { id: string; key: string };
+  }>({});
   // 失败态基线（启动时的历史失败只进基线，不弹通知）
   const failedSeededRef = useRef(false);
   /**
@@ -381,6 +390,45 @@ export const TodoOverlay: React.FC = () => {
   useEffect(() => {
     if (!loaded) return;
     let stopped = false;
+    /**
+     * 合并式常驻通知的同步器：集合变了重发，集合空了收起。
+     *
+     * 键用任务 id 集合（排序后拼接）——同一批任务只保留一条通知；人点过动作按钮
+     * 后通知已收起，但 `mergedNoticeRef` 仍留着同一个键，条件没变就不会重新弹出来。
+     */
+    const syncMergedNotice = (
+      slot: 'stalled' | 'interrupted',
+      list: TodoTask[],
+      titleOf: (count: number) => string,
+      messageOf: (names: string, count: number) => string,
+    ): void => {
+      const key = list.map((t) => t.id).sort().join(',');
+      const current = mergedNoticeRef.current[slot];
+      if (!key) {
+        if (current) {
+          dismissTaskNotification(current.id);
+          delete mergedNoticeRef.current[slot];
+        }
+        return;
+      }
+      if (current && current.key === key) return;
+      if (current) dismissTaskNotification(current.id);
+      const names = list
+        .slice(0, 2)
+        .map((t) => `「${t.title.slice(0, 14)}」`)
+        .join('、');
+      mergedNoticeRef.current[slot] = {
+        key,
+        id: notifyTask(
+          titleOf(list.length),
+          messageOf(names, list.length),
+          'warning',
+          [goToTask(list[0].id, '去查看')],
+          // 「轮到人」的信号必须常驻：默认 8s 就蒸发的提示，人不在屏幕前等于没提。
+          { duration: 0 },
+        ),
+      };
+    };
     const poll = async () => {
       try {
         const { items } = await dshSession.list();
@@ -640,62 +688,52 @@ export const TodoOverlay: React.FC = () => {
           if (!stuckChildren.has(childId)) childStallRef.current.delete(childId);
         }
 
-        // 启动首次轮询（R2-9）：客户端退出会杀引擎——按事件重放判「被中断」：
-        // 未闭合的轮次（turn/start 无 turn/end）或有工具调用未返回，才算中断；
-        // 已正常收尾但等人验收的任务不再误报。
-        if (firstPollRef.current) {
-          firstPollRef.current = false;
-          const interrupted = tasks.filter(t => {
-            const sid = t.agentSessionId;
-            if (t.archivedAt) return false; // 已归档：不催人处理
-            if (!inExecution(t) || !sid || map[sid]) return false;
-            const state = runStateMap[sid];
-            return state ? state.openTurn || state.pendingTools > 0 : false;
-          });
-          if (interrupted.length) {
-            notifyTask(
-              `有 ${interrupted.length} 个执行任务被中断`,
-              '上次客户端退出时中断——点开卡片查看，直接发消息或点「继续执行」续跑',
-              'warning',
-              [goToTask(interrupted[0].id, '去查看')],
-              // 「轮到人」的信号必须常驻：默认 8s 就蒸发的提示，人不在屏幕前等于没提。
-              { duration: 0 },
-            );
-          }
-          // 还有一种「重启后静默停住」：上一轮**正常结束**却没自检收口（轮次是闭合的，
-          // 不算中断），而「任务停下」只认本次运行里见过的会话——不在这里合并报一次，
-          // 这些卡就永远只是列表里一个「已停止」，没人知道要推它。合并成一条，不刷屏。
-          const questionsAtStart = useTodoStore.getState().agentQuestions;
-          const stalledAtStart = tasks.filter((t) => {
-            const sid = t.agentSessionId;
-            return (
-              Boolean(sid) &&
-              t.origin === 'workbench' &&
-              (t.executionMode ?? 'delivery') !== 'quick' &&
-              !t.archivedAt &&
-              !t.completedAt &&
-              !t.agentCompletedAt &&
-              inExecution(t) &&
-              Boolean(t.planApprovedAt) &&
-              !map[sid as string] &&
-              !failedMap[sid as string] &&
-              (questionsAtStart[sid as string]?.length ?? 0) === 0
-            );
-          });
-          if (stalledAtStart.length > 0) {
-            const names = stalledAtStart
-              .slice(0, 2)
-              .map((t) => `「${t.title.slice(0, 14)}」`)
-              .join('、');
-            notifyTask(
-              `有 ${stalledAtStart.length} 个任务停在执行段`,
-              `${names}${stalledAtStart.length > 2 ? ' 等' : ''}上次停在半路没自检收口——点开卡片按计划继续`,
-              'warning',
-              [goToTask(stalledAtStart[0].id, '去查看')],
-              { duration: 0 },
-            );
-          }
-        }
+        // 「半轮中断」：客户端退出会杀引擎——按事件重放判：未闭合的轮次
+        // （turn/start 无 turn/end）或有工具调用未返回，才算中断；已正常收尾
+        // 但等人验收的任务不再误报。集合空（继续跑了 / 验收了 / 归档了）就收起。
+        //
+        // 下面两条不再只扫启动首轮：任务可能在运行中途停住，且「条件还在 = 还需要你」，
+        // 只报一次会让提醒在 8 秒后蒸发，条件消失后也无从收起。
+        const interrupted = tasks.filter((t) => {
+          const sid = t.agentSessionId;
+          if (t.archivedAt) return false; // 已归档：不催人处理
+          if (!inExecution(t) || !sid || map[sid]) return false;
+          const state = runStateMap[sid];
+          return state ? state.openTurn || state.pendingTools > 0 : false;
+        });
+        syncMergedNotice(
+          'interrupted',
+          interrupted,
+          (n) => `有 ${n} 个执行任务中断`,
+          () => '停在半轮上（客户端退出或引擎重启）——点开卡片查看，直接发消息或点「继续执行」续跑',
+        );
+
+        // 「静默停住」：上一轮**正常结束**却没自检收口（轮次是闭合的，不算中断）。
+        // live 停住判定要求「本次运行里见过它在跑」，重启后的旧卡永远轮不到它；
+        // 已在 live 判定里拿到单独通知（stallToastRef）的卡不重复进合并条。
+        const idleStalled = tasks.filter((t) => {
+          const sid = t.agentSessionId;
+          return (
+            Boolean(sid) &&
+            t.origin === 'workbench' &&
+            (t.executionMode ?? 'delivery') !== 'quick' &&
+            !t.archivedAt &&
+            !t.completedAt &&
+            !t.agentCompletedAt &&
+            inExecution(t) &&
+            Boolean(t.planApprovedAt) &&
+            !map[sid as string] &&
+            !failedMap[sid as string] &&
+            (questions[sid as string]?.length ?? 0) === 0 &&
+            !stallToastRef.current.has(t.id)
+          );
+        });
+        syncMergedNotice(
+          'stalled',
+          idleStalled,
+          (n) => `有 ${n} 个任务停在执行段`,
+          (names, n) => `${names}${n > 2 ? ' 等' : ''}停在半路没自检收口——点开卡片按计划继续`,
+        );
 
         // 执行看门狗（AI 评估流）：软阈值静默 → 派评估 agent 判断；判卡死/
         // 连续正常超限/静默超 FORCE → 自动恢复或转人工
