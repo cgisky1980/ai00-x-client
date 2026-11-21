@@ -332,6 +332,18 @@
     font-size: var(--font-size-xs);
     line-height: 1.7;
     font-variant-numeric: tabular-nums;
+
+    li.is-ok {
+      color: var(--color-success);
+    }
+
+    li.is-warn {
+      color: var(--color-warning);
+    }
+
+    li.is-bad {
+      color: var(--color-error);
+    }
   }
 
   &__accept {

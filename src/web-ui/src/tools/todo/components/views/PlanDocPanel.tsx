@@ -33,6 +33,7 @@ import { useGrowthStore } from '../../store/growthStore';
 import {
   appendRejectNote,
   clearVerifyRecord,
+  localizeVerifyLine,
   parseAcceptance,
   parseStepItems,
   parseSteps,
@@ -453,7 +454,7 @@ export const PlanDocPanel: React.FC<{
                       <div className="td-plandoc__verify-head">最近一次集成验收</div>
                       {verifyRecord.map((line, index) => (
                         <div className="td-plandoc__verify-line" key={`${index}-${line.slice(0, 10)}`}>
-                          {line}
+                          {localizeVerifyLine(line)}
                         </div>
                       ))}
                     </div>

@@ -109,6 +109,28 @@ export function parseVerifyRecord(md: string | null): string[] {
 }
 
 /**
+ * 验证记录行的判定词本地化（只换判定词，证据原文不动）。
+ *
+ * 记录由 agent 工具按英文契约写成（`passed` / `needs-review` / `failed`），
+ * 直接原样贴给人看是机器方言；这里只做人读面替换，落盘内容保持不变。
+ */
+export function localizeVerifyLine(line: string): string {
+  return line
+    .replace(/\bneeds-review\b/g, '需要复核')
+    .replace(/\bpassed\b/g, '通过')
+    .replace(/\bfailed\b/g, '未通过');
+}
+
+/** 验证结论的语义色标（仅首行「结论」有；其余行返回 null）。 */
+export function verifyVerdictTone(line: string): 'ok' | 'warn' | 'bad' | null {
+  if (!/^结论\s*[:：]/.test(line)) return null;
+  if (/\bfailed\b/.test(line)) return 'bad';
+  if (/\bneeds-review\b/.test(line)) return 'warn';
+  if (/\bpassed\b/.test(line)) return 'ok';
+  return null;
+}
+
+/**
  * 删除「## 验证记录」段（打回时用）。
  *
  * 打回意味着上一轮集成验收的结论**已过期**：留在卡上会让人把旧结论当成

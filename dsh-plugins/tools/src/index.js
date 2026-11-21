@@ -374,10 +374,11 @@ const text = (s) => [{ type: "text", text: String(s) }];
 
 /**
  * 解析计划 MD「## 验收」段的 `- [ ]`/`- [x]` 勾选态（与策窗口
- * utils/planAcceptance.ts 同口径）。返回 {total, done, unchecked[]}。
+ * utils/planAcceptance.ts 同口径）。返回 {total, done, unchecked[], items[]}；
+ * items = 全部条目（集成验收要连已勾选的一起重跑）。
  */
 function parseAcceptance(markdown) {
-  const result = { total: 0, done: 0, unchecked: [] };
+  const result = { total: 0, done: 0, unchecked: [], items: [] };
   if (typeof markdown !== "string" || !markdown) return result;
   let inSection = false;
   for (const line of markdown.split("\n")) {
@@ -388,9 +389,11 @@ function parseAcceptance(markdown) {
     if (!inSection) continue;
     const m = line.match(/^\s*-\s+\[([ xX])\]\s+(.*)$/);
     if (m) {
+      const text = m[2].trim();
       result.total += 1;
+      result.items.push(text);
       if (m[1].toLowerCase() === "x") result.done += 1;
-      else result.unchecked.push(m[2].trim());
+      else result.unchecked.push(text);
     }
   }
   return result;
@@ -1129,7 +1132,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_verify",
     description:
-      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Passing verdict + `tick: true` also ticks that step in the same call (one round trip instead of verify + plan_check). Integration verify (no stepId) also checks that every file promised in the plan's '## Deliverables' exists and returns failed when one is missing — a worker writing `report.part1.md` instead of `report.md` can no longer pass. A stepId verify also reports `scopeMissing` (step Scope files that do not exist) and downgrades to needs-review. Also returns planPending (unticked step ids + acceptance lines) so you can tick acceptance lines with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
+      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. When the global '## 验收' section has no executable `{cmd:}` checks, integration verify re-runs every step's acceptance command as regression (up to 8) and reports `regression` — plain-text acceptance items are left to the human reviewer and no longer downgrade the verdict by themselves. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Passing verdict + `tick: true` also ticks that step in the same call (one round trip instead of verify + plan_check). Integration verify (no stepId) also checks that every file promised in the plan's '## Deliverables' exists and returns failed when one is missing — a worker writing `report.part1.md` instead of `report.md` can no longer pass. A stepId verify also reports `scopeMissing` (step Scope files that do not exist) and downgrades to needs-review. Also returns planPending (unticked step ids + acceptance lines) so you can tick acceptance lines with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
     parameters: {
       type: "object",
       properties: {
@@ -1184,6 +1187,20 @@ function defineTools(ctx, api) {
             },
           },
           manualItems: { type: "array", items: { type: "string" } },
+          regression: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                step: { type: "string" },
+                cmd: { type: "string" },
+                ok: { type: "boolean" },
+              },
+              required: ["step", "cmd", "ok"],
+            },
+            description:
+              "Integration verify only: step acceptance commands re-run as regression when the global '## 验收' section has no executable checks. A failing regression downgrades the verdict to needs-review.",
+          },
           unrunnable: {
             type: "array",
             items: { type: "string" },
@@ -1262,6 +1279,12 @@ function defineTools(ctx, api) {
         if ((value.manualItems ?? []).length) {
           lines.push(`manual: ${value.manualItems.join(" | ")}`);
         }
+        if ((value.regression ?? []).length) {
+          const bad = value.regression.filter((r) => !r.ok).length;
+          lines.push(
+            `step command regression: ${value.regression.length - bad}/${value.regression.length} passed${bad ? " — re-check those steps before submitting the self-check" : ""}`
+          );
+        }
         if ((value.unrunnable ?? []).length) {
           lines.push(
             `acceptance commands that cannot run (too long / backticks / not whitelisted — they were NOT executed): ${value.unrunnable
@@ -1336,10 +1359,15 @@ function defineTools(ctx, api) {
         throw new Error(`plan step not found: ${stepId}`);
       }
 
-      // 验收来源：指定步骤 → 该步骤验收；否则全局「## 验收」
+      // 验收来源：指定步骤 → 该步骤验收；否则全局「## 验收」**全部条目**。
+      // 集成验收曾经只取未勾选项——模型按流程先勾选再验，这时条目为空，
+      // 结论恒为 needs-review（实测每条任务都这样），等于把信号作废。
       const acceptance = step
         ? step.acceptance
-        : parseAcceptance(markdown).unchecked.map((item) => ({ text: item, cmd: extractCmd(item) }));
+        : parseAcceptance(markdown).items.map((item) => ({
+            text: item,
+            cmd: extractCmd(item),
+          }));
       const risk = step?.risk ?? "medium";
       const reviewRequired =
         policy.review === "strict" || risk === "high" || acceptance.length === 0;
@@ -1375,6 +1403,40 @@ function defineTools(ctx, api) {
       if (unrunnable.length) {
         ctx.logger.warn(`ai00-x-tools: acceptance commands not runnable: ${unrunnable.length}`);
       }
+
+      // 集成验收的「## 验收」常常全是纯文字判据（无 `{cmd:}`）：只看它永远凑不出
+      // 机器证据，结论恒为 needs-review，人被迫逐条自查。这里重跑各步骤已写下的
+      // 验收命令做回归——它们才是这条任务真正的硬证据。回归失败只降 needs-review
+      // （命令未必要幂等，失败不等于交付坏）。
+      const regression = [];
+      if (!stepId && commands.length === 0) {
+        const seen = new Set();
+        for (const s of steps) {
+          for (const item of s.acceptance ?? []) {
+            const cmd = item.cmd;
+            if (!cmd || seen.has(cmd)) continue;
+            seen.add(cmd);
+            const builtin = builtinFileCheck(cmd, cwd);
+            if (builtin) {
+              regression.push({ step: s.id, cmd, ok: builtin.ok, output: builtin.output });
+            } else if (isCmdAllowed(cmd)) {
+              const r = await runVerification(cmd, cwd || undefined, exec.signal);
+              regression.push({ step: s.id, cmd, ok: r.ok, output: r.output });
+            } else {
+              continue;
+            }
+            if (regression.length >= 8) break;
+          }
+          if (regression.length >= 8) break;
+        }
+        for (const r of regression) {
+          commands.push({ cmd: `[${r.step}] ${r.cmd}`, ok: r.ok, output: r.output });
+        }
+        if (regression.some((r) => !r.ok)) {
+          ctx.logger.warn("ai00-x-tools: step command regression failed at integration verify");
+        }
+      }
+      const regressionFailed = regression.filter((r) => !r.ok).length;
 
       const includeDiff =
         args?.includeDiff === true || reviewRequired || failed || policy.review === "strict";
@@ -1472,9 +1534,15 @@ function defineTools(ctx, api) {
         acceptance.length === 0 ||
         (commands.length === 0 && manualItems.length > 0) ||
         (includeDiff && evidence.diffTruncated && evidence.changedFiles.length > 50);
+      // 纯文字验收项不再单独把结论压成 needs-review：它们本来就是**人**在验收卡上
+      // 判定的事项（人点「验收通过」时逐条看）。needs-review 保留给真正的证据缺口
+      // （无任何可执行证据、命令跑不起来、Scope 缺件、回归失败）。
       const verdict = failed || missingDeliverables.length || corrupt.length
         ? "failed"
-        : manualItems.length > 0 || insufficient || scopeMissing.length > 0 || unrunnable.length > 0
+        : regressionFailed > 0 ||
+            insufficient ||
+            scopeMissing.length > 0 ||
+            unrunnable.length > 0
           ? "needs-review"
           : "passed";
 
@@ -1490,6 +1558,10 @@ function defineTools(ctx, api) {
                   .join("、")
               : "（计划未声明）"
           }`,
+          ...(regression.length
+            ? [`步骤命令回归: ${regression.length - regressionFailed}/${regression.length} 通过`]
+            : []),
+          ...(manualItems.length ? [`人工验收项: ${manualItems.length} 条（由你判定）`] : []),
           ...(extras.length ? [`计划外文件: ${extras.join("、")}`] : []),
           ...(reviewNotes.length ? [`复核记录: ${reviewNotes.join("、")}`] : []),
           ...(corrupt.length ? [`编码损坏: ${corrupt.join("、")}`] : []),
@@ -1547,6 +1619,7 @@ function defineTools(ctx, api) {
         reviewMode: policy.review,
         commands,
         manualItems,
+        ...(regression.length ? { regression } : {}),
         changedFiles: evidence.changedFiles,
         deliverables,
         ...(scopeMissing.length ? { scopeMissing } : {}),

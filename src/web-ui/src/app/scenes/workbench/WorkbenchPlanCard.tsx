@@ -35,11 +35,13 @@ import { useTodoStore } from '@/tools/todo/store/todoStore';
 import {
   appendRejectNote,
   clearVerifyRecord,
+  localizeVerifyLine,
   parseAcceptance,
   parseStepItems,
   parseVerifyRecord,
   toggleAcceptanceLine,
   uncheckAcceptance,
+  verifyVerdictTone,
 } from '@/tools/todo/utils/planAcceptance';
 import {
   deriveStepState,
@@ -729,9 +731,14 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
             {t('nav.workbenchWindow.board.verifyRecord')}
           </h3>
           <ul className="ai00-x-plan-card__verify-list">
-            {verifyRecord.map((line, index) => (
-              <li key={`${index}-${line.slice(0, 12)}`}>{line}</li>
-            ))}
+            {verifyRecord.map((line, index) => {
+              const tone = verifyVerdictTone(line);
+              return (
+                <li key={`${index}-${line.slice(0, 12)}`} className={tone ? `is-${tone}` : undefined}>
+                  {localizeVerifyLine(line)}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
