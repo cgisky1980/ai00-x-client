@@ -737,6 +737,11 @@
     opacity: 1;
   }
 
+  // 失败回合的重试按钮常显：错误气泡往往没有正文，操作区是唯一出口
+  &__msg:has(&__msg-error) &__msg-actions {
+    opacity: 1;
+  }
+
   // 触屏无 hover：操作区常显，不依赖鼠标
   @media (hover: none) {
     &__msg-actions {

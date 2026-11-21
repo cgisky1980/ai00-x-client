@@ -114,10 +114,17 @@ export const WorkbenchMessageStream: React.FC<WorkbenchMessageStreamProps> = ({
             )}
           </div>
         )}
-        {displayMessages.map(m => (
+        {displayMessages.map((m, index) => (
           <MessageBubble
             key={m.id}
             message={m}
+            // 回合以错误收口（上游断流/解码失败等）：给最后一条错误气泡一个重试出口，
+            // 不必让人自己再打一句「继续」。
+            onRetry={
+              m.error && index === displayMessages.length - 1 && lastUserText
+                ? () => submitText(lastUserText, 'queue')
+                : undefined
+            }
             renderToolCall={renderToolCall}
             resolveOriginLabel={resolveOriginLabel}
             showUsage={false}
