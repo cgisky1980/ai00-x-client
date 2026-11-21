@@ -474,6 +474,8 @@
         "statsToolFailures": "Tool failures",
         "details": "Verification & evidence",
         "accepted": "Accepted — task complete",
+        "undoAccept": "Undo acceptance",
+        "undoAcceptConfirm": "The task goes back to review (deliverables, evidence and the reject log are kept) so you can accept again or send it back for rework. Undo?",
         "editStep": "Edit step",
         "stepTitle": "Step title",
         "stepCommand": "Acceptance command (optional, e.g. pnpm run type-check)",

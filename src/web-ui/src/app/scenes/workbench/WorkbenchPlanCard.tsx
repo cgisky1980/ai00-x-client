@@ -396,6 +396,17 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     useTodoStore.getState().completeTask(task.id, true);
   }, [t, task.id, verifyRecord]);
 
+  /**
+   * 撤销验收：验收由人授予，但人也会手滑。撤销只清 `completedAt`，
+   * 交付物 / 集成验收记录 / 打回记录都留着——任务回到「验收中」，可以重新验收或退回重做。
+   * 不给 agent 发消息：下一步由人在计划卡上决定（通过或带意见打回）。
+   * 周期任务不提供撤销：验收时已克隆出下一周期，撤了也说不清该回收哪一张。
+   */
+  const undoAccept = useCallback((): void => {
+    if (!window.confirm(t('nav.workbenchWindow.planCard.undoAcceptConfirm'))) return;
+    useTodoStore.getState().completeTask(task.id, false);
+  }, [t, task.id]);
+
   const reject = useCallback(
     (input: string): void => {
       const reason = input.trim() || t('nav.workbenchWindow.board.rejectDefault');
@@ -889,6 +900,14 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       {rejectBlock}
       {verifyBlock}
       {deliverables}
+      {!readOnly && !task.repeat && (
+        <div className="ai00-x-plan-card__actions">
+          <Button variant="secondary" size="small" onClick={undoAccept}>
+            <Undo2 size={12} />
+            {t('nav.workbenchWindow.planCard.undoAccept')}
+          </Button>
+        </div>
+      )}
     </div>
   ) : phase === 'awaiting' ? (
     reviewArea
