@@ -891,15 +891,20 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           执行段若不展示，卡片只剩「已完成 1/1」——读起来像没发生过打回。 */}
       {rejectBlock}
       {/* 停住的任务（客户端重启 / 回合被打断 / 出错之后）以前只能靠人再打一句话续跑——
-          看门狗提示里早就写着「点「继续执行」」，可这个按钮一直不存在。 */}
-      {!readOnly && !running && sessionId && (phase === 'stopped' || phase === 'failed') && (
-        <div className="ai00-x-plan-card__actions">
-          <Button variant="secondary" size="small" disabled={busy} onClick={resume}>
-            <Play size={12} />
-            {t('nav.workbenchWindow.planCard.resume')}
-          </Button>
-        </div>
-      )}
+          看门狗提示里早就写着「点「继续执行」」，可这个按钮一直不存在。
+          步骤全做完只是没提交自检时只给下面那个「提交自检」：同一时刻只留一个推进动作。 */}
+      {!readOnly &&
+        !running &&
+        sessionId &&
+        (phase === 'stopped' || phase === 'failed') &&
+        !(allDone && !task.agentCompletedAt) && (
+          <div className="ai00-x-plan-card__actions">
+            <Button variant="secondary" size="small" disabled={busy} onClick={resume}>
+              <Play size={12} />
+              {t('nav.workbenchWindow.planCard.resume')}
+            </Button>
+          </div>
+        )}
       {!readOnly && allDone && !running && !task.agentCompletedAt && (
         <div className="ai00-x-plan-card__nudge">
           <p className="ai00-x-plan-card__hint">{t('nav.workbenchWindow.progress.nudgeSelfCheck')}</p>
