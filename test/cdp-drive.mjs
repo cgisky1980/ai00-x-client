@@ -12,7 +12,7 @@
  *   send <text>    — type into chat composer and submit
  *   watch <sec>    — watch chat messages grow for N seconds
  */
-const BASE = 'http://127.0.0.1:9222';
+const BASE = process.env.CDP_BASE || 'http://127.0.0.1:9223';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
