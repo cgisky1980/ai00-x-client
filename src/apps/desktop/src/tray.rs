@@ -2,7 +2,8 @@
 //!
 //! 定位（见 参考/dsh桌面客户端对标-dsh-desktop对比与吸纳路线-20261001.md §4.1）：
 //! 增值件而非缺陷修复。overlay 常驻桌面且不隐藏（用户口径，2026-10-01 定），
-//! 所以托盘没有"呼出主界面"——双击/菜单直达策窗口；引擎状态灯 + 显式退出补控制面。
+//! 所以托盘没有"呼出主界面"——菜单直达各窗口；双击 = 工作台的设置页（设置已
+//! 从独立窗口并入工作台，走 overlay 转发意图）；引擎状态灯 + 显式退出补控制面。
 
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -75,17 +76,15 @@ pub fn init_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            // 双击 = 设置窗口（overlay 常驻可见，双击呼它无感知；设置窗口有实感）
+            // 双击 = 打开工作台的设置页（设置已从独立窗口合并进工作台窗口）。
+            // Rust 侧不直接开 settings 窗口，也不写 localStorage 的 pending 意图：
+            // 发事件给常驻 overlay，由前端落意图 + 开窗（双时序由 windowBus 保证）。
             if matches!(event, TrayIconEvent::DoubleClick { .. }) {
-                let app = tray.app_handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(e) =
-                        crate::window_template::open_app_window(app.clone(), "settings".into())
-                            .await
-                    {
-                        log::warn!("[tray] open settings window failed: {e}");
+                if let Some(overlay) = tray.app_handle().get_webview_window("overlay") {
+                    if let Err(e) = overlay.emit("tray://open-settings", ()) {
+                        log::warn!("[tray] emit open-settings to overlay failed: {e}");
                     }
-                });
+                }
             }
         })
         .build(app)?;

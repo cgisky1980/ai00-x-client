@@ -96,6 +96,15 @@
     },
     "workbenchWindow": {
       "empty": "No workbench installed yet",
+      "groups": {
+        "core": "Core",
+        "installed": "My workbenches",
+        "system": "System"
+      },
+      "settings": {
+        "rail": "Settings",
+        "title": "System settings"
+      },
       "showChat": "Show AI chat",
       "hideChat": "Hide AI chat",
       "resizeChat": "Drag to resize AI chat (double-click to reset)",

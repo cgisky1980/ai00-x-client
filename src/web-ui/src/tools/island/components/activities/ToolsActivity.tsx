@@ -7,6 +7,10 @@ import {
 } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { WindowAPI } from '@/infrastructure/windows/WindowAPI'
+import {
+  WORKBENCH_SETTINGS_SCENE_ID,
+  requestWorkbenchScene,
+} from '@/infrastructure/plugins/workbenchSession'
 import { useHorizontalScroll } from '../../hooks/useHorizontalScroll'
 import './ToolsActivity.scss'
 
@@ -49,10 +53,10 @@ export const ToolsActivity: React.FC = () => {
       icon: AppWindow,
       label: '设置',
       onClick: () => {
-        // 「策」窗口已回退为设置窗口（label: settings，2026-11-08）：这里打开
-        // 独立设置窗口。到点提醒不依赖本入口——提醒由常驻 overlay 的策运行时
-        // （TodoOverlay）驱动。
-        WindowAPI.open('settings').catch(() => {})
+        // 设置已并入工作台窗口（原独立 settings 窗口入口废弃）：先落意图再开窗，
+        // 工作台无论是否已开都会切到设置页。双时序由 windowBus 保证。
+        requestWorkbenchScene(WORKBENCH_SETTINGS_SCENE_ID);
+        WindowAPI.open('workbench').catch(() => {})
       },
     },
     {

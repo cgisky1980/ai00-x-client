@@ -96,6 +96,15 @@
     },
     "workbenchWindow": {
       "empty": "还没有安装任何工作台",
+      "groups": {
+        "core": "核心",
+        "installed": "我的工作台",
+        "system": "系统"
+      },
+      "settings": {
+        "rail": "设置",
+        "title": "系统设置"
+      },
       "showChat": "显示 AI 对话",
       "hideChat": "隐藏 AI 对话",
       "resizeChat": "拖动调整 AI 对话宽度（双击复位）",

@@ -14,13 +14,16 @@
  * （plugin_data_* 命令）自持，窗口只是宿主。
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { CalendarClock, FolderKanban, House, LayoutGrid, MessageSquare, PanelRight, PanelRightClose, SquareKanban } from 'lucide-react';
+import { CalendarClock, FolderKanban, House, LayoutGrid, MessageSquare, PanelRight, PanelRightClose, Settings, SquareKanban } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { useWorkbenches } from '@/infrastructure/plugins/workbenchRegistry';
 import {
   WORKBENCH_FOCUS_TASK,
+  WORKBENCH_OPEN_SCENE,
   WORKBENCH_OPEN_SESSION,
+  WORKBENCH_SETTINGS_SCENE_ID,
   type WorkbenchFocusTaskIntent,
+  type WorkbenchOpenSceneIntent,
   type WorkbenchOpenSessionIntent,
 } from '@/infrastructure/plugins/workbenchSession';
 import {
@@ -34,6 +37,7 @@ import TaskBoardScene, { BOARD_SCENE_ID } from './scenes/tasks/TaskBoardScene';
 import { TASKS_SCENE_ID } from './scenes/tasks/taskSession';
 import ProjectsScene, { PROJECTS_SCENE_ID } from './scenes/projects/ProjectsScene';
 import AutomationsScene, { AUTOMATIONS_SCENE_ID } from './scenes/automations/AutomationsScene';
+import SettingsScene from './scenes/settings/SettingsScene';
 import { initTodoWindowSync } from '@/tools/todo/sync/todoWindowSync';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { NotificationContainer } from '@/shared/notification-system';
@@ -145,6 +149,28 @@ const WorkbenchWindowApp: React.FC = () => {
     });
   }, []);
 
+  /**
+   * 外部「打开工作台某场景」意图（灵动岛设置 / 托盘双击 → 设置页）。
+   * 与 open-session 同款双时序：pending 覆盖冷启动，广播覆盖已开窗口。
+   * 只接受白名单内置场景 id，避免外部字符串把 stage 引到未知分支。
+   */
+  useEffect(() => {
+    const applyScene = (sceneId: string | undefined): void => {
+      if (sceneId !== WORKBENCH_SETTINGS_SCENE_ID) return;
+      setExternalSession(null);
+      setTaskFocus(null);
+      setProjectFocus(null);
+      setActiveId(sceneId);
+    };
+    const pending = takePendingIntents<WorkbenchOpenSceneIntent>(WORKBENCH_OPEN_SCENE);
+    if (pending[0]) applyScene(pending[0].sceneId);
+    return subscribeWindowMessage((message) => {
+      if (message.type !== WORKBENCH_OPEN_SCENE) return;
+      applyScene((message.payload as WorkbenchOpenSceneIntent | undefined)?.sceneId);
+      takePendingIntents<WorkbenchOpenSceneIntent>(WORKBENCH_OPEN_SCENE);
+    });
+  }, []);
+
   // 工作台窗口持有工作台任务（看板/任务场景）：订阅策的跨窗口数据广播，
   // 别处（如插件工作台会话补登的任务卡、设置窗口）写入后这里能即时对齐。
   useEffect(() => initTodoWindowSync('ui'), []);
@@ -223,6 +249,9 @@ const WorkbenchWindowApp: React.FC = () => {
           </span>
         </div>
         <div className="ai00-x-workbench-window__items">
+          <div className="ai00-x-workbench-window__group-title">
+            {t('nav.workbenchWindow.groups.core')}
+          </div>
           <button
             type="button"
             className={`ai00-x-workbench-window__item${activeId === PROJECTS_SCENE_ID ? ' is-active' : ''}`}
@@ -291,6 +320,10 @@ const WorkbenchWindowApp: React.FC = () => {
               {t('nav.workbenchWindow.board.rail')}
             </span>
           </button>
+          <div className="ai00-x-workbench-window__divider" role="separator" />
+          <div className="ai00-x-workbench-window__group-title">
+            {t('nav.workbenchWindow.groups.installed')}
+          </div>
           <button
             type="button"
             className={`ai00-x-workbench-window__item${!activeId ? ' is-active' : ''}`}
@@ -326,6 +359,29 @@ const WorkbenchWindowApp: React.FC = () => {
               </button>
             );
           })}
+          <div className="ai00-x-workbench-window__divider" role="separator" />
+          <div className="ai00-x-workbench-window__group-title">
+            {t('nav.workbenchWindow.groups.system')}
+          </div>
+          <button
+            type="button"
+            className={`ai00-x-workbench-window__item${
+              activeId === WORKBENCH_SETTINGS_SCENE_ID ? ' is-active' : ''
+            }`}
+            aria-current={activeId === WORKBENCH_SETTINGS_SCENE_ID ? 'page' : undefined}
+            title={t('nav.workbenchWindow.settings.title')}
+            onClick={() => {
+              setActiveId(WORKBENCH_SETTINGS_SCENE_ID);
+              setExternalSession(null);
+            }}
+          >
+            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
+              <Settings size={15} />
+            </span>
+            <span className="ai00-x-workbench-window__item-label">
+              {t('nav.workbenchWindow.settings.rail')}
+            </span>
+          </button>
         </div>
       </aside>
 
@@ -349,6 +405,8 @@ const WorkbenchWindowApp: React.FC = () => {
               setActiveId(TASKS_SCENE_ID);
             }}
           />
+        ) : activeId === WORKBENCH_SETTINGS_SCENE_ID ? (
+          <SettingsScene />
         ) : activeEntry ? (
           <WorkbenchScene
             workbenchId={activeEntry.id}
@@ -369,6 +427,7 @@ const WorkbenchWindowApp: React.FC = () => {
           activeId !== BOARD_SCENE_ID &&
           activeId !== PROJECTS_SCENE_ID &&
           activeId !== AUTOMATIONS_SCENE_ID &&
+          activeId !== WORKBENCH_SETTINGS_SCENE_ID &&
           (Boolean(externalSession) || Boolean(activeEntry?.bindsSession)) && (
           <button
             type="button"

@@ -43,6 +43,34 @@ export interface WorkbenchFocusTaskIntent {
   taskId: string;
 }
 
+/**
+ * 工作台内置场景 id：`@settings` = 系统设置页。
+ *
+ * 与 `@tasks` / `@projects` 同属内置场景（不进插件 registry，不走卸载判定）。
+ * 设置从独立窗口合并进来后，这个 id 是外部入口（灵动岛 / 托盘）唯一需要知道的
+ * 目标——调用方只管发意图，不关心工作台内部怎么渲染。
+ */
+export const WORKBENCH_SETTINGS_SCENE_ID = '@settings';
+
+/**
+ * 跨窗口「打开工作台的某个内置场景」的意图（当前只有设置页用它）。
+ *
+ * 走 queueWindowIntent + 广播双时序：工作台窗口可能没开，冷启动订阅建立前
+ * 的广播会丢，启动时从 pending 取回。TTL 与 open-session/focus-task 同档。
+ */
+export const WORKBENCH_OPEN_SCENE = 'workbench:open-scene';
+
+export interface WorkbenchOpenSceneIntent {
+  sceneId: string;
+}
+
+/** 打开工作台并切到指定内置场景（开窗与发意图由调用方分别做）。 */
+export function requestWorkbenchScene(sceneId: string): void {
+  const payload: WorkbenchOpenSceneIntent = { sceneId };
+  queueWindowIntent<WorkbenchOpenSceneIntent>(WORKBENCH_OPEN_SCENE, payload, 120_000);
+  publishWindowMessage<WorkbenchOpenSceneIntent>(WORKBENCH_OPEN_SCENE, payload);
+}
+
 /** 通知里的「去批准 / 去验收」：开窗（或聚焦）+ 定位到该任务。 */
 export function requestWorkbenchTaskFocus(taskId: string): void {
   const payload: WorkbenchFocusTaskIntent = { taskId };
