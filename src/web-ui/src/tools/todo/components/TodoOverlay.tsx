@@ -34,6 +34,7 @@ import { initTodoWindowSync } from '../sync/todoWindowSync';
 import { dismissTaskNotification, goToTask, notifyTask, type NotifyAction } from '../utils/notify';
 import { continueTaskRun, SessionLostError } from '../utils/continueRun';
 import { failureGuidance, summarizeFailure } from '../utils/failureHint';
+import { mergedNoticeKey, notificationTitle, titleCounts } from '../utils/noticeTitle';
 import { invoke } from '@tauri-apps/api/core';
 
 /**
@@ -97,27 +98,6 @@ function inExecution(task: TodoTask): boolean {
 // 判正常 → 按 ETA（无 ETA 翻倍、封顶 1h）自适应拉长复查间隔——
 // 训练/编译跑几小时也不会被误杀；等人工场景（ask_user 待答/审批挂起）豁免。
 
-/**
- * 同名任务卡在通知里的显示名。
- *
- * 实测有两张卡都叫「Ai00-X · 灵」，合并通知写两遍同样的名字，人根本分不清
- * 说的是哪一张（点「去查看」只会打开第一张）。重名时补 id 尾缀（t-…-jzx）。
- */
-function notificationTitle(task: TodoTask, counts: Map<string, number>): string {
-  const base = task.title.slice(0, 14);
-  return (counts.get(base) ?? 0) > 1 ? `${base}·${task.id.slice(-3)}` : base;
-}
-
-function titleCounts(list: TodoTask[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const task of list) {
-    // 已完成/归档的卡不会再出现在通知里，不该把同名活跃卡逼出「·尾缀」。
-    if (task.completedAt || task.archivedAt) continue;
-    const base = task.title.slice(0, 14);
-    counts.set(base, (counts.get(base) ?? 0) + 1);
-  }
-  return counts;
-}
 
 export const TodoOverlay: React.FC = () => {
   const loaded = useTodoStore((s) => s.loaded);
@@ -474,7 +454,12 @@ export const TodoOverlay: React.FC = () => {
       messageOf: (names: string, count: number) => string,
       actionsOf: (list: TodoTask[]) => NotifyAction[],
     ): void => {
-      const key = list.map((t) => t.id).sort().join(',');
+      // 重名判定要跨通知一起看：两张「Ai00-X · 灵」可能分别落在「停住」和「失败」两个
+      // 槽位里，只看本槽会以为名字唯一，两条通知仍然分不清谁是谁。
+      const counts = titleCounts(
+        useTodoStore.getState().data.tasks.filter((t) => !t.archivedAt),
+      );
+      const key = mergedNoticeKey(list, counts);
       const current = mergedNoticeRef.current[slot];
       if (!key) {
         if (current) {
@@ -485,11 +470,6 @@ export const TodoOverlay: React.FC = () => {
       }
       if (current && current.key === key) return;
       if (current) dismissTaskNotification(current.id);
-      // 重名判定要跨通知一起看：两张「Ai00-X · 灵」可能分别落在「停住」和「失败」两个
-      // 槽位里，只看本槽会以为名字唯一，两条通知仍然分不清谁是谁。
-      const counts = titleCounts(
-        useTodoStore.getState().data.tasks.filter((t) => !t.archivedAt),
-      );
       const names = list
         .slice(0, 2)
         .map((t) => `「${notificationTitle(t, counts)}」`)
