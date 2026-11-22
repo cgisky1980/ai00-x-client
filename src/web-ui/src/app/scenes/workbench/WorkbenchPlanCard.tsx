@@ -66,6 +66,7 @@ import {
 import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
 import { continueTaskRun } from '../tasks/taskSession';
 import { WRAP_UP_PROMPT } from '@/tools/todo/utils/continueRun';
+import { failureGuidance } from '@/tools/todo/utils/failureHint';
 import { useWorkbenchTaskStore } from '../tasks/workbenchTaskStore';
 import { WORKBENCH_STAGES, stageOf } from './workbenchStage';
 import type { TaskPhase } from '../tasks/taskPhase';
@@ -87,6 +88,8 @@ export interface WorkbenchPlanCardProps {
   onOpenFile?: (path: string) => void;
   /** 只读：不渲染批准 / 验收 / 编辑（看板抽屉预览用，保证入口唯一）。 */
   readOnly?: boolean;
+  /** 最后一轮失败的原文：额度/凭据/模型不可用时不给「继续执行」，直接给建议。 */
+  lastError?: { code?: string; message: string };
 }
 
 /** 步骤展示态 → Timeline 节点态。 */
@@ -165,6 +168,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   onPlanChange,
   onOpenFile,
   readOnly = false,
+  lastError,
 }) => {
   const { t } = useI18n('common');
   const [busy, setBusy] = useState(false);
@@ -184,6 +188,8 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const [stepDraft, setStepDraft] = useState<StepDraft | null>(null);
 
   const sessionId = task.agentSessionId ?? '';
+  /** 额度/凭据/模型类失败：重试没有意义，卡片改给处理建议。 */
+  const failure = failureGuidance(lastError);
   const catalog = useWorkbenchTaskStore((s) => (sessionId ? s.subagentCatalog[sessionId] : undefined));
   const children = useWorkbenchTaskStore((s) => (sessionId ? s.children[sessionId] : undefined));
   const stats = useWorkbenchTaskStore((s) => (sessionId ? s.sessionStats[sessionId] : undefined));
@@ -923,9 +929,15 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       {/* 停住的任务（客户端重启 / 回合被打断 / 出错之后）以前只能靠人再打一句话续跑——
           看门狗提示里早就写着「点「继续执行」」，可这个按钮一直不存在。
           步骤全做完只是没提交自检时只给下面那个「提交自检」：同一时刻只留一个推进动作。 */}
+      {/* 额度 / 凭据 / 模型不可用：再点「继续执行」或「提交自检」只会同样失败，
+          直接把要修什么写在卡片上，处理完人自然会再推一次。 */}
+      {!readOnly && !running && failure.blocking && (
+        <p className="ai00-x-plan-card__hint">{failure.hint}</p>
+      )}
       {!readOnly &&
         !running &&
         sessionId &&
+        !failure.blocking &&
         (phase === 'stopped' || phase === 'failed') &&
         !(allDone && !task.agentCompletedAt) && (
           <div className="ai00-x-plan-card__actions">
@@ -935,7 +947,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
             </Button>
           </div>
         )}
-      {!readOnly && allDone && !running && !task.agentCompletedAt && (
+      {!readOnly && allDone && !running && !task.agentCompletedAt && !failure.blocking && (
         <div className="ai00-x-plan-card__nudge">
           <p className="ai00-x-plan-card__hint">{t('nav.workbenchWindow.progress.nudgeSelfCheck')}</p>
           <Button variant="secondary" size="small" onClick={nudgeSelfCheck}>

@@ -71,7 +71,13 @@ function isTaskBrief(text: string): boolean {
 export interface WorkbenchSessionOptions {
   entry?: WorkbenchEntry;
   externalSession?: WorkbenchOpenSessionIntent | null;
-  onRuntimeChange?: (runtime: { running: boolean; failed: boolean; asking: boolean }) => void;
+  onRuntimeChange?: (runtime: {
+    running: boolean;
+    failed: boolean;
+    asking: boolean;
+    /** 最后一轮失败的原文（计划卡判断「重试有没有意义」用）。 */
+    lastError?: { code?: string; message: string };
+  }) => void;
   initialRequest?: string;
   planHosted?: boolean;
   /**
@@ -142,6 +148,13 @@ export function useWorkbenchSession({
    * 否则打开着的卡片要等 overlay 30s 轮询才变色。
    */
   const [turnFailed, setTurnFailed] = useState(false);
+  /**
+   * 最后一轮失败的原文（code + message）。
+   *
+   * 计划卡据此判断「重试有没有意义」：额度 / 凭据 / 模型不可用这类失败再点一次
+   * 「继续执行」只会同样失败，卡片应换成处理建议而不是继续劝人重试。
+   */
+  const [turnError, setTurnError] = useState<{ code?: string; message: string } | null>(null);
   const [draft, setDraft] = useState('');
   const [agentRunning, setAgentRunning] = useState(false);
   /** 正在停止当前回合（防重入；回合闭合后复位）。 */
@@ -268,11 +281,11 @@ export function useWorkbenchSession({
     const asking =
       questions.length > 0 ||
       (planHosted && approvals.some(a => a.toolName === 'exit_plan_mode'));
-    const key = `${effectiveRunning ? 1 : 0}${failed ? 1 : 0}${asking ? 1 : 0}`;
+    const key = `${effectiveRunning ? 1 : 0}${failed ? 1 : 0}${asking ? 1 : 0}|${turnError?.code ?? ''}:${(turnError?.message ?? '').slice(0, 60)}`;
     if (key === lastRuntimeRef.current) return;
     lastRuntimeRef.current = key;
-    onRuntimeChangeRef.current({ running: effectiveRunning, failed, asking });
-  }, [taskRunning, error, turnFailed, questions.length, approvals, planHosted]);
+    onRuntimeChangeRef.current({ running: effectiveRunning, failed, asking, lastError: turnError ?? undefined });
+  }, [taskRunning, error, turnFailed, turnError, questions.length, approvals, planHosted]);
 
   /** 已结算过的「回合起点 + 子会话集合」键：同键不重复结算，换键则替换结果。 */
   const settledKeyRef = useRef<string | null>(null);
@@ -551,7 +564,9 @@ export function useWorkbenchSession({
       // 不补这一步，刚打开的历史失败任务会短暂显示「执行」，和列表里的失败态不一致。
       // 本回合还在跑时不覆盖（live 的 turn/end 会给出最终判定）
       if (!runningRef.current) {
-        setTurnFailed(deriveSessionRunState(eventsRef.current).lastTurnErrored);
+        const aligned = deriveSessionRunState(eventsRef.current);
+        setTurnFailed(aligned.lastTurnErrored);
+        setTurnError(aligned.lastError ?? null);
       }
       // 子代理目录兜底：投影可能还没到（首帧/重启），durable 事件先对齐 label
       useWorkbenchTaskStore
@@ -804,8 +819,15 @@ export function useWorkbenchSession({
         clearStopping();
         // 回合级失败（缺凭据 / 网关解码失败等）立即上报失败态：对话里已有错误气泡，
         // 计划卡/列表不该还停在「执行」等下一次轮询。
-        const reason = (event.data as { reason?: { kind?: string } } | undefined)?.reason;
+        const reason = (event.data as {
+          reason?: { kind?: string; error?: { code?: string; message?: string } };
+        } | undefined)?.reason;
         setTurnFailed(reason?.kind === 'error');
+        setTurnError(
+          reason?.kind === 'error' && reason.error
+            ? { code: reason.error.code, message: reason.error.message ?? 'unknown error' }
+            : null,
+        );
         // 回合结束不清队列：Host 仍待处理的输入会在下一回合继续
         void reloadBaseline();
         void refreshRunning();
@@ -986,6 +1008,7 @@ export function useWorkbenchSession({
       setError(null);
       // 人重新发话 = 给这一轮重新机会：清掉上一轮的失败标记
       setTurnFailed(false);
+      setTurnError(null);
       setRetryableText(null);
       setDockError(null);
       // 人说话 = 还有活要干：宿主据此把「待验收」退回执行段（自检结论作废）。

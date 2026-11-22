@@ -61,6 +61,7 @@ export const WorkbenchPlanPage: React.FC<WorkbenchPlanPageProps> = ({
           planMd={planMd}
           phase={phase}
           running={running}
+          lastError={runtime?.lastError}
           onPlanChange={onPlanChange}
           onOpenFile={onOpenFile}
           readOnly={readOnly || variant === 'compact'}

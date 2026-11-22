@@ -19,6 +19,8 @@ export interface WorkbenchTaskRuntime {
   failed: boolean;
   /** 会话有未回答的 ask user 提问（「需要你」徽标用；仅面板打开时可知）。 */
   asking?: boolean;
+  /** 最后一轮失败的原文：计划卡据此判断「再点继续执行有没有意义」。 */
+  lastError?: { code?: string; message: string };
   /** 最后更新时刻（调试/排序用） */
   at: number;
 }
@@ -80,7 +82,7 @@ interface WorkbenchTaskState {
   setPlanReview: (sessionId: string, review: WorkbenchPlanReview | null) => void;
   reportRuntime: (
     sessionId: string,
-    next: { running: boolean; failed: boolean; asking?: boolean },
+    next: { running: boolean; failed: boolean; asking?: boolean; lastError?: { code?: string; message: string } },
   ) => void;
   /**
    * 用引擎 `session/list` 的 running 快照回填全量会话运行态。
@@ -213,14 +215,22 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
         prev &&
         prev.running === next.running &&
         prev.failed === next.failed &&
-        Boolean(prev.asking) === asking
+        Boolean(prev.asking) === asking &&
+        prev.lastError?.code === next.lastError?.code &&
+        prev.lastError?.message === next.lastError?.message
       ) {
         return s;
       }
       return {
         runtime: {
           ...s.runtime,
-          [sessionId]: { running: next.running, failed: next.failed, asking, at: Date.now() },
+          [sessionId]: {
+            running: next.running,
+            failed: next.failed,
+            asking,
+            lastError: next.lastError,
+            at: Date.now(),
+          },
         },
       };
     }),
@@ -236,6 +246,7 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
           running: entry.running,
           failed: prev?.failed ?? false,
           asking: prev?.asking ?? false,
+          lastError: prev?.lastError,
           at: Date.now(),
         };
         changed = true;
@@ -254,6 +265,7 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
           running: prev?.running ?? false,
           failed: entry.failed,
           asking: prev?.asking ?? false,
+          lastError: prev?.lastError,
           at: Date.now(),
         };
         changed = true;
