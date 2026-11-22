@@ -798,7 +798,7 @@ async fn tasks_trigger(req: &mut Request, res: &mut Response) {
             return;
         }
     };
-    let Some(_task) = store
+    let Some(task) = store
         .get("tasks")
         .and_then(Value::as_array)
         .and_then(|arr| {
@@ -813,6 +813,51 @@ async fn tasks_trigger(req: &mut Request, res: &mut Response) {
         );
         return;
     };
+    // 终态卡片不接受触发：以前靠前端忽略并提示，API 仍回 202，脚本会以为已经开工。
+    // 这里在权威侧直接 409，让 CI / 定时器能自己判断（与前端同一套阻断理由）。
+    let stamp = |key: &str| task.get(key).and_then(Value::as_i64).unwrap_or(0) > 0;
+    if stamp("completedAt") {
+        err(
+            res,
+            StatusCode::CONFLICT,
+            format!("task already accepted: {task_id}"),
+        );
+        return;
+    }
+    if stamp("archivedAt") {
+        err(
+            res,
+            StatusCode::CONFLICT,
+            format!("task archived: {task_id}"),
+        );
+        return;
+    }
+    if stamp("agentCompletedAt") {
+        err(
+            res,
+            StatusCode::CONFLICT,
+            format!("task self-check submitted, waiting for acceptance: {task_id}"),
+        );
+        return;
+    }
+    // 批准闸口：有计划但用户还没批准（含打回后批准被重置）时，外部触发不能替人批准。
+    if !stamp("planApprovedAt") {
+        let has_plan = crate::api::todo_api::todo_plan_get(task_id.clone())
+            .await
+            .ok()
+            .flatten()
+            .is_some_and(|plan| !plan.trim().is_empty());
+        if has_plan {
+            err(
+                res,
+                StatusCode::CONFLICT,
+                format!(
+                    "plan is waiting for user approval: {task_id} (approve it in the plan card; workers are never dispatched without approval)"
+                ),
+            );
+            return;
+        }
+    }
     // 防重入不在这里做：看板列 `status` 是给用户看的（工作台卡片建卡即 doing，
     // worker 跑完也不回落），拿它当运行态会让外部触发永远 409（实测 2026-11-21）。
     // 真实运行态只有前端知道（session/list 的 running + 子代理聚合），
