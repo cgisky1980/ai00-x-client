@@ -30,6 +30,9 @@ use ai00_x_core::infrastructure::ai::client_factory::{ai00_s_internal_token, AIC
 use ai00_x_core::routing::get_smart_router;
 use ai00_x_core::routing::RouteClass;
 use ai00_x_core::service::config::get_global_config_service;
+/// 工具名归一（本地小模型写坏工具名时按编辑距离映射回真实名；
+/// 实现在 core，纯函数可在 core 侧单测）。
+use ai00_x_core::util::tool_name::normalize_tool_name;
 
 use crate::rwkv_llm::{pool_infer, InferenceEvent};
 
@@ -821,6 +824,18 @@ async fn local_rwkv_sse(
         tools
     };
     let has_tools = has_tools && !rounds_exhausted;
+    // 本轮可用的工具名（工具名归一用；熔断后为空，归一自然跳过）
+    let tool_names: Vec<String> = tools
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(|tool| {
+            tool.get("function")
+                .and_then(|f| f.get("name"))
+                .and_then(|n| n.as_str())
+                .map(str::to_string)
+        })
+        .collect();
     // 熔断后必须让失败**显式**：不给工具还不够，3B 模型会继续胡写。
     // 追加一条收尾指令，要求它输出一行 `BLOCKED: 原因`——编排者据此判定失败、
     // 按预算升级云端工人，而不是把这坨文本当交付物。
@@ -961,6 +976,7 @@ async fn local_rwkv_sse(
         // usage 分片放在 finish 之前、两条分支都发：工具轮以前完全没有 usage，
         // 引擎侧 deriveTurnTokenUsage 拿不到数字 → 本地模型的对话回合用量条全空。
         if let Some((name, arguments)) = tool_call_from_text(&text, has_tools) {
+            let name = normalize_tool_name(&name, &tool_names);
             let arguments = normalize_tool_arguments(&name, &arguments);
             if let Some(reason) = write_rejection(&name, &arguments) {
                 // 空写会整文件覆盖 → 清空既有交付物；超长写会让 3B 退化。
@@ -1255,6 +1271,17 @@ async fn local_tool_round(
         .cloned()
         .unwrap_or_default();
     let tools = body.get("tools").and_then(|v| v.as_array()).cloned();
+    let tool_names: Vec<String> = tools
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(|tool| {
+            tool.get("function")
+                .and_then(|f| f.get("name"))
+                .and_then(|n| n.as_str())
+                .map(str::to_string)
+        })
+        .collect();
     let max_tokens = body
         .get("max_tokens")
         .and_then(|v| v.as_u64())
@@ -1333,6 +1360,7 @@ async fn local_tool_round(
         .await;
 
     if let Some((name, arguments)) = tool_call_from_text(&full_text, true) {
+        let name = normalize_tool_name(&name, &tool_names);
         let arguments = normalize_tool_arguments(&name, &arguments);
         // 空内容 write 会把已有文件截成 0 字节：实测 T2/T3 的本地工人在"追加"
         // 失败后都发出了 {"content":"","file_path":"report.md"}，直接把刚写好的

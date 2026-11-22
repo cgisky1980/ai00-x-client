@@ -11,6 +11,7 @@ pub mod pattern_recognizer;
 pub mod plain_output;
 pub mod process_manager;
 pub mod token_counter;
+pub mod tool_name;
 pub mod types;
 
 pub use errors::*;
