@@ -10,6 +10,7 @@ pub mod net_guard;
 pub mod pattern_recognizer;
 pub mod plain_output;
 pub mod process_manager;
+pub mod prompt_cache;
 pub mod token_counter;
 pub mod tool_name;
 pub mod types;

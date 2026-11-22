@@ -456,6 +456,8 @@ struct PoolEngine {
     initial_state: Vec<f32>,
     /// session_id → (已缓存 token 序列, RNN 状态)
     session_states: HashMap<String, (Vec<u32>, Vec<f32>)>,
+    /// 会话缓存的插入顺序（LRU 淘汰用；同一 key 更新时移到队尾）。
+    session_order: VecDeque<String>,
     /// 专用分类状态（智能路由 prefill 用，与生成槽位隔离；仅主模型兼容回退时使用）。
     classify_state: State,
 }
@@ -1199,6 +1201,7 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
         tokenizer,
         initial_state,
         session_states: HashMap::new(),
+        session_order: VecDeque::new(),
         classify_state,
     })
 }
@@ -1265,49 +1268,30 @@ fn prepare_task(
     let mut base_tokens: Vec<u32> = Vec::new();
     let mut resume_state: Option<Vec<f32>> = None;
 
+    // 会话缓存只做**前缀延长**复用：RWKV 的 RNN 状态不可回退，prompt 一旦与
+    // 缓存分叉就只能整段重算（拿旧状态喂分叉后的后缀会输出错乱，2026-11 的
+    // "双重喂入"事故即此）。旧实现按 `# User` 边界猜跳过位，prompt 与缓存
+    // 不对齐时风险高；这里改为严格前缀判定（cache_extension）。
     if let Some(sid) = &params.session_id {
-        let cached = engine.session_states.get(sid).cloned();
-        if let Some((cached_tokens, cached_state)) = cached {
-            let mut skip = 0;
-            let boundary_texts = ["\n\n# User", "# User", "\n\n### Tool Risk", "### Tool Risk"];
-            for text in boundary_texts {
-                if let Ok(boundary_ids) = engine.tokenizer.encode(text.as_bytes()) {
-                    if !boundary_ids.is_empty()
-                        && prompt_tokens.starts_with(&boundary_ids)
-                        && cached_tokens.ends_with(&boundary_ids)
-                    {
-                        skip = skip.max(boundary_ids.len());
-                    }
-                }
-            }
-
-            let mut dedup_backtrack = 0usize;
-            if skip == 0 && !prompt_tokens.is_empty() && !cached_tokens.is_empty() {
-                let last_id = cached_tokens.last().unwrap_or(&0);
-                let is_last_newline = engine
-                    .tokenizer
-                    .decode(&[*last_id])
-                    .ok()
-                    .map(|s| String::from_utf8_lossy(&s) == "\n")
-                    .unwrap_or(false);
-
-                if is_last_newline {
-                    if let Ok(double_newline_ids) = engine.tokenizer.encode(b"\n\n") {
-                        if prompt_tokens.starts_with(&double_newline_ids) {
-                            dedup_backtrack = 1;
-                        }
-                    }
-                }
-            }
-
-            if skip > 0 {
+        if let Some((cached_tokens, cached_state)) = engine.session_states.get(sid).cloned() {
+            if let Some(skip) =
+                ai00_x_core::util::prompt_cache::cache_extension(&prompt_tokens, &cached_tokens)
+            {
+                log::info!(
+                    "[rwkv] session cache hit: prefill {} of {} tokens (skip {skip})",
+                    prompt_tokens.len() - skip,
+                    prompt_tokens.len()
+                );
+                base_tokens = cached_tokens;
                 input_tokens = prompt_tokens[skip..].to_vec();
+                resume_state = Some(cached_state);
+            } else {
+                log::info!(
+                    "[rwkv] session cache miss: prompt diverged from {} cached tokens (prompt {})",
+                    cached_tokens.len(),
+                    prompt_tokens.len()
+                );
             }
-
-            // 缓存命中的前缀（去掉回溯位）= 状态已消费的 token 前缀。
-            let keep = cached_tokens.len().saturating_sub(dedup_backtrack);
-            base_tokens = cached_tokens[..keep].to_vec();
-            resume_state = Some(cached_state);
         }
     }
 
@@ -1368,6 +1352,26 @@ fn prepare_task(
     })
 }
 
+/// 会话状态缓存上限：每个条目是一份完整 RNN 状态（3B/7B 各几十 MB）；
+/// 网关按「回合指纹」使用缓存，key 数量会比聊天场景多，必须限量。
+/// 超额按插入顺序淘汰（近似 LRU；命中不重排，够用且实现简单）。
+const SESSION_STATE_CAP: usize = 4;
+
+/// 缓存前缀相对 prompt 末尾的回退 token 数（BPE 边界失配防护，见 prefill_step）。
+const SESSION_CACHE_BACKTRACK: usize = 4;
+
+/// 写入会话缓存并做容量淘汰。
+fn cache_session_state(engine: &mut PoolEngine, sid: String, tokens: Vec<u32>, state: Vec<f32>) {
+    engine.session_states.insert(sid.clone(), (tokens, state));
+    engine.session_order.retain(|k| k != &sid);
+    engine.session_order.push_back(sid);
+    while engine.session_order.len() > SESSION_STATE_CAP {
+        if let Some(old) = engine.session_order.pop_front() {
+            engine.session_states.remove(&old);
+        }
+    }
+}
+
 /// prefill 推进一步（一块）。返回 true 表示 prefill 已完成（末块 logits 存入任务）。
 /// 首块前把起步状态（会话缓存态 / 零初始态）装入 `prefill_state`。
 fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<bool, String> {
@@ -1383,6 +1387,42 @@ fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<boo
     }
     let end = (task.prefill_cursor + PREFILL_CHUNK).min(task.input_tokens.len());
     let chunk = task.input_tokens[task.prefill_cursor..end].to_vec();
+
+    // 末块 + 有会话：缓存前缀要**回退几个 token**。
+    //
+    // prompt 的末尾与"下一轮 prompt"的分叉点就在这里：BPE 在文本末尾的
+    // 编码与"后面还有字"时可能不同（实测 `Assistant: ` 末尾空格单独编码 vs
+    // 与首个生成字符合并），缓存整段 prompt 会让下一轮恰好在最后 1–2 个
+    // token 失配。因此末块先喂 head 并快照（tokens = prompt 去掉末尾 K 个），
+    // 再喂 tail 拿 logits——下一轮只 prefill K + 增量，稳定命中。
+    if end == task.input_tokens.len() {
+        if let Some(sid) = task.session_id.clone() {
+            let back = SESSION_CACHE_BACKTRACK.min(chunk.len().saturating_sub(1));
+            if back > 0 {
+                let (head, tail) = chunk.split_at(chunk.len() - back);
+                if !head.is_empty() {
+                    engine
+                        .model
+                        .forward_seq_with_state(&mut engine.prefill_state, head)
+                        .map_err(|e| format!("prefill failed: {}", e))?;
+                }
+                if let Ok(st) = engine.model.state_back(&engine.prefill_state) {
+                    let keep = task.input_tokens.len() - back;
+                    let mut tokens = task.base_tokens.clone();
+                    tokens.extend_from_slice(&task.input_tokens[..keep]);
+                    cache_session_state(engine, sid, tokens, st);
+                }
+                let logits = engine
+                    .model
+                    .forward_seq_with_state(&mut engine.prefill_state, tail)
+                    .map_err(|e| format!("prefill failed: {}", e))?;
+                task.prefill_cursor = end;
+                task.prefill_logits = Some(logits);
+                return Ok(true);
+            }
+        }
+    }
+
     let logits = engine
         .model
         .forward_seq_with_state(&mut engine.prefill_state, &chunk)
@@ -1392,14 +1432,6 @@ fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<boo
         return Ok(false);
     }
     task.prefill_logits = Some(logits);
-    // prefill 完成即缓存会话状态（任务中途异常也能保留已 prefill 的前缀）。
-    if let Some(sid) = task.session_id.clone() {
-        if let Ok(st) = engine.model.state_back(&engine.prefill_state) {
-            let mut tokens = task.base_tokens.clone();
-            tokens.extend_from_slice(&task.input_tokens);
-            engine.session_states.insert(sid, (tokens, st));
-        }
-    }
     Ok(true)
 }
 
@@ -1595,26 +1627,15 @@ fn post_sample(engine: &PoolEngine, task: &mut InferenceTask) {
     }
 }
 
-/// 任务收尾：回写会话缓存（状态已含全部已发射 token）+ 发送 Done。
-/// `row` = 解码组行号；None 表示任务尚未入组（状态仍在 `prefill_state`）。
-fn finalize_task(task: &mut InferenceTask, engine: &mut PoolEngine, row: Option<usize>) {
-    if let Some(sid) = task.session_id.clone() {
-        let st = match row {
-            Some(row) if engine.use_batch_decode => {
-                engine.model.state_slot_back(&engine.decode_state, row)
-            }
-            Some(row) => engine.model.state_back(&engine.slot_states[row]),
-            None => engine.model.state_back(&engine.prefill_state),
-        };
-        if let Ok(st) = st {
-            // 状态已消费 base ++ input_tokens ++ acc_ids（末 token 已补喂）。
-            let mut tokens = task.base_tokens.clone();
-            tokens.extend_from_slice(&task.input_tokens);
-            tokens.extend_from_slice(&task.acc_ids);
-            engine.session_states.insert(sid, (tokens, st));
-        }
-    }
-
+/// 任务收尾：发送 Done。
+///
+/// **不回写会话缓存**：缓存只保存「prefill 完成时的 prompt 前缀 + 状态」
+/// （见 `prefill_step`），因为模型生成的 token 序列与「把生成文本重新编码」
+/// 的结果在边界处不一定一致（实测同一文本命中不了），回写带生成 token 的
+/// 前缀会让下一轮恰好在这里失配。只留 prompt 前缀则下一轮必然是它的超集，
+/// 稳定命中。
+/// `row` 仅用于保持签名兼容（当前不再读取状态）。
+fn finalize_task(task: &mut InferenceTask, engine: &mut PoolEngine, _row: Option<usize>) {
     let mut text = engine
         .tokenizer
         .decode(&task.acc_ids)

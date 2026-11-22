@@ -738,6 +738,33 @@ fn tools_all_local(body: &Value) -> bool {
         .unwrap_or(false)
 }
 
+/// 本地推理的会话缓存键：同一回合（system + 首条 user 相同）内的多轮工具调用
+/// 共享同一份前缀状态，引擎只 prefill 增量（本地 prefill 是逐 token 线性开销）。
+/// 跨回合/并行工人天然得到不同 key；引擎侧仅在「新 prompt 严格以缓存为前缀」
+/// 时复用，分叉就整段重算——不会出现状态错配。
+fn local_session_key(messages: &[Value]) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for msg in messages {
+        match msg.get("role").and_then(|r| r.as_str()) {
+            Some("system") => {
+                if let Some(text) = message_text(msg) {
+                    text.hash(&mut hasher);
+                }
+            }
+            Some("user") => {
+                if let Some(text) = message_text(msg) {
+                    "first-user".hash(&mut hasher);
+                    text.hash(&mut hasher);
+                }
+                break;
+            }
+            _ => {}
+        }
+    }
+    format!("gw-{:016x}", hasher.finish())
+}
+
 /// SmartRouter 分类（失败时降级 R2 → 远程，保守）。
 async fn smart_route(session_id: &Option<String>, user_input: &str) -> RouteClass {
     let config_service = match get_global_config_service() {
@@ -879,6 +906,7 @@ async fn local_rwkv_sse(
     let is_instruction_format = prompt.starts_with("Instruction: ");
 
     let stop = rwkv_stop_sequences(is_instruction_format, has_tools);
+    let local_session = local_session_key(&messages);
 
     let mut rx = match pool_infer(
         prompt.clone(),
@@ -889,7 +917,7 @@ async fn local_rwkv_sse(
         frequency,
         0.996,
         Some(stop.clone()),
-        None, // session_id：零状态全量 prefill，不写会话缓存——避免双重喂入
+        Some(local_session),
         stream,
         false,
         String::new(),
@@ -1317,6 +1345,7 @@ async fn local_tool_round(
 
     let folded = crate::tool_session::fold_tool_segments(&messages, false);
     let prompt = openai_messages_to_rwkv_prompt(&folded, tools.as_deref());
+    let local_session = local_session_key(&messages);
 
     // stop 序列与 local_rwkv_sse 对齐（带工具时恒为对话格式，无 Instruction 分支）
     let stop = rwkv_stop_sequences(false, true);
@@ -1329,7 +1358,7 @@ async fn local_tool_round(
         0.5,
         0.996,
         Some(stop),
-        None, // session_id：零状态临时会话，不写会话缓存
+        Some(local_session),
         false,
         false,
         String::new(),
@@ -2736,7 +2765,12 @@ fn try_extract_tool_call(text: &str) -> Option<(String, String)> {
 
 /// 工具调用续写起点：prompt 末尾预填该前缀，模型只需续写工具名与参数。
 /// 解析时把前缀补回生成文本（`tool_call_from_text`）。
-const TOOL_CALL_PREFILL: &str = "{\"name\": \"";
+///
+/// 用紧凑形式（`{"name":"`，冒号后无空格）与历史回放的渲染形式
+/// （`json!` 序列化 = `{"name":"x","arguments":...}`）对齐：这样下一轮
+/// prompt 严格以上一轮 prompt 为前缀，引擎的会话缓存才能命中、只 prefill
+/// 增量（详见 rwkv_llm 的 cache_extension）。
+const TOOL_CALL_PREFILL: &str = "{\"name\":\"";
 
 /// 工具调用提取总入口：先严格解析生成文本，再尝试补回预填前缀，
 /// 最后走带工具时的宽容修复（多行美化 / 截断的 JSON）。
