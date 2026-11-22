@@ -358,6 +358,41 @@ function carryOverEvidence(prevMd, nextMd) {
   return restored ? lines.join("\n") : nextMd;
 }
 
+/**
+ * 写回计划时**保留打回记录**。
+ *
+ * 人打回时前端会在「## 验收」段末写一行 `- 打回: 理由 · 时间`；agent 按打回意见
+ * 修订计划通常是整篇重写（改目标 / 步骤措辞），这些行会被抹掉——隔天回看就只剩
+ * 「为什么改过」的空白（7.153 实测：打回 → agent 改计划 → 打回行消失）。
+ * 与验证证据同一类保护：按行补回，缺哪条补哪条，不改任何验收语义。
+ */
+function carryOverRejectNotes(prevMd, nextMd) {
+  if (typeof prevMd !== "string" || typeof nextMd !== "string") return nextMd;
+  const notes = prevMd
+    .split("\n")
+    .filter((line) => /^\s*-\s*打回\s*[:：]/.test(line))
+    .map((line) => line.trim());
+  if (!notes.length) return nextMd;
+  const lines = nextMd.split("\n");
+  const missing = notes.filter((note) => !lines.some((line) => line.trim() === note));
+  if (!missing.length) return nextMd;
+  let start = -1;
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^##\s/.test(lines[i])) continue;
+    if (start >= 0) {
+      end = i;
+      break;
+    }
+    if (/^##\s*(验收|Acceptance)/i.test(lines[i])) start = i;
+  }
+  if (start < 0) return nextMd; // 新计划没有验收段：不硬塞
+  let at = end;
+  while (at > start + 1 && (lines[at - 1] ?? "").trim() === "") at -= 1;
+  lines.splice(at, 0, ...missing);
+  return lines.join("\n");
+}
+
 /** 步骤块文本：从步骤行到下一个步骤行或下一个 `## ` 标题（不含）。 */
 function stepBlock(lines, startIndex) {
   const out = [];
@@ -2281,7 +2316,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_plan_write",
     description:
-      "Write (replace) the plan document (Markdown) of a Zhixing board card. The 策 window refreshes it live, so the user sees your updates. Prefer ai00_plan_check for status flips; use this only for structural edits. Verification/evidence lines already written by ai00_task_verify are preserved automatically, and a step cannot be newly ticked here without that evidence (the write is refused). The FIRST write of a task's plan is a hard stop: after it, end the turn and wait for the user to confirm the plan — never dispatch a worker in the same turn. Editing the goal, the step list or any acceptance wording AFTER approval resets the approval: the write succeeds, but you must end the turn and wait for the user to approve again (never loosen an acceptance item to make it pass — fix the deliverable instead).",
+      "Write (replace) the plan document (Markdown) of a Zhixing board card. The 策 window refreshes it live, so the user sees your updates. Prefer ai00_plan_check for status flips; use this only for structural edits. Verification/evidence lines already written by ai00_task_verify and the user's reject notes (`- 打回: …`) are preserved automatically, and a step cannot be newly ticked here without that evidence (the write is refused). The FIRST write of a task's plan is a hard stop: after it, end the turn and wait for the user to confirm the plan — never dispatch a worker in the same turn. Editing the goal, the step list or any acceptance wording AFTER approval resets the approval: the write succeeds, but you must end the turn and wait for the user to approve again (never loosen an acceptance item to make it pass — fix the deliverable instead).",
     parameters: {
       type: "object",
       properties: {
@@ -2339,8 +2374,10 @@ function defineTools(ctx, api) {
       } catch {
         firstPlan = false;
       }
-      // 整篇重写不得抹掉 ai00_task_verify 写回的验证/证据行
-      const merged = firstPlan ? markdown : carryOverEvidence(prevMarkdown, markdown);
+      // 整篇重写不得抹掉 ai00_task_verify 写回的验证/证据行，也不得抹掉人的打回记录
+      const merged = firstPlan
+        ? markdown
+        : carryOverRejectNotes(prevMarkdown, carryOverEvidence(prevMarkdown, markdown));
       // 也不得把「没验证过的步骤」勾上（与 plan_check 同一闸门）
       if (!firstPlan) {
         const offenders = newlyTickedWithoutEvidence(prevMarkdown, merged);
