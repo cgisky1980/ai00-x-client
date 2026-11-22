@@ -35,18 +35,146 @@
   &__head {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-4);
+    gap: var(--spacing-3);
+  }
+
+  &__goal-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-1);
+  }
+
+  &__eyebrow {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0.12em;
   }
 
   &__goal {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
     margin: 0;
-    font-family: var(--font-family-serif);
-    font-size: var(--font-size-xl);
-    line-height: 1.4;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    line-height: 1.6;
+
+    &.is-expanded {
+      display: block;
+      overflow: visible;
+    }
+  }
+
+  &__inline-code {
+    padding: 0 var(--spacing-1);
+    border-radius: var(--radius-sm);
+    background-color: var(--element-bg-subtle);
+    color: var(--color-accent);
+    font-family: var(--font-family-mono);
+    font-size: 0.92em;
+    overflow-wrap: anywhere;
+  }
+
+  // 产出物：计划阶段就亮出预期文件，验收阶段显示实际交付物。
+  &__outputs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-2) var(--spacing-3);
+    padding: var(--spacing-2) var(--spacing-3);
+    border: var(--style-stroke-width, 1px) solid var(--color-accent-300);
+    border-radius: var(--radius-base);
+    background-color: var(--color-accent-50);
+
+    &.is-ready {
+      border-color: var(--color-success);
+      background-color: color-mix(in oklab, var(--color-success) 8%, transparent);
+    }
+  }
+
+  &__outputs-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    flex: none;
+    color: var(--color-accent);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+
+    .is-ready & {
+      color: var(--color-success);
+    }
+  }
+
+  &__output-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-1);
+    min-width: 0;
+  }
+
+  &__output-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    max-width: 100%;
+    padding: 0 var(--spacing-2);
+    border: var(--style-stroke-width, 1px) solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    background-color: var(--color-bg-base);
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-2xs);
+    line-height: 1.8;
+
+    &.is-clickable {
+      cursor: pointer;
+
+      &:hover,
+      &:focus-visible {
+        border-color: var(--color-accent-300);
+        color: var(--color-accent);
+      }
+    }
+  }
+
+  &__output-pending {
+    color: var(--color-text-muted);
+    font-family: var(--font-family-sans);
+  }
+
+  &__meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-2) var(--spacing-4);
+  }
+
+  &__cwd {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    min-width: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-2xs);
+
+    code {
+      max-width: 28ch;
+      overflow: hidden;
+      border-radius: var(--radius-sm);
+      color: var(--color-text-secondary);
+      font-family: var(--font-family-mono);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 
   &__policy {
-    margin: 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-2xs);
   }
@@ -313,6 +441,23 @@
     color: var(--color-text-muted);
     font-family: var(--font-family-mono);
     font-variant-numeric: tabular-nums;
+  }
+
+  // 交付物是验收区的主角：用轻强调底 + 左侧图标把它从普通 block 里抬起来。
+  &__deliverables {
+    padding: var(--spacing-3);
+    border: var(--style-stroke-width, 1px) solid var(--color-accent-300);
+    border-radius: var(--radius-base);
+    background-color: var(--color-accent-50);
+
+    .ai00-x-plan-card__block-title {
+      color: var(--color-accent);
+    }
+
+    .ai00-x-plan-card__file-name {
+      color: var(--color-accent);
+      font-weight: var(--font-weight-medium);
+    }
   }
 
   &__accept-list,

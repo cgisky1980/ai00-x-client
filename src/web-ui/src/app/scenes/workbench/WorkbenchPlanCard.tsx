@@ -12,7 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { openPath } from '@tauri-apps/plugin-opener';
-import { Check, FolderOpen, Pencil, Play, Plus, Trash2, Undo2 } from 'lucide-react';
+import { Check, FileText, FolderOpen, PackageOpen, Pencil, Play, Plus, Trash2, Undo2 } from 'lucide-react';
 import { Button as DsButton } from '@ai00-x/design-system/react';
 import {
   Button,
@@ -131,6 +131,31 @@ function fileName(path: string): string {
   return index >= 0 ? path.slice(index + 1) : path;
 }
 
+/** 目标文本里的 `代码` 片段渲染成行内 code，避免整段话糊成一片。 */
+function renderInlineCode(text: string): React.ReactNode[] {
+  return text.split(/(`[^`]+`)/g).filter(Boolean).map((part, index) => {
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={index} className="ai00-x-plan-card__inline-code">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return <React.Fragment key={index}>{part}</React.Fragment>;
+  });
+}
+
+/** 从目标文本里提取反引号包住的文件名，作为「预期产出」预览（不依赖新后端字段）。 */
+function expectedFileNames(goal: string): string[] {
+  const files = new Set<string>();
+  for (const match of goal.matchAll(/`([^`]+)`/g)) {
+    const token = match[1].trim();
+    // 只收纯文件名，不收工作目录绝对路径。
+    if (/^[^\\/]+\.[A-Za-z0-9]{1,8}$/.test(token)) files.add(token);
+  }
+  return [...files].slice(0, MAX_DELIVERABLES);
+}
+
 /**
  * 验收条目的展示文案：去掉行尾 `{cmd: …}`。
  *
@@ -239,6 +264,8 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const [rejectReason, setRejectReason] = useState('');
   const [rejectPicks, setRejectPicks] = useState<Set<number>>(new Set());
   const [sourceOpen, setSourceOpen] = useState(false);
+  /** 目标过长时默认两行，点「展开」看全文。 */
+  const [goalExpanded, setGoalExpanded] = useState(false);
   /** 源码全文编辑（次要入口）；null = 只读预览。 */
   const [sourceDraft, setSourceDraft] = useState<string | null>(null);
   /**
@@ -299,6 +326,13 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     () => parsePlanGoal(shownMd) || task.plan?.goal || task.title,
     [shownMd, task.plan?.goal, task.title],
   );
+  /** 目标里点名的文件 —— 计划阶段就能把「要产出什么」摆到台面上。 */
+  const predictedOutputs = useMemo(() => expectedFileNames(goal), [goal]);
+  const actualOutputs = useMemo(
+    () => (task.deliverables ?? []).slice(0, MAX_DELIVERABLES).map((path) => ({ path, name: fileName(path) })),
+    [task.deliverables],
+  );
+  const goalLong = goal.length > 72;
 
   const completed = Boolean(task.completedAt);
   const stage = stageOf(phase);
@@ -565,16 +599,20 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   }, []);
 
   const reject = useCallback(
-    (input: string): void => {
+    async (input: string): Promise<void> => {
       const reason = input.trim() || t('nav.workbenchWindow.board.rejectDefault');
       // 打回 = DoD 不成立：验收勾选必须清零并留痕。
       // 只清 agentCompletedAt 的话 agent 可以直接重新提交自检（自检只要求勾选齐全），
       // 打回就变成摆设。上一轮的集成验收结论同时作废（否则「最近一次」会指向上轮）。
       if (planMd != null) {
         const stamp = new Date().toLocaleString('zh-CN', { hour12: false });
-        void writePlan(
+        // 先落盘再发消息：并发时 agent 可能先读到旧计划（没有打回记录、验收还勾着），
+        // 只凭消息里的意见开工。写盘失败就到此为止——writePlan 已把错误显示出来，
+        // 不能出现「意见没落到计划里、状态却已退回」的半成品。
+        const ok = await writePlan(
           appendRejectNote(clearVerifyRecord(uncheckAcceptance(planMd)), reason, stamp),
         );
+        if (!ok) return;
       }
       useTodoStore.getState().updateTask(task.id, { agentCompletedAt: null });
       // 退回必须把意见发回会话，否则 agent 完全不知道被打回
@@ -591,7 +629,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       .filter((item) => rejectPicks.has(item.lineIndex))
       .map((item) => item.text);
     setRejectOpen(false);
-    reject(
+    void reject(
       composeRejectReason(rejectReason, picks, t('nav.workbenchWindow.board.rejectDefault')),
     );
   }, [acceptance, reject, rejectPicks, rejectReason, t]);
@@ -614,16 +652,84 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
 
   const head = (
     <header className="ai00-x-plan-card__head">
-      <p className="ai00-x-plan-card__goal">{goal}</p>
-      <Steps className="ai00-x-plan-card__stages" steps={stageSteps} current={stage.index} />
-      {policy.execution === 'local-first' && (
-        <p className="ai00-x-plan-card__policy">
-          {t('nav.workbenchWindow.plan.executionLocal')} ·{' '}
-          {policy.review === 'strict'
-            ? t('nav.workbenchWindow.plan.reviewStrict')
-            : t('nav.workbenchWindow.plan.reviewAdaptive')}
+      <div className="ai00-x-plan-card__goal-block">
+        <p className="ai00-x-plan-card__eyebrow">{t('nav.workbenchWindow.planCard.goal')}</p>
+        <p className={`ai00-x-plan-card__goal${goalExpanded ? ' is-expanded' : ''}`} title={goal}>
+          {renderInlineCode(goal)}
         </p>
+        {goalLong && (
+          <button
+            type="button"
+            className="ai00-x-plan-card__link"
+            onClick={() => setGoalExpanded((value) => !value)}
+          >
+            {t(
+              goalExpanded
+                ? 'nav.workbenchWindow.plan.showLess'
+                : 'nav.workbenchWindow.plan.showMore',
+            )}
+          </button>
+        )}
+      </div>
+
+      {(actualOutputs.length > 0 || predictedOutputs.length > 0) && (
+        <div
+          className={`ai00-x-plan-card__outputs ${
+            actualOutputs.length > 0 ? 'is-ready' : 'is-expected'
+          }`}
+        >
+          <span className="ai00-x-plan-card__outputs-label">
+            <PackageOpen size={13} />
+            {actualOutputs.length > 0
+              ? t('nav.workbenchWindow.board.deliverables')
+              : t('nav.workbenchWindow.planCard.expectedDeliverables')}
+          </span>
+          <div className="ai00-x-plan-card__output-chips">
+            {actualOutputs.length > 0
+              ? actualOutputs.map(({ path, name }) => (
+                  <button
+                    key={path}
+                    type="button"
+                    className="ai00-x-plan-card__output-chip is-clickable"
+                    title={path}
+                    onClick={() => onOpenFile?.(path)}
+                  >
+                    <FileText size={12} />
+                    {name}
+                  </button>
+                ))
+              : predictedOutputs.map((name) => (
+                  <span key={name} className="ai00-x-plan-card__output-chip">
+                    <FileText size={12} />
+                    {name}
+                    <span className="ai00-x-plan-card__output-pending">
+                      {t('nav.workbenchWindow.planCard.outputPending')}
+                    </span>
+                  </span>
+                ))}
+          </div>
+        </div>
       )}
+
+      <Steps className="ai00-x-plan-card__stages" steps={stageSteps} current={stage.index} />
+
+      <div className="ai00-x-plan-card__meta-row">
+        {cwd && (
+          <span className="ai00-x-plan-card__cwd" title={cwd}>
+            <FolderOpen size={12} />
+            <span>{t('nav.workbenchWindow.planCard.workspace')}</span>
+            <code>{fileName(cwd)}</code>
+          </span>
+        )}
+        {policy.execution === 'local-first' && (
+          <span className="ai00-x-plan-card__policy">
+            {t('nav.workbenchWindow.plan.executionLocal')} ·{' '}
+            {policy.review === 'strict'
+              ? t('nav.workbenchWindow.plan.reviewStrict')
+              : t('nav.workbenchWindow.plan.reviewAdaptive')}
+          </span>
+        )}
+      </div>
     </header>
   );
 
@@ -853,8 +959,14 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const allDone = totalCount > 0 && doneCount === totalCount;
 
   const deliverables = (
-    <section className="ai00-x-plan-card__block">
-      <h3 className="ai00-x-plan-card__block-title">{t('nav.workbenchWindow.board.deliverables')}</h3>
+    <section className="ai00-x-plan-card__block ai00-x-plan-card__deliverables">
+      <h3 className="ai00-x-plan-card__block-title">
+        <PackageOpen size={14} />
+        {t('nav.workbenchWindow.board.deliverables')}
+        {task.deliverables?.length ? (
+          <span className="ai00-x-plan-card__count">{task.deliverables.length}</span>
+        ) : null}
+      </h3>
       {task.deliverables?.length ? (
         <ul className="ai00-x-plan-card__files">
           {task.deliverables.slice(0, MAX_DELIVERABLES).map((path) => (

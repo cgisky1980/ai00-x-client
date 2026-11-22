@@ -500,6 +500,10 @@
       },
       "planCard": {
         "generating": "Ai00-X is breaking down the goal…",
+        "goal": "Goal",
+        "workspace": "Working directory",
+        "expectedDeliverables": "Expected outputs",
+        "outputPending": "Pending",
         "emptyTitle": "No plan yet",
         "approve": "Approve & run",
         "approveHint": "Want changes? Edit the steps directly or say so in the chat — you will be asked to confirm again.",

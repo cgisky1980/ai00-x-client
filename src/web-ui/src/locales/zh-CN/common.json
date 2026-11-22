@@ -500,6 +500,10 @@
       },
       "planCard": {
         "generating": "Ai00-X 正在拆解目标…",
+        "goal": "目标",
+        "workspace": "工作目录",
+        "expectedDeliverables": "预期产出",
+        "outputPending": "待生成",
         "emptyTitle": "还没有计划",
         "approve": "批准并执行",
         "approveHint": "要改计划？直接编辑步骤，或在对话里说明——改完会再请你确认。",
