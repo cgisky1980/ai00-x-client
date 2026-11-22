@@ -481,10 +481,8 @@
     white-space: nowrap;
   }
 
-  &__task-meta {
+  &__task-status {
     flex: 0 0 auto;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
   }
 }
 

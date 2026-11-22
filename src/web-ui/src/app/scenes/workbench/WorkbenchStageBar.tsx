@@ -132,14 +132,14 @@ export const WorkbenchStageDots: React.FC<{ phase: TaskPhase; className?: string
 };
 
 /**
- * 状态标签：默认保留文字；列表里用 `iconOnly` 只留图标，语义移到 title / aria-label。
- * 这样任务 / 项目二级菜单不必为「计划 / 审核 / 已完成 / 快速问答 / 需要你」反复做多语言，
- * 同时阶段圆点（WorkbenchStageDots）已经表达进度，不再重复一遍文字。
+ * 状态标签：默认保留文字；列表里用 `iconOnly` 只留一个带底色的状态图标，
+ * 语义移到 title / aria-label。列表里不再用三颗阶段圆点——它和行尾的「...」操作
+ * 都是小圆点，极易混淆；现在用阶段专属图标（清单 / 播放 / 勾验收 / 完成）替代。
  */
 export const WorkbenchStatusTag: React.FC<{
   phase: TaskPhase;
   asking?: boolean;
-  /** 只显示需要处理的徽标（阶段圆点 / 列头已经表明阶段）。 */
+  /** 只显示需要处理的徽标（看板列头等外部已表明阶段；列表主行不要传）。 */
   hideStage?: boolean;
   /**
    * 快速问答任务：它没有计划/执行/审核这条流水线，阶段词会误导
@@ -194,7 +194,7 @@ export const WorkbenchStatusTag: React.FC<{
         aria-label={label}
         title={label}
       >
-        {Icon && <Icon size={12} className="ai00-x-status-tag__icon" aria-hidden />}
+        {Icon && <Icon size={13} className="ai00-x-status-tag__icon" aria-hidden />}
       </span>
     );
   }

@@ -146,23 +146,27 @@
     font-weight: var(--font-weight-medium);
   }
 
-  // 窄列表图标态：可见层只留一个图标，语义由 title / aria-label 承担。
+  // 列表图标态：带底色的圆形 Chip，和行尾纯文本「...」操作键一眼可分。
   &.is-icon-only {
     justify-content: center;
-    width: var(--spacing-4);
-    height: var(--spacing-4);
+    width: var(--spacing-5);
+    height: var(--spacing-5);
+    flex: 0 0 auto;
     padding: 0;
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
     border-radius: var(--radius-full);
-    color: var(--color-text-secondary);
+    background-color: var(--element-bg-subtle);
+    color: var(--color-accent);
 
     &.has-attention {
-      width: var(--spacing-5);
-      border: var(--style-stroke-width, 1px) solid var(--color-warning-border);
+      border-color: var(--color-warning-border);
       background-color: var(--color-warning-bg);
       color: var(--color-warning);
     }
 
     &.is-failed {
+      border-color: var(--color-error-border);
+      background-color: var(--color-error-bg);
       color: var(--color-danger);
     }
   }

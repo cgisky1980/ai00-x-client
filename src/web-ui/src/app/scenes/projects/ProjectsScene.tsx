@@ -26,7 +26,7 @@ import { TrunkBranchDialog, type TrunkBranchRequest } from '../tasks/TrunkBranch
 import { taskPhase } from '../tasks/taskPhase';
 import { useSessionRunningSync } from '../tasks/useSessionRunningSync';
 import { dirTail, relativeTime } from '../tasks/display';
-import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
+import { WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
 import { needsYou } from '../workbench/workbenchStage';
 import { WorkbenchTaskHost } from '../workbench/WorkbenchTaskHost';
 import { ProjectGitBadge } from './ProjectGitBadge';
@@ -433,17 +433,16 @@ export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
                               onClick={() => openFromTree(project, task)}
                               title={task.title}
                             >
-                              <span className="ai00-x-projects-scene__subitem-title">
-                                {task.title}
-                              </span>
-                              <WorkbenchStageDots phase={phase} />
                               <WorkbenchStatusTag
+                                className="ai00-x-projects-scene__subitem-status"
                                 phase={phase}
                                 asking={asking}
                                 quick={task.executionMode === 'quick'}
-                                hideStage
                                 iconOnly
                               />
+                              <span className="ai00-x-projects-scene__subitem-title">
+                                {task.title}
+                              </span>
                             </button>
                             <TaskActionsMenu
                               task={task}
@@ -603,9 +602,8 @@ export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
                       className="ai00-x-projects-scene__task"
                       onClick={() => void openConversation(task, selected, null)}
                     >
-                      <span className="ai00-x-projects-scene__task-title">{task.title}</span>
                       <WorkbenchStatusTag
-                        className="ai00-x-projects-scene__task-meta"
+                        className="ai00-x-projects-scene__task-status"
                         phase={taskPhase(
                           task,
                           null,
@@ -615,6 +613,7 @@ export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
                         quick={task.executionMode === 'quick'}
                         iconOnly
                       />
+                      <span className="ai00-x-projects-scene__task-title">{task.title}</span>
                       <span className="ai00-x-projects-scene__task-time">
                         {relativeTime(task.createdAt)}
                       </span>

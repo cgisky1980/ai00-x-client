@@ -17,7 +17,7 @@ import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { summarizeFailure } from '@/tools/todo/utils/failureHint';
 import { notifyTask } from '@/tools/todo/utils/notify';
 import { collectWorkerCleanupPlan, deleteWorkerSessions } from './workerSessionCleanup';
-import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
+import { WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
 import { WorkbenchTaskHost } from '../workbench/WorkbenchTaskHost';
 import { needsYou } from '../workbench/workbenchStage';
 import { PlanCardGenerating } from '../workbench/WorkbenchPlanCard';
@@ -423,16 +423,14 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
                   void openTask(task);
                 }}
               >
-                <span className="ai00-x-task-scene__item-title">{task.title}</span>
-                {task.executionMode !== 'quick' && <WorkbenchStageDots phase={phaseOf(task)} />}
                 <WorkbenchStatusTag
-                  className="ai00-x-task-scene__item-meta"
+                  className="ai00-x-task-scene__item-status"
                   phase={phaseOf(task)}
                   asking={askingOf(task)}
                   quick={task.executionMode === 'quick'}
-                  hideStage
                   iconOnly
                 />
+                <span className="ai00-x-task-scene__item-title">{task.title}</span>
               </button>
               <TaskActionsMenu
                 task={task}
