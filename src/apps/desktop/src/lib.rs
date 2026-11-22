@@ -855,6 +855,7 @@ pub async fn run() {
             get_current_workspace,
             is_task_workspace,
             get_task_workspace_path,
+            delete_worker_session_dir,
             get_code_workspace_path,
             scan_workspace_info,
             api::terminal_api::terminal_get_shells,

@@ -8,13 +8,15 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Archive, Bug, BookOpen, Loader2, Plus, Search, Sparkles } from 'lucide-react';
-import { Prompts, Switch } from '@/component-library';
+import { Archive, Bug, BookOpen, Loader2, Plus, Search, Sparkles, Trash2 } from 'lucide-react';
+import { ConfirmDialog, Prompts, Switch } from '@/component-library';
 import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { TodoTask, WorkbenchProject } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { summarizeFailure } from '@/tools/todo/utils/failureHint';
+import { notifyTask } from '@/tools/todo/utils/notify';
+import { collectWorkerCleanupPlan, deleteWorkerSessions } from './workerSessionCleanup';
 import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
 import { WorkbenchTaskHost } from '../workbench/WorkbenchTaskHost';
 import { needsYou } from '../workbench/workbenchStage';
@@ -121,6 +123,8 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
   /** 新任务空态预选的模型（建会话后落到该会话）。 */
   const [pendingModel, setPendingModel] = useState<string | null>(null);
   const [busy, setBusy] = useState<'create' | 'open' | null>(null);
+  /** 待确认清理的子代理会话 id（null = 对话框关闭）。 */
+  const [cleanupIds, setCleanupIds] = useState<string[] | null>(null);
   /** 当前任务工作目录（计划卡「打开任务文件夹」用；默认工作区由宿主准备返回）。 */
   const [cwd, setCwd] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -180,6 +184,33 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
   }, [selectedId, openableTask, startNewTask]);
 
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+  /** 打开清理确认：只统计已完成 / 已归档任务的子代理会话。 */
+  const openSessionCleanup = useCallback(async (): Promise<void> => {
+    try {
+      const plan = await collectWorkerCleanupPlan();
+      if (plan.ids.length === 0) {
+        notifyTask(t('nav.workbenchWindow.tasks.cleanupWorkers'), t('nav.workbenchWindow.tasks.cleanupWorkersNone'), 'info');
+        return;
+      }
+      setCleanupIds(plan.ids);
+    } catch (e) {
+      notifyTask(t('nav.workbenchWindow.tasks.cleanupWorkers'), message(e), 'error');
+    }
+  }, [t]);
+
+  const confirmSessionCleanup = useCallback((): void => {
+    const ids = cleanupIds ?? [];
+    setCleanupIds(null);
+    void deleteWorkerSessions(ids).then(({ removed, failed }) => {
+      const title = t('nav.workbenchWindow.tasks.cleanupWorkers');
+      if (failed > 0) {
+        notifyTask(title, t('nav.workbenchWindow.tasks.cleanupWorkersPartial', { removed, failed }), 'warning');
+      } else {
+        notifyTask(title, t('nav.workbenchWindow.tasks.cleanupWorkersDone', { count: removed }), 'info');
+      }
+    });
+  }, [cleanupIds, t]);
 
   /** 打开任务：绑定直接读任务卡；这里只负责首次建会话，旧 Promise 不得回写新选中。 */
   const openTask = useCallback(
@@ -337,6 +368,15 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
             {archivedCount > 0 && !showArchived && (
               <span className="ai00-x-task-scene__badge">{archivedCount}</span>
             )}
+          </button>
+          <button
+            type="button"
+            className="ai00-x-task-scene__icon-button"
+            onClick={() => void openSessionCleanup()}
+            title={t('nav.workbenchWindow.tasks.cleanupWorkers')}
+            aria-label={t('nav.workbenchWindow.tasks.cleanupWorkers')}
+          >
+            <Trash2 size={14} />
           </button>
           <button
             type="button"
@@ -503,6 +543,16 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
       </main>
 
       <TrunkBranchDialog request={trunkRequest} onDecision={handleTrunkDecision} />
+      <ConfirmDialog
+        isOpen={cleanupIds !== null}
+        onClose={() => setCleanupIds(null)}
+        title={t('nav.workbenchWindow.tasks.cleanupWorkersTitle')}
+        message={t('nav.workbenchWindow.tasks.cleanupWorkersMessage', {
+          count: cleanupIds?.length ?? 0,
+        })}
+        confirmText={t('nav.workbenchWindow.tasks.cleanupWorkersConfirm')}
+        onConfirm={confirmSessionCleanup}
+      />
     </div>
   );
 };

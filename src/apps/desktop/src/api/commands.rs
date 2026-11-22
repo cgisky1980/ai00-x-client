@@ -1367,6 +1367,61 @@ pub async fn get_task_workspace_path() -> Result<GetTaskWorkspacePathResponse, S
     })
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteWorkerSessionRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteWorkerSessionResponse {
+    pub removed: bool,
+}
+
+/// 删除一个**子代理会话**目录（已完成 / 已归档任务遗留的 worker 会话）。
+///
+/// 引擎没有删除会话的 RPC；子会话在磁盘上是自包含的
+/// （`sessions/<slug>/<id>/session.v4.jsonl.zstd`），删除不影响父会话。
+/// 安全约束：只接受裸 UUID 形态的 id——父会话目录名以 `session-` 开头，永远拒绝；
+/// 目录定位逐 slug 查找同名子目录，顺带删 `session_projcache` 里的同名缓存。
+#[tauri::command]
+pub async fn delete_worker_session_dir(
+    request: DeleteWorkerSessionRequest,
+) -> Result<DeleteWorkerSessionResponse, String> {
+    let id = request.session_id.trim();
+    if id.is_empty()
+        || id.starts_with("session-")
+        || id.len() > 96
+        || !id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err("invalid worker session id".into());
+    }
+    let home = crate::dsh_manager::dsh_home();
+    let root = home.join("sessions");
+    let cache_dir = home
+        .join("storages")
+        .join("session_projcache")
+        .join("sessions");
+    let mut removed = false;
+    let Ok(slugs) = std::fs::read_dir(&root) else {
+        return Ok(DeleteWorkerSessionResponse { removed });
+    };
+    for slug in slugs.flatten() {
+        let dir = slug.path().join(id);
+        if !dir.is_dir() {
+            continue;
+        }
+        if std::fs::remove_dir_all(&dir).is_ok() {
+            removed = true;
+            let _ = std::fs::remove_file(cache_dir.join(format!("{id}.json")));
+        }
+    }
+    Ok(DeleteWorkerSessionResponse { removed })
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetCodeWorkspacePathResponse {
