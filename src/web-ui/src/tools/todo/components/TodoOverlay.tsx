@@ -244,7 +244,10 @@ export const TodoOverlay: React.FC = () => {
   }, [loaded]);
   useEffect(() => {
     const un = listen('todo-agent-updated', () => {
-      void useTodoStore.getState().load().then(() => {
+      // Rust 侧 agent 工具写盘只发这个事件（不发窗口总线广播）：重读后补一次广播，
+      // 否则已打开的工作台窗口看不到 agent 的改动（实测：agent 改计划触发批准复位后，
+      // 卡片仍显示「继续执行」，要手动刷新才变成「待批准」）。
+      void useTodoStore.getState().load({ announce: true }).then(() => {
         const { data } = useTodoStore.getState();
         const current = new Set<string>();
         const fresh: typeof data.tasks = [];

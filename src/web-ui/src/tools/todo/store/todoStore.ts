@@ -475,7 +475,16 @@ interface TodoState {
   planSteps: Record<string, { done: number; total: number; current: string | null }>;
   /** agent 提问缓存（sessionId → 待处理批次；TodoOverlay mux 订阅回填，非持久化） */
   agentQuestions: Record<string, AgentQuestionBatch[]>;
-  load: () => Promise<void>;
+  /**
+   * 从盘上重读数据。
+   *
+   * `announce` = 读完后向其他窗口广播一次 `todo:data-changed`。**只在「外部写入方
+   * 自己不发广播」的场景用**（Rust 侧 agent 工具写盘只 emit `todo-agent-updated`，
+   * 工作台窗口收不到）：不补这一步，agent 改了计划（批准复位）后，已打开的工作台
+   * 仍显示旧的「已批准/继续执行」，要手动刷新才变成「待批准」。
+   * 接收方走 `applyRemoteData`（不再广播），不会形成回声。
+   */
+  load: (options?: { announce?: boolean }) => Promise<void>;
   save: () => void;
   /**
    * 采纳其他窗口写入的数据（不再落盘 / 广播，避免两个窗口互相覆盖形成回声）。
@@ -578,7 +587,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   planSteps: {},
   agentQuestions: {},
 
-  load: async () => {
+  load: async (options) => {
     // 本地有未落盘的改动（刚点验收 / 刚写提醒时间）→ 先不重读盘，与
     // `applyRemoteData` 同一道保护：`todo-agent-updated` 这类广播随时可能到达，
     // 此时磁盘还是旧值，直接覆盖会把刚做的动作吞掉；等本次 save 落盘后的
@@ -606,6 +615,9 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       data.migratedFromPlugin = true;
       set({ data, loaded: true });
       if (migrated) get().save();
+      // 外部写入（agent 工具）不发广播：替它补一次，已打开的工作台窗口才会跟上。
+      // 接收方走 applyRemoteData，不回声。
+      if (options?.announce) publishWindowMessage(TODO_DATA_CHANGED);
     } catch (e) {
       console.warn('[todo] load failed:', e);
       set({ data: emptyData(), loaded: true });
