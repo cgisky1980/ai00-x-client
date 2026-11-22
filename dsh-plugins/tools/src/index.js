@@ -805,13 +805,25 @@ function upsertStepEvidence(markdown, stepId, verdict, evidence) {
   return next.join("\n");
 }
 
-/** 精简证据摘要：命令通过数 / 变更文件数；不写完整输出。 */
+/**
+ * 精简证据摘要：命令通过数 / 变更文件数。
+ *
+ * 失败时必须把**失败命令与输出的首段**写进计划：否则下一次续跑/重派只能看到
+ * 「命令 0/1 通过 · 失败 1」，还得再调一次 verify 才知道缺什么（实测 gbo T4
+ * 连续两轮返工都没补「修订记录」，因为失败原因从未出现在计划里）。
+ */
 function summarizeEvidence(commands, changedFiles) {
   const total = commands.length;
   const passed = commands.filter((cmd) => cmd.ok).length;
   const failed = commands.filter((cmd) => !cmd.ok);
   const parts = [`命令 ${passed}/${total} 通过`];
-  if (failed.length) parts.push(`失败 ${failed.length}`);
+  if (failed.length) {
+    parts.push(`失败 ${failed.length}`);
+    const first = failed[0];
+    const cmd = String(first.cmd ?? "").replace(/\s+/g, " ").trim().slice(0, 90);
+    const output = String(first.output ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+    parts.push(`失败命令: ${cmd}${output ? ` → ${output}` : ""}`);
+  }
   if (changedFiles.length) parts.push(`变更 ${changedFiles.length} 文件`);
   return parts.join(" · ");
 }
