@@ -97,6 +97,28 @@ function inExecution(task: TodoTask): boolean {
 // 判正常 → 按 ETA（无 ETA 翻倍、封顶 1h）自适应拉长复查间隔——
 // 训练/编译跑几小时也不会被误杀；等人工场景（ask_user 待答/审批挂起）豁免。
 
+/**
+ * 同名任务卡在通知里的显示名。
+ *
+ * 实测有两张卡都叫「Ai00-X · 灵」，合并通知写两遍同样的名字，人根本分不清
+ * 说的是哪一张（点「去查看」只会打开第一张）。重名时补 id 尾缀（t-…-jzx）。
+ */
+function notificationTitle(task: TodoTask, counts: Map<string, number>): string {
+  const base = task.title.slice(0, 14);
+  return (counts.get(base) ?? 0) > 1 ? `${base}·${task.id.slice(-3)}` : base;
+}
+
+function titleCounts(list: TodoTask[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const task of list) {
+    // 已完成/归档的卡不会再出现在通知里，不该把同名活跃卡逼出「·尾缀」。
+    if (task.completedAt || task.archivedAt) continue;
+    const base = task.title.slice(0, 14);
+    counts.set(base, (counts.get(base) ?? 0) + 1);
+  }
+  return counts;
+}
+
 export const TodoOverlay: React.FC = () => {
   const loaded = useTodoStore((s) => s.loaded);
   const load = useTodoStore((s) => s.load);
@@ -463,9 +485,14 @@ export const TodoOverlay: React.FC = () => {
       }
       if (current && current.key === key) return;
       if (current) dismissTaskNotification(current.id);
+      // 重名判定要跨通知一起看：两张「Ai00-X · 灵」可能分别落在「停住」和「失败」两个
+      // 槽位里，只看本槽会以为名字唯一，两条通知仍然分不清谁是谁。
+      const counts = titleCounts(
+        useTodoStore.getState().data.tasks.filter((t) => !t.archivedAt),
+      );
       const names = list
         .slice(0, 2)
-        .map((t) => `「${t.title.slice(0, 14)}」`)
+        .map((t) => `「${notificationTitle(t, counts)}」`)
         .join('、');
       mergedNoticeRef.current[slot] = {
         key,
@@ -479,6 +506,15 @@ export const TodoOverlay: React.FC = () => {
         ),
       };
     };
+    /**
+     * 单卡通知里的任务名：同样做重名判定（两张同名卡各发一条时也要能区分）。
+     * 用全局未归档任务计数，保证与合并通知的名字一致。
+     */
+    const taskName = (task: TodoTask): string =>
+      notificationTitle(
+        task,
+        titleCounts(useTodoStore.getState().data.tasks.filter((t) => !t.archivedAt)),
+      );
     const poll = async () => {
       try {
         const { items } = await dshSession.list();
@@ -554,21 +590,21 @@ export const TodoOverlay: React.FC = () => {
               ? // 额度/凭据/模型这类失败重试必然同样结果：第一次就不给「继续执行」。
                 notifyTask(
                   '任务出错 · 需要你',
-                  `「${task.title}」这一轮失败${reason ? `：${reason}` : ''}——${guidance.hint}；处理完回卡片点「已修好，重试」`,
+                  `「${taskName(task)}」这一轮失败${reason ? `：${reason}` : ''}——${guidance.hint}；处理完回卡片点「已修好，重试」`,
                   'error',
                   [goToTask(task.id, '去查看')],
                 )
               : streak >= 3 && reason
                 ? notifyTask(
                     '任务出错 · 需要你',
-                    `「${task.title}」连续 ${streak} 次同样的错误：${reason}——重试大概率还是同样结果，先按提示修环境（凭据 / 模型 / 额度）`,
+                    `「${taskName(task)}」连续 ${streak} 次同样的错误：${reason}——重试大概率还是同样结果，先按提示修环境（凭据 / 模型 / 额度）`,
                     'error',
                     // 反复撞同一堵墙时不再给「继续执行」：它只会再失败一次。
                     [goToTask(task.id, '去查看')],
                   )
                 : notifyTask(
                     '任务出错 · 需要你',
-                    `「${task.title}」这一轮以错误收尾${reason ? `：${reason}` : ''}——点开卡片查看错误，或点「继续执行」重试`,
+                    `「${taskName(task)}」这一轮以错误收尾${reason ? `：${reason}` : ''}——点开卡片查看错误，或点「继续执行」重试`,
                     'error',
                     // 文案里让用户点「继续执行」，按钮就必须真的在：只给「去查看」等于
                     // 逼人开窗口再找一次入口。整卡点击仍是「去查看」（primary）。
@@ -714,7 +750,7 @@ export const TodoOverlay: React.FC = () => {
             task.id,
             notifyTask(
               '任务停下 · 需要你',
-              `「${task.title}」这一轮结束了，但没有自检收口，也没有子代理在跑——点「继续执行」让它按计划接着走`,
+              `「${taskName(task)}」这一轮结束了，但没有自检收口，也没有子代理在跑——点「继续执行」让它按计划接着走`,
               'warning',
               [resumeTask(task), goToTask(task.id, '去查看', 'secondary')],
               { duration: 0 },
@@ -978,7 +1014,12 @@ export const TodoOverlay: React.FC = () => {
           : undefined;
         const firstFailureReason = firstFailure ? summarizeFailure(firstFailureError) : '';
         const firstFailureGuidance = failureGuidance(firstFailureError);
-        const firstFailureTitle = firstFailure ? `「${firstFailure.title.slice(0, 14)}」` : '';
+        const firstFailureTitle = firstFailure
+          ? `「${notificationTitle(
+              firstFailure,
+              titleCounts(useTodoStore.getState().data.tasks.filter((t) => !t.archivedAt)),
+            )}」`
+          : '';
         syncMergedNotice(
           'failing',
           historicFailing,
