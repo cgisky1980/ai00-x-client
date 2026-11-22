@@ -254,7 +254,12 @@ export function usableEvidence(block) {
   if (!hasCmd) return { ok: true, verdict };
   const ran = /^\s*-\s*(证据|evidence)\s*[:：][^\n]*?(\d+)\s*\/\s*(\d+)\s*通过/im.exec(block);
   const ranCount = ran ? Number(ran[2]) : 0;
-  return { ok: ranCount > 0, verdict };
+  return {
+    ok: ranCount > 0,
+    verdict,
+    // 供拒绝文案区分「命令从未运行」与「命令跑了但没过」。
+    reason: ranCount > 0 ? "commands-ran" : "commands-not-run",
+  };
 }
 
 /**
@@ -2584,9 +2589,12 @@ function defineTools(ctx, api) {
           if (!evidence.ok) {
             return {
               ok: false,
-              hint: evidence.verdict
-                ? `verification for ${stepId} is "${evidence.verdict}" — fix it and re-run ai00_task_verify before ticking`
-                : `no verification evidence for ${stepId} — call ai00_task_verify (stepId: "${stepId}") before ticking`,
+              hint:
+                evidence.reason === "commands-not-run"
+                  ? `step ${stepId} lists executable acceptance commands but its evidence says 0/N ran — run ai00_task_verify (stepId: "${stepId}") and get them to pass before ticking`
+                  : evidence.verdict
+                    ? `verification for ${stepId} is "${evidence.verdict}" — fix it and re-run ai00_task_verify before ticking`
+                    : `no verification evidence for ${stepId} — call ai00_task_verify (stepId: "${stepId}") before ticking`,
             };
           }
         }
