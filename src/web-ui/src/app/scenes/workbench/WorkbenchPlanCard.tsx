@@ -173,6 +173,8 @@ interface StepDraft {
   lineIndex: number;
   title: string;
   cmd: string;
+  /** 「添加步骤」刚建的行：取消编辑时整行删掉，不留 `新步骤` 占位。 */
+  isNew?: boolean;
 }
 
 interface StepWorker {
@@ -442,12 +444,26 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     if (await commitPlan(deleteStep(planMd, stepDraft.lineIndex))) setStepDraft(null);
   }, [busy, commitPlan, planMd, stepDraft]);
 
+  /**
+   * 取消行内编辑。
+   *
+   * `addStep` 为了拿到行号会先把 `- [ ] T4 新步骤` 写进计划；用户取消编辑时这行
+   * 必须删掉——留在计划里既碍眼，又会在批准时被占位守卫拦下（7.164）。只对
+   * `isNew` 的草稿生效，普通编辑取消不写盘。
+   */
+  const cancelStepEdit = useCallback((): void => {
+    if (stepDraft?.isNew && planMd != null) {
+      void commitPlan(deleteStep(planMd, stepDraft.lineIndex));
+    }
+    setStepDraft(null);
+  }, [commitPlan, planMd, stepDraft]);
+
   const addStep = useCallback(async (): Promise<void> => {
     if (planMd == null || busy) return;
     const result = appendStep(planMd, t('nav.workbenchWindow.planCard.newStep'));
     if (!result || !(await commitPlan(result.md))) return;
     const created = parsePlanSteps(result.md).find((step) => step.id === result.id);
-    if (created) setStepDraft({ lineIndex: created.lineIndex, title: created.title, cmd: '' });
+    if (created) setStepDraft({ lineIndex: created.lineIndex, title: created.title, cmd: '', isNew: true });
   }, [busy, commitPlan, planMd, t]);
 
   const saveSource = useCallback(async (): Promise<void> => {
@@ -716,7 +732,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
         event.preventDefault();
         void saveStep();
       } else if (event.key === 'Escape') {
-        setStepDraft(null);
+        cancelStepEdit();
       }
     };
     return (
@@ -747,7 +763,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
             {t('nav.workbenchWindow.planCard.deleteStep')}
           </Button>
           <span className="ai00-x-plan-card__editor-spacer" />
-          <Button variant="secondary" size="small" onClick={() => setStepDraft(null)} disabled={busy}>
+          <Button variant="secondary" size="small" onClick={cancelStepEdit} disabled={busy}>
             {t('nav.workbenchWindow.plan.editCancel')}
           </Button>
           <Button
