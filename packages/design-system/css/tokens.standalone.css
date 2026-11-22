@@ -157,7 +157,7 @@
   --color-bg-quaternary: var(--color-bg-overlay);
   --color-bg-elevated: var(--color-bg-modal);
   --color-bg-workbench: color-mix(in oklab, var(--skin-deep) 50%, var(--skin-bg));
-  --color-bg-scene: color-mix(in oklab, var(--skin-bg) 40%, var(--skin-surface));
+  --color-bg-scene: var(--skin-scene);
   --color-bg-flowchat: var(--color-bg-scene);
   --color-bg-tooltip: var(--color-bg-modal);
   --color-text-primary: var(--skin-ink);
@@ -410,6 +410,7 @@
   --skin-info: #7dd3fc;
   --skin-deep: #080808;
   --skin-high: #282828;
+  --skin-scene: #131313;
   --skin-scrim: #080808c7;
   --skin-shadow: #00000080;
   --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
@@ -439,8 +440,9 @@ html[data-skin='soot-lime'][data-theme-type='light'] {
   --skin-warning: #a16207;
   --skin-error: #b91c1c;
   --skin-info: #0369a1;
-  --skin-deep: #eeeeee;
+  --skin-deep: #e2e2e2;
   --skin-high: #fcfcfc;
+  --skin-scene: #f2f2f2;
   --skin-scrim: #0f0f0f59;
   --skin-shadow: #0f0f0f1f;
   --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
@@ -473,6 +475,7 @@ html[data-skin='graphite-orange'] {
   --skin-info: #7dd3fc;
   --skin-deep: #101113;
   --skin-high: #313336;
+  --skin-scene: #1c1d20;
   --skin-scrim: #101113c7;
   --skin-shadow: #00000080;
   --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
@@ -501,8 +504,9 @@ html[data-skin='graphite-orange'][data-theme-type='light'] {
   --skin-warning: #a16207;
   --skin-error: #b91c1c;
   --skin-info: #0369a1;
-  --skin-deep: #dfdfe0;
+  --skin-deep: #d4d5d6;
   --skin-high: #fafafa;
+  --skin-scene: #e3e4e5;
   --skin-scrim: #18191b59;
   --skin-shadow: #18191b1f;
   --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
@@ -535,6 +539,7 @@ html[data-skin='teal-paper'] {
   --skin-info: #7dd3fc;
   --skin-deep: #064850;
   --skin-high: #336e77;
+  --skin-scene: #135660;
   --skin-scrim: #064850c7;
   --skin-shadow: #00000080;
   --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;
@@ -563,8 +568,9 @@ html[data-skin='teal-paper'][data-theme-type='light'] {
   --skin-warning: #a16207;
   --skin-error: #b91c1c;
   --skin-info: #0369a1;
-  --skin-deep: #e6e8e7;
+  --skin-deep: #e1e6e4;
   --skin-high: #fcfdfc;
+  --skin-scene: #eff3f1;
   --skin-scrim: #06525c59;
   --skin-shadow: #06525c1f;
   --skin-font-display: 'Geist Variable', 'Geist', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Hiragino Sans GB', system-ui, sans-serif;

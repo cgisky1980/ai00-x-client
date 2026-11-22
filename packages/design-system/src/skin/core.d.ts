@@ -44,6 +44,9 @@ export const BUTTON_SHAPES: readonly ButtonShape[];
 export const MOTION_LEVELS: readonly MotionLevel[];
 export const FONT_CATALOG: Record<FontId, { name: string; role: 'sans' | 'serif' | 'mono'; stack: string }>;
 export const CONTRAST_RULES: ReadonlyArray<{ a: SeedKey; b: SeedKey; min: number; label: string }>;
+export const SURFACE_MIN_GAP: number;
+export const SCENE_MIN_GAP: number;
+export const SURFACE_LADDER: readonly string[];
 
 export function isHex(v: unknown): v is string;
 export function hexToRgb(hex: string): [number, number, number];
@@ -58,6 +61,7 @@ export function nudgeToContrast(fg: string, bg: string, min: number): string | n
 export function parseSkin(raw: unknown): { skin: Skin | null; errors: string[] };
 export function completeSeeds(seeds: SkinSeeds, mode: SkinMode): Record<SeedKey, string>;
 export function checkSkin(skin: Skin): SkinIssue[];
+export function checkSurfaceLadder(skin: Skin): SkinIssue[];
 export function skinVars(skin: Skin, mode: SkinMode): Record<string, string>;
 export function skinCss(skin: Skin, selector: string): string;
 export function skinAttributes(skin: Skin): Record<'data-skin' | 'data-buttons' | 'data-radius' | 'data-motion', string>;

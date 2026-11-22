@@ -52,7 +52,7 @@
         "$type": "color"
       },
       "scene": {
-        "$value": "color-mix(in oklab, var(--skin-bg) 40%, var(--skin-surface))",
+        "$value": "var(--skin-scene)",
         "$type": "color"
       },
       "flowchat": {

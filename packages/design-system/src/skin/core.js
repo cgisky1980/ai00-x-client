@@ -167,6 +167,48 @@ export const CONTRAST_RULES = [
 const STATUS_MIN = 3;
 
 /**
+ * 表面阶梯可分辨性（规范 §3.1 v1.1）：工作台的四个菜单承载层
+ * shell / workbench / sunken / base 两两 OKLab 明度差必须 ≥ SURFACE_MIN_GAP，
+ * 否则相邻菜单「糊成一块」——这是 v1.1 用户反馈的直接成因。
+ * 注意：不要求全 7 层严格单调——taste 亮色档 bg 是纯白天花板，surface/scene/overlay
+ * 必然挤在 0.94–1.0 窄区间，物理上塞不下 7 个可分辨层；浮层另靠 box-shadow 辅助。
+ * scene 与 overlay 是同档浮层，单独要求 ≥ SCENE_MIN_GAP，避免撞色。
+ * 与 semantic.json 表面公式同源；这里复算供 checkSkin 构建/编辑器共用。
+ */
+export const SURFACE_MIN_GAP = 0.012;
+export const SCENE_MIN_GAP = 0.005;
+export const SURFACE_LADDER = ['shell', 'workbench', 'sunken', 'base'];
+function surfaceLadderVars(s, vars) {
+  return {
+    shell: vars['--skin-deep'],
+    workbench: mixHex(vars['--skin-deep'], s.bg, 0.5),
+    sunken: mixHex(s.bg, s.surface, 0.5),
+    base: s.bg,
+    scene: vars['--skin-scene'],
+    overlay: mixHex(s.surface, vars['--skin-high'], 0.5),
+  };
+}
+/** 返回菜单层撞色 / scene-overlay 撞色的违例；无违例返回空数组 */
+export function checkSurfaceLadder(skin) {
+  const issues = [];
+  for (const mode of MODES) {
+    const s = completeSeeds(skin.modes[mode], mode);
+    const v = surfaceLadderVars(s, skinVars(skin, mode));
+    for (let i = 0; i < SURFACE_LADDER.length; i++)
+      for (let j = i + 1; j < SURFACE_LADDER.length; j++) {
+        const a = SURFACE_LADDER[i], b = SURFACE_LADDER[j];
+        const gap = Math.abs(hexToOklch(v[a])[0] - hexToOklch(v[b])[0]);
+        if (gap < SURFACE_MIN_GAP)
+          issues.push({ level: 'error', mode, pair: [a, b], label: `菜单层 ${a}/${b}`, ratio: gap, min: SURFACE_MIN_GAP });
+      }
+    const sceneGap = Math.abs(hexToOklch(v.scene)[0] - hexToOklch(v.overlay)[0]);
+    if (sceneGap < SCENE_MIN_GAP)
+      issues.push({ level: 'error', mode, pair: ['scene', 'overlay'], label: '场景/浮层撞色', ratio: sceneGap, min: SCENE_MIN_GAP });
+  }
+  return issues;
+}
+
+/**
  * 解析并校验一份皮肤 JSON。返回 { skin, errors }；errors 非空即不可用。
  * 只做结构校验；对比度见 checkSkin。
  */
@@ -267,6 +309,7 @@ export function checkSkin(skin) {
       if (ratio < STATUS_MIN) issues.push({ level: 'warn', mode, pair: [k, 'bg'], label: `状态色 ${k} / 底`, ratio, min: STATUS_MIN });
     }
   }
+  issues.push(...checkSurfaceLadder(skin));
   return issues;
 }
 
@@ -284,7 +327,9 @@ export function checkSkin(skin) {
 export function skinVars(skin, mode) {
   const s = completeSeeds(skin.modes[mode], mode);
   const dark = mode === 'dark';
-  const deep = shiftLightness(s.bg, dark ? -0.035 : -0.05);
+  // v1.1：暗色从 bg 下压 0.035（不变）；亮色种子 bg 是纯白明度天花板，
+  // 从 bg 下压会让 shell 挤在 sunken 附近，改从 surface 下压 0.03 拉开工作台菜单梯度。
+  const deep = dark ? shiftLightness(s.bg, -0.035) : shiftLightness(s.surface, -0.03);
   const high = dark ? shiftLightness(s.surface, 0.06) : mixHex(s.surface, '#ffffff', 0.85);
   const vars = {
     '--skin-bg': s.bg,
@@ -302,6 +347,8 @@ export function skinVars(skin, mode) {
     '--skin-info': s.info,
     '--skin-deep': deep,
     '--skin-high': high,
+    // v1.1：scene 明度按档定向，避免亮色档与 overlay 撞色（semantic.json 直接引用）
+    '--skin-scene': dark ? mixHex(s.bg, s.surface, 0.4) : mixHex(s.bg, s.surface, 0.7),
     '--skin-scrim': dark ? `${deep}c7` : `${s.ink}59`,
     '--skin-shadow': dark ? '#00000080' : `${s.ink}1f`,
     '--skin-font-display': FONT_CATALOG[skin.type.display].stack,
