@@ -925,6 +925,10 @@ export const TodoOverlay: React.FC = () => {
             inExecution(t) &&
             Boolean(t.planApprovedAt) &&
             !map[sid as string] &&
+            // 子代理还在跑 = 任务仍在推进。编排者回合在等 worker 时会短暂 closed，
+            // 只看主会话 running 会把它误判成「停在执行段」（实测：卡片明明在跑，
+            // 弹出「停在半路没自检收口」且带了危险的「继续执行」按钮）。
+            !runningParents.has(sid as string) &&
             !failedMap[sid as string] &&
             (questions[sid as string]?.length ?? 0) === 0 &&
             !runStateMap[sid as string]?.openTurn &&
