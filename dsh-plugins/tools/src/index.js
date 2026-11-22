@@ -1028,7 +1028,49 @@ function submitSelfCheckInData(data, taskId, deliverables) {
 // 工具定义（原始 ToolDefinition 形状）
 // ---------------------------------------------------------------------------
 
+/**
+ * 会话工作目录 → 任务 id（`…/workbenches/tasks/<taskId>`）。
+ *
+ * 只认工作台任务目录里的 `t-<时间戳>-<短码>`；普通项目目录返回空串（不猜）。
+ */
+export function taskIdFromCwd(path) {
+  const match = /(?:^|[\\/])(t-\d+-[a-z0-9]+)(?:[\\/]|$)/i.exec(String(path ?? ""));
+  return match ? match[1] : "";
+}
+
+/**
+ * 显式 taskId 与工作目录推断值之间取哪个。
+ *
+ * 工作台会话的 cwd 就是它那张卡的任务目录，所以**目录优先**：模型偶尔会把长 id
+ * 抄错（实测 `t-179520207736548-5kr`），甚至小模型退化成一串同样的数字
+ * （实测 `t-17953232818525336482676897899082969…`，`ai00_plan_read` 还回了
+ * 「no plan document yet」，看起来像卡里真没计划）。普通项目会话没有可推断的
+ * 目录，仍用显式值。
+ */
+export function pickTaskId(explicit, cwd) {
+  return taskIdFromCwd(cwd) || String(explicit ?? "").trim();
+}
+
 function defineTools(ctx, api) {
+  /**
+   * taskId 解析：模型漏传/传错时以会话工作目录为准。
+   *
+   * 工作台任务的 cwd 固定是 `<APPDATA>/Ai00-X/workbenches/tasks/<taskId>`（见
+   * `resolveVerifyCwd`），会话本来就绑定在这张卡上。实测有回合连续漏传 taskId
+   * （连吃两次 `Error: taskId is required`），每次都是一整轮往返 + 一条错误上下文；
+   * 也有抄错/退化成乱码的 id 静默读到「没有计划」。普通项目会话的 cwd 里没有
+   * `t-…` 段，仍按缺参报错，不猜。
+   */
+  async function resolveTaskId(args, exec) {
+    let cwd = "";
+    try {
+      cwd = await ctx.workingDirectory.ensure(exec.agent, exec.signal);
+    } catch {
+      cwd = "";
+    }
+    return pickTaskId(args?.taskId, cwd);
+  }
+
   // ---- ai00_notify：系统桌面通知 ----
   ctx.tools.register({
     name: "ai00_notify",
@@ -1297,7 +1339,11 @@ function defineTools(ctx, api) {
     parameters: {
       type: "object",
       properties: {
-        taskId: { type: "string", description: "Task id from the task brief." },
+        taskId: {
+          type: "string",
+          description:
+            "Task id from the task brief. Optional: derived from the session working directory when omitted (workbench task folders are named by task id).",
+        },
         snapshotDir: {
           type: "string",
           description: "Working directory of this task (used to run commands and collect git evidence).",
@@ -1321,7 +1367,7 @@ function defineTools(ctx, api) {
             "When the verdict is passed and stepId is given, also tick that step's checkbox in the same call (saves one ai00_plan_check round trip). Ignored for failed/needs-review.",
         },
       },
-      required: ["taskId"],
+      required: [],
       additionalProperties: false,
     },
     output: {
@@ -1515,7 +1561,7 @@ function defineTools(ctx, api) {
       },
     },
     async execute(args, exec) {
-      const taskId = String(args?.taskId ?? "").trim();
+      const taskId = await resolveTaskId(args, exec);
       if (!taskId) throw new Error("taskId is required");
       const stepId = String(args?.stepId ?? "").trim();
       const cwd = resolveVerifyCwd(taskId, args?.snapshotDir);
@@ -1849,7 +1895,11 @@ function defineTools(ctx, api) {
     parameters: {
       type: "object",
       properties: {
-        taskId: { type: "string", description: "Task id from the task brief or ai00_todo_read." },
+        taskId: {
+          type: "string",
+          description:
+            "Task id from the task brief or ai00_todo_read. Optional: derived from the session working directory when omitted.",
+        },
         snapshotDir: {
           type: "string",
           description:
@@ -1905,7 +1955,7 @@ function defineTools(ctx, api) {
           : text(`self-check submitted for human acceptance: ${value.title} (${(value.deliverables ?? []).length} deliverables registered; awaiting user review in the Zhixing board)`),
     },
     async execute(args, exec) {
-      const taskId = String(args?.taskId ?? "").trim();
+      const taskId = await resolveTaskId(args, exec);
       if (!taskId) throw new Error("taskId is required");
       const snapshotDir = String(args?.snapshotDir ?? "").trim();
       // 验收命令必须有工作目录：缺省用任务卡默认目录，绝不落到引擎进程目录里跑。
@@ -2302,9 +2352,13 @@ function defineTools(ctx, api) {
     parameters: {
       type: "object",
       properties: {
-        taskId: { type: "string", description: "Task id (from the task brief or ai00_todo_read)." },
+        taskId: {
+          type: "string",
+          description:
+            "Task id (from the task brief or ai00_todo_read). Optional: derived from the session working directory when omitted.",
+        },
       },
-      required: ["taskId"],
+      required: [],
       additionalProperties: false,
     },
     output: {
@@ -2327,7 +2381,7 @@ function defineTools(ctx, api) {
     },
     isConcurrencySafe: () => true,
     async execute(args, exec) {
-      const taskId = String(args?.taskId ?? "").trim();
+      const taskId = await resolveTaskId(args, exec);
       if (!taskId) throw new Error("taskId is required");
       const result = await api.get(
         `/plan?taskId=${encodeURIComponent(taskId)}`,
@@ -2349,13 +2403,17 @@ function defineTools(ctx, api) {
     parameters: {
       type: "object",
       properties: {
-        taskId: { type: "string", description: "Task id." },
+        taskId: {
+          type: "string",
+          description:
+            "Task id. Optional: derived from the session working directory when omitted.",
+        },
         markdown: {
           type: "string",
           description: "Complete updated Markdown document (full replacement, not a patch).",
         },
       },
-      required: ["taskId", "markdown"],
+      required: ["markdown"],
       additionalProperties: false,
     },
     output: {
@@ -2387,7 +2445,7 @@ function defineTools(ctx, api) {
       },
     },
     async execute(args, exec) {
-      const taskId = String(args?.taskId ?? "").trim();
+      const taskId = await resolveTaskId(args, exec);
       const markdown = String(args?.markdown ?? "");
       if (!taskId || !markdown.trim()) throw new Error("taskId and markdown are required");
       // 先读旧计划判断是否「首次成文」：读失败按非首次处理，不阻断写盘
@@ -2505,7 +2563,11 @@ function defineTools(ctx, api) {
     parameters: {
       type: "object",
       properties: {
-        taskId: { type: "string", description: "Task id." },
+        taskId: {
+          type: "string",
+          description:
+            "Task id. Optional: derived from the session working directory when omitted.",
+        },
         match: {
           type: "string",
           description:
@@ -2522,7 +2584,7 @@ function defineTools(ctx, api) {
           description: "true = mark done ([x]), false = uncheck ([ ]). Default true.",
         },
       },
-      required: ["taskId"],
+      required: [],
       additionalProperties: false,
     },
     output: {
@@ -2554,7 +2616,7 @@ function defineTools(ctx, api) {
       },
     },
     async execute(args, exec) {
-      const taskId = String(args?.taskId ?? "").trim();
+      const taskId = await resolveTaskId(args, exec);
       const batch = Array.isArray(args?.matches)
         ? args.matches.map((m) => String(m ?? "").trim()).filter(Boolean)
         : [];
