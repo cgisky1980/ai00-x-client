@@ -235,15 +235,26 @@ function localStamp() {
 /**
  * 步骤块是否已有**可用**验证证据（`ai00_task_verify` 写回的 `- 验证: <verdict>`）。
  *
- * `passed` 与 `needs-review` 都算「验过」：manual 类验收（`{cmd: …}` 无法执行）
- * 永远只能拿到 needs-review，若只认 passed，这类步骤就永远勾不上（死锁）。
- * `failed` 与「根本没有验证行」一律拒绝——那才是真正的假进度。
+ * `passed` 都算「验过」；`needs-review` 只在**没有可执行命令**（纯人工判据）时放行——
+ * manual 类验收永远只能拿到 needs-review，若一律只认 passed，这类步骤就永远勾不上
+ * （死锁）。步骤里写了 `{cmd:}` 时要求证据行 `命令 N/M 通过` 且 N≥1：命令存在却
+ * 0/0 说明它们从未真正运行（解析漏项 / 未执行），勾上就是假进度。
+ * `failed` 与「根本没有验证行」一律拒绝。
  */
-function usableEvidence(block) {
+export function usableEvidence(block) {
   const match = /^\s*-\s*(验证|verification)\s*[:：]\s*([a-z-]+)/im.exec(block);
   if (!match) return { ok: false, verdict: "" };
   const verdict = match[2].toLowerCase();
-  return { ok: verdict === "passed" || verdict === "needs-review", verdict };
+  if (verdict === "passed") return { ok: true, verdict };
+  if (verdict !== "needs-review") return { ok: false, verdict };
+  // needs-review 可以勾（人工判据），但「步骤里写了 {cmd:} 却一条都没跑」是假进度：
+  // 实测计划用「Acceptance: 换行子项」写法时旧解析漏掉命令，证据行是 `命令 0/0 通过`，
+  // 步骤仍被勾上并提交了自检（2026-11-22）。命令存在时必须真跑过（N≥1）才放行。
+  const hasCmd = /\{cmd\s*:/.test(block);
+  if (!hasCmd) return { ok: true, verdict };
+  const ran = /^\s*-\s*(证据|evidence)\s*[:：][^\n]*?(\d+)\s*\/\s*(\d+)\s*通过/im.exec(block);
+  const ranCount = ran ? Number(ran[2]) : 0;
+  return { ok: ranCount > 0, verdict };
 }
 
 /**
