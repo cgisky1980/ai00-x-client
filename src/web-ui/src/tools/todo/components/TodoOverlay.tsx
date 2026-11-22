@@ -32,7 +32,7 @@ import {
 import { buildChildStallPrompt } from '../ai/prompts';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
 import { dismissTaskNotification, goToTask, notifyTask, type NotifyAction } from '../utils/notify';
-import { continueTaskRun } from '../utils/continueRun';
+import { continueTaskRun, SessionLostError } from '../utils/continueRun';
 import { invoke } from '@tauri-apps/api/core';
 
 /**
@@ -58,11 +58,23 @@ function resumeTask(
       void invoke<string | null>('todo_plan_get', { taskId: task.id })
         .catch(() => null)
         .then((plan) => continueTaskRun(task, plan, lastError))
-        .catch((e) =>
+        .catch((e) => {
+          // 会话被引擎清理：绑定已重置，下一步是「打开卡片按计划重建会话」，
+          // 不是让人反复点「继续执行」（那只会一直失败）。
+          if (e instanceof SessionLostError) {
+            notifyTask(
+              '会话已丢失 · 需要你',
+              `「${task.title}」的 agent 会话已不存在（引擎清理或换了数据目录），绑定已重置——打开卡片会按计划重新开工`,
+              'warning',
+              [goToTask(task.id, '去查看')],
+              { duration: 0 },
+            );
+            return;
+          }
           notifyTask('继续执行失败', String(e).slice(0, 160), 'error', [
             goToTask(task.id, '去查看'),
-          ]),
-        );
+          ]);
+        });
     },
   };
 }

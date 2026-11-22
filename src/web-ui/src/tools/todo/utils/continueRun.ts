@@ -35,6 +35,19 @@ export function buildContinuePrompt(
 }
 
 /**
+ * 任务绑定的会话已经不存在（引擎清理 / 换了数据目录）。
+ *
+ * 与「这一轮跑失败」区分开：那种情况重试有意义；会话没了怎么重试都送不到，
+ * 必须先重置绑定、由卡片重新建会话。否则卡片会永久卡在「继续执行 → 失败」的死循环。
+ */
+export class SessionLostError extends Error {
+  constructor() {
+    super('任务会话已丢失（引擎清理或更换了数据目录），已重置绑定');
+    this.name = 'SessionLostError';
+  }
+}
+
+/**
  * 会话已在时补一条按计划续跑的消息（不重建会话、不改预设）。
  *
  * 停住的任务（客户端重启 / 回合被打断 / 出错后 / 回合结束没收口）以前只能靠人
@@ -47,6 +60,19 @@ export async function continueTaskRun(
 ): Promise<void> {
   const sessionId = task.agentSessionId;
   if (!sessionId) throw new Error('task has no agent session');
-  await dshSession.prompt(sessionId, buildContinuePrompt(task.executionMode, planMd, lastError));
+  try {
+    await dshSession.prompt(sessionId, buildContinuePrompt(task.executionMode, planMd, lastError));
+  } catch (e) {
+    // 会话不存在 → 清掉绑定，让「打开卡片」按计划重建会话（TaskScene 的 resumable 分支）。
+    const alive = await dshSession
+      .list()
+      .then(({ items }) => items.some((s) => s.sessionId === sessionId))
+      .catch(() => true); // 列不出来时按「还活着」处理：别把可重试的失败误判成会话丢失
+    if (!alive) {
+      useTodoStore.getState().updateTask(task.id, { agentSessionId: undefined });
+      throw new SessionLostError();
+    }
+    throw e;
+  }
   useTodoStore.getState().updateTask(task.id, { status: 'doing' });
 }
