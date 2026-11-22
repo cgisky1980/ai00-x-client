@@ -554,7 +554,7 @@ export const TodoOverlay: React.FC = () => {
               ? // 额度/凭据/模型这类失败重试必然同样结果：第一次就不给「继续执行」。
                 notifyTask(
                   '任务出错 · 需要你',
-                  `「${task.title}」这一轮失败${reason ? `：${reason}` : ''}——${guidance.hint}；处理完回卡片点「继续执行」`,
+                  `「${task.title}」这一轮失败${reason ? `：${reason}` : ''}——${guidance.hint}；处理完回卡片点「已修好，重试」`,
                   'error',
                   [goToTask(task.id, '去查看')],
                 )
@@ -987,7 +987,7 @@ export const TodoOverlay: React.FC = () => {
             // 多张卡时原因属于谁要说清楚（按钮只作用于第一张）；单张直接用名字打头。
             `${names}${n > 2 ? ' 等' : ''}上一轮以错误收尾${firstFailureReason ? `${n > 1 ? `（首条${firstFailureTitle}）` : ''}：${firstFailureReason}` : ''}——${
               firstFailureGuidance.blocking
-                ? `${firstFailureGuidance.hint}，处理后才能继续`
+                ? `${firstFailureGuidance.hint}，处理后回卡片点「已修好，重试」`
                 : `点开卡片看错误${n === 1 ? '，或点「继续执行」重试' : ''}`
             }`,
           (l) =>

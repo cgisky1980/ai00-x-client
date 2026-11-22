@@ -930,10 +930,21 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       {/* 停住的任务（客户端重启 / 回合被打断 / 出错之后）以前只能靠人再打一句话续跑——
           看门狗提示里早就写着「点「继续执行」」，可这个按钮一直不存在。
           步骤全做完只是没提交自检时只给下面那个「提交自检」：同一时刻只留一个推进动作。 */}
-      {/* 额度 / 凭据 / 模型不可用：再点「继续执行」或「提交自检」只会同样失败，
-          直接把要修什么写在卡片上，处理完人自然会再推一次。 */}
+      {/* 额度 / 凭据 / 模型不可用：立刻重试只会同样失败，先给处理建议；
+          处理完人仍需一个出口，所以留一个显式的「已修好，重试」。 */}
       {!readOnly && !running && failure.blocking && (
-        <p className="ai00-x-plan-card__hint">{failure.hint}</p>
+        <div className="ai00-x-plan-card__actions">
+          <p className="ai00-x-plan-card__hint">{failure.hint}</p>
+          <Button
+            variant="secondary"
+            size="small"
+            disabled={busy}
+            onClick={allDone && !task.agentCompletedAt ? nudgeSelfCheck : resume}
+          >
+            <Play size={12} />
+            {t('nav.workbenchWindow.progress.retryAfterFix')}
+          </Button>
+        </div>
       )}
       {/* 可重试的失败也把原因摆在卡片上：不必先去对话里翻错误气泡。 */}
       {!readOnly && !running && !failure.blocking && failureSummary && (
