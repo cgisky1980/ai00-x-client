@@ -22,7 +22,11 @@ import {
   InputDialog,
 } from '@/component-library';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
-import { dshSession, subagentInterrupt } from '@/infrastructure/api/service-api/DshAPI';
+import {
+  drainSessionQueue,
+  dshSession,
+  subagentInterrupt,
+} from '@/infrastructure/api/service-api/DshAPI';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import type { TodoTask } from '@/tools/todo/api/types';
 import { releaseWorktree } from '../projects/projectGit';
@@ -63,17 +67,24 @@ export const TaskActionsMenu: React.FC<TaskActionsMenuProps> = ({
   /**
    * 归档 / 删除后卡片不可再打开（归档行禁用、删除连卡带面板一起消失），
    * 正在跑的回合就没地方按「停止」了——变成看不见的烧钱。这里先把主回合与子代理停掉。
+   *
+   * 队列也要先清：引擎在回合一结束就会领取 next-turn 项自动开下一回合，只 cancel
+   * 等于「卡没了但还在跑」。注意与工作台「停止」按钮的语义不同——那里人还在看着，
+   * 保持「只停当前回合、队列照跑」；归档 / 删除是彻底离场，队列不能留。
    */
-  const stopTaskSession = useCallback((): void => {
+  const stopTaskSession = useCallback(async (): Promise<void> => {
     if (!sessionId) return;
-    if (turnRunning) void dshSession.cancel(sessionId).catch(() => undefined);
+    if (turnRunning) {
+      await drainSessionQueue(sessionId).catch(() => undefined);
+      await dshSession.cancel(sessionId).catch(() => undefined);
+    }
     for (const childId of runningChildKey ? runningChildKey.split(',') : []) {
       void subagentInterrupt(sessionId, childId).catch(() => undefined);
     }
   }, [runningChildKey, sessionId, turnRunning]);
 
   const handleArchive = (): void => {
-    if (!archived && running) stopTaskSession();
+    if (!archived && running) void stopTaskSession();
     updateTask(task.id, { archivedAt: archived ? null : Date.now() });
     onArchived?.(!archived);
   };
@@ -177,8 +188,8 @@ export const TaskActionsMenu: React.FC<TaskActionsMenuProps> = ({
           // 同一帧卸载会跳过 Radix 的 body pointer-events 恢复（整页点不动）。
           setDeleteOpen(false);
           window.setTimeout(() => {
-            // 卡片一删就再也按不到「停止」：先在跑的回合与子代理停掉。
-            if (running) stopTaskSession();
+            // 卡片一删就再也按不到「停止」：先在跑的回合与子代理停掉（含清空排队项）。
+            if (running) void stopTaskSession();
             // 隔离执行的任务：顺手回收 worktree。脏目录会被 Git 拒绝——刻意保留，
             // 交回用户处理，避免删卡时连未提交改动一起抹掉。
             if (task.worktreePath) {

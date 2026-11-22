@@ -1054,6 +1054,32 @@ export function subagentPrompt(
   });
 }
 
+/**
+ * 清空会话的待处理输入（next-turn 排队 / next-step 待插话）。
+ *
+ * 引擎没有「清队列」原语，按 `session/state` 的活队列快照逐项 `remove`。
+ * 用途：归档 / 删除任务这类**之后再也按不到停止**的路径——只 cancel 当前回合的话，
+ * 队列里的消息会在回合一结束后立刻开下一回合，卡片却已经看不见了（7.36.4 遗留）。
+ * 返回实际移除条数；无 live Agent（queue 为 null）或逐项已被领取都静默跳过。
+ */
+export async function drainSessionQueue(sessionId: string): Promise<number> {
+  let removed = 0;
+  try {
+    const state = await dshSession.state(sessionId);
+    for (const item of state.queue ?? []) {
+      try {
+        await dshSession.updateQueue(sessionId, item.itemId, { kind: 'remove' });
+        removed += 1;
+      } catch {
+        // 该项已被引擎领取/已删除：忽略
+      }
+    }
+  } catch {
+    // 无 live Agent（会话已收口）：没有可清的队列
+  }
+  return removed;
+}
+
 /** 停止：以父会话身份中断 continuable 子代理（已结束的子代理为无操作）。 */
 export function subagentInterrupt(
   parentSessionId: string,
