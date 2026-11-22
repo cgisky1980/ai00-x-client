@@ -163,6 +163,8 @@ export const TodoOverlay: React.FC = () => {
   const failureToastRef = useRef(new Map<string, string>());
   /** 会话 → 提问通知 id：问一次只留一条，答完即收（同一时刻允许覆盖）。 */
   const questionToastRef = useRef(new Map<string, string>());
+  /** `${sessionId}:${approvalId}` → 审批通知 id：解答后收起（删卡时由轮询兜底收）。 */
+  const approvalToastRef = useRef(new Map<string, string>());
   /** 本次运行里见过在跑的会话（父会话含「有子代理在跑」）：只在它们身上判「停住」。 */
   const seenRunningRef = useRef(new Set<string>());
   /** 任务 → 连续判定为「停住」的轮询次数（≈30s/次）。 */
@@ -410,9 +412,36 @@ export const TodoOverlay: React.FC = () => {
         }
         // 工具审批挂起 = 等人工点击——合法静默，看门狗豁免
         awaitingApprovalRef.current.add(frame.sessionId);
+        // 但「等人点击」不等于「人知道要点」：审批以前只有看门狗豁免、没有任何提示，
+        // 人离开工作台时任务会一直挂着。补一条常驻「审批 · 需要你」（去查看直达审批卡），
+        // 答完（approval/resolved）即收。
+        const approvalTask = useTodoStore
+          .getState()
+          .data.tasks.find((t) => t.agentSessionId === frame.sessionId && !t.archivedAt);
+        if (approvalTask) {
+          const key = `${frame.sessionId}:${frame.approvalId}`;
+          const previous = approvalToastRef.current.get(key);
+          if (previous) dismissTaskNotification(previous);
+          approvalToastRef.current.set(
+            key,
+            notifyTask(
+              '审批 · 需要你',
+              `「${approvalTask.title}」的工具 ${frame.toolName} 等你确认${frame.reason ? `：${frame.reason.slice(0, 60)}` : ''}`,
+              'warning',
+              [goToTask(approvalTask.id, '去审批')],
+              { duration: 0 },
+            ),
+          );
+        }
       } else if (frame.type === 'approval/resolved') {
         awaitingApprovalRef.current.delete(frame.sessionId);
         activityRef.current.set(frame.sessionId, Date.now());
+        const key = `${frame.sessionId}:${frame.approvalId}`;
+        const toastId = approvalToastRef.current.get(key);
+        if (toastId) {
+          approvalToastRef.current.delete(key);
+          dismissTaskNotification(toastId);
+        }
       }
     });
     return () => conn.close();
@@ -626,6 +655,13 @@ export const TodoOverlay: React.FC = () => {
           if (tasks.some((x) => x.id === taskId)) continue;
           stallToastRef.current.delete(taskId);
           idlePollsRef.current.delete(taskId);
+          dismissTaskNotification(toastId);
+        }
+        // 审批通知按「会话 + approvalId」记：卡被删 / 会话被清后同样要收。
+        for (const [key, toastId] of [...approvalToastRef.current]) {
+          const sid = key.split(':')[0];
+          if (tasks.some((x) => x.agentSessionId === sid)) continue;
+          approvalToastRef.current.delete(key);
           dismissTaskNotification(toastId);
         }
 
