@@ -9,7 +9,7 @@
  * 数据只来自既有解析器（planStructure / planAcceptance）与 workbenchTaskStore，
  * 不新增后端字段。旧格式计划（无 T 编号）回落三态进度。
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { Check, FolderOpen, Pencil, Play, Plus, Trash2, Undo2 } from 'lucide-react';
@@ -188,6 +188,13 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const [sourceOpen, setSourceOpen] = useState(false);
   /** 源码全文编辑（次要入口）；null = 只读预览。 */
   const [sourceDraft, setSourceDraft] = useState<string | null>(null);
+  /**
+   * 点「编辑计划」时源码面板是否本来就是展开的。
+   *
+   * 取消编辑应回到进入编辑前的形态：原本收着的就收起（否则取消后卡片停在
+   * 「收起原文」的原始 Markdown 预览上，看起来像没取消掉），原本展开的保持展开。
+   */
+  const sourceWasOpenRef = useRef(false);
   /** 行内编辑中的步骤。 */
   const [stepDraft, setStepDraft] = useState<StepDraft | null>(null);
 
@@ -1137,6 +1144,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
             type="button"
             className="ai00-x-plan-card__link"
             onClick={() => {
+              sourceWasOpenRef.current = sourceOpen;
               setSourceDraft(planMd ?? '');
               setSourceOpen(true);
             }}
@@ -1169,7 +1177,15 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
               />
               <div className="ai00-x-plan-card__actions">
                 <span className="ai00-x-plan-card__hint">{t('nav.workbenchWindow.plan.editHint')}</span>
-                <Button variant="secondary" size="small" onClick={() => setSourceDraft(null)} disabled={busy}>
+                <Button
+                  variant="secondary"
+                  size="small"
+                  onClick={() => {
+                    setSourceDraft(null);
+                    setSourceOpen(sourceWasOpenRef.current);
+                  }}
+                  disabled={busy}
+                >
                   {t('nav.workbenchWindow.plan.editCancel')}
                 </Button>
                 <Button
