@@ -399,6 +399,45 @@ async function* translateStream(sseObjects, model) {
 // ---------------------------------------------------------------------------
 
 /**
+ * 网关返回这些状态码时自动重试（抖动不该变成「这一轮失败，等人点继续执行」）。
+ *
+ * 只覆盖**还没开始出流**的响应：上游 429/5xx 与网关 502 包装（实测
+ * `502 {"error":{"code":429,...}}`）。流中途断掉不在此列——重发会重复输出。
+ */
+const RETRYABLE_HTTP_STATUS = new Set([429, 500, 502, 503, 504]);
+
+/** 自动重试的退避（毫秒）。数组长度 = 自动重试次数，之后才把错误回灌给模型。 */
+const RETRY_DELAYS_MS = [800, 2000];
+
+/** 单次退避上限：Retry-After 再大也不让人干等（上游 429 常见 1s）。 */
+const RETRY_MAX_DELAY_MS = 5000;
+
+function sleepMs(ms, signal) {
+  return new Promise((resolve) => {
+    if (signal?.aborted) return resolve();
+    const timer = setTimeout(() => {
+      signal?.removeEventListener?.("abort", onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      resolve();
+    }
+    signal?.addEventListener?.("abort", onAbort, { once: true });
+  });
+}
+
+/** 本次重试要等多久：优先按上游 Retry-After（秒），否则用固定退避。 */
+export function retryDelayFor(response, attempt) {
+  const header = response?.headers?.get?.("retry-after");
+  const seconds = Number.parseInt(header ?? "", 10);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.min(seconds * 1000, RETRY_MAX_DELAY_MS);
+  }
+  return RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)];
+}
+
+/**
  * 先发一个文本块把错误写进助手消息，再以 error 收尾。
  *
  * 背景（12FA Factor 9「压缩错误回灌」缺口）：此前 bridge 只发
@@ -543,33 +582,49 @@ class Ai00XAdapter {
     };
 
     let response;
-    try {
-      response = await fetch(`${baseURL}/ai00-internal/llm/v1/chat/completions`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-ai00-internal-token": token,
-          ...(options.sessionId
-            ? { "x-ai00-session-id": String(options.sessionId) }
-            : {}),
-        },
-        body: JSON.stringify(body),
-        signal: options.signal,
-      });
-    } catch (error) {
-      yield* yieldTransportError(
-        "AI00X_UNREACHABLE",
-        {
-          message: `Ai00-X gateway unreachable (${baseURL}): ${error.message}. Is the Ai00-X desktop client running?`,
-          code: "AI00X_UNREACHABLE",
-        },
-        "本地 AI 网关（Ai00-X 客户端内嵌服务）暂时连不上。若你正在桌面客户端里运行，这通常是瞬时的：请直接就刚才的请求重试一次；若连续两次仍失败，再向用户说明并停下。"
-      );
-      return;
-    }
+    let attempt = 0;
+    for (;;) {
+      try {
+        response = await fetch(`${baseURL}/ai00-internal/llm/v1/chat/completions`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-ai00-internal-token": token,
+            ...(options.sessionId
+              ? { "x-ai00-session-id": String(options.sessionId) }
+              : {}),
+          },
+          body: JSON.stringify(body),
+          signal: options.signal,
+        });
+      } catch (error) {
+        yield* yieldTransportError(
+          "AI00X_UNREACHABLE",
+          {
+            message: `Ai00-X gateway unreachable (${baseURL}): ${error.message}. Is the Ai00-X desktop client running?`,
+            code: "AI00X_UNREACHABLE",
+          },
+          "本地 AI 网关（Ai00-X 客户端内嵌服务）暂时连不上。若你正在桌面客户端里运行，这通常是瞬时的：请直接就刚才的请求重试一次；若连续两次仍失败，再向用户说明并停下。"
+        );
+        return;
+      }
 
-    if (!response.ok) {
+      if (response.ok) break;
+
       const text = await response.text().catch(() => "");
+      // 429 / 5xx 尚未出流，重发不会重复输出：自动退避重试，别把一次抖动
+      // 变成「这一轮失败 → 通知 → 人点继续执行」。
+      if (
+        RETRYABLE_HTTP_STATUS.has(response.status) &&
+        attempt < RETRY_DELAYS_MS.length &&
+        !options.signal?.aborted
+      ) {
+        await sleepMs(retryDelayFor(response, attempt), options.signal);
+        if (options.signal?.aborted) return;
+        attempt += 1;
+        continue;
+      }
+
       yield* yieldTransportError("AI00X_HTTP", {
         message: `Ai00-X gateway HTTP ${response.status}: ${text.slice(0, 500)}`,
         code: "AI00X_HTTP",
