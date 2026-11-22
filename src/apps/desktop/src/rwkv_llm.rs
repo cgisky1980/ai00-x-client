@@ -40,11 +40,14 @@ macro_rules! debug_print {
 const MAX_SLOTS: usize = 16;
 /// prefill 分块长度：限制单次 seq 缓冲大小（块大小固定避免重建）。
 ///
-/// 2026-11-23 由 128 调到 512：分块是串行推进的，每块都是一次独立的
-/// `forward_seq_with_state` 调用，块越小调用开销/GPU 利用率损失占比越高。
-/// 5,056 token 全量 prefill 实测（max_tokens=16，同机同模型）：
-/// 128 分块 4.33s → 512 分块 3.63s（-16%）。
-const PREFILL_CHUNK: usize = 512;
+/// 分块是串行推进的，每块一次 `forward_seq_with_state`；块越小调用开销占比越高，
+/// 但块越大末块（prompt 长度取模）与会话回退拆分块的重建代价也越大。引擎层 A/B
+/// （3B int8，同机，含会话回退 head/tail 路径，5056 token）：
+/// 128 ≈ 4.5s → 512 ≈ 2.6-2.9s → **768 ≈ 2.40s** → 1024 ≈ 2.6s → 1536 不稳。
+/// 2048 token 时 512/768 持平；8192 token 时 768 仍快约 7%。768 是 256 对齐
+/// （`m_pad` 按 256 补齐）下的甜点，故取 768。E2E（rwkv_chat，4984 token，
+/// max_tokens=16）：512 中位 2.92s → 768 中位 2.64s（-10%）。
+const PREFILL_CHUNK: usize = 768;
 /// 惩罚历史每槽容量（token 数）。超出后丢弃最旧 1/4（惩罚窗口滑动，语义与
 /// 客户端原 `token_counts` 的"全历史计数"在窗口内等价）。
 const HIST_STRIDE: usize = 8192;
