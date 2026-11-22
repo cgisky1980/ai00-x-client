@@ -437,12 +437,20 @@ function sleepMs(ms, signal) {
   });
 }
 
-/** 本次重试要等多久：优先按上游 Retry-After（秒），否则用固定退避。 */
-export function retryDelayFor(response, attempt) {
+/** 本次重试要等多久：Retry-After 头 → 上游文案里的 "retry after N seconds" → 固定退避。 */
+export function retryDelayFor(response, attempt, upstreamMessage) {
   const header = response?.headers?.get?.("retry-after");
-  const seconds = Number.parseInt(header ?? "", 10);
-  if (Number.isFinite(seconds) && seconds > 0) {
-    return Math.min(seconds * 1000, RETRY_MAX_DELAY_MS);
+  const headerSeconds = Number.parseInt(header ?? "", 10);
+  if (Number.isFinite(headerSeconds) && headerSeconds > 0) {
+    return Math.min(headerSeconds * 1000, RETRY_MAX_DELAY_MS);
+  }
+  // 网关不会透传 Retry-After 头，只把上游原文塞进 message（实测 "retry after 1 seconds"）。
+  const hinted = /retry after\s+(\d+(?:\.\d+)?)\s*(ms|milliseconds?|seconds?|s\b)?/i.exec(upstreamMessage ?? "");
+  if (hinted) {
+    const value = Number.parseFloat(hinted[1]);
+    const unit = (hinted[2] ?? "seconds").toLowerCase();
+    const ms = unit.startsWith("ms") || unit.startsWith("millisecond") ? value : value * 1000;
+    return Math.min(Math.max(Math.round(ms), 200), RETRY_MAX_DELAY_MS);
   }
   return RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)];
 }
@@ -695,7 +703,7 @@ class Ai00XAdapter {
         attempt < RETRY_DELAYS_MS.length &&
         !options.signal?.aborted
       ) {
-        await sleepMs(retryDelayFor(response, attempt), options.signal);
+        await sleepMs(retryDelayFor(response, attempt, upstream?.message), options.signal);
         if (options.signal?.aborted) return;
         attempt += 1;
         continue;
