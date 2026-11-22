@@ -504,6 +504,27 @@ function builtinFileCheck(cmd, cwd) {
 }
 
 /**
+ * 验收命令的工作目录：显式 snapshotDir → 任务卡默认目录（存在时）→ ""（不执行）。
+ *
+ * 以前 snapshotDir 缺省时直接 `cwd: undefined`：exec 会落到引擎进程目录（可能是
+ * 客户端安装目录），`git status` 之类的检查在那里可能「通过」，证据不可信。
+ * 宁可把这类命令标成不可执行，让模型补 snapshotDir。
+ */
+export function resolveVerifyCwd(taskId, snapshotDir) {
+  const explicit = String(snapshotDir ?? "").trim();
+  if (explicit) return explicit;
+  const base = process.env.APPDATA || process.env.HOME;
+  if (!base || !taskId) return "";
+  const guess = join(base, "Ai00-X", "workbenches", "tasks", taskId);
+  try {
+    if (statSync(guess).isDirectory()) return guess;
+  } catch {
+    // 任务目录不存在：不猜
+  }
+  return "";
+}
+
+/**
  * 执行一条验收验证命令（child_process.exec，任务工作目录内，2 分钟超时）。
  * 返回 {ok, output}；output 截断到 2000 字符（错误信息可承载，不撑爆上下文）。
  */
@@ -1409,7 +1430,7 @@ function defineTools(ctx, api) {
       const taskId = String(args?.taskId ?? "").trim();
       if (!taskId) throw new Error("taskId is required");
       const stepId = String(args?.stepId ?? "").trim();
-      const cwd = String(args?.snapshotDir ?? "").trim();
+      const cwd = resolveVerifyCwd(taskId, args?.snapshotDir);
       const pathFilter = Array.isArray(args?.paths)
         ? args.paths.map((p) => String(p ?? "").trim()).filter(Boolean)
         : [];
@@ -1463,7 +1484,14 @@ function defineTools(ctx, api) {
           unrunnable.push(`${explainNotWhitelisted(cmd)} :: ${item.text.trim().slice(0, 120)}`);
           continue;
         }
-        const verdict = await runVerification(cmd, cwd || undefined, exec.signal);
+        if (!cwd) {
+          // 没有工作目录就不执行：宁可标不可执行，也不在引擎进程目录里「验」出假证据。
+          unrunnable.push(
+            `missing working directory (pass snapshotDir) :: ${item.text.trim().slice(0, 120)}`,
+          );
+          continue;
+        }
+        const verdict = await runVerification(cmd, cwd, exec.signal);
         commands.push({ cmd, ok: verdict.ok, output: verdict.output });
         if (!verdict.ok) failed = true;
       }
@@ -1774,6 +1802,8 @@ function defineTools(ctx, api) {
       const taskId = String(args?.taskId ?? "").trim();
       if (!taskId) throw new Error("taskId is required");
       const snapshotDir = String(args?.snapshotDir ?? "").trim();
+      // 验收命令必须有工作目录：缺省用任务卡默认目录，绝不落到引擎进程目录里跑。
+      const verifyCwd = resolveVerifyCwd(taskId, snapshotDir);
       const deliverables = Array.isArray(args?.deliverables)
         ? args.deliverables.map((d) => String(d ?? "").trim()).filter(Boolean)
         : [];
@@ -1786,7 +1816,7 @@ function defineTools(ctx, api) {
         );
       }
       const resolveDeliverable = (p) =>
-        isAbsolute(p) || !snapshotDir ? p : resolve(snapshotDir, p);
+        isAbsolute(p) || !verifyCwd ? p : resolve(verifyCwd, p);
       const missing = [];
       for (const raw of deliverables) {
         const target = resolveDeliverable(raw);
@@ -1884,7 +1914,7 @@ function defineTools(ctx, api) {
       // 编码损坏门禁：文本交付物里有 U+FFFD = 人打开看到乱码，不算交付。
       // 去重：deliverables 参数与计划的「## Deliverables」常是同一批文件。
       const corruptText = await corruptDeliverables(
-        snapshotDir,
+        verifyCwd,
         [...new Set([...deliverables, ...parseDeliverables(plan?.markdown)].map((p) => String(p).trim()))]
       );
       if (corruptText.length > 0) {
@@ -1900,13 +1930,14 @@ function defineTools(ctx, api) {
       if (acceptance.total > 0) {
         const cmdFailures = [];
         let manualUnchecked = 0;
+        let missingCwd = 0;
         for (const item of acceptance.unchecked) {
           const cmd = extractCmd(item);
           if (!cmd) {
             manualUnchecked += 1;
             continue;
           }
-          const builtin = builtinFileCheck(cmd, snapshotDir || undefined);
+          const builtin = builtinFileCheck(cmd, verifyCwd || undefined);
           if (builtin) {
             executedCmds.push(cmd);
             if (!builtin.ok) cmdFailures.push({ item, cmd, output: builtin.output });
@@ -1918,15 +1949,25 @@ function defineTools(ctx, api) {
             manualUnchecked += 1;
             continue;
           }
+          if (!verifyCwd) {
+            ctx.logger.warn(`ai00-x-tools: verification cmd without working directory: ${cmd}`);
+            missingCwd += 1;
+            continue;
+          }
           executedCmds.push(cmd);
-          const verdict = await runVerification(cmd, snapshotDir || undefined, exec.signal);
+          const verdict = await runVerification(cmd, verifyCwd, exec.signal);
           if (verdict.ok) continue;
           cmdFailures.push({ item, cmd, output: verdict.output });
         }
-        if (manualUnchecked > 0 || cmdFailures.length > 0) {
+        if (manualUnchecked > 0 || missingCwd > 0 || cmdFailures.length > 0) {
           const lines = [
-            `验收标准未通过（共 ${acceptance.total} 项，通过 ${acceptance.done} 项，验证命令失败 ${cmdFailures.length} 项，人工判据未勾 ${manualUnchecked} 项）。`,
+            `验收标准未通过（共 ${acceptance.total} 项，通过 ${acceptance.done} 项，验证命令失败 ${cmdFailures.length} 项，人工判据未勾 ${manualUnchecked} 项${missingCwd > 0 ? `，缺工作目录未执行 ${missingCwd} 项` : ''}）。`,
           ];
+          if (missingCwd > 0) {
+            lines.push(
+              "有验收命令因为缺少工作目录而没有执行（不会在引擎进程目录里跑）：请带 snapshotDir 重新提交自检。",
+            );
+          }
           if (cmdFailures.length > 0) {
             lines.push(
               ...cmdFailures.flatMap((f) => [
