@@ -266,13 +266,8 @@ export const LyricsOverlay: React.FC = () => {
   // ---- Dragging (move position) ----
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      // Don't start drag from interactive controls.
-      if (
-        (e.target as HTMLElement).closest(
-          '.lyrics-overlay__titlebar, .lyrics-overlay__sync',
-        )
-      )
-        return;
+      // Don't start drag from the toolbar (all controls live inside it now).
+      if ((e.target as HTMLElement).closest('.lyrics-overlay__toolbar')) return;
       const rect = rootRef.current?.getBoundingClientRect();
       if (!rect) return;
       dragRef.current = {
@@ -315,6 +310,10 @@ export const LyricsOverlay: React.FC = () => {
     width: Math.round(OVERLAY_BASE_SIZE.width * overlayScale),
     height: Math.round(OVERLAY_BASE_SIZE.height * overlayScale),
     '--overlay-scale': overlayScale,
+    // 粒子层固定用基准坐标系做物理运算，视觉缩放交给 CSS transform。
+    // 两个变量由 JS 单一数据源下发，避免 SCSS 里重复硬编码 600/120。
+    '--overlay-base-w': `${OVERLAY_BASE_SIZE.width}px`,
+    '--overlay-base-h': `${OVERLAY_BASE_SIZE.height}px`,
     ...(position
       ? { left: position.x, top: position.y, bottom: 'auto', right: 'auto', transform: 'none' }
       : {}),
@@ -347,39 +346,45 @@ export const LyricsOverlay: React.FC = () => {
       {/* 律动粒子层（星尘）：真实频谱驱动，永远在文字后面 */}
       <LyricParticles active={isPlaying} className="lyrics-overlay__particles" />
       {hovered && (
-        <div className="lyrics-overlay__titlebar">
-          <button
-            type="button"
-            className="lyrics-overlay__titlebar-btn"
-            onClick={() => sendCommand('prev')}
-            aria-label="Previous"
-            title="上一首"
-          >
-            <SkipBack size={13} />
-          </button>
-          <button
-            type="button"
-            className="lyrics-overlay__titlebar-btn"
-            onClick={() => sendCommand('togglePlay')}
-            aria-label={isPlaying ? 'Pause' : 'Play'}
-            title={isPlaying ? '暂停' : '播放'}
-          >
-            {isPlaying ? <Pause size={13} /> : <Play size={13} />}
-          </button>
-          <button
-            type="button"
-            className="lyrics-overlay__titlebar-btn"
-            onClick={() => sendCommand('next')}
-            aria-label="Next"
-            title="下一首"
-          >
-            <SkipForward size={13} />
-          </button>
-          <div className="lyrics-overlay__titlebar-spacer" />
-          <div className="lyrics-overlay__sync" role="group" aria-label="Lyric sync fine-tune">
+        <div className="lyrics-overlay__toolbar">
+          {/* 播放组：主按钮用唯一交互色填充，一眼定位当前主动作 */}
+          <div className="lyrics-overlay__tool-group" role="group" aria-label="播放控制">
             <button
               type="button"
-              className="lyrics-overlay__sync-btn"
+              className="lyrics-overlay__tool"
+              onClick={() => sendCommand('prev')}
+              aria-label="Previous"
+              title="上一首"
+            >
+              <SkipBack size={13} />
+            </button>
+            <button
+              type="button"
+              className="lyrics-overlay__tool lyrics-overlay__tool--primary"
+              onClick={() => sendCommand('togglePlay')}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+              title={isPlaying ? '暂停' : '播放'}
+            >
+              {isPlaying ? <Pause size={13} /> : <Play size={13} />}
+            </button>
+            <button
+              type="button"
+              className="lyrics-overlay__tool"
+              onClick={() => sendCommand('next')}
+              aria-label="Next"
+              title="下一首"
+            >
+              <SkipForward size={13} />
+            </button>
+          </div>
+
+          <div className="lyrics-overlay__toolbar-spacer" />
+
+          {/* 同步组：与播放组同形的小胶囊，数值用等宽数字稳定对齐 */}
+          <div className="lyrics-overlay__tool-group" role="group" aria-label="Lyric sync fine-tune">
+            <button
+              type="button"
+              className="lyrics-overlay__tool lyrics-overlay__tool--sync"
               onClick={decOffset}
               disabled={lyricsOffset <= OFFSET_MIN_S}
               aria-label="Lyrics earlier (decrease offset)"
@@ -392,7 +397,7 @@ export const LyricsOverlay: React.FC = () => {
             </span>
             <button
               type="button"
-              className="lyrics-overlay__sync-btn"
+              className="lyrics-overlay__tool lyrics-overlay__tool--sync"
               onClick={incOffset}
               disabled={lyricsOffset >= OFFSET_MAX_S}
               aria-label="Lyrics later (increase offset)"
@@ -401,9 +406,13 @@ export const LyricsOverlay: React.FC = () => {
               <Plus size={12} />
             </button>
           </div>
+
+          <span className="lyrics-overlay__tool-divider" aria-hidden="true" />
+
+          {/* 关闭独立在分隔线右侧，远离同步 +/- 防误点 */}
           <button
             type="button"
-            className="lyrics-overlay__titlebar-btn"
+            className="lyrics-overlay__tool lyrics-overlay__tool--close"
             onClick={handleClose}
             aria-label="Close lyrics"
             title="关闭"

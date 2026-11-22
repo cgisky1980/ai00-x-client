@@ -50,16 +50,17 @@
     backdrop-filter: blur(12px);
   }
 
-  // ---- Title bar (hover only) ----
+  // ---- Toolbar (hover only) ----
   // Absolutely positioned at the top so it stays fixed regardless of
-  // lyrics content. Does not participate in the flex flow.
-  // Single row: [prev|play|next] ←spacer→ [sync-|offset|sync+] [close]
-  &__titlebar {
-    // 标题栏底恒为 --modal-overlay（明暗两档均为深色 scrim）。按钮墨色必须固定纸白：
+  // lyrics content. Controls keep a fixed size at any overlay zoom —
+  // only the lyric body scales (same idea as a document toolbar).
+  // Layout: [ playback cluster ] ←spacer→ [ sync cluster ] │ [ close ]
+  &__toolbar {
+    // 浮层底恒为 --modal-overlay（明暗两档均为深色 scrim）。按钮墨色必须固定纸白：
     // --color-accent-foreground 暗色档为 #0f0f0f（近黑），画在深色 scrim 上完全不可见。
-    // 与 DynamicIsland 固定暗色浮层同一配方；局部变量只作用于标题栏子树，
+    // 与 DynamicIsland 固定暗色浮层同一配方；局部变量只作用于工具条子树，
     // 不影响歌词正文/已唱字的取色。
-    --lyrics-titlebar-ink: oklch(0.96 0 0);
+    --lyrics-tool-ink: oklch(0.96 0 0);
 
     position: absolute;
     top: 0;
@@ -67,81 +68,109 @@
     right: 0;
     display: flex;
     align-items: center;
-    gap: var(--size-gap-0-5);
-    padding: var(--size-gap-0-5) var(--size-gap-1-5);
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1) var(--size-gap-2);
     background: var(--modal-overlay);
     backdrop-filter: blur(8px);
+    border-bottom: var(--style-stroke-width, 1px) solid
+      color-mix(in srgb, var(--lyrics-tool-ink) 10%, transparent);
     z-index: 12;
   }
 
-  &__titlebar-spacer {
-    flex: 1;
+  // 同形小胶囊把两组控件各自圈起来，替代原先 7 个按钮平铺的一长条
+  &__tool-group {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-0-5);
+    padding: var(--size-gap-0-5);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--lyrics-tool-ink) 8%, transparent);
+    flex-shrink: 0;
   }
 
-  &__titlebar-btn {
+  &__toolbar-spacer {
+    flex: 1;
+    min-width: var(--size-gap-1);
+  }
+
+  &__tool {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 26px;
+    height: 26px;
     border-radius: 6px;
     border: none;
     background: transparent;
-    // 固定纸白墨色，深色 scrim 上两档均可见
-    color: color-mix(in srgb, var(--lyrics-titlebar-ink) 70%, transparent);
+    color: color-mix(in srgb, var(--lyrics-tool-ink) 72%, transparent);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
     flex-shrink: 0;
 
     &:hover {
-      background: color-mix(in srgb, var(--lyrics-titlebar-ink) 16%, transparent);
-      color: var(--lyrics-titlebar-ink);
+      background: color-mix(in srgb, var(--lyrics-tool-ink) 16%, transparent);
+      color: var(--lyrics-tool-ink);
     }
 
     &:active {
       transform: scale(0.92);
     }
-  }
 
-  // ---- Sync fine-tune control (inside title bar) ----
-  &__sync {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-0-5);
-    flex-shrink: 0;
-  }
-
-  &__sync-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    border: none;
-    background: transparent;
-    // 同标题栏：深色 scrim 上的固定纸白图标
-    color: color-mix(in srgb, var(--lyrics-titlebar-ink) 70%, transparent);
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
-    flex-shrink: 0;
-
-    &:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--lyrics-titlebar-ink) 16%, transparent);
-      color: var(--lyrics-titlebar-ink);
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent-400));
+      outline-offset: 1px;
     }
 
-    &:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
+    // 主按钮：唯一交互色填充，把「当前主动作」从一圈同质按钮里拎出来
+    &--primary {
+      background: var(--color-accent);
+      color: var(--color-accent-foreground);
+
+      &:hover {
+        background: color-mix(in oklab, var(--color-accent) 88%, var(--lyrics-tool-ink));
+        color: var(--color-accent-foreground);
+      }
     }
+
+    // 同步微调比播放小一档，凸显主次
+    &--sync {
+      width: 22px;
+      height: 22px;
+
+      &:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+
+        &:hover {
+          background: transparent;
+          color: color-mix(in srgb, var(--lyrics-tool-ink) 72%, transparent);
+        }
+      }
+    }
+
+    // 关闭已由分隔线隔开，hover 稍加重即可；不引入第二交互色
+    &--close {
+      color: color-mix(in srgb, var(--lyrics-tool-ink) 60%, transparent);
+
+      &:hover {
+        background: color-mix(in srgb, var(--lyrics-tool-ink) 22%, transparent);
+        color: var(--lyrics-tool-ink);
+      }
+    }
+  }
+
+  &__tool-divider {
+    width: 1px;
+    height: 16px;
+    background: color-mix(in srgb, var(--lyrics-tool-ink) 18%, transparent);
+    flex-shrink: 0;
   }
 
   &__sync-value {
     font-size: var(--font-size-xxs);
-    color: color-mix(in srgb, var(--lyrics-titlebar-ink) 70%, transparent);
+    color: color-mix(in srgb, var(--lyrics-tool-ink) 72%, transparent);
     font-variant-numeric: tabular-nums;
-    min-width: 28px;
+    min-width: 34px;
     text-align: center;
     flex-shrink: 0;
   }
@@ -151,8 +180,16 @@
   // 背层 z0 → 歌词文字 z1 → 前层 z2 → 工具条 z12，少量粒子飘在字前出景深。
   &__particles {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
+    // 固定基准坐标系：粒子物理（位置/速度/光点尺寸）全部在 600×120 里算，
+    // 视觉缩放交给下层的 transform。clientWidth/clientHeight 不受 transform
+    // 影响，故 JS 的 w/h 恒定，滚轮缩放时不会重新测量也不会漂移。
+    width: var(--overlay-base-w, 600px);
+    height: var(--overlay-base-h, 120px);
     pointer-events: none;
+    // 注意：这里不能加 transform —— 会创建堆叠上下文，把前后粒子层打包成
+    // 一个整体，导致 z0/z2 无法再与 z1 的歌词文字交错。缩放放在各 fx-layer。
   }
 
   .lyric-fx-layer {
@@ -160,6 +197,10 @@
     inset: 0;
     z-index: 0;
     overflow: hidden;
+    // 光点位置、3px 尺寸、光晕半径全部随浮层一起放大/缩小。
+    // 各层自带 transform 但仍各自参与 .lyrics-overlay 的堆叠（z0/z1 歌词/z2）。
+    transform: scale(var(--overlay-scale, 1));
+    transform-origin: top left;
 
     &--front {
       z-index: 2;
