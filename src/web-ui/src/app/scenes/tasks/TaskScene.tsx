@@ -400,19 +400,28 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
         <div className="ai00-x-task-scene__items">
           {orderedTasks.map((task) => (
             <div key={task.id} className="ai00-x-task-row">
+              {/* 已归档：仍可打开只读查看（计划 / 交付物 / 对话历史），但不能继续驱动 agent；
+                  没有会话的归档卡没有可看的内容，保持禁用。
+                  想法池卡（agent 新建、status=requirement、还没会话）：点开只预览，
+                  由人按「开始执行」再建会话——与通知「去查看」同一口径，
+                  避免「看一眼点子就花积分跑一轮」。 */}
               <button
                 type="button"
                 className={`ai00-x-task-scene__item${task.id === selectedId ? ' is-active' : ''}`}
                 aria-current={task.id === selectedId ? 'true' : undefined}
-                // 已归档：仍可打开只读查看（计划 / 交付物 / 对话历史），但不能继续驱动 agent。
-                // 没有会话的归档卡没有可看的内容，保持禁用。
                 disabled={Boolean(task.archivedAt) && !task.agentSessionId}
                 title={
                   task.archivedAt
                     ? t('nav.workbenchWindow.tasks.archivedReadOnlyHint')
                     : failureOf(task) || undefined
                 }
-                onClick={() => void openTask(task)}
+                onClick={() => {
+                  if (task.status === 'requirement' && !task.agentSessionId) {
+                    selectTask(task.id);
+                    return;
+                  }
+                  void openTask(task);
+                }}
               >
                 <span className="ai00-x-task-scene__item-title">{task.title}</span>
                 {task.executionMode !== 'quick' && <WorkbenchStageDots phase={phaseOf(task)} />}
