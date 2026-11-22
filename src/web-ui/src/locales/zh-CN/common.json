@@ -351,6 +351,8 @@
         "execute": "执行",
         "review": "审核",
         "done": "已完成",
+        "stopped": "已暂停",
+        "asking": "等待你的回答",
         "needsYou": "需要你"
       },
       "review": {

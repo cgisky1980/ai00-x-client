@@ -150,6 +150,7 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
           phase={phaseOf(task)}
           asking={Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking)}
           hideStage
+          iconOnly
         />
         {task.executionMode === 'quick' ? (
           <span className="ai00-x-task-board__card-meta">

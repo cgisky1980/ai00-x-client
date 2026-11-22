@@ -351,6 +351,8 @@
         "execute": "Execute",
         "review": "Review",
         "done": "Done",
+        "stopped": "Paused",
+        "asking": "Waiting for your answer",
         "needsYou": "Needs you"
       },
       "review": {

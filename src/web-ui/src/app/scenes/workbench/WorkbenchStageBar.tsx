@@ -14,6 +14,9 @@ import {
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
+  HelpCircle,
+  Loader2,
+  Pause,
   Play,
   X,
   Zap,
@@ -151,41 +154,61 @@ export const WorkbenchStatusTag: React.FC<{
   className?: string;
 }> = ({ phase, asking = false, hideStage = false, quick = false, iconOnly = false, className }) => {
   const { t } = useI18n('common');
-  const failed = stageOf(phase).state === 'failed';
+  const failed = phase === 'failed';
   const attention = needsYou(phase, asking);
+  const running = phase === 'running';
+  const paused = phase === 'stopped';
   const stageKey = stageKeyOf(phase);
-  if (hideStage && !attention && !quick) return null;
+  if (hideStage && !iconOnly && !attention) return null;
+  if (hideStage && iconOnly && !attention && !quick && !failed && !running && !paused) return null;
 
   const stageLabel = quick
     ? t('nav.workbenchWindow.tasks.modeQuick')
     : t(`nav.workbenchWindow.stages.${stageKey}`);
   const label = [
     failed ? t('status.failed') : null,
-    attention ? t('nav.workbenchWindow.stages.needsYou') : null,
-    hideStage ? null : stageLabel,
+    asking ? t('nav.workbenchWindow.stages.asking') : null,
+    attention && !asking && !failed ? t('nav.workbenchWindow.stages.needsYou') : null,
+    running ? t('nav.workbenchWindow.plan.stageExecuting') : null,
+    paused && !quick ? t('nav.workbenchWindow.stages.stopped') : null,
+    hideStage || running ? null : stageLabel,
   ]
     .filter(Boolean)
     .join(' · ');
 
   if (iconOnly) {
     const StageIcon = STAGE_ICONS[stageKey];
-    // 优先级：失败 > 需要你 > 快速问答 > 阶段。越需要人动手的越先看见。
-    const Icon = failed
-      ? AlertCircle
-      : attention
-        ? BellRing
-        : quick
-          ? Zap
-          : hideStage
-            ? null
-            : StageIcon;
+    // 优先级按「越需要人立刻处理越靠前」：失败 > 提问 > 审批/验收 > 模式 > 运行 > 暂停 > 阶段。
+    let Icon: LucideIcon | null = null;
+    let stateClass = '';
+    if (failed) {
+      Icon = AlertCircle;
+      stateClass = 'is-failed';
+    } else if (asking) {
+      Icon = HelpCircle;
+      stateClass = 'is-asking';
+    } else if (attention) {
+      Icon = BellRing;
+    } else if (quick) {
+      Icon = Zap;
+      stateClass = 'is-quick';
+    } else if (running) {
+      Icon = Loader2;
+      stateClass = 'is-running';
+    } else if (paused) {
+      Icon = Pause;
+      stateClass = 'is-paused';
+    } else if (!hideStage) {
+      Icon = StageIcon;
+      stateClass = 'is-stage';
+    }
     return (
       <span
         className={[
           'ai00-x-status-tag',
           'is-icon-only',
-          failed ? 'is-failed' : '',
           attention ? 'has-attention' : '',
+          stateClass,
           className ?? '',
         ]
           .filter(Boolean)
