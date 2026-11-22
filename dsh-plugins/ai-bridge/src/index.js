@@ -172,7 +172,7 @@ async function* parseSse(body, signal) {
  * 时序遵循 dsh-llm BlockAssembler 协议：
  *   block-start → *-delta… → block-end（终块后统一发）→ usage → finish
  */
-async function* translateStream(sseObjects, model) {
+async function* translateStream(sseObjects, model, options) {
   const order = [];
   let textBlock = null;
   let reasoningBlock = null;
@@ -384,6 +384,8 @@ async function* translateStream(sseObjects, model) {
   }
   const reason = pendingFinish ?? { kind: "stop" };
   if (reason.kind === "stop" && order.length === 0) {
+    // 空回合还没吐出任何块：调用方可以安全地整请求重发（见 stream() 的 retryEmpty）。
+    if (options?.retryEmpty) throw new EmptyStreamError();
     yield* yieldTransportError(
       "AI00X_EMPTY",
       { message: "gateway returned no content", code: "AI00X_EMPTY" },
@@ -392,6 +394,14 @@ async function* translateStream(sseObjects, model) {
     return;
   }
   yield { type: "finish", reason };
+}
+
+/** 网关 200 但整轮没有任何内容：空响应可安全重发（尚未产出任何块）。 */
+class EmptyStreamError extends Error {
+  constructor() {
+    super("gateway returned no content");
+    this.name = "EmptyStreamError";
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -435,6 +445,49 @@ export function retryDelayFor(response, attempt) {
     return Math.min(seconds * 1000, RETRY_MAX_DELAY_MS);
   }
   return RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)];
+}
+
+/**
+ * 从网关错误响应里取出上游的 `{code, message}`。
+ *
+ * 网关会把上游错误序列化进 `error.message`（可能连续嵌套两层字符串），
+ * 直接展示整段 JSON 时，人只看到「HTTP 502」——真正该做的动作（充值、
+ * 换模型、重试）藏在里面。这里逐层解包，取最内层的 code/message。
+ */
+export function parseUpstreamFailure(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  let node = parsed?.error ?? parsed;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (typeof node === "string") {
+      const raw = node;
+      try {
+        node = JSON.parse(raw);
+      } catch {
+        return { message: raw };
+      }
+      continue;
+    }
+    if (!node || typeof node !== "object") return null;
+    const code = node.code != null ? String(node.code) : undefined;
+    const message = typeof node.message === "string" ? node.message.trim() : undefined;
+    // 有些上游把整个错误 JSON 塞进 message 字符串：继续往里解一层。
+    if (message?.startsWith("{")) {
+      try {
+        node = JSON.parse(message);
+        continue;
+      } catch {
+        // 不是 JSON → 当普通文案用
+      }
+    }
+    if (code || message) return { code, message };
+    return null;
+  }
+  return null;
 }
 
 /**
@@ -609,12 +662,35 @@ class Ai00XAdapter {
         return;
       }
 
-      if (response.ok) break;
+      if (response.ok) {
+        try {
+          yield* translateStream(parseSse(response.body, options.signal), options.model, {
+            retryEmpty: attempt < RETRY_DELAYS_MS.length && !options.signal?.aborted,
+          });
+          return;
+        } catch (error) {
+          // 200 但整轮空内容：还没产出任何块，退避后整请求重发。
+          if (error instanceof EmptyStreamError && !options.signal?.aborted) {
+            await sleepMs(RETRY_DELAYS_MS[attempt], options.signal);
+            if (options.signal?.aborted) return;
+            attempt += 1;
+            continue;
+          }
+          throw error;
+        }
+      }
 
       const text = await response.text().catch(() => "");
+      // 网关常把上游错误再包一层（实测 `502 {"error":{"message":"{\"code\":402,...}"}}`）：
+      // 直接把上游 message 当失败文案，动作才看得懂（充值 / 换模型 / 等）。
+      const upstream = parseUpstreamFailure(text);
+      // 余额/权限类上游错误重试没有意义：重发只会继续被拒。
+      const upstreamBlocked =
+        upstream?.code === "401" || upstream?.code === "402" || upstream?.code === "403";
       // 429 / 5xx 尚未出流，重发不会重复输出：自动退避重试，别把一次抖动
       // 变成「这一轮失败 → 通知 → 人点继续执行」。
       if (
+        !upstreamBlocked &&
         RETRYABLE_HTTP_STATUS.has(response.status) &&
         attempt < RETRY_DELAYS_MS.length &&
         !options.signal?.aborted
@@ -625,15 +701,16 @@ class Ai00XAdapter {
         continue;
       }
 
-      yield* yieldTransportError("AI00X_HTTP", {
-        message: `Ai00-X gateway HTTP ${response.status}: ${text.slice(0, 500)}`,
-        code: "AI00X_HTTP",
-        status: response.status,
-      });
+      yield* yieldTransportError(
+        upstream?.code ? `AI00X_UPSTREAM_${upstream.code}` : "AI00X_HTTP",
+        {
+          message: `Ai00-X gateway HTTP ${response.status}: ${upstream?.message ?? text.slice(0, 500)}`,
+          code: upstream?.code ? `AI00X_UPSTREAM_${upstream.code}` : "AI00X_HTTP",
+          status: response.status,
+        },
+      );
       return;
     }
-
-    yield* translateStream(parseSse(response.body, options.signal), options.model);
   }
 }
 
