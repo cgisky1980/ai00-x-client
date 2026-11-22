@@ -97,7 +97,6 @@
     "workbenchWindow": {
       "empty": "还没有安装任何工作台",
       "groups": {
-        "core": "核心",
         "installed": "我的工作台",
         "system": "系统"
       },

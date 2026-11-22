@@ -243,15 +243,8 @@ const WorkbenchWindowApp: React.FC = () => {
       }`}
     >
       <aside className="ai00-x-workbench-window__rail">
-        <div className="ai00-x-workbench-window__rail-head">
-          <span className="ai00-x-workbench-window__rail-title">
-            {t('nav.sections.workbench')}
-          </span>
-        </div>
         <div className="ai00-x-workbench-window__items">
-          <div className="ai00-x-workbench-window__group-title">
-            {t('nav.workbenchWindow.groups.core')}
-          </div>
+          {/* 看板是工作台的默认落地页，单独占第一行，不进分组 */}
           <button
             type="button"
             className={`ai00-x-workbench-window__item${activeId === BOARD_SCENE_ID ? ' is-active' : ''}`}
@@ -267,6 +260,27 @@ const WorkbenchWindowApp: React.FC = () => {
             </span>
             <span className="ai00-x-workbench-window__item-label">
               {t('nav.workbenchWindow.board.rail')}
+            </span>
+          </button>
+          <div className="ai00-x-workbench-window__group-title">
+            {t('nav.workbenchWindow.groups.installed')}
+          </div>
+          {/* 内置工作台：任务 / 项目 / 自动化 */}
+          <button
+            type="button"
+            className={`ai00-x-workbench-window__item${activeId === TASKS_SCENE_ID ? ' is-active' : ''}`}
+            aria-current={activeId === TASKS_SCENE_ID ? 'page' : undefined}
+            title={t('nav.workbenchWindow.tasks.title')}
+            onClick={() => {
+              setActiveId(TASKS_SCENE_ID);
+              setExternalSession(null);
+            }}
+          >
+            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
+              <MessageSquare size={15} />
+            </span>
+            <span className="ai00-x-workbench-window__item-label">
+              {t('nav.workbenchWindow.tasks.rail')}
             </span>
           </button>
           <button
@@ -288,23 +302,6 @@ const WorkbenchWindowApp: React.FC = () => {
           </button>
           <button
             type="button"
-            className={`ai00-x-workbench-window__item${activeId === TASKS_SCENE_ID ? ' is-active' : ''}`}
-            aria-current={activeId === TASKS_SCENE_ID ? 'page' : undefined}
-            title={t('nav.workbenchWindow.tasks.title')}
-            onClick={() => {
-              setActiveId(TASKS_SCENE_ID);
-              setExternalSession(null);
-            }}
-          >
-            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
-              <MessageSquare size={15} />
-            </span>
-            <span className="ai00-x-workbench-window__item-label">
-              {t('nav.workbenchWindow.tasks.rail')}
-            </span>
-          </button>
-          <button
-            type="button"
             className={`ai00-x-workbench-window__item${activeId === AUTOMATIONS_SCENE_ID ? ' is-active' : ''}`}
             aria-current={activeId === AUTOMATIONS_SCENE_ID ? 'page' : undefined}
             title={t('nav.workbenchWindow.automations.title')}
@@ -320,9 +317,8 @@ const WorkbenchWindowApp: React.FC = () => {
               {t('nav.workbenchWindow.automations.rail')}
             </span>
           </button>
-          <div className="ai00-x-workbench-window__group-title">
-            {t('nav.workbenchWindow.groups.installed')}
-          </div>
+          {/* 内置与插件工作台之间用一条分隔符区分（用户定案：仅此处保留横线） */}
+          <div className="ai00-x-workbench-window__divider" role="separator" />
           {workbenches.map(workbench => {
             const isActive = workbench.id === activeEntry?.id;
             return (

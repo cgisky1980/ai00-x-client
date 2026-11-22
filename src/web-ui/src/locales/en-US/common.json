@@ -97,7 +97,6 @@
     "workbenchWindow": {
       "empty": "No workbench installed yet",
       "groups": {
-        "core": "Core",
         "installed": "My workbenches",
         "system": "System"
       },
