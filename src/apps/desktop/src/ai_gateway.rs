@@ -2160,9 +2160,11 @@ fn tools_block(tools: &[Value]) -> String {
             }))
         })
         .collect();
+    // 紧凑 JSON（不缩进）：工具清单每轮都要进 prefill，pretty 的换行/缩进
+    // 纯属浪费（本地 3B 也不靠缩进理解结构）；语义完全相同。
     format!(
         "Tools:\n{}\nReturn only a JSON function call.",
-        serde_json::to_string_pretty(&defs).unwrap_or_default()
+        serde_json::to_string(&defs).unwrap_or_default()
     )
 }
 
