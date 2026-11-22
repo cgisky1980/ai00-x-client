@@ -36,6 +36,7 @@ import ProjectsScene, { PROJECTS_SCENE_ID } from './scenes/projects/ProjectsScen
 import AutomationsScene, { AUTOMATIONS_SCENE_ID } from './scenes/automations/AutomationsScene';
 import { initTodoWindowSync } from '@/tools/todo/sync/todoWindowSync';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
+import { NotificationContainer } from '@/shared/notification-system';
 import './WorkbenchWindowApp.scss';
 
 /** 窄窗口断点：低于它 AI 区以浮层形式出现（与样式表保持一致）。 */
@@ -389,6 +390,10 @@ const WorkbenchWindowApp: React.FC = () => {
           </button>
         )}
       </main>
+      {/* 本窗口内产生的提示（如任务页「清理子代理会话」的候选数/结果）必须落在
+          本窗口的 NotificationContainer 里：main 窗口的容器收不到别处创建的通知，
+          此前这些提示是静默的（实测点清理既无弹窗也无 toast）。 */}
+      <NotificationContainer />
     </div>
   );
 };
