@@ -927,6 +927,8 @@ async fn local_rwkv_sse(
         let mut full_text = String::new();
         let mut input_tokens = 0usize;
         let mut output_tokens = 0usize;
+        // 流式正文已发出的字符数（stop 安全回看：见 STREAM_STOP_LOOKBACK）
+        let mut emitted_chars = 0usize;
         // 首 token 到达即记 TTFT（本地路径的一次性观测指标）
         let mut ttft_ms: Option<u64> = None;
         while let Some(event) = rx.recv().await {
@@ -937,9 +939,23 @@ async fn local_rwkv_sse(
                     }
                     full_text.push_str(&t);
                     if stream_inline_text {
-                        let chunk = sse_text_delta(&model_name, &t);
-                        if tx.send(Ok(Bytes::from(chunk))).is_err() {
-                            break;
+                        // 引擎在 stop 命中时才截断 Done.text，但组成 stop 序列的
+                        // 那几个 token 已经作为 Token 事件发出去了（实测尾巴漏出
+                        // `User:`）。这里永远留 LOOKBACK 个字符不发，等后续 token
+                        // 证明它们不是 stop 序列再补发。
+                        let total = full_text.chars().count();
+                        let ready = total.saturating_sub(STREAM_STOP_LOOKBACK);
+                        if ready > emitted_chars {
+                            let chunk: String = full_text
+                                .chars()
+                                .skip(emitted_chars)
+                                .take(ready - emitted_chars)
+                                .collect();
+                            emitted_chars = ready;
+                            let chunk = sse_text_delta(&model_name, &chunk);
+                            if tx.send(Ok(Bytes::from(chunk))).is_err() {
+                                break;
+                            }
                         }
                     }
                 }
@@ -1025,6 +1041,15 @@ async fn local_rwkv_sse(
             let _ = tx.send(Ok(Bytes::from("data: [DONE]\n\n")));
             return;
         } else {
+            // 流式正文：把回看窗口里还没发的尾巴补上（Done.text 已按 stop 截断）
+            if stream_inline_text {
+                let total = text.chars().count();
+                if total > emitted_chars {
+                    let chunk: String = text.chars().skip(emitted_chars).collect();
+                    let chunk = sse_text_delta(&model_name, &chunk);
+                    let _ = tx.send(Ok(Bytes::from(chunk)));
+                }
+            }
             // 缓冲模式（带工具 / 熔断轮）还没发过正文，这里整段补发
             if !stream_inline_text && !text.is_empty() {
                 let chunk = sse_text_delta(&model_name, &text);
@@ -2245,15 +2270,27 @@ fn spaced_json(value: &Value) -> String {
     }
 }
 
+/// 流式正文的 stop 安全回看窗口（字符）。等于最长 stop 序列
+/// `\n\nInstruction:` 的长度 + 1：尾部这么多字符永远先扣着不发。
+const STREAM_STOP_LOOKBACK: usize = 16;
+
 /// 本地 RWKV 停止序列（local_rwkv_sse / hybrid 工具轮共用）：角色标记组，
 /// Instruction 格式加空行停，工具轮加围栏收尾（与 consult.ts FENCE_STOPS
 /// 对齐：遇闭合 ``` 即停，省 token 并减少 bleed 对提取的干扰）。
+///
+/// 另加**不带换行**的 `User:` / `Assistant:`：3B 在对话格式下会把答案接到
+/// 句末后直接自续下一轮（实测 `…回答问题。User: 请给我写一篇…`），只靠
+/// `\n\nUser:` 拦不住（没有换行）。
 fn rwkv_stop_sequences(is_instruction_format: bool, has_tools: bool) -> Vec<String> {
     let mut stop = vec![
         "\n\nUser:".to_string(),
         "\n\nSystem:".to_string(),
         "\n\nInstruction:".to_string(),
         "\n\nInput:".to_string(),
+        "\nUser:".to_string(),
+        "\nAssistant:".to_string(),
+        "User:".to_string(),
+        "Assistant:".to_string(),
     ];
     if is_instruction_format {
         stop.push("\n\n".to_string());
