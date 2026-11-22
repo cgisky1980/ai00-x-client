@@ -191,6 +191,11 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
       selectTask(task.id);
       if (task.agentSessionId) {
         setBusy(null);
+        // 已有会话的任务也要刷新宿主注入的 `AGENTS.local.md`：它是每轮进上下文的
+        // 常驻文件，loop 规约更新后旧卡不刷新就会一直带着过期文案（实测 7.126）。
+        // `ensureTaskSession` 的「已有会话」分支只重写该文件，不重发任务书、不重建会话；
+        // 外部项目目录不写该文件（内部会跳过），失败不阻断打开。
+        void ensureTaskSession(task, workbenchTitle, projectOf(task)).catch(() => undefined);
         return;
       }
       setBusy('open');
