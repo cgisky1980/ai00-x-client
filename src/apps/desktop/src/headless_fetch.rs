@@ -180,6 +180,7 @@ async fn launch_browser() -> Result<
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("spawn {exe:?}: {e}"))?;
+    bind_to_kill_on_close_job(&child);
 
     // 从 stderr 抓 "DevTools listening on ws://..."（Chromium 标准输出行）。
     // 抓到后继续泵空管道防阻塞；ws 地址放共享槽，主流程轮询取。
@@ -225,6 +226,60 @@ async fn launch_browser() -> Result<
     });
     Ok((child, browser, handler_task))
 }
+
+/// Windows：把无头浏览器绑进 kill-on-close Job，主进程被强杀时内核回收整棵树。
+///
+/// 血案（2026-11-23）：强杀客户端后，headless Edge 成了孤儿进程，而它继承了
+/// 主进程 2100 端口的监听句柄——端口一直被占着却没人 accept，下一次启动
+/// `Salvo` 绑定失败，界面空白。绑定 Job 后父进程一死 Edge 即被内核终止，
+/// 端口随之释放。其它平台 no-op（子进程默认不会如此残留）。
+#[cfg(windows)]
+fn bind_to_kill_on_close_job(child: &tokio::process::Child) {
+    use std::sync::OnceLock;
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+
+    static JOB: OnceLock<isize> = OnceLock::new();
+    let job = *JOB.get_or_init(|| unsafe {
+        let job = match CreateJobObjectW(None, PCWSTR::null()) {
+            Ok(h) => h,
+            Err(e) => {
+                log::warn!("[headless] CreateJobObjectW failed: {e}");
+                return 0;
+            }
+        };
+        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        if let Err(e) = SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            &info as *const _ as *const core::ffi::c_void,
+            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        ) {
+            log::warn!("[headless] SetInformationJobObject failed: {e}");
+        }
+        job.0 as isize
+    });
+    if job == 0 {
+        return;
+    }
+    if let Some(handle) = child.raw_handle() {
+        unsafe {
+            match AssignProcessToJobObject(HANDLE(job as *mut _), HANDLE(handle)) {
+                Ok(()) => log::info!("[headless] browser bound to kill-on-close job"),
+                Err(e) => log::warn!("[headless] AssignProcessToJobObject failed: {e}"),
+            }
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn bind_to_kill_on_close_job(_child: &tokio::process::Child) {}
 
 fn ensure_reaper() {
     static STARTED: OnceLock<()> = OnceLock::new();
