@@ -10,7 +10,7 @@
  * - 对话：在本场景内直接进入该项目的任务会话（不跳到「任务」工作台）。
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronRight, FolderOpen, FolderPlus, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, BellRing, ChevronRight, FolderOpen, FolderPlus, Loader2, Trash2 } from 'lucide-react';
 import { Switch } from '@/component-library';
 import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
@@ -353,6 +353,9 @@ export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
                 Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking),
               ),
             ).length;
+            const needsLabel = t('nav.workbenchWindow.projects.needsYouCount', {
+              count: needsYouCount,
+            });
             return (
               <div key={project.id} className="ai00-x-projects-scene__group">
                 <div
@@ -389,14 +392,13 @@ export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
                   </button>
                   {needsYouCount > 0 && (
                     <span
-                      className="ai00-x-status-tag ai00-x-projects-scene__needs"
-                      title={t('nav.workbenchWindow.projects.needsYouCount', {
-                        count: needsYouCount,
-                      })}
+                      className="ai00-x-status-tag is-icon-only has-attention ai00-x-projects-scene__needs"
+                      role="img"
+                      aria-label={needsLabel}
+                      title={needsLabel}
                     >
-                      <span className="ai00-x-status-tag__needs">
-                        {t('nav.workbenchWindow.stages.needsYou')}
-                      </span>
+                      <BellRing size={11} className="ai00-x-status-tag__icon" aria-hidden />
+                      <span className="ai00-x-projects-scene__needs-count">{needsYouCount}</span>
                     </span>
                   )}
                   <ProjectGitBadge dir={project.dir} onError={setError} />
@@ -409,41 +411,52 @@ export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
                         {t('nav.workbenchWindow.projects.noTasks')}
                       </p>
                     ) : (
-                      items.map((task) => (
-                        <div
-                          key={task.id}
-                          className={`ai00-x-projects-scene__subitem-row${
-                            conversation?.task.id === task.id ? ' is-active' : ''
-                          }`}
-                        >
-                          <button
-                            type="button"
-                            className="ai00-x-projects-scene__subitem"
-                            onClick={() => openFromTree(project, task)}
-                            title={task.title}
+                      items.map((task) => {
+                        const phase = taskPhase(
+                          task,
+                          null,
+                          task.agentSessionId ? runtime[task.agentSessionId] : undefined,
+                        );
+                        const asking = Boolean(
+                          task.agentSessionId && runtime[task.agentSessionId]?.asking,
+                        );
+                        return (
+                          <div
+                            key={task.id}
+                            className={`ai00-x-projects-scene__subitem-row${
+                              conversation?.task.id === task.id ? ' is-active' : ''
+                            }`}
                           >
-                            <span className="ai00-x-projects-scene__subitem-title">
-                              {task.title}
-                            </span>
-                            <WorkbenchStageDots
-                              phase={taskPhase(
-                                task,
-                                null,
-                                task.agentSessionId ? runtime[task.agentSessionId] : undefined,
-                              )}
+                            <button
+                              type="button"
+                              className="ai00-x-projects-scene__subitem"
+                              onClick={() => openFromTree(project, task)}
+                              title={task.title}
+                            >
+                              <span className="ai00-x-projects-scene__subitem-title">
+                                {task.title}
+                              </span>
+                              <WorkbenchStageDots phase={phase} />
+                              <WorkbenchStatusTag
+                                phase={phase}
+                                asking={asking}
+                                quick={task.executionMode === 'quick'}
+                                hideStage
+                                iconOnly
+                              />
+                            </button>
+                            <TaskActionsMenu
+                              task={task}
+                              onArchived={() => {
+                                if (conversation?.task.id === task.id) backToOverview();
+                              }}
+                              onDeleted={() => {
+                                if (conversation?.task.id === task.id) backToOverview();
+                              }}
                             />
-                          </button>
-                          <TaskActionsMenu
-                            task={task}
-                            onArchived={() => {
-                              if (conversation?.task.id === task.id) backToOverview();
-                            }}
-                            onDeleted={() => {
-                              if (conversation?.task.id === task.id) backToOverview();
-                            }}
-                          />
-                        </div>
-                      ))
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 )}
@@ -600,6 +613,7 @@ export const ProjectsScene: React.FC<ProjectsSceneProps> = ({
                         )}
                         asking={Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking)}
                         quick={task.executionMode === 'quick'}
+                        iconOnly
                       />
                       <span className="ai00-x-projects-scene__task-time">
                         {relativeTime(task.createdAt)}

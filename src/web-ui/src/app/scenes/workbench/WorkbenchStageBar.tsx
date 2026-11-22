@@ -7,11 +7,36 @@
  * 状态归并成 3 个业务阶段，避免每处各写一套。
  */
 import React from 'react';
-import { Check, X } from 'lucide-react';
+import {
+  AlertCircle,
+  BellRing,
+  Check,
+  CheckCircle2,
+  ClipboardCheck,
+  ClipboardList,
+  Play,
+  X,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { TaskPhase } from '../tasks/taskPhase';
-import { WORKBENCH_STAGES, needsYou, stageKeyOf, stageOf } from './workbenchStage';
+import {
+  WORKBENCH_STAGES,
+  needsYou,
+  stageKeyOf,
+  stageOf,
+  type WorkbenchStageKey,
+} from './workbenchStage';
 import './WorkbenchStageBar.scss';
+
+/** 阶段图标：列表里不显示阶段文字时，靠这些图标保留语义。 */
+const STAGE_ICONS: Record<WorkbenchStageKey, LucideIcon> = {
+  plan: ClipboardList,
+  execute: Play,
+  review: ClipboardCheck,
+  done: CheckCircle2,
+};
 
 export interface WorkbenchStageBarProps {
   phase: TaskPhase;
@@ -107,38 +132,80 @@ export const WorkbenchStageDots: React.FC<{ phase: TaskPhase; className?: string
 };
 
 /**
- * 状态文字：阶段名（计划 / 执行 / 审核 / 已完成）+ 可选「需要你」徽标。
- * 列表、看板、头部统一用它，技术状态不直接出 UI 文案（规范 §9.2）。
+ * 状态标签：默认保留文字；列表里用 `iconOnly` 只留图标，语义移到 title / aria-label。
+ * 这样任务 / 项目二级菜单不必为「计划 / 审核 / 已完成 / 快速问答 / 需要你」反复做多语言，
+ * 同时阶段圆点（WorkbenchStageDots）已经表达进度，不再重复一遍文字。
  */
 export const WorkbenchStatusTag: React.FC<{
   phase: TaskPhase;
   asking?: boolean;
-  /** 只显示「需要你」徽标（看板卡片：列头已表明阶段）。 */
+  /** 只显示需要处理的徽标（阶段圆点 / 列头已经表明阶段）。 */
   hideStage?: boolean;
   /**
    * 快速问答任务：它没有计划/执行/审核这条流水线，阶段词会误导
    * （实测问答任务在列表里长期挂着「执行」）。改为显示「快速问答」。
    */
   quick?: boolean;
+  /** 窄列表专用：可见层只留图标，完整状态放进 title / aria-label。 */
+  iconOnly?: boolean;
   className?: string;
-}> = ({ phase, asking = false, hideStage = false, quick = false, className }) => {
+}> = ({ phase, asking = false, hideStage = false, quick = false, iconOnly = false, className }) => {
   const { t } = useI18n('common');
   const failed = stageOf(phase).state === 'failed';
   const attention = needsYou(phase, asking);
-  if (hideStage && !attention) return null;
+  const stageKey = stageKeyOf(phase);
+  if (hideStage && !attention && !quick) return null;
+
+  const stageLabel = quick
+    ? t('nav.workbenchWindow.tasks.modeQuick')
+    : t(`nav.workbenchWindow.stages.${stageKey}`);
+  const label = [
+    failed ? t('status.failed') : null,
+    attention ? t('nav.workbenchWindow.stages.needsYou') : null,
+    hideStage ? null : stageLabel,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  if (iconOnly) {
+    const StageIcon = STAGE_ICONS[stageKey];
+    // 优先级：失败 > 需要你 > 快速问答 > 阶段。越需要人动手的越先看见。
+    const Icon = failed
+      ? AlertCircle
+      : attention
+        ? BellRing
+        : quick
+          ? Zap
+          : hideStage
+            ? null
+            : StageIcon;
+    return (
+      <span
+        className={[
+          'ai00-x-status-tag',
+          'is-icon-only',
+          failed ? 'is-failed' : '',
+          attention ? 'has-attention' : '',
+          className ?? '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        role="img"
+        aria-label={label}
+        title={label}
+      >
+        {Icon && <Icon size={12} className="ai00-x-status-tag__icon" aria-hidden />}
+      </span>
+    );
+  }
+
   return (
     <span
       className={['ai00-x-status-tag', failed ? 'is-failed' : '', className ?? '']
         .filter(Boolean)
         .join(' ')}
     >
-      {!hideStage && (
-        <span className="ai00-x-status-tag__stage">
-          {quick
-            ? t('nav.workbenchWindow.tasks.modeQuick')
-            : t(`nav.workbenchWindow.stages.${stageKeyOf(phase)}`)}
-        </span>
-      )}
+      {!hideStage && <span className="ai00-x-status-tag__stage">{stageLabel}</span>}
       {attention && (
         <span className="ai00-x-status-tag__needs">{t('nav.workbenchWindow.stages.needsYou')}</span>
       )}

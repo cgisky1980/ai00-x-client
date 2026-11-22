@@ -430,6 +430,8 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
                   phase={phaseOf(task)}
                   asking={askingOf(task)}
                   quick={task.executionMode === 'quick'}
+                  hideStage
+                  iconOnly
                 />
               </button>
               <TaskActionsMenu

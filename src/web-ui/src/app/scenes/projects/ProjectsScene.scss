@@ -235,9 +235,20 @@
     white-space: nowrap;
   }
 
-  /** 项目行上的「需要你」徽标：折叠时也提示该项目有任务在等人。 */
+  /** 项目行上的「需要你」徽标：图标 + 数量，折叠时也能看出有几个任务在等人。 */
   &__needs {
+    gap: var(--spacing-1);
+    width: auto;
+    min-width: var(--spacing-5);
+    height: var(--spacing-5);
+    padding: 0 var(--spacing-1);
     flex: 0 0 auto;
+  }
+
+  &__needs-count {
+    font-size: var(--font-size-2xs);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
   }
 
   &__task-time {
