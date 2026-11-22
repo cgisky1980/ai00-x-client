@@ -344,7 +344,7 @@
     },
     "proxy": {
       "enable": "启用代理",
-      "enableHint": "启用后所有AI请求将通过代理发送（需重启IDE生效）",
+      "enableHint": "启用后所有AI请求将通过代理发送（需重启 Ai00-X 生效）",
       "url": "代理地址",
       "urlPlaceholder": "http://127.0.0.1:7890 或 socks5://127.0.0.1:1080",
       "urlHint": "支持 HTTP/HTTPS/SOCKS5 代理，格式：协议://地址:端口",
@@ -353,7 +353,7 @@
       "password": "密码（可选）",
       "passwordPlaceholder": "代理认证密码",
       "save": "保存代理配置",
-      "saveSuccess": "代理配置已保存，重启IDE后生效"
+      "saveSuccess": "代理配置已保存，重启 Ai00-X 后生效"
     },
     "messages": {
       "fillRequired": "请填写必要字段",

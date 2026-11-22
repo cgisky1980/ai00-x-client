@@ -180,7 +180,7 @@
   },
   "proxy": {
     "enable": "Enable Proxy",
-    "enableHint": "When enabled, all AI requests will be sent through proxy (requires IDE restart)",
+    "enableHint": "When enabled, all AI requests will be sent through proxy (restart Ai00-X to apply)",
     "url": "Proxy URL",
     "urlPlaceholder": "http://127.0.0.1:7890 or socks5://127.0.0.1:1080",
     "urlHint": "Supports HTTP/HTTPS/SOCKS5 proxy, format: protocol://address:port",
@@ -189,7 +189,7 @@
     "password": "Password (optional)",
     "passwordPlaceholder": "Proxy authentication password",
     "save": "Save Proxy Configuration",
-    "saveSuccess": "Proxy configuration saved, restart IDE to take effect"
+    "saveSuccess": "Proxy configuration saved; restart Ai00-X to apply"
   },
   "capabilities": {
     "text_chat": "Chat",
