@@ -1270,28 +1270,39 @@ fn prepare_task(
 
     // 会话缓存只做**前缀延长**复用：RWKV 的 RNN 状态不可回退，prompt 一旦与
     // 缓存分叉就只能整段重算（拿旧状态喂分叉后的后缀会输出错乱，2026-11 的
-    // "双重喂入"事故即此）。旧实现按 `# User` 边界猜跳过位，prompt 与缓存
-    // 不对齐时风险高；这里改为严格前缀判定（cache_extension）。
-    if let Some(sid) = &params.session_id {
-        if let Some((cached_tokens, cached_state)) = engine.session_states.get(sid).cloned() {
-            if let Some(skip) =
-                ai00_x_core::util::prompt_cache::cache_extension(&prompt_tokens, &cached_tokens)
-            {
-                log::info!(
-                    "[rwkv] session cache hit: prefill {} of {} tokens (skip {skip})",
-                    prompt_tokens.len() - skip,
-                    prompt_tokens.len()
-                );
-                base_tokens = cached_tokens;
-                input_tokens = prompt_tokens[skip..].to_vec();
-                resume_state = Some(cached_state);
-            } else {
-                log::info!(
-                    "[rwkv] session cache miss: prompt diverged from {} cached tokens (prompt {})",
-                    cached_tokens.len(),
-                    prompt_tokens.len()
-                );
+    // "双重喂入"事故即此）。旧实现按 `# User` 边界猜跳过位，风险高；这里改为
+    // 严格前缀判定（cache_extension）。
+    //
+    // 查找**不按 key 过滤**：缓存是内容寻址的——任何一条缓存只要 token 前缀
+    // 匹配就能用，取匹配最长者。真实工人每轮的 system 快照带时间戳，按
+    // system 哈希出的 key 每轮都不同（实测 2026-11-23 整个任务零命中），
+    // 内容寻址彻底绕开 key 稳定性问题。
+    if params.session_id.is_some() {
+        log::debug!(
+            "[rwkv] session cache lookup: {} entries, prompt {} tokens",
+            engine.session_states.len(),
+            prompt_tokens.len()
+        );
+        let mut best: Option<(usize, Vec<u32>, Vec<f32>)> = None;
+        for (_key, (cached_tokens, cached_state)) in engine.session_states.iter() {
+            let Some(skip) =
+                ai00_x_core::util::prompt_cache::cache_extension(&prompt_tokens, cached_tokens)
+            else {
+                continue;
+            };
+            if best.as_ref().map(|(b, _, _)| skip > *b).unwrap_or(true) {
+                best = Some((skip, cached_tokens.clone(), cached_state.clone()));
             }
+        }
+        if let Some((skip, cached_tokens, cached_state)) = best {
+            log::info!(
+                "[rwkv] session cache hit: prefill {} of {} tokens (skip {skip})",
+                prompt_tokens.len() - skip,
+                prompt_tokens.len()
+            );
+            base_tokens = cached_tokens;
+            input_tokens = prompt_tokens[skip..].to_vec();
+            resume_state = Some(cached_state);
         }
     }
 
@@ -1362,10 +1373,16 @@ const SESSION_STATE_CAP: usize = 4;
 const SESSION_CACHE_BACKTRACK: usize = 8;
 
 /// 写入会话缓存并做容量淘汰。
+///
+/// 每条缓存用「来源 key + 自增序号」作 HashMap 键：查找是内容寻址的（遍历
+/// 所有条目按前缀匹配），键只用于淘汰顺序，不参与命中判断；这样多个工人/
+/// 连续回合的缓存互不覆盖。
 fn cache_session_state(engine: &mut PoolEngine, sid: String, tokens: Vec<u32>, state: Vec<f32>) {
-    engine.session_states.insert(sid.clone(), (tokens, state));
-    engine.session_order.retain(|k| k != &sid);
-    engine.session_order.push_back(sid);
+    static SEQ: AtomicU64 = AtomicU64::new(1);
+    let key = format!("{sid}#{}", SEQ.fetch_add(1, Ordering::Relaxed));
+    engine.session_states.insert(key.clone(), (tokens, state));
+    engine.session_order.retain(|k| k != &key);
+    engine.session_order.push_back(key);
     while engine.session_order.len() > SESSION_STATE_CAP {
         if let Some(old) = engine.session_order.pop_front() {
             engine.session_states.remove(&old);

@@ -907,6 +907,11 @@ async fn local_rwkv_sse(
 
     let stop = rwkv_stop_sequences(is_instruction_format, has_tools);
     let local_session = local_session_key(&messages);
+    log::debug!(
+        "[ai-gateway] local prompt ({} chars) head: {:?}",
+        prompt.chars().count(),
+        prompt.chars().take(120).collect::<String>()
+    );
 
     let mut rx = match pool_infer(
         prompt.clone(),
@@ -1905,7 +1910,8 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
     if has_tools {
         if let Some(tool_defs) = tools.filter(|defs| !defs.is_empty()) {
             let hint = hinted_tool(tool_defs, messages);
-            if let Some(fewshot) = tool_fewshot_block(tool_defs, hint) {
+            let path_hint = hinted_path(messages);
+            if let Some(fewshot) = tool_fewshot_block(tool_defs, hint, path_hint.as_deref()) {
                 prompt.push_str(&fewshot);
             }
         }
@@ -2179,12 +2185,44 @@ fn hinted_tool<'a>(tools: &'a [Value], messages: &[Value]) -> Option<&'a str> {
     })
 }
 
+/// 最后一条 user brief 里点名的文件名（few-shot 的路径示例用真实目标名）。
+///
+/// 血案（2026-11-23）：brief 要写 `hello-cache.txt`，few-shot 的路径示例恒为
+/// `note.txt`，本地 3B 直接照抄示例值——工人把内容写进 `note.txt`，验收读
+/// `hello-cache.txt` 失败、白返工一轮。示例值改成 brief 里出现的文件名后，
+/// 模型照抄的也是正确目标。
+fn hinted_path(messages: &[Value]) -> Option<String> {
+    const EXTS: [&str; 8] = [".txt", ".md", ".json", ".csv", ".py", ".js", ".ts", ".html"];
+    let last_user = messages
+        .iter()
+        .rev()
+        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))?;
+    let text = message_text(last_user)?;
+    text.split(|c: char| c.is_whitespace() || "，。；：“”‘’（）()[]{}<>\"'`、,;:".contains(c))
+        .find_map(|token| {
+            let token = token.trim_matches(|c: char| {
+                !(c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
+            });
+            let lower = token.to_ascii_lowercase();
+            let looks_like_file = token.len() >= 5
+                && token.len() <= 64
+                && !token.contains('/')
+                && !token.contains('\\')
+                && EXTS.iter().any(|ext| lower.ends_with(ext));
+            looks_like_file.then(|| token.to_string())
+        })
+}
+
 /// 一轮对话式 few-shot（2026-11-11 prompt_lab 实验：对话轮示例是 3B 工具
 /// 调用 JSON 合法性的决定性变量——零样本会多闭合括号，而把示例写进
 /// System 文本完全无效）。示例从当次工具表合成（优先首个能合成出非空
 /// 参数的工具），保证示例工具恒在表内；格式模仿可泛化到表内其他工具
 /// （三选一实测 3/3）。
-fn tool_fewshot_block(tools: &[Value], hint: Option<&str>) -> Option<String> {
+fn tool_fewshot_block(
+    tools: &[Value],
+    hint: Option<&str>,
+    path_hint: Option<&str>,
+) -> Option<String> {
     // 优先选能合成出非空参数的工具做示例：空参数（{}）示例会让模型在需要
     // 填参数时把 JSON schema 结构当参数值复读（2026-11-11 实测 3/3 复现）。
     //
@@ -2240,12 +2278,12 @@ fn tool_fewshot_block(tools: &[Value], hint: Option<&str>) -> Option<String> {
                 // 参数绑定能力——复读 schema 结构或塌陷重复（p2/p4/p6 实测），
                 // 真实值则连工具选择都纠正（p5 错选 vs p7 全对）。
                 let value = match ty {
-                    "string" => json!(sample_string_arg(key)),
+                    "string" => json!(sample_string_arg(key, path_hint)),
                     "number" | "integer" => json!(1),
                     "boolean" => json!(true),
                     // 数组参数（queries / urls）：给一个元素的真实示例，
                     // 否则模型会把 schema 结构塞进数组或干脆漏掉该键。
-                    "array" => json!([sample_string_arg(key)]),
+                    "array" => json!([sample_string_arg(key, path_hint)]),
                     _ => continue,
                 };
                 args.insert(key.clone(), value);
@@ -2269,23 +2307,25 @@ fn tool_fewshot_block(tools: &[Value], hint: Option<&str>) -> Option<String> {
 }
 
 /// few-shot 字符串参数示例值（按参数名挑最贴近真实用法的样例）。
-fn sample_string_arg(key: &str) -> &'static str {
+/// `path_hint` = brief 里点名的文件名：路径类参数优先用它，避免模型照抄
+/// 示例里的固定文件名。
+fn sample_string_arg(key: &str, path_hint: Option<&str>) -> String {
     if key.contains("path") {
-        "note.txt"
+        path_hint.unwrap_or("note.txt").to_string()
     } else if key.contains("query") || key.contains("queries") {
-        "agent memory architecture"
+        "agent memory architecture".to_string()
     } else if key.contains("url") {
-        "https://www.rwkv.cn"
+        "https://www.rwkv.cn".to_string()
     } else if key.contains("title") {
-        "Reminder"
+        "Reminder".to_string()
     } else if key.contains("message") || key.contains("msg") {
-        "Don't forget your meeting at 3 PM."
+        "Don't forget your meeting at 3 PM.".to_string()
     } else if key.contains("cwd") || key.contains("dir") {
-        "C:/work/demo"
+        "C:/work/demo".to_string()
     } else if key.contains("topic") {
-        "agent memory architecture"
+        "agent memory architecture".to_string()
     } else {
-        "hello"
+        "hello".to_string()
     }
 }
 
@@ -3896,7 +3936,8 @@ mod tests {
                 }}
             }}),
         ];
-        let block = tool_fewshot_block(&tools, Some("ai00_research_collect")).unwrap_or_default();
+        let block =
+            tool_fewshot_block(&tools, Some("ai00_research_collect"), None).unwrap_or_default();
         assert!(
             block.contains("\"name\": \"ai00_research_collect\""),
             "expected the hinted tool first: {block}"
