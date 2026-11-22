@@ -2766,11 +2766,12 @@ fn try_extract_tool_call(text: &str) -> Option<(String, String)> {
 /// 工具调用续写起点：prompt 末尾预填该前缀，模型只需续写工具名与参数。
 /// 解析时把前缀补回生成文本（`tool_call_from_text`）。
 ///
-/// 用紧凑形式（`{"name":"`，冒号后无空格）与历史回放的渲染形式
-/// （`json!` 序列化 = `{"name":"x","arguments":...}`）对齐：这样下一轮
-/// prompt 严格以上一轮 prompt 为前缀，引擎的会话缓存才能命中、只 prefill
-/// 增量（详见 rwkv_llm 的 cache_extension）。
-const TOOL_CALL_PREFILL: &str = "{\"name\":\"";
+/// 保持与 few-shot 示例一致**带空格**的形式（改成紧凑形式曾观察到参数嵌套，
+/// 复测证明是长提示下的模型抖动、与格式无关，但格式统一没有坏处）。
+/// 会话缓存的前缀对齐靠引擎在缓存末尾回退 8 个 token
+/// （`SESSION_CACHE_BACKTRACK`），能吸收 `{"name": "` 与回放渲染
+/// `{"name":"` 的 token 化差异，仍能命中。
+const TOOL_CALL_PREFILL: &str = "{\"name\": \"";
 
 /// 工具调用提取总入口：先严格解析生成文本，再尝试补回预填前缀，
 /// 最后走带工具时的宽容修复（多行美化 / 截断的 JSON）。
@@ -2941,6 +2942,19 @@ fn normalize_tool_arguments(name: &str, arguments: &str) -> String {
             if let Some(path) = nested_path {
                 obj.insert("file_path".to_string(), path);
             }
+        }
+    }
+    // 4) 单参数自嵌套：3B 偶发写成 `{"query":{"query":"x"}}`（长提示/填充文本下
+    //    更常见，实测 2026-11-23）→ 解开一层。只在「对象恰好一个键、且内层同名」
+    //    时动手，避免误伤合法的嵌套参数。
+    let keys: Vec<String> = obj.keys().cloned().collect();
+    for key in keys {
+        let inner_value = match obj.get(&key) {
+            Some(Value::Object(inner)) if inner.len() == 1 => inner.get(&key).cloned(),
+            _ => None,
+        };
+        if let Some(value) = inner_value {
+            obj.insert(key, value);
         }
     }
     value.to_string()

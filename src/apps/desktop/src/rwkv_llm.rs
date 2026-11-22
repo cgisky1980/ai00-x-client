@@ -1358,7 +1358,8 @@ fn prepare_task(
 const SESSION_STATE_CAP: usize = 4;
 
 /// 缓存前缀相对 prompt 末尾的回退 token 数（BPE 边界失配防护，见 prefill_step）。
-const SESSION_CACHE_BACKTRACK: usize = 4;
+/// 8 足以覆盖 `{"name": "` 与回放渲染 `{"name":"` 的 token 化差异。
+const SESSION_CACHE_BACKTRACK: usize = 8;
 
 /// 写入会话缓存并做容量淘汰。
 fn cache_session_state(engine: &mut PoolEngine, sid: String, tokens: Vec<u32>, state: Vec<f32>) {
