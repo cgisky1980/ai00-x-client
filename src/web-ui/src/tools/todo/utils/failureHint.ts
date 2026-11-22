@@ -43,13 +43,66 @@ export function failureGuidance(err?: FailureLike): FailureGuidance {
 }
 
 /**
- * 失败原因的一句话摘要（通知 / 计划卡共用）：`code · 首个分句`，超长截断。
+ * 从网关包装的错误文案里挖出最内层可读 message。
+ *
+ * 网关（以及早期会话记录）会把上游错误原样序列化进 message：
+ * `Ai00-X gateway HTTP 502: {"error":{"message":"{\"code\":402,...}"}}`。
+ * 直接摘要只会露出一串转义 JSON，人要自己从里面找「积分余额不足」。这里逐层解包，
+ * 取最内层的 message 字符串（保留 `HTTP 502` 这类定位前缀）。解析不了就原样返回。
+ */
+export function unwrapFailureMessage(text: string): string {
+  const start = text.indexOf('{');
+  if (start < 0) return text;
+  const prefix = text.slice(0, start).replace(/[\s:：]+$/, '');
+  let node: unknown;
+  try {
+    node = JSON.parse(text.slice(start));
+  } catch {
+    return text;
+  }
+  let message = '';
+  for (let depth = 0; depth < 6; depth += 1) {
+    if (typeof node === 'string') {
+      const raw = node.trim();
+      try {
+        node = JSON.parse(raw);
+        continue;
+      } catch {
+        message = raw;
+        break;
+      }
+    }
+    if (!node || typeof node !== 'object') break;
+    const record = node as { message?: unknown; error?: unknown };
+    if (typeof record.message === 'string' && record.message.trim()) {
+      const inner = record.message.trim();
+      // message 本身可能又是一段 JSON（实测两层嵌套）。
+      if (inner.startsWith('{') || inner.startsWith('"')) {
+        node = inner;
+        continue;
+      }
+      message = inner;
+      break;
+    }
+    if (record.error !== undefined) {
+      node = record.error;
+      continue;
+    }
+    break;
+  }
+  const merged = [prefix, message].filter(Boolean).join(': ');
+  return merged || text;
+}
+
+/**
+ * 失败原因的一句话摘要（通知 / 计划卡 / 列表与看板悬停共用）：`code · 首个分句`，超长截断。
  *
  * 只写「以错误收尾」等于让人再去翻对话；摘要给到「哪一类错、报在哪」就够判断了。
+ * 网关包装过的 JSON 先解包（`unwrapFailureMessage`），否则摘要里只有转义字符。
  */
 export function summarizeFailure(err?: FailureLike): string {
   if (!err) return '';
-  const clause = (err.message ?? '').split(/[;；]/)[0].trim();
+  const clause = unwrapFailureMessage(err.message ?? '').split(/[;；]/)[0].trim();
   const short = clause.length > 80 ? `${clause.slice(0, 80)}…` : clause;
   return [err.code, short].filter(Boolean).join(' · ');
 }
