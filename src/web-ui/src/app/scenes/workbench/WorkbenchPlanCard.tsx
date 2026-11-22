@@ -24,7 +24,6 @@ import {
   Markdown,
   Modal,
   Skeleton,
-  Statistic,
   Steps,
   Timeline,
   TimelineItem,
@@ -294,7 +293,6 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
             : failure.hint;
   const catalog = useWorkbenchTaskStore((s) => (sessionId ? s.subagentCatalog[sessionId] : undefined));
   const children = useWorkbenchTaskStore((s) => (sessionId ? s.children[sessionId] : undefined));
-  const stats = useWorkbenchTaskStore((s) => (sessionId ? s.sessionStats[sessionId] : undefined));
   const runtimeKnown = useWorkbenchTaskStore((s) => Boolean(sessionId && s.runtime[sessionId]));
   /** exit_plan_mode 审批（与 ai00_plan_write 汇入同一个「待批准」态，规范 §9.6）。 */
   const planReview = useWorkbenchTaskStore((s) => (sessionId ? s.planReviews[sessionId] : undefined));
@@ -955,7 +953,6 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
 
   const doneCount = steps.length > 0 ? steps.filter((s) => s.done).length : legacySteps.filter((s) => s.done).length;
   const totalCount = steps.length > 0 ? steps.length : legacySteps.length;
-  const reworkCount = states.filter((s) => s === 'rework').length;
   const allDone = totalCount > 0 && doneCount === totalCount;
 
   const deliverables = (
@@ -1177,61 +1174,47 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     </div>
   );
 
-  const executeArea = (
-    <div className="ai00-x-plan-card__execute">
-      <div className="ai00-x-plan-card__stats">
-        <Statistic
-          title={t('nav.workbenchWindow.planCard.statsDone')}
-          value={doneCount}
-          suffix={`/${totalCount}`}
-        />
-        <Statistic title={t('nav.workbenchWindow.planCard.statsRework')} value={reworkCount} />
-        {stats && (
-          <>
-            <Statistic title={t('nav.workbenchWindow.planCard.statsTools')} value={stats.tools.total} />
-            <Statistic
-              title={t('nav.workbenchWindow.planCard.statsToolFailures')}
-              value={stats.tools.failures}
-            />
-          </>
+  // 执行阶段只保留真正需要人动手的内容：打回 / 失败 / 续跑 / 自检。
+  // 原来的「已完成 / 返工 / 工具调用 / 工具失败」四宫格与步骤行、阶段条重复，去掉。
+  const showRetryAfterFix = !readOnly && !running && failure.blocking;
+  const showFailureHint = !readOnly && !running && !failure.blocking && Boolean(failureSummary);
+  const showResume =
+    !readOnly &&
+    !running &&
+    Boolean(sessionId) &&
+    !failure.blocking &&
+    (phase === 'stopped' || phase === 'failed') &&
+    !(allDone && !task.agentCompletedAt);
+  const showNudge =
+    !readOnly && allDone && !running && !task.agentCompletedAt && !failure.blocking;
+  const executeArea =
+    rejectBlock || showRetryAfterFix || showFailureHint || showResume || showNudge ? (
+      <div className="ai00-x-plan-card__execute">
+        {/* 打回返工期间也要看得到「为什么被打回、哪几项不成立」：打回会清空验收与集成验收记录。 */}
+        {rejectBlock}
+        {/* 额度 / 凭据 / 模型不可用：先给处理建议，再留一个显式的「已修好，重试」。 */}
+        {showRetryAfterFix && (
+          <div className="ai00-x-plan-card__actions">
+            <p className="ai00-x-plan-card__hint">{failureText}</p>
+            <Button
+              variant="secondary"
+              size="small"
+              disabled={busy}
+              onClick={allDone && !task.agentCompletedAt ? nudgeSelfCheck : resume}
+            >
+              <Play size={12} />
+              {t('nav.workbenchWindow.progress.retryAfterFix')}
+            </Button>
+          </div>
         )}
-      </div>
-      {/* 打回返工期间也要看得到「为什么被打回、哪几项不成立」：打回会清空验收与集成验收记录，
-          执行段若不展示，卡片只剩「已完成 1/1」——读起来像没发生过打回。 */}
-      {rejectBlock}
-      {/* 停住的任务（客户端重启 / 回合被打断 / 出错之后）以前只能靠人再打一句话续跑——
-          看门狗提示里早就写着「点「继续执行」」，可这个按钮一直不存在。
-          步骤全做完只是没提交自检时只给下面那个「提交自检」：同一时刻只留一个推进动作。 */}
-      {/* 额度 / 凭据 / 模型不可用：立刻重试只会同样失败，先给处理建议；
-          处理完人仍需一个出口，所以留一个显式的「已修好，重试」。 */}
-      {!readOnly && !running && failure.blocking && (
-        <div className="ai00-x-plan-card__actions">
-          <p className="ai00-x-plan-card__hint">{failureText}</p>
-          <Button
-            variant="secondary"
-            size="small"
-            disabled={busy}
-            onClick={allDone && !task.agentCompletedAt ? nudgeSelfCheck : resume}
-          >
-            <Play size={12} />
-            {t('nav.workbenchWindow.progress.retryAfterFix')}
-          </Button>
-        </div>
-      )}
-      {/* 可重试的失败也把原因摆在卡片上：不必先去对话里翻错误气泡。
-          限流（rateLimit）不是 blocking，但要给「稍等再试」而不是让人立刻再撞一次。 */}
-      {!readOnly && !running && !failure.blocking && failureSummary && (
-        <p className="ai00-x-plan-card__hint">
-          {t('nav.workbenchWindow.progress.lastFailure', { reason: failureSummary })}
-          {failure.kind ? ` · ${failureText}` : ''}
-        </p>
-      )}
-      {!readOnly &&
-        !running &&
-        sessionId &&
-        !failure.blocking &&
-        (phase === 'stopped' || phase === 'failed') &&
-        !(allDone && !task.agentCompletedAt) && (
+        {/* 可重试的失败也把原因摆在卡片上，不必先去对话里翻错误气泡。 */}
+        {showFailureHint && (
+          <p className="ai00-x-plan-card__hint">
+            {t('nav.workbenchWindow.progress.lastFailure', { reason: failureSummary })}
+            {failure.kind ? ` · ${failureText}` : ''}
+          </p>
+        )}
+        {showResume && (
           <div className="ai00-x-plan-card__actions">
             <Button variant="secondary" size="small" disabled={busy} onClick={resume}>
               <Play size={12} />
@@ -1239,16 +1222,16 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
             </Button>
           </div>
         )}
-      {!readOnly && allDone && !running && !task.agentCompletedAt && !failure.blocking && (
-        <div className="ai00-x-plan-card__nudge">
-          <p className="ai00-x-plan-card__hint">{t('nav.workbenchWindow.progress.nudgeSelfCheck')}</p>
-          <Button variant="secondary" size="small" onClick={nudgeSelfCheck}>
-            {t('nav.workbenchWindow.progress.nudgeSelfCheckAction')}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
+        {showNudge && (
+          <div className="ai00-x-plan-card__nudge">
+            <p className="ai00-x-plan-card__hint">{t('nav.workbenchWindow.progress.nudgeSelfCheck')}</p>
+            <Button variant="secondary" size="small" onClick={nudgeSelfCheck}>
+              {t('nav.workbenchWindow.progress.nudgeSelfCheckAction')}
+            </Button>
+          </div>
+        )}
+      </div>
+    ) : null;
 
   const footer = completed ? (
     <div className="ai00-x-plan-card__review">
@@ -1337,7 +1320,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           {error}
         </p>
       )}
-      <footer className="ai00-x-plan-card__footer">{footer}</footer>
+      {footer && <footer className="ai00-x-plan-card__footer">{footer}</footer>}
 
       <div className="ai00-x-plan-card__source-bar">
         {editable && sourceDraft == null && (
