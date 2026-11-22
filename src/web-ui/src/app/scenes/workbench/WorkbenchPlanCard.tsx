@@ -825,20 +825,40 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           );
         })}
       </ul>
-      {/* 计划外文件是 worker 留下的草稿：给一个直达任务目录的入口，便于验收时顺手清理。 */}
+      {/* 计划外文件是 worker 留下的草稿：逐个给「在文件夹中显示」，再给一个直达任务目录的入口，
+          便于验收时顺手核对/清理（名字是 glob 或已被删时 reveal 失败静默）。 */}
       {cwd && extras.length > 0 && !readOnly && (
-        <Button
-          variant="secondary"
-          size="small"
-          onClick={() => {
-            void openPath(cwd).catch((e: unknown) =>
-              setError(e instanceof Error ? e.message : String(e)),
-            );
-          }}
-        >
-          <FolderOpen size={12} />
-          {t('nav.workbenchWindow.board.openTaskFolder')}
-        </Button>
+        <>
+          <ul className="ai00-x-plan-card__files">
+            {extras.map((name) => {
+              const path = `${cwd.replace(/[\\/]+$/, '')}/${name}`;
+              return (
+                <li key={name} className="ai00-x-plan-card__file">
+                  <button
+                    type="button"
+                    className="ai00-x-plan-card__file-name"
+                    title={path}
+                    onClick={() => workspaceAPI.revealInExplorer(path).catch(() => undefined)}
+                  >
+                    {fileName(name)}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <Button
+            variant="secondary"
+            size="small"
+            onClick={() => {
+              void openPath(cwd).catch((e: unknown) =>
+                setError(e instanceof Error ? e.message : String(e)),
+              );
+            }}
+          >
+            <FolderOpen size={12} />
+            {t('nav.workbenchWindow.board.openTaskFolder')}
+          </Button>
+        </>
       )}
     </section>
   );
