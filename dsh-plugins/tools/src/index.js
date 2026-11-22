@@ -170,11 +170,16 @@ export async function corruptDeliverables(cwd, names) {
  * `startsWith/endsWith` 也是内容信号：实测一份计划被误拦过——T1 的命令是
  * `!t.startsWith('打回测试') || t.length > 6`（开头必须对、且只允许 6 字），
  * 内容和长度同时断言，却被「有 .length 且无内容信号」判成只量长度，模型白改一轮。
+ *
+ * 与字符串字面量的相等/不等比较同样是内容信号：实测（任务 t-1795366486750-rh2）
+ * `if(l.length!==1||t!=='hello from local rwkv')` 同时断言"单行 + 精确内容"，
+ * 只因为带 `.length` 被拦。凡是 `=== / !== / == / !=` 后紧跟引号的比较，
+ * 都说明命令在核对内容本身，不再算弱判据。
  */
 const LENGTH_ONLY_CMD =
   /(\.length\b|byteLength|statSync\([^)]*\)\s*\.\s*size|\.size\b|\btest\s+-s\b|wc\s+-c)/;
 const CONTENT_SIGNAL_CMD =
-  /(includes\(|startsWith\(|endsWith\(|\.match\(|\.test\(|indexOf\(|\bgrep\b|\bfindstr\b|Select-String|\brg\b|contains\(|\bassert\b)/i;
+  /(includes\(|startsWith\(|endsWith\(|\.match\(|\.test\(|indexOf\(|\bgrep\b|\bfindstr\b|Select-String|\brg\b|contains\(|\bassert\b|[=!]==?\s*['"`])/i;
 
 /** 计划里所有「只量长度」的验收条目（含步骤级 `Acceptance:` 与 `## 验收`）。 */
 export function weakAcceptance(markdown) {
