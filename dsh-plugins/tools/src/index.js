@@ -1217,7 +1217,7 @@ function defineTools(ctx, api) {
   ctx.tools.register({
     name: "ai00_task_verify",
     description:
-      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. When the global '## 验收' section has no executable `{cmd:}` checks, integration verify re-runs every step's acceptance command as regression (up to 8) and reports `regression` — plain-text acceptance items are left to the human reviewer and no longer downgrade the verdict by themselves. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Passing verdict + `tick: true` also ticks that step in the same call (one round trip instead of verify + plan_check). Integration verify (no stepId) also checks that every file promised in the plan's '## Deliverables' exists and returns failed when one is missing — a worker writing `report.part1.md` instead of `report.md` can no longer pass. A stepId verify also reports `scopeMissing` (step Scope files that do not exist) and downgrades to needs-review. Also returns planPending (unticked step ids + acceptance lines) so you can tick acceptance lines with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
+      "Run a plan step's acceptance commands and return a compact evidence package (verdict + command outputs + changed files, diff only when needed). Use after EVERY local_code_worker run to check the real result instead of trusting the worker's self-report. verdict: passed = all objective checks passed; failed = a command failed; needs-review = manual/ambiguous/truncated evidence. When the global '## 验收' section has no executable `{cmd:}` checks, integration verify re-runs every step's acceptance command as regression (up to 8) and reports `regression` — plain-text acceptance items are left to the human reviewer and no longer downgrade the verdict by themselves. reviewRequired = true means the orchestrator must have it reviewed (strict mode, high risk, or insufficient evidence). Passing verdict + `tick: true` also ticks that step in the same call (one round trip instead of verify + plan_check). Integration verify (no stepId) also checks that every file promised in the plan's '## Deliverables' exists and returns failed when one is missing — a worker writing `report.part1.md` instead of `report.md` can no longer pass. A stepId verify also reports `scopeMissing` (step Scope files that do not exist) and `scopeEmpty` (step Scope files that exist but are 0 bytes) and downgrades to needs-review. Also returns planPending (unticked step ids + acceptance lines) so you can tick acceptance lines with ai00_plan_check without a separate ai00_plan_read. Passing commands does NOT replace high-risk review or human acceptance.",
     parameters: {
       type: "object",
       properties: {
@@ -1298,6 +1298,12 @@ function defineTools(ctx, api) {
             items: { type: "string" },
             description:
               "Files listed in this step's Scope that do not exist after the run (downgrades the verdict to needs-review).",
+          },
+          scopeEmpty: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Files listed in this step's Scope that exist but are 0 bytes (the write landed empty; downgrades the verdict to needs-review).",
           },
           deliverables: {
             type: "array",
@@ -1385,6 +1391,11 @@ function defineTools(ctx, api) {
         }
         if ((value.scopeMissing ?? []).length) {
           lines.push(`scope missing: ${value.scopeMissing.join(", ")} — check the worker's file names`);
+        }
+        if ((value.scopeEmpty ?? []).length) {
+          lines.push(
+            `scope files empty (0 bytes): ${value.scopeEmpty.join(", ")} — the write landed empty; rewrite before integration`
+          );
         }
         if ((value.extras ?? []).length) {
           lines.push(
@@ -1581,21 +1592,29 @@ function defineTools(ctx, api) {
       // 暴露。这里在步内就对账「Scope 里承诺的文件是否存在」，缺失按
       // needs-review 上报（Scope 也可能列只读引用的既有文件，不能判 failed）。
       const scopeMissing = [];
+      const scopeEmpty = [];
       if (step && cwd) {
         for (const raw of step.paths ?? []) {
           const name = String(raw).replace(/`/g, "").trim().replace(/^\.\//, "");
           if (!name || name === "." || /[*?]/.test(name)) continue;
           if (!/\.[A-Za-z0-9]{1,8}$/.test(name)) continue; // 目录/通配路径跳过
-          const exists = await stat(join(cwd, name))
-            .then(() => true)
-            .catch(() => false);
-          if (!exists) scopeMissing.push(name);
+          const info = await stat(join(cwd, name)).catch(() => null);
+          if (!info) {
+            scopeMissing.push(name);
+            continue;
+          }
+          // Scope 里的文件被写空（本地 3B 长文写入的典型后果）：步内先降 needs-review，
+          // 别等到集成验收才发现。
+          if (info.isFile() && info.size === 0) scopeEmpty.push(name);
         }
       }
       if (scopeMissing.length) {
         ctx.logger.warn(
           `ai00-x-tools: step scope files missing: ${scopeMissing.join(", ")}`
         );
+      }
+      if (scopeEmpty.length) {
+        ctx.logger.warn(`ai00-x-tools: step scope files empty (0 bytes): ${scopeEmpty.join(", ")}`);
       }
 
       // 集成验收时顺手对一眼工作目录：计划（各步 Scope + Deliverables）没提到的文件
@@ -1646,6 +1665,7 @@ function defineTools(ctx, api) {
         : regressionFailed > 0 ||
             insufficient ||
             scopeMissing.length > 0 ||
+            scopeEmpty.length > 0 ||
             unrunnable.length > 0
           ? "needs-review"
           : "passed";
@@ -1727,6 +1747,7 @@ function defineTools(ctx, api) {
         changedFiles: evidence.changedFiles,
         deliverables,
         ...(scopeMissing.length ? { scopeMissing } : {}),
+        ...(scopeEmpty.length ? { scopeEmpty } : {}),
         ...(extras.length ? { extras } : {}),
         ...(reviewNotes.length ? { reviewNotes } : {}),
         ...(corrupt.length ? { corrupt } : {}),
