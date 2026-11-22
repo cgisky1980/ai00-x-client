@@ -2323,9 +2323,14 @@ pub async fn start() -> Result<(), String> {
         stage: "starting engine".into(),
     });
 
-    // 会话卫生：引擎启动前清掉 7 天前的 worker 子会话（一次多步任务会留下十几个，
+    // 会话卫生：引擎启动前清掉 30 天前的 worker 子会话（一次多步任务会留下十几个，
     // 引擎没有删除 RPC）。失败/无目录都静默，不阻塞启动。
-    prune_stale_worker_sessions(7);
+    //
+    // 阈值从 7 天放宽到 30 天：worker 会话是验收时要看的证据（子代理卡/工具记录），
+    // 而任务在「审核」里放超过一周是常事；每个会话压缩后只有几十 KB（实测 180 个
+    // ≈ 3 MB），用 7 天换这点磁盘不值得。已验收/已归档任务的清理走界面显式按钮
+    // （`delete_worker_session_dir`），这里只兜底任务已删除、没人认领的孤儿。
+    prune_stale_worker_sessions(30);
 
     spawn_sidecar().await?;
 

@@ -2,8 +2,9 @@
  * workerSessionCleanup — 清理「已完成 / 已归档任务」遗留的子代理会话目录。
  *
  * 引擎每次派发 worker 都是一个子会话（目录名是裸 UUID，父会话是 `session-<uuid>`），
- * 一个多步任务会留下十几个；引擎没有删除会话的 RPC。宿主启动时会自动清掉 7 天前的
- * 子会话（`dsh_manager::prune_stale_worker_sessions`），但刚完成的任务仍会越积越多。
+ * 一个多步任务会留下十几个；引擎没有删除会话的 RPC。宿主启动时会自动清掉 30 天前的
+ * 子会话（`dsh_manager::prune_stale_worker_sessions`，只兜底没人认领的孤儿），
+ * 但已完成/已归档任务留下的 worker 仍会越积越多。
  *
  * 这里提供**显式**清理：只挑「父任务已完成 / 已归档且子会话不在运行」的 id，
  * 逐个交给宿主 `delete_worker_session_dir`（只删子会话目录，父会话永不动）。
