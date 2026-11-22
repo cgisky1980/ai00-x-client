@@ -74,17 +74,17 @@ export const TaskActionsMenu: React.FC<TaskActionsMenuProps> = ({
    */
   const stopTaskSession = useCallback(async (): Promise<void> => {
     if (!sessionId) return;
-    if (turnRunning) {
-      await drainSessionQueue(sessionId).catch(() => undefined);
-      await dshSession.cancel(sessionId).catch(() => undefined);
-    }
+    // 队列无条件清：运行态是 5s 轮询回填的，可能滞后（菜单认为已停、引擎里还有
+    // next-turn 项）；drain 对空队列/无 live Agent 都只是读一次状态，代价可忽略。
+    await drainSessionQueue(sessionId).catch(() => undefined);
+    if (turnRunning) await dshSession.cancel(sessionId).catch(() => undefined);
     for (const childId of runningChildKey ? runningChildKey.split(',') : []) {
       void subagentInterrupt(sessionId, childId).catch(() => undefined);
     }
   }, [runningChildKey, sessionId, turnRunning]);
 
   const handleArchive = (): void => {
-    if (!archived && running) void stopTaskSession();
+    if (!archived) void stopTaskSession();
     updateTask(task.id, { archivedAt: archived ? null : Date.now() });
     onArchived?.(!archived);
   };
@@ -189,7 +189,7 @@ export const TaskActionsMenu: React.FC<TaskActionsMenuProps> = ({
           setDeleteOpen(false);
           window.setTimeout(() => {
             // 卡片一删就再也按不到「停止」：先在跑的回合与子代理停掉（含清空排队项）。
-            if (running) void stopTaskSession();
+            void stopTaskSession();
             // 隔离执行的任务：顺手回收 worktree。脏目录会被 Git 拒绝——刻意保留，
             // 交回用户处理，避免删卡时连未提交改动一起抹掉。
             if (task.worktreePath) {
