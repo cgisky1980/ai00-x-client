@@ -33,6 +33,7 @@ import { buildChildStallPrompt } from '../ai/prompts';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
 import { dismissTaskNotification, goToTask, notifyTask, type NotifyAction } from '../utils/notify';
 import { continueTaskRun, SessionLostError } from '../utils/continueRun';
+import { failureGuidance } from '../utils/failureHint';
 import { invoke } from '@tauri-apps/api/core';
 
 /**
@@ -561,8 +562,16 @@ export const TodoOverlay: React.FC = () => {
             const prevStreak = failureStreakRef.current.get(sid);
             const streak = prevStreak && prevStreak.key === streakKey ? prevStreak.count + 1 : 1;
             failureStreakRef.current.set(sid, { key: streakKey, count: streak });
-            const toastId =
-              streak >= 3 && reason
+            const guidance = failureGuidance(err);
+            const toastId = guidance.blocking
+              ? // 额度/凭据/模型这类失败重试必然同样结果：第一次就不给「继续执行」。
+                notifyTask(
+                  '任务出错 · 需要你',
+                  `「${task.title}」这一轮失败${reason ? `：${reason}` : ''}——${guidance.hint}；处理完回卡片点「继续执行」`,
+                  'error',
+                  [goToTask(task.id, '去查看')],
+                )
+              : streak >= 3 && reason
                 ? notifyTask(
                     '任务出错 · 需要你',
                     `「${task.title}」连续 ${streak} 次同样的错误：${reason}——重试大概率还是同样结果，先按提示修环境（凭据 / 模型 / 额度）`,
@@ -977,9 +986,11 @@ export const TodoOverlay: React.FC = () => {
           );
         });
         const firstFailure = historicFailing[0];
-        const firstFailureReason = firstFailure
-          ? summarizeFailure(runStateMap[firstFailure.agentSessionId as string]?.lastError)
-          : '';
+        const firstFailureError = firstFailure
+          ? runStateMap[firstFailure.agentSessionId as string]?.lastError
+          : undefined;
+        const firstFailureReason = firstFailure ? summarizeFailure(firstFailureError) : '';
+        const firstFailureGuidance = failureGuidance(firstFailureError);
         const firstFailureTitle = firstFailure ? `「${firstFailure.title.slice(0, 14)}」` : '';
         syncMergedNotice(
           'failing',
@@ -987,9 +998,13 @@ export const TodoOverlay: React.FC = () => {
           (n) => `有 ${n} 个任务上一轮失败`,
           (names, n) =>
             // 多张卡时原因属于谁要说清楚（按钮只作用于第一张）；单张直接用名字打头。
-            `${names}${n > 2 ? ' 等' : ''}上一轮以错误收尾${firstFailureReason ? `${n > 1 ? `（首条${firstFailureTitle}）` : ''}：${firstFailureReason}` : ''}——点开卡片看错误${n === 1 ? '，或点「继续执行」重试' : ''}`,
+            `${names}${n > 2 ? ' 等' : ''}上一轮以错误收尾${firstFailureReason ? `${n > 1 ? `（首条${firstFailureTitle}）` : ''}：${firstFailureReason}` : ''}——${
+              firstFailureGuidance.blocking
+                ? `${firstFailureGuidance.hint}，处理后才能继续`
+                : `点开卡片看错误${n === 1 ? '，或点「继续执行」重试' : ''}`
+            }`,
           (l) =>
-            l.length === 1
+            l.length === 1 && !firstFailureGuidance.blocking
               ? [
                   goToTask(l[0].id, '去查看'),
                   resumeTask(
