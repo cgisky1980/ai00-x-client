@@ -1084,8 +1084,10 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       (phase === 'planning' || phase === 'stopped' || phase === 'failed');
     return (
       <article className="ai00-x-plan-card is-empty">
-        {/* 运行态未知（刚建会话、还没上报）也按规划中处理，避免先闪一下空态 */}
-        {running || !runtimeKnown ? (
+        {/* 运行态未知只对**有会话**的卡按规划中处理（刚建会话、还没上报，避免先闪空态）。
+            没有会话的卡（agent 建的想法卡）永远不会上报运行态——以前这里会永远显示
+            「正在拆解目标…」，实际什么都没在跑（看板详情实测）。 */}
+        {running || (Boolean(sessionId) && !runtimeKnown) ? (
           <PlanCardGenerating />
         ) : (
           <>
