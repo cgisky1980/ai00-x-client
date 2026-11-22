@@ -10,9 +10,9 @@
 //! 平台支持矩阵：
 //! - Windows：完整实现（GetForegroundWindow + GetWindowRect / IsZoomed）。
 //! - macOS / Linux / 其他：降级为「永不避让」（检测函数恒 false），
-//!   功能缺失但编译与运行不受影响，岛保持常驻展开。
-//! 降级平台仍走同一套循环/事件逻辑，仅检测结果恒 false，避免平台特化分支
-//! 带来的死代码与 unused 警告。
+//!   功能缺失但编译与运行不受影响，岛保持常驻展开；
+//!   降级平台仍走同一套循环/事件逻辑，仅检测结果恒 false，避免平台特化分支
+//!   带来的死代码与 unused 警告。
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;

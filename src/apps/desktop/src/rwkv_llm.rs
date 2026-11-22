@@ -39,7 +39,12 @@ macro_rules! debug_print {
 
 const MAX_SLOTS: usize = 16;
 /// prefill 分块长度：限制单次 seq 缓冲大小（块大小固定避免重建）。
-const PREFILL_CHUNK: usize = 128;
+///
+/// 2026-11-23 由 128 调到 512：分块是串行推进的，每块都是一次独立的
+/// `forward_seq_with_state` 调用，块越小调用开销/GPU 利用率损失占比越高。
+/// 5,056 token 全量 prefill 实测（max_tokens=16，同机同模型）：
+/// 128 分块 4.33s → 512 分块 3.63s（-16%）。
+const PREFILL_CHUNK: usize = 512;
 /// 惩罚历史每槽容量（token 数）。超出后丢弃最旧 1/4（惩罚窗口滑动，语义与
 /// 客户端原 `token_counts` 的"全历史计数"在窗口内等价）。
 const HIST_STRIDE: usize = 8192;
