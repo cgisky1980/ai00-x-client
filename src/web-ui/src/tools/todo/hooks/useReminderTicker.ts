@@ -140,6 +140,20 @@ export function useReminderTicker(): void {
         notifyTask('外部触发失败', `未找到卡片 ${taskId}`, 'error');
         return;
       }
+      // 终态卡片不再自动执行：外部脚本/CI 拿旧 id 触发时，接着跑只会重复提交
+      // 自检（ai00_task_complete 对已完成卡直接报错）或覆盖已验收的结论。
+      if (task.completedAt) {
+        notifyTask('已忽略外部触发', `「${task.title}」已完成，不再自动执行`, 'info');
+        return;
+      }
+      if (task.archivedAt) {
+        notifyTask('已忽略外部触发', `「${task.title}」已归档，不再自动执行`, 'info');
+        return;
+      }
+      if (task.agentCompletedAt) {
+        notifyTask('已忽略外部触发', `「${task.title}」已提交自检，等你验收`, 'info');
+        return;
+      }
       // 防重入必须用**真实运行态**（session/list 快照 + 子代理聚合），
       // 不能用看板列 `status`：工作台卡片建卡即 `doing`，worker 跑完也不回落，
       // 实测导致「卡片停在 doing → 外部触发永远被拒」。
