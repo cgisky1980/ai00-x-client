@@ -524,6 +524,7 @@
         "deleteStep": "Delete step",
         "addStep": "Add step",
         "newStep": "New step",
+        "placeholderStep": "Step {{id}} is still the placeholder \"New step\": give it real content or delete it before approving the plan.",
         "diffChanged": "changed {{ids}}",
         "diffAdded": "added {{ids}}",
         "diffRemoved": "removed {{ids}}",

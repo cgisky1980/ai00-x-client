@@ -524,6 +524,7 @@
         "deleteStep": "删除步骤",
         "addStep": "添加步骤",
         "newStep": "新步骤",
+        "placeholderStep": "步骤 {{id}} 还是占位标题「新步骤」：先补上具体内容，或删除它，再批准计划。",
         "diffChanged": "修改 {{ids}}",
         "diffAdded": "新增 {{ids}}",
         "diffRemoved": "删除 {{ids}}",

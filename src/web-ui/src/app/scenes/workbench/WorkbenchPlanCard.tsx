@@ -455,7 +455,21 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     if (await commitPlan(sourceDraft)) setSourceDraft(null);
   }, [busy, commitPlan, sourceDraft]);
 
+  /**
+   * 批准计划：占位步骤必须先处理。
+   *
+   * 「添加步骤」会立刻把一行 `- [ ] T4 新步骤` 写进计划并打开行内编辑；取消编辑时
+   * 这一行会留在计划里。若直接批准，worker 会拿到一条没有内容的步骤去执行（实测
+   * 待批准卡里就留过 `T4 新步骤`）。占位标题也不是有效的验收对象，先拦下来。
+   */
   const approve = useCallback((): void => {
+    setError(null);
+    const placeholder = t('nav.workbenchWindow.planCard.newStep').trim();
+    const pending = steps.find((step) => !step.done && step.title.trim() === placeholder);
+    if (pending) {
+      setError(t('nav.workbenchWindow.planCard.placeholderStep', { id: pending.id }));
+      return;
+    }
     useTodoStore.getState().updateTask(task.id, { planApprovedAt: Date.now() });
     // exit_plan_mode 路径：放行审批即恢复 agent，审批结果本身就是消息流里的留痕
     if (planReview && sessionId) {
@@ -468,7 +482,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
     if (sessionId) {
       promptAgent(t('nav.workbenchWindow.progress.approvePlanMessage'));
     }
-  }, [planReview, promptAgent, sessionId, task.id, t]);
+  }, [planReview, promptAgent, sessionId, steps, task.id, t]);
 
   /** exit_plan_mode 退回：拒绝审批，agent 留在计划模式继续改（意见写在对话里）。 */
   const rejectReview = useCallback((): void => {
