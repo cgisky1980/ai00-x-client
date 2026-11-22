@@ -92,6 +92,23 @@ function inExecution(task: TodoTask): boolean {
   return Boolean(task.agentSessionId) && !task.completedAt;
 }
 
+/**
+ * 通知 / 看门狗只覆盖「任务」工作台与项目任务。
+ *
+ * 其他工作台（动态桌面 wallpaper 等）的卡有自己的工作台界面，主窗口里没有可定位
+ * 的列表项，`继续执行` 还会用任务 loop 的话术去驱动它们（实测两张「Ai00-X · 灵」
+ * 壁纸卡被当成「停在规划段」的任务反复提醒、点「继续执行」把它们拉进任务链路）。
+ * 常量值与 `app/scenes/tasks/taskSession.ts` 的 TASKS_WORKBENCH_ID 一致
+ * （tools 层不反向依赖 app 层）。
+ */
+const TASK_WORKBENCH_ID = 'tasks';
+function inTaskScope(task: TodoTask): boolean {
+  return (
+    task.origin === 'workbench' &&
+    (!task.workbenchId || task.workbenchId === TASK_WORKBENCH_ID || Boolean(task.projectId))
+  );
+}
+
 // ---- 执行看门狗（AI 评估 + 自适应复查，无绝对时间强制干预）----
 // 软阈值（5m 无事件）→ 派评估 agent 判断「正常长任务 vs 卡死」并给 ETA：
 // 判卡死 → 自动中断 + 发「继续」（上限 2 次，超过转人工）；
@@ -366,7 +383,11 @@ export const TodoOverlay: React.FC = () => {
         // 常驻不自动消失——8 秒就蒸发的提示对面是一轮永不继续的执行；同一会话反复提问
         // 先收旧条（agent 往往一问接一问），答完由 question/resolved 收尾。
         const task = store.data.tasks.find(
-          (t) => t.agentSessionId === frame.sessionId && !t.archivedAt && !t.completedAt,
+          (t) =>
+            t.agentSessionId === frame.sessionId &&
+            !t.archivedAt &&
+            !t.completedAt &&
+            inTaskScope(t),
         );
         if (task) {
           const previous = questionToastRef.current.get(frame.sessionId);
@@ -558,6 +579,7 @@ export const TodoOverlay: React.FC = () => {
           for (const task of tasks) {
             const sid = task.agentSessionId;
             if (!sid || task.archivedAt || task.completedAt) continue;
+            if (!inTaskScope(task)) continue; // 其他工作台的失败由其自身界面负责
             if (!failedNow.get(sid)) continue;
             const stamp = updatedAtOf.get(sid) ?? 0;
             if (notifiedFailureStampRef.current.get(sid) === stamp) continue;
@@ -710,7 +732,7 @@ export const TodoOverlay: React.FC = () => {
             && (runStateMap[sid as string]?.pendingTools ?? 0) === 0;
           const stalled =
             Boolean(sid) &&
-            task.origin === 'workbench' &&
+            inTaskScope(task) &&
             (task.executionMode ?? 'delivery') !== 'quick' &&
             !task.archivedAt &&
             !task.completedAt &&
@@ -759,7 +781,7 @@ export const TodoOverlay: React.FC = () => {
           const parentTask = tasks.find(
             (t) =>
               t.agentSessionId === parentSid &&
-              t.origin === 'workbench' &&
+              inTaskScope(t) &&
               !t.archivedAt &&
               !t.completedAt,
           );
@@ -815,6 +837,7 @@ export const TodoOverlay: React.FC = () => {
         const interrupted = tasks.filter((t) => {
           const sid = t.agentSessionId;
           if (t.archivedAt) return false; // 已归档：不催人处理
+          if (!inTaskScope(t)) return false; // 其他工作台的卡由其自身界面负责
           if (!inExecution(t) || !sid || map[sid]) return false;
           const state = runStateMap[sid];
           return state ? state.openTurn || state.pendingTools > 0 : false;
@@ -834,7 +857,7 @@ export const TodoOverlay: React.FC = () => {
           const sid = t.agentSessionId;
           return (
             Boolean(sid) &&
-            t.origin === 'workbench' &&
+            inTaskScope(t) &&
             (t.executionMode ?? 'delivery') !== 'quick' &&
             !t.archivedAt &&
             !t.completedAt &&
@@ -871,7 +894,7 @@ export const TodoOverlay: React.FC = () => {
           if (!sid) return false;
           const state = runStateMap[sid];
           return (
-            t.origin === 'workbench' &&
+            inTaskScope(t) &&
             (t.executionMode ?? 'delivery') !== 'quick' &&
             !t.archivedAt &&
             !t.completedAt &&
@@ -936,6 +959,7 @@ export const TodoOverlay: React.FC = () => {
         // 已有单独「审核 · 需要你」的卡不重复；验收/打回/归档由上面的清理收起。
         const awaitingAcceptance = tasks.filter(
           (t) =>
+            inTaskScope(t) &&
             Boolean(t.agentCompletedAt) &&
             !t.completedAt &&
             !t.archivedAt &&
@@ -957,7 +981,7 @@ export const TodoOverlay: React.FC = () => {
           const sid = t.agentSessionId;
           if (!sid) return false;
           return (
-            t.origin === 'workbench' &&
+            inTaskScope(t) &&
             (t.executionMode ?? 'delivery') !== 'quick' &&
             !t.archivedAt &&
             !t.completedAt &&
@@ -990,6 +1014,7 @@ export const TodoOverlay: React.FC = () => {
           const sid = t.agentSessionId;
           if (!sid) return false;
           return (
+            inTaskScope(t) &&
             !t.archivedAt &&
             !t.completedAt &&
             !t.agentCompletedAt &&
@@ -1045,7 +1070,7 @@ export const TodoOverlay: React.FC = () => {
         // 连续正常超限/静默超 FORCE → 自动恢复或转人工
         const doingTaskMap = new Map(
           tasks
-            .filter(t => inExecution(t) && !t.archivedAt)
+            .filter(t => inTaskScope(t) && inExecution(t) && !t.archivedAt)
             .map(t => [t.agentSessionId as string, t]),
         );
         for (const [sid, task] of doingTaskMap) {
