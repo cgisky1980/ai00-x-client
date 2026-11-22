@@ -832,8 +832,12 @@ export const TodoOverlay: React.FC = () => {
           idleStalled,
           (n) => `有 ${n} 个任务停在执行段`,
           (names, n) => `${names}${n > 2 ? ' 等' : ''}停在半路没自检收口——点开卡片按计划继续`,
-          // 停住的下一步就是「接着跑」：按钮直接给在第一张卡上，不用先开窗口再找入口。
-          (l) => [goToTask(l[0].id, '去查看'), resumeTask(l[0], 'secondary')],
+          // 停住的下一步就是「接着跑」：**只有唯一一张卡时**才把「继续执行」放上来。
+          // 多张卡时按钮只能作用于列表里的第一张，用户看不见点的是谁，误点就是替别的任务开工。
+          (l) =>
+            l.length === 1
+              ? [goToTask(l[0].id, '去查看'), resumeTask(l[0], 'secondary')]
+              : [goToTask(l[0].id, '去查看')],
         );
 
         // 「一轮跑完了，但连计划都没写出来」：模型把工具调用写成了纯文本、或直接
@@ -898,8 +902,11 @@ export const TodoOverlay: React.FC = () => {
           planStalled,
           (n) => `有 ${n} 个任务停在规划段`,
           (names, n) =>
-            `${names}${n > 2 ? ' 等' : ''}这一轮结束了却没写出计划——点「继续执行」让它先补计划`,
-          (l) => [goToTask(l[0].id, '去查看'), resumeTask(l[0], 'secondary')],
+            `${names}${n > 2 ? ' 等' : ''}这一轮结束了却没写出计划——点开卡片让它先补计划`,
+          (l) =>
+            l.length === 1
+              ? [goToTask(l[0].id, '去查看'), resumeTask(l[0], 'secondary')]
+              : [goToTask(l[0].id, '去查看')],
         );
 
         // 「等你验收」也要能跨重启再叫：验收通知挂在 `todo-agent-updated` 事件上，
@@ -945,8 +952,11 @@ export const TodoOverlay: React.FC = () => {
           notStarted,
           (n) => `有 ${n} 个任务还没开跑`,
           (names, n) =>
-            `${names}${n > 2 ? ' 等' : ''}建了会话但一轮都没跑起来——点「继续执行」让它先写计划`,
-          (l) => [goToTask(l[0].id, '去查看'), resumeTask(l[0], 'secondary')],
+            `${names}${n > 2 ? ' 等' : ''}建了会话但一轮都没跑起来——点开卡片让它先写计划`,
+          (l) =>
+            l.length === 1
+              ? [goToTask(l[0].id, '去查看'), resumeTask(l[0], 'secondary')]
+              : [goToTask(l[0].id, '去查看')],
         );
 
         // 「上一轮失败」的历史卡：失败发生在客户端没开（或刚重启）时，逐条失败提醒
@@ -970,24 +980,32 @@ export const TodoOverlay: React.FC = () => {
         const firstFailureReason = firstFailure
           ? summarizeFailure(runStateMap[firstFailure.agentSessionId as string]?.lastError)
           : '';
+        const firstFailureTitle = firstFailure ? `「${firstFailure.title.slice(0, 14)}」` : '';
         syncMergedNotice(
           'failing',
           historicFailing,
           (n) => `有 ${n} 个任务上一轮失败`,
           (names, n) =>
-            `${names}${n > 2 ? ' 等' : ''}上一轮以错误收尾${firstFailureReason ? `：${firstFailureReason}` : ''}——点「继续执行」重试，或点开卡片看错误`,
-          (l) => [
-            goToTask(l[0].id, '去查看'),
-            resumeTask(
-              l[0],
-              'secondary',
-              l[0].agentSessionId
-                ? [runStateMap[l[0].agentSessionId]?.lastError?.code, runStateMap[l[0].agentSessionId]?.lastError?.message]
-                    .filter(Boolean)
-                    .join(' · ') || undefined
-                : undefined,
-            ),
-          ],
+            // 多张卡时原因属于谁要说清楚（按钮只作用于第一张）；单张直接用名字打头。
+            `${names}${n > 2 ? ' 等' : ''}上一轮以错误收尾${firstFailureReason ? `（首条${firstFailureTitle}）：${firstFailureReason}` : ''}——点开卡片看错误${n === 1 ? '，或点「继续执行」重试' : ''}`,
+          (l) =>
+            l.length === 1
+              ? [
+                  goToTask(l[0].id, '去查看'),
+                  resumeTask(
+                    l[0],
+                    'secondary',
+                    l[0].agentSessionId
+                      ? [
+                          runStateMap[l[0].agentSessionId]?.lastError?.code,
+                          runStateMap[l[0].agentSessionId]?.lastError?.message,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ') || undefined
+                      : undefined,
+                  ),
+                ]
+              : [goToTask(l[0].id, '去查看')],
         );
 
         // 执行看门狗（AI 评估流）：软阈值静默 → 派评估 agent 判断；判卡死/
