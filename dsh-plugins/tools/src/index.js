@@ -425,6 +425,34 @@ function extractCmd(item) {
 }
 
 /**
+ * 计划里写了 `{cmd: …}` 却跑不起来时，说清楚**具体是哪一条护栏**拦下的。
+ *
+ * 以前统一回报「too long / backticks / not whitelisted」，模型只能猜。实测
+ * （2026-11-22 全链路冒烟）它把结果解释成「引号嵌套导致未被执行」，于是去改引号，
+ * 白改一轮计划。这里把原因逐条点名。
+ */
+export function explainUnparsedCmd(text) {
+  const raw = /\{cmd:([\s\S]*)$/.exec(String(text ?? ""));
+  if (!raw) return "没有可解析的 `{cmd: …}`";
+  const body = raw[1];
+  if (!/\}\s*$/.test(body)) {
+    return "`{cmd: …}` 必须以 `}` 收尾且后面不能再跟说明文字（否则整条会被当人工判据）";
+  }
+  const cmd = body.replace(/\}\s*$/, "").trim();
+  if (!cmd) return "`{cmd: …}` 是空的";
+  if (cmd.length > 500) return `命令过长（${cmd.length} > 500 字符）`;
+  if (cmd.includes("`")) return "命令含反引号（安全护栏拒绝执行）";
+  if (/\$\(/.test(cmd)) return "命令含 `$(`（安全护栏拒绝执行）";
+  return "命令无法解析（检查花括号是否配对）";
+}
+
+/** 非白名单首词：直接说清楚允许哪些，别让模型猜。 */
+function explainNotWhitelisted(cmd) {
+  const first = cmd.trim().split(/\s+/)[0] ?? "";
+  return `首词 "${first}" 不在白名单（cargo / rustc / pnpm / npm / npx / node / python / python3 / uv / git / go / dotnet）`;
+}
+
+/**
  * 验证命令白名单（首词命中才允许自动执行）：黑名单挡不住 `curl x | sh` /
  * `powershell -enc` 这类注入（网页内容 → worker → 计划文档 → 自检执行链路），
  * 2026-09-11 改白名单。非白名单命令不报错，回落「人工判据」口径（agent 自勾 +
@@ -1323,9 +1351,11 @@ function defineTools(ctx, api) {
         }
         if ((value.unrunnable ?? []).length) {
           lines.push(
-            `acceptance commands that cannot run (too long / backticks / not whitelisted — they were NOT executed): ${value.unrunnable
-              .map((t) => `"${t.slice(0, 80)}"`)
-              .join(" | ")} — shorten them (≤500 ASCII chars) or move the logic into a checker script, then re-run verify`
+            [
+              "acceptance commands that cannot run (NOT executed) — each line names the exact rule that blocked it:",
+              ...value.unrunnable.map((t) => `  - ${String(t).slice(0, 200)}`),
+              "  → fix the plan (`{cmd: …}` must end the line with `}`, ≤500 ASCII chars, no backticks/$(), whitelisted first token), or move the logic into a checker script listed in Scope and call it (e.g. `node check.mjs`); then re-run verify",
+            ].join("\n")
           );
         }
         if ((value.changedFiles ?? []).length) {
@@ -1417,8 +1447,9 @@ function defineTools(ctx, api) {
       for (const item of acceptance) {
         const cmd = item.cmd;
         if (!cmd) {
-          if (/\{cmd:/.test(item.text)) unrunnable.push(item.text);
-          else manualItems.push(item.text);
+          if (/\{cmd:/.test(item.text)) {
+            unrunnable.push(`${explainUnparsedCmd(item.text)} :: ${item.text.trim().slice(0, 120)}`);
+          } else manualItems.push(item.text);
           continue;
         }
         // test -f/-d/-e 与 [ -f … ] 走内置 fs 判定（不在命令白名单里，但语义确定）
@@ -1429,7 +1460,7 @@ function defineTools(ctx, api) {
           continue;
         }
         if (!isCmdAllowed(cmd)) {
-          unrunnable.push(item.text);
+          unrunnable.push(`${explainNotWhitelisted(cmd)} :: ${item.text.trim().slice(0, 120)}`);
           continue;
         }
         const verdict = await runVerification(cmd, cwd || undefined, exec.signal);
@@ -2264,8 +2295,10 @@ function defineTools(ctx, api) {
       if (unrunnable.length) {
         throw new Error(
           [
-            `refused: ${unrunnable.length} acceptance command(s) will never run — extractCmd refuses commands longer than 500 chars or containing backticks/\`$(\`, so they silently degrade to manual checks and the step can never pass verification:`,
-            ...unrunnable.slice(0, 4).map((c) => `  - (${c.len} chars) ${c.text.slice(0, 120)}`),
+            `refused: ${unrunnable.length} acceptance command(s) will never run — each line names the exact rule that blocked it (otherwise it silently degrades to a manual check and the step can never pass verification):`,
+            ...unrunnable
+              .slice(0, 4)
+              .map((c) => `  - ${explainUnparsedCmd(c.text)} :: ${c.text.slice(0, 100)}`),
             "Keep the command under 500 ASCII chars: assert one or two key facts (heading present, table rows, key phrase), or put the logic in a short checker script listed in Scope and call it (e.g. `node check.mjs`). Nothing was written.",
           ].join("\n")
         );
