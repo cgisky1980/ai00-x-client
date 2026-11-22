@@ -17,6 +17,7 @@ import { WORKBENCH_LOOP_RULES, QUICK_TASK_RULES, DELEGATE_BOOK_TITLE, assembleDe
 import { applyModelProfile, getActiveProfile } from '@/agent/modelProfiles';
 import type { TodoTask, WorkbenchProject } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
+import { useWorkbenchTaskStore } from './workbenchTaskStore';
 import { TrunkBranchError, createIsolatedWorktree, isTrunkBranch, readProjectGit } from '../projects/projectGit';
 import { prepareWorktree } from '../projects/worktreeDeps';
 
@@ -276,7 +277,17 @@ export async function resumeTaskRun(task: TodoTask, workbenchTitle: string): Pro
   const plan = await invoke<string | null>('todo_plan_get', { taskId: task.id }).catch(
     () => null,
   );
-  await dshSession.prompt(sessionId, buildContinuePrompt(resolved.executionMode, plan));
+  // 上一轮失败原文（运行时内存态）随续跑消息带给 agent：与计划卡 / overlay 通知同一口径。
+  const runtime = task.agentSessionId
+    ? useWorkbenchTaskStore.getState().runtime[task.agentSessionId]
+    : undefined;
+  const failureLine = runtime?.lastError
+    ? [runtime.lastError.code, runtime.lastError.message].filter(Boolean).join(' · ')
+    : undefined;
+  await dshSession.prompt(
+    sessionId,
+    buildContinuePrompt(resolved.executionMode, plan, failureLine),
+  );
   useTodoStore.getState().updateTask(task.id, { status: 'doing' });
   return sessionId;
 }

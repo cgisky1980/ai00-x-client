@@ -413,10 +413,15 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const resume = useCallback((): void => {
     setBusy(true);
     setError(null);
-    void continueTaskRun(task, planMd)
+    // 上一轮失败原文随续跑消息带给 agent（与 overlay 通知同一口径）：让它先判断
+    // 错误是否已排除，而不是照原样再撞一遍。
+    const failureLine = lastError
+      ? [lastError.code, lastError.message].filter(Boolean).join(' · ')
+      : undefined;
+    void continueTaskRun(task, planMd, failureLine)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setBusy(false));
-  }, [planMd, task]);
+  }, [lastError, planMd, task]);
 
   const openReject = useCallback((): void => {
     setRejectReason('');
