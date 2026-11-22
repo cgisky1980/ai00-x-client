@@ -42,9 +42,11 @@ export function stageKeyOf(phase: TaskPhase): WorkbenchStageKey {
 }
 
 /**
- * 「需要你」：轮到人类动手的三种情形——待批准、待验收、agent 正在提问。
+ * 「需要你」：轮到人类动手的情形——待批准、待验收、agent 正在提问，
+ * 以及**执行失败待处理**（额度/凭据/模型修好后点「已修好，重试」；
+ * 列出失败但不标「需要你」时，列表上只看得到「执行」，没人知道在等谁）。
  * 提问只在面板打开过时可知（运行态 `asking`）。
  */
 export function needsYou(phase: TaskPhase, asking = false): boolean {
-  return asking || phase === 'approving' || phase === 'awaiting';
+  return asking || phase === 'approving' || phase === 'awaiting' || phase === 'failed';
 }
