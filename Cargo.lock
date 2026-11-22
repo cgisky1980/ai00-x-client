@@ -199,6 +199,7 @@ dependencies = [
  "dashmap",
  "dirs 5.0.1",
  "dunce",
+ "encoding_rs",
  "eventsource-stream",
  "filetime",
  "flate2",

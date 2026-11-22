@@ -417,3 +417,72 @@ impl WebSearchTool {
         }
     }
 }
+
+/// 从 `text/html; charset=gbk` 或 `<meta charset="gbk">` 这类文本里取字符集标签。
+pub fn charset_label(value: &str) -> Option<String> {
+    let lower = value.to_ascii_lowercase();
+    let start = lower.find("charset=")? + "charset=".len();
+    let rest = lower[start..]
+        .trim_start_matches(['"', '\'', ' '])
+        .trim_start();
+    let end = rest
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '_'))
+        .unwrap_or(rest.len());
+    let label = rest[..end].trim();
+    (!label.is_empty()).then(|| label.to_string())
+}
+
+/// 按 Content-Type → `<meta charset>` → UTF-8 → GB18030 的顺序解码网页字节。
+///
+/// 实测（2026-11-22）：cnr.cn 等中文财经站返回 GBK，`from_utf8_lossy` 把汉字变成
+/// U+FFFD（`11��20��`），本地筛选模型拿着乱码做摘要，报告里全是坏字。中文站点
+/// 未声明字符集时按 GB18030 解（GBK 的超集，覆盖绝大多数情况）。
+pub fn decode_html_bytes(buf: &[u8], content_type: Option<&str>) -> String {
+    if let Ok(text) = std::str::from_utf8(buf) {
+        return text.to_string();
+    }
+    let head = String::from_utf8_lossy(&buf[..buf.len().min(4096)]).to_ascii_lowercase();
+    let label = content_type
+        .and_then(charset_label)
+        .or_else(|| charset_label(&head));
+    let encoding = label
+        .as_deref()
+        .and_then(|l| encoding_rs::Encoding::for_label(l.as_bytes()))
+        .unwrap_or(encoding_rs::GB18030);
+    let (decoded, _, _) = encoding.decode(buf);
+    decoded.into_owned()
+}
+
+#[cfg(test)]
+mod decode_tests {
+    use super::*;
+
+    #[test]
+    fn utf8_passes_through() {
+        let html = "<html><meta charset=\"utf-8\"><body>中文 UTF-8</body></html>";
+        assert_eq!(decode_html_bytes(html.as_bytes(), None), html);
+    }
+
+    #[test]
+    fn gbk_from_content_type() {
+        let (bytes, _, _) = encoding_rs::GBK.encode("<html><body>11月20日 收评</body></html>");
+        let decoded = decode_html_bytes(&bytes, Some("text/html; charset=gbk"));
+        assert!(decoded.contains("11月20日"), "{decoded}");
+        assert!(!decoded.contains('\u{FFFD}'));
+    }
+
+    #[test]
+    fn gbk_from_meta_when_header_missing() {
+        let source = "<html><head><meta charset=\"gb2312\"></head><body>沪指跌超1%</body></html>";
+        let (bytes, _, _) = encoding_rs::GBK.encode(source);
+        let decoded = decode_html_bytes(&bytes, None);
+        assert!(decoded.contains("沪指跌超1%"), "{decoded}");
+    }
+
+    #[test]
+    fn undeclared_non_utf8_defaults_to_gb18030() {
+        let (bytes, _, _) = encoding_rs::GB18030.encode("<html><body>板块与资金面</body></html>");
+        let decoded = decode_html_bytes(&bytes, None);
+        assert!(decoded.contains("板块与资金面"), "{decoded}");
+    }
+}

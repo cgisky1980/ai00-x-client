@@ -40,6 +40,7 @@ dashmap = { workspace = true }
 indexmap = { workspace = true }
 
 reqwest = { workspace = true }
+encoding_rs = { workspace = true }
 
 # Debug Log HTTP Server
 axum = { workspace = true }

@@ -550,6 +550,11 @@ async fn fetch_page_markdown(url: &str) -> Option<String> {
     if !resp.status().is_success() {
         return None;
     }
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.to_string());
     // 2MB 截断流式读取（pages 通常远小于此；超大页直接截断不失败）
     let mut buf: Vec<u8> = Vec::new();
     loop {
@@ -569,7 +574,7 @@ async fn fetch_page_markdown(url: &str) -> Option<String> {
     if buf.is_empty() {
         return None;
     }
-    let html = String::from_utf8_lossy(&buf).to_string();
+    let html = ai00_x_core::websearch::decode_html_bytes(&buf, content_type.as_deref());
     // P1 无头 v1：空壳/SPA 判定——正文极少但页面很大且脚本密集 → JS 渲染升级
     let is_shell = is_shell_page(&html);
     let effective_html = if is_shell {
