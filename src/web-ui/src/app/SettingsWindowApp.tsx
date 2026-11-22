@@ -8,11 +8,16 @@
  */
 import React from 'react';
 import { SettingsView } from '../tools/todo/components/views/SettingsView';
+import { NotificationContainer } from '../shared/notification-system';
 import './SettingsWindowApp.scss';
 
 const SettingsWindowApp: React.FC = () => (
   <div className="ai00-x-settings-window">
     <SettingsView />
+    {/* 设置页里大量「保存成功 / 保存失败」走 notificationService；容器只挂在
+        主窗口时这些提示在本窗口是静默的（与工作台清理提示同一类问题）。
+        bootstrap 的 toast:false 只管提醒类 toast，不会造成重复。 */}
+    <NotificationContainer />
   </div>
 );
 
