@@ -2322,10 +2322,14 @@ export function deriveSessionRunState(events: DshSessionEvent[]): DshSessionRunS
         break;
       }
       case 'tool/result': {
+        // 落盘形态是**平铺**的 `data.message.toolCallId`（实测）；旧代码只读
+        // `content[0].toolCallId`，于是每个带工具调用的会话都被算成「有工具未返回」——
+        // 实测 6 个轮次早已闭合的会话被误报成「执行任务中断」。
+        // content 里的形态保留兜底：不同引擎版本两种写法都出现过。
         const message = data?.message as
-          | { content?: Array<{ toolCallId?: string }> }
+          | { toolCallId?: string; content?: Array<{ toolCallId?: string }> }
           | undefined;
-        const callId = message?.content?.[0]?.toolCallId;
+        const callId = message?.toolCallId ?? message?.content?.[0]?.toolCallId;
         if (callId) resultIds.add(callId);
         break;
       }
