@@ -14,13 +14,15 @@
     border-right: var(--style-stroke-width, 1px) solid var(--color-border);
     // 主导航是应用外壳（L2-deep），比内容侧边栏（L2）再深一档，两者才分得开
     background-color: var(--color-bg-shell);
-    overflow-y: auto;
+    // 整栏不滚动：只让中间的工作台列表滚，系统组固定在底部
+    overflow: hidden;
   }
 
   &__rail-head {
     display: flex;
     align-items: center;
     gap: var(--spacing-1);
+    flex-shrink: 0;
     padding: 0 var(--spacing-1) var(--spacing-2) var(--spacing-2);
   }
 
@@ -36,16 +38,30 @@
     white-space: nowrap;
   }
 
+  // 中间列表：唯一滚动区，flex:1 吃掉剩余高度
   &__items {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  // 系统组：固定在侧栏底部，不随列表滚动；上方留白与组间节奏一致
+  &__rail-footer {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-1);
+    flex-shrink: 0;
+    padding-top: var(--spacing-2);
   }
 
-  // 分组小标题：比 rail 主标题再轻一档，只做分类提示、不抢条目
+  // 分组小标题本身即分类标识，不再叠加分隔线（标签+横线是重复视觉噪音）。
+  // 组间靠更大的上间距拉开，比 1px 横线更轻。
   &__group-title {
     padding: 0 var(--spacing-2);
-    margin-top: var(--spacing-1);
+    margin-top: var(--spacing-4);
     color: var(--color-text-muted);
     font-size: var(--font-size-xxs);
     font-weight: var(--font-weight-medium);
@@ -59,14 +75,6 @@
     &:first-child {
       margin-top: 0;
     }
-  }
-
-  // 与 NavPanel 弹出菜单的分隔线同构：1px / --border-subtle
-  &__divider {
-    height: 1px;
-    margin: var(--spacing-2) var(--spacing-1);
-    background: var(--border-subtle);
-    flex-shrink: 0;
   }
 
   &__item {

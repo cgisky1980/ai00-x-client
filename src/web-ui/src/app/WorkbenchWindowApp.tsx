@@ -320,7 +320,6 @@ const WorkbenchWindowApp: React.FC = () => {
               {t('nav.workbenchWindow.automations.rail')}
             </span>
           </button>
-          <div className="ai00-x-workbench-window__divider" role="separator" />
           <div className="ai00-x-workbench-window__group-title">
             {t('nav.workbenchWindow.groups.installed')}
           </div>
@@ -342,7 +341,9 @@ const WorkbenchWindowApp: React.FC = () => {
               </button>
             );
           })}
-          <div className="ai00-x-workbench-window__divider" role="separator" />
+        </div>
+        {/* 系统组固定在侧栏底部，不随上面的工作台列表滚动 */}
+        <div className="ai00-x-workbench-window__rail-footer">
           <div className="ai00-x-workbench-window__group-title">
             {t('nav.workbenchWindow.groups.system')}
           </div>
