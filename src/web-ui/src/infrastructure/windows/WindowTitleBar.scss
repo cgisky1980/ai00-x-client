@@ -31,7 +31,9 @@
   padding: 0 $size-gap-2;
   gap: $size-gap-1;
   user-select: none;
-  background-color: var(--color-bg-secondary);
+  // 标题栏属于窗口外壳 chrome，与工作台主导航 rail 同用 L2-deep shell。
+  // 原 bg-secondary(=sunken) 比 rail 浅一档，标题栏与下方菜单接不上色。
+  background-color: var(--color-bg-shell);
   border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 
   // 灵印品牌位（动态 seal，一屏一朱）

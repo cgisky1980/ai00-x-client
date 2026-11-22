@@ -40,7 +40,9 @@ $_nav-collapsed-width: 80px;
   padding: 0 $size-gap-2;
   gap: $size-gap-2;
   user-select: none;
-  background: var(--nav-bg);
+  // 标题栏走窗口外壳层 shell，与工作台 rail 及所有自绘标题栏统一；
+  // 下方 NavPanel 保持 sunken，形成 shell(标题栏) → sunken(菜单) 的层级递进。
+  background: var(--color-bg-shell);
 }
 
 // ── Content row: nav panel + scene viewport ───────────────

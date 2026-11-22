@@ -14,7 +14,8 @@
   justify-content: space-between;
   height: 40px;
   padding: 0 var(--size-gap-2) 0 var(--size-gap-3-5);
-  background: var(--element-bg-soft);
+  // 与所有窗口自绘标题栏统一为外壳层 shell（原 element-bg-soft 只是半透明墨罩，随底色调漂移）
+  background: var(--color-bg-shell);
   border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
   flex-shrink: 0;
   gap: var(--size-gap-2);

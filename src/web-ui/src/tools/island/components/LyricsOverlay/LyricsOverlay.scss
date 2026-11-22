@@ -55,6 +55,12 @@
   // lyrics content. Does not participate in the flex flow.
   // Single row: [prev|play|next] ←spacer→ [sync-|offset|sync+] [close]
   &__titlebar {
+    // 标题栏底恒为 --modal-overlay（明暗两档均为深色 scrim）。按钮墨色必须固定纸白：
+    // --color-accent-foreground 暗色档为 #0f0f0f（近黑），画在深色 scrim 上完全不可见。
+    // 与 DynamicIsland 固定暗色浮层同一配方；局部变量只作用于标题栏子树，
+    // 不影响歌词正文/已唱字的取色。
+    --lyrics-titlebar-ink: oklch(0.96 0 0);
+
     position: absolute;
     top: 0;
     left: 0;
@@ -81,15 +87,15 @@
     border-radius: 6px;
     border: none;
     background: transparent;
-    // 标题栏底为 --modal-overlay（明暗两档均深色 scrim）——图标用固定纸白系
-    color: color-mix(in srgb, var(--color-accent-foreground) 70%, transparent);
+    // 固定纸白墨色，深色 scrim 上两档均可见
+    color: color-mix(in srgb, var(--lyrics-titlebar-ink) 70%, transparent);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
     flex-shrink: 0;
 
     &:hover {
-      background: color-mix(in srgb, var(--color-accent-foreground) 16%, transparent);
-      color: var(--color-accent-foreground);
+      background: color-mix(in srgb, var(--lyrics-titlebar-ink) 16%, transparent);
+      color: var(--lyrics-titlebar-ink);
     }
 
     &:active {
@@ -114,15 +120,15 @@
     border-radius: 6px;
     border: none;
     background: transparent;
-    // 同标题栏：深色 scrim 上的固定纸白系图标
-    color: color-mix(in srgb, var(--color-accent-foreground) 70%, transparent);
+    // 同标题栏：深色 scrim 上的固定纸白图标
+    color: color-mix(in srgb, var(--lyrics-titlebar-ink) 70%, transparent);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
     flex-shrink: 0;
 
     &:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--color-accent-foreground) 16%, transparent);
-      color: var(--color-accent-foreground);
+      background: color-mix(in srgb, var(--lyrics-titlebar-ink) 16%, transparent);
+      color: var(--lyrics-titlebar-ink);
     }
 
     &:disabled {
@@ -133,7 +139,7 @@
 
   &__sync-value {
     font-size: var(--font-size-xxs);
-    color: color-mix(in srgb, var(--color-accent-foreground) 70%, transparent);
+    color: color-mix(in srgb, var(--lyrics-titlebar-ink) 70%, transparent);
     font-variant-numeric: tabular-nums;
     min-width: 28px;
     text-align: center;

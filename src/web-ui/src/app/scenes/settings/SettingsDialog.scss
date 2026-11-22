@@ -27,7 +27,8 @@
     padding: 0 var(--size-gap-2) 0 var(--size-gap-4);
     cursor: grab;
     flex-shrink: 0;
-    background-color: var(--nav-bg);
+    // 与所有窗口自绘标题栏统一为外壳层 shell（原 nav-bg=sunken）
+    background-color: var(--color-bg-shell);
     border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
 
     &:active {
