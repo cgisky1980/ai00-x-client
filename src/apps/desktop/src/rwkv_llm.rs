@@ -262,6 +262,44 @@ impl crate::vram_manager::ManagedEngine for RwkvLlmGoverned {
         let cur = LLM_CURRENT_MODEL.read().ok()?.clone()?;
         estimate_rwkv_vram_bytes(&cur)
     }
+    fn contexts(&self) -> &[&str] {
+        // 工作台委派 agent 时前端会 `vram_set_active_context("agent")`
+        //（useAgentDelegate / useDshChat），以此作为本地模型的预测加载信号。
+        &["agent"]
+    }
+    /// 预测预热：agent 上下文激活时提前加载主本地模型，把首个工具轮的
+    /// 10s+ 冷加载从关键路径上拿掉（原先只有首个请求触发的 lazy-init）。
+    /// 显存不够（或模型未下载）时直接跳过，失败不影响懒加载兜底。
+    fn warmup(&self) -> Result<(), String> {
+        if LLM_READY.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+        let Some(model_path) = scan_model_file() else {
+            return Err("no model file found in models directory".to_string());
+        };
+        if let Some(mem) = crate::vram_monitor::query_vram(None) {
+            let reserve = 1024u64 * 1024 * 1024;
+            let need = estimate_rwkv_vram_bytes(&model_path).unwrap_or(0);
+            let free = mem.free_bytes.saturating_sub(reserve);
+            if free < need {
+                return Err(format!(
+                    "insufficient VRAM headroom (free {} MB, need {} MB)",
+                    free / (1024 * 1024),
+                    need / (1024 * 1024)
+                ));
+            }
+        }
+        log::info!("[rwkv] agent context active, preloading local model {model_path}");
+        // warmup 跑在 vram_manager 的专用线程上：用一个临时 current-thread
+        // runtime 驱动异步 init（本文件的推理池线程禁止 block_on，这里不是池线程）。
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| format!("warmup runtime: {e}"))?;
+        rt.block_on(init_engine_internal(None, None, None))?;
+        log::info!("[rwkv] local model preload complete");
+        Ok(())
+    }
     fn last_used_ms(&self) -> u64 {
         LLM_LAST_USED_MS.load(Ordering::Relaxed)
     }

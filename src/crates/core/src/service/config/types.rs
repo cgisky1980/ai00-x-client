@@ -656,7 +656,10 @@ pub struct VramManagerConfig {
     /// watermark based on free VRAM ratio (inspired by ComfyUI VRAMState).
     pub enable_vram_tiers: bool,
     /// Warm up context-bound engines when the user opens a matching tool page
-    /// (only engines with keep_alive > 0; disabled by default).
+    /// (only engines with keep_alive > 0). Default on: RWKV is the only engine
+    /// implementing warmup today, it self-gates on VRAM headroom, and the whole
+    /// local-first workbench flow starts with an agent call — preloading there
+    /// removes the 10s+ cold start from the first tool round.
     pub enable_predictive_warmup: bool,
     /// Per-engine overrides keyed by engine id ("rwkv-llm", "llama-gguf", ...).
     pub engine_policies: std::collections::HashMap<String, EnginePolicy>,
@@ -670,7 +673,7 @@ impl Default for VramManagerConfig {
             enable_pressure_eviction: true,
             eviction_cooldown_secs: 60,
             enable_vram_tiers: true,
-            enable_predictive_warmup: false,
+            enable_predictive_warmup: true,
             engine_policies: std::collections::HashMap::new(),
         }
     }
