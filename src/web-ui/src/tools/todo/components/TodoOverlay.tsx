@@ -987,7 +987,7 @@ export const TodoOverlay: React.FC = () => {
           (n) => `有 ${n} 个任务上一轮失败`,
           (names, n) =>
             // 多张卡时原因属于谁要说清楚（按钮只作用于第一张）；单张直接用名字打头。
-            `${names}${n > 2 ? ' 等' : ''}上一轮以错误收尾${firstFailureReason ? `（首条${firstFailureTitle}）：${firstFailureReason}` : ''}——点开卡片看错误${n === 1 ? '，或点「继续执行」重试' : ''}`,
+            `${names}${n > 2 ? ' 等' : ''}上一轮以错误收尾${firstFailureReason ? `${n > 1 ? `（首条${firstFailureTitle}）` : ''}：${firstFailureReason}` : ''}——点开卡片看错误${n === 1 ? '，或点「继续执行」重试' : ''}`,
           (l) =>
             l.length === 1
               ? [
