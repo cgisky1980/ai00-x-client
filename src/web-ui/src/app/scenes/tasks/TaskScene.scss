@@ -306,6 +306,21 @@
     }
   }
 
+  &__placeholder-title {
+    margin: 0;
+    max-width: 46ch;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  &__placeholder-notes {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
   &__spin {
     animation: ai00-x-task-scene-spin 1s linear infinite;
   }

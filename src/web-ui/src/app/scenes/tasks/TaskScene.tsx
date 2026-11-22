@@ -492,6 +492,12 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
         )}
         {selectedTask && !selectedTask.agentSessionId && !busy && (
           <div className="ai00-x-task-scene__placeholder">
+            {/* 只查看进来的卡（通知 / 看板聚焦）没会话：把人要判断的内容摆出来，
+                决定是否「开始执行」——之前这里只有一个空按钮，看不出要跑什么。 */}
+            <h1 className="ai00-x-task-scene__placeholder-title">{selectedTask.title}</h1>
+            {selectedTask.notes ? (
+              <p className="ai00-x-task-scene__placeholder-notes">{selectedTask.notes}</p>
+            ) : null}
             <button
               type="button"
               className="ai00-x-task-scene__button"
