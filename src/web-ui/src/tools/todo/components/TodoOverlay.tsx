@@ -105,6 +105,7 @@ export const TodoOverlay: React.FC = () => {
   const initGrowth = useGrowthStore((s) => s.init);
   const setAgentRunning = useTodoStore((s) => s.setAgentRunning);
   const setAgentFailed = useTodoStore((s) => s.setAgentFailed);
+  const setAgentErrors = useTodoStore((s) => s.setAgentErrors);
   const tasks = useTodoStore((st) => st.data.tasks);
   // 看门狗运行态（非持久化）：会话最近事件时间 + 已自动恢复次数
   const activityRef = useRef(new Map<string, number>());
@@ -514,6 +515,8 @@ export const TodoOverlay: React.FC = () => {
           .map(t => t.agentSessionId as string);
         const updatedAtOf = new Map(items.map(s => [s.sessionId, s.updatedAt ?? 0]));
         const failedMap: Record<string, boolean> = {};
+        /** 失败原文（卡片/列表在工作台窗口里要先看到「为什么」，不必等打开会话对齐历史）。 */
+        const errorMap: Record<string, { code?: string; message: string }> = {};
         const runStateMap: Record<string, DshSessionRunState> = {};
         for (const sid of doingSessions) {
           if (map[sid]) continue; // 仍在跑，不判
@@ -522,6 +525,7 @@ export const TodoOverlay: React.FC = () => {
           if (cached && stamp !== undefined && cached.updatedAt === stamp) {
             runStateMap[sid] = cached.state;
             failedMap[sid] = cached.state.lastTurnErrored;
+            if (cached.state.lastError) errorMap[sid] = cached.state.lastError;
             continue;
           }
           try {
@@ -530,6 +534,7 @@ export const TodoOverlay: React.FC = () => {
             historyCacheRef.current.set(sid, { updatedAt: stamp ?? 0, state });
             runStateMap[sid] = state;
             failedMap[sid] = state.lastTurnErrored;
+            if (state.lastError) errorMap[sid] = state.lastError;
           } catch {
             // 历史拉不到 → 不标（宁可不报，不误报）
           }
@@ -539,6 +544,7 @@ export const TodoOverlay: React.FC = () => {
           if (!updatedAtOf.has(sid)) historyCacheRef.current.delete(sid);
         }
         setAgentFailed(failedMap);
+        setAgentErrors(errorMap);
 
         // 新一轮失败提醒：同一份失败只报一次，新的失败（updatedAt 变了）必报。
         // 以前一轮报错只落在卡片的「失败」态里，人不开卡片就完全不知道——任务静默
@@ -1163,7 +1169,7 @@ export const TodoOverlay: React.FC = () => {
       stopped = true;
       clearInterval(timer);
     };
-  }, [loaded, setAgentRunning, setAgentFailed, tasks]);
+  }, [loaded, setAgentRunning, setAgentFailed, setAgentErrors, tasks]);
 
   useReminderTicker();
 

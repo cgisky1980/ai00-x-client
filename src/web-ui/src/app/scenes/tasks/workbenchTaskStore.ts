@@ -92,12 +92,21 @@ interface WorkbenchTaskState {
    */
   seedRunning: (entries: Array<{ sessionId: string; running: boolean }>) => void;
   /**
-   * 回填会话「最后一轮是否报错」（`todoStore.agentFailed`，由 overlay 轮询回填）。
+   * 回填会话「最后一轮是否报错」及其错误原文（`todoStore.agentFailed` /
+   * `agentErrors`，由 overlay 轮询回填）。
    *
    * 没被打开过的任务只有引擎快照，面板不上报 failed，卡片会一直显示「执行」而看不出
    * 这一轮已经以错误收尾——把轮询结论并进来，列表/看板的阶段点才能落到失败态。
+   * 错误原文一起回填：额度不足 / 凭据失效这类错误要让人在卡片上直接看到原因，
+   * 而不是等打开会话对齐历史才知道「点了重试也不会有用」。
    */
-  seedFailed: (entries: Array<{ sessionId: string; failed: boolean }>) => void;
+  seedFailed: (
+    entries: Array<{
+      sessionId: string;
+      failed: boolean;
+      lastError?: { code?: string; message: string };
+    }>,
+  ) => void;
   /** 回填子代理运行数（parentSessionId → 运行中的子会话数）。 */
   seedDelegating: (entries: Array<{ parentSessionId: string; running: boolean }>) => void;
   /** 回填子代理活动列表（对话流展示）。`since` 由本 store 维护。 */
@@ -260,12 +269,20 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
       const runtime = { ...s.runtime };
       for (const entry of entries) {
         const prev = runtime[entry.sessionId];
-        if (prev?.failed === entry.failed) continue;
+        // 失败态消失（回合成功 / 会话被清）时错误原文也要清，不能留下过期原因。
+        const lastError = entry.failed ? (entry.lastError ?? prev?.lastError) : undefined;
+        if (
+          prev?.failed === entry.failed &&
+          prev?.lastError?.code === lastError?.code &&
+          prev?.lastError?.message === lastError?.message
+        ) {
+          continue;
+        }
         runtime[entry.sessionId] = {
           running: prev?.running ?? false,
           failed: entry.failed,
           asking: prev?.asking ?? false,
-          lastError: prev?.lastError,
+          lastError,
           at: Date.now(),
         };
         changed = true;

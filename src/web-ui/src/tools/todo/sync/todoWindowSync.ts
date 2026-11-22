@@ -43,6 +43,7 @@ import {
 interface RuntimeStatePayload {
   agentRunning: Record<string, boolean>;
   agentFailed: Record<string, boolean>;
+  agentErrors: Record<string, { code?: string; message: string }>;
   agentQuestions: Record<string, AgentQuestionBatch[]>;
 }
 
@@ -106,6 +107,7 @@ export function initTodoWindowSync(role: 'runtime' | 'ui'): () => void {
         useTodoStore.getState().applyRemoteRuntimeState({
           agentRunning: payload.agentRunning ?? {},
           agentFailed: payload.agentFailed ?? {},
+          agentErrors: payload.agentErrors ?? {},
           agentQuestions: payload.agentQuestions ?? {},
         });
         return;
@@ -153,11 +155,13 @@ export function initTodoWindowSync(role: 'runtime' | 'ui'): () => void {
       if (
         state.agentRunning !== prev.agentRunning ||
         state.agentFailed !== prev.agentFailed ||
+        state.agentErrors !== prev.agentErrors ||
         state.agentQuestions !== prev.agentQuestions
       ) {
         publishWindowMessage<RuntimeStatePayload>(TODO_RUNTIME_STATE, {
           agentRunning: state.agentRunning,
           agentFailed: state.agentFailed,
+          agentErrors: state.agentErrors,
           agentQuestions: state.agentQuestions,
         });
       }

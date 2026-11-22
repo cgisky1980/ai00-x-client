@@ -79,11 +79,18 @@ export function useSessionRunningSync(): void {
           if (vanished.length > 0) seedRunning(vanished);
           // 失败态同样回填：轮询（overlay）已按「最后一轮是否报错」算好，没打开过的
           // 任务只有靠它才能落到失败态，否则卡片会一直停在「执行」看不出报错。
+          // 错误原文一并回填（`agentErrors`）：卡片不必等打开会话对齐历史，就能把
+          // 「额度不足 / 凭据失效」这类不可重试的错误直接摆出来。
           const agentFailed = useTodoStore.getState().agentFailed;
+          const agentErrors = useTodoStore.getState().agentErrors;
           seedFailed(
             Object.entries(agentFailed)
               .filter(([sessionId]) => listed.has(sessionId))
-              .map(([sessionId, failed]) => ({ sessionId, failed: Boolean(failed) })),
+              .map(([sessionId, failed]) => ({
+                sessionId,
+                failed: Boolean(failed),
+                ...(failed && agentErrors[sessionId] ? { lastError: agentErrors[sessionId] } : {}),
+              })),
           );
           seedDelegating(
             items

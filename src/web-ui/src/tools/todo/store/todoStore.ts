@@ -469,6 +469,13 @@ interface TodoState {
   agentRunning: Record<string, boolean>;
   /** 会话最后一轮是否出错（sessionId → failed；TodoOverlay 轮询回填） */
   agentFailed: Record<string, boolean>;
+  /**
+   * 会话最后一轮的错误原文（sessionId → {code?, message}；与 `agentFailed` 同源）。
+   *
+   * 失败态只有布尔值时，列表/卡片只能写「上一轮失败」；额度不足 / 凭据失效这类
+   * 需要人先改环境的错误，必须让卡片一眼看出「为什么」，否则又要开对话翻气泡。
+   */
+  agentErrors: Record<string, { code?: string; message: string }>;
   /** 验收进度缓存（taskId → {done,total}；唯一真源=计划 MD 的勾选态，加载 MD 时解析回填，非持久化） */
   planAcceptance: Record<string, { done: number; total: number }>;
   /** 步骤进度缓存（taskId → {done,total,current=首个未勾标题}；真源=计划 MD「## 步骤」勾选态，非持久化） */
@@ -499,6 +506,7 @@ interface TodoState {
   applyRemoteRuntimeState: (payload: {
     agentRunning: Record<string, boolean>;
     agentFailed: Record<string, boolean>;
+    agentErrors: Record<string, { code?: string; message: string }>;
     agentQuestions: Record<string, AgentQuestionBatch[]>;
   }) => void;
   setView: (v: TodoView) => void;
@@ -512,6 +520,7 @@ interface TodoState {
   locateTask: (taskId: string) => void;
   setAgentRunning: (map: Record<string, boolean>) => void;
   setAgentFailed: (map: Record<string, boolean>) => void;
+  setAgentErrors: (map: Record<string, { code?: string; message: string }>) => void;
   setPlanAcceptance: (taskId: string, done: number, total: number) => void;
   setPlanSteps: (taskId: string, done: number, total: number, current: string | null) => void;
   /** 问题批次 upsert（mux 重连重放同 rpcId → 去重）。 */
@@ -583,6 +592,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   data: emptyData(),
   agentRunning: {},
   agentFailed: {},
+  agentErrors: {},
   planAcceptance: {},
   planSteps: {},
   agentQuestions: {},
@@ -665,6 +675,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     set({
       agentRunning: payload.agentRunning ?? {},
       agentFailed: payload.agentFailed ?? {},
+      agentErrors: payload.agentErrors ?? {},
       agentQuestions: payload.agentQuestions ?? {},
     }),
 
@@ -674,6 +685,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   locateTask: (taskId) => set({ view: 'today', expandedId: taskId }),
   setAgentRunning: (map) => set({ agentRunning: map }),
   setAgentFailed: (map) => set({ agentFailed: map }),
+  setAgentErrors: (map) => set({ agentErrors: map }),
   setPlanAcceptance: (taskId, done, total) =>
     set((s) => ({ planAcceptance: { ...s.planAcceptance, [taskId]: { done, total } } })),
   setPlanSteps: (taskId, done, total, current) =>

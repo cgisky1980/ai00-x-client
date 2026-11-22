@@ -14,6 +14,7 @@ import { AgentComposer } from '@/app/components/ai/AgentComposer';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { TodoTask, WorkbenchProject } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
+import { summarizeFailure } from '@/tools/todo/utils/failureHint';
 import { WorkbenchStageDots, WorkbenchStatusTag } from '../workbench/WorkbenchStageBar';
 import { WorkbenchTaskHost } from '../workbench/WorkbenchTaskHost';
 import { needsYou } from '../workbench/workbenchStage';
@@ -110,6 +111,8 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
   const { plans, setPlan } = useTaskPlans(planTasks);
   const selectedId = useWorkbenchTaskStore((s) => s.selectedTaskId);
   const runtime = useWorkbenchTaskStore((s) => s.runtime);
+  /** 会话上一轮失败原文（overlay 轮询同步过来）：行上给悬停提示「为什么需要你」。 */
+  const agentErrors = useTodoStore((s) => s.agentErrors);
   const selectTask = useWorkbenchTaskStore((s) => s.selectTask);
   const startNewTask = useWorkbenchTaskStore((s) => s.startNewTask);
   const [draft, setDraft] = useState('');
@@ -137,6 +140,11 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
     );
   const askingOf = (task: TodoTask): boolean =>
     Boolean(task.agentSessionId && runtime[task.agentSessionId]?.asking);
+  /** 「上一轮失败原因」一句话（无失败 / 无原文时为空串）。 */
+  const failureOf = (task: TodoTask): string => {
+    const err = task.agentSessionId ? agentErrors[task.agentSessionId] : undefined;
+    return err ? summarizeFailure(err) : '';
+  };
 
   /**
    * 列表显示顺序：三档——「需要你」置顶（待批准/待验收/提问），其次是**失败**的
@@ -341,7 +349,11 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
                 // 已归档：仍可打开只读查看（计划 / 交付物 / 对话历史），但不能继续驱动 agent。
                 // 没有会话的归档卡没有可看的内容，保持禁用。
                 disabled={Boolean(task.archivedAt) && !task.agentSessionId}
-                title={task.archivedAt ? t('nav.workbenchWindow.tasks.archivedReadOnlyHint') : undefined}
+                title={
+                  task.archivedAt
+                    ? t('nav.workbenchWindow.tasks.archivedReadOnlyHint')
+                    : failureOf(task) || undefined
+                }
                 onClick={() => void openTask(task)}
               >
                 <span className="ai00-x-task-scene__item-title">{task.title}</span>
