@@ -1306,11 +1306,12 @@ function defineTools(ctx, api) {
               properties: {
                 name: { type: "string" },
                 exists: { type: "boolean" },
+                empty: { type: "boolean" },
               },
               required: ["name", "exists"],
             },
             description:
-              "Promised files from the plan's '## Deliverables' and whether each exists in snapshotDir (integration verify fails when one is missing).",
+              "Promised files from the plan's '## Deliverables' and whether each exists in snapshotDir (integration verify fails when one is missing or 0 bytes).",
           },
           extras: {
             type: "array",
@@ -1542,17 +1543,25 @@ function defineTools(ctx, api) {
       // 只在整体验收（无 stepId）强制缺件判失败：子步骤未必产出全部交付物。
       const deliverables = [];
       for (const name of cwd ? parseDeliverables(markdown) : []) {
-        const exists = await stat(join(cwd, name))
-          .then(() => true)
-          .catch(() => false);
-        deliverables.push({ name, exists });
+        const info = await stat(join(cwd, name)).catch(() => null);
+        deliverables.push({ name, exists: Boolean(info), empty: Boolean(info && info.size === 0) });
       }
       const missingDeliverables = stepId
         ? []
         : deliverables.filter((d) => d.exists === false).map((d) => d.name);
+      // 0 字节交付物等于没交付（本地 3B 长文写入反复留空文件，2026-11-21 实测）：
+      // 存在但为空同样判 failed，提示比「验收命令失败」更直接。
+      const emptyDeliverables = stepId
+        ? []
+        : deliverables.filter((d) => d.empty).map((d) => d.name);
       if (missingDeliverables.length) {
         ctx.logger.warn(
           `ai00-x-tools: deliverables missing at integration verify: ${missingDeliverables.join(", ")}`
+        );
+      }
+      if (emptyDeliverables.length) {
+        ctx.logger.warn(
+          `ai00-x-tools: deliverables empty (0 bytes) at integration verify: ${emptyDeliverables.join(", ")}`
         );
       }
       // 编码污染：文件里有 U+FFFD 替换符（模型输出带进来再被 worker 照抄）。
@@ -1632,7 +1641,7 @@ function defineTools(ctx, api) {
       // 纯文字验收项不再单独把结论压成 needs-review：它们本来就是**人**在验收卡上
       // 判定的事项（人点「验收通过」时逐条看）。needs-review 保留给真正的证据缺口
       // （无任何可执行证据、命令跑不起来、Scope 缺件、回归失败）。
-      const verdict = failed || missingDeliverables.length || corrupt.length
+      const verdict = failed || missingDeliverables.length || emptyDeliverables.length || corrupt.length
         ? "failed"
         : regressionFailed > 0 ||
             insufficient ||
@@ -1649,7 +1658,7 @@ function defineTools(ctx, api) {
           `交付物: ${
             deliverables.length
               ? deliverables
-                  .map((d) => `${d.name}${d.exists ? " ✓" : " ✗ 缺失"}`)
+                  .map((d) => `${d.name}${d.empty ? " ✗ 空文件" : d.exists ? " ✓" : " ✗ 缺失"}`)
                   .join("、")
               : "（计划未声明）"
           }`,
