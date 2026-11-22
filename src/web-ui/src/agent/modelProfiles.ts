@@ -32,18 +32,18 @@ export const AGENT_STAGES: AgentStage[] = ['plan', 'execute', 'review', 'fallbac
 
 export const AGENT_STAGE_LABELS: Record<AgentStage, string> = {
   plan: '规划 / 编排',
-  execute: '执行（默认云端小模型）',
-  review: '子任务评审',
+  execute: '执行（本地 RWKV）',
+  review: '子任务评审（本地）',
   fallback: '失败兜底',
-  research: '调研 / 查证',
+  research: '调研 / 查证（本地）',
 };
 
 export const AGENT_STAGE_HINTS: Record<AgentStage, string> = {
-  plan: '主会话模型：拆解任务、写计划书、做集成终审与高风险判断',
-  execute: 'local_code_worker：真实写码改文件跑命令；默认云端（服务器默认模型 / 智能路由），选「本地优先（RWKV）」才走本地',
-  review: 'review_worker：读证据与 diff 判定通过 / 打回（严格模式与高风险必经）',
-  fallback: 'code_worker：本地两次失败或需要云端直接修正时接手',
-  research: 'research_worker：只读调查，可走本地或低价云',
+  plan: '主会话模型：拆解任务、写计划书、做集成终审与高风险判断（远端强模型）',
+  execute: 'local_code_worker：真实写码改文件跑命令；默认走本地 RWKV，本地失败时由「失败兜底」接手',
+  review: 'review_worker：读证据与 diff 判定通过 / 打回（严格模式与高风险必经），默认本地',
+  fallback: 'code_worker：本地两次失败或需要云端直接修正时接手（远端强模型）',
+  research: 'research_worker：只读调查，默认本地，避免把长上下文整段发到云端',
 };
 
 export interface AgentModelProfile {
@@ -56,6 +56,8 @@ export interface AgentModelProfile {
 
 const PROFILES_KEY = 'ai00x.agent.modelProfiles.v1';
 const ACTIVE_KEY = 'ai00x.agent.activeProfile.v1';
+/** 默认组合迁移标记（v3：默认从「全远程」改为「本地RWKV+远程」两条混合组合）。 */
+const DEFAULT_MIGRATED_KEY = 'ai00x.agent.defaultProfileMigrated.v3';
 
 export const MODEL_REMOTE = 'ai00-api';
 export const MODEL_RWKV = 'rwkv-local';
@@ -67,35 +69,37 @@ export const REMOTE_DEEPSEEK = 'ai00s:deepseek-v4.1-flash';
 export const REMOTE_QWEN = 'ai00s:qwen3.8-flash';
 
 /**
- * 内置组合：只有两条，都是「全阶段走同一个远端模型」。
+ * 内置组合（2026-11-22 起）：两条「本地 RWKV + 远程强模型」混合组合。
  *
- * 2026-11-20 起不再内置「本地优先 / 省钱优先 / 旗舰质量 / 离线本地」等组合：
- * 用户要的是「选一个远程模型就用它」，阶段混合交给后续按需自定义。
+ * 分工一致：远端强模型负责规划/终审与失败兜底，本地 RWKV 负责执行/评审/调研。
+ * 两条只差远端模型（DeepSeek / Qwen3.8-Flash），默认第一条。
  */
+export const PROFILE_LOCAL_DEEPSEEK = 'local-rwkv-deepseek';
+export const PROFILE_LOCAL_QWEN = 'local-rwkv-qwen';
+
+/** 混合组合的阶段分工：远端规划/兜底 + 本地执行/评审/调研。 */
+function mixedModels(remote: string): Record<AgentStage, string> {
+  return {
+    plan: remote,
+    execute: MODEL_RWKV,
+    review: MODEL_RWKV,
+    fallback: remote,
+    research: MODEL_RWKV,
+  };
+}
+
 export const BUILTIN_PROFILES: AgentModelProfile[] = [
   {
-    id: 'remote-deepseek',
-    name: '远程 DeepSeek',
+    id: PROFILE_LOCAL_DEEPSEEK,
+    name: '本地RWKV+远程DeepSeek',
     builtin: true,
-    models: {
-      plan: REMOTE_DEEPSEEK,
-      execute: REMOTE_DEEPSEEK,
-      review: REMOTE_DEEPSEEK,
-      fallback: REMOTE_DEEPSEEK,
-      research: REMOTE_DEEPSEEK,
-    },
+    models: mixedModels(REMOTE_DEEPSEEK),
   },
   {
-    id: 'remote-qwen',
-    name: '远程 Qwen3.8-Flash',
+    id: PROFILE_LOCAL_QWEN,
+    name: '本地RWKV+远程Qwen3.8 flash',
     builtin: true,
-    models: {
-      plan: REMOTE_QWEN,
-      execute: REMOTE_QWEN,
-      review: REMOTE_QWEN,
-      fallback: REMOTE_QWEN,
-      research: REMOTE_QWEN,
-    },
+    models: mixedModels(REMOTE_QWEN),
   },
 ];
 
@@ -176,6 +180,9 @@ export function deleteProfile(id: string): void {
 }
 
 export function getActiveProfileId(): string | null {
+  // 迁移放在读取入口：模型选择器/新建任务都先读「当前组合」，这里能保证
+  // 旧默认（全远程）在用户第一次看到/使用组合前就换成本地+远程混合。
+  migrateDefaultProfile();
   try {
     return localStorage.getItem(ACTIVE_KEY);
   } catch {
@@ -192,8 +199,31 @@ export function setActiveProfileId(id: string | null): void {
   }
 }
 
-/** 当前生效组合；没有则回落到「均衡混合」。 */
+/**
+ * 一次性迁移：旧内置组合都是「全远程」（另有上一版临时 id `local-remote`），
+ * 现改为两条「本地RWKV+远程」混合组合。
+ *
+ * 只迁移「没有选过组合」与「选的是旧内置组合」两种情况；用户自建组合原样保留。
+ * 标记写入后不再干预用户后续选择。
+ */
+function migrateDefaultProfile(): void {
+  try {
+    if (localStorage.getItem(DEFAULT_MIGRATED_KEY)) return;
+    localStorage.setItem(DEFAULT_MIGRATED_KEY, '1');
+    const active = localStorage.getItem(ACTIVE_KEY);
+    if (!active || active === 'local-remote' || active === 'remote-deepseek') {
+      localStorage.setItem(ACTIVE_KEY, PROFILE_LOCAL_DEEPSEEK);
+    } else if (active === 'remote-qwen') {
+      localStorage.setItem(ACTIVE_KEY, PROFILE_LOCAL_QWEN);
+    }
+  } catch {
+    // 隐私模式等：本次会话按默认组合走
+  }
+}
+
+/** 当前生效组合；没有则回落到默认「本地RWKV+远程DeepSeek」。 */
 export function getActiveProfile(): AgentModelProfile {
+  migrateDefaultProfile();
   return getProfile(getActiveProfileId()) ?? BUILTIN_PROFILES[0];
 }
 
