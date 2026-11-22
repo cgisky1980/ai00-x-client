@@ -1,0 +1,49 @@
+.ai00-x-island-config {
+  &__controls {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+  }
+
+  &__move {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
+    border-radius: var(--size-radius-md);
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background var(--m-out, 0.15s) var(--m-ease, ease);
+
+    &:hover:not(:disabled) {
+      background: var(--color-bg-elevated);
+      color: var(--color-text-primary);
+    }
+
+    &:disabled {
+      opacity: var(--opacity-disabled, 0.6);
+      cursor: not-allowed;
+    }
+  }
+
+  &__reset {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-gap-1);
+    padding: var(--size-gap-1-5) var(--size-gap-3);
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
+    border-radius: var(--size-radius-md);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--color-bg-elevated);
+      color: var(--color-text-primary);
+    }
+  }
+}

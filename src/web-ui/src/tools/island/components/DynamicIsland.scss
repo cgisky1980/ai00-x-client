@@ -1,37 +1,60 @@
 // === Dynamic Island — iOS-style pill with two morphing states ===
 // States: compact (160×40) | expanded (400×188, single-page 3 rows)
 // Rows: music (main) / sfx chips (shelf) / tools dock — see 视觉设计定稿
-// Spring easing: cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s
-// KEY: All transitions use the SAME spring curve + duration for "liquid" continuity
+//
+// 形变由单一弹簧进度 --island-progress (0=compact → 1=expanded) 驱动：
+// 外框尺寸/圆角、内容淡入淡出共用一条 spring 曲线 —— 带速度、中途反向不跳变。
+// 该变量由 DynamicIsland.tsx 经 framer-motion useSpring 注入；
+// 减动效档下注入离散 0/1，瞬时切换（只留颜色变化）。
+// 签名动效豁免见《前端视觉设计规范》§1.7 / v1.2。
 
-// === Activity layer base (parent-driven visibility) ===
+// === Activity layer base (progress-driven visibility) ===
 // Unified definition — Activity scss must NOT redefine this class
 .island-layer {
   position: absolute;
   inset: 0;
   display: flex;
-  opacity: 0;
+  // 见下方 .island-layer--compact / --expanded：opacity/scale 由进度插值
   pointer-events: none;
-  // CRITICAL: Sync with pill morph — same duration + spring curve
-  // Previous 0.3s ease caused content to settle before pill finished → "flicker" not "flow"
-  transition:
-    opacity 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
-    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .dynamic-island {
+  // 弹簧形变进度：0=compact / 1=expanded（组件注入；此处为静态兜底）
+  --island-progress: 0;
+  // compact 胶囊半径 = 高度一半；用像素保证 CSS calc 可直接插值
+  --island-radius-compact: 20px;
+  // 形态两端尺寸（与动态岛尺寸常量保持一致）
+  --island-w-compact: 160px;
+  --island-w-expanded: 400px;
+  --island-h-compact: 40px;
+  --island-h-expanded: 188px;
+
   position: fixed;
   top: 8px;
   left: 50%;
   transform: translateX(-50%);
-  // chrome 顶层：灵动岛永远在一切应用浮层（音乐/音效/策窗等）之上
-  z-index: var(--z-chrome-top);
+  // chrome 层：灵动岛 50010，低于歌词浮层(50020)与浮层内弹窗(50030)
+  z-index: var(--z-chrome-island);
   pointer-events: auto;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   cursor: pointer;
   user-select: none;
+
+  // 弹簧驱动的尺寸/圆角：单一进度插值，无 CSS transition（避免双曲线打架）
+  width: calc(
+    var(--island-w-compact) +
+    (var(--island-w-expanded) - var(--island-w-compact)) * var(--island-progress)
+  );
+  height: calc(
+    var(--island-h-compact) +
+    (var(--island-h-expanded) - var(--island-h-compact)) * var(--island-progress)
+  );
+  border-radius: calc(
+    var(--island-radius-compact) +
+    (var(--size-radius-lg) - var(--island-radius-compact)) * var(--island-progress)
+  );
 
   // 悬浮岛固定暗色（不随明暗切换，同 iOS 灵动岛）：中性墨黑 + 白字；交互色仍跟随皮肤。
   --color-bg-primary: oklch(0.18 0 0);
@@ -51,26 +74,21 @@
     0 0 16px color-mix(in oklch, var(--color-primary) 8%, transparent),
     inset 0 1px 0 color-mix(in oklch, var(--color-text-primary) 10%, transparent);
 
-  transition:
-    width 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
-    height 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
-    border-radius 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 0.3s ease;
+  transition: box-shadow 0.3s ease;
 
-  // === Compact state: 160×40 full pill (music capsule only) ===
-  &--compact {
-    width: 160px;
-    height: 40px;
+  // === 全屏避让：收成贴边细线（前台全屏/最大化时） ===
+  &--occluded {
+    width: 96px;
+    height: 6px;
+    top: 2px;
     border-radius: var(--size-radius-full);
+    overflow: hidden;
+    .dynamic-island__content { opacity: 0; }
   }
 
-  // === Expanded state: 400×188 single-page 3 rows ===
-  // radius.lg per 视觉规范 4.2-4：compact 胶囊是唯一 pill 例外，展开态走 lg。
-  &--expanded {
-    width: 400px;
-    height: 188px;
-    border-radius: var(--size-radius-lg);
-  }
+  // === Compact / expanded 仅保留状态语义类名（尺寸由进度插值驱动） ===
+  // 注：compact 胶囊是唯一 pill 例外（视觉规范 §3.2），展开态走 radius.lg；
+  // 两者圆角已由上方 calc 在 20px ↔ var(--size-radius-lg) 间插值兑现。
 
   // === Playing highlight: inner glow + breathing animation ===
   &--playing {
@@ -81,16 +99,49 @@
       inset 0 0 16px color-mix(in oklch, var(--color-primary) 8%, transparent);
   }
 
-  // === Parent-driven layer visibility (iOS "liquid" continuity) ===
-  // No React --visible class; CSS parent state controls child opacity + transform
-  &--compact  .island-layer--compact  { opacity: 1; pointer-events: auto; transform: scale(1); }
-  &--expanded .island-layer--expanded { opacity: 1; pointer-events: auto; transform: scale(1); }
+  // === Progress-driven layer visibility (iOS "liquid" continuity) ===
+  // 两层共用同一弹簧进度：compact 层 opacity=1-p，expanded 层 opacity=p，
+  // 与外框形变完全同步（原 CSS 定时 transition 与外框不同步会 flicker）。
+  // 指针事件按离散 state 瞬时切换（CSS 无法插值 pointer-events），避免隐藏层拦截点击。
+  .island-layer--compact {
+    opacity: calc(1 - var(--island-progress));
+    transform: scale(calc(1 - var(--island-progress) * 0.04));
+  }
+  .island-layer--expanded {
+    opacity: var(--island-progress);
+    transform: scale(calc(0.96 + var(--island-progress) * 0.04));
+  }
+  &--compact  .island-layer--compact  { pointer-events: auto; }
+  &--expanded .island-layer--expanded { pointer-events: auto; }
 }
 
 // === Breathing animation (preserves translateX(-50%) centering) ===
 @keyframes islandBreathe {
   0%, 100% { transform: translateX(-50%) scale(1); }
   50% { transform: translateX(-50%) scale(1.015); }
+}
+
+// 减动效档：停掉呼吸位移，只留颜色/发光（规范 §1.7 豁免边界）
+@media (prefers-reduced-motion: reduce) {
+  .dynamic-island--playing {
+    animation: none;
+  }
+}
+html[data-motion='reduced'] .dynamic-island--playing {
+  animation: none;
+}
+
+// === 边缘唤出区（compact 态） ===
+// 从屏幕顶边延伸一条命中带到岛所在高度：光标推到屏幕最上方即可唤出岛。
+// 仅在 compact 态由 React 条件渲染；展开后移除，不拦截顶边点击。
+.dynamic-island__edge-hit {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 24px;
+  z-index: var(--z-chrome-island);
+  cursor: pointer;
 }
 
 // === Content wrapper ===
@@ -137,8 +188,13 @@
   }
 }
 
-// compact 态：三行常驻 DOM（插件槽不能丢），但只有音乐行可见
-.dynamic-island--compact .dynamic-island__row--sfx,
-.dynamic-island--compact .dynamic-island__row--tools {
+// 用户关闭的行：DOM 常驻（保插件槽），仅隐藏视觉、不占空间
+.dynamic-island__row--hidden {
+  display: none;
+}
+
+// compact 态：数据驱动的常驻行（当前仅标记 --compact-visible 的音乐行可见）。
+// 用 :not 隐藏所有非 compactVisible 行，将来注册新常驻行无需改此规则。
+.dynamic-island--compact .dynamic-island__row:not(.dynamic-island__row--compact-visible) {
   display: none;
 }

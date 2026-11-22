@@ -20,6 +20,7 @@ import GestureTemplateSettings from './gesture/GestureTemplateSettings';
 import GestureActionSettings from './gesture/GestureActionSettings';
 import ClickEffectSettings from './gesture/ClickEffectSettings';
 import SmartDesktopConfig from '../../../infrastructure/config/components/SmartDesktopConfig';
+import IslandConfig from '../../../infrastructure/config/components/IslandConfig';
 import PluginsConfig from '../../../infrastructure/config/components/PluginsConfig';
 import DshPluginsConfig from '../../../infrastructure/config/components/DshPluginsConfig';
 import DshOrchestrationConfig from '../../../infrastructure/config/components/DshOrchestrationConfig';
@@ -41,6 +42,7 @@ const SETTINGS_TAB_CONTENT: Partial<Record<ConfigTab, ComponentType>> = {
   'gesture-actions': GestureActionSettings,
   'click-effect': ClickEffectSettings,
   'smart-desktop': SmartDesktopConfig,
+  island: IslandConfig,
   plugins: PluginsConfig,
   account: AccountConfig,
   about: AboutConfig,

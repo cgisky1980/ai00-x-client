@@ -9,7 +9,7 @@
 .ai00-agent-theater {
   position: fixed;
   // left/top 由 useDraggable inline style 控制（位置记忆），CSS 不再设 top/right
-  z-index: var(--z-chrome-top); // 与 DynamicIsland 同域（DOM 顺序靠后自然置顶）
+  z-index: var(--z-chrome-island); // 与 DynamicIsland 同域（DOM 顺序靠后自然置顶）
   display: flex;
   flex-direction: column;
   align-items: flex-end;
