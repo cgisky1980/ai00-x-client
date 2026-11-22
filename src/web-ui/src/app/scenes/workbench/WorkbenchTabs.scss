@@ -15,7 +15,9 @@
     flex: 0 0 auto;
     padding: 0 var(--spacing-2);
     border-bottom: var(--style-stroke-width, 1px) solid var(--border-subtle);
-    background-color: var(--color-bg-base);
+    // 标签条走 L0 workbench（比中央画布 base 深半档），从画布中分离出导航带；
+    // 原先与根容器/画布同为 base，整条标签栏只剩 1px 下边框可辨
+    background-color: var(--color-bg-workbench);
   }
 
   &__list {

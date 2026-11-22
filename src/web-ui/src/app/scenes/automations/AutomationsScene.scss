@@ -13,7 +13,8 @@
     min-width: 0;
     min-height: 0;
     border-right: var(--style-stroke-width, 1px) solid var(--color-border);
-    background-color: var(--color-bg-shell);
+    // 内容侧栏（L2 sunken）：与外层应用导航（shell）拉开一档，避免相邻同色
+    background-color: var(--color-bg-sunken);
   }
 
   &__list-head {

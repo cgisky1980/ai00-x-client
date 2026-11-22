@@ -15,7 +15,9 @@
     min-width: 0;
     min-height: 0;
     border-right: var(--style-stroke-width, 1px) solid var(--color-border);
-    background-color: var(--color-bg-shell);
+    // 内容侧栏（L2 sunken）必须与外层应用导航（L2-deep shell）拉开一档，
+    // 否则两块相邻侧栏逐像素同色、只剩 1px 描边可分（规范 §3.1）
+    background-color: var(--color-bg-sunken);
   }
 
   &__list-head {
