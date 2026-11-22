@@ -10,6 +10,7 @@ import type { TodoTask } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
 import { summarizeFailure } from '@/tools/todo/utils/failureHint';
 import { taskPhase, type TaskPhase } from './taskPhase';
+import { TASKS_WORKBENCH_ID } from './taskSession';
 import TaskDetail from './TaskDetail';
 import { TaskActionsMenu } from './TaskActionsMenu';
 import { useTaskPlans } from './useTaskPlans';
@@ -55,7 +56,18 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
   const [projectFilter, setProjectFilter] = useState<string>('all');
 
   const workbenchTasks = useMemo(
-    () => allTasks.filter((task) => task.origin === 'workbench' && !task.archivedAt),
+    () =>
+      allTasks.filter(
+        (task) =>
+          task.origin === 'workbench' &&
+          !task.archivedAt &&
+          // 只收「任务」工作台与项目任务的卡：其他工作台（动态桌面 wallpaper 等）的卡
+          // 属于各自工作台，混进任务看板会让人点开一张并不属于任务的卡（实测两张
+          // 「Ai00-X · 灵」壁纸工程卡出现在看板上，点击后落到任务详情）。
+          (!task.workbenchId ||
+            task.workbenchId === TASKS_WORKBENCH_ID ||
+            Boolean(task.projectId)),
+      ),
     [allTasks],
   );
 
