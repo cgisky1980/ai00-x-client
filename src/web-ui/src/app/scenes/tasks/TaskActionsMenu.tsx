@@ -188,20 +188,24 @@ export const TaskActionsMenu: React.FC<TaskActionsMenuProps> = ({
           // 同一帧卸载会跳过 Radix 的 body pointer-events 恢复（整页点不动）。
           setDeleteOpen(false);
           window.setTimeout(() => {
-            // 卡片一删就再也按不到「停止」：先在跑的回合与子代理停掉（含清空排队项）。
-            void stopTaskSession();
-            // 隔离执行的任务：顺手回收 worktree。脏目录会被 Git 拒绝——刻意保留，
-            // 交回用户处理，避免删卡时连未提交改动一起抹掉。
-            if (task.worktreePath) {
-              const project = useTodoStore
-                .getState()
-                .data.projects.find((p) => p.id === task.projectId);
-              if (project) {
-                void releaseWorktree(project.dir, task.worktreePath).catch(() => undefined);
+            void (async () => {
+              // 卡片一删就再也按不到「停止」：先在跑的回合与子代理停掉（含清空排队项）。
+              // 必须等停稳再删卡——cancel 是异步的，立刻删卡时引擎的收尾写入（回合结束、
+              // 子代理状态）还会落到这张卡上，卡片会「复活」（实测 data.json 又出现）。
+              await stopTaskSession();
+              // 隔离执行的任务：顺手回收 worktree。脏目录会被 Git 拒绝——刻意保留，
+              // 交回用户处理，避免删卡时连未提交改动一起抹掉。
+              if (task.worktreePath) {
+                const project = useTodoStore
+                  .getState()
+                  .data.projects.find((p) => p.id === task.projectId);
+                if (project) {
+                  void releaseWorktree(project.dir, task.worktreePath).catch(() => undefined);
+                }
               }
-            }
-            deleteTask(task.id);
-            onDeleted?.();
+              deleteTask(task.id);
+              onDeleted?.();
+            })();
           }, 0);
         }}
       />

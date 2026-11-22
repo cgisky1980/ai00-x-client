@@ -10,6 +10,16 @@ export const TODO_RUNTIME_STATE = 'todo:runtime-state';
 export const TODO_DERIVED_STATE = 'todo:derived-state';
 
 /**
+ * 删除墓碑广播：某一窗口删卡后，其它窗口也要记住这些 id。
+ *
+ * 每个窗口的 store 各有一份内存数据；别的窗口若正处在本轮 save 的防抖窗口里，
+ * 它会把「自己那份还带着被删卡的数据」整份写回盘（`todo_store_set` 是整份覆盖），
+ * 被删的卡就这样复活（实测：运行中的任务点删除，列表已消失，`data.json` 里又出现）。
+ * 广播后各窗口把 id 记进自己的墓碑，save 前过滤掉。
+ */
+export const TODO_TASKS_DELETED = 'todo:tasks-deleted';
+
+/**
  * 「定位到某张卡片」意图：overlay（工灵所在窗口）→ 策窗口。
  *
  * 与上面三条不同，这是**一次性动作**而非状态同步——策窗口消费后即丢弃，

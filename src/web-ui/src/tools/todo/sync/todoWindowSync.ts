@@ -38,6 +38,7 @@ import {
   TODO_DERIVED_STATE,
   TODO_FOCUS_TASK,
   TODO_RUNTIME_STATE,
+  TODO_TASKS_DELETED,
 } from './todoSyncEvents';
 
 interface RuntimeStatePayload {
@@ -99,6 +100,13 @@ export function initTodoWindowSync(role: 'runtime' | 'ui'): () => void {
       case TODO_DATA_CHANGED:
         void pullData();
         return;
+
+      case TODO_TASKS_DELETED: {
+        const payload = message.payload as { ids?: string[] } | undefined;
+        if (!payload?.ids?.length) return;
+        useTodoStore.getState().applyRemoteDeletedTaskIds(payload.ids);
+        return;
+      }
 
       case TODO_RUNTIME_STATE: {
         if (role !== 'ui') return; // 运行时窗口自己是 owner，不回收自己的态

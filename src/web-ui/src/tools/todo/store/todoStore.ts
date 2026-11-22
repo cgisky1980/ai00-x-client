@@ -12,7 +12,7 @@ import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { publishWindowMessage } from '@/infrastructure/windows/windowBus';
 import type { DshQuestionItem } from '@/infrastructure/api/service-api/DshAPI';
-import { TODO_DATA_CHANGED } from '../sync/todoSyncEvents';
+import { TODO_DATA_CHANGED, TODO_TASKS_DELETED } from '../sync/todoSyncEvents';
 import type { AutomationLink, BoardPlan, ChecklistItem, FocusSession, GoalCategory, PlanChatMessage, PlanChatQuestion, RepeatType, TaskStatus, TodoData, TodoGoal, TodoList, TodoTask, WorkbenchProject } from '../api/types';
 
 /** agent 提问批次（ask_user_question 一次 ask 的全部问题；rpcId 即问题逻辑 id）。 */
@@ -550,6 +550,13 @@ interface TodoState {
   updateTask: (id: string, patch: Partial<TodoTask>) => void;
   completeTask: (id: string, done: boolean) => void;
   deleteTask: (id: string) => void;
+  /**
+   * 别的窗口删了卡：登记墓碑并从本地数据移除（不写盘、不广播）。
+   *
+   * 本窗口若正好有一次 save 在防抖队列里，那份数据还带着被删的卡；没有墓碑的话
+   * 整份回写会把它复活（实测见 `TODO_TASKS_DELETED` 的注释）。
+   */
+  applyRemoteDeletedTaskIds: (ids: string[]) => void;
   addGoal: (
     title: string,
     why: string,
@@ -642,7 +649,12 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         // 落盘前先并一次盘：Rust 侧的读改写（agent `ai00_task_create` 建卡、
         // 专注记录追加）不经过本 store，整份覆盖会把这些新东西写没。
         // 实测：点「通过」后 400ms 防抖窗口内 agent 建一张卡 → 卡永久消失。
-        let payload = get().data;
+        // 整份覆盖前先剔掉「已删但还在本地数据里」的卡：墓碑可能来自别的窗口的删除
+        // 广播（本窗口的防抖队列里还躺着带这张卡的旧数据）。不剔就会把它复活。
+        let payload =
+          deletedTaskIds.size > 0
+            ? { ...get().data, tasks: get().data.tasks.filter((t) => !deletedTaskIds.has(t.id)) }
+            : get().data;
         let adopted = false;
         try {
           const disk = sanitize(await invoke<unknown>('todo_store_get'));
@@ -902,11 +914,25 @@ export const useTodoStore = create<TodoState>((set, get) => ({
 
   deleteTask: (id) => {
     deletedTaskIds.add(id);
+    // 先广播再落盘：其它窗口若正握着带这张卡的旧数据，必须在下一次整份写盘前
+    // 收到墓碑并剔掉它（否则删除被「复活」，实测见 TODO_TASKS_DELETED 注释）。
+    publishWindowMessage<{ ids: string[] }>(TODO_TASKS_DELETED, { ids: [id] });
     set((s) => ({
       expandedId: s.expandedId === id ? null : s.expandedId,
       data: { ...s.data, tasks: s.data.tasks.filter((t) => t.id !== id) },
     }));
     get().save();
+  },
+
+  applyRemoteDeletedTaskIds: (ids) => {
+    const gone = ids.filter((id) => Boolean(id));
+    if (gone.length === 0) return;
+    for (const id of gone) deletedTaskIds.add(id);
+    const goneSet = new Set(gone);
+    set((s) => ({
+      expandedId: s.expandedId && goneSet.has(s.expandedId) ? null : s.expandedId,
+      data: { ...s.data, tasks: s.data.tasks.filter((t) => !goneSet.has(t.id)) },
+    }));
   },
 
   addGoal: (title, why, deadline, plan = [], milestones = [], workspaceDir) => {
