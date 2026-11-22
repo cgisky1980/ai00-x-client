@@ -159,6 +159,7 @@
         "reviewAction": "Review",
         "empty": "No tasks yet",
         "preparing": "Preparing session…",
+        "startTask": "Start task",
         "openFailed": "Failed to open the task session: {{message}}",
         "starters": {
           "bug": {

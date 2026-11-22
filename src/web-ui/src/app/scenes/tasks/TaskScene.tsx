@@ -322,14 +322,21 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
     await openTask(task, pendingModel);
   }, [busy, draft, executionMode, openTask, pendingModel, t]);
 
-  // 看板点卡片 → 本场景选中该任务（项目任务也能在这里展示详情）
+  /**
+   * 看板 / 通知「去查看」聚焦卡片 → 本场景选中该任务（项目任务也能在这里展示详情）。
+   *
+   * 只有**已有会话**的卡才顺手打开：没有会话的卡（agent 建的想法卡）在这里开工等于
+   * 「点一下查看就花积分跑一轮」，而通知文案明说「去工作台决定是否安排」。选中后
+   * 由人按占位区的「开始执行」再建会话。
+   */
   useEffect(() => {
     if (!focusTaskId) return;
     const task = openableTask(focusTaskId);
     if (!task) return;
-    void openTask(task);
+    if (task.agentSessionId) void openTask(task);
+    else selectTask(task.id);
     onFocusHandled?.();
-  }, [focusTaskId, openableTask, openTask, onFocusHandled]);
+  }, [focusTaskId, openableTask, openTask, onFocusHandled, selectTask]);
 
   const creating = !selectedTask && busy === 'create';
   /** 提交后（建卡 / 建会话中）直接给计划卡骨架；快速问答没有计划区，仍用一行等待。 */
@@ -490,7 +497,9 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
               className="ai00-x-task-scene__button"
               onClick={() => void openTask(selectedTask)}
             >
-              {t('nav.workbenchScene.retry')}
+              {error
+                ? t('nav.workbenchScene.retry')
+                : t('nav.workbenchWindow.tasks.startTask')}
             </button>
           </div>
         )}
