@@ -26,6 +26,7 @@ import {
   type DshSnapshotEntry,
 } from '@/infrastructure/api/service-api/DshAPI';
 import { useWorkspaceManagerSync } from '@/infrastructure/hooks/useWorkspaceManagerSync';
+import { formatCredits } from '@/infrastructure/api/service-api/AiUsageAPI';
 import { useDshChat } from './hooks/useDshChat';
 import { useSessionCredits } from './hooks/useSessionCredits';
 import {
@@ -205,7 +206,9 @@ const DshScene: React.FC = () => {
     return [
       `↑${fmt(usage.inputTokens)} ↓${fmt(usage.outputTokens)} · ${usage.requests}`,
       cacheRate ? `${t('sessions.cacheHit')} ${cacheRate}` : '',
-      sessionCredits.total > 0 ? `${sessionCredits.total} ${t('sessions.creditsUnit')}` : '',
+      sessionCredits.total > 0
+        ? `${formatCredits(sessionCredits.total)} ${t('sessions.creditsUnit')}`
+        : '',
     ]
       .filter(Boolean)
       .join(' · ');

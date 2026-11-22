@@ -81,6 +81,17 @@ export function diffUsage(
 }
 
 /**
+ * 积分显示格式：最多两位小数、去掉末尾 0（34 → "34"，0.3 → "0.3"，
+ * 0.125 → "0.13"）。服务端按 token 计费时 cost_credits 可能是小数，
+ * 直接把浮点数拼进模板会露出 `0.30000000000000004` 这类尾巴。
+ */
+export function formatCredits(n: number): string {
+  if (!Number.isFinite(n)) return '0';
+  const rounded = Math.round(n * 100) / 100;
+  return rounded.toFixed(2).replace(/\.?0+$/, '');
+}
+
+/**
  * 汇总本轮远端的积分消耗（服务端账单口径，按会话核算）。
  *
  * 会话范围 = 主会话 + 本轮派发的子会话（子代理），逐个拉会话账单后合并明细：
@@ -114,16 +125,25 @@ export async function resolveRemoteCredits(params: {
     // 账本读不到（未登录 / 网络）：语义是"未知"，不能报 0
     if (billings.every(billing => billing === null)) return null;
     const items = billings.flatMap(billing => billing?.items ?? []);
+    const inWindow = (item: { created_at: string }): boolean => {
+      if (cutoff === null) return false;
+      const at = Date.parse(item.created_at);
+      return Number.isFinite(at) && at >= cutoff;
+    };
     if (wanted.size > 0) {
+      // 按请求 id 命中的条目 + 时间窗内「未被任何请求 id 认领」的条目。
+      // 以前是二选一：命中就不看窗口，会漏掉本轮里没带 request id 的调用；
+      // 现在两块相加，且互不重叠（extras 排除已匹配的 request id），
+      // 既不漏算也不重复。
       const matched = items.filter(item => item.request_id && wanted.has(item.request_id));
-      if (matched.length > 0) return sum(matched);
+      const extras = items.filter(
+        item => (!item.request_id || !wanted.has(item.request_id)) && inWindow(item),
+      );
+      if (matched.length > 0 || extras.length > 0) return sum([...matched, ...extras]);
     }
     if (cutoff !== null) {
-      const inWindow = items.filter(item => {
-        const at = Date.parse(item.created_at);
-        return Number.isFinite(at) && at >= cutoff;
-      });
-      if (inWindow.length > 0) return sum(inWindow);
+      const windowed = items.filter(inWindow);
+      if (windowed.length > 0) return sum(windowed);
     }
     // 两条口径都没命中：可能是异步结算尚未落账，未命中≠没扣费，
     // 交给上层有界轮询继续补齐，这里只报"未知"。

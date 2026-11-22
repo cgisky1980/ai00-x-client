@@ -9,6 +9,7 @@
 import React from 'react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { AiUsageSplit } from '@/infrastructure/api/service-api/AiUsageAPI';
+import { formatCredits } from '@/infrastructure/api/service-api/AiUsageAPI';
 import './WorkbenchTurnUsage.scss';
 
 export interface WorkbenchTurnUsageProps {
@@ -78,7 +79,7 @@ export const WorkbenchTurnUsage: React.FC<WorkbenchTurnUsageProps> = ({
           <span className="ai00-x-turn-usage__num">
             {remoteCredits === null
               ? t('nav.workbenchWindow.usage.creditsPending')
-              : `${fmt(remoteCredits)} ${t('nav.workbenchWindow.usage.creditsUnit')}`}
+              : `${formatCredits(remoteCredits)} ${t('nav.workbenchWindow.usage.creditsUnit')}`}
           </span>
         </span>
       )}

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Button, MarkdownRenderer } from '@/component-library';
 import { rememberSessionAllow } from '@/shared/agent-approval-rules';
+import { formatCredits } from '@/infrastructure/api/service-api/AiUsageAPI';
 import { copyTextToClipboard } from '@/shared/utils/textSelection';
 import type {
   DshApproval,
@@ -443,10 +444,10 @@ export const MessageBubble: React.FC<{
             {credits != null && credits > 0 && (
               <span
                 className="ai00-x-dsh-scene__msg-usage"
-                title={t('chat.creditsTitle', { credits })}
+                title={t('chat.creditsTitle', { credits: formatCredits(credits) })}
               >
                 <Coins size={11} aria-hidden="true" />
-                <span>{credits}</span>
+                <span>{formatCredits(credits)}</span>
               </span>
             )}
             {(displayText || onRetry) && (
