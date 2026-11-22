@@ -187,10 +187,50 @@ fn prune_worker_sessions_in(home: &std::path::Path, max_age_days: u64) -> usize 
             }
         }
     }
-    if removed > 0 {
+    let orphans = prune_orphan_session_caches(&root, &cache_dir);
+    if removed > 0 || orphans > 0 {
         log::info!(
-            "[DshManager] pruned {removed} stale worker session(s) older than {max_age_days}d"
+            "[DshManager] pruned {removed} stale worker session(s) older than {max_age_days}d, {orphans} orphan projcache file(s)"
         );
+    }
+    removed
+}
+
+/// 清掉没有对应会话目录的 projcache 文件（会话已被删/改名后残留的投影缓存）。
+///
+/// 手动清理（`delete_worker_session_dir`）会顺手删对应缓存，但历史遗留
+/// （旧版本清理、外部删目录、引擎侧删会话）仍会积攒——实机 180 个会话目录
+/// 对着 263 个缓存文件（80 个孤儿）。启动时一并扫掉，纯磁盘卫生，不影响运行。
+fn prune_orphan_session_caches(root: &std::path::Path, cache_dir: &std::path::Path) -> usize {
+    let Ok(slugs) = std::fs::read_dir(root) else {
+        return 0;
+    };
+    let mut live = std::collections::HashSet::new();
+    for slug in slugs.flatten() {
+        let Ok(entries) = std::fs::read_dir(slug.path()) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                live.insert(entry.file_name().to_string_lossy().to_string());
+            }
+        }
+    }
+    let Ok(caches) = std::fs::read_dir(cache_dir) else {
+        return 0;
+    };
+    let mut removed = 0usize;
+    for entry in caches.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let Some(id) = name.strip_suffix(".json") else {
+            continue;
+        };
+        if live.contains(id) {
+            continue;
+        }
+        if std::fs::remove_file(entry.path()).is_ok() {
+            removed += 1;
+        }
     }
     removed
 }
