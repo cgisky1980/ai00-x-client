@@ -669,6 +669,8 @@ function parsePlanSteps(markdown) {
   if (!lines) return [];
   const steps = [];
   let current = null;
+  /** 最近一个字段：用于识别「验收:」下面换行缩进的子项写法。 */
+  let currentField = null;
   for (const line of lines) {
     const head = /^\s*-\s+\[([ xX])\]\s+(T[0-9A-Za-z_-]+)\s+(.*)$/.exec(line);
     if (head) {
@@ -687,9 +689,20 @@ function parsePlanSteps(markdown) {
     }
     if (!current) continue;
     const prop = /^\s*-\s*([^:：]{1,24})[:：]\s*(.*)$/.exec(line);
-    if (!prop) continue;
-    const field = FIELD_ALIASES[prop[1].trim().toLowerCase()];
-    if (!field) continue;
+    const field = prop ? FIELD_ALIASES[prop[1].trim().toLowerCase()] : undefined;
+    if (!field) {
+      // 「验收:」换行写子项（`- Acceptance:` 后每个 `- … {cmd: …}` 一行）是最自然的
+      // markdown 写法，也实测被模型写出来过。旧解析只认单行「验收: 文本 {cmd:…}」，
+      // 这种写法会被整段忽略 → 命令 0/0、步骤永远 needs-review（2026-11-22 e2e）。
+      // 只要当前字段是「验收」，缩进子项就按一条验收处理（保留其文本与命令）。
+      const sub = /^\s+-\s+(.+)$/.exec(line);
+      if (currentField === "验收" && sub && sub[1].trim()) {
+        const text = sub[1].trim();
+        current.acceptance.push({ text, cmd: extractCmd(text) });
+      }
+      continue;
+    }
+    currentField = field;
     const value = prop[2].trim();
     switch (field) {
       case "依赖":
