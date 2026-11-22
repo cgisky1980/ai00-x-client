@@ -160,6 +160,7 @@
         "empty": "还没有任务",
         "preparing": "正在准备会话…",
         "startTask": "开始执行",
+        "requestLabel": "原始请求",
         "openFailed": "打开任务会话失败：{{message}}",
         "starters": {
           "bug": {

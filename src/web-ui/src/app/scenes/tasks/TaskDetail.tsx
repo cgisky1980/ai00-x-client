@@ -32,14 +32,24 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
         // 快速问答没有计划/交付物/验收这条流水线，套计划页只会显示「尚无计划书」误导人。
         <p className="ai00-x-task-detail__quick">{t('nav.workbenchWindow.board.quickNoPlan')}</p>
       ) : (
-        <WorkbenchPlanPage
-          task={task}
-          planMd={planMd}
-          onPlanChange={onPlanChange}
-          onOpenFile={setPreviewPath}
-          running={running}
-          variant="compact"
-        />
+        <>
+          {/* 还没有计划（agent 建的想法卡 / 刚建卡）：把原始请求摆出来，
+              否则详情只剩一个空计划页，人看不出这张卡要做什么。 */}
+          {!planMd?.trim() && task.notes?.trim() ? (
+            <section className="ai00-x-task-detail__request">
+              <h3>{t('nav.workbenchWindow.tasks.requestLabel')}</h3>
+              <p>{task.notes}</p>
+            </section>
+          ) : null}
+          <WorkbenchPlanPage
+            task={task}
+            planMd={planMd}
+            onPlanChange={onPlanChange}
+            onOpenFile={setPreviewPath}
+            running={running}
+            variant="compact"
+          />
+        </>
       )}
       <DeliverablePreview path={previewPath} onClose={() => setPreviewPath(null)} />
     </div>

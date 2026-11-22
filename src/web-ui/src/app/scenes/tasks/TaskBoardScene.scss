@@ -219,6 +219,32 @@
   line-height: 1.7;
 }
 
+/* 还没有计划时展示原始请求（想法卡 / 刚建卡）。 */
+.ai00-x-task-detail__request {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-gap-1);
+  padding: var(--size-gap-4) var(--size-gap-4) 0;
+
+  h3 {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
 @media (max-width: 1100px) {
   .ai00-x-task-board__detail {
     flex-basis: 300px;
