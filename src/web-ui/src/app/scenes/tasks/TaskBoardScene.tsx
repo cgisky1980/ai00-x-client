@@ -8,6 +8,7 @@ import { ExternalLink } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { TodoTask } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
+import { summarizeFailure } from '@/tools/todo/utils/failureHint';
 import { taskPhase, type TaskPhase } from './taskPhase';
 import TaskDetail from './TaskDetail';
 import { TaskActionsMenu } from './TaskActionsMenu';
@@ -46,6 +47,8 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
   const allTasks = useTodoStore((s) => s.data.tasks);
   const projects = useTodoStore((s) => s.data.projects);
   const runtime = useWorkbenchTaskStore((s) => s.runtime);
+  /** 会话上一轮失败原文（overlay 轮询同步）：卡片悬停直接说明「为什么需要你」。 */
+  const agentErrors = useTodoStore((s) => s.agentErrors);
   // 引擎会话运行态校准（没打开过的任务也能落到「已停止」）
   useSessionRunningSync();
   /** 全部 / 默认工作区（空串）/ 某项目 id。 */
@@ -113,11 +116,15 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
   const renderCard = (task: TodoTask): React.ReactNode => {
     const md = plans[task.id] ?? null;
     const isSelected = task.id === selectedId;
+    const failureReason = task.agentSessionId
+      ? summarizeFailure(agentErrors[task.agentSessionId])
+      : '';
     return (
       <button
         key={task.id}
         type="button"
         className={`ai00-x-task-board__card${isSelected ? ' is-active' : ''}`}
+        title={failureReason || task.title}
         onClick={() => setSelectedId(task.id)}
       >
         <span className="ai00-x-task-board__card-title">{task.title}</span>
