@@ -255,6 +255,9 @@ export const TodoOverlay: React.FC = () => {
   // 无关广播）就会把历史上所有待验收任务连弹一遍——实测 3 条任务弹 3 个 toast。
   const knownCompletedRef = useRef<Set<string>>(new Set());
   const completedSeededRef = useRef(false);
+  /** 已知任务 id（用于识别 `ai00_task_create` 新落的想法卡；首帧只记不报）。 */
+  const knownTaskIdsRef = useRef<Set<string>>(new Set());
+  const taskIdsSeededRef = useRef(false);
   useEffect(() => {
     if (!loaded || completedSeededRef.current) return;
     completedSeededRef.current = true;
@@ -265,12 +268,54 @@ export const TodoOverlay: React.FC = () => {
     knownCompletedRef.current = seed;
   }, [loaded]);
   useEffect(() => {
+    if (!loaded || taskIdsSeededRef.current) return;
+    taskIdsSeededRef.current = true;
+    const ids = new Set<string>();
+    for (const t of useTodoStore.getState().data.tasks) {
+      if (inTaskScope(t) && !t.archivedAt) ids.add(t.id);
+    }
+    knownTaskIdsRef.current = ids;
+  }, [loaded]);
+  // 本地/远端任何一次数据变化都把新 id 记进已知集：这样「agent 新建卡」与
+  // 「人在界面上新建卡」不会混为一谈（后者在后续 agent 事件里不会被当成新想法）。
+  useEffect(
+    () =>
+      useTodoStore.subscribe((state, prev) => {
+        if (state.data.tasks === prev.data.tasks) return;
+        for (const t of state.data.tasks) {
+          if (inTaskScope(t) && !t.archivedAt) knownTaskIdsRef.current.add(t.id);
+        }
+      }),
+    [],
+  );
+  useEffect(() => {
     const un = listen('todo-agent-updated', () => {
+      // 事件到达时先快照已知 id：`load()` 的 set 会同步触发上面的订阅把新 id 记进来，
+      // 晚一点比较就永远看不到「这一事件新建的卡」。
+      const beforeIds = new Set(knownTaskIdsRef.current);
       // Rust 侧 agent 工具写盘只发这个事件（不发窗口总线广播）：重读后补一次广播，
       // 否则已打开的工作台窗口看不到 agent 的改动（实测：agent 改计划触发批准复位后，
       // 卡片仍显示「继续执行」，要手动刷新才变成「待批准」）。
       void useTodoStore.getState().load({ announce: true }).then(() => {
         const { data } = useTodoStore.getState();
+        // `ai00_task_create` 新落的想法卡：agent 收集到的点子只在列表里，用户不开
+        // 工作台就永远不知道。只提示**本次事件新建**的卡（首帧种子见上面的 effect）。
+        const createdNow = data.tasks.filter(
+          (t) => inTaskScope(t) && !t.archivedAt && !beforeIds.has(t.id),
+        );
+        if (taskIdsSeededRef.current && createdNow.length > 0) {
+          const counts = titleCounts(
+            useTodoStore.getState().data.tasks.filter((t) => !t.archivedAt),
+          );
+          for (const t of createdNow.slice(0, 3)) {
+            notifyTask(
+              '想法 · 已记下',
+              `「${notificationTitle(t, counts)}」被 agent 记进想法池——去工作台决定是否安排`,
+              'info',
+              [goToTask(t.id, '去查看')],
+            );
+          }
+        }
         const current = new Set<string>();
         const fresh: typeof data.tasks = [];
         for (const t of data.tasks) {
