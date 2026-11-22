@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Cpu, ChevronDown, ChevronRight, Check, Sparkles, Lock, Rocket, Coins, Pencil, Trash2, Copy, SlidersHorizontal } from 'lucide-react';
+import { Cpu, ChevronDown, ChevronRight, Check, Sparkles, Lock, Coins, Pencil, Trash2, Copy, SlidersHorizontal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
@@ -24,7 +24,6 @@ import {
   canAccessModel,
   fetchUserPlanInfo,
   setCachedUserPlan,
-  isFreeTier,
   getFreeQuotaStatus,
   isModelSelectable,
   type Ai00sModelInfo,
@@ -38,6 +37,8 @@ import { createLogger } from '@/shared/utils/logger';
 import { notificationService } from '@/shared/notification-system';
 import ModelProfileDialog from '@/agent/ModelProfileDialog';
 import {
+  AGENT_STAGES,
+  AGENT_STAGE_LABELS,
   applyModelProfile,
   deleteProfile,
   getActiveProfileId,
@@ -781,11 +782,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     );
   }, [ai00ApiModels, allowedModelRefs, isControlled]);
 
-  /// Phase 5.1: 是否免费层用户（用于显示升级提示）
-  const isFreeUser = useMemo(() => {
-    return isFreeTier(userPlan?.planTier ?? userTier);
-  }, [userPlan, userTier]);
-
   /// 选择 Ai00-API 子模型
   /// - 优先检查额度（exhausted 时阻止选择）
   /// - 兼容旧的 tier 检查（canAccessModel）
@@ -1069,80 +1065,105 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             {resolvedProfiles.map(profile => {
               const selected = activeProfileId === profile.id;
               const summary = `规划 ${describeModelRef(profile.models.plan)} · 执行 ${describeModelRef(profile.models.execute)} · 评审 ${describeModelRef(profile.models.review)}`;
+              const detailKey = `profile:${profile.id}`;
+              const detailItems: ModelDetailItem[] = AGENT_STAGES.map(stage => ({
+                label: AGENT_STAGE_LABELS[stage],
+                value: describeModelRef(profile.models[stage]),
+              }));
               return (
-                <div
-                  key={profile.id}
-                  className={`ai00-x-model-selector__option ${selected ? 'ai00-x-model-selector__option--selected' : ''}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => void handleSelectProfile(profile)}
-                  onKeyDown={event => {
-                    if (event.key !== 'Enter' && event.key !== ' ') return;
-                    event.preventDefault();
-                    void handleSelectProfile(profile);
-                  }}
-                >
-                  <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
-                    {profile.name.charAt(0)}
-                  </span>
-                  <div className="ai00-x-model-selector__option-main">
-                    <div className="ai00-x-model-selector__option-title">
-                      <span className="ai00-x-model-selector__option-name">{profile.name}</span>
-                      {profile.builtin && (
-                        <span className="ai00-x-model-selector__option-tag">预设</span>
+                <Popover key={profile.id} open={detailId === detailKey} modal={false}>
+                  <PopoverAnchor asChild>
+                    <div
+                      className={`ai00-x-model-selector__option ${selected ? 'ai00-x-model-selector__option--selected' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => void handleSelectProfile(profile)}
+                      onMouseEnter={() => openDetail(detailKey)}
+                      onMouseLeave={scheduleCloseDetail}
+                      onKeyDown={event => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return;
+                        event.preventDefault();
+                        void handleSelectProfile(profile);
+                      }}
+                    >
+                      <span className="ai00-x-model-selector__option-avatar" aria-hidden="true">
+                        {profile.name.charAt(0)}
+                      </span>
+                      <div className="ai00-x-model-selector__option-main">
+                        <div className="ai00-x-model-selector__option-title">
+                          <span className="ai00-x-model-selector__option-name">{profile.name}</span>
+                          {profile.builtin && (
+                            <span className="ai00-x-model-selector__option-tag">预设</span>
+                          )}
+                        </div>
+                        <span
+                          className="ai00-x-model-selector__option-multiplier ai00-x-model-selector__option-multiplier--summary"
+                          title={summary}
+                        >
+                          {summary}
+                        </span>
+                      </div>
+                      <div className="ai00-x-model-selector__option-actions">
+                        {profile.builtin ? (
+                          <button
+                            type="button"
+                            className="ai00-x-model-selector__option-action"
+                            title="另存为自定义组合"
+                            onClick={event => {
+                              event.stopPropagation();
+                              handleDuplicateProfile(profile);
+                            }}
+                          >
+                            <Copy size={12} />
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="ai00-x-model-selector__option-action"
+                              title="编辑组合"
+                              onClick={event => {
+                                event.stopPropagation();
+                                handleEditProfile(profile);
+                              }}
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              className="ai00-x-model-selector__option-action ai00-x-model-selector__option-action--danger"
+                              title="删除组合"
+                              onClick={event => {
+                                event.stopPropagation();
+                                handleDeleteProfile(profile);
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      {selected && (
+                        <Check size={14} className="ai00-x-model-selector__option-check" />
                       )}
                     </div>
-                    <span
-                      className="ai00-x-model-selector__option-multiplier ai00-x-model-selector__option-multiplier--summary"
-                      title={summary}
-                    >
-                      {summary}
-                    </span>
-                  </div>
-                  <div className="ai00-x-model-selector__option-actions">
-                    {profile.builtin ? (
-                      <button
-                        type="button"
-                        className="ai00-x-model-selector__option-action"
-                        title="另存为自定义组合"
-                        onClick={event => {
-                          event.stopPropagation();
-                          handleDuplicateProfile(profile);
-                        }}
-                      >
-                        <Copy size={12} />
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="ai00-x-model-selector__option-action"
-                          title="编辑组合"
-                          onClick={event => {
-                            event.stopPropagation();
-                            handleEditProfile(profile);
-                          }}
-                        >
-                          <Pencil size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          className="ai00-x-model-selector__option-action ai00-x-model-selector__option-action--danger"
-                          title="删除组合"
-                          onClick={event => {
-                            event.stopPropagation();
-                            handleDeleteProfile(profile);
-                          }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {selected && (
-                    <Check size={14} className="ai00-x-model-selector__option-check" />
-                  )}
-                </div>
+                  </PopoverAnchor>
+                  <PopoverContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="ai00-x-model-selector__detail-popover ai00-x-model-selector__detail-popover--profile"
+                    onOpenAutoFocus={event => event.preventDefault()}
+                    onMouseEnter={() => openDetail(detailKey)}
+                    onMouseLeave={scheduleCloseDetail}
+                  >
+                    <ModelDetailCard
+                      title={profile.name}
+                      meta={`${profile.builtin ? '内置组合' : '自定义组合'} · ${AGENT_STAGES.length} 个阶段`}
+                      items={detailItems}
+                    />
+                  </PopoverContent>
+                </Popover>
               );
             })}
             <div
@@ -1475,13 +1496,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                       })}
               </div>
 
-              {/* 免费层用户升级提示 */}
-              {isFreeUser && (
-                <div className="ai00-x-model-selector__upgrade-hint">
-                  <Rocket size={11} className="ai00-x-model-selector__upgrade-icon" />
-                  <span>{t('modelSelector.upgradeHint.freeTier')}</span>
-                </div>
-              )}
             </>
           )}
 

@@ -979,9 +979,6 @@
       "close": "知道了",
       "inviteHint": "或邀请好友得分红，兑换会员打折券"
     },
-    "upgradeHint": {
-      "freeTier": "升级套餐解锁更多高级模型"
-    },
     "badges": {
       "economy": "经济",
       "memberDiscount": "会员{{zhe}}折",

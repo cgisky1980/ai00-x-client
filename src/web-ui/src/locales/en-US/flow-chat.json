@@ -981,9 +981,6 @@
       "close": "Got it",
       "inviteHint": "Or invite friends to earn credits for membership coupons"
     },
-    "upgradeHint": {
-      "freeTier": "Upgrade plan to unlock more premium models"
-    },
     "badges": {
       "economy": "Economy",
       "memberDiscount": "Member {{pct}}% off",

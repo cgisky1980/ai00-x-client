@@ -275,25 +275,6 @@
     opacity: 0.7;
   }
 
-  &__upgrade-hint {
-    display: flex;
-    align-items: center;
-    gap: var(--size-gap-1);
-    padding: var(--size-gap-1-5) var(--size-gap-3);
-    margin-top: var(--size-gap-1);
-    border-top:1px solid color-mix(in srgb, var(--color-text-primary) 6%, transparent);
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xxs);
-    font-weight: 400;
-    letter-spacing: 0.2px;
-    background: var(--color-warning-bg);
-  }
-
-  &__upgrade-icon {
-    color: var(--color-warning);
-    flex-shrink: 0;
-  }
-
   &__option--disabled {
     opacity: 0.4;
     cursor: not-allowed;
@@ -760,6 +741,11 @@
   width: 240px;
   max-width: calc(100vw - var(--size-gap-8));
   padding: var(--size-gap-3);
+
+  // 组合详情要列出五个阶段，给名称留足宽度。
+  &--profile {
+    width: 320px;
+  }
 }
 
 .ai00-x-model-selector__detail {
