@@ -188,9 +188,17 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const [stepDraft, setStepDraft] = useState<StepDraft | null>(null);
 
   const sessionId = task.agentSessionId ?? '';
-  /** 额度/凭据/模型类失败：重试没有意义，卡片改给处理建议。 */
+  /** 额度/凭据/模型类失败：重试没有意义，卡片改给处理建议（按 i18n 渲染）。 */
   const failure = failureGuidance(lastError);
   const failureSummary = summarizeFailure(lastError);
+  const failureText =
+    failure.kind === 'credits'
+      ? t('nav.workbenchWindow.progress.failureHint.credits')
+      : failure.kind === 'auth'
+        ? t('nav.workbenchWindow.progress.failureHint.auth')
+        : failure.kind === 'model'
+          ? t('nav.workbenchWindow.progress.failureHint.model')
+          : failure.hint;
   const catalog = useWorkbenchTaskStore((s) => (sessionId ? s.subagentCatalog[sessionId] : undefined));
   const children = useWorkbenchTaskStore((s) => (sessionId ? s.children[sessionId] : undefined));
   const stats = useWorkbenchTaskStore((s) => (sessionId ? s.sessionStats[sessionId] : undefined));
@@ -934,7 +942,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           处理完人仍需一个出口，所以留一个显式的「已修好，重试」。 */}
       {!readOnly && !running && failure.blocking && (
         <div className="ai00-x-plan-card__actions">
-          <p className="ai00-x-plan-card__hint">{failure.hint}</p>
+          <p className="ai00-x-plan-card__hint">{failureText}</p>
           <Button
             variant="secondary"
             size="small"
@@ -948,7 +956,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       )}
       {/* 可重试的失败也把原因摆在卡片上：不必先去对话里翻错误气泡。 */}
       {!readOnly && !running && !failure.blocking && failureSummary && (
-        <p className="ai00-x-plan-card__hint">{`上一轮失败：${failureSummary}`}</p>
+        <p className="ai00-x-plan-card__hint">
+          {t('nav.workbenchWindow.progress.lastFailure', { reason: failureSummary })}
+        </p>
       )}
       {!readOnly &&
         !running &&

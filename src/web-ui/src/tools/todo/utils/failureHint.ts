@@ -11,10 +11,15 @@ export interface FailureLike {
   message?: string;
 }
 
+/** 可本地化的失败类别（卡片按 i18n 渲染；通知仍是中文文案，直接用 hint）。 */
+export type FailureKind = 'credits' | 'auth' | 'model';
+
 export interface FailureGuidance {
   /** true = 重试没有意义，先修环境（额度 / 凭据 / 模型）。 */
   blocking: boolean;
-  /** 给人看的一句话处理建议；非 blocking 时为空串。 */
+  /** 类别；非 blocking 时为 null。 */
+  kind: FailureKind | null;
+  /** 给人看的一句话处理建议（中文，通知用）；非 blocking 时为空串。 */
   hint: string;
 }
 
@@ -23,18 +28,18 @@ const AUTH = /unauthorized|forbidden|invalid api key|invalid_api_key|authenticat
 const MODEL = /model.*not (found|exist)|invalid model|upstream returned 404|model_not_found/i;
 
 export function failureGuidance(err?: FailureLike): FailureGuidance {
-  if (!err) return { blocking: false, hint: '' };
+  if (!err) return { blocking: false, kind: null, hint: '' };
   const text = `${err.code ?? ''} ${err.message ?? ''}`;
   if (CREDITS.test(text)) {
-    return { blocking: true, hint: '额度不足：充值后再继续，重试不会改变结果' };
+    return { blocking: true, kind: 'credits', hint: '额度不足：充值后再继续，重试不会改变结果' };
   }
   if (AUTH.test(text)) {
-    return { blocking: true, hint: '凭据/权限问题：先处理账号或密钥' };
+    return { blocking: true, kind: 'auth', hint: '凭据/权限问题：先处理账号或密钥' };
   }
   if (MODEL.test(text)) {
-    return { blocking: true, hint: '模型不可用：到设置里换一个可用模型' };
+    return { blocking: true, kind: 'model', hint: '模型不可用：到设置里换一个可用模型' };
   }
-  return { blocking: false, hint: '' };
+  return { blocking: false, kind: null, hint: '' };
 }
 
 /**

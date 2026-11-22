@@ -352,6 +352,12 @@
         "nudgeSelfCheck": "All steps passed, but the agent has not submitted its self-check, so the review card will never appear.",
         "nudgeSelfCheckAction": "Ask it to submit",
         "retryAfterFix": "Fixed — retry",
+        "lastFailure": "Last turn failed: {{reason}}",
+        "failureHint": {
+          "credits": "Out of credits: top up, then retry — retrying now will not help",
+          "auth": "Credential/permission problem: fix the account or key first",
+          "model": "Model unavailable: switch to an available model in Settings"
+        },
         "stall": "No new events for {{time}} — the model may be stuck.",
         "stallStop": "Stop",
         "stallRetry": "Retry last message",
