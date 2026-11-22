@@ -583,14 +583,18 @@ export const TodoOverlay: React.FC = () => {
               : streak >= 3 && reason
                 ? notifyTask(
                     '任务出错 · 需要你',
-                    `「${taskName(task)}」连续 ${streak} 次同样的错误：${reason}——重试大概率还是同样结果，先按提示修环境（凭据 / 模型 / 额度）`,
+                    `「${taskName(task)}」连续 ${streak} 次同样的错误：${reason}——${
+                      guidance.kind === 'rateLimit'
+                        ? '限流通常一段时间后自行恢复：等更久再试，或先降低并发/换时段'
+                        : '重试大概率还是同样结果，先按提示修环境（凭据 / 模型 / 额度）'
+                    }`,
                     'error',
                     // 反复撞同一堵墙时不再给「继续执行」：它只会再失败一次。
                     [goToTask(task.id, '去查看')],
                   )
                 : notifyTask(
                     '任务出错 · 需要你',
-                    `「${taskName(task)}」这一轮以错误收尾${reason ? `：${reason}` : ''}——点开卡片查看错误，或点「继续执行」重试`,
+                    `「${taskName(task)}」这一轮以错误收尾${reason ? `：${reason}` : ''}——${guidance.kind === 'rateLimit' ? guidance.hint : '点开卡片查看错误，或点「继续执行」重试'}`,
                     'error',
                     // 文案里让用户点「继续执行」，按钮就必须真的在：只给「去查看」等于
                     // 逼人开窗口再找一次入口。整卡点击仍是「去查看」（primary）。

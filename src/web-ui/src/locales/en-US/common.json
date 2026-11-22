@@ -356,7 +356,8 @@
         "failureHint": {
           "credits": "Out of credits: top up, then retry — retrying now will not help",
           "auth": "Credential/permission problem: fix the account or key first",
-          "model": "Model unavailable: switch to an available model in Settings"
+          "model": "Model unavailable: switch to an available model in Settings",
+          "rateLimit": "Rate limited: wait a few dozen seconds, then click Continue again"
         },
         "stall": "No new events for {{time}} — the model may be stuck.",
         "stallStop": "Stop",

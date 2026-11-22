@@ -198,7 +198,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
         ? t('nav.workbenchWindow.progress.failureHint.auth')
         : failure.kind === 'model'
           ? t('nav.workbenchWindow.progress.failureHint.model')
-          : failure.hint;
+          : failure.kind === 'rateLimit'
+            ? t('nav.workbenchWindow.progress.failureHint.rateLimit')
+            : failure.hint;
   const catalog = useWorkbenchTaskStore((s) => (sessionId ? s.subagentCatalog[sessionId] : undefined));
   const children = useWorkbenchTaskStore((s) => (sessionId ? s.children[sessionId] : undefined));
   const stats = useWorkbenchTaskStore((s) => (sessionId ? s.sessionStats[sessionId] : undefined));
@@ -959,10 +961,12 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           </Button>
         </div>
       )}
-      {/* 可重试的失败也把原因摆在卡片上：不必先去对话里翻错误气泡。 */}
+      {/* 可重试的失败也把原因摆在卡片上：不必先去对话里翻错误气泡。
+          限流（rateLimit）不是 blocking，但要给「稍等再试」而不是让人立刻再撞一次。 */}
       {!readOnly && !running && !failure.blocking && failureSummary && (
         <p className="ai00-x-plan-card__hint">
           {t('nav.workbenchWindow.progress.lastFailure', { reason: failureSummary })}
+          {failure.kind ? ` · ${failureText}` : ''}
         </p>
       )}
       {!readOnly &&

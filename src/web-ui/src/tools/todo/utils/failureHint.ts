@@ -12,7 +12,7 @@ export interface FailureLike {
 }
 
 /** 可本地化的失败类别（卡片按 i18n 渲染；通知仍是中文文案，直接用 hint）。 */
-export type FailureKind = 'credits' | 'auth' | 'model';
+export type FailureKind = 'credits' | 'auth' | 'model' | 'rateLimit';
 
 export interface FailureGuidance {
   /** true = 重试没有意义，先修环境（额度 / 凭据 / 模型）。 */
@@ -26,6 +26,11 @@ export interface FailureGuidance {
 const CREDITS = /积分余额不足|余额不足|充值|insufficient|quota exceeded|billing/i;
 const AUTH = /unauthorized|forbidden|invalid api key|invalid_api_key|authentication|凭据|密钥无效/i;
 const MODEL = /model.*not (found|exist)|invalid model|upstream returned 404|model_not_found/i;
+/**
+ * 限流：**不属于 blocking**——等待几十秒后重试确实会成功，环境不需要人改；
+ * 但也不该劝人立刻重试（马上点只会再撞一次 429）。卡片/通知给「稍等再试」。
+ */
+const RATE_LIMIT = /rate limit|too many requests|429|限流|请求过于频繁/i;
 
 export function failureGuidance(err?: FailureLike): FailureGuidance {
   if (!err) return { blocking: false, kind: null, hint: '' };
@@ -38,6 +43,9 @@ export function failureGuidance(err?: FailureLike): FailureGuidance {
   }
   if (MODEL.test(text)) {
     return { blocking: true, kind: 'model', hint: '模型不可用：到设置里换一个可用模型' };
+  }
+  if (RATE_LIMIT.test(text)) {
+    return { blocking: false, kind: 'rateLimit', hint: '请求被限流：等几十秒再点「继续执行」' };
   }
   return { blocking: false, kind: null, hint: '' };
 }
