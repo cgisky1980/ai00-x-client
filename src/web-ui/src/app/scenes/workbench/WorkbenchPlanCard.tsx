@@ -55,6 +55,7 @@ import {
   parsePlanSteps,
   type PlanStep,
   type PlanStepState,
+  type PlanStepVerification,
 } from '@/tools/todo/utils/planStructure';
 import {
   appendStep,
@@ -181,6 +182,37 @@ interface StepWorker {
   /** 本端子会话启动时间（仅运行中有意义，用于计划卡上的时长展示）。 */
   since?: number;
 }
+
+/**
+ * 步骤「验证与证据」折叠：判「需要复核 / 未通过」时默认展开。
+ *
+ * 卡片状态词已经是「审核 · 需要你」，但没过的那条原因藏在折叠里——验收人得先点开
+ * 才知道看什么。这里只对需要关注的判定自动展开（含派工后新写入的判定：effect 监听
+ * needsAttention 由 false → true），用户手动收起后不会被反复弹开。
+ */
+const StepDetails: React.FC<{
+  stepId: string;
+  verdict?: PlanStepVerification['verdict'];
+  header: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ stepId, verdict, header, children }) => {
+  const needsAttention = verdict === 'needs-review' || verdict === 'failed';
+  const [open, setOpen] = useState(needsAttention);
+  useEffect(() => {
+    if (needsAttention) setOpen(true);
+  }, [needsAttention]);
+  return (
+    <Collapse
+      className="ai00-x-plan-card__details"
+      activeKeys={open ? [stepId] : []}
+      onChange={(keys) => setOpen(keys.length > 0)}
+    >
+      <CollapseItem itemKey={stepId} header={header}>
+        {children}
+      </CollapseItem>
+    </Collapse>
+  );
+};
 
 export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   task,
@@ -609,51 +641,50 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
             ? t('nav.workbenchWindow.plan.verifyNeedsReview')
             : null;
     return (
-      <Collapse className="ai00-x-plan-card__details">
-        <CollapseItem
-          itemKey={step.id}
-          header={
-            <span className="ai00-x-plan-card__details-head">
-              {t('nav.workbenchWindow.planCard.details')}
-              {verdictText && (
-                <span className={`ai00-x-plan-card__verdict is-${verdict}`}>{verdictText}</span>
-              )}
-            </span>
-          }
-        >
-          {step.acceptance.length > 0 && (
-            <ul className="ai00-x-plan-card__checks">
-              {step.acceptance.map((item) => (
-                <li key={item.text}>
-                  <span>{item.cmd ? item.text.replace(/\s*\{cmd:.*\}\s*$/, '') : item.text}</span>
-                  {item.cmd && <code className="ai00-x-plan-card__cmd">{item.cmd}</code>}
-                </li>
-              ))}
-            </ul>
-          )}
-          {step.paths.length > 0 && (
-            <p className="ai00-x-plan-card__meta">
-              <span className="ai00-x-plan-card__meta-label">{t('nav.workbenchWindow.plan.scope')}</span>
-              {step.paths.map((path) => (
-                <code key={path} className="ai00-x-plan-card__path">
-                  {path}
-                </code>
-              ))}
-            </p>
-          )}
-          {step.verification?.at && (
-            <p className="ai00-x-plan-card__meta">
-              {t('nav.workbenchWindow.plan.verifiedAt', { at: step.verification.at })}
-            </p>
-          )}
-          {step.evidence && (
-            <p className="ai00-x-plan-card__meta">
-              <span className="ai00-x-plan-card__meta-label">{t('nav.workbenchWindow.plan.evidence')}</span>
-              {step.evidence}
-            </p>
-          )}
-        </CollapseItem>
-      </Collapse>
+      <StepDetails
+        stepId={step.id}
+        verdict={verdict}
+        header={
+          <span className="ai00-x-plan-card__details-head">
+            {t('nav.workbenchWindow.planCard.details')}
+            {verdictText && (
+              <span className={`ai00-x-plan-card__verdict is-${verdict}`}>{verdictText}</span>
+            )}
+          </span>
+        }
+      >
+        {step.acceptance.length > 0 && (
+          <ul className="ai00-x-plan-card__checks">
+            {step.acceptance.map((item) => (
+              <li key={item.text}>
+                <span>{acceptanceText(item.text, t('nav.workbenchWindow.board.cmdOnlyAcceptance'))}</span>
+                {item.cmd && <code className="ai00-x-plan-card__cmd">{item.cmd}</code>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {step.paths.length > 0 && (
+          <p className="ai00-x-plan-card__meta">
+            <span className="ai00-x-plan-card__meta-label">{t('nav.workbenchWindow.plan.scope')}</span>
+            {step.paths.map((path) => (
+              <code key={path} className="ai00-x-plan-card__path">
+                {path}
+              </code>
+            ))}
+          </p>
+        )}
+        {step.verification?.at && (
+          <p className="ai00-x-plan-card__meta">
+            {t('nav.workbenchWindow.plan.verifiedAt', { at: step.verification.at })}
+          </p>
+        )}
+        {step.evidence && (
+          <p className="ai00-x-plan-card__meta">
+            <span className="ai00-x-plan-card__meta-label">{t('nav.workbenchWindow.plan.evidence')}</span>
+            {step.evidence}
+          </p>
+        )}
+      </StepDetails>
     );
   };
 
