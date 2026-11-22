@@ -565,10 +565,15 @@ export const TodoOverlay: React.FC = () => {
         }
         // 失败已恢复（重新在跑 / 回合成功 / 已验收或归档）→ 收起「任务出错」通知。
         // 它是 error 档常驻通知，不跟随状态收就会一直挂在角上说「需要你」，
-        // 而任务其实早就继续跑了。查不到任务时不动（快照可能比闭包新）。
+        // 而任务其实早就继续跑了。
+        // 任务被删除时也必须收：卡片没了，通知里的「去查看」只会点到空白。
         for (const [taskId, toastId] of [...failureToastRef.current]) {
           const t = tasks.find((x) => x.id === taskId);
-          if (!t) continue;
+          if (!t) {
+            failureToastRef.current.delete(taskId);
+            dismissTaskNotification(toastId);
+            continue;
+          }
           const sid = t.agentSessionId;
           const stillFailed = !!sid && failedNow.get(sid) === true && !t.completedAt && !t.archivedAt;
           if (stillFailed) continue;
@@ -578,20 +583,37 @@ export const TodoOverlay: React.FC = () => {
 
         // 「轮到你了」的两类常驻通知：状态一变就收（批准 / 验收 / 打回 / 归档 / 删卡），
         // 否则它们会一直挂在角上，人还得自己点叉。
-        // ⚠️ 任务在轮询快照里查不到时**不能**当成「已处理」：刚 reload 的新卡可能比
-        // 本轮闭包里的 tasks 更新，误判会把刚弹出的通知立刻收掉（实测踩过）。
+        // ⚠️ 新卡可能比本轮闭包里的 tasks 更新——但那种情况下 ref 里不会有它；
+        // 反过来「ref 有、tasks 里没有」只可能是被删了（实测：删卡后
+        // 「计划 · 需要你」永久挂在角上，点「去批准」落到空白任务）。
         for (const [taskId, toastId] of [...planToastRef.current]) {
           const t = tasks.find((x) => x.id === taskId);
-          if (!t) continue;
+          if (!t) {
+            planToastRef.current.delete(taskId);
+            dismissTaskNotification(toastId);
+            continue;
+          }
           if (!t.planApprovedAt && !t.completedAt && !t.agentCompletedAt && !t.archivedAt) continue;
           planToastRef.current.delete(taskId);
           dismissTaskNotification(toastId);
         }
         for (const [taskId, toastId] of [...acceptToastRef.current]) {
           const t = tasks.find((x) => x.id === taskId);
-          if (!t) continue;
+          if (!t) {
+            acceptToastRef.current.delete(taskId);
+            dismissTaskNotification(toastId);
+            continue;
+          }
           if (t.agentCompletedAt && !t.completedAt && !t.archivedAt) continue;
           acceptToastRef.current.delete(taskId);
+          dismissTaskNotification(toastId);
+        }
+        // 「任务停下」同理：删卡后它不在 `tasks` 里，停住循环根本不会走到它，
+        // 不单独扫一遍 ref 就会永久残留。
+        for (const [taskId, toastId] of [...stallToastRef.current]) {
+          if (tasks.some((x) => x.id === taskId)) continue;
+          stallToastRef.current.delete(taskId);
+          idlePollsRef.current.delete(taskId);
           dismissTaskNotification(toastId);
         }
 
