@@ -335,7 +335,7 @@
         "deliverables": "交付物",
         "noDeliverables": "未登记交付物",
         "more": "+{{count}}",
-        "approve": "通过",
+        "approve": "验收通过",
         "reject": "退回重做",
         "count": "{{count}} 项",
         "rejected": "已退回：Agent 的自检标记已清除，请在对话里说明问题继续修改。"

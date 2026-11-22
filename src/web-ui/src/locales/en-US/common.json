@@ -335,7 +335,7 @@
         "deliverables": "Deliverables",
         "noDeliverables": "No deliverables recorded",
         "more": "+{{count}}",
-        "approve": "Approve",
+        "approve": "Accept delivery",
         "reject": "Send back",
         "count": "{{count}} items",
         "rejected": "Sent back: the self-check mark was cleared. Explain the issue in the chat to continue."
