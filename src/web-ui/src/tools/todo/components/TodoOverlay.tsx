@@ -128,6 +128,7 @@ export const TodoOverlay: React.FC = () => {
     notStarted?: { id: string; key: string };
     planStalled?: { id: string; key: string };
     failing?: { id: string; key: string };
+    awaiting?: { id: string; key: string };
   }>({});
   // 失败态基线（启动时的历史失败只进基线，不弹通知）
   const failedSeededRef = useRef(false);
@@ -280,12 +281,17 @@ export const TodoOverlay: React.FC = () => {
           .slice(0, 2)
           .map((t) => `「${t.title.slice(0, 14)}」`)
           .join('、');
-        notifyTask(
+        const mergedAcceptId = notifyTask(
           '审核 · 需要你',
           `${fresh.length} 个任务等你验收：${names}${fresh.length > 2 ? ' 等' : ''}`,
           'warning',
           [goToTask(fresh[0].id, '去验收')],
+          // 验收同样是「轮到人」：先到的人可能正在别处，8 秒蒸发等于没提醒。
+          { duration: 0 },
         );
+        // 登记到每张卡上：① 轮询里的合并补充不再为同一批卡再发一条；
+        // ② 验收/归档后由既有清理收起（同一条 id 多次 dismiss 是幂等的）。
+        for (const t of fresh) acceptToastRef.current.set(t.id, mergedAcceptId);
       });
     });
     return () => {
@@ -408,7 +414,7 @@ export const TodoOverlay: React.FC = () => {
      * 后通知已收起，但 `mergedNoticeRef` 仍留着同一个键，条件没变就不会重新弹出来。
      */
     const syncMergedNotice = (
-      slot: 'stalled' | 'interrupted' | 'notStarted' | 'planStalled' | 'failing',
+      slot: 'stalled' | 'interrupted' | 'notStarted' | 'planStalled' | 'failing' | 'awaiting',
       list: TodoTask[],
       titleOf: (count: number) => string,
       messageOf: (names: string, count: number) => string,
@@ -753,7 +759,8 @@ export const TodoOverlay: React.FC = () => {
           idleStalled,
           (n) => `有 ${n} 个任务停在执行段`,
           (names, n) => `${names}${n > 2 ? ' 等' : ''}停在半路没自检收口——点开卡片按计划继续`,
-          (l) => [goToTask(l[0].id, '去查看')],
+          // 停住的下一步就是「接着跑」：按钮直接给在第一张卡上，不用先开窗口再找入口。
+          (l) => [goToTask(l[0].id, '去查看'), resumeTask(l[0], 'secondary')],
         );
 
         // 「一轮跑完了，但连计划都没写出来」：模型把工具调用写成了纯文本、或直接
@@ -820,6 +827,24 @@ export const TodoOverlay: React.FC = () => {
           (names, n) =>
             `${names}${n > 2 ? ' 等' : ''}这一轮结束了却没写出计划——点「继续执行」让它先补计划`,
           (l) => [goToTask(l[0].id, '去查看'), resumeTask(l[0], 'secondary')],
+        );
+
+        // 「等你验收」也要能跨重启再叫：验收通知挂在 `todo-agent-updated` 事件上，
+        // 客户端没开时 agent 自检完，事件就永远过去了——复核队列在工作台之外不可见。
+        // 已有单独「审核 · 需要你」的卡不重复；验收/打回/归档由上面的清理收起。
+        const awaitingAcceptance = tasks.filter(
+          (t) =>
+            Boolean(t.agentCompletedAt) &&
+            !t.completedAt &&
+            !t.archivedAt &&
+            !acceptToastRef.current.has(t.id),
+        );
+        syncMergedNotice(
+          'awaiting',
+          awaitingAcceptance,
+          (n) => `有 ${n} 个任务等你验收`,
+          (names, n) => `${names}${n > 2 ? ' 等' : ''}已自检完，等你验收`,
+          (l) => [goToTask(l[0].id, '去验收')],
         );
 
         // 「建了会话却一轮都没跑起来」：首轮任务书没送到 / 模型直接拒了 / 人开了卡就走开。
