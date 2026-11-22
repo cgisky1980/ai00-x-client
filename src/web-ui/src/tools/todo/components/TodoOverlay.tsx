@@ -33,7 +33,7 @@ import { buildChildStallPrompt } from '../ai/prompts';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
 import { dismissTaskNotification, goToTask, notifyTask, type NotifyAction } from '../utils/notify';
 import { continueTaskRun, SessionLostError } from '../utils/continueRun';
-import { failureGuidance } from '../utils/failureHint';
+import { failureGuidance, summarizeFailure } from '../utils/failureHint';
 import { invoke } from '@tauri-apps/api/core';
 
 /**
@@ -78,19 +78,6 @@ function resumeTask(
         });
     },
   };
-}
-
-/**
- * 失败原因的一句话摘要（通知用）：`code · 首个分句`，超长截断。
- *
- * 只写「以错误收尾」等于让人再开窗口找出错原因；完整原文仍在卡片/对话里，
- * 通知里给到「是哪一类错、报在哪」就够判断了。
- */
-function summarizeFailure(err?: { code?: string; message?: string }): string {
-  if (!err) return '';
-  const clause = (err.message ?? '').split(/[;；]/)[0].trim();
-  const short = clause.length > 80 ? `${clause.slice(0, 80)}…` : clause;
-  return [err.code, short].filter(Boolean).join(' · ');
 }
 
 /**

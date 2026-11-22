@@ -66,7 +66,7 @@ import {
 import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
 import { continueTaskRun } from '../tasks/taskSession';
 import { WRAP_UP_PROMPT } from '@/tools/todo/utils/continueRun';
-import { failureGuidance } from '@/tools/todo/utils/failureHint';
+import { failureGuidance, summarizeFailure } from '@/tools/todo/utils/failureHint';
 import { useWorkbenchTaskStore } from '../tasks/workbenchTaskStore';
 import { WORKBENCH_STAGES, stageOf } from './workbenchStage';
 import type { TaskPhase } from '../tasks/taskPhase';
@@ -190,6 +190,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   const sessionId = task.agentSessionId ?? '';
   /** 额度/凭据/模型类失败：重试没有意义，卡片改给处理建议。 */
   const failure = failureGuidance(lastError);
+  const failureSummary = summarizeFailure(lastError);
   const catalog = useWorkbenchTaskStore((s) => (sessionId ? s.subagentCatalog[sessionId] : undefined));
   const children = useWorkbenchTaskStore((s) => (sessionId ? s.children[sessionId] : undefined));
   const stats = useWorkbenchTaskStore((s) => (sessionId ? s.sessionStats[sessionId] : undefined));
@@ -933,6 +934,10 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           直接把要修什么写在卡片上，处理完人自然会再推一次。 */}
       {!readOnly && !running && failure.blocking && (
         <p className="ai00-x-plan-card__hint">{failure.hint}</p>
+      )}
+      {/* 可重试的失败也把原因摆在卡片上：不必先去对话里翻错误气泡。 */}
+      {!readOnly && !running && !failure.blocking && failureSummary && (
+        <p className="ai00-x-plan-card__hint">{`上一轮失败：${failureSummary}`}</p>
       )}
       {!readOnly &&
         !running &&

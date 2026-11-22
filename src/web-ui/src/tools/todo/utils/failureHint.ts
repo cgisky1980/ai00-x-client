@@ -36,3 +36,15 @@ export function failureGuidance(err?: FailureLike): FailureGuidance {
   }
   return { blocking: false, hint: '' };
 }
+
+/**
+ * 失败原因的一句话摘要（通知 / 计划卡共用）：`code · 首个分句`，超长截断。
+ *
+ * 只写「以错误收尾」等于让人再去翻对话；摘要给到「哪一类错、报在哪」就够判断了。
+ */
+export function summarizeFailure(err?: FailureLike): string {
+  if (!err) return '';
+  const clause = (err.message ?? '').split(/[;；]/)[0].trim();
+  const short = clause.length > 80 ? `${clause.slice(0, 80)}…` : clause;
+  return [err.code, short].filter(Boolean).join(' · ');
+}
