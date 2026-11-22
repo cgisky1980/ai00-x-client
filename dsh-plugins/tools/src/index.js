@@ -32,7 +32,7 @@
 
 import { exec, execFile } from "node:child_process";
 import { statSync } from "node:fs";
-import { stat, readFile, readdir } from "node:fs/promises";
+import { stat, readFile, readdir, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 
 const name = "ai00-x-tools";
@@ -1053,6 +1053,71 @@ export function taskIdFromCwd(path) {
  */
 export function pickTaskId(explicit, cwd) {
   return taskIdFromCwd(cwd) || String(explicit ?? "").trim();
+}
+
+/** 来源汇编里的条目数（按 `- URL:` 行去重计数）。 */
+export function countResearchSources(text) {
+  return new Set(
+    [...String(text ?? "").matchAll(/^- URL:\s*(\S+)\s*$/gm)].map((m) => m[1])
+  ).size;
+}
+
+/**
+ * 合并两次 `ai00_research_collect` 的来源汇编（纯函数）。
+ *
+ * 本地小模型会把同一个采集工具连调多次（实测一份任务里调了 3 次），而宿主每次
+ * 都用 `fs::write` 覆盖同一个 `sources.md`：先采到 11 条、第二次只剩 2 条，
+ * 前面的一手来源全丢，后续写作只能拿残档凑。这里按 URL 去重合并：保留旧条目，
+ * 追加新条目，并重排编号。
+ *
+ * 旧文件不是来源汇编（模型自己写过别的内容）时不做合并；新文件没有新增来源时
+ * 直接返回旧内容（等价于不覆盖）。
+ */
+export function mergeResearchSources(prev, next) {
+  const parse = (text) => {
+    const entries = [];
+    const header = [];
+    let current = null;
+    for (const line of String(text ?? "").split("\n")) {
+      const head = /^##\s+\d+\.\s+(.*)$/.exec(line);
+      if (head) {
+        if (current) entries.push(current);
+        current = { title: head[1].trim(), url: "", block: [line] };
+        continue;
+      }
+      if (current) {
+        current.block.push(line);
+        const url = /^- URL:\s*(\S+)\s*$/.exec(line);
+        if (url && !current.url) current.url = url[1];
+      } else {
+        header.push(line);
+      }
+    }
+    if (current) entries.push(current);
+    return { header, entries };
+  };
+  const before = parse(prev);
+  const after = parse(next);
+  if (before.entries.length === 0) return next; // 不是来源汇编：不合并
+  const known = new Set(before.entries.map((e) => e.url).filter(Boolean));
+  const added = after.entries.filter((e) => !e.url || !known.has(e.url));
+  if (added.length === 0) return prev; // 没有新增来源：保留旧文件
+  const merged = [...before.entries, ...added];
+  const header = (before.header.length ? before.header : after.header)
+    .join("\n")
+    .replace(
+      /Collected by ai00_research_collect · \d+ sources/,
+      `Collected by ai00_research_collect · ${merged.length} sources`
+    )
+    .trimEnd();
+  const body = merged
+    .map((entry, index) => {
+      const block = entry.block.slice();
+      block[0] = `## ${index + 1}. ${entry.title}`;
+      return block.join("\n").trimEnd();
+    })
+    .join("\n\n");
+  return `${header}\n\n${body}\n`;
 }
 
 function defineTools(ctx, api) {
@@ -2773,12 +2838,16 @@ function defineTools(ctx, api) {
           items: { type: "string" },
           description: "Optional seed URLs to fetch directly (≤12).",
         },
+        taskId: {
+          type: "string",
+          description: "Optional associated task id (ignored by this tool).",
+        },
         save_to: {
           type: "string",
           description: "Relative .md file name, default sources.md.",
         },
       },
-      required: ["topic"],
+      required: [],
       additionalProperties: false,
     },
     output: {
@@ -2789,6 +2858,7 @@ function defineTools(ctx, api) {
           sources: { type: "number" },
           queries: { type: "number" },
           failed: { type: "number" },
+          merged: { type: "boolean" },
         },
         required: ["saved", "sources"],
       },
@@ -2797,18 +2867,31 @@ function defineTools(ctx, api) {
         const sources = Number(value?.sources ?? 0);
         const queries = Number(value?.queries ?? 0);
         const failed = Number(value?.failed ?? 0);
+        const merged = Boolean(value?.merged);
         if (sources === 0) {
           return text(
             `ai00_research_collect: no results (wrote ${saved}: 0 sources from ${queries} queries, ${failed} failed)`
           );
         }
-        return text(`wrote ${saved}: ${sources} sources from ${queries} queries, ${failed} failed`);
+        return text(
+          `wrote ${saved}: ${sources} sources from ${queries} queries, ${failed} failed${
+            merged ? " (kept sources from earlier collect)" : ""
+          }`
+        );
       },
     },
     isConcurrencySafe: () => false,
     async execute(args, exec) {
-      const topic = String(args?.topic ?? "").trim();
-      if (!topic) throw new Error("topic is required");
+      // topic 缺失时从 queries/urls 推一个：本地模型经常只带 queries 就调，白吃一轮
+      // 「topic is required」（实测同一任务里出现 2 次）。
+      const queriesArg = Array.isArray(args?.queries)
+        ? args.queries.filter((q) => typeof q === "string" && q.trim())
+        : [];
+      const urlsArg = Array.isArray(args?.urls)
+        ? args.urls.filter((u) => typeof u === "string" && u.trim())
+        : [];
+      const topic = String(args?.topic ?? "").trim() || queriesArg[0] || "";
+      if (!topic) throw new Error("topic is required (or pass queries[0])");
       // 工作目录由宿主解析：3B 抄长路径必然出错（实测把 t-1795207736548-5kr
       // 抄成 t-179520207736548-5kr），所以模型给的 cwd 只当提示，最终以引擎的
       // 会话工作目录为准。
@@ -2820,16 +2903,30 @@ function defineTools(ctx, api) {
       }
       if (!cwd) throw new Error("cannot resolve the session working directory");
       const body = { topic, cwd };
-      if (Array.isArray(args?.queries)) {
-        const queries = args.queries.filter((q) => typeof q === "string" && q.trim());
-        if (queries.length > 0) body.queries = queries;
-      }
-      if (Array.isArray(args?.urls)) {
-        const urls = args.urls.filter((u) => typeof u === "string" && u.trim());
-        if (urls.length > 0) body.urls = urls;
-      }
+      if (queriesArg.length > 0) body.queries = queriesArg;
+      if (urlsArg.length > 0) body.urls = urlsArg;
       if (typeof args?.save_to === "string" && args.save_to.trim()) body.save_to = args.save_to.trim();
-      return api.post("/web/research", body, exec.signal);
+      const saveTo = String(body.save_to ?? "sources.md");
+      const target = resolve(cwd, saveTo);
+      // 先留住旧汇编：宿主每次都是整份覆盖，本地模型重复调用会把已采来源写没。
+      const previous = await readFile(target, "utf8").catch(() => null);
+      const result = await api.post("/web/research", body, exec.signal);
+      if (previous && previous.trim()) {
+        const nextFile = await readFile(target, "utf8").catch(() => null);
+        if (nextFile != null) {
+          const mergedText = mergeResearchSources(previous, nextFile);
+          if (mergedText !== nextFile) {
+            await writeFile(target, mergedText, "utf8");
+            return {
+              ...result,
+              saved: saveTo,
+              sources: countResearchSources(mergedText),
+              merged: true,
+            };
+          }
+        }
+      }
+      return result;
     },
   });
 
