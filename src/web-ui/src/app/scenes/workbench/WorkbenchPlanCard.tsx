@@ -117,6 +117,13 @@ const STATE_KEY: Record<PlanStepState, string> = {
 };
 
 const MAX_DELIVERABLES = 6;
+/**
+ * 计划外文件最多列这么多。
+ *
+ * worker 留下的草稿数量不可控（实测一张调研卡 9 个；长任务更多），逐个铺开会把
+ * 验收区拉得很长、把交付物挤下去。超出部分只报数量，清理入口在任务文件夹。
+ */
+const MAX_EXTRA_FILES = 8;
 
 function fileName(path: string): string {
   const index = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
@@ -837,7 +844,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
       {cwd && extras.length > 0 && !readOnly && (
         <>
           <ul className="ai00-x-plan-card__files">
-            {extras.map((name) => {
+            {extras.slice(0, MAX_EXTRA_FILES).map((name) => {
               const path = `${cwd.replace(/[\\/]+$/, '')}/${name}`;
               return (
                 <li key={name} className="ai00-x-plan-card__file">
@@ -853,6 +860,13 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
               );
             })}
           </ul>
+          {extras.length > MAX_EXTRA_FILES && (
+            <p className="ai00-x-plan-card__hint">
+              {t('nav.workbenchWindow.board.moreExtras', {
+                count: extras.length - MAX_EXTRA_FILES,
+              })}
+            </p>
+          )}
           <Button
             variant="secondary"
             size="small"
