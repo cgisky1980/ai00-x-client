@@ -1802,6 +1802,24 @@ async fn forward_to_ai00_salvo(
 // OpenAI messages → RWKV prompt（移植自 ai-adapters/providers/rwkv/request.rs）
 // ---------------------------------------------------------------------------
 
+/// 本地 prompt 单条工具输出的字符上限。
+///
+/// 本地 3B 的 prefill 是逐 token 线性开销：实测 5 万字符工具输出 → 4 万
+/// prompt token → 26.5s 才出 16 个 token；截断到 4 千字符后同等请求降到
+/// 秒级。3B 也无法从超长输出里"记住"更多内容，截断只丢噪音不丢任务。
+const LOCAL_PROMPT_BODY_MAX_CHARS: usize = 4000;
+
+/// 截断单条工具输出（保留开头，附加显式截断标记）。
+fn clamp_prompt_body(body: &str) -> String {
+    let mut chars = body.chars();
+    let head: String = chars.by_ref().take(LOCAL_PROMPT_BODY_MAX_CHARS).collect();
+    if chars.next().is_some() {
+        format!("{head}\n…(truncated)")
+    } else {
+        head
+    }
+}
+
 /// OpenAI 格式消息（role/content/tool_calls/tool_call_id）→ RWKV World/Instruction 格式。
 fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -> String {
     let has_tools = tools.is_some_and(|t| !t.is_empty());
@@ -1887,8 +1905,14 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
                     // 不补前缀的话 3B 会把结果当用户指令——实测随后去调不存在的
                     // `read_file` 想读回 sources.md，白烧工具轮直到熔断。
                     let body = sanitize(&content);
-                    let body = if previous_had_tool_calls && !body.starts_with("Function output:") {
-                        format!("Function output:\n{body}")
+                    let body = if previous_had_tool_calls {
+                        // 紧随工具调用的 user 正文 = 引擎并回的工具结果 → 同样截断
+                        let body = clamp_prompt_body(&body);
+                        if body.starts_with("Function output:") {
+                            body
+                        } else {
+                            format!("Function output:\n{body}")
+                        }
                     } else {
                         body
                     };
@@ -1914,7 +1938,10 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
                     push_prompt_block(
                         &mut blocks,
                         true,
-                        format!("Function output:\n{}", sanitize(&content)),
+                        format!(
+                            "Function output:\n{}",
+                            clamp_prompt_body(&sanitize(&content))
+                        ),
                     );
                 }
             }
