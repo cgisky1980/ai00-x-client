@@ -122,18 +122,32 @@ export class SessionLostError extends Error {
 }
 
 /**
+ * 计划已写、但用户还没批准时的统一拦截文案。
+ *
+ * 批准闸口是工作台 loop 的硬约束（契约第 1 条：写计划后停机等确认）。外部触发、
+ * 通知上的「继续执行」、会话丢失后的自动续跑都必须停在这里——它们只代表「有人
+ * 想让它继续跑」，不代表「用户批准了这份计划」。
+ */
+export const PLAN_NOT_APPROVED_MESSAGE =
+  '计划尚未批准——请先在计划卡上点「批准并执行」。外部触发与「继续执行」不会替你批准，也不会派发任何 worker。';
+
+/**
  * 会话已在时补一条按计划续跑的消息（不重建会话、不改预设）。
  *
  * 停住的任务（客户端重启 / 回合被打断 / 出错后 / 回合结束没收口）以前只能靠人
  * 打一句话，白费一轮；现在通知上的「继续执行」也直接走这条。
  */
 export async function continueTaskRun(
-  task: Pick<TodoTask, 'id' | 'executionMode' | 'agentSessionId'>,
+  task: Pick<TodoTask, 'id' | 'executionMode' | 'agentSessionId' | 'planApprovedAt'>,
   planMd: string | null,
   lastError?: string,
 ): Promise<void> {
   const sessionId = task.agentSessionId;
   if (!sessionId) throw new Error('task has no agent session');
+  // 有计划但没批准 = 停在批准闸口前：续跑消息会被模型当成「开跑」指令，必须拦住。
+  if (planMd && planMd.trim() && !task.planApprovedAt) {
+    throw new Error(PLAN_NOT_APPROVED_MESSAGE);
+  }
   try {
     await dshSession.prompt(sessionId, buildContinuePrompt(task.executionMode, planMd, lastError));
   } catch (e) {

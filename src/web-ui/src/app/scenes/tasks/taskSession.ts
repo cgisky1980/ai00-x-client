@@ -253,7 +253,7 @@ async function sessionPresetOf(sessionId: string): Promise<string> {
  * 「继续执行」的话术与动作统一收口在 `tools/todo/utils/continueRun`（overlay 通知同源）。
  * 这里只做转出，保持既有调用点（计划卡 / 外部触发）不变。
  */
-import { buildContinuePrompt } from '@/tools/todo/utils/continueRun';
+import { buildContinuePrompt, PLAN_NOT_APPROVED_MESSAGE } from '@/tools/todo/utils/continueRun';
 export { buildContinuePrompt, continueTaskRun } from '@/tools/todo/utils/continueRun';
 
 /**
@@ -270,6 +270,15 @@ export async function resumeTaskRun(
   task: TodoTask,
   workbenchTitle: string,
 ): Promise<{ sessionId: string; cwd: string }> {
+  // 批准闸口先于任何会话动作：有计划但没批准（含打回后批准被重置）时直接停手。
+  // 必须放在 ensureTaskSession 之前——无会话的卡会在这里建会话、发首轮任务书，
+  // 等于绕过批准闸口让 agent 重开一轮规划。
+  const plan = await invoke<string | null>('todo_plan_get', { taskId: task.id }).catch(
+    () => null,
+  );
+  if (plan && plan.trim() && !task.planApprovedAt) {
+    throw new Error(PLAN_NOT_APPROVED_MESSAGE);
+  }
   // 先对齐执行模式：旧数据可能丢了 executionMode，但会话建的是 quick preset。
   // 不补这一步，`prepareTaskWorkspace` 会把「交付 loop 契约」写进 AGENTS.local.md，
   // 只有检索工具的快速会话每轮都会读到它，于是白转一轮问能不能写计划。
@@ -285,9 +294,6 @@ export async function resumeTaskRun(
   const { sessionId, cwd } = await ensureTaskSession(resolved, workbenchTitle, null, null, {
     allowTrunk: true,
   });
-  const plan = await invoke<string | null>('todo_plan_get', { taskId: task.id }).catch(
-    () => null,
-  );
   // 上一轮失败原文（运行时内存态）随续跑消息带给 agent：与计划卡 / overlay 通知同一口径。
   const runtime = task.agentSessionId
     ? useWorkbenchTaskStore.getState().runtime[task.agentSessionId]

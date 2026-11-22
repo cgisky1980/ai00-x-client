@@ -32,7 +32,11 @@ import {
 import { buildChildStallPrompt } from '../ai/prompts';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
 import { dismissTaskNotification, goToTask, notifyTask, type NotifyAction } from '../utils/notify';
-import { continueTaskRun, SessionLostError } from '../utils/continueRun';
+import {
+  continueTaskRun,
+  PLAN_NOT_APPROVED_MESSAGE,
+  SessionLostError,
+} from '../utils/continueRun';
 import { failureGuidance, summarizeFailure } from '../utils/failureHint';
 import { mergedNoticeKey, notificationTitle, titleCounts } from '../utils/noticeTitle';
 import { invoke } from '@tauri-apps/api/core';
@@ -70,6 +74,17 @@ function resumeTask(
               'warning',
               [goToTask(task.id, '去查看')],
               { duration: 0 },
+            );
+            return;
+          }
+          // 计划还在等人批准：这不是失败，是批准闸口在拦——给「去批准」而不是错误。
+          // 注意用 message 比较：String(Error) 会带 "Error: " 前缀。
+          if ((e instanceof Error ? e.message : String(e)) === PLAN_NOT_APPROVED_MESSAGE) {
+            notifyTask(
+              '计划 · 需要你',
+              `「${task.title}」的计划还没批准，批准前不会派发任何 worker`,
+              'info',
+              [goToTask(task.id, '去批准')],
             );
             return;
           }

@@ -22,6 +22,7 @@ import { useTodoStore } from '../store/todoStore';
 import { goToTask, notifyTask } from '../utils/notify';
 import { useAgentDelegate } from './useAgentDelegate';
 import { useWorkbenchTaskStore } from '@/app/scenes/tasks/workbenchTaskStore';
+import { PLAN_NOT_APPROVED_MESSAGE } from '../utils/continueRun';
 import type { TodoTask } from '../api/types';
 
 const REMINDER_WINDOW_MS = 7 * 86400000;
@@ -189,7 +190,18 @@ export function useReminderTicker(): void {
           })
           .catch((e: unknown) => {
             console.warn(`[task-trigger] ${taskId} resume failed:`, e);
-            notifyTask('外部触发失败', e instanceof Error ? e.message : String(e), 'error');
+            // 计划待批准不是失败：外部触发没有批准权，提示人去批准即可。
+            // 注意用 message 比较：String(Error) 会带 "Error: " 前缀。
+            const message = e instanceof Error ? e.message : String(e);
+            if (message === PLAN_NOT_APPROVED_MESSAGE) {
+              notifyTask(
+                '已忽略外部触发',
+                `「${task.title}」的计划还在等你批准，批准前不会执行`,
+                'info',
+              );
+              return;
+            }
+            notifyTask('外部触发失败', message, 'error');
           });
         return;
       }
