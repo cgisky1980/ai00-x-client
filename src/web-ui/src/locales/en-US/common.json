@@ -351,7 +351,6 @@
         "planConfirmRunningHint": "The agent is still wrapping up; approval is queued for after this turn.",
         "nudgeSelfCheck": "All steps passed, but the agent has not submitted its self-check, so the review card will never appear.",
         "nudgeSelfCheckAction": "Ask it to submit",
-        "nudgeSelfCheckMessage": "All steps passed. Call ai00_task_complete with the absolute deliverables list to submit your self-check, then report a short summary and the deliverables.",
         "stall": "No new events for {{time}} — the model may be stuck.",
         "stallStop": "Stop",
         "stallRetry": "Retry last message",

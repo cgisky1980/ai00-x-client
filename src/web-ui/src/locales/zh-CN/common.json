@@ -351,7 +351,6 @@
         "planConfirmRunningHint": "Agent 还在收尾，批准会排到这一轮结束之后执行。",
         "nudgeSelfCheck": "所有步骤都已通过，但 Agent 还没提交自检，验收卡不会出现。",
         "nudgeSelfCheckAction": "让它提交自检",
-        "nudgeSelfCheckMessage": "所有步骤已通过，请调用 ai00_task_complete 提交自检（带 deliverables 的绝对路径清单），然后汇报结论摘要与产物清单。",
         "stall": "已 {{time}} 没有收到任何新事件，可能卡在模型侧。",
         "stallStop": "停止",
         "stallRetry": "重试上一条",

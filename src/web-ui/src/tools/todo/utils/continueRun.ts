@@ -10,6 +10,41 @@ import { useTodoStore } from '../store/todoStore';
 import type { TodoTask } from '../api/types';
 
 /**
+ * 计划里「## 步骤 / ## Steps」段的勾选进度。
+ *
+ * 只数步骤行（`- [ ] T1 …`），不数验收行：验收项常在自检时统一勾掉。
+ * 没有步骤段 / 没有步骤行 → total 0（按「还没有可推进的步骤」处理）。
+ */
+export function planStepProgress(planMd: string | null): { total: number; done: number } {
+  if (!planMd) return { total: 0, done: 0 };
+  let inSteps = false;
+  let total = 0;
+  let done = 0;
+  for (const line of planMd.split('\n')) {
+    if (/^##\s/.test(line)) {
+      inSteps = /^##\s*(步骤|Steps)/i.test(line);
+      continue;
+    }
+    if (!inSteps) continue;
+    const m = /^\s*-\s+\[([ xX])\]\s+(T[\w-]+)/.exec(line);
+    if (!m) continue;
+    total += 1;
+    if (m[1].toLowerCase() === 'x') done += 1;
+  }
+  return { total, done };
+}
+
+/**
+ * 「步骤全勾选、但还没提交自检」时的收口话术。
+ *
+ * 计划卡的「让它提交自检」与外部「继续执行」共用这一份：以前卡上那句只要
+ * `ai00_task_complete`，跳过了 verify 与 plan_check，等于让 agent 用一个没被
+ * 复核过的验收去登记交付物。
+ */
+export const WRAP_UP_PROMPT =
+  '本任务的计划步骤已经全部勾选，但还没有提交自检。请直接收口：① 调 ai00_task_verify（不带 stepId）跑整体验收；② 验收项还有未勾的用 ai00_plan_check 补勾（不通就修到通为止；已全勾则跳过）；③ 调 ai00_task_complete 登记交付物并汇报结果。不要新建计划，不要重写整份计划，也不要只汇报当前状态就结束。';
+
+/**
  * 续跑话术。
  *
  * 提示词必须兼容「快速问答」会话：那类 preset 只挂了检索+通知，没有
@@ -24,11 +59,17 @@ export function buildContinuePrompt(
   planMd: string | null,
   lastError?: string,
 ): string {
+  const progress = planStepProgress(planMd);
+  const allStepsDone = progress.total > 0 && progress.done === progress.total;
   const base =
     executionMode === 'quick'
       ? '继续回答本任务的问题（快速问答模式：不写计划、不派子代理、不落文件）。若已有结论，用一两句话说明是否还有未回答的部分即可。'
       : planMd && planMd.trim()
-        ? '继续执行本任务：按计划里第一个未勾选的步骤推进（先按 loop 契约派发并验证，再更新计划）。计划已全部完成时，汇报当前状态、剩余验收项与交付物路径，不要新建计划，也不要重写整份计划。'
+        ? allStepsDone
+          ? // 步骤全勾上却没自检 = 最常见的「停在执行段」：以前这里只说「汇报状态」，
+            // agent 汇报完就停，永远走不到自检。现在明确要求走完收口三步。
+            WRAP_UP_PROMPT
+          : '继续执行本任务：按计划里第一个未勾选的步骤推进（先按 loop 契约派发并验证，再更新计划）。计划已全部完成时，按收口流程提交自检（verify → plan_check → task_complete），不要新建计划，也不要重写整份计划。'
         : '继续执行本任务：目前还没有计划。按 loop 契约先写计划，然后结束本轮等待用户确认——不要在写计划的同一轮派发任何 worker。';
   if (!lastError || !lastError.trim()) return base;
   return `${base}\n\n上一轮以错误收尾：${lastError.trim().slice(0, 300)}。先判断这个错误是否已经排除：若仍在，用一两句话说明需要人改什么（凭据 / 模型 / 环境），不要重复同样的失败调用；若已排除，直接从断点继续。`;

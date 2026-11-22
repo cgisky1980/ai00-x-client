@@ -65,6 +65,7 @@ import {
 } from '@/tools/todo/utils/planEdit';
 import { buildRejectPrompt } from '@/agent/orchestrator/promptParts';
 import { continueTaskRun } from '../tasks/taskSession';
+import { WRAP_UP_PROMPT } from '@/tools/todo/utils/continueRun';
 import { useWorkbenchTaskStore } from '../tasks/workbenchTaskStore';
 import { WORKBENCH_STAGES, stageOf } from './workbenchStage';
 import type { TaskPhase } from '../tasks/taskPhase';
@@ -389,8 +390,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   }, [planReview, sessionId]);
 
   const nudgeSelfCheck = useCallback((): void => {
-    promptAgent(t('nav.workbenchWindow.progress.nudgeSelfCheckMessage'));
-  }, [promptAgent, t]);
+    // 与通知里的「继续执行」同一份收口话术（verify → plan_check → task_complete）。
+    promptAgent(WRAP_UP_PROMPT);
+  }, [promptAgent]);
 
   /** 继续执行：停住的任务按计划从第一个未勾选步骤续跑（与外部触发同一份话术）。 */
   const resume = useCallback((): void => {
