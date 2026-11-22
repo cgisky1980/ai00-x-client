@@ -781,6 +781,7 @@ export const TodoOverlay: React.FC = () => {
           );
         });
         const planStalled: TodoTask[] = [];
+        const pendingApproval: TodoTask[] = [];
         for (const candidate of planStalledCandidates) {
           const sid = candidate.agentSessionId as string;
           const stamp = updatedAtOf.get(sid) ?? 0;
@@ -793,7 +794,24 @@ export const TodoOverlay: React.FC = () => {
             hasPlan = Boolean(md && md.trim());
             planCacheRef.current.set(candidate.id, { stamp, hasPlan });
           }
-          if (!hasPlan) planStalled.push(candidate);
+          if (hasPlan) pendingApproval.push(candidate);
+          else planStalled.push(candidate);
+        }
+        // 「计划写好了、等人批准」也要能跨重启再叫一次：`todo-plan-updated` 事件只在
+        // 写盘那一刻触发，重启后事件早已过去，人离开工作台就再也不知道轮到自己了。
+        // 逐卡补一条常驻「计划 · 需要你」（已发过的不重发，批准/归档由上面的清理收起）。
+        for (const task of pendingApproval) {
+          if (planToastRef.current.has(task.id)) continue;
+          planToastRef.current.set(
+            task.id,
+            notifyTask(
+              '计划 · 需要你',
+              `「${task.title}」的计划等你批准后开工`,
+              'warning',
+              [goToTask(task.id, '去批准')],
+              { duration: 0 },
+            ),
+          );
         }
         syncMergedNotice(
           'planStalled',

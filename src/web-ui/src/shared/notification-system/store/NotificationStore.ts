@@ -62,12 +62,23 @@ class NotificationStore {
    
   addNotification(notification: Notification): void {
     const activeNotifications = [...this.state.activeNotifications];
-    
-    
+
+    // 挤出规则要区分「临时」与「常驻」：
+    // - 临时通知（有 duration，会自己消失）先腾位；
+    // - 常驻通知（duration=0，如「需要你」）被静默挤掉就**再也不会回来**——
+    //   实测第 4 条「计划 · 需要你」弹出时把「有 N 个任务停在执行段」顶掉了，
+    //   而后者没有再次弹出的路径。允许常驻条超出默认上限（容器可滚动），
+    //   只到「常驻上限」才挤最旧的一条，避免无限堆积。
+    const persistentCap = this.state.config.maxActiveNotifications * 2;
     if (activeNotifications.length >= this.state.config.maxActiveNotifications) {
-      activeNotifications.shift();
+      const transientIndex = activeNotifications.findIndex((n) => (n.duration ?? 0) > 0);
+      if (transientIndex >= 0) {
+        activeNotifications.splice(transientIndex, 1);
+      } else if (activeNotifications.length >= persistentCap) {
+        activeNotifications.shift();
+      }
     }
-    
+
     activeNotifications.push(notification);
 
     
