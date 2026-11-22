@@ -164,13 +164,17 @@ export async function corruptDeliverables(cwd, names) {
  * 「if (t.length < 4000) exit 1」这类弱判据：填充文本就能过，而真正的问题
  * （缺章节、文件名错、乱码）全被放过。这里在写计划时把这类条目挑出来。
  *
- * 判定：命令里出现长度/体积比较，且没有任何内容信号（includes/match/grep…）。
+ * 判定：命令里出现长度/体积比较，且没有任何内容信号（includes/match/grep/前后缀…）。
  * `test -f`（存在性）不算——它常与内容断言并列，且对非文档产物是合理判据。
+ *
+ * `startsWith/endsWith` 也是内容信号：实测一份计划被误拦过——T1 的命令是
+ * `!t.startsWith('打回测试') || t.length > 6`（开头必须对、且只允许 6 字），
+ * 内容和长度同时断言，却被「有 .length 且无内容信号」判成只量长度，模型白改一轮。
  */
 const LENGTH_ONLY_CMD =
   /(\.length\b|byteLength|statSync\([^)]*\)\s*\.\s*size|\.size\b|\btest\s+-s\b|wc\s+-c)/;
 const CONTENT_SIGNAL_CMD =
-  /(includes\(|\.match\(|\.test\(|indexOf\(|\bgrep\b|\bfindstr\b|Select-String|\brg\b|contains\(|\bassert\b)/i;
+  /(includes\(|startsWith\(|endsWith\(|\.match\(|\.test\(|indexOf\(|\bgrep\b|\bfindstr\b|Select-String|\brg\b|contains\(|\bassert\b)/i;
 
 /** 计划里所有「只量长度」的验收条目（含步骤级 `Acceptance:` 与 `## 验收`）。 */
 export function weakAcceptance(markdown) {
