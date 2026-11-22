@@ -1827,12 +1827,17 @@ function defineTools(ctx, api) {
       const resolveDeliverable = (p) =>
         isAbsolute(p) || !verifyCwd ? p : resolve(verifyCwd, p);
       const missing = [];
+      const emptyFiles = [];
       for (const raw of deliverables) {
         const target = resolveDeliverable(raw);
-        const exists = await stat(target)
-          .then((s) => s.isFile() || s.isDirectory())
-          .catch(() => false);
-        if (!exists) missing.push(raw);
+        const info = await stat(target).catch(() => null);
+        if (!info || !(info.isFile() || info.isDirectory())) {
+          missing.push(raw);
+          continue;
+        }
+        // 0 字节文件等于没产出：本地 3B 长文写入反复留空文件（2026-11-21 实测），
+        // 只判「存在」会让空文件一路走到人工验收。
+        if (info.isFile() && info.size === 0) emptyFiles.push(raw);
       }
       if (missing.length > 0) {
         throw new Error(
@@ -1840,6 +1845,15 @@ function defineTools(ctx, api) {
             `以下交付物不存在（共 ${missing.length} 个），不能提交自检：`,
             ...missing.slice(0, 8).map((p) => `  - ${p}`),
             "请先把它们写进工作目录（或修正路径）后重试；不要把未产出的步骤与验收项勾成已完成。",
+          ].join("\n")
+        );
+      }
+      if (emptyFiles.length > 0) {
+        throw new Error(
+          [
+            `以下交付物是空文件（0 字节，共 ${emptyFiles.length} 个），不能提交自检：`,
+            ...emptyFiles.slice(0, 8).map((p) => `  - ${p}`),
+            "请把内容真正写进这些文件（长文可分块写再合并）后重新提交自检。",
           ].join("\n")
         );
       }
