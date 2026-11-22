@@ -311,6 +311,7 @@
         "verifyRecord": "最近一次集成验收",
         "openTaskFolder": "打开任务文件夹",
         "moreExtras": "另有 {{count}} 个计划外文件未显示，可在任务文件夹里查看",
+        "cmdOnlyAcceptance": "自动命令验收（结果见该步骤的验证与证据，悬停可看命令）",
         "rejectRecord": "打回记录",
         "accept": "验收通过",
         "acceptHint": "人类验收通过，标记完成",

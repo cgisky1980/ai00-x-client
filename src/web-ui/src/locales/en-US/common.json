@@ -311,6 +311,7 @@
         "verifyRecord": "Last integration verify",
         "openTaskFolder": "Open task folder",
         "moreExtras": "{{count}} more extra files not shown — open the task folder to inspect them",
+        "cmdOnlyAcceptance": "Automatic command check (see the step's verification evidence — hover for the command)",
         "rejectRecord": "Rejections",
         "accept": "Accept",
         "acceptHint": "Human acceptance passed — mark as done",

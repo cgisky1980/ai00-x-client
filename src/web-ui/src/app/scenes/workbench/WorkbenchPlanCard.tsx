@@ -130,6 +130,18 @@ function fileName(path: string): string {
   return index >= 0 ? path.slice(index + 1) : path;
 }
 
+/**
+ * 验收条目的展示文案：去掉行尾 `{cmd: …}`。
+ *
+ * 命令是给机器跑的（既有「验证与证据」折叠里看得到），混在「这一条验收成立吗」
+ * 的正文里只剩噪音——一条 node -e 就能把对话框撑满。悬停标题仍给全文。
+ */
+function acceptanceText(text: string, cmdOnlyLabel: string): string {
+  const stripped = text.replace(/\s*\{cmd:\s*[\s\S]*?\}\s*$/, '').trim();
+  // 整条就是一条命令（没有可读判据）：给一句人话，命令本身留在悬停标题里。
+  return stripped || cmdOnlyLabel;
+}
+
 /** 子代理标签里是否点名了该步骤（派发时冻结的标题以 `T3 …` 开头或含 `T3`）。 */
 function labelMentions(label: string | undefined, stepId: string): boolean {
   if (!label || !stepId) return false;
@@ -925,7 +937,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
                     disabled={busy || completed || readOnly}
                     onChange={() => toggleAcceptance(item.lineIndex, !item.done)}
                   />
-                  <span>{item.text}</span>
+                  <span title={item.text}>
+                    {acceptanceText(item.text, t('nav.workbenchWindow.board.cmdOnlyAcceptance'))}
+                  </span>
                 </label>
               </li>
             ))}
@@ -1242,7 +1256,9 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
                         checked={rejectPicks.has(item.lineIndex)}
                         onChange={() => toggleRejectPick(item.lineIndex)}
                       />
-                      <span>{item.text}</span>
+                      <span title={item.text}>
+                        {acceptanceText(item.text, t('nav.workbenchWindow.board.cmdOnlyAcceptance'))}
+                      </span>
                     </label>
                   </li>
                 ))}
