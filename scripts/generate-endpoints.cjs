@@ -25,14 +25,32 @@ const RUST_OUT = path.join(ROOT, 'src/crates/core/src/service/config/server_endp
 const TS_OUT = path.join(ROOT, 'packages/shared/src/serverEndpoints.ts');
 const TAURI_CONF = path.join(ROOT, 'src/apps/desktop/tauri.conf.json');
 
-/** 将数字数组格式化为多行缩进的 Rust 数组字面量 */
+/**
+ * 将数字数组格式化为 rustfmt 风格的多行数组字面量。
+ *
+ * 旧实现固定每行 8 个数字、最后一项不带尾随逗号，和 `cargo fmt --all --check`
+ * 的输出永远对不上（生成一次就把 CI 的格式门禁弄红，再被人手动 fmt 一次，
+ * 下次 generate 又漂回去）。这里按 rustfmt 的默认 max_width=100 贪心装行，
+ * 并保留最后一项的尾随逗号，生成结果即为 fmt 稳定态。
+ */
 function formatRustArray(encoded) {
-  const perLine = 8;
+  const indent = '        ';
+  const maxWidth = 100;
   const lines = [];
-  for (let i = 0; i < encoded.length; i += perLine) {
-    lines.push('        ' + encoded.slice(i, i + perLine).join(', '));
+  let line = indent;
+  for (const n of encoded) {
+    const piece = `${n},`;
+    if (line === indent) {
+      line += piece;
+    } else if (line.length + 1 + piece.length > maxWidth) {
+      lines.push(line);
+      line = indent + piece;
+    } else {
+      line += ` ${piece}`;
+    }
   }
-  return lines.join(',\n');
+  lines.push(line);
+  return lines.join('\n');
 }
 
 /** 将数字数组格式化为多行缩进的 TS 数组字面量 */
@@ -133,7 +151,8 @@ fn decode_xor(encoded: &[u8]) -> String {
     encoded.iter().map(|&b| (b ^ XOR_KEY) as char).collect()
 }
 
-${rustFn.join('\n')}${rustPorts.join('\n')}`;
+${rustFn.join('\n')}${rustPorts.join('\n')}
+`;
 
   // ---- Generate TS ----
   const tsConsts = [];
