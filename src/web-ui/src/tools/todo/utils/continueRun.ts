@@ -9,29 +9,55 @@ import { dshSession } from '@/infrastructure/api/service-api/DshAPI';
 import { useTodoStore } from '../store/todoStore';
 import type { TodoTask } from '../api/types';
 
+export interface PlanStepProgress {
+  total: number;
+  done: number;
+  /** 第一个未勾选的步骤（含它上一次的验收是否失败）；没有未勾步骤时为 null。 */
+  next: { id: string; title: string; lastFailed: boolean } | null;
+}
+
 /**
  * 计划里「## 步骤 / ## Steps」段的勾选进度。
  *
  * 只数步骤行（`- [ ] T1 …`），不数验收行：验收项常在自检时统一勾掉。
  * 没有步骤段 / 没有步骤行 → total 0（按「还没有可推进的步骤」处理）。
+ *
+ * 同时取**第一个未勾选步骤**及其 `验证: failed` 标记：续跑时点名步骤、并说明
+ * 上一次没过，比一句「按第一个未勾选的步骤推进」更容易让模型直接修那一处。
  */
-export function planStepProgress(planMd: string | null): { total: number; done: number } {
-  if (!planMd) return { total: 0, done: 0 };
+export function planStepProgress(planMd: string | null): PlanStepProgress {
+  if (!planMd) return { total: 0, done: 0, next: null };
   let inSteps = false;
   let total = 0;
   let done = 0;
+  let next: PlanStepProgress['next'] = null;
+  let openUnchecked: { id: string; title: string; lastFailed: boolean } | null = null;
+  const settle = () => {
+    if (!next && openUnchecked) next = openUnchecked;
+    openUnchecked = null;
+  };
   for (const line of planMd.split('\n')) {
     if (/^##\s/.test(line)) {
+      settle();
       inSteps = /^##\s*(步骤|Steps)/i.test(line);
       continue;
     }
     if (!inSteps) continue;
-    const m = /^\s*-\s+\[([ xX])\]\s+(T[\w-]+)/.exec(line);
-    if (!m) continue;
-    total += 1;
-    if (m[1].toLowerCase() === 'x') done += 1;
+    const step = /^\s*-\s+\[([ xX])\]\s+(T[\w-]+)\s*(.*)$/.exec(line);
+    if (step) {
+      settle();
+      total += 1;
+      const checked = step[1].toLowerCase() === 'x';
+      if (checked) done += 1;
+      else openUnchecked = { id: step[2], title: step[3].trim().replace(/\s+/g, ' '), lastFailed: false };
+      continue;
+    }
+    if (openUnchecked && /^\s*-\s*(验证|Verification)\s*[:：]\s*failed/i.test(line)) {
+      openUnchecked.lastFailed = true;
+    }
   }
-  return { total, done };
+  settle();
+  return { total, done, next };
 }
 
 /**
@@ -61,6 +87,10 @@ export function buildContinuePrompt(
 ): string {
   const progress = planStepProgress(planMd);
   const allStepsDone = progress.total > 0 && progress.done === progress.total;
+  const nextStep = progress.next;
+  const nextLabel = nextStep
+    ? `${nextStep.id}「${nextStep.title.slice(0, 60) || '（无标题）'}」`
+    : '计划里第一个未勾选的步骤';
   const base =
     executionMode === 'quick'
       ? '继续回答本任务的问题（快速问答模式：不写计划、不派子代理、不落文件）。若已有结论，用一两句话说明是否还有未回答的部分即可。'
@@ -69,7 +99,10 @@ export function buildContinuePrompt(
           ? // 步骤全勾上却没自检 = 最常见的「停在执行段」：以前这里只说「汇报状态」，
             // agent 汇报完就停，永远走不到自检。现在明确要求走完收口三步。
             WRAP_UP_PROMPT
-          : '继续执行本任务：按计划里第一个未勾选的步骤推进（先按 loop 契约派发并验证，再更新计划）。计划已全部完成时，按收口流程提交自检（verify → plan_check → task_complete），不要新建计划，也不要重写整份计划。'
+          : nextStep?.lastFailed
+            ? // 点名失败的那一步：不说「第一个未勾选」，免得模型从别处重新铺一遍。
+              `继续执行本任务：从 ${nextLabel}开始——该步骤上一次验收未通过（证据写在该步骤下的「验证」行），先修到验收命令通过、再用 ai00_plan_check 勾选，然后继续后面的步骤。计划已全部完成时，按收口流程提交自检（verify → plan_check → task_complete），不要新建计划，也不要重写整份计划。`
+            : `继续执行本任务：从 ${nextLabel}开始推进（先按 loop 契约派发并验证，再更新计划）。计划已全部完成时，按收口流程提交自检（verify → plan_check → task_complete），不要新建计划，也不要重写整份计划。`
         : '继续执行本任务：目前还没有计划。按 loop 契约先写计划，然后结束本轮等待用户确认——不要在写计划的同一轮派发任何 worker。';
   if (!lastError || !lastError.trim()) return base;
   return `${base}\n\n上一轮以错误收尾：${lastError.trim().slice(0, 300)}。先判断这个错误是否已经排除：若仍在，用一两句话说明需要人改什么（凭据 / 模型 / 环境），不要重复同样的失败调用；若已排除，直接从断点继续。`;
