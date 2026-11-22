@@ -300,6 +300,7 @@
         "acceptance": "Acceptance",
         "noAcceptance": "No acceptance items",
         "verifyRecord": "Last integration verify",
+        "openTaskFolder": "Open task folder",
         "rejectRecord": "Rejections",
         "accept": "Accept",
         "acceptHint": "Human acceptance passed — mark as done",

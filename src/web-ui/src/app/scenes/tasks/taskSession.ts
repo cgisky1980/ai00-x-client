@@ -182,12 +182,20 @@ export async function ensureTaskSession(
     // 已绑定的会话也刷新一次宿主注入的 `AGENTS.local.md`：它是每轮进上下文的
     // 常驻文件，规约文案更新后旧任务不刷新就会一直带着过期的长文案。
     // 仅默认工作区走这条路（外部项目目录不写该文件），失败不阻塞。
+    let cwd = '';
     if (!project) {
-      await prepareTaskWorkspace(task.id, task.title, workbenchTitle, null, task.executionMode).catch(
-        () => undefined,
-      );
+      const ctx = await prepareTaskWorkspace(
+        task.id,
+        task.title,
+        workbenchTitle,
+        null,
+        task.executionMode,
+      ).catch(() => null);
+      cwd = ctx?.projectRoot ?? '';
+    } else {
+      cwd = project.dir;
     }
-    return { sessionId: task.agentSessionId, cwd: '' };
+    return { sessionId: task.agentSessionId, cwd };
   }
 
   const root = project ? await resolveTaskRoot(task, project, options) : null;
@@ -258,7 +266,10 @@ export { buildContinuePrompt, continueTaskRun } from '@/tools/todo/utils/continu
  * 语义与计划契约一致：计划存在 → 从第一个未勾选步骤继续；计划不存在 → 按 loop
  * 契约先写计划并停机等确认，绝不代用户跳过批准闸口。
  */
-export async function resumeTaskRun(task: TodoTask, workbenchTitle: string): Promise<string> {
+export async function resumeTaskRun(
+  task: TodoTask,
+  workbenchTitle: string,
+): Promise<{ sessionId: string; cwd: string }> {
   // 先对齐执行模式：旧数据可能丢了 executionMode，但会话建的是 quick preset。
   // 不补这一步，`prepareTaskWorkspace` 会把「交付 loop 契约」写进 AGENTS.local.md，
   // 只有检索工具的快速会话每轮都会读到它，于是白转一轮问能不能写计划。
@@ -271,7 +282,7 @@ export async function resumeTaskRun(task: TodoTask, workbenchTitle: string): Pro
       resolved = { ...task, executionMode: mode };
     }
   }
-  const { sessionId } = await ensureTaskSession(resolved, workbenchTitle, null, null, {
+  const { sessionId, cwd } = await ensureTaskSession(resolved, workbenchTitle, null, null, {
     allowTrunk: true,
   });
   const plan = await invoke<string | null>('todo_plan_get', { taskId: task.id }).catch(
@@ -289,5 +300,5 @@ export async function resumeTaskRun(task: TodoTask, workbenchTitle: string): Pro
     buildContinuePrompt(resolved.executionMode, plan, failureLine),
   );
   useTodoStore.getState().updateTask(task.id, { status: 'doing' });
-  return sessionId;
+  return { sessionId, cwd };
 }

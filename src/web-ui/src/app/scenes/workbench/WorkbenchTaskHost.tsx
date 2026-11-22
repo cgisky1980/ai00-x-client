@@ -143,6 +143,7 @@ export const WorkbenchTaskHost: React.FC<WorkbenchTaskHostProps> = ({
               <WorkbenchPlanPage
                 task={task}
                 planMd={planMd}
+                cwd={cwd}
                 onPlanChange={onPlanChange}
                 onOpenFile={tabs.openFile}
                 running={running}

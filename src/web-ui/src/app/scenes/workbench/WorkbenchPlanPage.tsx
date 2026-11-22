@@ -29,6 +29,8 @@ export interface WorkbenchPlanPageProps {
   variant?: 'page' | 'compact';
   /** 只读（已归档查看）：与 compact 同一条只读路径，保证入口唯一。 */
   readOnly?: boolean;
+  /** 任务工作目录（验收记录里可一键打开，便于清理计划外文件）。 */
+  cwd?: string | null;
 }
 
 export const WorkbenchPlanPage: React.FC<WorkbenchPlanPageProps> = ({
@@ -41,6 +43,7 @@ export const WorkbenchPlanPage: React.FC<WorkbenchPlanPageProps> = ({
   running = false,
   variant = 'page',
   readOnly = false,
+  cwd = null,
 }) => {
   const runtime = useWorkbenchTaskStore((s) =>
     task.agentSessionId ? s.runtime[task.agentSessionId] : undefined,
@@ -62,6 +65,7 @@ export const WorkbenchPlanPage: React.FC<WorkbenchPlanPageProps> = ({
           phase={phase}
           running={running}
           lastError={runtime?.lastError}
+          cwd={cwd}
           onPlanChange={onPlanChange}
           onOpenFile={onOpenFile}
           readOnly={readOnly || variant === 'compact'}

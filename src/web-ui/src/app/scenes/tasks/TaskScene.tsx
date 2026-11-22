@@ -121,6 +121,8 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
   /** 新任务空态预选的模型（建会话后落到该会话）。 */
   const [pendingModel, setPendingModel] = useState<string | null>(null);
   const [busy, setBusy] = useState<'create' | 'open' | null>(null);
+  /** 当前任务工作目录（计划卡「打开任务文件夹」用；默认工作区由宿主准备返回）。 */
+  const [cwd, setCwd] = useState('');
   const [error, setError] = useState<string | null>(null);
   /** 主干分支守卫：等用户决定「开分支 / 照旧 / 取消」。 */
   const [trunkRequest, setTrunkRequest] = useState<TrunkBranchRequest | null>(null);
@@ -195,7 +197,11 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
         // 常驻文件，loop 规约更新后旧卡不刷新就会一直带着过期文案（实测 7.126）。
         // `ensureTaskSession` 的「已有会话」分支只重写该文件，不重发任务书、不重建会话；
         // 外部项目目录不写该文件（内部会跳过），失败不阻断打开。
-        void ensureTaskSession(task, workbenchTitle, projectOf(task)).catch(() => undefined);
+        void ensureTaskSession(task, workbenchTitle, projectOf(task))
+          .then((ctx) => {
+            if (token === openTokenRef.current) setCwd(ctx.cwd);
+          })
+          .catch(() => undefined);
         return;
       }
       setBusy('open');
@@ -208,11 +214,11 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
         const planMd = resumable
           ? await invoke<string | null>('todo_plan_get', { taskId: task.id }).catch(() => null)
           : null;
-        if (planMd && planMd.trim()) {
-          await resumeTaskRun(task, workbenchTitle);
-        } else {
-          await ensureTaskSession(task, workbenchTitle, project, preferredModel, { allowTrunk });
-        }
+        const ctx =
+          planMd && planMd.trim()
+            ? await resumeTaskRun(task, workbenchTitle)
+            : await ensureTaskSession(task, workbenchTitle, project, preferredModel, { allowTrunk });
+        if (token === openTokenRef.current) setCwd(ctx.cwd);
       } catch (e) {
         if (token !== openTokenRef.current) return;
         if (e instanceof TrunkBranchError) {
@@ -406,6 +412,7 @@ export const TaskScene: React.FC<TaskSceneProps> = ({ focusTaskId = null, onFocu
             key={selectedTask.id}
             task={selectedTask}
             sessionId={selectedTask.agentSessionId}
+            cwd={cwd || undefined}
             planMd={plans[selectedTask.id] ?? null}
             onPlanChange={setPlan}
             title={

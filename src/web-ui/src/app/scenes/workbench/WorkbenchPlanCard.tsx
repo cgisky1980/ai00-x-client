@@ -11,6 +11,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { openPath } from '@tauri-apps/plugin-opener';
 import { Check, FolderOpen, Pencil, Play, Plus, Trash2, Undo2 } from 'lucide-react';
 import { Button as DsButton } from '@ai00-x/design-system/react';
 import {
@@ -90,6 +91,8 @@ export interface WorkbenchPlanCardProps {
   readOnly?: boolean;
   /** 最后一轮失败的原文：额度/凭据/模型不可用时不给「继续执行」，直接给建议。 */
   lastError?: { code?: string; message: string };
+  /** 任务工作目录：验收记录里的「计划外文件」可一键打开该目录自己清理。 */
+  cwd?: string | null;
 }
 
 /** 步骤展示态 → Timeline 节点态。 */
@@ -169,6 +172,7 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   onOpenFile,
   readOnly = false,
   lastError,
+  cwd = null,
 }) => {
   const { t } = useI18n('common');
   const [busy, setBusy] = useState(false);
@@ -218,6 +222,16 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
   // 集成验收摘要（ai00_task_verify 写入计划）：验收人不必翻聊天记录就能看到
   // 「交付物齐 / 计划外文件 / 复核记录 / 编码损坏」。
   const verifyRecord = useMemo(() => parseVerifyRecord(shownMd), [shownMd]);
+  /** 验收记录里的「计划外文件」清单（worker 留下的草稿；只做展示与打开目录，不代删）。 */
+  const extras = useMemo(() => {
+    const line = verifyRecord.find((item) => /计划外文件[:：]/.test(item));
+    if (!line) return [] as string[];
+    return line
+      .replace(/^.*?计划外文件[:：]\s*/, '')
+      .split(/[、,，]/)
+      .map((name) => name.trim())
+      .filter(Boolean);
+  }, [verifyRecord]);
   /** 打回记录（写在「## 验收」段的 `- 打回:` 行）。 */
   const rejectNotes = useMemo(() => parseRejectNotes(shownMd), [shownMd]);
   const policy = useMemo(() => parsePlanPolicy(shownMd), [shownMd]);
@@ -811,6 +825,21 @@ export const WorkbenchPlanCard: React.FC<WorkbenchPlanCardProps> = ({
           );
         })}
       </ul>
+      {/* 计划外文件是 worker 留下的草稿：给一个直达任务目录的入口，便于验收时顺手清理。 */}
+      {cwd && extras.length > 0 && !readOnly && (
+        <Button
+          variant="secondary"
+          size="small"
+          onClick={() => {
+            void openPath(cwd).catch((e: unknown) =>
+              setError(e instanceof Error ? e.message : String(e)),
+            );
+          }}
+        >
+          <FolderOpen size={12} />
+          {t('nav.workbenchWindow.board.openTaskFolder')}
+        </Button>
+      )}
     </section>
   );
 
