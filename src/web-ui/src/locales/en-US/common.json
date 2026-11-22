@@ -105,6 +105,10 @@
         "rail": "Settings",
         "title": "System settings"
       },
+      "market": {
+        "rail": "Market",
+        "title": "Workbench market"
+      },
       "showChat": "Show AI chat",
       "hideChat": "Hide AI chat",
       "resizeChat": "Drag to resize AI chat (double-click to reset)",
@@ -308,7 +312,8 @@
         "title": "Task board",
         "hasPlan": "Has a plan",
         "columnEmpty": "No tasks",
-        "noSelection": "Pick a card on the left to see its plan and acceptance",
+        "noSelection": "Pick a card to see its plan and acceptance",
+        "closeDetail": "Close plan",
         "filterLabel": "Scope",
         "filterAll": "All",
         "steps": "Steps",

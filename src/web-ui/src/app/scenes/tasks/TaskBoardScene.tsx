@@ -4,7 +4,7 @@
  * 只列 origin='workbench'，与策任务展示/归属保持隔离。
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import type { TodoTask } from '@/tools/todo/api/types';
 import { useTodoStore } from '@/tools/todo/store/todoStore';
@@ -124,6 +124,12 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
   }, [tasks, phaseOf, runtime]);
 
   const selected = tasks.find((task) => task.id === selectedId) ?? null;
+  /**
+   * 计划详情浮到点击任务的「对面半边」，避免遮住刚点的列：
+   * 左两列（plan/execute）的任务 → 详情浮在右两列上；右两列（review/done）→ 浮在左两列上。
+   */
+  const selectedStage = selected ? stageKeyOf(phaseOf(selected)) : null;
+  const detailOnRight = selectedStage === 'plan' || selectedStage === 'execute';
 
   const renderCard = (task: TodoTask): React.ReactNode => {
     const md = plans[task.id] ?? null;
@@ -205,37 +211,46 @@ export const TaskBoardScene: React.FC<TaskBoardSceneProps> = ({ onOpenTask }) =>
         ))}
       </div>
 
-      <aside className="ai00-x-task-board__detail">
-        {!selected ? (
-          <div className="ai00-x-task-board__placeholder">
-            <p>{t('nav.workbenchWindow.board.noSelection')}</p>
-          </div>
-        ) : (
-          <>
-            <header className="ai00-x-task-board__detail-head">
-              <h2 className="ai00-x-task-board__detail-title">{selected.title}</h2>
-              <TaskActionsMenu
-                task={selected}
-                onArchived={() => setSelectedId(null)}
-                onDeleted={() => setSelectedId(null)}
-              />
-              <button
-                type="button"
-                className="ai00-x-task-board__button"
-                onClick={() => onOpenTask(selected.id)}
-              >
-                <ExternalLink size={11} />
-                {t('nav.workbenchWindow.board.openInTasks')}
-              </button>
-            </header>
-            <TaskDetail
+      {/* 计划详情浮层：不占布局空间，盖在点击任务的对面半边，避免遮住刚点的列。
+          没选中时不渲染——四列始终铺满整宽。 */}
+      {selected && (
+        <aside
+          className={`ai00-x-task-board__detail ${
+            detailOnRight ? 'is-right' : 'is-left'
+          }`}
+        >
+          <header className="ai00-x-task-board__detail-head">
+            <h2 className="ai00-x-task-board__detail-title">{selected.title}</h2>
+            <button
+              type="button"
+              className="ai00-x-task-board__detail-close"
+              onClick={() => setSelectedId(null)}
+              aria-label={t('nav.workbenchWindow.board.closeDetail')}
+              title={t('nav.workbenchWindow.board.closeDetail')}
+            >
+              <X size={14} />
+            </button>
+            <TaskActionsMenu
               task={selected}
-              planMd={plans[selected.id] ?? null}
-              onPlanChange={setPlan}
+              onArchived={() => setSelectedId(null)}
+              onDeleted={() => setSelectedId(null)}
             />
-          </>
-        )}
-      </aside>
+            <button
+              type="button"
+              className="ai00-x-task-board__button"
+              onClick={() => onOpenTask(selected.id)}
+            >
+              <ExternalLink size={11} />
+              {t('nav.workbenchWindow.board.openInTasks')}
+            </button>
+          </header>
+          <TaskDetail
+            task={selected}
+            planMd={plans[selected.id] ?? null}
+            onPlanChange={setPlan}
+          />
+        </aside>
+      )}
       </div>
     </div>
   );

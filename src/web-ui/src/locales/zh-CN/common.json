@@ -105,6 +105,10 @@
         "rail": "设置",
         "title": "系统设置"
       },
+      "market": {
+        "rail": "市场",
+        "title": "工作台市场"
+      },
       "showChat": "显示 AI 对话",
       "hideChat": "隐藏 AI 对话",
       "resizeChat": "拖动调整 AI 对话宽度（双击复位）",
@@ -308,7 +312,8 @@
         "title": "任务看板",
         "hasPlan": "已有计划书",
         "columnEmpty": "暂无任务",
-        "noSelection": "点击左侧卡片查看计划书与验收",
+        "noSelection": "点击卡片查看计划书与验收",
+        "closeDetail": "关闭计划书",
         "filterLabel": "范围",
         "filterAll": "全部",
         "steps": "步骤",

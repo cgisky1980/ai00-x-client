@@ -8,6 +8,7 @@
   background-color: var(--color-bg-base);
 
   &__body {
+    position: relative; // 详情浮层相对此容器定位（盖在 columns 上）
     display: flex;
     flex: 1;
     min-height: 0;
@@ -141,23 +142,70 @@
     font-size: var(--font-size-xs);
   }
 
+  // 详情计划书是浮层：不占布局宽度（columns 始终铺满），盖在点击任务的对面半边。
+  // L4 overlay + 阴影与浮层纪律一致；左侧/右侧各带一道内侧描边和阴影分界。
   &__detail {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: var(--z-dropdown);
     display: flex;
     flex-direction: column;
     gap: var(--spacing-4);
-    flex: 0 0 360px;
-    min-height: 0;
+    width: 50%;
+    min-width: 360px;
+    max-width: 560px;
     padding: var(--spacing-4);
-    border-left: var(--style-stroke-width, 1px) solid var(--color-border);
-    background-color: var(--color-bg-secondary);
+    background-color: var(--color-bg-overlay);
+    box-shadow: var(--shadow-lg);
     overflow-y: auto;
+
+    &.is-right {
+      right: 0;
+      border-left: var(--style-stroke-width, 1px) solid var(--color-border);
+    }
+
+    &.is-left {
+      left: 0;
+      border-right: var(--style-stroke-width, 1px) solid var(--color-border);
+    }
   }
 
   &__detail-head {
     display: flex;
     align-items: flex-start;
-    justify-content: space-between;
     gap: var(--spacing-2);
+
+    // 标题吃掉剩余空间，把关闭/菜单/在任务中打开推到右侧
+    .ai00-x-task-board__detail-title {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__detail-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: var(--style-stroke-width, 1px) solid var(--color-border);
+    border-radius: var(--radius-base);
+    background-color: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-accent);
+      border-color: var(--color-accent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--style-focus-ring, var(--color-accent));
+      outline-offset: 1px;
+    }
   }
 
   &__detail-title {
@@ -193,21 +241,6 @@
     }
   }
 
-  &__placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    text-align: center;
-
-    p {
-      margin: 0;
-      max-width: 30ch;
-      line-height: 1.7;
-    }
-  }
 }
 
 /* 快速问答没有计划页：详情里只给一句说明（与「尚无计划书」区分开）。 */
@@ -247,6 +280,7 @@
 
 @media (max-width: 1100px) {
   .ai00-x-task-board__detail {
-    flex-basis: 300px;
+    width: 60%;
+    min-width: 320px;
   }
 }

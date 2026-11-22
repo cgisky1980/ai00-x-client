@@ -254,6 +254,23 @@ const WorkbenchWindowApp: React.FC = () => {
           </div>
           <button
             type="button"
+            className={`ai00-x-workbench-window__item${activeId === BOARD_SCENE_ID ? ' is-active' : ''}`}
+            aria-current={activeId === BOARD_SCENE_ID ? 'page' : undefined}
+            title={t('nav.workbenchWindow.board.title')}
+            onClick={() => {
+              setActiveId(BOARD_SCENE_ID);
+              setExternalSession(null);
+            }}
+          >
+            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
+              <SquareKanban size={15} />
+            </span>
+            <span className="ai00-x-workbench-window__item-label">
+              {t('nav.workbenchWindow.board.rail')}
+            </span>
+          </button>
+          <button
+            type="button"
             className={`ai00-x-workbench-window__item${activeId === PROJECTS_SCENE_ID ? ' is-active' : ''}`}
             aria-current={activeId === PROJECTS_SCENE_ID ? 'page' : undefined}
             title={t('nav.workbenchWindow.projects.title')}
@@ -303,44 +320,10 @@ const WorkbenchWindowApp: React.FC = () => {
               {t('nav.workbenchWindow.automations.rail')}
             </span>
           </button>
-          <button
-            type="button"
-            className={`ai00-x-workbench-window__item${activeId === BOARD_SCENE_ID ? ' is-active' : ''}`}
-            aria-current={activeId === BOARD_SCENE_ID ? 'page' : undefined}
-            title={t('nav.workbenchWindow.board.title')}
-            onClick={() => {
-              setActiveId(BOARD_SCENE_ID);
-              setExternalSession(null);
-            }}
-          >
-            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
-              <SquareKanban size={15} />
-            </span>
-            <span className="ai00-x-workbench-window__item-label">
-              {t('nav.workbenchWindow.board.rail')}
-            </span>
-          </button>
           <div className="ai00-x-workbench-window__divider" role="separator" />
           <div className="ai00-x-workbench-window__group-title">
             {t('nav.workbenchWindow.groups.installed')}
           </div>
-          <button
-            type="button"
-            className={`ai00-x-workbench-window__item${!activeId ? ' is-active' : ''}`}
-            aria-current={!activeId ? 'page' : undefined}
-            title={t('nav.workbenchWindow.home.railHome')}
-            onClick={() => {
-              setActiveId(null);
-              setExternalSession(null);
-            }}
-          >
-            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
-              <House size={15} />
-            </span>
-            <span className="ai00-x-workbench-window__item-label">
-              {t('nav.workbenchWindow.home.railHome')}
-            </span>
-          </button>
           {workbenches.map(workbench => {
             const isActive = workbench.id === activeEntry?.id;
             return (
@@ -363,6 +346,23 @@ const WorkbenchWindowApp: React.FC = () => {
           <div className="ai00-x-workbench-window__group-title">
             {t('nav.workbenchWindow.groups.system')}
           </div>
+          <button
+            type="button"
+            className={`ai00-x-workbench-window__item${!activeId ? ' is-active' : ''}`}
+            aria-current={!activeId ? 'page' : undefined}
+            title={t('nav.workbenchWindow.market.title')}
+            onClick={() => {
+              setActiveId(null);
+              setExternalSession(null);
+            }}
+          >
+            <span className="ai00-x-workbench-window__item-icon" aria-hidden="true">
+              <House size={15} />
+            </span>
+            <span className="ai00-x-workbench-window__item-label">
+              {t('nav.workbenchWindow.market.rail')}
+            </span>
+          </button>
           <button
             type="button"
             className={`ai00-x-workbench-window__item${
