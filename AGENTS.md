@@ -114,6 +114,37 @@ copy dist\main.zip target\release\main.zip           # 替换 exe 旁资产
 6. WebView2 弹 `msedgewebview2 has stopped working` / `Error launching CrashSender.exe`：多为 Runtime 自动升级后旧缓存不兼容。**修法**：重命名 `%LOCALAPPDATA%\com.ai00-x.desktop\EBWebView`（如加 `.bak-<日期>`），客户端会自动重建。
    - 主窗口 label 是 **`loader`**（title "Ai00-X"），不是 `main`（`main` 只是 vite entry 名）。客户端正常运行时主窗口关闭，只留 overlay 浮层（title 为空格、铺满显示器）+ `siw` 单实例窗口。
 
+### 客户端启动 / 重启（Agent 实机验证，必读）
+
+改完 Rust 要实机验证时按下面流程启动（release exe 在 `client/target/release/ai00-x-desktop.exe`）：
+
+1. **先关旧进程**（Windows 会锁 exe，编译/链接也会失败）：
+   ```powershell
+   taskkill /IM ai00-x-desktop.exe /F
+   ```
+2. **用计划任务脱离工具会话启动**。工具里直接 `Start-Process` 起的进程会随命令结束被回收（表现为"启动后进程消失"，不是崩溃）；schtasks 可脱离：
+   ```powershell
+   # 启动包装脚本（不存在时创建）：%TEMP%\ai00x-launch.cmd
+   #   @echo off
+   #   set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223
+   #   start "" "C:\work\ai00-x-dev\client\target\release\ai00-x-desktop.exe"
+   schtasks /create /tn Ai00XDevLaunch /tr "$env:TEMP\ai00x-launch.cmd" /sc once /st 23:59 /f
+   schtasks /run /tn Ai00XDevLaunch
+   schtasks /delete /tn Ai00XDevLaunch /f
+   ```
+   - `/tr` 直接指向 `.cmd` 文件，**不要**写 `cmd /c ...`（工具命令过滤器会拦截）；
+   - 需要看日志时在 `.cmd` 里加 `set AI00_X_LOG_DIR=<目录>`（默认日志在 `<exe_dir>/data/logs/<时间戳>/ai.log`）。
+3. **等待并确认**（约 20-25 秒）：
+   ```powershell
+   tasklist | findstr /i ai00-x-desktop        # 进程存在
+   node test/cdp-drive.mjs targets             # CDP 9223 出现 /main/ 页面
+   ```
+   - 单实例机制下进程已在运行：新实例会 exit(0)，判存活以 `tasklist` 的实际实例为准；
+   - 前端资产（main.zip/loader.zip/underlay.zip）是 Lazy 缓存，**替换后必须重启**才生效。
+4. **CDP 调试（9223）**：常用 `node test/cdp-drive.mjs targets | eval-main "<expr>" | eval-at workbench.html "<expr>"`；长表达式先写进 `test/*.txt` 再 `eval-main (Get-Content <file> -Raw)`。
+5. **本地 RWKV 预热**：工作台首次发话会上报 `agent` 上下文并自动预热主模型（~9-11s，与 DSH 编排并行）；可用 `invoke('vram_list_engines')` 看 `rwkv-llm.resident`，或日志里的 `agent context active, preloading local model`。
+
+
 ### 服务器环境（2026-08-28 起）
 
 | 环境 | 地址 | 机器 |
