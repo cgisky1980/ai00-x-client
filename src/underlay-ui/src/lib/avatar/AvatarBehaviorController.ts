@@ -196,16 +196,9 @@ export class AvatarBehaviorController {
       void this.setActivity('idle', 'neutral')
     }
 
-    const now = performance.now()
-
-    // 表情系统：日常待机轮播（节流 4s；内部还有 22-31s 安静间隔与冷却）
-    if (now - this._lastIdleExpressionAt > 4000) {
-      this._lastIdleExpressionAt = now
-      if (this.currentActivity === 'idle') this.spine.idleExpressionTick?.()
-    }
-
     // 同步位置到 GardenManager（节流：每 1 秒一次）
     // 内存快照每次都更新（保证 getSnapshot 拿最新位置），写库由 GardenManager 内部节流
+    const now = performance.now()
     if (this.gardenManager && now - this._lastSyncAt > 1000) {
       this._lastSyncAt = now
       const screenPos = this.physicsSystem.physicsToScreen(
@@ -216,8 +209,6 @@ export class AvatarBehaviorController {
     }
   }
   private _lastSyncAt = 0
-  /** 表情系统日常待机轮播节流时间戳 */
-  private _lastIdleExpressionAt = 0
 
   // ─── 活动状态外部接口 ────────────────────────────────────────
 
@@ -235,9 +226,6 @@ export class AvatarBehaviorController {
 
     // 显示气泡
     this.bubble.showForActivity(activity)
-
-    // 表情系统：活动/情绪变化触发（一次性，带冷却；与气泡独立）
-    this.spine.reactExpression?.(activity, mood)
 
     // 持续时间
     this.activityEndsAt = durationMs > 0 ? Date.now() + durationMs : 0

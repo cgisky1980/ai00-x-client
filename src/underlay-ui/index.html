@@ -12,14 +12,9 @@
         var skin = null, sel = null;
         try { skin = localStorage.getItem('ai00-x:skin'); sel = localStorage.getItem('ai00-x:theme-selection'); } catch (e) {}
         var dark = sel === 'ai00-x-dark' || (sel !== 'ai00-x-light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        var motion = null;
-        try { motion = localStorage.getItem('ai00-x:motion'); } catch (e) {}
         root.setAttribute('data-skin', skin || 'soot-lime');
         root.setAttribute('data-theme', dark ? 'ai00-x-dark' : 'ai00-x-light');
         root.setAttribute('data-theme-type', dark ? 'dark' : 'light');
-        // 动效档：内置皮肤默认 full；显式设置优先于系统 prefers-reduced-motion,
-        // 否则 Windows 自定义动画设置会让桌宠表情/动效被误关。
-        root.setAttribute('data-motion', motion || 'full');
       })();
     </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
