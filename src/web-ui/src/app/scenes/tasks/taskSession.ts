@@ -12,6 +12,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { dshEngine, dshSession } from '@/infrastructure/api/service-api/DshAPI';
+import { vramAPI } from '@/infrastructure/api/service-api/VramAPI';
 import { createWorkbenchPresetSession } from '@/infrastructure/plugins/workbenchSession';
 import { WORKBENCH_LOOP_RULES, QUICK_TASK_RULES, DELEGATE_BOOK_TITLE, assembleDelegationPrompt } from '@/agent/orchestrator';
 import { applyModelProfile, getActiveProfile } from '@/agent/modelProfiles';
@@ -178,6 +179,10 @@ export async function ensureTaskSession(
   preferredModelRef: string | null = null,
   options: EnsureTaskSessionOptions = {},
 ): Promise<{ sessionId: string; cwd: string }> {
+  // M1.4 VRAM 联动：任务开工 = agent 工作开始 → 上报 agent 上下文触发本地 RWKV
+  // 预测 warmup。工作台任务链路此前没有上报，首个本地工具轮要白等一次模型冷
+  // 加载（实测 3B int8 约 11s）；此处覆盖新建会话与续跑（resume 也走本函数）。
+  void vramAPI.setActiveContext('agent');
   if (task.agentSessionId) {
     // 已绑定的会话也刷新一次宿主注入的 `AGENTS.local.md`：它是每轮进上下文的
     // 常驻文件，规约文案更新后旧任务不刷新就会一直带着过期的长文案。

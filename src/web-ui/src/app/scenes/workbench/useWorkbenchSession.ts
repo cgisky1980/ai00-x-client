@@ -31,6 +31,7 @@ import {
   type DshSessionEvent,
 } from '@/infrastructure/api/service-api/DshAPI';
 import { isApprovalAllowed } from '@/shared/agent-approval-rules';
+import { vramAPI } from '@/infrastructure/api/service-api/VramAPI';
 import { emitBusEvent, onBusEvent } from '@/infrastructure/plugins/runtime';
 import {
   ensureWorkbenchSession,
@@ -1022,6 +1023,10 @@ export function useWorkbenchSession({
       }
       sendChainRef.current = sendChainRef.current.then(async () => {
         try {
+          // M1.4 VRAM 联动：人发话 = agent 工作开始 → 上报 agent 上下文触发预测
+          // warmup。工作台发送链路此前没有上报，导致每个客户端会话的首个本地
+          // 工具轮白等一次模型冷加载（实测 3B int8 约 11s）。
+          void vramAPI.setActiveContext('agent');
           await dshSession.prompt(sessionId, trimmed, { mode, requestId });
           setSubmissions(prev =>
             prev.map(s =>
