@@ -335,6 +335,8 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               )}
             </div>
           )}
+          {/* 空态不显示任何文字（避免多语言麻烦），只保留两个电台按钮 */}
+          {!empty && (
           <div className="music-activity__info">
             <span className="music-activity__name" title={title}>
               {title}
@@ -343,8 +345,10 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               {subtitle}
             </span>
           </div>
+          )}
           <div className="music-activity__playback">
-            {/* 音量按钮从 sub 行上移到这里（点击不触发整块开窗） */}
+            {/* 音量按钮：仅播放态显示；空态不需要 */}
+            {!empty && (
             <button
               className="music-activity__btn music-activity__btn--volume"
               onClick={(e) => { e.stopPropagation(); handleVolumeToggle() }}
@@ -352,6 +356,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             >
               {currentVolume > 0 ? <Volume2 size={13} /> : <VolumeX size={13} />}
             </button>
+            )}
             {canPrev && (
               <button
                 className="music-activity__btn"
@@ -376,14 +381,14 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
                   onClick={(e) => { e.stopPropagation(); startSongRadio() }}
                   title={t('audio.island.radio.song', { defaultValue: '歌曲电台' })}
                 >
-                  <Radio size={14} />
+                  <Radio size={18} />
                 </button>
                 <button
                   className="music-activity__btn music-activity__btn--radio music-activity__btn--play"
                   onClick={(e) => { e.stopPropagation(); void startMusicRadio() }}
                   title={t('audio.island.radio.music', { defaultValue: '纯音乐电台' })}
                 >
-                  <AudioLines size={14} />
+                  <AudioLines size={18} />
                 </button>
               </>
             )}

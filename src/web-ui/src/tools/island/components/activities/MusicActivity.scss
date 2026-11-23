@@ -114,10 +114,10 @@
     }
   }
 
-  // 空态一键电台按钮：两个并列小按钮，弱化边框、悬停高亮
+  // 空态一键电台按钮：两个并列大按钮（空态无文字，按钮即全部内容）
   &__btn--radio {
-    width: 26px;
-    height: 26px;
+    width: 34px;
+    height: 34px;
     color: var(--color-text-secondary);
     background: color-mix(in oklch, var(--island-accent) 8%, transparent);
 
