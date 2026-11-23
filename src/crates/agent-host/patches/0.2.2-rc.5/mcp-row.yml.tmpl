@@ -1,0 +1,13 @@
+# MCP 桥接行骨架（版本限定资产，每个已启用 MCP server 一行实例）。
+# 意图：把宿主 MCP 配置桥接进引擎 agent loop，工具以
+# mcp__<server>__<tool> 注入；resources/prompts 不进 loop（引擎侧 deferred）。
+# 0.2.0 校验：serverName 必须配 command(stdio) 或 url(streamable-http)，
+# 单独 serverName 会 ValidationError（激活失败）。
+# 占位符：{SERVER_NAME}（[A-Za-z0-9_-]{1,32}，scope 内唯一）、
+#         {TRANSPORT_BODY}（transport/command/args/env 或 url/headers，
+#          由 build_mcp_transport_body 按配置生成，10 空格缩进）。
+    - id: mcp-bridge-{SERVER_NAME}
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: {SERVER_NAME}
+{TRANSPORT_BODY}

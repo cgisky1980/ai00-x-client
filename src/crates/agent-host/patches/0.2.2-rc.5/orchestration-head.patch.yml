@@ -1,0 +1,19 @@
+# Ai00-X 编排架构 patch 静态头（版本限定资产，详见同目录 INTENT.md）。
+# 由 dsh_manager::ensure_orchestration_patch 装配并幂等覆写 profile
+# cordis.patch.yml；组合预览：dsh --profile ai00x --dump-config。
+# 纪律：新增条目必须放 insert 列表（顶层裸行 = 覆盖既有条目）。
+# 编排者 persona 由 build_workbench_preset_row 写入 workbench preset；部署级
+# personaPrefix 会被 standard preset 覆盖，这里不再保留无效配置。
+# 占位符：{BUNDLED_SKILLS_DIR}（装配期替换）。
+- id: skill-filesystem
+  config:
+    bundledSkillDir: "{BUNDLED_SKILLS_DIR}"
+
+# 压缩头寸下调：引擎默认 headroomTokens=65536，而本地 RWKV 只有 16384 窗口。
+# 切模型时 compaction 会算出「无可用预算」并直接拒绝切换（实测报错
+# `MODEL_SWITCH_COMPACTION_FAILED ... leaves no pressure budget`），
+# 用户看到的是「本地模型选不了」。8192 在 16k 窗口下留出 8k 阈值，
+# 128k 远端窗口仍是 16% 压缩余量，两个档位都成立。
+- id: compaction-basic
+  config:
+    headroomTokens: 8192

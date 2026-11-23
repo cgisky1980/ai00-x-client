@@ -686,19 +686,30 @@ const DSH_CAPABILITY_PACKAGES: &[&str] = &[
 /// 必须 `dsh plugin add` 装进 profile。0.2.2 起 `dsh-hooks-claude-code` 被移出主包
 /// 依赖，故在此显式补装；pnpm 侧 `autoInstallPeers: false` 不会代装 peer，一并显式列出
 /// （版本与引擎同钉，cordis 取引擎声明的主版本范围）。
-const PROFILE_PLUGIN_PACKAGES: &[(&str, &[&str])] = &[(
-    "@deepseek-ai/dsh-hooks-claude-code",
-    &[
-        "@deepseek-ai/dsh-hook-protocol",
-        "@deepseek-ai/dsh-llm",
-        "@deepseek-ai/dsh-agent",
-        "@deepseek-ai/dsh-tools",
-        "@deepseek-ai/dsh-session",
-        "@deepseek-ai/dsh-subagent",
-        "@deepseek-ai/dsh-working-directory",
-        "@deepseek-ai/cordis",
-    ],
-)];
+const PROFILE_PLUGIN_PACKAGES: &[(&str, &[&str])] = &[
+    (
+        "@deepseek-ai/dsh-hooks-claude-code",
+        &[
+            "@deepseek-ai/dsh-hook-protocol",
+            "@deepseek-ai/dsh-llm",
+            "@deepseek-ai/dsh-agent",
+            "@deepseek-ai/dsh-tools",
+            "@deepseek-ai/dsh-session",
+            "@deepseek-ai/dsh-subagent",
+            "@deepseek-ai/dsh-working-directory",
+            "@deepseek-ai/cordis",
+        ],
+    ),
+    // 能力包同样必须装进 profile：引擎按 **profile 目录** 解析 patch 行里的插件名，
+    // 只管全局 node_dir 时 rc.5 会报 ERR_MODULE_NOT_FOUND → “required plugins did
+    // not activate” → DSH 启动失败（工作台历史任务/会话列表全不可用，
+    // 2026-11-23 实机定位）。全局安装保留（其它消费方按 node_dir 解析）。
+    ("@deepseek-ai/dsh-computer-use", &[]),
+    (
+        "@deepseek-ai/dsh-experimental-computer-use-cua-driver-native",
+        &[],
+    ),
+];
 
 /// 引擎声明的 cordis 版本范围（peer 安装用；读不到时回退 `~4.1.0`）。
 fn engine_cordis_spec() -> String {
@@ -1003,6 +1014,55 @@ async fn ensure_profile() -> Result<(), String> {
         dsh_profile(),
         dir.display()
     );
+    // 引擎升级后同步 profile 里的 @deepseek-ai/* 依赖版本：rc.N 引擎配 rc.M
+    // 插件会出现 “required plugins did not activate”（`tools` 等服务缺失 →
+    // DSH 整个起不来，工作台历史任务/会话列表不可用；2026-11-23 rc.1 → rc.5
+    // 实测）。幂等：版本已一致就跳过；失败只告警（保留旧版本，不阻塞启动）。
+    if let Ok(version) = dsh_version() {
+        let outdated: Vec<String> = manifest
+            .get("dependencies")
+            .and_then(|d| d.as_object())
+            .map(|deps| {
+                deps.iter()
+                    .filter_map(|(pkg, spec)| {
+                        let spec = spec.as_str()?;
+                        if !pkg.starts_with("@deepseek-ai/") || pkg == "@deepseek-ai/cordis" {
+                            return None;
+                        }
+                        if spec.starts_with("link:")
+                            || spec.starts_with("file:")
+                            || spec.starts_with("workspace:")
+                        {
+                            return None;
+                        }
+                        (spec != version).then(|| format!("{pkg}@{version}"))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !outdated.is_empty() {
+            let dsh = dsh_cmd();
+            let mut cmd = process_manager::create_tokio_command(&dsh);
+            cmd.args(["plugin", "--profile"])
+                .arg(dsh_profile())
+                .arg("add")
+                .args(&outdated)
+                .arg(format!("--registry={NPM_REGISTRY}"))
+                .env("DSH_HOME", dsh_home())
+                .env("PATH", prepend_path(node_dir()));
+            match cmd.output().await {
+                Ok(out) if out.status.success() => log::info!(
+                    "[DshManager] profile deps synced to {version} ({})",
+                    outdated.join(", ")
+                ),
+                Ok(out) => log::warn!(
+                    "[DshManager] profile deps sync failed: {}",
+                    String::from_utf8_lossy(&out.stderr)
+                ),
+                Err(e) => log::warn!("[DshManager] profile deps sync spawn failed: {e}"),
+            }
+        }
+    }
     // patch 行挂载、但不在引擎主包依赖里的插件（hooks 桥等）
     ensure_profile_plugin_packages().await?;
     ensure_orchestration_patch().await?;
@@ -1565,17 +1625,17 @@ pub(crate) fn dsh_version() -> Result<&'static str, String> {
 fn load_patch_asset(file: &str) -> Result<&'static str, String> {
     let version = dsh_version()?;
     match (version, file) {
-        ("0.2.2-rc.1", "orchestration-head.patch.yml") => Ok(include_str!(
-            "../patches/0.2.2-rc.1/orchestration-head.patch.yml"
+        ("0.2.2-rc.5", "orchestration-head.patch.yml") => Ok(include_str!(
+            "../patches/0.2.2-rc.5/orchestration-head.patch.yml"
         )),
-        ("0.2.2-rc.1", "hooks-row.yml.tmpl") => {
-            Ok(include_str!("../patches/0.2.2-rc.1/hooks-row.yml.tmpl"))
+        ("0.2.2-rc.5", "hooks-row.yml.tmpl") => {
+            Ok(include_str!("../patches/0.2.2-rc.5/hooks-row.yml.tmpl"))
         }
-        ("0.2.2-rc.1", "mcp-row.yml.tmpl") => {
-            Ok(include_str!("../patches/0.2.2-rc.1/mcp-row.yml.tmpl"))
+        ("0.2.2-rc.5", "mcp-row.yml.tmpl") => {
+            Ok(include_str!("../patches/0.2.2-rc.5/mcp-row.yml.tmpl"))
         }
-        ("0.2.2-rc.1", "capability-rows.yml.tmpl") => Ok(include_str!(
-            "../patches/0.2.2-rc.1/capability-rows.yml.tmpl"
+        ("0.2.2-rc.5", "capability-rows.yml.tmpl") => Ok(include_str!(
+            "../patches/0.2.2-rc.5/capability-rows.yml.tmpl"
         )),
         (v, f) => Err(format!(
             "patch 资产缺失: agent-host/patches/{v}/{f}——引擎版本 {v} 尚无版本限定 \

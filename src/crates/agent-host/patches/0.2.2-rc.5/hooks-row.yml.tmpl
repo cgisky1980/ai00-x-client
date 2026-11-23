@@ -1,0 +1,9 @@
+# Claude Code 兼容 hooks 桥挂载行（版本限定资产）。
+# 意图：把桌面侧 Claude Code 兼容 hooks（<DSH_HOME>/hooks.json）挂进引擎
+# agent loop；配置缺失/解析失败时桥安全退化（告警+不挂任何 hook）。
+# 配置引擎启动时读一次，改 hooks.json 需重启引擎。
+# 占位符：{CONFIG_PATH}（<DSH_HOME>/hooks.json，YAML 引号转义后路径）。
+    - id: hooks-claude-code
+      name: '@deepseek-ai/dsh-hooks-claude-code'
+      config:
+        configPath: {CONFIG_PATH}
