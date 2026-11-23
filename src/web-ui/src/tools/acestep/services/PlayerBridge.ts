@@ -179,8 +179,28 @@ function emitStateIfChanged(force = false): void {
  * lags behind by the output buffer latency; `LyricsOverlay` applies a
  * user-adjustable offset (`lyricsOffset`, default 2.5s) for lyric sync.
  */
-function emitLyricsState(): void {
+// 歌词状态节流：currentTime 每 100ms 变一次（10fps），但逐字高亮 5fps 足够。
+// 每次都带完整 lrcText 跨窗序列化是浪费；切歌/开关歌词等结构性变化立即发、不节流。
+const LYRICS_EMIT_MIN_MS = 200;
+let lastLyricsEmitAt = 0;
+let lastLyricsText: string | null = null;
+let lastLyricsTitle: string | null = null;
+let lastLyricsShow: boolean | null = null;
+
+function emitLyricsState(force = false): void {
   const s = usePlayerStore.getState();
+  const structuralChange =
+    s.lrcText !== lastLyricsText ||
+    (s.currentSong?.title ?? null) !== lastLyricsTitle ||
+    s.showLyricsPanel !== lastLyricsShow;
+  const now = Date.now();
+  if (!force && !structuralChange && now - lastLyricsEmitAt < LYRICS_EMIT_MIN_MS) return;
+
+  lastLyricsEmitAt = now;
+  lastLyricsText = s.lrcText;
+  lastLyricsTitle = s.currentSong?.title ?? null;
+  lastLyricsShow = s.showLyricsPanel;
+
   const state: AceStepLyricsState = {
     lrcText: s.lrcText,
     currentTime: s.currentTime,
@@ -321,15 +341,18 @@ export function startPlayerBridge(): () => void {
       emitStateIfChanged();
     }
 
-    // Emit lyrics state when lyrics-related fields change
-    const lyricsChange =
+    // Emit lyrics state when lyrics-related fields change.
+    // 结构性变化(lrcText/开关/切歌)立即发；仅 currentTime 变化走节流(5fps)。
+    const lyricsStructural =
       state.lrcText !== prevState.lrcText ||
-      state.currentTime !== prevState.currentTime ||
       state.showLyricsPanel !== prevState.showLyricsPanel ||
-      state.currentSong !== prevState.currentSong;
+      (state.currentSong?.title ?? null) !== (prevState.currentSong?.title ?? null);
+    const lyricsTimeChange = state.currentTime !== prevState.currentTime;
 
-    if (lyricsChange) {
-      emitLyricsState();
+    if (lyricsStructural) {
+      emitLyricsState(true)
+    } else if (lyricsTimeChange) {
+      emitLyricsState()
     }
   });
 

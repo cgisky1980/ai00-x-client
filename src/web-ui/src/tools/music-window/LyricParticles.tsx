@@ -27,9 +27,10 @@ const BANDS = 24;
 const RING_BARS = 24;
 const FRAME_MS = 33; // 30fps
 const POLL_MS = 50; // 频谱轮询 ~20fps
-const STARDUST_DIVS = 80;
+// 性能优化：80→40 粒子（配合去掉 drop-shadow），视觉密度基本不变但合成开销减半。
+const STARDUST_DIVS = 40;
 /** 飘在歌词文字前面的粒子数（其余在文字后面，前少后多避免糊字）。 */
-const STARDUST_FRONT_DIVS = 24;
+const STARDUST_FRONT_DIVS = 12;
 
 function avgOf(bands: number[], start: number, end: number): number {
   let sum = 0;
@@ -62,7 +63,7 @@ interface StardustParticle {
 }
 
 /** 星尘粒子层：光尘随人声升起，鼓点瞬间成片爆发提亮 */
-export const LyricParticles: React.FC<{ active: boolean; className?: string }> = ({
+export const LyricParticles: React.FC<{ active: boolean; className?: string }> = React.memo(({
   active,
   className,
 }) => {
@@ -192,7 +193,7 @@ export const LyricParticles: React.FC<{ active: boolean; className?: string }> =
       </div>
     </div>
   );
-};
+});
 
 /** 环形频谱：24 根梯形光柱围一圈（电台唱片外圈；仅限不透明窗口——canvas 在透明窗口会破坏 alpha） */
 export const SpectrumRing: React.FC<{

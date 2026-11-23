@@ -347,7 +347,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${2 + v * 38}px` }}
+                style={{ transform: `scaleY(${((2 + v * 38) / 40).toFixed(3)})` }}
               />
             ))}
           </div>
@@ -356,7 +356,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${2 + v * 38}px` }}
+                style={{ transform: `scaleY(${((2 + v * 38) / 40).toFixed(3)})` }}
               />
             ))}
           </div>
@@ -516,12 +516,12 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
           <div className="music-activity__spectrum-bg" aria-hidden="true">
             <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--left">
               {expandedMirrored.map((v, i) => (
-                <div key={i} className="music-activity__spectrum-bg-bar" style={{ height: `${2 + v * 18}px` }} />
+                <div key={i} className="music-activity__spectrum-bg-bar" style={{ transform: `scaleY(${((2 + v * 18) / 20).toFixed(3)})` }} />
               ))}
             </div>
             <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--right">
               {expandedBgBands.map((v, i) => (
-                <div key={i} className="music-activity__spectrum-bg-bar" style={{ height: `${2 + v * 18}px` }} />
+                <div key={i} className="music-activity__spectrum-bg-bar" style={{ transform: `scaleY(${((2 + v * 18) / 20).toFixed(3)})` }} />
               ))}
             </div>
           </div>

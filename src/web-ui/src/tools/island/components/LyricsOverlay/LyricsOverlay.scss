@@ -2,10 +2,10 @@
 // 透明背景、无边框、固定尺寸；文字带固定黑色光晕保证任意（含纯白）背景下可读。
 // 层级：--z-chrome-overlay（高于动态岛 --z-chrome-island，确保歌词始终可见）
 
-// ---- LyricFX keyframes（固化：模糊聚焦入场 + 呼吸） ----
+// ---- LyricFX keyframes（入场改为纯合成属性，blur 逐帧重绘太贵） ----
 @keyframes lyricFxEnterBlur {
-  from { opacity: 0; filter: blur(6px); }
-  to { opacity: 1; filter: blur(0); }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes lyricFxBreathe {
@@ -217,7 +217,8 @@
     border-radius: 50%;
     opacity: 0;
     will-change: transform, opacity;
-    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-accent-400) 60%, transparent));
+    // box-shadow 替代 drop-shadow：滤镜通道开销大，40 个粒子每帧移动时尤其明显
+    box-shadow: 0 0 4px color-mix(in srgb, var(--color-accent-400) 60%, transparent);
   }
 
   // 声波涟漪环（底部中心扩散）

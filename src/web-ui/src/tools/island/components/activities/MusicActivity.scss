@@ -79,9 +79,16 @@
     border-radius: 1px;
     // 音浪用岛专用淡青(token 定义在 DynamicIsland.scss)，与按钮强调色区分开
     background: var(--island-wave);
-    transition: height 0.06s linear;
-    min-height: 2px;
+    // 性能优化：改 transform:scaleY（合成）而非 height（触发布局）。
+    // 固定高度 + 从底部缩放，视觉等价于改高度，但 20fps 下不再反复 layout。
+    transform-origin: bottom center;
+    transition: transform 0.06s linear;
+    will-change: transform;
   }
+
+  // compact 柱基数 40px / expanded 柱基数 20px（JS 按此算 scaleY 比例）
+  .music-activity--compact & { height: 40px; }
+  .music-activity__track & { height: 20px; }
 
   &__mini-time {
     font-family: var(--font-family-mono);
