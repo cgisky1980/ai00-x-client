@@ -380,7 +380,9 @@
 
   // === 播放态（三行：main / progress / controls）===
   &--player {
-    gap: var(--size-gap-2);
+    // 三行（信息/音轨/控制）在加高后的音乐行里均匀铺开，不挤在中间
+    justify-content: space-evenly;
+    gap: var(--size-gap-1);
   }
 
   // 第一行右侧：收藏 / 歌词 / 音量

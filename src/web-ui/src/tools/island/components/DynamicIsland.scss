@@ -75,11 +75,13 @@
     border-radius: var(--size-radius-full);
   }
 
-  // === Expanded state: 400×188 single-page 3 rows ===
+  // === Expanded state: 400×206 single-page 3 rows ===
+  // 音乐行需要更舒展的播放器布局（封面/歌名/音轨/控制），从 188 加高到 206，
+  // 多出的 18px 由 flex:1 的音乐行吸收，sfx/tools 行高度不变。
   // radius.lg per 视觉规范 4.2-4：compact 胶囊是唯一 pill 例外，展开态走 lg。
   &--expanded {
     width: 400px;
-    height: 188px;
+    height: 206px;
     border-radius: var(--size-radius-lg);
   }
 
