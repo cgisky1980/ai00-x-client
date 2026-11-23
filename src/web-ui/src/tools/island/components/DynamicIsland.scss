@@ -12,6 +12,9 @@
   display: flex;
   opacity: 0;
   pointer-events: none;
+  // 初始缩放：让展开时从微缩淡入（有初值 transform 才能过渡，
+  // 之前只有展开态 scale(1)、基类无 transform → scale 无过渡直接跳变）
+  transform: scale(0.96);
   // CRITICAL: Sync with pill morph — same duration + spring curve
   // Previous 0.3s ease caused content to settle before pill finished → "flicker" not "flow"
   transition:
@@ -122,6 +125,14 @@
   &--tools {
     border-top: 1px solid color-mix(in oklch, var(--color-text-primary) 8%, transparent);
     margin: 0 var(--size-gap-4);
+    overflow: hidden;
+    // 展开/收起时滑入滑出：flex-basis 从 0 过渡到实际高度，配合 opacity/transform。
+    // 用可动画属性替代 display:none，DOM 常驻（插件槽不丢）且有过渡。
+    transition:
+      flex-basis 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+      opacity 0.35s ease,
+      transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+      border-color 0.35s ease;
   }
 
   // 音乐行 = main(44) + gap(6) + sub(24) + padding —— flex 占剩余高度
@@ -138,8 +149,40 @@
   }
 }
 
-// compact 态：三行常驻 DOM（插件槽不能丢），但只有音乐行可见
+// compact 态：三行常驻 DOM（插件槽不能丢），sfx/tools 收起为 0 高度 + 透明。
+// 用可动画属性替代 display:none —— 展开时平滑滑入，收起时平滑滑出。
 .dynamic-island--compact .dynamic-island__row--sfx,
 .dynamic-island--compact .dynamic-island__row--tools {
-  display: none;
+  flex-basis: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  border-top-color: transparent;
+  pointer-events: none;
+}
+
+// expanded 态：归位（flex-basis 用各自 &--sfx/&--tools 的值，这里只复位动画属性）
+.dynamic-island--expanded .dynamic-island__row--sfx,
+.dynamic-island--expanded .dynamic-island__row--tools {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+// ============================================================
+// 动效守卫：全局 global.scss 有 `*{transition-duration:.01ms!important}`
+// （系统 prefers-reduced-motion 钳制）。Windows「自定义动画设置」常误报
+// reduce，而用户已显式 data-motion=full，此时必须用同等 !important 恢复
+// 岛的过渡时长，否则 compact→expanded 是瞬间跳变（无动态过渡）。
+// 仅作用于岛子树，不碰其它组件。
+// ============================================================
+html[data-motion='full'] {
+  .dynamic-island,
+  .dynamic-island .island-layer,
+  .dynamic-island .dynamic-island__row--sfx,
+  .dynamic-island .dynamic-island__row--tools {
+    transition-duration: 0.45s !important;
+  }
+  .dynamic-island__row--sfx,
+  .dynamic-island__row--tools {
+    transition-property: flex-basis, opacity, transform, border-color !important;
+  }
 }
