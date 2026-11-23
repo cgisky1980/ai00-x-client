@@ -18,7 +18,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkSkin, contrast, FONT_CATALOG, parseSkin } from '../src/skin/core.js';
+import { checkSkin, contrast, FONT_CATALOG, parseSkin, hexToOklch, oklchToHex, nudgeToContrast } from '../src/skin/core.js';
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const args = process.argv.slice(2);
@@ -91,6 +91,22 @@ const inv = {
   accent: p['inv-action'],
   accentInk: p['inv-action-ink'],
 };
+// 反档 accent 守卫：taste 的 inv-action 为过对比度常把强调色退化成墨/白（OKLCH C≈0），
+// 导致明暗两态不同色系、浅色皮肤 accent 与 ink 相同而单调。若彩度不足，从本档原强调色
+// pal.accent 保色相/彩度、翻转明度重算一个反档强调色，再推到对比度门槛——让两档同一色彩家族。
+const invAccentChroma = hexToOklch(inv.accent)[1];
+if (invAccentChroma < 0.05) {
+  const [, srcC, srcH] = hexToOklch(pal.accent);
+  const invIsDark = contrast(inv.bg, '#000000') < contrast(inv.bg, '#ffffff');
+  // 反档是浅底 → 用暗 L；深底 → 用亮 L
+  const targetL = invIsDark ? 0.88 : 0.54;
+  let derived = oklchToHex([targetL, srcC, srcH]);
+  derived = nudgeToContrast(derived, inv.bg, 4.5);
+  inv.accent = derived;
+  // 按钮文字取反档底上对比度更高的方向（深底用暗字，浅底用白字）
+  inv.accentInk = contrast('#ffffff', derived) >= contrast(inv.ink, derived) ? '#ffffff' : inv.ink;
+  if (contrast(inv.accentInk, derived) < 4.5) inv.accentInk = invIsDark ? '#0f0f0f' : '#ffffff';
+}
 // 反档：原强调色若在反档底上仍可作填充（配墨色字达标），保留为高亮笔——辨识度不随明暗丢失
 const markInk = contrast(pal.accent, inv.ink) >= contrast(pal.accent, inv.bg) ? inv.ink : inv.bg;
 if (contrast(markInk, pal.accent) >= 4.5 && contrast(pal.accent, inv.bg) >= 1.5) Object.assign(inv, { mark: pal.accent, markInk });
