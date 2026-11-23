@@ -57,10 +57,11 @@
     border-radius 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.3s ease;
 
-  // === Compact state: 160×40 full pill (music capsule only) ===
+  // === Compact state: 176×48 full pill (music capsule / robot face) ===
+  // 加高到 48px 让胶囊更像一张脸；宽度同比放大保持胶囊比例。
   &--compact {
-    width: 160px;
-    height: 40px;
+    width: 176px;
+    height: 48px;
     border-radius: var(--size-radius-full);
   }
 

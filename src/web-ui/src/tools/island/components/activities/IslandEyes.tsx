@@ -43,11 +43,12 @@ interface EyeParams {
 
 type Face = { left: EyeParams; right: EyeParams }
 
-// viewBox 56×35；基准眼 w16 h18 r5，左眼 x=4、右眼 x=32（间距 12），居中 y=(35-18)/2=8.5
+// viewBox 56×35；基准眼 w16 h18 r5，两眼间距加大到 18，
+// 左眼 x=3、右眼 x=37（眼组 3..53 中心=28 正好居中），居中 y=(35-18)/2=8.5
 const VB_W = 56
 const VB_H = 35
-const BASE_X_L = 6
-const BASE_X_R = 32
+const BASE_X_L = 3
+const BASE_X_R = 37
 const BASE_Y = 9
 
 const baseEye = (): EyeParams => ({
@@ -194,8 +195,15 @@ interface IslandEyesProps {
   playing?: boolean
 }
 
-const IDLE_SEQUENCE: EyeExpression[] = ['normal', 'happy', 'focused', 'happy', 'normal', 'lookLeft', 'normal', 'lookRight']
-const PLAY_SEQUENCE: EyeExpression[] = ['happy', 'excited', 'happy', 'winkLeft', 'happy', 'winkRight', 'surprised', 'happy']
+// 表情轮播序列——覆盖更多表情，让用户能看到丰富的动画
+const IDLE_SEQUENCE: EyeExpression[] = [
+  'normal', 'happy', 'focused', 'sleepy', 'normal', 'lookLeft', 'winkLeft',
+  'normal', 'worried', 'lookRight', 'bored', 'normal', 'sad',
+]
+const PLAY_SEQUENCE: EyeExpression[] = [
+  'happy', 'excited', 'happy', 'winkLeft', 'surprised', 'happy', 'winkRight',
+  'excited', 'scared', 'happy', 'angry', 'normal', 'happy',
+]
 
 const isMotionFull = () => document.documentElement.getAttribute('data-motion') === 'full'
 
@@ -253,7 +261,7 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
   const ink = 'var(--color-text-primary)'
 
   return (
-    <svg className="island-eyes" viewBox={`0 0 ${VB_W} ${VB_H}`} width={VB_W} height={VB_H} aria-hidden="true">
+    <svg className="island-eyes" viewBox={`0 0 ${VB_W} ${VB_H}`} width={68} height={42} aria-hidden="true">
       <Eye p={shown.left} x={BASE_X_L} mask={mask} ink={ink} />
       <Eye p={shown.right} x={BASE_X_R} mask={mask} ink={ink} />
     </svg>
