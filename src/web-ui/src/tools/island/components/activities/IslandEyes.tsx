@@ -171,7 +171,7 @@ const Eye: React.FC<{ p: EyeParams; x: number; mask: string; ink: string }> = ({
       {/* 爱心眼：两颗心形代替圆角眼（BoopFace love 思想，独立 path） */}
       {p.heart ? (
         <path
-          d={`M ${cx},${cy + 7} C ${cx - 9},${cy - 1} ${cx - 6},${cy - 9} ${cx},${cy - 4} C ${cx + 6},${cy - 9} ${cx + 9},${cy - 1} ${cx},${cy + 7} Z`}
+          d={`M ${cx},${cy + 8} C ${cx - 2},${cy + 8} ${cx - 9},${cy + 3} ${cx - 9},${cy - 3} C ${cx - 9},${cy - 9} ${cx - 3},${cy - 10} ${cx},${cy - 5} C ${cx + 3},${cy - 10} ${cx + 9},${cy - 9} ${cx + 9},${cy - 3} C ${cx + 9},${cy + 3} ${cx + 2},${cy + 8} ${cx},${cy + 8} Z`}
           fill={ink}
           className="eye__ball"
         />
@@ -308,12 +308,12 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
       const bobT = (now - s.bobStart) / 620
       s.bob = bobT >= 0 && bobT < 1 ? (1 - Math.exp(-5.2 * bobT) * Math.cos(8.6 * bobT)) * 2.5 : 0
 
-      // 心跳 lub-dub：680ms 周期双峰，放大到 1.22x（心形约 14px，肉眼可见的涨缩）
+      // 心跳 lub-dub：680ms 周期双峰，放大到 1.44x（幅度翻倍，涨缩更明显）
       // 爱心时独占 scale，不再叠加眨眼（否则心被压扁，心跳和眨眼打架）
       const beatT = ((now - now0) % 680) / 680
       const bell = (x: number, c: number, w: number) => Math.exp(-((x - c) ** 2) / (2 * w * w))
       const pulse = Math.max(bell(beatT, 0.12, 0.085), 0.62 * bell(beatT, 0.40, 0.10))
-      const heartScale = loveRef.current ? 1 + 0.22 * pulse : 1
+      const heartScale = loveRef.current ? 1 + 0.44 * pulse : 1
 
       // 应用到两只眼：游移 + bob 用 translate，眨眼/心跳用以眼中心为原点的 scale
       eyes.forEach((g, i) => {
