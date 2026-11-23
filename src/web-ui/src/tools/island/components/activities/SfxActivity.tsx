@@ -1,5 +1,5 @@
 import React from 'react'
-import { Volume2, VolumeX, Maximize2, Trash2, Waves } from 'lucide-react'
+import { Volume2, VolumeX, Trash2, Waves } from 'lucide-react'
 import { useAudioPlayback } from '../../../vrm/hooks/useAudioPlayback'
 import { useAudioPlaybackStore } from '../../../vrm/store/audioPlaybackStore'
 import { useI18n } from '../../../../infrastructure/i18n'
@@ -39,7 +39,11 @@ export const SfxActivity: React.FC<SfxActivityProps> = ({ onOpenWindow }) => {
   const activeChannels = audio.sfxChannels
 
   return (
-    <div className={`sfx-activity${activeChannels.length === 0 ? ' sfx-activity--empty' : ''}`}>
+    <div
+      className={`sfx-activity sfx-activity--clickable${activeChannels.length === 0 ? ' sfx-activity--empty' : ''}`}
+      onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
+      title={t('audio.island.expand', { defaultValue: '打开音效窗口' })}
+    >
       {/* Row head: icon + count badge */}
       <Waves size={14} className="sfx-activity__icon" />
       {activeChannels.length > 0 && (
@@ -86,20 +90,13 @@ export const SfxActivity: React.FC<SfxActivityProps> = ({ onOpenWindow }) => {
           ))}
         </div>
       )}
-      {/* Row tail: volume toggle + expand */}
+      {/* Row tail: volume toggle（点击不开窗） */}
       <button
         className="sfx-activity__row-btn"
-        onClick={handleVolumeToggle}
+        onClick={(e) => { e.stopPropagation(); handleVolumeToggle() }}
         title={masterVolume > 0 ? t('audio.nowPlaying.mute') : t('audio.nowPlaying.unmute')}
       >
         {masterVolume > 0 ? <Volume2 size={13} /> : <VolumeX size={13} />}
-      </button>
-      <button
-        className="sfx-activity__row-btn"
-        onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
-        title={t('audio.island.expand', { defaultValue: '展开' })}
-      >
-        <Maximize2 size={13} />
       </button>
     </div>
   )

@@ -4,10 +4,8 @@ import {
   Pause,
   Play,
   SkipForward,
-  Maximize2,
   Volume2,
   VolumeX,
-  ListMusic,
   Radio,
   AudioLines,
 } from 'lucide-react'
@@ -20,9 +18,6 @@ import { useI18n } from '../../../../infrastructure/i18n'
 import { useBgmPlayerStore } from '../../store/bgmPlayer'
 import { aceStepService } from '../../../acestep/services/AceStepService'
 import type { SongEntry } from '../../../acestep/types'
-import {
-  parseEnhancedLrc,
-} from '../../../acestep/utils/lrcParser'
 import { IslandEyes } from './IslandEyes'
 import './MusicActivity.scss'
 
@@ -51,15 +46,6 @@ interface AceStepPlayerState {
 
 const EVENT_PLAYER_STATE = 'acestep://player-state'
 const EVENT_PLAYER_COMMAND = 'acestep://player-command'
-const EVENT_LYRICS_STATE = 'acestep://lyrics-state'
-
-// ---- Lyrics state schema (AceStep → Main) ----
-interface AceStepLyricsState {
-  lrcText: string | null
-  currentTime: number
-  title: string | null
-  showLyrics: boolean
-}
 
 interface MusicActivityProps {
   onOpenWindow: () => void
@@ -79,9 +65,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
 
   // ---- AceStep local song list (used for "browse to play" hint only) ----
   const [acestepSongs, setAcestepSongs] = useState<SongEntry[]>([])
-
-  // ---- AceStep lyrics state (for hasLyrics check in expanded layer) ----
-  const [lyricsState, setLyricsState] = useState<AceStepLyricsState | null>(null)
 
   // ---- Fetch local AceStep songs (count only — full UI moved to the music window) ----
   const fetchAcestepSongs = useCallback(async () => {
@@ -105,16 +88,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     return () => {
       unlisten.then((fn) => fn())
       if (acestepTimeoutRef.current) clearTimeout(acestepTimeoutRef.current)
-    }
-  }, [])
-
-  // ---- Subscribe to AceStep lyrics state ----
-  useEffect(() => {
-    const unlisten = listen<AceStepLyricsState>(EVENT_LYRICS_STATE, (event) => {
-      setLyricsState(event.payload)
-    })
-    return () => {
-      unlisten.then((fn) => fn())
     }
   }, [])
 
@@ -159,25 +132,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
   }
 
   // ---- VRM radio computed ----
-  const vrmProgress =
-    bgmChannel && bgmChannel.duration_secs > 0
-      ? (bgmChannel.position_secs / bgmChannel.duration_secs) * 100
-      : 0
   const vrmStationName = radioActive && radioStyle ? radioStyle : t('audio.island.activity.music', { defaultValue: '音乐电台' })
-
-  // ---- AceStep computed ----
-  const acestepProgress =
-    acestepState && acestepState.duration > 0
-      ? (acestepState.currentTime / acestepState.duration) * 100
-      : 0
-
-  // ---- Lyrics parsing (for hasLyrics check in expanded layer) ----
-  const parsedLrc = useMemo(
-    () => (lyricsState?.lrcText ? parseEnhancedLrc(lyricsState.lrcText) : null),
-    [lyricsState?.lrcText],
-  )
-  const lyricsLines = parsedLrc?.lines ?? []
-  const hasLyrics = lyricsLines.length > 0
 
   // ---- AceStep command helpers ----
   const sendAceStepCommand = useCallback(
@@ -254,19 +209,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     // VRM radio has no prev
   }, [activeSource, sendAceStepCommand])
 
-  const handleAceStepToggleLyrics = useCallback(() => {
-    sendAceStepCommand('toggleLyrics')
-  }, [sendAceStepCommand])
-
-  // ---- AceStep progress bar click-to-seek ----
-  const handleAceStepProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!acestepState || acestepState.duration <= 0) return
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
-    sendAceStepCommand('seek', { time: ratio * acestepState.duration })
-  }
-
   // ========================================================================
   // Compact layer — spectrum bg + icon + time
   // ========================================================================
@@ -318,10 +260,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     // 空态只保留一行状态文案（主按钮已是曲库入口），副标题留白
     let title = t('audio.island.music.browseToPlay', { defaultValue: '未在播放' })
     let subtitle = ''
-    let progress = 0
-    let duration = 0
-    let currentTime = 0
-    let progressClick: ((e: React.MouseEvent<HTMLDivElement>) => void) | undefined
     let isPlaying = false
     let canSkip = false
     let canPrev = false
@@ -330,10 +268,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
       if (acestepState.currentSong) {
         title = acestepState.currentSong.title
         subtitle = `${acestepState.currentSong.artist} · ${acestepState.isPlaying ? t('audio.island.music.playing', { defaultValue: '播放中' }) : t('audio.island.music.paused', { defaultValue: '已暂停' })}`
-        progress = acestepProgress
-        duration = acestepState.duration
-        currentTime = acestepState.currentTime
-        progressClick = handleAceStepProgressClick
         isPlaying = acestepState.isPlaying
         canSkip = true
         canPrev = true
@@ -344,11 +278,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     } else if (activeSource === 'vrm' && bgmChannel) {
       title = vrmStationName
       subtitle = `${t('audio.island.music.radio', { defaultValue: '电台' })} · ${vrmIsPlaying ? t('audio.island.music.playing', { defaultValue: '播放中' }) : t('audio.island.music.paused', { defaultValue: '已暂停' })}`
-      progress = vrmProgress
-      duration = bgmChannel.duration_secs
-      currentTime = bgmChannel.position_secs
-      // VRM has no seekChannel API — progress is display-only
-      progressClick = undefined
       isPlaying = vrmIsPlaying
       canSkip = true
       canPrev = false
@@ -367,7 +296,11 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
 
     const empty = !activeSource
     return (
-      <div className={`music-activity music-activity--expanded${empty ? ' music-activity--empty' : ''}`}>
+      <div
+        className={`music-activity music-activity--expanded music-activity--clickable${empty ? ' music-activity--empty' : ''}`}
+        onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
+        title={t('audio.island.expand', { defaultValue: '打开音乐窗口' })}
+      >
         {!empty && (
         <div className="music-activity__spectrum-bg">
           <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--left">
@@ -375,7 +308,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${2 + v * 60}px` }}
+                style={{ height: `${2 + v * 18}px` }}
               />
             ))}
           </div>
@@ -384,25 +317,24 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${2 + v * 60}px` }}
+                style={{ height: `${2 + v * 18}px` }}
               />
             ))}
           </div>
         </div>
         )}
-        {/* Main line: album art + info + playback cluster */}
+        {/* Main line: 封面（仅播放态）+ info + 音量 + 播放控制 */}
         <div className="music-activity__main">
-          <div
-            className={`music-activity__art${isPlaying ? ' music-activity__art--playing' : ''}${empty ? ' music-activity__art--clickable' : ''}`}
-            onClick={empty ? (e) => { e.stopPropagation(); onOpenWindow() } : undefined}
-            title={empty ? t('audio.island.music.browseSongs', { defaultValue: '打开曲库' }) : undefined}
-          >
-            {coverUrl ? (
-              <img src={coverUrl} alt="" draggable={false} className="music-activity__art-img" />
-            ) : (
-              <Music size={16} />
-            )}
-          </div>
+          {/* 播放态显示封面图（方形），空态不显示任何图标位 */}
+          {!empty && (
+            <div className={`music-activity__cover${isPlaying ? ' music-activity__cover--playing' : ''}`}>
+              {coverUrl ? (
+                <img src={coverUrl} alt="" draggable={false} className="music-activity__cover-img" />
+              ) : (
+                <Music size={16} />
+              )}
+            </div>
+          )}
           <div className="music-activity__info">
             <span className="music-activity__name" title={title}>
               {title}
@@ -412,6 +344,14 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             </span>
           </div>
           <div className="music-activity__playback">
+            {/* 音量按钮从 sub 行上移到这里（点击不触发整块开窗） */}
+            <button
+              className="music-activity__btn music-activity__btn--volume"
+              onClick={(e) => { e.stopPropagation(); handleVolumeToggle() }}
+              title={currentVolume > 0 ? t('audio.nowPlaying.mute') : t('audio.nowPlaying.unmute')}
+            >
+              {currentVolume > 0 ? <Volume2 size={13} /> : <VolumeX size={13} />}
+            </button>
             {canPrev && (
               <button
                 className="music-activity__btn"
@@ -458,54 +398,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             )}
           </div>
         </div>
-        {/* Sub line: times + progress + utility cluster — 空态精简隐藏 */}
-        {!empty && (
-        <div className="music-activity__sub">
-          <span className="music-activity__time music-activity__time--cur">
-            {formatTime(currentTime)}
-          </span>
-          <div
-            className={`music-activity__progress music-activity__progress--bar${progressClick ? ' music-activity__progress--clickable' : ''}`}
-            onClick={progressClick}
-          >
-            <div
-              className="music-activity__progress-fill"
-              style={{ width: `${Math.min(100, progress)}%` }}
-            />
-          </div>
-          <span className="music-activity__time music-activity__time--dur">
-            {formatTime(duration)}
-          </span>
-          <div className="music-activity__utils">
-            {/* Unified volume toggle */}
-            <button
-              className="music-activity__btn music-activity__btn--volume"
-              onClick={(e) => { e.stopPropagation(); handleVolumeToggle() }}
-              title={currentVolume > 0 ? t('audio.nowPlaying.mute') : t('audio.nowPlaying.unmute')}
-            >
-              {currentVolume > 0 ? <Volume2 size={13} /> : <VolumeX size={13} />}
-            </button>
-            {/* Lyrics toggle: only when AceStep has a song with lyrics */}
-            {activeSource === 'acestep' && acestepState?.currentSong && hasLyrics && (
-              <button
-                className={`music-activity__btn${acestepState.showLyrics ? ' music-activity__btn--active' : ''}`}
-                onClick={(e) => { e.stopPropagation(); handleAceStepToggleLyrics() }}
-                title={t('acestep.toggleLyrics', { defaultValue: '桌面歌词' })}
-              >
-                <ListMusic size={13} />
-              </button>
-            )}
-            {/* Open music window */}
-            <button
-              className="music-activity__btn music-activity__btn--expand"
-              onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
-              title={t('audio.island.expand', { defaultValue: '展开' })}
-            >
-              <Maximize2 size={13} />
-            </button>
-          </div>
-        </div>
-        )}
       </div>
     )
   }

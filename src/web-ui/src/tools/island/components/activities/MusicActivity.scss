@@ -111,17 +111,6 @@
         flex: 0 1 auto;
         align-items: center;
       }
-      // 空态封面位弱化为低调的图标底；可点击进曲库
-      .music-activity__art {
-        width: 34px;
-        height: 34px;
-        opacity: 0.7;
-      }
-      .music-activity__art--clickable {
-        cursor: pointer;
-        transition: opacity 0.15s ease;
-        &:hover { opacity: 1; }
-      }
     }
   }
 
@@ -157,6 +146,16 @@
     }
   }
 
+  // 整块可点击开窗：hover 感应高亮（音乐/音效块共用语义，各自的 --clickable）
+  &--clickable {
+    cursor: pointer;
+    border-radius: inherit;
+    transition: background 0.18s ease;
+    &:hover {
+      background: color-mix(in oklch, var(--color-text-primary) 6%, transparent);
+    }
+  }
+
   // ---- Main line: art + info + playback cluster ----
   &__main {
     display: flex;
@@ -168,18 +167,17 @@
     z-index: 1;
   }
 
-  // 圆形专辑位——视觉锚点（真实封面优先，无封面回退音符图标）
-  &__art {
+  // 播放态封面图——方形圆角，取代原圆形音符图标
+  &__cover {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 40px;
     height: 40px;
-    border-radius: var(--size-radius-full);
+    border-radius: var(--size-radius-sm);
     background: color-mix(in oklch, var(--island-accent) 14%, transparent);
     color: var(--island-accent);
     flex-shrink: 0;
-    // 真实封面裁切：尺寸不变（40×40），只加裁切规则
     overflow: hidden;
 
     &--playing {
@@ -187,7 +185,7 @@
     }
   }
 
-  &__art-img {
+  &__cover-img {
     width: 100%;
     height: 100%;
     object-fit: cover;

@@ -12,6 +12,16 @@
   position: relative;
   // 行已有 margin 0 16px（分隔线内缩），内容零水平 padding 保持三行对齐
 
+  // 整块可点击开窗：hover 感应高亮
+  &--clickable {
+    cursor: pointer;
+    border-radius: inherit;
+    transition: background 0.18s ease;
+    &:hover {
+      background: color-mix(in oklch, var(--color-text-primary) 6%, transparent);
+    }
+  }
+
   // ===== Row head: icon + count badge =====
   &__icon {
     flex-shrink: 0;
