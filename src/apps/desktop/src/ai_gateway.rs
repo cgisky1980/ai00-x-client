@@ -1027,6 +1027,8 @@ async fn local_rwkv_sse(
         if let Some((name, arguments)) = tool_call_from_text(&text, has_tools) {
             let name = normalize_tool_name(&name, &tool_names);
             let arguments = normalize_tool_arguments(&name, &arguments);
+            // 破损 JSON 按必填键抢救（多写编造键/引号错位在 3B 上很常见）
+            let arguments = salvage_if_invalid(&name, arguments, tools.as_deref());
             if let Some(reason) = write_rejection(&name, &arguments) {
                 // 空写会整文件覆盖 → 清空既有交付物；超长写会让 3B 退化。
                 // 强制本地路径（rwkv-local）也必须拦，工人正是走这条路。
@@ -1428,6 +1430,8 @@ async fn local_tool_round(
     if let Some((name, arguments)) = tool_call_from_text(&full_text, true) {
         let name = normalize_tool_name(&name, &tool_names);
         let arguments = normalize_tool_arguments(&name, &arguments);
+        // 破损 JSON 按必填键抢救（见 salvage_if_invalid）
+        let arguments = salvage_if_invalid(&name, arguments, tools.as_deref());
         // 空内容 write 会把已有文件截成 0 字节：实测 T2/T3 的本地工人在"追加"
         // 失败后都发出了 {"content":"","file_path":"report.md"}，直接把刚写好的
         // 报告清空（2026-11-21 会话 87c876ca / caeffa9d）。拒绝执行，按 BLOCKED 收尾。
@@ -1918,7 +1922,9 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
         if let Some(tool_defs) = tools.filter(|defs| !defs.is_empty()) {
             let hint = hinted_tool(tool_defs, messages);
             let path_hint = hinted_path(messages);
-            if let Some(fewshot) = tool_fewshot_block(tool_defs, hint, path_hint.as_deref()) {
+            let focus = focus_tool(tool_defs, messages);
+            if let Some(fewshot) = tool_fewshot_block(tool_defs, hint, path_hint.as_deref(), focus)
+            {
                 prompt.push_str(&fewshot);
             }
         }
@@ -2144,9 +2150,13 @@ pub(crate) fn message_text(msg: &Value) -> Option<String> {
 /// 工具说明文本（**不含** `System:` 前缀）。
 ///
 /// 格式见 <https://www.rwkv.cn/docs/RWKV-Prompts/Prompt-Format#function-call>：
-/// JSON 数组格式，每项带 name / description / arguments（参数名 → schema），
-/// 后跟 "Return only a JSON function call."。description 必须保留——
-/// 模型靠它判断何时调用哪个工具（丢失会导致模型把调用当纯文本续写）。
+/// 官方示例是紧凑签名行（`- get_weather(location: string, unit?: ...)`），
+/// 但 3B 实测（2026-11-23，16 例 ×3）签名行 **21/48**，而 JSON Schema 清单
+/// **30/48**：模型会把签名行里的参数名续写成 `patternir`/`pattern.glob` 这类
+/// 变体、丢掉必填键；带 `required` 的 JSON 清单反而让参数键逐字对齐。
+/// 因此维持 JSON 数组格式（name / description / required / arguments）。
+/// description 必须保留——模型靠它判断何时调用哪个工具（丢失会导致模型把
+/// 调用当纯文本续写）。
 ///
 /// 官方 G1 模板只允许一个 `System:` 块（`rwkv-pf` 规则 `MULTIPLE_SYSTEM` /
 /// `SYSTEM_THEN_ROLE`），所以工具清单必须拼进同一个 System 块内，不能另起块。
@@ -2177,6 +2187,10 @@ fn tools_block(tools: &[Value]) -> String {
         .collect();
     // 紧凑 JSON（不缩进）：工具清单每轮都要进 prefill，pretty 的换行/缩进
     // 纯属浪费（本地 3B 也不靠缩进理解结构）；语义完全相同。
+    //
+    // NOTE(2026-11-23)：曾在这里补一句「read 只读文本、read_image 只读图片」
+    // 的自然语言分界，实测反而让 3B 拼出 `greplines`/`globAll`/`readcode`
+    // 这类粘连工具名（工具清单块只该是 JSON + 固定指令），已回退。
     format!(
         "Tools:\n{}\nReturn only a JSON function call.",
         serde_json::to_string(&defs).unwrap_or_default()
@@ -2230,6 +2244,75 @@ fn hinted_path(messages: &[Value]) -> Option<String> {
         })
 }
 
+/// 最后一条 brief 的任务意图 → 最可能被调用的工具名（须在 tools 表内）。
+///
+/// few-shot 末位示例几乎决定 3B 的工具选择（见 `tool_fewshot_block`），示例
+/// 顺序不能只按工具表顺序。关键词优先级从具体到宽泛：图片 → 写入 → 检索 →
+/// 找文件 → 读文本；都不命中返回 None（保持原顺序）。
+fn focus_tool<'a>(tools: &'a [Value], messages: &[Value]) -> Option<&'a str> {
+    let last_user = messages
+        .iter()
+        .rev()
+        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))?;
+    let text = message_text(last_user)?.to_ascii_lowercase();
+    let available = |name: &str| {
+        tools.iter().any(|tool| {
+            tool.get("function")
+                .and_then(|f| f.get("name"))
+                .and_then(|n| n.as_str())
+                == Some(name)
+        })
+    };
+    let pick = |name: &'static str| -> Option<&'a str> { available(name).then_some(name) };
+    let any = |keywords: &[&str]| keywords.iter().any(|k| text.contains(k));
+
+    if any(&[
+        ".png", ".jpg", ".jpeg", ".webp", ".gif", "图片", "图像", "截图",
+    ]) {
+        return pick("read_image");
+    }
+    // 写入意图写在「读」之前：brief 常说「创建 a.md 并读回确认」，首个工具是
+    // write；若按 .md 判成 read，末位示例会把模型带向读而不是写。
+    if any(&[
+        "创建",
+        "新建",
+        "写入",
+        "编写",
+        "写一个",
+        "写一份",
+        "保存",
+        "生成",
+        "create",
+        "write",
+        "save",
+    ]) {
+        return pick("write");
+    }
+    if any(&["grep", "搜索", "查找内容", "匹配", "todo"]) {
+        return pick("grep");
+    }
+    if any(&[
+        "glob",
+        "找文件",
+        "查找文件",
+        "列出",
+        "有哪些",
+        "文件列表",
+        "目录结构",
+        "项目结构",
+        "文件结构",
+    ]) {
+        return pick("glob");
+    }
+    if any(&[
+        ".md", ".txt", ".json", ".rs", ".js", ".ts", ".toml", ".yaml", ".yml", "readme", "读",
+        "查看", "打开",
+    ]) {
+        return pick("read");
+    }
+    None
+}
+
 /// 一轮对话式 few-shot（2026-11-11 prompt_lab 实验：对话轮示例是 3B 工具
 /// 调用 JSON 合法性的决定性变量——零样本会多闭合括号，而把示例写进
 /// System 文本完全无效）。示例从当次工具表合成（优先首个能合成出非空
@@ -2239,6 +2322,7 @@ fn tool_fewshot_block(
     tools: &[Value],
     hint: Option<&str>,
     path_hint: Option<&str>,
+    focus: Option<&str>,
 ) -> Option<String> {
     // 优先选能合成出非空参数的工具做示例：空参数（{}）示例会让模型在需要
     // 填参数时把 JSON schema 结构当参数值复读（2026-11-11 实测 3/3 复现）。
@@ -2250,6 +2334,10 @@ fn tool_fewshot_block(
     // 选例顺序（2026-11-21）：brief 里点名的工具 → ai00_research_collect →
     // write → 其余。brief 点名的那件才是本轮真正要调的工具；不点名时
     // research 工人以前只会看到 read/read_image 的示例，从不示范检索工具。
+    //
+    // 2026-11-23 补 focus：3B 逐字模仿「最靠近真实任务」的示例，末位示例几乎
+    // 决定工具选择——README 任务 2/2 选了 read_image，只因示例末位恰好是
+    // read_image。focus = brief 意图推断出的工具，其示例排进前四并挪到**末位**。
     let priority = |index: usize| -> u8 {
         let name = tools[index]
             .get("function")
@@ -2258,18 +2346,20 @@ fn tool_fewshot_block(
             .unwrap_or("");
         if hint == Some(name) {
             0
-        } else if name == "ai00_research_collect" {
+        } else if focus == Some(name) {
             1
-        } else if name == "write" {
+        } else if name == "ai00_research_collect" {
             2
-        } else {
+        } else if name == "write" {
             3
+        } else {
+            4
         }
     };
     let mut order: Vec<usize> = (0..tools.len()).collect();
     order.sort_by_key(|&index| (priority(index), index));
 
-    let mut examples: Vec<String> = Vec::new();
+    let mut examples: Vec<(String, String)> = Vec::new();
     let mut empty_candidate: Option<String> = None;
     for index in order {
         let tool = &tools[index];
@@ -2330,17 +2420,28 @@ fn tool_fewshot_block(
             }
             continue;
         }
-        examples.push(build_fewshot(name, args));
+        examples.push((name.to_string(), build_fewshot(name, args)));
         // 每个工具都给示例：只给前两个时，其余工具会去抄训练数据里的别的
         // schema（实测 read_image 抄 read 的 file_path、grep 抄出破损 JSON）。
         if examples.len() >= 4 {
-            return Some(examples.concat());
+            break;
         }
     }
     if examples.is_empty() {
         return empty_candidate;
     }
-    Some(examples.concat())
+    // 意图工具（focus）的示例挪到末位：最靠近真实任务的示例对 3B 的工具选择
+    // 影响最大；brief 点名了工具（hint）时不重排——点名工具的示例已在首位，
+    // 且它的名字会被直接照抄。
+    if hint.is_none() {
+        if let Some(name) = focus {
+            if let Some(pos) = examples.iter().position(|(n, _)| n == name) {
+                let item = examples.remove(pos);
+                examples.push(item);
+            }
+        }
+    }
+    Some(examples.into_iter().map(|(_, ex)| ex).collect())
 }
 
 /// few-shot 字符串参数示例值（按工具+参数名挑最贴近真实用法的样例）。
@@ -3052,6 +3153,154 @@ fn normalize_tool_arguments(name: &str, arguments: &str) -> String {
         }
     }
     value.to_string()
+}
+
+/// 参数 JSON 破损时按必填键抢救（3B 常见：必填值写对，但多塞编造键、引号
+/// 错位——实测 `{"file_path": "README.md", "limit": 1, "offset""":0"""}}`）。
+/// 严格解析通过 / 工具无必填参数 / 任一必填键缺失 → 原样返回（不猜）。
+fn salvage_if_invalid(name: &str, arguments: String, tools: Option<&[Value]>) -> String {
+    if serde_json::from_str::<Value>(&arguments).is_ok() {
+        return arguments;
+    }
+    let required = required_params(tools, name);
+    match salvage_tool_arguments(&arguments, &required) {
+        Some(fixed) => {
+            log::warn!(
+                "[ai-gateway] salvaged broken arguments for {name}: {}",
+                fixed.chars().take(120).collect::<String>()
+            );
+            fixed
+        }
+        None => arguments,
+    }
+}
+
+/// 工具 schema 的必填参数（key, 是否数组）。
+fn required_params(tools: Option<&[Value]>, name: &str) -> Vec<(String, bool)> {
+    let Some(function) = tools.and_then(|tools| {
+        tools.iter().find_map(|tool| {
+            let f = tool.get("function")?;
+            (f.get("name").and_then(|n| n.as_str()) == Some(name)).then_some(f)
+        })
+    }) else {
+        return Vec::new();
+    };
+    let params = function.get("parameters");
+    let Some(required) = params
+        .and_then(|p| p.get("required"))
+        .and_then(|r| r.as_array())
+    else {
+        return Vec::new();
+    };
+    let props = params.and_then(|p| p.get("properties"));
+    required
+        .iter()
+        .filter_map(|key| {
+            let key = key.as_str()?;
+            let ty = props
+                .and_then(|p| p.get(key))
+                .and_then(|s| s.get("type"))
+                .and_then(|t| t.as_str())
+                .unwrap_or("string");
+            Some((key.to_string(), ty == "array"))
+        })
+        .collect()
+}
+
+/// 从破损参数文本里逐个提取必填键的值，重建最小合法对象。
+fn salvage_tool_arguments(raw: &str, required: &[(String, bool)]) -> Option<String> {
+    if required.is_empty() {
+        return None;
+    }
+    let mut out = serde_json::Map::new();
+    for (key, is_array) in required {
+        let value = if *is_array {
+            extract_json_array(raw, key)?
+        } else {
+            Value::String(extract_json_string(raw, key)?)
+        };
+        out.insert(key.clone(), value);
+    }
+    Some(Value::Object(out).to_string())
+}
+
+/// 在破损文本里找 `"key": "…"` 并还原 JSON 字符串转义。
+fn extract_json_string(raw: &str, key: &str) -> Option<String> {
+    let needle = format!("\"{key}\"");
+    for (idx, _) in raw.match_indices(&needle) {
+        let rest = &raw[idx + needle.len()..];
+        let rest = rest.trim_start();
+        let Some(rest) = rest.strip_prefix(':') else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let Some(rest) = rest.strip_prefix('"') else {
+            continue;
+        };
+        let mut out = String::new();
+        let mut chars = rest.chars();
+        while let Some(c) = chars.next() {
+            match c {
+                '\\' => {
+                    // 只保留合法 JSON 转义；3B 会把 glob 写成 `**/\*.md` 这类
+                    // 正则式转义（`\*` 非法），原样包回 `"…"` 会解析失败。
+                    if let Some(next) = chars.next() {
+                        if matches!(next, '"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' | 'u') {
+                            out.push('\\');
+                        }
+                        out.push(next);
+                    }
+                }
+                '"' => break,
+                _ => out.push(c),
+            }
+        }
+        if let Ok(Value::String(s)) = serde_json::from_str::<Value>(&format!("\"{out}\"")) {
+            let s = s.trim().to_string();
+            if !s.is_empty() {
+                return Some(s);
+            }
+        }
+    }
+    None
+}
+
+/// 在破损文本里找 `"key": [ … ]`（括号配平、跳过字符串内的括号）。
+fn extract_json_array(raw: &str, key: &str) -> Option<Value> {
+    let needle = format!("\"{key}\"");
+    for (idx, _) in raw.match_indices(&needle) {
+        let rest = &raw[idx + needle.len()..];
+        let Some(rest) = rest.trim_start().strip_prefix(':') else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let Some(start) = rest.find('[') else {
+            continue;
+        };
+        let mut depth = 0usize;
+        let mut in_str = false;
+        let mut esc = false;
+        for (i, c) in rest[start..].char_indices() {
+            match c {
+                '"' if !esc => in_str = !in_str,
+                '[' if !in_str => depth += 1,
+                ']' if !in_str => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        if let Ok(v) = serde_json::from_str::<Value>(&rest[start..start + i + 1]) {
+                            if v.is_array() {
+                                return Some(v);
+                            }
+                        }
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            esc = c == '\\' && !esc;
+        }
+    }
+    None
 }
 
 /// 绝对路径降级：3B 会把 system prompt 里的包路径拼进工作路径，产出一个
@@ -3990,8 +4239,8 @@ mod tests {
                 }}
             }}),
         ];
-        let block =
-            tool_fewshot_block(&tools, Some("ai00_research_collect"), None).unwrap_or_default();
+        let block = tool_fewshot_block(&tools, Some("ai00_research_collect"), None, None)
+            .unwrap_or_default();
         assert!(
             block.contains("\"name\": \"ai00_research_collect\""),
             "expected the hinted tool first: {block}"

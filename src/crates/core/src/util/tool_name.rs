@@ -16,6 +16,41 @@ pub fn normalize_tool_name(name: &str, available: &[String]) -> String {
     {
         return hit.clone();
     }
+    // 前缀粘连退化（2026-11-23）：3B 会把工具名和描述词粘在一起——实测
+    // `greplines` / `globAll` / `readcode`。规则：key 以某个工具 key 开头、
+    // 后缀只含小写字母且 ≤8 字符；多个候选取最长（`readimagescan` 归
+    // read_image 而不是 read），同长视为歧义不动。
+    let mut prefix_best: Option<&String> = None;
+    let mut prefix_ambiguous = false;
+    for candidate in available {
+        let candidate_key = tool_name_key(candidate);
+        if candidate_key.is_empty()
+            || key.len() <= candidate_key.len()
+            || !key.starts_with(&candidate_key)
+        {
+            continue;
+        }
+        let suffix = &key[candidate_key.len()..];
+        if suffix.len() > 8 || !suffix.chars().all(|c| c.is_ascii_lowercase()) {
+            continue;
+        }
+        match prefix_best {
+            Some(best) if candidate_key.len() == tool_name_key(best).len() => {
+                prefix_ambiguous = true;
+            }
+            Some(best) if candidate_key.len() > tool_name_key(best).len() => {
+                prefix_best = Some(candidate);
+                prefix_ambiguous = false;
+            }
+            Some(_) => {}
+            None => prefix_best = Some(candidate),
+        }
+    }
+    if let Some(candidate) = prefix_best {
+        if !prefix_ambiguous {
+            return candidate.clone();
+        }
+    }
     let mut best: Option<(usize, &String)> = None;
     let mut ambiguous = false;
     for candidate in available {
@@ -118,6 +153,27 @@ mod tests {
             "totally_unknown"
         );
         assert_eq!(normalize_tool_name("anything", &[]), "anything");
+    }
+
+    #[test]
+    fn repairs_glued_prefix_names() {
+        let available = vec![
+            "read".to_string(),
+            "read_image".to_string(),
+            "glob".to_string(),
+            "grep".to_string(),
+        ];
+        // 实测退化：工具名与描述词粘连（2026-11-23 本地能力复测）
+        assert_eq!(normalize_tool_name("greplines", &available), "grep");
+        assert_eq!(normalize_tool_name("globAll", &available), "glob");
+        assert_eq!(normalize_tool_name("readcode", &available), "read");
+        // 更长的规范名优先
+        assert_eq!(
+            normalize_tool_name("readimagescan", &available),
+            "read_image"
+        );
+        // 后缀含数字 → 不猜
+        assert_eq!(normalize_tool_name("read2file", &available), "read2file");
     }
 
     #[test]
