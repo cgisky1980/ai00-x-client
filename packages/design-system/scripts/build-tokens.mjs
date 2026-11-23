@@ -22,6 +22,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkSkin, parseSkin, skinCss } from '../src/skin/core.js';
+import { expandSingleSource } from './derive-skin.mjs';
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const readJson = (...p) => JSON.parse(readFileSync(join(pkgRoot, ...p), 'utf8'));
@@ -80,7 +81,10 @@ for (const [k, v] of Object.entries(map)) {
 const skinsDir = join(pkgRoot, 'skins');
 const skinFiles = existsSync(skinsDir) ? readdirSync(skinsDir).filter((f) => f.endsWith('.ai00skin.json')).sort() : [];
 const skins = skinFiles.map((f) => {
-  const { skin, errors } = parseSkin(readFileSync(join(skinsDir, f), 'utf8'));
+  // 单源皮肤（有 palette）：先派生明暗两档，再走原有 parseSkin 链。
+  // 旧格式（用户皮肤 / 未迁移皮肤）原样通过，下游零改动。
+  const raw = expandSingleSource(JSON.parse(readFileSync(join(skinsDir, f), 'utf8')));
+  const { skin, errors } = parseSkin(raw);
   if (!skin) throw new Error(`skins/${f} 不合法：\n  ${errors.join('\n  ')}`);
   if (`${skin.id}.ai00skin.json` !== f) throw new Error(`skins/${f}: 文件名必须是 <id>.ai00skin.json（id=${skin.id}）`);
   const bad = checkSkin(skin).filter((i) => i.level === 'error');

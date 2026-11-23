@@ -4,7 +4,11 @@
   "name": "石墨信号橙",
   "description": "石墨灰底配信号橙，工业感、硬朗。",
   "source": "taste-skill palette graphite-safety-orange + type geist（scripts/skin-from-taste.mjs 生成，勿手改；改动请重新发牌）",
-  "modes": {
+  "palette": {
+    "brand": "#ff4a1f",
+    "base": "#18191b"
+  },
+  "overrides": {
     "dark": {
       "bg": "#18191b",
       "surface": "#222427",
@@ -26,6 +30,7 @@
       "markInk": "#18191b"
     }
   },
+  "overridesMode": "merge",
   "type": {
     "display": "geist",
     "text": "geist",

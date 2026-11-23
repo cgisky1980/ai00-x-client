@@ -4,7 +4,11 @@
   "name": "纸上青",
   "description": "冷白纸面，一种青色写满所有字、形与按钮。",
   "source": "taste-skill palette teal-on-paper + type geist（scripts/skin-from-taste.mjs 生成，勿手改；改动请重新发牌）",
-  "modes": {
+  "palette": {
+    "brand": "#45e8e8",
+    "base": "#06525c"
+  },
+  "overrides": {
     "dark": {
       "bg": "#06525c",
       "surface": "#205d66",
@@ -26,6 +30,7 @@
       "markInk": "#f7f9f8"
     }
   },
+  "overridesMode": "merge",
   "type": {
     "display": "geist",
     "text": "geist",

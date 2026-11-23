@@ -4,7 +4,11 @@
   "name": "煤黑青柠",
   "description": "煤黑底、白字，荧光青柠是唯一的强调色；亮色档用同色相深橄榄做强调，明暗两态同一色彩家族。",
   "source": "taste-skill palette soot-pale-lime + type geist（scripts/skin-from-taste.mjs 生成，勿手改；改动请重新发牌）",
-  "modes": {
+  "palette": {
+    "brand": "#dafa9c",
+    "base": "#0f0f0f"
+  },
+  "overrides": {
     "dark": {
       "bg": "#0f0f0f",
       "surface": "#1a1a1a",
@@ -26,6 +30,7 @@
       "markInk": "#0f0f0f"
     }
   },
+  "overridesMode": "merge",
   "type": {
     "display": "geist",
     "text": "geist",
