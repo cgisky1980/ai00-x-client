@@ -1360,6 +1360,7 @@ fn prepare_task(
         // >50 会落入「逐候选全词表归约」的兜底慢路径。实测（64 token，同机）：
         // top_k 1/8/32/50 均约 29-31ms/token，top_k=128 涨到 ~70ms/token——
         // 本地工具轮此前按 128 走，每轮白付 2-4s。与 rwkv_engine_adapter 口径一致。
+        // （top_p<1 时改走 top_k=0 的 top-p 候选路径实测同样 ~30ms/token，无额外收益，故不特判。）
         top_k: if params.top_k == 0 { 50 } else { params.top_k },
         presence_penalty: params.presence_penalty,
         frequency_penalty: params.frequency_penalty,

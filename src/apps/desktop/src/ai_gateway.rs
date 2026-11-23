@@ -2160,9 +2160,17 @@ fn tools_block(tools: &[Value]) -> String {
                 .and_then(|p| p.get("properties"))
                 .cloned()
                 .unwrap_or_else(|| json!({}));
+            // required 必须进清单：3B 只看 properties 时会输出 {} 或漏掉必填键
+            //（2026-11-23 能力测试：glob/read 多例空参数）。
+            let required = f
+                .get("parameters")
+                .and_then(|p| p.get("required"))
+                .cloned()
+                .unwrap_or_else(|| json!([]));
             Some(json!({
                 "name": f.get("name").cloned().unwrap_or(Value::Null),
                 "description": f.get("description").cloned().unwrap_or(json!("")),
+                "required": required,
                 "arguments": arguments,
             }))
         })
@@ -2276,23 +2284,41 @@ fn tool_fewshot_block(
             continue;
         }
         let mut args = serde_json::Map::new();
-        if let Some(props) = function
-            .get("parameters")
+        let params = function.get("parameters");
+        let required: Vec<String> = params
+            .and_then(|p| p.get("required"))
+            .and_then(|r| r.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if let Some(props) = params
             .and_then(|p| p.get("properties"))
             .and_then(|p| p.as_object())
         {
-            for (key, schema) in props.iter().take(2) {
+            // 必填参数优先；不足两个再用字符串类可选参数补（数字/布尔可选键
+            // 会引出 offset/limit 之类的噪音示例，3B 会照抄）。
+            for (key, schema) in props.iter() {
+                if args.len() >= 2 {
+                    break;
+                }
                 let ty = schema.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                let is_required = required.iter().any(|r| r == key);
+                if !is_required && ty != "string" && ty != "array" {
+                    continue;
+                }
                 // 示例值必须真实感且互异：占位符（"example"）会让模型丢失
                 // 参数绑定能力——复读 schema 结构或塌陷重复（p2/p4/p6 实测），
                 // 真实值则连工具选择都纠正（p5 错选 vs p7 全对）。
                 let value = match ty {
-                    "string" => json!(sample_string_arg(key, path_hint)),
+                    "string" => json!(sample_string_arg(name, key, path_hint)),
                     "number" | "integer" => json!(1),
                     "boolean" => json!(true),
                     // 数组参数（queries / urls）：给一个元素的真实示例，
                     // 否则模型会把 schema 结构塞进数组或干脆漏掉该键。
-                    "array" => json!([sample_string_arg(key, path_hint)]),
+                    "array" => json!([sample_string_arg(name, key, path_hint)]),
                     _ => continue,
                 };
                 args.insert(key.clone(), value);
@@ -2305,7 +2331,9 @@ fn tool_fewshot_block(
             continue;
         }
         examples.push(build_fewshot(name, args));
-        if examples.len() >= 2 {
+        // 每个工具都给示例：只给前两个时，其余工具会去抄训练数据里的别的
+        // schema（实测 read_image 抄 read 的 file_path、grep 抄出破损 JSON）。
+        if examples.len() >= 4 {
             return Some(examples.concat());
         }
     }
@@ -2315,13 +2343,30 @@ fn tool_fewshot_block(
     Some(examples.concat())
 }
 
-/// few-shot 字符串参数示例值（按参数名挑最贴近真实用法的样例）。
+/// few-shot 字符串参数示例值（按工具+参数名挑最贴近真实用法的样例）。
 /// `path_hint` = brief 里点名的文件名：路径类参数优先用它，避免模型照抄
 /// 示例里的固定文件名。
-fn sample_string_arg(key: &str, path_hint: Option<&str>) -> String {
+fn sample_string_arg(tool: &str, key: &str, path_hint: Option<&str>) -> String {
+    // 检索类：pattern 的示例必须是能直接用的真实表达式（旧值恒为 "hello"，
+    // 3B 会把 "hello" 当 glob 模式照抄，搜不到目标文件）。
+    match (tool, key) {
+        ("glob", "pattern") => return "**/*.md".to_string(),
+        ("grep", "pattern") => return "TODO".to_string(),
+        ("grep", "include") | ("grep", "glob") => return "*.rs".to_string(),
+        _ => {}
+    }
     if key.contains("path") {
-        path_hint.unwrap_or("note.txt").to_string()
-    } else if key.contains("query") || key.contains("queries") {
+        if let Some(hint) = path_hint {
+            return hint.to_string();
+        }
+        return match tool {
+            "read" => "README.md".to_string(),
+            "read_image" => "assets/logo.png".to_string(),
+            "glob" | "grep" => "src".to_string(),
+            _ => "note.txt".to_string(),
+        };
+    }
+    if key.contains("query") || key.contains("queries") {
         "agent memory architecture".to_string()
     } else if key.contains("url") {
         "https://www.rwkv.cn".to_string()

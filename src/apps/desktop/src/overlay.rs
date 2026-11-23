@@ -101,7 +101,7 @@ pub fn spawn_overlay_thread(app_handle: tauri::AppHandle) {
             // 每 2 帧（~30Hz）发射全局鼠标位置：岛窗口鼠标穿透，网页无法自己获取坐标。
             // 眼睛跟随只需 30Hz，节流避免 60Hz emit 的事件洪泛。
             pointer_tick = pointer_tick.wrapping_add(1);
-            if pointer_tick % 2 == 0 {
+            if pointer_tick.is_multiple_of(2) {
                 let _ = app_handle.emit("global_pointer", GlobalPointerEvent { x: mx, y: my });
             }
 

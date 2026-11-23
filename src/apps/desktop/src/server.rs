@@ -61,7 +61,9 @@ fn workspace_wallpaper_projects_dir() -> String {
 fn router() -> Router {
     Router::new()
         .hoop(Compression::new())
-        .hoop(cors_allow_all)
+        // CORS 挂在 Service 层（见 start_salvo_server）：挂在 Router 上的 hoop
+        // 只在「方法匹配到 handler」时才执行，OPTIONS 预检会被路由直接判 405，
+        // 跨源 POST（dev 模式 Vite 1422 → 2100 的 `/dsh-api/*`）因此全部失败。
         .push(
             // Ai00-X 内部 API：AI 网关（ai-bridge 插件 LLM 入口）+ 业务回呼（@ai00-x/tools 插件）
             // Salvo 默认 body 上限 64KB（GLOBAL_SECURE_MAX_SIZE），LLM 请求体
@@ -134,22 +136,28 @@ fn router() -> Router {
 /// 本地服务器只绑定 127.0.0.1，无外部暴露风险，故放行所有 origin。
 /// Tauri webview 的 origin 是 tauri.localhost，访问 127.0.0.1:2100 需要 CORS 头。
 #[handler]
-async fn cors_allow_all(req: &mut Request, res: &mut Response) {
+async fn cors_allow_all(req: &mut Request, res: &mut Response, ctrl: &mut FlowCtrl) {
     res.headers_mut().insert(
         salvo::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
         HeaderValue::from_static("*"),
     );
     res.headers_mut().insert(
         salvo::http::header::ACCESS_CONTROL_ALLOW_METHODS,
-        HeaderValue::from_static("GET, OPTIONS"),
+        // 必须含 POST：dev 模式窗口从 Vite(1422) 加载，DSH RPC / 内部 API 全是
+        // 跨源 POST（`/dsh-api/*`）；只放行 GET/OPTIONS 时预检被浏览器拒绝，
+        // 前端表现为 “Failed to fetch”（选历史任务/会话列表必现）。
+        HeaderValue::from_static("GET, POST, PUT, PATCH, DELETE, OPTIONS"),
     );
     res.headers_mut().insert(
         salvo::http::header::ACCESS_CONTROL_ALLOW_HEADERS,
         HeaderValue::from_static("*"),
     );
-    // OPTIONS 预检直接返回 204
+    // OPTIONS 预检直接返回 204，并 **跳过后续路由**：`/dsh-api/*` 只注册了 POST，
+    // 若让请求继续走路由会被判 405，浏览器预检失败 → 跨源 POST 全部报
+    // “Failed to fetch”（2026-11-23 dev 模式选历史任务复现）。
     if req.method() == salvo::http::Method::OPTIONS {
         res.status_code(StatusCode::NO_CONTENT);
+        ctrl.skip_rest();
     }
 }
 
@@ -188,9 +196,9 @@ pub fn start_salvo_server() {
                 let listener = TcpListener::new(addr);
                 match listener.try_bind().await {
                     Ok(acceptor) => {
-                        let r = router();
+                        let service = Service::new(router()).hoop(cors_allow_all);
                         log::info!("[salvo] serving at http://{}", addr);
-                        Server::new(acceptor).serve(r).await;
+                        Server::new(acceptor).serve(service).await;
                     }
                     Err(e) => {
                         log::error!("[salvo] FAILED TO BIND port {}: {}", SERVER_PORT, e);
