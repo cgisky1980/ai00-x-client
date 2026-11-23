@@ -210,7 +210,18 @@ fn run_global_voice_input_loop(app: tauri::AppHandle) {
                                 recording_started_at = Some(Instant::now());
                                 capture_session = Some(session);
                             }
-                            Err(e) => emit_voice_input_error(&app, e, x, y),
+                            Err(e) => {
+                                // 麦克风启动失败：必须先结束充电态，否则 charge_active/
+                                // charge_visual_started 仍为 true，下一帧会继续发 charging，
+                                // 覆盖前端的 error 状态导致「充电中」蓝环永久残留。
+                                if charge_visual_started {
+                                    emit_voice_input_charge_cancel(&app, x, y);
+                                }
+                                charge_active = false;
+                                charge_visual_started = false;
+                                press_started_at = None;
+                                emit_voice_input_error(&app, e, x, y);
+                            }
                         }
                     }
                 }
@@ -262,6 +273,12 @@ fn run_global_voice_input_loop(app: tauri::AppHandle) {
         std::thread::sleep(Duration::from_millis(20));
     }
 
+    // 服务停止（页面切换/设置关闭/退出）时若正处于充电中，补发 cancel，
+    // 否则 charging 已发但没有任何结束事件，前端蓝环会永久残留。
+    if charge_active && charge_visual_started {
+        let (cx, cy) = press_origin.unwrap_or((0, 0));
+        emit_voice_input_charge_cancel(&app, cx, cy);
+    }
     if let Some(mut session) = capture_session {
         let _ = session.stop_and_take_samples();
     }
