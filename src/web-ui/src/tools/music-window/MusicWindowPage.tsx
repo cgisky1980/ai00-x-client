@@ -49,6 +49,7 @@ import { useProfileStore, parseSongTags } from '../acestep/store/profileStore'
 import { useRecommendStore } from '../acestep/store/recommendStore'
 import { useMusicSourceStore } from '../music-source/musicSourceStore'
 import { useFavoritesStore } from '../music-source/favoritesStore'
+import { subscribeWindowMessage, publishWindowMessage } from '@/infrastructure/windows/windowBus'
 import { songKey, sourceDisplayName, formatDuration } from '../music-source/types'
 import type { OnlineSong } from '../music-source/types'
 import type { PlaylistItem } from '../acestep/store/playerStore'
@@ -452,6 +453,21 @@ export const MusicWindowPage: React.FC = () => {
   const favorites = useFavoritesStore((s) => s.favorites)
   const favoritesToggle = useFavoritesStore((s) => s.toggleFavorite)
   const favoritesRemove = useFavoritesStore((s) => s.removeFavorite)
+
+  // 灵动岛 toggle 收藏后从同源 localStorage 重新加载（本 webview 的 store 内存不会自动更新）
+  useEffect(() => subscribeWindowMessage((msg) => {
+    if (msg.type !== 'favorites:changed') return
+    try {
+      const raw = localStorage.getItem('musicSource.favorites.v1')
+      const arr = raw ? JSON.parse(raw) : []
+      if (Array.isArray(arr)) {
+        useFavoritesStore.setState({ favorites: arr.filter((s: unknown) =>
+          s != null && typeof s === 'object' && typeof (s as OnlineSong).source === 'string'
+          && typeof (s as OnlineSong).name === 'string' && typeof (s as OnlineSong).downloadUrl === 'string'
+        ) as OnlineSong[] })
+      }
+    } catch { /* ignore */ }
+  }), [])
 
   // ---- v1.3.0+: Profile + Recommend stores ----
   const profile = useProfileStore((s) => s.profile)
@@ -982,6 +998,7 @@ export const MusicWindowPage: React.FC = () => {
   const handleToggleFavorite = useCallback(
     (song: OnlineSong) => {
       const result = favoritesToggle(song)
+      publishWindowMessage('favorites:changed') // 同步灵动岛红心
       if (result === 'added') {
         setToastMsg(t('audio.island.music.online.favoriteAdded', { defaultValue: '已收藏「{{name}}」', name: song.name }))
       } else if (result === 'evicted') {

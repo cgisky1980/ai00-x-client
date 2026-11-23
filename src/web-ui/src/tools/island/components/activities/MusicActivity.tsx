@@ -8,6 +8,8 @@ import {
   VolumeX,
   Radio,
   AudioLines,
+  Heart,
+  ListMusic,
 } from 'lucide-react'
 import { listen, emit } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -18,6 +20,12 @@ import { useI18n } from '../../../../infrastructure/i18n'
 import { useBgmPlayerStore } from '../../store/bgmPlayer'
 import { aceStepService } from '../../../acestep/services/AceStepService'
 import type { SongEntry } from '../../../acestep/types'
+import { usePlayerStore } from '../../../acestep/store/playerStore'
+import { useMusicSourceStore } from '../../../music-source/musicSourceStore'
+import { useFavoritesStore } from '../../../music-source/favoritesStore'
+import { songKey } from '../../../music-source/types'
+import type { OnlineSong } from '../../../music-source/types'
+import { publishWindowMessage, subscribeWindowMessage } from '../../../../infrastructure/windows/windowBus'
 import { IslandEyes } from './IslandEyes'
 import './MusicActivity.scss'
 
@@ -42,6 +50,8 @@ interface AceStepPlayerState {
   source: 'local' | 'share' | 'online'
   playbackState: 'idle' | 'loading' | 'playing' | 'paused' | 'ended'
   showLyrics: boolean
+  /** 当前在线歌 songKey（收藏判定用） */
+  currentOnlineId: string | null
 }
 
 const EVENT_PLAYER_STATE = 'acestep://player-state'
@@ -62,6 +72,19 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
   // ---- AceStep state (from cross-window event) ----
   const [acestepState, setAcestepState] = useState<AceStepPlayerState | null>(null)
   const acestepTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ---- 空态模式选择：'song' 歌曲电台 / 'music' 纯音乐电台（互斥，默认歌曲）----
+  const [mode, setMode] = useState<'song' | 'music'>('song')
+
+  // ---- 收藏状态：favoritesStore 内存可能陈旧，用 tick 强制重算 ----
+  const [favTick, setFavTick] = useState(0)
+  useEffect(() => {
+    // 音乐窗口 toggle 收藏后广播，岛重算红心（localStorage 同源共享）
+    const unsub = subscribeWindowMessage((msg) => {
+      if (msg.type === 'favorites:changed') setFavTick((v) => v + 1)
+    })
+    return unsub
+  }, [])
 
   // ---- AceStep local song list (used for "browse to play" hint only) ----
   const [acestepSongs, setAcestepSongs] = useState<SongEntry[]>([])
@@ -144,21 +167,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     [],
   )
 
-  // ---- 空态一键电台 ----
-  // 歌曲电台：跨窗口命令给权威端（overlay webview 的 musicSourceRadioBridge）处理，
-  // 桥接内部会 requestActive('acestep') 做 BGM 仲裁。
-  const startSongRadio = useCallback(() => {
-    emit('music-source://radio-command', { action: 'start' }).catch((e) =>
-      console.warn('[MusicActivity] start song radio failed:', e),
-    )
-  }, [])
-
-  // 纯音乐电台：VRM 生成式电台，风格随机；先抢 BGM 仲裁再启动。
-  const startMusicRadio = useCallback(async () => {
-    await useBgmPlayerStore.getState().requestActive('vrm-radio').catch(() => {})
-    await audio.startRadio('random')
-  }, [audio])
-
   // ---- Unified volume toggle (acts on active source) ----
   const handleVolumeToggle = () => {
     if (activeSource === 'acestep' && acestepState) {
@@ -173,6 +181,42 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
       void setMasterVolume(prevVolumeRef.current || 0.8)
     }
   }
+
+  // ---- 收藏（在线歌/电台歌；local/share 不在此数据域）----
+  // favoritesStore 内存可能与音乐窗口不同步，判定直接读同源 localStorage 更准。
+  const readFavored = useCallback((key: string): boolean => {
+    try {
+      const raw = localStorage.getItem('musicSource.favorites.v1')
+      if (!raw) return false
+      const arr = JSON.parse(raw) as OnlineSong[]
+      return Array.isArray(arr) && arr.some((s) => songKey(s) === key)
+    } catch { return false }
+  }, [])
+
+  const favoriteSong = useMemo((): OnlineSong | null => {
+    void favTick
+    if (activeSource === 'vrm') return useMusicSourceStore.getState().radioCurrentSong ?? null
+    const onlineId = acestepState?.currentOnlineId
+    if (!onlineId) return null
+    const ps = usePlayerStore.getState()
+    const item = ps.playlist[ps.currentIndex]
+    if (item?.kind === 'online') return item.song
+    return useFavoritesStore.getState().findByKey(onlineId)
+  }, [activeSource, acestepState?.currentOnlineId, favTick])
+  const canFavorite = !!favoriteSong
+  const isFavored = !!favoriteSong && readFavored(songKey(favoriteSong))
+
+  const handleToggleFavorite = useCallback(() => {
+    if (!favoriteSong) return
+    useFavoritesStore.getState().toggleFavorite(favoriteSong)
+    setFavTick((v) => v + 1)
+    // 通知音乐窗口重新加载它的 favoritesStore 内存镜像
+    publishWindowMessage('favorites:changed')
+  }, [favoriteSong])
+
+  const handleToggleLyrics = useCallback(() => {
+    sendAceStepCommand('toggleLyrics')
+  }, [sendAceStepCommand])
 
   // ---- Sync BgmPlayer.activeSource with AceStep playback state ----
   useEffect(() => {
@@ -295,60 +339,89 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
         : null
 
     const empty = !activeSource
+    const progress =
+      activeSource === 'acestep' && acestepState && acestepState.duration > 0
+        ? (acestepState.currentTime / acestepState.duration) * 100
+        : activeSource === 'vrm' && bgmChannel && bgmChannel.duration_secs > 0
+          ? (bgmChannel.position_secs / bgmChannel.duration_secs) * 100
+          : 0
+
+    if (empty) {
+      // 空态：歌曲 / 纯音乐 互斥选择（只切模式不启动，默认歌曲）
+      return (
+        <div
+          className="music-activity music-activity--expanded music-activity--empty"
+          onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
+        >
+          <div className="music-activity__mode-switch">
+            <button
+              className={`music-activity__mode-btn${mode === 'song' ? ' is-active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setMode('song') }}
+            >
+              <Radio size={16} />
+            </button>
+            <button
+              className={`music-activity__mode-btn${mode === 'music' ? ' is-active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setMode('music') }}
+            >
+              <AudioLines size={16} />
+            </button>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div
-        className={`music-activity music-activity--expanded music-activity--clickable${empty ? ' music-activity--empty' : ''}`}
+        className="music-activity music-activity--expanded music-activity--clickable music-activity--player"
         onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
         title={t('audio.island.expand', { defaultValue: '打开音乐窗口' })}
       >
-        {!empty && (
         <div className="music-activity__spectrum-bg">
           <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--left">
             {expandedMirrored.map((v, i) => (
-              <div
-                key={i}
-                className="music-activity__spectrum-bg-bar"
-                style={{ height: `${2 + v * 18}px` }}
-              />
+              <div key={i} className="music-activity__spectrum-bg-bar" style={{ height: `${2 + v * 18}px` }} />
             ))}
           </div>
           <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--right">
             {expandedBgBands.map((v, i) => (
-              <div
-                key={i}
-                className="music-activity__spectrum-bg-bar"
-                style={{ height: `${2 + v * 18}px` }}
-              />
+              <div key={i} className="music-activity__spectrum-bg-bar" style={{ height: `${2 + v * 18}px` }} />
             ))}
           </div>
         </div>
-        )}
-        {/* Main line: 封面（仅播放态）+ info + 音量 + 播放控制 */}
+
+        {/* 第一行：封面 + 歌名/歌手 + 右侧收藏/歌词/音量 */}
         <div className="music-activity__main">
-          {/* 播放态显示封面图（方形），空态不显示任何图标位 */}
-          {!empty && (
-            <div className={`music-activity__cover${isPlaying ? ' music-activity__cover--playing' : ''}`}>
-              {coverUrl ? (
-                <img src={coverUrl} alt="" draggable={false} className="music-activity__cover-img" />
-              ) : (
+          <div className={`music-activity__cover${isPlaying ? ' music-activity__cover--playing' : ''}`}>
+            {coverUrl ? (
+              <img src={coverUrl} alt="" draggable={false} className="music-activity__cover-img" />
+            ) : (
+              <div className="music-activity__cover-placeholder">
                 <Music size={16} />
-              )}
-            </div>
-          )}
-          {/* 空态不显示任何文字（避免多语言麻烦），只保留两个电台按钮 */}
-          {!empty && (
-          <div className="music-activity__info">
-            <span className="music-activity__name" title={title}>
-              {title}
-            </span>
-            <span className="music-activity__artist" title={subtitle}>
-              {subtitle}
-            </span>
+              </div>
+            )}
           </div>
-          )}
-          <div className="music-activity__playback">
-            {/* 音量按钮：仅播放态显示；空态不需要 */}
-            {!empty && (
+          <div className="music-activity__info">
+            <span className="music-activity__name" title={title}>{title}</span>
+            <span className="music-activity__artist" title={subtitle}>{subtitle}</span>
+          </div>
+          <div className="music-activity__actions">
+            {canFavorite && (
+              <button
+                className={`music-activity__btn music-activity__btn--fav${isFavored ? ' is-favored' : ''}`}
+                onClick={(e) => { e.stopPropagation(); handleToggleFavorite() }}
+                title={t('audio.nowPlaying.favorite', { defaultValue: '收藏' })}
+              >
+                <Heart size={14} fill={isFavored ? 'currentColor' : 'none'} />
+              </button>
+            )}
+            <button
+              className={`music-activity__btn${acestepState?.showLyrics ? ' is-active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); handleToggleLyrics() }}
+              title={t('acestep.toggleLyrics', { defaultValue: '桌面歌词' })}
+            >
+              <ListMusic size={14} />
+            </button>
             <button
               className="music-activity__btn music-activity__btn--volume"
               onClick={(e) => { e.stopPropagation(); handleVolumeToggle() }}
@@ -356,52 +429,42 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             >
               {currentVolume > 0 ? <Volume2 size={13} /> : <VolumeX size={13} />}
             </button>
-            )}
-            {canPrev && (
-              <button
-                className="music-activity__btn"
-                onClick={(e) => { e.stopPropagation(); handlePrev() }}
-                title={t('acestep.prev', { defaultValue: '上一首' })}
-              >
-                <SkipForward size={14} style={{ transform: 'scaleX(-1)' }} />
-              </button>
-            )}
-            {activeSource ? (
-              <button
-                className="music-activity__btn music-activity__btn--play"
-                onClick={(e) => { e.stopPropagation(); handleTogglePlay() }}
-                title={isPlaying ? t('acestep.pause', { defaultValue: '暂停' }) : t('acestep.play', { defaultValue: '播放' })}
-              >
-                {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-              </button>
-            ) : (
-              <>
-                <button
-                  className="music-activity__btn music-activity__btn--radio"
-                  onClick={(e) => { e.stopPropagation(); startSongRadio() }}
-                  title={t('audio.island.radio.song', { defaultValue: '歌曲电台' })}
-                >
-                  <Radio size={18} />
-                </button>
-                <button
-                  className="music-activity__btn music-activity__btn--radio music-activity__btn--play"
-                  onClick={(e) => { e.stopPropagation(); void startMusicRadio() }}
-                  title={t('audio.island.radio.music', { defaultValue: '纯音乐电台' })}
-                >
-                  <AudioLines size={18} />
-                </button>
-              </>
-            )}
-            {canSkip && (
-              <button
-                className="music-activity__btn"
-                onClick={(e) => { e.stopPropagation(); handleNext() }}
-                title={t('acestep.next', { defaultValue: '下一首' })}
-              >
-                <SkipForward size={14} />
-              </button>
-            )}
           </div>
+        </div>
+
+        {/* 第二行：进度条（可点跳转，无时间数字） */}
+        <div
+          className="music-activity__progress music-activity__progress--bar"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (activeSource === 'acestep' && acestepState && acestepState.duration > 0) {
+              const rect = e.currentTarget.getBoundingClientRect()
+              const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+              sendAceStepCommand('seek', { time: ratio * acestepState.duration })
+            }
+          }}
+        >
+          <div className="music-activity__progress-fill" style={{ width: `${Math.min(100, progress)}%` }} />
+        </div>
+
+        {/* 第三行：底部居中播放控制 */}
+        <div className="music-activity__controls">
+          {canPrev && (
+            <button className="music-activity__btn" onClick={(e) => { e.stopPropagation(); handlePrev() }}>
+              <SkipForward size={14} style={{ transform: 'scaleX(-1)' }} />
+            </button>
+          )}
+          <button
+            className="music-activity__btn music-activity__btn--play"
+            onClick={(e) => { e.stopPropagation(); handleTogglePlay() }}
+          >
+            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+          </button>
+          {canSkip && (
+            <button className="music-activity__btn" onClick={(e) => { e.stopPropagation(); handleNext() }}>
+              <SkipForward size={14} />
+            </button>
+          )}
         </div>
       </div>
     )

@@ -98,30 +98,32 @@
   }
 
   // ================================================================
-  // 空态精简：没有歌曲/电台时，compact 只留眼睛，expanded 只留一行聚拢的入口。
-  // 隐藏一切播放态专属元素（音浪背景/进度/时间/音量），避免 0:00 与空轨道的冗余。
+  // 空态：歌曲 / 纯音乐 互斥模式选择（两个图标按钮，默认歌曲，无文字）
   // ================================================================
-  &--empty {
-    &.music-activity--expanded {
-      // 与播放态一致：内容靠左，info 撑开把电台按钮推到右侧（两端分布，不居中）
-      .music-activity__main {
-        justify-content: flex-start;
-      }
-      .music-activity__info {
-        flex: 1;
-        align-items: flex-start;
-      }
-    }
+  &__mode-switch {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-2);
+    width: 100%;
   }
 
-  // 空态一键电台按钮：两个并列大按钮（空态无文字，按钮即全部内容）
-  &__btn--radio {
+  &__mode-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 34px;
     height: 34px;
-    color: var(--color-text-secondary);
-    background: color-mix(in oklch, var(--island-accent) 8%, transparent);
+    border-radius: var(--size-radius-sm);
+    color: var(--color-text-muted);
+    background: color-mix(in oklch, var(--color-text-primary) 6%, transparent);
+    transition: color 0.15s ease, background 0.15s ease;
 
     &:hover {
+      color: var(--color-text-primary);
+      background: color-mix(in oklch, var(--color-text-primary) 12%, transparent);
+    }
+    // 选中态：强调色高亮
+    &.is-active {
       color: var(--island-accent);
       background: color-mix(in oklch, var(--island-accent) 20%, transparent);
     }
@@ -348,6 +350,52 @@
       opacity: 0.4;
       cursor: not-allowed;
     }
+  }
+
+  // === 播放态（三行：main / progress / controls）===
+  &--player {
+    gap: var(--size-gap-2);
+  }
+
+  // 第一行右侧：收藏 / 歌词 / 音量
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--size-gap-0-5);
+    flex-shrink: 0;
+  }
+
+  // 红心收藏：点亮态用暖红 token，与强调色区分
+  &__btn--fav {
+    &.is-favored {
+      color: var(--color-error);
+      &:hover { color: var(--color-error); background: color-mix(in oklch, var(--color-error) 20%, transparent); }
+    }
+  }
+
+  // 封面占位（参考图淡蓝 MUSIC PLAYER 方块）：无真实封面时的视觉锚点
+  &__cover-placeholder {
+    color: var(--island-accent);
+    font-size: var(--font-size-xxs);
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+
+  // 第二行进度条：在 player 三行布局里铺满整行宽度
+  .music-activity__progress--bar {
+    width: 100%;
+    flex: none;
+  }
+
+  // 第三行播放控制：底部居中
+  &__controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--size-gap-3);
+    width: 100%;
   }
 }
 
