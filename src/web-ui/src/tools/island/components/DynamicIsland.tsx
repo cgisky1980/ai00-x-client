@@ -105,6 +105,12 @@ export const DynamicIsland: React.FC = () => {
 
   return createPortal(
     <>
+      {/* 岛外左侧表情挂件：body 下的独立兄弟节点，不进入岛内容流。
+          compact 显示、展开淡出；绝不影响 160×40 胶囊的 padding/元素。 */}
+      <div className={`daozai-layer daozai-layer--${state}`} aria-hidden="true">
+        <div className="daozai-pet" />
+      </div>
+
       <div
         className={`dynamic-island no-penetrate ${stateClass}${playingClass}`}
         onMouseEnter={onMouseEnter}

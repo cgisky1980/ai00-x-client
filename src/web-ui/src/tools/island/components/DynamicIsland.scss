@@ -142,3 +142,32 @@
 .dynamic-island--compact .dynamic-island__row--tools {
   display: none;
 }
+
+// ============================================================
+// 岛外左侧表情挂件（岛仔 Daozai 式，body 下独立节点）
+// 不进入 .dynamic-island 内容流，不受其 overflow:hidden 裁剪；
+// 不改动胶囊的 160×40 / padding / 任何元素。
+// ============================================================
+.daozai-layer {
+  position: fixed;
+  // 岛 top:8px + (40-30)/2 = 13，垂直居中于 compact 胶囊
+  top: 13px;
+  // 岛左缘 = 50%-80px；再减 6px 间隙与 48px 挂件宽 = 50%-134px
+  left: calc(50% - 134px);
+  width: 48px;
+  height: 30px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: var(--z-chrome-island);
+
+  &--compact { opacity: 1; }
+}
+
+.daozai-pet {
+  width: 48px;
+  height: 30px;
+  // 步骤2：纯色占位；步骤3 换成序列帧背景图
+  background: color-mix(in oklch, var(--color-accent-400) 40%, transparent);
+  border-radius: var(--size-radius-sm);
+}
