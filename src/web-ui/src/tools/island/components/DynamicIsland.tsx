@@ -85,12 +85,25 @@ export const DynamicIsland: React.FC = () => {
 
   // Per-row window openers（音乐独立窗口：弹层已退役，按钮直接开「乐」窗）。
   // SFX 入口开窗后广播分区导航，音乐窗 listen `music://navigate` 定位音效分区。
+  //
+  // 点击音乐/音效块开窗时块内做了 stopPropagation（避免误折叠岛），
+  // 但这也跳过了 onClick 的 hover-lock 逻辑，导致岛停留在「点击展开」态、
+  // 鼠标移开不折叠。开窗时主动切回「hover 展开未锁」态，使 mouseleave 能缩回。
+  const openWindowAndReleaseLock = useCallback(() => {
+    if (state === 'expanded') {
+      hoverExpandedRef.current = true
+      hoverLockedRef.current = false
+    }
+  }, [state])
+
   const openMusicWindow = useCallback(() => {
+    openWindowAndReleaseLock()
     WindowAPI.open('music').catch((e) =>
       console.error('[DynamicIsland] open music window failed:', e),
     )
-  }, [])
+  }, [openWindowAndReleaseLock])
   const openSfxWindow = useCallback(() => {
+    openWindowAndReleaseLock()
     WindowAPI.open('music')
       // 窗口创建后前端还需 bootstrap + 懒加载，延迟广播确保监听已就绪
       .then(() => new Promise((resolve) => setTimeout(resolve, 800)))
@@ -98,7 +111,7 @@ export const DynamicIsland: React.FC = () => {
       .catch((e) =>
         console.error('[DynamicIsland] open sfx window failed:', e),
       )
-  }, [])
+  }, [openWindowAndReleaseLock])
 
   const stateClass = `dynamic-island--${state}`
   const playingClass = isPlaying ? ' dynamic-island--playing' : ''
