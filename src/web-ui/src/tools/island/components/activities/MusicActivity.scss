@@ -103,13 +103,13 @@
   // ================================================================
   &--empty {
     &.music-activity--expanded {
+      // 与播放态一致：内容靠左，info 撑开把电台按钮推到右侧（两端分布，不居中）
       .music-activity__main {
-        justify-content: center;
-        gap: var(--size-gap-3);
+        justify-content: flex-start;
       }
       .music-activity__info {
-        flex: 0 1 auto;
-        align-items: center;
+        flex: 1;
+        align-items: flex-start;
       }
     }
   }
