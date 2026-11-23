@@ -167,6 +167,19 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     [],
   )
 
+  // 空态播放：按当前选中的模式启动对应电台
+  // 歌曲电台→跨窗口命令给权威端桥接；纯音乐电台→VRM 生成式（风格随机）
+  const handleEmptyPlay = useCallback(async () => {
+    if (mode === 'song') {
+      emit('music-source://radio-command', { action: 'start' }).catch((e) =>
+        console.warn('[MusicActivity] start song radio failed:', e),
+      )
+    } else {
+      await useBgmPlayerStore.getState().requestActive('vrm-radio').catch(() => {})
+      await audio.startRadio('random')
+    }
+  }, [mode, audio])
+
   // ---- Unified volume toggle (acts on active source) ----
   const handleVolumeToggle = () => {
     if (activeSource === 'acestep' && acestepState) {
@@ -347,24 +360,36 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
           : 0
 
     if (empty) {
-      // 空态：歌曲 / 纯音乐 互斥选择（只切模式不启动，默认歌曲）
+      // 空态：第一行歌曲/纯音乐互斥选择（默认歌曲），下面保留播放按钮，
+      // 点击按选中模式启动对应电台。
       return (
         <div
           className="music-activity music-activity--expanded music-activity--empty"
           onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
         >
-          <div className="music-activity__mode-switch">
+          <div className="music-activity__main">
+            <div className="music-activity__mode-switch">
+              <button
+                className={`music-activity__mode-btn${mode === 'song' ? ' is-active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setMode('song') }}
+              >
+                <Radio size={16} />
+              </button>
+              <button
+                className={`music-activity__mode-btn${mode === 'music' ? ' is-active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setMode('music') }}
+              >
+                <AudioLines size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="music-activity__controls">
             <button
-              className={`music-activity__mode-btn${mode === 'song' ? ' is-active' : ''}`}
-              onClick={(e) => { e.stopPropagation(); setMode('song') }}
+              className="music-activity__btn music-activity__btn--play"
+              onClick={(e) => { e.stopPropagation(); void handleEmptyPlay() }}
+              title={t('acestep.play', { defaultValue: '播放' })}
             >
-              <Radio size={16} />
-            </button>
-            <button
-              className={`music-activity__mode-btn${mode === 'music' ? ' is-active' : ''}`}
-              onClick={(e) => { e.stopPropagation(); setMode('music') }}
-            >
-              <AudioLines size={16} />
+              <Play size={14} />
             </button>
           </div>
         </div>
