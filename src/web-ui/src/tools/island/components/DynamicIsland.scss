@@ -106,6 +106,35 @@
   position: relative;
 }
 
+// === Jelly / 果冻形变（展开·收起各播一次）===
+// 果冻挂在 content 内层而非岛本体：岛本体的 transform 被居中 + 呼吸动画占用，
+// content 的 scale 与之独立。配合外框 width/height 的弹性曲线 = Q 弹复合手感。
+// class 切换时对应 animation 重播一次（compact 初始也会播一次，无害）。
+.dynamic-island--compact .dynamic-island__content {
+  animation: islandJellyOut 0.5s ease-out;
+}
+.dynamic-island--expanded .dynamic-island__content {
+  animation: islandJellyIn 0.55s ease-out;
+}
+
+// 展开：像果冻被横向拉开——先压扁拉宽，回弹，再收敛
+@keyframes islandJellyIn {
+  0%   { transform: scale(0.88, 1.12); }
+  32%  { transform: scale(1.06, 0.92); }
+  58%  { transform: scale(0.97, 1.04); }
+  78%  { transform: scale(1.02, 0.99); }
+  100% { transform: scale(1, 1); }
+}
+
+// 收起：反向 Q 弹——先拉长压窄，回弹，再收敛
+@keyframes islandJellyOut {
+  0%   { transform: scale(1.1, 0.9); }
+  36%  { transform: scale(0.94, 1.08); }
+  64%  { transform: scale(1.03, 0.97); }
+  84%  { transform: scale(0.99, 1.01); }
+  100% { transform: scale(1, 1); }
+}
+
 // === Rows — single-page 3-row stack (expanded) ===
 // compact 态整岛只是音乐胶囊：仅音乐行占位，sfx/tools 行隐藏。
 .dynamic-island__rows {
@@ -184,5 +213,12 @@ html[data-motion='full'] {
   .dynamic-island__row--sfx,
   .dynamic-island__row--tools {
     transition-property: flex-basis, opacity, transform, border-color !important;
+  }
+  // 果冻/呼吸动画时长也要恢复（全局钳制把 animation-duration 压成 0.01ms）
+  .dynamic-island--playing {
+    animation-duration: 2.4s !important;
+  }
+  .dynamic-island__content {
+    animation-duration: 0.55s !important;
   }
 }
