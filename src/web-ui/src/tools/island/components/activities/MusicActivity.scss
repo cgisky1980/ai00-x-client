@@ -70,7 +70,9 @@
   &__spectrum-bg-bar {
     flex: 1; // auto-fill column width
     border-radius: 1px;
-    background: color-mix(in oklch, var(--color-accent-500) 85%, transparent);
+    // 岛是恒暗胶囊，主题 accent（浅色主题下是深青）叠黑底会太暗看不见。
+    // 用主题 primary 的色相 + 大量白色混合：既呼应主题又保证在黑底上始终明亮。
+    background: color-mix(in oklch, var(--color-primary) 38%, white);
     transition: height 0.06s linear;
     min-height: 2px;
   }

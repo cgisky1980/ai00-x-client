@@ -120,6 +120,11 @@ export default defineConfig(({ mode, command }) => {
       'react/jsx-dev-runtime',
       'mermaid',
       'mermaid/dist/mermaid.esm.min.mjs',
+      // @ai00-x/vditor 是 UMD 产物（packages/vditor/dist/index.js，无 ESM export default）。
+      // build 靠 commonjsOptions 转换，但 dev 必须靠 optimizeDeps 预构建做 CJS→ESM，
+      // 否则 Vite dev 原生 ESM 加载报 "does not provide an export named 'default'"，
+      // 导致所有新窗口（音乐/桌宠等）加载失败。
+      '@ai00-x/vditor',
     ],
   },
 
