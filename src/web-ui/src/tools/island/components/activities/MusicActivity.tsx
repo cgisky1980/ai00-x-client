@@ -257,8 +257,10 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     const isPlaying = activeSource === 'acestep' ? acestepIsPlaying : vrmIsPlaying
     const currentTime = activeSource === 'acestep' ? (acestepState?.currentTime ?? 0) : (bgmChannel?.position_secs ?? 0)
     const mirrored = [...compactBands].reverse()
+    const empty = !activeSource
     return (
-      <div className="music-activity music-activity--compact">
+      <div className={`music-activity music-activity--compact${empty ? ' music-activity--empty' : ''}`}>
+        {!empty && (
         <div className="music-activity__spectrum-bg">
           <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--left">
             {mirrored.map((v, i) => (
@@ -279,6 +281,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             ))}
           </div>
         </div>
+        )}
         {/* 机器人眼睛替换原音符图标（RoboEyes 风格 SVG，播放时笑眼） */}
         <IslandEyes playing={isPlaying} />
         {isPlaying && (
@@ -345,8 +348,10 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
         ? convertFileSrc(acestepState.coverPath)
         : null
 
+    const empty = !activeSource
     return (
-      <div className="music-activity music-activity--expanded">
+      <div className={`music-activity music-activity--expanded${empty ? ' music-activity--empty' : ''}`}>
+        {!empty && (
         <div className="music-activity__spectrum-bg">
           <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--left">
             {expandedMirrored.map((v, i) => (
@@ -367,6 +372,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             ))}
           </div>
         </div>
+        )}
         {/* Main line: album art + info + playback cluster */}
         <div className="music-activity__main">
           <div
@@ -424,7 +430,8 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             )}
           </div>
         </div>
-        {/* Sub line: times + progress + utility cluster */}
+        {/* Sub line: times + progress + utility cluster — 空态精简隐藏 */}
+        {!empty && (
         <div className="music-activity__sub">
           <span className="music-activity__time music-activity__time--cur">
             {formatTime(currentTime)}
@@ -470,6 +477,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             </button>
           </div>
         </div>
+        )}
       </div>
     )
   }
