@@ -100,32 +100,41 @@
   // ================================================================
   // 空态：歌曲 / 纯音乐 互斥模式选择（两个图标按钮，默认歌曲，无文字）
   // ================================================================
+  &.music-activity--empty {
+    // 紧凑：内容靠上聚拢，不让两行被均分撑散
+    justify-content: flex-start;
+    gap: var(--size-gap-2);
+  }
+
   &__mode-switch {
     display: flex;
     align-items: center;
     gap: var(--size-gap-2);
-    width: 100%;
   }
 
+  // 模式卡：参考图封面方块质感，选中态淡色底 + 描边，未选中低调描边
   &__mode-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: var(--size-radius-sm);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--size-radius-md);
+    border: 1px solid color-mix(in oklch, var(--color-text-primary) 14%, transparent);
     color: var(--color-text-muted);
-    background: color-mix(in oklch, var(--color-text-primary) 6%, transparent);
-    transition: color 0.15s ease, background 0.15s ease;
+    background: color-mix(in oklch, var(--color-text-primary) 4%, transparent);
+    transition: all 0.16s ease;
 
     &:hover {
       color: var(--color-text-primary);
-      background: color-mix(in oklch, var(--color-text-primary) 12%, transparent);
+      border-color: color-mix(in oklch, var(--color-text-primary) 28%, transparent);
     }
-    // 选中态：强调色高亮
+    // 选中态：强调色描边 + 淡底 + 强调色图标，像被点亮的封面
     &.is-active {
       color: var(--island-accent);
-      background: color-mix(in oklch, var(--island-accent) 20%, transparent);
+      border-color: color-mix(in oklch, var(--island-accent) 55%, transparent);
+      background: color-mix(in oklch, var(--island-accent) 16%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in oklch, var(--island-accent) 12%, transparent);
     }
   }
 
@@ -312,18 +321,19 @@
       transform: scale(0.9);
     }
 
-    // 主播放钮：30px 圆形，浓青亮色 tint + glow（岛专用 token，黑底醒目）
+    // 主播放钮：参考图风格——白色实心三角 + 极淡圆底，克制无 glow
     &--play {
-      width: 30px;
-      height: 30px;
+      width: 28px;
+      height: 28px;
       border-radius: var(--size-radius-full);
-      color: var(--island-accent);
-      background: color-mix(in oklch, var(--island-accent) 18%, transparent);
+      color: var(--color-text-primary);
+      background: color-mix(in oklch, var(--color-text-primary) 8%, transparent);
 
       &:hover {
-        background: color-mix(in oklch, var(--island-accent) 30%, transparent);
-        box-shadow: 0 0 10px color-mix(in oklch, var(--island-accent) 24%, transparent);
+        color: var(--color-text-primary);
+        background: color-mix(in oklch, var(--color-text-primary) 16%, transparent);
       }
+      svg { fill: currentColor; }
     }
 
     &--volume {
