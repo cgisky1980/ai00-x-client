@@ -151,7 +151,7 @@ copy dist\main.zip target\release\main.zip           # 替换 exe 旁资产
    - `AI00_X_DEV_MODE=1` 时 `local_web_origin()`（core `server_endpoints.rs`）返回 1422，主窗口/工作台 URL 变成 `http://127.0.0.1:1422/main/<page>.html`，改前端即热更新；可选 `AI00_X_OPEN_DEVTOOLS=1` 自动开 DevTools。
    - loader 仍由内嵌 2100 提供（与正式一致），只有主窗口/工作台走 Vite。
    - Vite 首次启动会 "Re-optimizing dependencies" 并自动整页 reload；工作台首次打开可能白屏十几秒（模块图编译），属正常。
-   - 注意：Vite 进程必须常驻（工具会话的后台命令结束会被回收），断掉后窗口刷新即 404。
+   - 注意：Vite 进程必须常驻（工具会话的后台命令结束会被回收），断掉后窗口刷新即 404。要脱离工具会话常驻，把上面命令写进 `%TEMP%\ai00x-vite-dev.cmd`（输出重定向到 `target/vite-dev.log`）再用 schtasks 跑一次（同第 2 步）。
 
 
 
