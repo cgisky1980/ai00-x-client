@@ -3,6 +3,9 @@
 .island-eyes {
   display: block;
   flex-shrink: 0;
+  // 游移±4.8px + 心跳1.22x 会超出 56×35 viewBox；允许溢出避免眼睛被裁。
+  // 外层胶囊 176px 宽远大于眼睛组，溢出部分仍在岛内，不会被二次裁剪。
+  overflow: visible;
 
   // SVG 几何属性（x/y/width/height/rx）在 Chromium 可作为 CSS 属性过渡，
   // 让表情切换平滑 morph（RobotEye 的 500ms morph 思想）。
