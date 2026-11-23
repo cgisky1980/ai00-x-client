@@ -3208,6 +3208,10 @@ fn required_params(tools: Option<&[Value]>, name: &str) -> Vec<(String, bool)> {
 }
 
 /// 从破损参数文本里逐个提取必填键的值，重建最小合法对象。
+///
+/// 注意：`content` 等正文字段必须保留精确字节。真实事故（2026-11-24 实机）：
+/// 抢救时对值做了 trim，`write` 的 content 丢了尾随换行 → 计划要求以 LF 结尾
+/// 的验收命令失败 → 按「本地一次不过即升级云端」返工，白烧一轮远端。
 fn salvage_tool_arguments(raw: &str, required: &[(String, bool)]) -> Option<String> {
     if required.is_empty() {
         return None;
@@ -3217,7 +3221,14 @@ fn salvage_tool_arguments(raw: &str, required: &[(String, bool)]) -> Option<Stri
         let value = if *is_array {
             extract_json_array(raw, key)?
         } else {
-            Value::String(extract_json_string(raw, key)?)
+            let text = extract_json_string(raw, key)?;
+            // 只有路径/模式类键去首尾空白；content 等正文保持原样。
+            let text = if key.contains("path") || key == "pattern" || key == "include" {
+                text.trim().to_string()
+            } else {
+                text
+            };
+            Value::String(text)
         };
         out.insert(key.clone(), value);
     }
@@ -3256,8 +3267,9 @@ fn extract_json_string(raw: &str, key: &str) -> Option<String> {
             }
         }
         if let Ok(Value::String(s)) = serde_json::from_str::<Value>(&format!("\"{out}\"")) {
-            let s = s.trim().to_string();
-            if !s.is_empty() {
+            // 不在这里 trim：正文（write content）依赖精确字节；路径类键的
+            // 去空白由 salvage_tool_arguments 按 key 处理。
+            if !s.trim().is_empty() {
                 return Some(s);
             }
         }
