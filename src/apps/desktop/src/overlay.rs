@@ -20,6 +20,15 @@ pub struct GlobalClickEvent {
     pub y: i32,
 }
 
+/// 全局鼠标位置（供灵动岛眼睛跟随用）。
+/// 岛窗口是鼠标穿透的（set_ignore_cursor_events），网页收不到 pointermove，
+/// 所以由这个 Rust 循环（已在 60Hz 采 device_query 坐标）节流后 emit 给前端。
+#[derive(Clone, serde::Serialize)]
+pub struct GlobalPointerEvent {
+    pub x: i32,
+    pub y: i32,
+}
+
 #[derive(Clone, serde::Serialize)]
 pub struct UnderlayMouseEvent {
     pub event_type: String,
@@ -71,6 +80,7 @@ pub fn spawn_overlay_thread(app_handle: tauri::AppHandle) {
     thread::spawn(move || {
         let device_state = DeviceState::new();
         let mut last_left_pressed = false;
+        let mut pointer_tick: u32 = 0;
 
         loop {
             let state = app_handle.state::<OverlayState>();
@@ -87,6 +97,13 @@ pub fn spawn_overlay_thread(app_handle: tauri::AppHandle) {
                 let _ = app_handle.emit("global_click", GlobalClickEvent { x: mx, y: my });
             }
             last_left_pressed = left_pressed;
+
+            // 每 2 帧（~30Hz）发射全局鼠标位置：岛窗口鼠标穿透，网页无法自己获取坐标。
+            // 眼睛跟随只需 30Hz，节流避免 60Hz emit 的事件洪泛。
+            pointer_tick = pointer_tick.wrapping_add(1);
+            if pointer_tick % 2 == 0 {
+                let _ = app_handle.emit("global_pointer", GlobalPointerEvent { x: mx, y: my });
+            }
 
             let (should_penetrate, last_val) = {
                 let state = app_handle.state::<OverlayState>();

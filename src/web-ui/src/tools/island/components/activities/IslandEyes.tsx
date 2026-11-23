@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react'
+import { listen } from '@tauri-apps/api/event'
 import './IslandEyes.scss'
 
 /**
@@ -84,13 +85,13 @@ const PLAY_SEQUENCE: EyeExpression[] = [
   ...ALL_EXPRESSIONS,
 ]
 
-// 几何：viewBox 56×35，两眼中心 x=16/40 y=17.5，半径 8（直径占岛高 46%，接近 bbot 比例）
+// 几何：viewBox 56×35，两眼中心 x=14/42 y=17.5，半径 10（更大、眼距更宽）
 const VB_W = 56
 const VB_H = 35
-const CX_L = 16
-const CX_R = 40
+const CX_L = 12
+const CX_R = 44
 const CY = 17.5
-const R = 8
+const R = 10
 const SPAN = 2 * R + 1.2 // 眼睑行程（含抗锯齿余量，bbot lidSlack 思想）
 
 const isMotionFull = () => document.documentElement.getAttribute('data-motion') === 'full'
@@ -164,18 +165,26 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
   }, [expression])
 
   // 鼠标跟随（bbot 饱和衰减：reach=容器较大边×2.2，mag=t(2-t)）
+  // 岛窗口鼠标穿透（set_ignore_cursor_events），网页收不到 pointermove，
+  // 所以监听 Rust overlay 线程 emit 的全局鼠标坐标（每 2 帧 ~30Hz）。
   useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      pointer.current = { x: e.clientX, y: e.clientY, t: performance.now(), has: true }
-    }
-    const onLeave = () => { pointer.current.has = false }
-    window.addEventListener('pointermove', onMove, { passive: true })
-    window.addEventListener('pointerdown', onMove, { passive: true })
-    window.addEventListener('blur', onLeave)
+    let unlisten: (() => void) | null = null
+    let disposed = false
+    listen<{ x: number; y: number }>('global_pointer', (e) => {
+      if (disposed) return
+      pointer.current = {
+        x: e.payload.x - window.screenX,
+        y: e.payload.y - window.screenY,
+        t: performance.now(),
+        has: true,
+      }
+    }).then((fn) => {
+      if (disposed) fn()
+      else unlisten = fn
+    }).catch(() => {})
     return () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerdown', onMove)
-      window.removeEventListener('blur', onLeave)
+      disposed = true
+      unlisten?.()
     }
   }, [])
 
@@ -196,6 +205,7 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
     let last = now0
     let blinkAt = now0 + rand(1200, 4200)
     let blinkAnim: null | { start: number; dur: number } = null
+    let doublePending = false
     let blinkV = 0
     let wanderAt = now0 + rand(700, 2600)
     let wanderTo = { x: 0, y: 0 }
@@ -241,14 +251,22 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
       }
 
       // 眨眼：首次 1.2-4.2s，之后 2.2-6s，26% 概率双眨；sin(pπ)^0.55 曲线
+      // 注意：p 必须 clamp 到 [0,1]——负数时 Math.pow(负数, 0.55)=NaN，
+      // 会让 scaleY 变 NaN、transform 失效、眼睛跳到 viewBox 左上角（曾出现的 bug）。
       if (full && !loveRef.current && shape.current.lidT.x + shape.current.lidB.x < 0.9) {
         if (blinkAnim) {
-          const p = Math.min(1, (now - blinkAnim.start) / blinkAnim.dur)
+          const p = Math.max(0, Math.min(1, (now - blinkAnim.start) / blinkAnim.dur))
           blinkV = Math.pow(Math.sin(p * Math.PI), 0.55)
           if (p >= 1) {
             blinkAnim = null; blinkV = 0
-            blinkAt = now + rand(2200, 6000)
-            if (Math.random() < 0.26) blinkAnim = { start: now + 130, dur: 240 } // 双眨
+            if (doublePending) {
+              // 双眨第二下：立即开始，不用未来时间戳（未来 start 会产生负 p）
+              blinkAnim = { start: now, dur: 240 }
+              doublePending = false
+            } else {
+              blinkAt = now + rand(2200, 6000)
+              if (Math.random() < 0.26) doublePending = true
+            }
           }
         } else if (now >= blinkAt) {
           blinkAnim = { start: now, dur: 260 }
