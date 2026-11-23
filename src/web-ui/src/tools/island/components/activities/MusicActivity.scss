@@ -18,6 +18,13 @@
     padding: 0 var(--size-gap-3);
     width: 100%;
     position: relative; // for spectrum-bg + mini-time absolute positioning
+
+    // 最小态音浪：往下沉 2px 贴合胶囊底缘（胶囊圆角使 inset:0 看着悬空），
+    // 并加透明度让音浪退到眼睛/时间之后，不抢视觉焦点。
+    .music-activity__spectrum-bg {
+      bottom: -2px;
+      opacity: 0.62;
+    }
   }
 
   &__icon {
