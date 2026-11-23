@@ -21,72 +21,8 @@ import type { SongEntry } from '../../../acestep/types'
 import {
   parseEnhancedLrc,
 } from '../../../acestep/utils/lrcParser'
+import { IslandEyes } from './IslandEyes'
 import './MusicActivity.scss'
-
-// ---- 表情序列帧（素材来自岛仔 Daozai，MIT）----
-// 单表情 delighted 16 帧竖排，替换 compact 态音符图标位置（岛内左侧）。
-// RAF 写 background-position-y，避开全局 prefers-reduced-motion 对 CSS animation 的钳制。
-const EXPR_FRAME_TIMES = [
-  0.35, 0.12, 0.12, 0.12, 0.13, 0.13, 0.14, 0.40,
-  0.18, 0.14, 0.12, 0.12, 0.12, 0.14, 0.14, 0.45,
-]
-// 只在「眯眼笑 + 腮红」的好看帧段循环（3-11）；跳过纯白竖条/普通睁眼帧。
-const EXPR_LOOP_FRAMES = [3, 4, 5, 6, 7, 8, 9, 10, 11]
-const EXPR_LOOP_TIMES = EXPR_LOOP_FRAMES.map((i) => EXPR_FRAME_TIMES[i])
-const EXPR_TOTAL = EXPR_LOOP_TIMES.reduce((a, b) => a + b, 0)
-const EXPR_FRAME_H = 35 // 每帧显示高度（56×35，比原始 48×30 大一档）
-const EXPR_EXPR_W = 56
-const EXPR_REST_FRAME = 7
-const EXPR_URL = `${import.meta.env.BASE_URL}daozai/expressions/03-delighted.png`
-
-/** 表情序列帧：data-motion=full 时循环播放，否则停第 7 帧。 */
-function useExpressionFrames(ref: React.RefObject<HTMLDivElement | null>) {
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.backgroundImage = `url(${EXPR_URL})`
-    el.style.backgroundSize = `${EXPR_EXPR_W}px ${EXPR_FRAME_H * EXPR_FRAME_TIMES.length}px`
-
-    const setFrame = (idx: number) => {
-      el.style.backgroundPositionY = `${-idx * EXPR_FRAME_H}px`
-    }
-    const isFull = () => document.documentElement.getAttribute('data-motion') === 'full'
-
-    let raf = 0
-    let elapsed = 0
-    let last = 0
-    const tick = (now: number) => {
-      if (!isFull()) { setFrame(EXPR_REST_FRAME); raf = 0; return }
-      if (!last) last = now
-      elapsed += (now - last) / 1000
-      last = now
-      if (elapsed >= EXPR_TOTAL) elapsed = 0
-      let acc = 0
-      let idx = EXPR_REST_FRAME
-      for (let i = 0; i < EXPR_LOOP_TIMES.length; i++) {
-        acc += EXPR_LOOP_TIMES[i]
-        if (elapsed < acc) { idx = EXPR_LOOP_FRAMES[i]; break }
-      }
-      setFrame(idx)
-      raf = requestAnimationFrame(tick)
-    }
-
-    if (isFull()) raf = requestAnimationFrame(tick)
-    else setFrame(EXPR_REST_FRAME)
-
-    const observer = new MutationObserver(() => {
-      cancelAnimationFrame(raf)
-      raf = 0
-      elapsed = 0
-      last = 0
-      if (isFull()) raf = requestAnimationFrame(tick)
-      else setFrame(EXPR_REST_FRAME)
-    })
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-motion'] })
-
-    return () => { cancelAnimationFrame(raf); observer.disconnect() }
-  }, [ref])
-}
 
 // ---- AceStep bridge types (mirrored from PlayerBridge.ts) ----
 interface AceStepPlayerState {
@@ -129,8 +65,6 @@ interface MusicActivityProps {
 
 export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) => {
   const { t } = useI18n('vrm')
-  const exprRef = useRef<HTMLDivElement | null>(null)
-  useExpressionFrames(exprRef)
   const audio = useAudioPlayback()
   const masterVolume = useAudioPlaybackStore((s) => s.masterVolume)
   const setMasterVolume = useAudioPlaybackStore((s) => s.setMasterVolume)
@@ -345,10 +279,8 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             ))}
           </div>
         </div>
-        {/* 表情替换原音符图标：素材只有五官（深色岛内才清晰）。
-            div 常驻以便 ref 在挂载时即可绑定；RAF 播放 delighted，
-            data-motion≠full 时停第 7 帧（睁眼脸）。 */}
-        <div className="music-activity__expr" ref={exprRef} />
+        {/* 机器人眼睛替换原音符图标（RoboEyes 风格 SVG，播放时笑眼） */}
+        <IslandEyes playing={isPlaying} />
         {isPlaying && (
           <span className="music-activity__mini-time">
             {formatTime(currentTime)}

@@ -1,0 +1,26 @@
+// === 灵动岛机器人眼睛 ===
+// 设计思想借鉴 RobotEye(MIT) / IrisOLED(MIT) / RoboEyes(GPL-3.0)，独立 SVG 重绘。
+.island-eyes {
+  display: block;
+  flex-shrink: 0;
+
+  // SVG 几何属性（x/y/width/height/rx）在 Chromium 可作为 CSS 属性过渡，
+  // 让表情切换平滑 morph（RobotEye 的 500ms morph 思想）。
+  .eye__ball,
+  .eye__mask {
+    transition:
+      x 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+      y 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+      width 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+      height 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+      rx 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+}
+
+// 减动效：显式 data-motion='full' 不被系统偏好压掉。
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='full']) .island-eyes .eye__ball,
+  html:not([data-motion='full']) .island-eyes .eye__mask {
+    transition: none;
+  }
+}

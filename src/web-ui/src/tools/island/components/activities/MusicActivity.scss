@@ -11,13 +11,13 @@
   display: flex;
   align-items: center;
 
-  // === Compact — spectrum as background, icon left + time right on top ===
+  // === Compact — spectrum as background, 眼睛居中 + 时间靠右 ===
   &--compact {
-    justify-content: space-between;
+    justify-content: center; // 眼睛（.island-eyes）水平居中
     gap: var(--size-gap-1-5);
     padding: 0 var(--size-gap-3);
     width: 100%;
-    position: relative; // for spectrum-bg absolute positioning
+    position: relative; // for spectrum-bg + mini-time absolute positioning
   }
 
   &__icon {
@@ -31,17 +31,6 @@
       color: var(--color-accent-400);
       animation: iconSpin 3s linear infinite;
     }
-  }
-
-  // 表情挂件（替换原音符图标位置）：56×35，比原始 48×30 大一档更清晰。
-  // 背景图/尺寸/逐帧位置由 useExpressionFrames 写入 inline style。
-  &__expr {
-    width: 56px;
-    height: 35px;
-    flex-shrink: 0;
-    background-repeat: no-repeat;
-    position: relative;
-    z-index: 1;
   }
 
   @keyframes iconSpin {
@@ -92,7 +81,11 @@
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
-    position: relative;
+    // 绝对定位靠右，让眼睛始终居中（不随时间显示与否偏移）
+    position: absolute;
+    right: var(--size-gap-3);
+    top: 50%;
+    transform: translateY(-50%);
     z-index: 1;
   }
 
