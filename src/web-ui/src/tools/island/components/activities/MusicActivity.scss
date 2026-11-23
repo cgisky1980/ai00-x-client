@@ -340,7 +340,17 @@
         background: color-mix(in oklch, var(--color-text-primary) 16%, transparent);
       }
       svg { fill: currentColor; }
+
+      // 启动中：淡色底 + 旋转 spinner，禁用态不响应重复点击
+      &.is-starting {
+        opacity: 0.85;
+        cursor: wait;
+        svg { fill: none; }
+      }
     }
+
+    // 旋转动画（电台启动中的即时反馈）
+    &__spin { animation: islandSpin 0.9s linear infinite; }
 
     &--volume {
       color: var(--color-text-muted);
@@ -413,6 +423,11 @@
     gap: var(--size-gap-3);
     width: 100%;
   }
+}
+
+// 启动中 spinner 旋转
+@keyframes islandSpin {
+  to { transform: rotate(360deg); }
 }
 
 // 专辑位呼吸光晕（与岛呼吸动画同节奏）

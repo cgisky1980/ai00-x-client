@@ -8,6 +8,7 @@ import {
   VolumeX,
   Music2,
   Piano,
+  Loader2,
   Heart,
   ListMusic,
 } from 'lucide-react'
@@ -75,6 +76,8 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
 
   // ---- 空态模式选择：'song' 歌曲电台 / 'music' 纯音乐电台（互斥，默认歌曲）----
   const [mode, setMode] = useState<'song' | 'music'>('song')
+  // 电台启动中（拉池/解析/生成有延迟，给即时反馈避免"点了没反应"）
+  const [starting, setStarting] = useState(false)
 
   // ---- 收藏状态：favoritesStore 内存可能陈旧，用 tick 强制重算 ----
   const [favTick, setFavTick] = useState(0)
@@ -169,16 +172,46 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
 
   // 空态播放：按当前选中的模式启动对应电台
   // 歌曲电台→跨窗口命令给权威端桥接；纯音乐电台→VRM 生成式（风格随机）
+  // 启动是异步的（拉池/解析/生成），点后先进入 starting 态给即时反馈。
+  const startTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleEmptyPlay = useCallback(async () => {
-    if (mode === 'song') {
-      emit('music-source://radio-command', { action: 'start' }).catch((e) =>
-        console.warn('[MusicActivity] start song radio failed:', e),
-      )
-    } else {
-      await useBgmPlayerStore.getState().requestActive('vrm-radio').catch(() => {})
-      await audio.startRadio('random')
+    if (starting) return
+    setStarting(true)
+    const finish = () => {
+      setStarting(false)
+      if (startTimerRef.current) { clearTimeout(startTimerRef.current); startTimerRef.current = null }
     }
-  }, [mode, audio])
+    // 兜底：20s 后无论是否成功都退出 starting（生成式电台首次可能较慢/失败）
+    startTimerRef.current = setTimeout(finish, 20000)
+
+    try {
+      if (mode === 'song') {
+        emit('music-source://radio-command', { action: 'start' }).catch((e) => {
+          console.warn('[MusicActivity] start song radio failed:', e)
+          finish()
+        })
+      } else {
+        await useBgmPlayerStore.getState().requestActive('vrm-radio').catch(() => {})
+        await audio.startRadio('random')
+        // VRM 电台 startRadio 返回即已开始，无需等 activeSource
+        finish()
+      }
+    } catch {
+      finish()
+    }
+  }, [mode, audio, starting])
+
+  // 检测到播放真正开始（activeSource 出现）→ 结束 starting
+  useEffect(() => {
+    if (starting && activeSource) {
+      setStarting(false)
+      if (startTimerRef.current) { clearTimeout(startTimerRef.current); startTimerRef.current = null }
+    }
+  }, [starting, activeSource])
+
+  useEffect(() => () => {
+    if (startTimerRef.current) clearTimeout(startTimerRef.current)
+  }, [])
 
   // ---- Unified volume toggle (acts on active source) ----
   const handleVolumeToggle = () => {
@@ -385,11 +418,14 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               </button>
             </div>
             <button
-              className="music-activity__btn music-activity__btn--play"
+              className={`music-activity__btn music-activity__btn--play${starting ? ' is-starting' : ''}`}
               onClick={(e) => { e.stopPropagation(); void handleEmptyPlay() }}
-              title={t('acestep.play', { defaultValue: '播放' })}
+              disabled={starting}
+              title={starting
+                ? t('audio.island.music.starting', { defaultValue: '启动中' })
+                : t('acestep.play', { defaultValue: '播放' })}
             >
-              <Play size={15} />
+              {starting ? <Loader2 size={15} className="music-activity__spin" /> : <Play size={15} />}
             </button>
           </div>
         </div>
