@@ -1,29 +1,20 @@
-// === 灵动岛机器人眼睛 ===
-// 设计思想借鉴 RobotEye(MIT) / IrisOLED(MIT) / RoboEyes(GPL-3.0)，独立 SVG 重绘。
+// === 灵动岛机器人眼睛（bbot 思想独立重写，MIT） ===
 .island-eyes {
   display: block;
   flex-shrink: 0;
-  // 游移±4.8px + 心跳1.22x 会超出 56×35 viewBox；允许溢出避免眼睛被裁。
-  // 外层胶囊 176px 宽远大于眼睛组，溢出部分仍在岛内，不会被二次裁剪。
+  // 眼球随注视/缩放可能超出 viewBox；外层 176px 胶囊有充足余量，不裁剪
   overflow: visible;
 
-  // SVG 几何属性（x/y/width/height/rx）在 Chromium 可作为 CSS 属性过渡，
-  // 让表情切换平滑 morph（RobotEye 的 500ms morph 思想）。
-  .eye__ball,
-  .eye__mask {
-    transition:
-      x 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
-      y 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
-      width 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
-      height 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
-      rx 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  // 眼睑 transform 由 RAF 弹簧每帧写入，不能加 CSS transition 干扰
+  .eye__lidTop,
+  .eye__lidBottom {
+    transition: none;
   }
 }
 
-// 减动效：显式 data-motion='full' 不被系统偏好压掉。
+// 减动效：data-motion=full 时不被系统偏好压掉（RAF 内已有守卫，这里守 CSS）
 @media (prefers-reduced-motion: reduce) {
-  html:not([data-motion='full']) .island-eyes .eye__ball,
-  html:not([data-motion='full']) .island-eyes .eye__mask {
+  html:not([data-motion='full']) .island-eyes * {
     transition: none;
   }
 }

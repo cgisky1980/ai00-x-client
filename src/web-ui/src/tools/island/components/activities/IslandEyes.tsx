@@ -1,357 +1,337 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useRef } from 'react'
 import './IslandEyes.scss'
 
 /**
- * 灵动岛机器人眼睛（参数化 SVG 实现）。
+ * 灵动岛机器人眼睛。
  *
- * 设计思想借鉴（均为独立重写，未复制源码）：
- * - RobotEye (fonzu, MIT) —— EyeParams 参数模型 + 24 矢量表情
- * - IrisOLED (orji123, MIT) —— 表情语义与几何
- * - FluxGarage/RoboEyes (GPL-3.0) —— 实心眼 + 背景遮罩塑形思想
+ * 设计思想借鉴 bbot (bwnd, MIT) —— 圆形眼 + 上下眼睑遮罩 morph + 阻尼弹簧 +
+ * 饱和式注视跟随。独立重写，未复制其源码；不引入 Web Component。
+ * 早期参考 RobotEye(MIT)/IrisOLED(MIT)/BoopFace(MIT) 的表情语义与灵动节奏。
  *
- * 核心：所有表情都是「同一只眼的参数变形」。每只眼用一组几何参数描述，
- * 表情切换只改参数，CSS transition 负责平滑 morph。遮罩色用岛内固定暗色，
- * 在恒暗胶囊上形成 OLED 发光眼观感。
+ * 核心：所有表情都是一组弹簧参数（lidT/lidB 上下眼睑、tilt 眼睑旋转、
+ * lidSkew/scaleSkew 双眼不对称、eyeScale/squashY 大小、gazeX/Y 注视），
+ * 每帧积分逼近目标，永不瞬跳。眼睑是岛背景色矩形滑过强调色眼球并旋转，
+ * 与胶囊背景同色故无接缝（bbot 的 load-bearing 规则）。
  *
- * data-motion≠full 时冻结为静态 normal 眼（跟随用户/系统减动效设置）。
+ * data-motion≠full 时冻结所有弹簧、停用眨眼/游走/跟随。
  */
 
+// bbot 的完整 30 个 mood（expressions.js:19-54），不画嘴故省略 mouth/open/head
 export type EyeExpression =
-  | 'normal' | 'happy' | 'angry' | 'sad' | 'surprised' | 'sleepy'
-  | 'excited' | 'scared' | 'focused' | 'worried' | 'despair' | 'furious'
-  | 'bored' | 'alert' | 'blink' | 'blinkUp' | 'blinkDown'
-  | 'disoriented' | 'lookUp' | 'lookDown' | 'lookLeft' | 'lookRight'
-  | 'winkLeft' | 'winkRight' | 'love'
+  | 'idle' | 'content' | 'relieved' | 'happy' | 'joy' | 'excited' | 'love'
+  | 'pleading' | 'shy' | 'surprised' | 'scared' | 'curious' | 'confused' | 'dizzy'
+  | 'thinking' | 'focused' | 'suspicious' | 'unimpressed' | 'smug' | 'sly'
+  | 'bored' | 'exasperated' | 'worried' | 'guilty' | 'sad' | 'disgusted'
+  | 'annoyed' | 'angry' | 'sleepy' | 'sleep'
 
-interface EyeParams {
-  w: number
-  h: number
-  r: number
-  /** 相对基准位置的偏移 */
-  dx: number
-  dy: number
-  /** 顶部/底部水平切口高度 */
-  topCut: number
-  bottomCut: number
-  /** 顶部左右斜切高度（倒八字/八字眉） */
-  topSlopeL: number
-  topSlopeR: number
-  /** 中心椭圆遮罩（兴奋月牙眼）*/
-  maskRx: number
-  maskRy: number
-  /** 爱心眼（两颗心形代替圆角眼） */
-  heart?: boolean
+interface EyeShape {
+  lidT: number      // 上眼睑闭合 0..1
+  lidB: number      // 下眼睑闭合 0..1
+  tilt: number      // 眼睑旋转角度（bbot: +外八怒 / -内八哀）
+  lidSkew: number   // 右眼额外上眼睑（怀疑/好奇）
+  scaleSkew: number // 右眼大小差（困惑）
+  eyeScale: number  // 整体大小
+  squashY: number   // 垂直压扁
+  gap: number       // 眼距倍率
+  gazeX: number     // 静止注视偏置
+  gazeY: number
 }
 
-type Face = { left: EyeParams; right: EyeParams }
-
-// viewBox 56×35；基准眼 w16 h18 r5，两眼间距加大到 18，
-// 左眼 x=3、右眼 x=37（眼组 3..53 中心=28 正好居中），居中 y=(35-18)/2=8.5
-const VB_W = 56
-const VB_H = 35
-const BASE_X_L = 3
-const BASE_X_R = 37
-const BASE_Y = 9
-
-const baseEye = (): EyeParams => ({
-  w: 16, h: 18, r: 5, dx: 0, dy: 0,
-  topCut: 0, bottomCut: 0, topSlopeL: 0, topSlopeR: 0, maskRx: 0, maskRy: 0,
-  heart: false,
-})
-
-/** 表情 →  Face 几何。参照 RobotEye re_gen_* 与 IrisOLED 位图 bbox 换算到 56×35。 */
-function buildFace(expr: EyeExpression): Face {
-  const L = baseEye()
-  const R = baseEye()
-  const both = (fn: (e: EyeParams) => void) => { fn(L); fn(R) }
-
-  switch (expr) {
-    case 'love': // 双爱心眼
-      both((e) => { e.heart = true })
-      break
-    case 'happy': // 眯眼笑：底部切掉一半
-      both((e) => { e.bottomCut = 9 })
-      break
-    case 'excited': // 月牙弯眼：底部切 + 中心椭圆遮罩
-      both((e) => { e.bottomCut = 6; e.maskRx = 7; e.maskRy = 4 })
-      break
-    case 'angry': // 怒眉：顶部斜切，左眼左低右高、右眼镜像
-      L.topSlopeL = 3; L.topSlopeR = 8
-      R.topSlopeL = 8; R.topSlopeR = 3
-      break
-    case 'furious':
-      L.topSlopeL = 5; L.topSlopeR = 12
-      R.topSlopeL = 12; R.topSlopeR = 5
-      break
-    case 'sad': // 八字眉 + 下移
-      L.topSlopeL = 8; L.topSlopeR = 3
-      R.topSlopeL = 3; R.topSlopeR = 8
-      both((e) => { e.dy = 5 })
-      break
-    case 'sleepy': // 更缓的斜切 + 压扁
-      L.topSlopeL = 7; L.topSlopeR = 9
-      R.topSlopeL = 9; R.topSlopeR = 7
-      both((e) => { e.h = 12; e.dy = 4 })
-      break
-    case 'worried':
-      L.topSlopeL = 7; L.topSlopeR = 3
-      R.topSlopeL = 3; R.topSlopeR = 7
-      break
-    case 'despair':
-      L.topSlopeL = 6; L.topSlopeR = 2
-      R.topSlopeL = 2; R.topSlopeR = 6
-      both((e) => { e.h = 10; e.dy = 3 })
-      break
-    case 'scared': // 惊恐：放大 + 上移 + 直角
-      both((e) => { e.w = 18; e.h = 22; e.r = 1; e.dy = -3 })
-      break
-    case 'surprised': // 惊讶：放大 + 间距缩小
-      both((e) => { e.w = 19; e.h = 21; e.r = 7 })
-      L.dx = 2; R.dx = -2
-      break
-    case 'focused': // 专注：压扁
-      both((e) => { e.h = 9; e.r = 4; e.dy = 3 })
-      break
-    case 'alert': // 警觉：竖窄条
-      both((e) => { e.w = 6; e.h = 20; e.r = 3; e.dy = -1 })
-      L.dx = 3; R.dx = -3
-      break
-    case 'bored': // 无聊：扁平 + 下移
-      both((e) => { e.h = 11; e.r = 4; e.dy = 6; e.topCut = 2 })
-      break
-    case 'disoriented': // 迷糊：缩小 + 外移
-      both((e) => { e.w = 13; e.h = 14; e.r = 6 })
-      L.dx = -4; R.dx = 4
-      break
-    case 'blink':
-      both((e) => { e.h = 2.5; e.r = 1.25; e.dy = 8 })
-      break
-    case 'blinkUp':
-      both((e) => { e.h = 2.5; e.r = 1.25; e.dy = 3 })
-      break
-    case 'blinkDown':
-      both((e) => { e.h = 2.5; e.r = 1.25; e.dy = 13 })
-      break
-    case 'winkLeft':
-      L.h = 2.5; L.r = 1.25; L.dy = 8
-      break
-    case 'winkRight':
-      R.h = 2.5; R.r = 1.25; R.dy = 8
-      break
-    case 'lookUp':
-      both((e) => { e.dy = -5 })
-      break
-    case 'lookDown':
-      both((e) => { e.dy = 5 })
-      break
-    case 'lookLeft':
-      both((e) => { e.dx = -5 })
-      break
-    case 'lookRight':
-      both((e) => { e.dx = 5 })
-      break
-    case 'normal':
-    default:
-      break
-  }
-  return { left: L, right: R }
+const idle: EyeShape = {
+  lidT: 0, lidB: 0, tilt: 0, lidSkew: 0, scaleSkew: 0,
+  eyeScale: 1, squashY: 1, gap: 1, gazeX: 0, gazeY: 0,
 }
 
-/** 单只眼睛 SVG：圆角矩形 + 暗色遮罩塑形（几何坐标直接含 dx/dy） */
-const Eye: React.FC<{ p: EyeParams; x: number; mask: string; ink: string }> = ({ p, x, mask, ink }) => {
-  const ex = x + p.dx
-  const ey = BASE_Y + p.dy
-  const slopeL = p.topSlopeL
-  const slopeR = p.topSlopeR
-  const common = Math.min(slopeL, slopeR)
-  const cx = ex + p.w / 2
-  const cy = ey + p.h / 2
-  return (
-    <g className="eye">
-      {/* 爱心眼：两颗心形代替圆角眼（BoopFace love 思想，独立 path） */}
-      {p.heart ? (
-        <path
-          d={`M ${cx},${cy + 8} C ${cx - 2},${cy + 8} ${cx - 9},${cy + 3} ${cx - 9},${cy - 3} C ${cx - 9},${cy - 9} ${cx - 3},${cy - 10} ${cx},${cy - 5} C ${cx + 3},${cy - 10} ${cx + 9},${cy - 9} ${cx + 9},${cy - 3} C ${cx + 9},${cy + 3} ${cx + 2},${cy + 8} ${cx},${cy + 8} Z`}
-          fill={ink}
-          className="eye__ball"
-        />
-      ) : (
-      <rect x={ex} y={ey} width={p.w} height={p.h} rx={p.r} fill={ink} className="eye__ball" />
-      )}
-      {/* 顶部水平切口 */}
-      {p.topCut > 0 && (
-        <rect x={ex} y={ey} width={p.w} height={Math.min(p.topCut, p.h)} fill={mask} className="eye__mask" />
-      )}
-      {/* 底部水平切口（眯眼笑） */}
-      {p.bottomCut > 0 && (
-        <rect x={ex} y={ey + p.h - Math.min(p.bottomCut, p.h)} width={p.w} height={Math.min(p.bottomCut, p.h)} fill={mask} className="eye__mask" />
-      )}
-      {/* 顶部斜切（怒眉/八字眉）：左右三角，用 polygon */}
-      {common > 0 && (
-        <polygon points={`${ex},${ey} ${ex + p.w},${ey} ${ex + p.w},${ey + common}`} fill={mask} className="eye__mask" />
-      )}
-      {slopeL > common && (
-        <polygon points={`${ex},${ey + common} ${ex + p.w},${ey + common} ${ex},${ey + slopeL}`} fill={mask} className="eye__mask" />
-      )}
-      {slopeR > common && (
-        <polygon points={`${ex},${ey + common} ${ex + p.w},${ey + common} ${ex + p.w},${ey + slopeR}`} fill={mask} className="eye__mask" />
-      )}
-      {/* 中心椭圆遮罩（兴奋月牙眼） */}
-      {p.maskRx > 0 && (
-        <ellipse cx={ex + p.w / 2} cy={ey + p.h / 2} rx={p.maskRx} ry={p.maskRy} fill={mask} className="eye__mask" />
-      )}
-    </g>
-  )
+const EXPRESSIONS: Record<EyeExpression, Partial<EyeShape>> = {
+  idle:        {},
+  content:     { lidT: 0.1, lidB: 0.2, eyeScale: 0.96 },
+  relieved:    { lidB: 0.34, tilt: -5, squashY: 0.72 },
+  happy:       { lidB: 0.44 },
+  joy:         { lidT: 0.16, lidB: 0.6, eyeScale: 1.22 },
+  excited:     { eyeScale: 1.24, gap: 1.07, gazeY: -0.2 },
+  love:        { lidB: 0.12, eyeScale: 1.26 },
+  pleading:    { lidB: 0.16, tilt: -9, eyeScale: 1.3, gazeY: -0.3 },
+  shy:         { lidT: 0.34, lidSkew: 0.1, tilt: -6, gazeX: -0.5 },
+  surprised:   { eyeScale: 1.3 },
+  scared:      { lidT: 0.16, tilt: -22, eyeScale: 1.26, gap: 0.86 },
+  curious:     { lidSkew: 0.12, eyeScale: 1.08, gazeY: -0.22 },
+  confused:    { lidSkew: 0.1, scaleSkew: -0.18 },
+  dizzy:       { scaleSkew: 0.42 },
+  thinking:    { lidT: 0.22, gazeX: 0.55, gazeY: -0.5 },
+  focused:     { lidT: 0.32, lidB: 0.28, gap: 0.94 },
+  suspicious:  { lidT: 0.3, lidSkew: 0.24, tilt: 6 },
+  unimpressed: { squashY: 0.42, eyeScale: 1.04 },
+  smug:        { lidT: 0.34, lidSkew: 0.16, tilt: 8, gazeX: 0.38 },
+  sly:         { lidT: 0.28, lidB: 0.36, tilt: 7, gazeX: 0.42 },
+  bored:       { lidT: 0.46, gazeX: -0.62 },
+  exasperated: { lidT: 0.5, gazeY: -0.72 },
+  worried:     { lidT: 0.22, tilt: -14 },
+  guilty:      { lidT: 0.38, tilt: -12, gazeX: -0.42, gazeY: 0.4 },
+  sad:         { lidT: 0.34, tilt: -20 },
+  disgusted:   { lidT: 0.3, lidSkew: 0.16, scaleSkew: -0.1, tilt: 9, squashY: 0.82 },
+  annoyed:     { lidT: 0.5, lidB: 0.05, tilt: 10 },
+  angry:       { lidT: 0.42, tilt: 22, gap: 0.94 },
+  sleepy:      { lidT: 0.6, lidB: 0.05, gazeY: 0.15 },
+  sleep:       { lidT: 0.5, lidB: 0.5 },
 }
 
-interface IslandEyesProps {
-  /** 外部情绪（可选） */
-  expression?: EyeExpression
-  /** 是否有音乐在播放（播放时自动换表情更活泼） */
-  playing?: boolean
-}
-
-// 表情轮播序列——覆盖更多表情，让用户能看到丰富的动画
+// 轮播序列覆盖全部 30 个（待机偏静态、播放偏活泼）
+const ALL_EXPRESSIONS = Object.keys(EXPRESSIONS) as EyeExpression[]
 const IDLE_SEQUENCE: EyeExpression[] = [
-  'normal', 'happy', 'focused', 'sleepy', 'normal', 'lookLeft', 'winkLeft',
-  'normal', 'love', 'normal', 'worried', 'lookRight', 'bored', 'normal', 'sad',
+  ...ALL_EXPRESSIONS.filter((e) => !['excited', 'joy', 'angry'].includes(e)),
 ]
 const PLAY_SEQUENCE: EyeExpression[] = [
-  'happy', 'excited', 'happy', 'winkLeft', 'surprised', 'happy', 'winkRight',
-  'love', 'excited', 'scared', 'happy', 'angry', 'normal', 'happy',
+  ...ALL_EXPRESSIONS,
 ]
+
+// 几何：viewBox 56×35，两眼中心 x=16/40 y=17.5，半径 8（直径占岛高 46%，接近 bbot 比例）
+const VB_W = 56
+const VB_H = 35
+const CX_L = 16
+const CX_R = 40
+const CY = 17.5
+const R = 8
+const SPAN = 2 * R + 1.2 // 眼睑行程（含抗锯齿余量，bbot lidSlack 思想）
 
 const isMotionFull = () => document.documentElement.getAttribute('data-motion') === 'full'
 
+// 阻尼弹簧：bbot 的 v += ((to-x)*k - v*d)*dt; x += v*dt
+interface Spring { x: number; v: number; to: number; k: number; d: number }
+const spring = (x: number, k: number, d: number): Spring => ({ x, v: 0, to: x, k, d })
+const advance = (s: Spring, dt: number) => {
+  s.v += ((s.to - s.x) * s.k - s.v * s.d) * dt
+  s.x += s.v * dt
+}
+const SHAPE_KEYS: (keyof EyeShape)[] = [
+  'lidT', 'lidB', 'tilt', 'lidSkew', 'scaleSkew', 'eyeScale', 'squashY', 'gap', 'gazeX', 'gazeY',
+]
+
+interface IslandEyesProps {
+  expression?: EyeExpression
+  playing?: boolean
+}
+
 export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = false }) => {
-  const [autoExpr, setAutoExpr] = useState<EyeExpression>('normal')
-  const seqIdx = useRef(0)
-  const [motionFull, setMotionFull] = useState(isMotionFull)
-  const exprTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
+  const shape = useRef<Record<keyof EyeShape, Spring>>(
+    Object.fromEntries(SHAPE_KEYS.map((k) => [k, spring(idle[k], 190, 24)])) as Record<keyof EyeShape, Spring>
+  )
+  const gaze = useRef({ x: spring(0, 150, 19), y: spring(0, 150, 19) })
+  const autoExpr = useRef<EyeExpression>('idle')
+  const seqIdx = useRef(0)
+  const exprRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const motionRef = useRef(isMotionFull())
+  const playingRef = useRef(playing)
+  playingRef.current = playing
+  const pointer = useRef({ x: 0, y: 0, t: 0, has: false })
   const loveRef = useRef(false)
+  const forcedExpr = useRef(expression)
 
-  const face = useMemo(() => buildFace(expression ?? autoExpr), [expression, autoExpr])
-  loveRef.current = (expression ?? autoExpr) === 'love'
-
-  // 响应 data-motion 变化
+  // data-motion 响应
   useEffect(() => {
-    const obs = new MutationObserver(() => setMotionFull(isMotionFull()))
+    const sync = () => { motionRef.current = isMotionFull() }
+    sync()
+    const obs = new MutationObserver(sync)
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-motion'] })
     return () => obs.disconnect()
   }, [])
 
-  // 自动表情轮播（播放时更活泼）
+  // 表情轮播
   useEffect(() => {
-    if (!motionFull || expression) return
-    const seq = playing ? PLAY_SEQUENCE : IDLE_SEQUENCE
+    if (expression) return
     const schedule = () => {
-      exprTimer.current = setTimeout(() => {
-        setAutoExpr(seq[seqIdx.current % seq.length])
+      exprRef.current = setTimeout(() => {
+        const seq = playingRef.current ? PLAY_SEQUENCE : IDLE_SEQUENCE
+        autoExpr.current = seq[seqIdx.current % seq.length]
         seqIdx.current++
+        const target = EXPRESSIONS[autoExpr.current]
+        SHAPE_KEYS.forEach((k) => { shape.current[k].to = target[k] ?? idle[k] })
+        loveRef.current = autoExpr.current === 'love'
         schedule()
-      }, playing ? 4000 + Math.random() * 2000 : 8000 + Math.random() * 4000)
+      }, playing ? 3600 + Math.random() * 1800 : 6500 + Math.random() * 3500)
     }
     schedule()
-    return () => { if (exprTimer.current) clearTimeout(exprTimer.current) }
-  }, [motionFull, playing, expression])
+    return () => { if (exprRef.current) clearTimeout(exprRef.current) }
+  }, [expression, playing])
 
-  // 微动作引擎（借鉴 BoopFace MIT 的灵动感算法，独立 RAF 实现）：
-  // 随机化眨眼 + 随机游移注视 + 情绪过冲回弹，直接写 SVG DOM 不走 React 重渲染。
+  // 外部 expression prop
+  useEffect(() => {
+    forcedExpr.current = expression
+    if (!expression) return
+    const target = EXPRESSIONS[expression]
+    SHAPE_KEYS.forEach((k) => { shape.current[k].to = target[k] ?? idle[k] })
+    loveRef.current = expression === 'love'
+  }, [expression])
+
+  // 鼠标跟随（bbot 饱和衰减：reach=容器较大边×2.2，mag=t(2-t)）
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      pointer.current = { x: e.clientX, y: e.clientY, t: performance.now(), has: true }
+    }
+    const onLeave = () => { pointer.current.has = false }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    window.addEventListener('pointerdown', onMove, { passive: true })
+    window.addEventListener('blur', onLeave)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerdown', onMove)
+      window.removeEventListener('blur', onLeave)
+    }
+  }, [])
+
+  // 主循环：弹簧积分 + 眨眼 + 游走 + 跟随 + 心跳 + 直接写 DOM
   useEffect(() => {
     const svg = svgRef.current
     if (!svg) return
-    const eyes = svg.querySelectorAll<SVGGElement>('.eye')
+    const eyes = Array.from(svg.querySelectorAll<SVGGElement>('.eye'))
+    const lids = eyes.map((g) => ({
+      top: g.querySelector<SVGRectElement>('.eye__lidTop'),
+      bottom: g.querySelector<SVGRectElement>('.eye__lidBottom'),
+      pupil: g.querySelector<SVGCircleElement>('.eye__pupil'),
+    }))
     if (eyes.length < 2) return
-    if (!motionFull) {
-      eyes.forEach((e) => { e.style.transform = '' })
-      return
-    }
 
     const rand = (a: number, b: number) => a + Math.random() * (b - a)
     const now0 = performance.now()
-    const s = {
-      blinkNext: now0 + rand(1800, 3600),
-      blinkAnim: null as null | { start: number; dur: number },
-      blinkV: 1,
-      // 游移相位：多重正弦叠加，完全连续无跳变（离散随机目标会「动-停-动」顿挫）
-      wanderPhaseX: rand(0, Math.PI * 2),
-      wanderPhaseY: rand(0, Math.PI * 2),
-      bob: 0, bobStart: 0,
-    }
+    let last = now0
+    let blinkAt = now0 + rand(1200, 4200)
+    let blinkAnim: null | { start: number; dur: number } = null
+    let blinkV = 0
+    let wanderAt = now0 + rand(700, 2600)
+    let wanderTo = { x: 0, y: 0 }
+    let wander = { x: 0, y: 0 }
 
     let raf = 0
     const tick = (now: number) => {
-      // 眨眼：1→0.08→1，时长 150-220ms，间隔 1900-4500ms（闭到 8%）
-      if (s.blinkAnim) {
-        const t = Math.min(1, (now - s.blinkAnim.start) / s.blinkAnim.dur)
-        s.blinkV = t < 0.5 ? 1 - 0.92 * (t * 2) : 0.08 + 0.92 * ((t - 0.5) * 2)
-        if (t >= 1) {
-          s.blinkAnim = null; s.blinkV = 1
-          s.blinkNext = now + rand(1900, playing ? 3200 : 4500)
+      const dt = Math.max(0.001, Math.min(1 / 30, (now - last) / 1000))
+      last = now
+      const full = motionRef.current
+
+      // 弹簧：表情形状 + 注视
+      for (const k of SHAPE_KEYS) advance(shape.current[k], full ? dt : 0)
+      const gx = gaze.current.x, gy = gaze.current.y
+
+      // 注视目标：鼠标跟随（安静 2.2s 后回落游走）
+      if (full) {
+        const idleGaze = { x: shape.current.gazeX.x, y: shape.current.gazeY.x }
+        if (pointer.current.has && now - pointer.current.t < 2200) {
+          const box = svg.getBoundingClientRect()
+          const cx = box.left + box.width / 2, cy = box.top + box.height / 2
+          const dx = pointer.current.x - cx, dy = pointer.current.y - cy
+          const dist = Math.hypot(dx, dy) || 1
+          const reach = Math.max(box.width, box.height) * 2.2
+          const t = Math.min(1, dist / reach)
+          const mag = t * (2 - t) // 饱和衰减
+          gx.to = Math.max(-1.15, Math.min(1.15, (dx / dist) * mag * 1.1 + idleGaze.x))
+          gy.to = Math.max(-1.15, Math.min(1.15, (dy / dist) * mag * 1.1 + idleGaze.y))
+        } else {
+          if (now >= wanderAt) {
+            wanderTo = Math.random() < 0.3 ? { x: 0, y: 0 } : { x: rand(-0.9, 0.9), y: rand(-0.6, 0.6) }
+            wanderAt = now + rand(700, 2600)
+          }
+          gx.to = wander.x + idleGaze.x
+          gy.to = wander.y + idleGaze.y
+          // 游走本身用慢速 lerp（正弦/随机目标 + 平滑，这里目标变化本身即连续感）
+          wander.x += (wanderTo.x - wander.x) * Math.min(1, dt * 2.2)
+          wander.y += (wanderTo.y - wander.y) * Math.min(1, dt * 2.2)
         }
-      } else if (now >= s.blinkNext) {
-        s.blinkAnim = { start: now, dur: rand(150, 220) }
+        advance(gx, dt); advance(gy, dt)
+      } else {
+        gx.to = gy.to = 0; gx.x = gy.x = 0; gx.v = gy.v = 0
       }
 
-      // 游移注视：多重正弦叠加（3 个不通约频率），连续运动永不停止、无目标跳变。
-      // X: 3.0·sin(0.7t) + 1.2·sin(1.9t+p) + 0.6·sin(3.7t)  幅度约 ±4.8px
-      // Y: 2.0·cos(0.9t) + 0.8·sin(2.3t+p)                  幅度约 ±2.8px
-      const t = (now - now0) / 1000
-      const wanderX = 3.0 * Math.sin(t * 0.7 + s.wanderPhaseX)
-        + 1.2 * Math.sin(t * 1.9 + s.wanderPhaseX * 1.7)
-        + 0.6 * Math.sin(t * 3.7)
-      const wanderY = 2.0 * Math.cos(t * 0.9 + s.wanderPhaseY)
-        + 0.8 * Math.sin(t * 2.3 + s.wanderPhaseY * 1.3)
+      // 眨眼：首次 1.2-4.2s，之后 2.2-6s，26% 概率双眨；sin(pπ)^0.55 曲线
+      if (full && !loveRef.current && shape.current.lidT.x + shape.current.lidB.x < 0.9) {
+        if (blinkAnim) {
+          const p = Math.min(1, (now - blinkAnim.start) / blinkAnim.dur)
+          blinkV = Math.pow(Math.sin(p * Math.PI), 0.55)
+          if (p >= 1) {
+            blinkAnim = null; blinkV = 0
+            blinkAt = now + rand(2200, 6000)
+            if (Math.random() < 0.26) blinkAnim = { start: now + 130, dur: 240 } // 双眨
+          }
+        } else if (now >= blinkAt) {
+          blinkAnim = { start: now, dur: 260 }
+        }
+      } else { blinkV = 0 }
 
-      // 情绪切换过冲回弹：settle = 1 - e^(-5.2t)·cos(8.6t)
-      const bobT = (now - s.bobStart) / 620
-      s.bob = bobT >= 0 && bobT < 1 ? (1 - Math.exp(-5.2 * bobT) * Math.cos(8.6 * bobT)) * 2.5 : 0
-
-      // 心跳 lub-dub：680ms 周期双峰，放大到 1.44x（幅度翻倍，涨缩更明显）
-      // 爱心时独占 scale，不再叠加眨眼（否则心被压扁，心跳和眨眼打架）
+      // 心跳 lub-dub 双峰（爱心时）
       const beatT = ((now - now0) % 680) / 680
       const bell = (x: number, c: number, w: number) => Math.exp(-((x - c) ** 2) / (2 * w * w))
       const pulse = Math.max(bell(beatT, 0.12, 0.085), 0.62 * bell(beatT, 0.40, 0.10))
-      const heartScale = loveRef.current ? 1 + 0.44 * pulse : 1
+      const heartScale = loveRef.current && full ? 1 + 0.44 * pulse : 1
 
-      // 应用到两只眼：游移 + bob 用 translate，眨眼/心跳用以眼中心为原点的 scale
+      const s = shape.current
+      const scale = s.eyeScale.x * heartScale
+      const squash = s.squashY.x * (1 - blinkV * 0.94)
+      const tilt = s.tilt.x
+      const gap = s.gap.x
+
       eyes.forEach((g, i) => {
-        const ex = i === 0 ? BASE_X_L : BASE_X_R
-        const cy = BASE_Y + 9 // 眼球垂直中心
-        // 爱心时不眨眼，心跳独占 scale；普通表情走眨眼
-        const sy = loveRef.current ? heartScale : Math.max(0.08, s.blinkV) * heartScale
-        const sx = heartScale
-        g.style.transformBox = 'view-box'
-        g.style.transform = `translate(${wanderX.toFixed(2)}px, ${(wanderY + s.bob).toFixed(2)}px) translate(${ex + 8}px, ${cy}px) scale(${sx.toFixed(3)}, ${sy.toFixed(3)}) translate(${-ex - 8}px, ${-cy}px)`
+        const side = i === 0 ? -1 : 1
+        const cx = (side < 0 ? CX_L : CX_R) * (1 + (gap - 1) * 0.35)
+        const skew = side > 0 ? s.lidSkew.x : 0
+        const ss = scale * (side > 0 ? 1 + s.scaleSkew.x : 1)
+        // 球面式注视：两眼朝同一方向小幅平移（bbot 球面投影的平面近似）
+        const gxPx = gx.x * 2.2, gyPx = gy.x * 2.2
+        // 用 SVG presentation attribute 而非 CSS transform（CSS 在 SVG 上坐标系行为不同，
+        // 会导致眼睛跑出 viewBox）。顺序：先位移到眼位再缩放，瞳孔/眼睑都以眼中心为原点。
+        g.setAttribute('transform', `translate(${(cx + gxPx).toFixed(2)} ${(CY + gyPx).toFixed(2)}) scale(${ss.toFixed(3)} ${(ss * squash).toFixed(3)})`)
+        g.style.transform = ''
+        g.style.transformOrigin = ''
+        const spin = -side * tilt
+        if (lids[i].top) {
+          const lidT = Math.max(0, Math.min(1, s.lidT.x + skew))
+          lids[i].top!.setAttribute('transform', `rotate(${spin.toFixed(2)}) translate(0 ${(-R + lidT * SPAN).toFixed(2)})`)
+        }
+        if (lids[i].bottom) {
+          const lidB = Math.max(0, Math.min(1, s.lidB.x))
+          lids[i].bottom!.setAttribute('transform', `rotate(${spin.toFixed(2)}) translate(0 ${(R - lidB * SPAN).toFixed(2)})`)
+        }
+        // 黑瞳视差：随注视反向微移（bbot pupil travel），让眼神有焦点
+        if (lids[i].pupil) {
+          lids[i].pupil!.setAttribute(
+            'transform',
+            `translate(${(gx.x * 3.2).toFixed(2)} ${(gy.x * 3.2).toFixed(2)})`
+          )
+        }
       })
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
-    // 表情切换时触发一次过冲（对惊讶/愤怒等强化"劲"）
-    const onExpr = () => { s.bobStart = performance.now() }
-    window.addEventListener('island-expression-change', onExpr)
-
-    return () => {
-      cancelAnimationFrame(raf)
-      window.removeEventListener('island-expression-change', onExpr)
-      eyes.forEach((e) => { e.style.transform = '' })
-    }
-  }, [motionFull, playing])
-
-  // 表情切换广播（给微动作引擎的过冲用）
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent('island-expression-change'))
-  }, [autoExpr, expression])
-
-  const mask = 'var(--color-bg-primary)'
-  const ink = 'var(--color-text-primary)'
+  const mask = 'var(--color-bg-primary)' // 黑瞳 + 眼睑同色（岛背景）
+  const ink = 'var(--color-text-primary)' // 白眼球
 
   return (
     <svg ref={svgRef} className="island-eyes" viewBox={`0 0 ${VB_W} ${VB_H}`} width={68} height={42} aria-hidden="true">
-      <Eye p={face.left} x={BASE_X_L} mask={mask} ink={ink} />
-      <Eye p={face.right} x={BASE_X_R} mask={mask} ink={ink} />
+      <defs>
+        <clipPath id="island-eye-clip-L"><circle cx="0" cy="0" r={R + 0.6} /></clipPath>
+        <clipPath id="island-eye-clip-R"><circle cx="0" cy="0" r={R + 0.6} /></clipPath>
+        <radialGradient id="island-eye-gloss">
+          <stop offset="0" stopColor="#fff" stopOpacity="1" />
+          <stop offset="0.55" stopColor="#fff" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      {(['L', 'R'] as const).map((side) => (
+        <g className="eye" key={side}>
+          <g clipPath={`url(#island-eye-clip-${side})`}>
+            {/* 眼球：白色 */}
+            <circle className="eye__ball" cx="0" cy="0" r={R} fill={ink} />
+            {/* 黑瞳珠子：随注视微移，位于眼睑之下（眨眼时被盖住） */}
+            <circle className="eye__pupil" cx="0" cy="0" r={R * 0.42} fill={mask} />
+            {/* 双高光点：玻璃珠质感 */}
+            <circle cx={-R * 0.34} cy={-R * 0.4} r={R * 0.26} fill="url(#island-eye-gloss)" opacity="0.95" />
+            <circle cx={R * 0.26} cy={R * 0.2} r={R * 0.13} fill="url(#island-eye-gloss)" opacity="0.7" />
+            {/* 上下眼睑：岛背景色矩形滑过并旋转（与底色同色故无接缝） */}
+            <rect className="eye__lidTop" x={-R * 2} y={-R * 4} width={R * 4} height={R * 4} fill={mask} />
+            <rect className="eye__lidBottom" x={-R * 2} y="0" width={R * 4} height={R * 4} fill={mask} />
+          </g>
+        </g>
+      ))}
     </svg>
   )
 }
