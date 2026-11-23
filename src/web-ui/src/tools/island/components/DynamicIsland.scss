@@ -167,7 +167,17 @@
 .daozai-pet {
   width: 48px;
   height: 30px;
-  // 步骤2：纯色占位；步骤3 换成序列帧背景图
-  background: color-mix(in oklch, var(--color-accent-400) 40%, transparent);
+  // 背景图/尺寸/逐帧位置由 JS（useExpressionFrames）写入 inline style。
+  // 用 RAF 而非 CSS animation：全局 prefers-reduced-motion 会把 CSS animation
+  // 钳成 0.01ms，导致序列帧静止或乱闪。
+  background-repeat: no-repeat;
   border-radius: var(--size-radius-sm);
+}
+
+// 减动效守卫：显式 data-motion='full' 时不被系统偏好压掉。
+// 注：序列帧本身由 JS 判定 data-motion 启停，此处仅守住任何 CSS 过渡。
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='full']) .daozai-layer {
+    transition: none;
+  }
 }
