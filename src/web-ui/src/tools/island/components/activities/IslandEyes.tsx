@@ -308,17 +308,19 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
       const bobT = (now - s.bobStart) / 620
       s.bob = bobT >= 0 && bobT < 1 ? (1 - Math.exp(-5.2 * bobT) * Math.cos(8.6 * bobT)) * 2.5 : 0
 
-      // 心跳 lub-dub：760ms 周期双峰（爱心表情时明显，其余不影响）
-      const beatT = ((now - now0) % 760) / 760
+      // 心跳 lub-dub：680ms 周期双峰，放大到 1.22x（心形约 14px，肉眼可见的涨缩）
+      // 爱心时独占 scale，不再叠加眨眼（否则心被压扁，心跳和眨眼打架）
+      const beatT = ((now - now0) % 680) / 680
       const bell = (x: number, c: number, w: number) => Math.exp(-((x - c) ** 2) / (2 * w * w))
-      const pulse = Math.max(bell(beatT, 0.12, 0.09), 0.6 * bell(beatT, 0.40, 0.11))
-      const heartScale = loveRef.current ? 1 + 0.16 * pulse : 1
+      const pulse = Math.max(bell(beatT, 0.12, 0.085), 0.62 * bell(beatT, 0.40, 0.10))
+      const heartScale = loveRef.current ? 1 + 0.22 * pulse : 1
 
       // 应用到两只眼：游移 + bob 用 translate，眨眼/心跳用以眼中心为原点的 scale
       eyes.forEach((g, i) => {
         const ex = i === 0 ? BASE_X_L : BASE_X_R
         const cy = BASE_Y + 9 // 眼球垂直中心
-        const sy = Math.max(0.08, s.blinkV) * heartScale
+        // 爱心时不眨眼，心跳独占 scale；普通表情走眨眼
+        const sy = loveRef.current ? heartScale : Math.max(0.08, s.blinkV) * heartScale
         const sx = heartScale
         g.style.transformBox = 'view-box'
         g.style.transform = `translate(${wanderX.toFixed(2)}px, ${(wanderY + s.bob).toFixed(2)}px) translate(${ex + 8}px, ${cy}px) scale(${sx.toFixed(3)}, ${sy.toFixed(3)}) translate(${-ex - 8}px, ${-cy}px)`
