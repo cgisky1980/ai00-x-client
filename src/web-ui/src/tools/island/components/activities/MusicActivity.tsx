@@ -10,6 +10,7 @@ import {
   ListMusic,
 } from 'lucide-react'
 import { listen, emit } from '@tauri-apps/api/event'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { useAudioPlaybackStore } from '../../../vrm/store/audioPlaybackStore'
 import { useAudioPlayback } from '../../../vrm/hooks/useAudioPlayback'
 import { useAudioSpectrum, sampleSpectrum } from '../../../vrm/hooks/useAudioSpectrum'
@@ -29,6 +30,8 @@ interface AceStepPlayerState {
     artist: string
     durationSeconds: number
   } | null
+  /** 真实封面路径（PlayerBridge.ts:55/150 同源，经 convertFileSrc 显示） */
+  coverPath: string | null
   isPlaying: boolean
   currentTime: number
   duration: number
@@ -334,6 +337,11 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
 
     // Unified volume state for the toggle icon
     const currentVolume = activeSource === 'acestep' ? (acestepState?.volume ?? 0) : masterVolume
+    // 真实封面（AceStep 有 coverPath 时显示，否则回退音符图标）
+    const coverUrl =
+      activeSource === 'acestep' && acestepState?.coverPath
+        ? convertFileSrc(acestepState.coverPath)
+        : null
 
     return (
       <div className="music-activity music-activity--expanded">
@@ -362,7 +370,11 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
           <div
             className={`music-activity__art${isPlaying ? ' music-activity__art--playing' : ''}`}
           >
-            <Music size={16} />
+            {coverUrl ? (
+              <img src={coverUrl} alt="" draggable={false} className="music-activity__art-img" />
+            ) : (
+              <Music size={16} />
+            )}
           </div>
           <div className="music-activity__info">
             <span className="music-activity__name" title={title}>
