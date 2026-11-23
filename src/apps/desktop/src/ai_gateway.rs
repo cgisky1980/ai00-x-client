@@ -1354,6 +1354,8 @@ async fn local_tool_round(
 
     // stop 序列与 local_rwkv_sse 对齐（带工具时恒为对话格式，无 Instruction 分支）
     let stop = rwkv_stop_sequences(false, true);
+    let started = std::time::Instant::now();
+    let prompt_chars = prompt.chars().count();
     let mut rx = pool_infer(
         prompt,
         max_tokens,
@@ -1405,6 +1407,11 @@ async fn local_tool_round(
             InferenceEvent::Error(e) => return Err(e),
         }
     }
+    // 观测：本地工具轮端到端（prompt 构建 → 首 token → 收尾），含 prefill + 解码
+    log::info!(
+        "[ai-gateway] local tool round: prompt={prompt_chars} chars in={input_tokens} tok out={output_tokens} tok total={:.2}s",
+        started.elapsed().as_secs_f64()
+    );
     usage
         .record(
             MODEL_RWKV,

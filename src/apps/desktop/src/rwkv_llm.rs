@@ -107,6 +107,8 @@ struct InferenceTask {
     hit_stop: Option<String>,
     /// 已判定结束、等待最后一次补喂（下一轮喂完即回写缓存并发 Done）。
     finish_pending: bool,
+    /// 进入 prefill 队列的时刻（用于观测 prefill 耗时，含排队等待）。
+    queued_at: std::time::Instant,
 }
 
 struct InferenceTaskParams {
@@ -635,6 +637,13 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
         if let Some(task) = prefill_queue.front_mut() {
             match prefill_step(task, engine) {
                 Ok(true) => {
+                    // 观测：prefill 完成（含排队等待）——本地工具轮的主要延迟来源
+                    log::debug!(
+                        "[rwkv] prefill done: prompt={} tok input={} tok in {:.2}s",
+                        task.prompt_tokens.len(),
+                        task.input_tokens.len(),
+                        task.queued_at.elapsed().as_secs_f64()
+                    );
                     // 队首 prefill 完成 → 转入解码组（活跃数 ≤ slot_count 保证有空行）
                     let mut task = prefill_queue.pop_front().expect("队首存在");
                     let row = tasks
@@ -1304,9 +1313,9 @@ fn prepare_task(
         }
         if let Some((skip, cached_tokens, cached_state)) = best {
             log::info!(
-                "[rwkv] session cache hit: prefill {} of {} tokens (skip {skip})",
-                prompt_tokens.len() - skip,
-                prompt_tokens.len()
+                "[rwkv] session cache hit: reuse {skip} of {} tokens, prefill {}",
+                prompt_tokens.len(),
+                prompt_tokens.len() - skip
             );
             base_tokens = cached_tokens;
             input_tokens = prompt_tokens[skip..].to_vec();
@@ -1347,7 +1356,11 @@ fn prepare_task(
             params.max_tokens
         },
         top_p: params.top_p.clamp(0.0, 1.0),
-        top_k: if params.top_k == 0 { 128 } else { params.top_k },
+        // top_k=0（调用方未指定）→ 50：CUDA 采样 kernel 快速路径上限 MAXK=50，
+        // >50 会落入「逐候选全词表归约」的兜底慢路径。实测（64 token，同机）：
+        // top_k 1/8/32/50 均约 29-31ms/token，top_k=128 涨到 ~70ms/token——
+        // 本地工具轮此前按 128 走，每轮白付 2-4s。与 rwkv_engine_adapter 口径一致。
+        top_k: if params.top_k == 0 { 50 } else { params.top_k },
         presence_penalty: params.presence_penalty,
         frequency_penalty: params.frequency_penalty,
         penalty_decay: if params.penalty_decay == 0.0 {
@@ -1368,6 +1381,7 @@ fn prepare_task(
         ended_by_stop: false,
         hit_stop: None,
         finish_pending: false,
+        queued_at: std::time::Instant::now(),
     })
 }
 
