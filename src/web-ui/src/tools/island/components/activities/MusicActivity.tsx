@@ -30,8 +30,12 @@ const EXPR_FRAME_TIMES = [
   0.35, 0.12, 0.12, 0.12, 0.13, 0.13, 0.14, 0.40,
   0.18, 0.14, 0.12, 0.12, 0.12, 0.14, 0.14, 0.45,
 ]
-const EXPR_TOTAL = EXPR_FRAME_TIMES.reduce((a, b) => a + b, 0)
-const EXPR_FRAME_H = 30
+// 只在「眯眼笑 + 腮红」的好看帧段循环（3-11）；跳过纯白竖条/普通睁眼帧。
+const EXPR_LOOP_FRAMES = [3, 4, 5, 6, 7, 8, 9, 10, 11]
+const EXPR_LOOP_TIMES = EXPR_LOOP_FRAMES.map((i) => EXPR_FRAME_TIMES[i])
+const EXPR_TOTAL = EXPR_LOOP_TIMES.reduce((a, b) => a + b, 0)
+const EXPR_FRAME_H = 35 // 每帧显示高度（56×35，比原始 48×30 大一档）
+const EXPR_EXPR_W = 56
 const EXPR_REST_FRAME = 7
 const EXPR_URL = `${import.meta.env.BASE_URL}daozai/expressions/03-delighted.png`
 
@@ -41,7 +45,7 @@ function useExpressionFrames(ref: React.RefObject<HTMLDivElement | null>) {
     const el = ref.current
     if (!el) return
     el.style.backgroundImage = `url(${EXPR_URL})`
-    el.style.backgroundSize = `48px ${EXPR_FRAME_H * EXPR_FRAME_TIMES.length}px`
+    el.style.backgroundSize = `${EXPR_EXPR_W}px ${EXPR_FRAME_H * EXPR_FRAME_TIMES.length}px`
 
     const setFrame = (idx: number) => {
       el.style.backgroundPositionY = `${-idx * EXPR_FRAME_H}px`
@@ -59,9 +63,9 @@ function useExpressionFrames(ref: React.RefObject<HTMLDivElement | null>) {
       if (elapsed >= EXPR_TOTAL) elapsed = 0
       let acc = 0
       let idx = EXPR_REST_FRAME
-      for (let i = 0; i < EXPR_FRAME_TIMES.length; i++) {
-        acc += EXPR_FRAME_TIMES[i]
-        if (elapsed < acc) { idx = i; break }
+      for (let i = 0; i < EXPR_LOOP_TIMES.length; i++) {
+        acc += EXPR_LOOP_TIMES[i]
+        if (elapsed < acc) { idx = EXPR_LOOP_FRAMES[i]; break }
       }
       setFrame(idx)
       raf = requestAnimationFrame(tick)

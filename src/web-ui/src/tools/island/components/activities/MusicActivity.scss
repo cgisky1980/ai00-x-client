@@ -33,11 +33,11 @@
     }
   }
 
-  // 表情挂件（替换原音符图标位置）：48×30，素材每帧 144×90 的 1/3。
+  // 表情挂件（替换原音符图标位置）：56×35，比原始 48×30 大一档更清晰。
   // 背景图/尺寸/逐帧位置由 useExpressionFrames 写入 inline style。
   &__expr {
-    width: 48px;
-    height: 30px;
+    width: 56px;
+    height: 35px;
     flex-shrink: 0;
     background-repeat: no-repeat;
     position: relative;
