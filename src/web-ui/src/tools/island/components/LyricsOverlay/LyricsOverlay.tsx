@@ -57,6 +57,11 @@ const EVENT_PLAYER_COMMAND = 'acestep://player-command';
 /** Heartbeat timeout — drop player state (cover/play flag) if not refreshed. */
 const STALE_TIMEOUT_MS = 3000;
 
+// 全歌词滚动视窗：每行列高固定（当前行靠 scale/字号变化但不撑高布局），
+// 视窗用 mask 上下渐隐，只清晰显示当前行 + 上下各一行残影。
+const LYRIC_ROW_HEIGHT = 68;
+const LYRIC_VIEWPORT_ROWS = 3;
+
 /**
  * Default lyric sync offset (seconds).
  *
@@ -322,12 +327,6 @@ export const LyricsOverlay: React.FC = () => {
   const isPlaying = playerState?.isPlaying ?? false;
 
   const hasLyrics = parsed !== null && parsed.lines.length > 0 && currentLineIndex >= 0;
-  const prevLine =
-    hasLyrics && currentLineIndex > 0 ? parsed!.lines[currentLineIndex - 1] : null;
-  const nextLine =
-    hasLyrics && currentLineIndex < parsed!.lines.length - 1
-      ? parsed!.lines[currentLineIndex + 1]
-      : null;
 
   return (
     <>
@@ -430,41 +429,51 @@ export const LyricsOverlay: React.FC = () => {
         )}
 
         <div className="lyrics-overlay__lines">
-          {hasLyrics && prevLine && (
-            <div className="lyrics-overlay__line lyrics-overlay__line--adjacent">
-              {prevLine.rawText}
-            </div>
-          )}
-
-          {hasLyrics && currentLine ? (
-            <div
-              key={currentLineIndex}
-              className="lyrics-overlay__line lyrics-overlay__line--current"
-            >
-              <span className="lyrics-overlay__line-inner">
-                {currentLine.words.length > 1
-                  ? currentLine.words.map((word, i) => (
-                      <span
-                        key={i}
-                        className={`lyrics-overlay__word${
-                          i <= currentWordIndex ? ' lyrics-overlay__word--sung' : ''
-                        }`}
-                      >
-                        {word.text}
-                      </span>
-                    ))
-                  : currentLine.rawText}
-              </span>
-            </div>
-          ) : (
+          {!hasLyrics ? (
             <div className="lyrics-overlay__line lyrics-overlay__line--current lyrics-overlay__line--empty">
               暂无歌词
             </div>
-          )}
-
-          {hasLyrics && nextLine && (
-            <div className="lyrics-overlay__line lyrics-overlay__line--adjacent">
-              {nextLine.rawText}
+          ) : (
+            <div className="lyrics-overlay__lines-viewport">
+              <div
+                className="lyrics-overlay__lines-track"
+                style={{
+                  transform: `translateY(${
+                    (LYRIC_VIEWPORT_ROWS / 2 - 0.5 - currentLineIndex) * LYRIC_ROW_HEIGHT
+                  }px)`,
+                }}
+              >
+                {parsed!.lines.map((line, i) => {
+                  const isCurrent = i === currentLineIndex
+                  return (
+                    <div
+                      key={i}
+                      className={`lyrics-overlay__line${
+                        isCurrent ? ' lyrics-overlay__line--current' : ' lyrics-overlay__line--adjacent'
+                      }`}
+                    >
+                      {isCurrent ? (
+                        <span className="lyrics-overlay__line-inner">
+                          {line.words.length > 1
+                            ? line.words.map((word, wi) => (
+                                <span
+                                  key={wi}
+                                  className={`lyrics-overlay__word${
+                                    wi <= currentWordIndex ? ' lyrics-overlay__word--sung' : ''
+                                  }`}
+                                >
+                                  {word.text}
+                                </span>
+                              ))
+                            : line.rawText}
+                        </span>
+                      ) : (
+                        line.rawText
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>

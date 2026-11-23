@@ -22,7 +22,8 @@
   z-index: var(--z-chrome-top);
 
   width: 600px;
-  height: 120px;
+  // 全歌词滚动视窗需容纳3行（上下渐隐残影 + 中间当前行），从 120 加高到 200
+  height: 200px;
 
   display: flex;
   flex-direction: column;
@@ -284,16 +285,52 @@
     }
   }
 
-  // ---- Lines column ----
+  // ---- Lines column: 滚动视窗（上下 mask 渐隐，只清晰显示中间3行）----
   &__lines {
+    min-width: 0;
+    flex: 1;
+  }
+
+  &__lines-viewport {
+    height: calc(68px * 3 * var(--overlay-scale, 1));
+    overflow: hidden;
+    // 上下渐隐：中间清晰、上下残影淡出（overview 切掉）
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgba(0, 0, 0, 0.35) 18%,
+      #000 38%,
+      #000 62%,
+      rgba(0, 0, 0, 0.35) 82%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgba(0, 0, 0, 0.35) 18%,
+      #000 38%,
+      #000 62%,
+      rgba(0, 0, 0, 0.35) 82%,
+      transparent 100%
+    );
+  }
+
+  &__lines-track {
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-width: 0;
-    gap: var(--size-gap-1);
+    // 平滑滚动：换行的 translateY 变化走 0.4s 过渡（纯 transform，合成友好）
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
   }
 
   &__line {
+    // 固定行高：当前行放大不改布局高度，保证 translateY 计算确定
+    height: calc(68px * var(--overlay-scale, 1));
+    min-height: calc(68px * var(--overlay-scale, 1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
     max-width: 100%;
     text-align: center;
     white-space: nowrap;
@@ -316,9 +353,10 @@
     }
 
     &--adjacent {
-      font-size: calc(var(--font-size-base) * var(--overlay-scale, 1));
+      font-size: calc(var(--font-size-lg) * var(--overlay-scale, 1));
       font-weight: 500;
-      opacity: 0.55;
+      // 渐隐交给 viewport 的 mask，这里保持较高不透明度让上下残影可见
+      opacity: 0.75;
     }
 
     &--empty {
