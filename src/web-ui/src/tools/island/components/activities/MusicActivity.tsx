@@ -78,6 +78,9 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
   const [mode, setMode] = useState<'song' | 'music'>('song')
   // 电台启动中（拉池/解析/生成有延迟，给即时反馈避免"点了没反应"）
   const [starting, setStarting] = useState(false)
+  // 进度条拖动：拖动中用本地比例预览，松手才真正 seek
+  const [scrubbing, setScrubbing] = useState(false)
+  const [scrubRatio, setScrubRatio] = useState(0)
 
   // ---- 收藏状态：favoritesStore 内存可能陈旧，用 tick 强制重算 ----
   const [favTick, setFavTick] = useState(0)
@@ -264,6 +267,34 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     sendAceStepCommand('toggleLyrics')
   }, [sendAceStepCommand])
 
+  // ---- 进度条拖动 ----
+  // 只有 aceStep 在线/本地源可 seek（VRM 电台无 seek API）
+  const canSeek = activeSource === 'acestep' && !!acestepState && acestepState.duration > 0
+  const ratioFromEvent = (clientX: number, el: HTMLElement): number => {
+    const rect = el.getBoundingClientRect()
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+  }
+  const handleScrubStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!canSeek) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setScrubbing(true)
+    setScrubRatio(ratioFromEvent(e.clientX, e.currentTarget))
+  }
+  const handleScrubMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!scrubbing) return
+    setScrubRatio(ratioFromEvent(e.clientX, e.currentTarget))
+  }
+  const handleScrubEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!scrubbing) return
+    e.stopPropagation()
+    const ratio = ratioFromEvent(e.clientX, e.currentTarget)
+    setScrubbing(false)
+    if (canSeek && acestepState) {
+      sendAceStepCommand('seek', { time: ratio * acestepState.duration })
+    }
+  }
+
   // ---- Sync BgmPlayer.activeSource with AceStep playback state ----
   useEffect(() => {
     const bgm = useBgmPlayerStore.getState()
@@ -438,19 +469,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
         onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
         title={t('audio.island.expand', { defaultValue: '打开音乐窗口' })}
       >
-        <div className="music-activity__spectrum-bg">
-          <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--left">
-            {expandedMirrored.map((v, i) => (
-              <div key={i} className="music-activity__spectrum-bg-bar" style={{ height: `${2 + v * 18}px` }} />
-            ))}
-          </div>
-          <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--right">
-            {expandedBgBands.map((v, i) => (
-              <div key={i} className="music-activity__spectrum-bg-bar" style={{ height: `${2 + v * 18}px` }} />
-            ))}
-          </div>
-        </div>
-
         {/* 第一行：封面 + 歌名/歌手 + 右侧收藏/歌词/音量 */}
         <div className="music-activity__main">
           <div className={`music-activity__cover${isPlaying ? ' music-activity__cover--playing' : ''}`}>
@@ -493,19 +511,35 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
           </div>
         </div>
 
-        {/* 第二行：进度条（可点跳转，无时间数字） */}
-        <div
-          className="music-activity__progress music-activity__progress--bar"
-          onClick={(e) => {
-            e.stopPropagation()
-            if (activeSource === 'acestep' && acestepState && acestepState.duration > 0) {
-              const rect = e.currentTarget.getBoundingClientRect()
-              const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
-              sendAceStepCommand('seek', { time: ratio * acestepState.duration })
-            }
-          }}
-        >
-          <div className="music-activity__progress-fill" style={{ width: `${Math.min(100, progress)}%` }} />
+        {/* 第二行：音柱背景（底边对齐进度条）+ 可拖动进度条 */}
+        <div className="music-activity__track">
+          <div className="music-activity__spectrum-bg" aria-hidden="true">
+            <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--left">
+              {expandedMirrored.map((v, i) => (
+                <div key={i} className="music-activity__spectrum-bg-bar" style={{ height: `${2 + v * 18}px` }} />
+              ))}
+            </div>
+            <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--right">
+              {expandedBgBands.map((v, i) => (
+                <div key={i} className="music-activity__spectrum-bg-bar" style={{ height: `${2 + v * 18}px` }} />
+              ))}
+            </div>
+          </div>
+          <div
+            className={`music-activity__progress music-activity__progress--bar${canSeek ? ' music-activity__progress--clickable' : ''}${scrubbing ? ' is-scrubbing' : ''}`}
+            onPointerDown={handleScrubStart}
+            onPointerMove={handleScrubMove}
+            onPointerUp={handleScrubEnd}
+            onPointerCancel={handleScrubEnd}
+          >
+            <div
+              className="music-activity__progress-fill"
+              style={{ width: `${Math.min(100, scrubbing ? scrubRatio * 100 : progress)}%` }}
+            />
+            {scrubbing && (
+              <div className="music-activity__progress-thumb" style={{ left: `${Math.min(100, scrubRatio * 100)}%` }} />
+            )}
+          </div>
         </div>
 
         {/* 第三行：底部居中播放控制 */}

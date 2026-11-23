@@ -409,10 +409,48 @@
     letter-spacing: 0.5px;
   }
 
-  // 第二行进度条：在 player 三行布局里铺满整行宽度
-  .music-activity__progress--bar {
+  // 第二行音轨：音柱背景 + 进度条共用同一底边（音柱从进度条往上长）
+  &__track {
+    position: relative;
     width: 100%;
+    height: 24px;
     flex: none;
+
+    // 音柱填满 track，底边对齐进度条；在背景层
+    .music-activity__spectrum-bg {
+      inset: 0;
+      opacity: 0.5;
+      z-index: 0;
+    }
+  }
+
+  // 进度条绝对定位在音轨底部，盖在音柱之上
+  .music-activity__progress--bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 1;
+    height: 3px;
+
+    &.is-scrubbing {
+      height: 5px;
+      cursor: grabbing;
+    }
+  }
+
+  // 拖动指示点
+  &__progress-thumb {
+    position: absolute;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    border-radius: var(--size-radius-full);
+    background: var(--island-accent);
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 6px color-mix(in oklch, var(--island-accent) 60%, transparent);
+    pointer-events: none;
   }
 
   // 第三行播放控制：底部居中
