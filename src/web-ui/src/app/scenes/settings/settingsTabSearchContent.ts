@@ -149,11 +149,6 @@ export const SETTINGS_TAB_SEARCH_CONTENT: Record<ConfigTab, readonly SettingsTab
     { ns: 'settings/basics', key: 'smartDesktop.underlay.enabledHint' },
   ],
 
-  island: [
-    { ns: 'settings', key: 'configCenter.tabs.island' },
-    { ns: 'settings', key: 'configCenter.tabDescriptions.island' },
-  ],
-
   account: [
     { ns: 'settings/account', key: 'title' },
     { ns: 'settings/account', key: 'username' },

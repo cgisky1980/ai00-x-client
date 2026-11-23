@@ -1,27 +1,18 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react'
+import React, { useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, useSpring, useMotionValueEvent, useReducedMotion } from 'framer-motion'
-import { emit, listen } from '@tauri-apps/api/event'
+import { emit } from '@tauri-apps/api/event'
 import { useIslandStore } from '../store/islandStore'
-import { ISLAND_ROWS, type IslandRowId } from '../islandRows'
 import { useAudioPlaybackStore } from '../../vrm/store/audioPlaybackStore'
 import { MusicActivity } from './activities/MusicActivity'
 import { SfxActivity } from './activities/SfxActivity'
 import { ToolsActivity } from './activities/ToolsActivity'
 import { WindowAPI } from '@/infrastructure/windows/WindowAPI'
 import { refreshRegions } from '../../../infrastructure/overlay'
-import { IslandExpression } from './IslandExpression'
 import './DynamicIsland.scss'
-
-// 弹簧参数： stiffness 高、damping 接近临界，展开利落不晃。
-// 带速度积分 → 目标中途改变时保留速度，收展反向不跳变；帧率无关。
-const SPRING = { stiffness: 400, damping: 30, mass: 0.85 }
 
 export const DynamicIsland: React.FC = () => {
   const state = useIslandStore((s) => s.state)
   const setState = useIslandStore((s) => s.setState)
-  const occluded = useIslandStore((s) => s.occluded)
-  const setOccluded = useIslandStore((s) => s.setOccluded)
   const setOverlayExpanded = useAudioPlaybackStore(
     (s) => s.setOverlayExpanded
   )
@@ -32,70 +23,20 @@ export const DynamicIsland: React.FC = () => {
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hoverExpandedRef = useRef(false)
   const hoverLockedRef = useRef(false)
-  // 表情挂件：hover 状态 + 播放状态变化脉冲
-  const [hovered, setHovered] = useState(false)
-  const [playPulse, setPlayPulse] = useState(0)
-  useEffect(() => {
-    setPlayPulse((n) => n + 1)
-  }, [isPlaying])
-
-  // 减动效判定：显式 data-motion 优先（full/reduced），仅未显式设置时才回退系统偏好。
-  // 关键：系统 prefers-reduced-motion 常因 Windows「自定义动画设置」误报 true，
-  // 若直接 OR 会覆盖用户明确的「完整动效」选择，导致弹簧/呼吸/表情全被关掉。
-  const prefersReduced = useReducedMotion()
-  const [motionAttr, setMotionAttr] = useState<string | undefined>(
-    () => document.documentElement.dataset.motion
-  )
-  useEffect(() => {
-    const root = document.documentElement
-    const observer = new MutationObserver(() => {
-      setMotionAttr(root.dataset.motion)
-    })
-    observer.observe(root, {
-      attributes: true,
-      attributeFilter: ['data-motion'],
-    })
-    return () => observer.disconnect()
-  }, [])
-  const reduced =
-    motionAttr === 'reduced' ||
-    (motionAttr !== 'full' && !!prefersReduced)
-
-  // 全屏避让：前台应用全屏/最大化时收起岛为贴边细线。
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    listen<{ occluded: boolean }>('island://occlusion', (event) => {
-      setOccluded(event.payload.occluded)
-    }).then((fn) => { unlisten = fn }).catch(() => {
-      // 纯浏览器 dev 环境无 Tauri 事件总线，忽略即可
-    })
-    return () => unlisten?.()
-  }, [setOccluded])
-
-  // 形变进度：0 = compact，1 = expanded。外框尺寸/圆角/内容淡入淡出
-  // 全部由这一个 spring 驱动，保证同一条曲线、中途反向不跳变。
-  // 全屏避让时强制目标为 0（收起）。
-  const target = occluded ? 0 : state === 'expanded' ? 1 : 0
-  const progress = useSpring(target, SPRING)
-  useEffect(() => {
-    progress.set(target)
-  }, [target, progress])
-
-  // 形变稳定后再上报命中区，避免穿透区域追着动画跑。
-  // 减动效档为瞬时切换（无 animationComplete），单独立即刷新。
-  useMotionValueEvent(progress, 'animationComplete', () => refreshRegions())
-  useEffect(() => {
-    if (reduced) refreshRegions()
-  }, [state, reduced])
 
   // Sync island expanded state with audioPlaybackStore for polling
   useEffect(() => {
     setOverlayExpanded(state !== 'compact')
   }, [state, setOverlayExpanded])
 
+  // Refresh no-penetrate regions after the 0.45s CSS transition completes.
+  useEffect(() => {
+    const timer = setTimeout(() => refreshRegions(), 500)
+    return () => clearTimeout(timer)
+  }, [state])
+
   // Hover to expand (compact -> expanded after 300ms)
   const onMouseEnter = useCallback(() => {
-    setHovered(true)
     if (state !== 'compact') return
     hoverTimerRef.current = setTimeout(() => {
       hoverExpandedRef.current = true
@@ -105,7 +46,6 @@ export const DynamicIsland: React.FC = () => {
   }, [state, setState])
 
   const onMouseLeave = useCallback(() => {
-    setHovered(false)
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current)
       hoverTimerRef.current = null
@@ -160,72 +100,36 @@ export const DynamicIsland: React.FC = () => {
       )
   }, [])
 
-  // 行注册表：按用户 order 排序、disabled 仅隐藏视觉（DOM 常驻，保插件槽）。
-  const rowConfig = useIslandStore((s) => s.rowConfig)
-  const orderedRows = [...ISLAND_ROWS].sort(
-    (a, b) => rowConfig[a.id].order - rowConfig[b.id].order
-  )
-
-  const renderRow = (id: IslandRowId) => {
-    switch (id) {
-      case 'music':
-        return <MusicActivity onOpenWindow={openMusicWindow} />
-      case 'sfx':
-        return <SfxActivity onOpenWindow={openSfxWindow} />
-      case 'tools':
-        return <ToolsActivity />
-    }
-  }
-
   const stateClass = `dynamic-island--${state}`
   const playingClass = isPlaying ? ' dynamic-island--playing' : ''
-  const occludedClass = occluded ? ' dynamic-island--occluded' : ''
 
   return createPortal(
     <>
-      {/* 边缘唤出区：compact 态下把命中区从岛顶延伸到屏幕顶边。
-          光标推到屏幕最上方任意位置即可唤出岛（借鉴岛仔 side_hit_rect）。
-          带 no-penetrate 纳入现有穿透链路；展开或全屏避让时移除，避免拦截。 */}
-      {state === 'compact' && !occluded && (
-        <div
-          className="dynamic-island__edge-hit no-penetrate"
-          onMouseEnter={onMouseEnter}
-        />
-      )}
-      <motion.div
-        className={`dynamic-island no-penetrate ${stateClass}${playingClass}${occludedClass}`}
+      <div
+        className={`dynamic-island no-penetrate ${stateClass}${playingClass}`}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onClick={onClick}
-        style={
-          {
-            '--island-progress': reduced ? target : progress,
-          } as React.CSSProperties
-        }
       >
-        {/* 左侧表情挂件（岛仔式岛内小伙伴，素材 MIT） */}
-        <IslandExpression playPulse={playPulse} hovered={hovered} />
-
-        {/* 数据驱动的模块化行：顺序/开关来自 islandStore（持久化）。
-            所有行 DOM 常驻（插件槽 #ai00-island-slot 在 tools 行内，
-            运行时启动时发现一次，不能丢失）；disabled 仅加 --hidden 隐藏视觉。 */}
+        {/* Single-page three-row layout: music / sfx / tools dock all
+            rendered at once in the expanded panel. The Tools row hosts
+            the plugin extension slot #ai00-island-slot, which stays in
+            the DOM permanently — the plugin runtime discovers it once
+            at startup and must not lose it. */}
         <div className="dynamic-island__content">
           <div className="dynamic-island__rows">
-            {orderedRows.map((row) => (
-              <div
-                key={row.id}
-                className={`dynamic-island__row dynamic-island__row--${row.id}${
-                  row.compactVisible ? ' dynamic-island__row--compact-visible' : ''
-                }${
-                  rowConfig[row.id].enabled ? '' : ' dynamic-island__row--hidden'
-                }`}
-              >
-                {renderRow(row.id)}
-              </div>
-            ))}
+            <div className="dynamic-island__row dynamic-island__row--music">
+              <MusicActivity onOpenWindow={openMusicWindow} />
+            </div>
+            <div className="dynamic-island__row dynamic-island__row--sfx">
+              <SfxActivity onOpenWindow={openSfxWindow} />
+            </div>
+            <div className="dynamic-island__row dynamic-island__row--tools">
+              <ToolsActivity />
+            </div>
           </div>
         </div>
-      </motion.div>
+      </div>
     </>,
     document.body
   )

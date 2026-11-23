@@ -15,8 +15,7 @@
   &--compact {
     justify-content: space-between;
     gap: var(--size-gap-1-5);
-    // 左侧让出 34px 给岛内表情挂件（IslandExpression，absolute 定位在 left:8）
-    padding: 0 var(--size-gap-3) 0 calc(28px + var(--size-gap-3));
+    padding: 0 var(--size-gap-3);
     width: 100%;
     position: relative; // for spectrum-bg absolute positioning
   }
@@ -27,8 +26,6 @@
     transition: color 0.3s ease;
     position: relative;
     z-index: 1;
-    // 表情挂件已作为左侧视觉锚点，隐藏原音符图标避免重叠
-    display: none;
 
     &--playing {
       color: var(--color-accent-400);
@@ -72,11 +69,10 @@
 
   &__spectrum-bg-bar {
     flex: 1; // auto-fill column width
-    border-radius: 2px;
-    background: color-mix(in oklch, var(--color-accent-400) 70%, transparent);
-    transition: height 0.08s linear;
-    min-height: 3px;
-    box-shadow: 0 0 3px color-mix(in oklch, var(--color-accent-400) 30%, transparent);
+    border-radius: 1px;
+    background: color-mix(in oklch, var(--color-accent-500) 85%, transparent);
+    transition: height 0.06s linear;
+    min-height: 2px;
   }
 
   &__mini-time {
@@ -88,49 +84,6 @@
     position: relative;
     z-index: 1;
   }
-
-  // 单行歌词（岛仔式收起态常驻信息）：160px 窄胶囊内省略显示
-  &__mini-lyric {
-    flex: 1;
-    min-width: 0;
-    font-size: var(--font-size-xs);
-    font-weight: 500;
-    color: var(--color-text-primary);
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    position: relative;
-    z-index: 1;
-  }
-
-  // 展开态歌词行：独立层次，居中突出，换句淡入（签名动效豁免 §1.7）
-  &__lyric-line {
-    width: 100%;
-    min-width: 0;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    color: var(--color-text-primary);
-    position: relative;
-    z-index: 1;
-    animation: musicLyricEnter 0.3s ease-out both;
-  }
-
-  @keyframes musicLyricEnter {
-    from { opacity: 0; transform: translateY(3px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  // 减动效：只留文字，不做位移（规范 §1.7 边界）。
-  // 显式 data-motion='full' 时不被系统偏好压掉（用户选择优先）。
-  @media (prefers-reduced-motion: reduce) {
-    html:not([data-motion='full']) &__lyric-line { animation: none; }
-  }
-  html[data-motion='reduced'] &__lyric-line { animation: none; }
 
   // ================================================================
   // Expanded — music row (双线结构)
@@ -144,10 +97,10 @@
     width: 100%;
     height: 100%;
 
-    // 频谱在展开行是可见的声波背景（岛仔式律动），但仍低于文字层。
-    // 提到 0.7 让暂停时的静态轮廓也看得见，不再像"特效被关掉"。
+    // Spectrum dimmed to a background texture in the expanded row —
+    // must not fight the text layer (compact pill keeps full brightness).
     .music-activity__spectrum-bg {
-      opacity: 0.7;
+      opacity: 0.4;
     }
   }
 
@@ -162,34 +115,25 @@
     z-index: 1;
   }
 
-  // 专辑封面——视觉锚点（真实封面优先，无封面回退音符图标）
+  // 圆形专辑位——视觉锚点（黛青 tint，播放时呼吸光晕）
   &__art {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: var(--size-radius-md);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--size-radius-full);
     background: color-mix(in oklch, var(--color-accent-400) 14%, transparent);
     color: var(--color-accent-400);
     flex-shrink: 0;
-    overflow: hidden;
 
     &--playing {
       animation: artBreathe 2.4s ease-in-out infinite;
     }
   }
 
-  &__art-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  // 信息区：不撑满整行（否则标题被推到居中），紧贴封面；播放簇靠 margin-left:auto 右推
   &__info {
-    flex: 0 1 auto;
+    flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -206,20 +150,19 @@
   }
 
   &__artist {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    font-size: var(--font-size-2xs);
+    color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  // 播放簇：prev / PLAY / next —— 推到行尾，与信息区留出呼吸空间
+  // 播放簇：prev / PLAY / next
   &__playback {
     display: flex;
     align-items: center;
     gap: var(--size-gap-1);
     flex-shrink: 0;
-    margin-left: auto;
   }
 
   // ---- Sub line: times + progress + utility cluster ----

@@ -197,8 +197,6 @@ pub fn set_no_penetrate_regions(app: tauri::AppHandle, regions: Vec<Rect>) -> Re
 
 #[tauri::command]
 pub fn init_overlay(app: tauri::AppHandle) -> Result<(), String> {
-    spawn_overlay_thread(app.clone());
-    // 全屏避让检测：前台应用全屏/最大化时通知前端收起岛
-    crate::island_occlusion::spawn_island_occlusion_thread(app);
+    spawn_overlay_thread(app);
     Ok(())
 }

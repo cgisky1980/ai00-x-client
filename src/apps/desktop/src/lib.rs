@@ -21,7 +21,6 @@ pub mod embedding;
 pub mod gguf_meta;
 pub mod headless_fetch;
 pub mod internal_api;
-pub mod island_occlusion;
 pub mod kv_store;
 pub mod llama_server_manager;
 pub mod logging;

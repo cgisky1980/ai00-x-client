@@ -10,7 +10,6 @@ import {
   ListMusic,
 } from 'lucide-react'
 import { listen, emit } from '@tauri-apps/api/event'
-import { convertFileSrc } from '@tauri-apps/api/core'
 import { useAudioPlaybackStore } from '../../../vrm/store/audioPlaybackStore'
 import { useAudioPlayback } from '../../../vrm/hooks/useAudioPlayback'
 import { useAudioSpectrum, sampleSpectrum } from '../../../vrm/hooks/useAudioSpectrum'
@@ -20,7 +19,6 @@ import { aceStepService } from '../../../acestep/services/AceStepService'
 import type { SongEntry } from '../../../acestep/types'
 import {
   parseEnhancedLrc,
-  findCurrentLineIndex,
 } from '../../../acestep/utils/lrcParser'
 import './MusicActivity.scss'
 
@@ -31,8 +29,6 @@ interface AceStepPlayerState {
     artist: string
     durationSeconds: number
   } | null
-  /** 真实封面路径（与 LyricsOverlay 同源，经 convertFileSrc 转成可显示 URL） */
-  coverPath: string | null
   isPlaying: boolean
   currentTime: number
   duration: number
@@ -156,14 +152,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     return `${m}:${s.toString().padStart(2, '0')}`
   }
 
-  // 频谱柱高度：真实频谱值 + 静态钟形底噪。
-  // 暂停时频谱数据全 0，若只画 2px 就几乎看不见；加一条中间高、两端低的
-  // 固定轮廓，让「声波」始终可见（岛仔收起态也有常驻律动条）。
-  const spectrumBarHeight = (v: number, index: number, count: number, max: number) => {
-    const bell = Math.sin(((index + 0.5) / count) * Math.PI) // 0..1 钟形
-    return 3 + bell * 6 + v * max
-  }
-
   // ---- VRM radio computed ----
   const vrmProgress =
     bgmChannel && bgmChannel.duration_secs > 0
@@ -184,22 +172,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
   )
   const lyricsLines = parsedLrc?.lines ?? []
   const hasLyrics = lyricsLines.length > 0
-
-  // ---- 当前歌词行（compact 单行歌词 + expanded 歌词行共用） ----
-  // 借鉴岛仔 Daozai：收起态保留单行歌词，展开态歌词作为独立层次。
-  // 时间用 AceStep 推来的同步时间（含其延迟校正），无歌词状态时回退到播放器时间。
-  const lyricTime = lyricsState?.currentTime ?? acestepState?.currentTime ?? 0
-  const currentLyricIndex = useMemo(
-    () => (hasLyrics ? findCurrentLineIndex(lyricsLines, lyricTime) : -1),
-    [hasLyrics, lyricsLines, lyricTime],
-  )
-  const currentLyric = currentLyricIndex >= 0
-    ? lyricsLines[currentLyricIndex]?.rawText?.trim() || ''
-    : ''
-  // 是否显示岛内歌词：AceStep 源 + 有歌词 + 用户开了歌词开关
-  const showIslandLyric =
-    activeSource === 'acestep' && hasLyrics && (lyricsState?.showLyrics ?? false)
-  const displayLyric = showIslandLyric ? currentLyric : ''
 
   // ---- AceStep command helpers ----
   const sendAceStepCommand = useCallback(
@@ -289,7 +261,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${spectrumBarHeight(v, i, mirrored.length, 34)}px` }}
+                style={{ height: `${2 + v * 38}px` }}
               />
             ))}
           </div>
@@ -298,25 +270,16 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${spectrumBarHeight(v, i, compactBands.length, 34)}px` }}
+                style={{ height: `${2 + v * 38}px` }}
               />
             ))}
           </div>
         </div>
-        {displayLyric ? (
-          // 单行歌词（岛仔式收起态常驻信息）：窄胶囊内省略显示，随播放推进滚动
-          <span className="music-activity__mini-lyric" title={currentLyric}>
-            {displayLyric}
+        <Music size={14} className={`music-activity__icon ${isPlaying ? 'music-activity__icon--playing' : ''}`} />
+        {isPlaying && (
+          <span className="music-activity__mini-time">
+            {formatTime(currentTime)}
           </span>
-        ) : (
-          <>
-            <Music size={14} className={`music-activity__icon ${isPlaying ? 'music-activity__icon--playing' : ''}`} />
-            {isPlaying && (
-              <span className="music-activity__mini-time">
-                {formatTime(currentTime)}
-              </span>
-            )}
-          </>
         )}
       </div>
     )
@@ -380,7 +343,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${spectrumBarHeight(v, i, expandedMirrored.length, 52)}px` }}
+                style={{ height: `${2 + v * 60}px` }}
               />
             ))}
           </div>
@@ -389,7 +352,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${spectrumBarHeight(v, i, expandedBgBands.length, 52)}px` }}
+                style={{ height: `${2 + v * 60}px` }}
               />
             ))}
           </div>
@@ -399,16 +362,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
           <div
             className={`music-activity__art${isPlaying ? ' music-activity__art--playing' : ''}`}
           >
-            {activeSource === 'acestep' && acestepState?.coverPath ? (
-              <img
-                src={convertFileSrc(acestepState.coverPath)}
-                alt=""
-                draggable={false}
-                className="music-activity__art-img"
-              />
-            ) : (
-              <Music size={18} />
-            )}
+            <Music size={16} />
           </div>
           <div className="music-activity__info">
             <span className="music-activity__name" title={title}>
@@ -456,13 +410,6 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             )}
           </div>
         </div>
-        {/* 歌词行（岛仔式独立层次）：当前行居中显示，随播放推进换句淡入。
-            仅在 AceStep + 有歌词 + 用户开歌词时渲染，避免空态留白。 */}
-        {displayLyric && (
-          <div className="music-activity__lyric-line" title={currentLyric} key={currentLyricIndex}>
-            {displayLyric}
-          </div>
-        )}
         {/* Sub line: times + progress + utility cluster */}
         <div className="music-activity__sub">
           <span className="music-activity__time music-activity__time--cur">

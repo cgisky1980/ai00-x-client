@@ -33,7 +33,6 @@ export type ConfigTab =
   | 'gesture-actions'
   | 'click-effect'
   | 'smart-desktop'
-  | 'island'
   | 'plugins'
   | 'account'
   | 'about'
@@ -194,13 +193,6 @@ export const SETTINGS_CATEGORIES: ConfigCategoryDef[] = [
         descriptionKey: 'configCenter.tabDescriptions.smartDesktop',
         icon: MonitorSmartphone,
         keywords: ['desktop', 'underlay', 'wallpaper', 'replace', 'smart', 'grid', 'icon', 'pet'],
-      },
-      {
-        id: 'island',
-        labelKey: 'configCenter.tabs.island',
-        descriptionKey: 'configCenter.tabDescriptions.island',
-        icon: Layers,
-        keywords: ['island', 'dynamic', '灵动岛', 'rows', 'dock'],
       },
       {
         id: 'plugins',

@@ -18,8 +18,8 @@
   bottom: 80px;
   left: 50%;
   transform: translateX(-50%);
-  // chrome 层：歌词浮层 50020，高于灵动岛(50010)、低于浮层内弹窗(50030)
-  z-index: var(--z-chrome-overlay);
+  // chrome 顶层：桌面歌词永远在一切应用浮层（音乐/音效/策窗等）之上
+  z-index: var(--z-chrome-top);
 
   width: 600px;
   height: 120px;
