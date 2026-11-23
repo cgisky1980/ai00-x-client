@@ -132,6 +132,9 @@
   // ================================================================
   &--expanded {
     flex-direction: column;
+    // 基类 align-items:center 在 column 下会让 main 行按内容宽度水平居中（挤在中间）。
+    // 改成 stretch 让 main 撑满整行，封面/文字靠左、控制按钮靠右两端分布。
+    align-items: stretch;
     justify-content: center;
     gap: var(--size-gap-1-5);
     padding: var(--size-gap-2) var(--size-gap-4);
