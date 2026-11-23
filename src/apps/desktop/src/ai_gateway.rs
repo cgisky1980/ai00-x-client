@@ -1550,6 +1550,30 @@ fn remote_fold_needed(messages: &[Value]) -> bool {
 /// 其他引用（ai00s:/gguf-local:/自定义 id）按 client_factory 同一解析链直达。
 /// 本地失败降级统一走此入口——逻辑 id（rwkv-local/ai00-auto）先经
 /// [`remote_fallback_ref`] 映射，保证「本地失败自动降级远端」真实成立。
+///
+/// 远端首字节超时秒数（默认 60；`AI00X_REMOTE_FIRST_BYTE_SECS` 可覆盖，测试用）。
+fn remote_first_byte_timeout_secs() -> u64 {
+    std::env::var("AI00X_REMOTE_FIRST_BYTE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|v: &u64| *v > 0)
+        .unwrap_or(60)
+}
+
+/// 远端流空闲超时秒数（默认 90；`AI00X_REMOTE_IDLE_SECS` 可覆盖，测试用）。
+///
+/// 上游挂起时（实测自建 RWKV 通道「建预扣后不 settle」）不会主动断开；
+/// 没有这个超时，引擎回合会静默结束、计划卡停住且无错误可重试。
+fn remote_idle_timeout_secs() -> u64 {
+    std::env::var("AI00X_REMOTE_IDLE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|v: &u64| *v > 0)
+        .unwrap_or(90)
+}
+
+/// 转发到指定模型引用（OpenAI 兼容 SSE 透传）：`ai00-api` → primary 槽；
+/// 其他引用（ai00s:/gguf-local:/自定义 id）按 client_factory 同一解析链直达。
 async fn forward_to_ai00_salvo(
     mut body: Value,
     res: &mut Response,
@@ -1701,17 +1725,29 @@ async fn forward_to_ai00_salvo(
                     return;
                 }
                 let mut stream = r.bytes_stream();
-                match stream.next().await {
-                    Some(Ok(bytes)) => {
+                // 首块读取加超时：上游长时间不吐首字节（排队/挂起）时按失败处理并重试，
+                // 避免请求永远挂着、引擎回合静默结束。默认 60s，环境变量可覆盖（测试用）。
+                let first_byte_secs = remote_first_byte_timeout_secs();
+                match tokio::time::timeout(
+                    std::time::Duration::from_secs(first_byte_secs),
+                    stream.next(),
+                )
+                .await
+                {
+                    Ok(Some(Ok(bytes))) => {
                         first_chunk = Some(bytes);
                         upstream_stream = Some(stream);
                         ttft_ms = Some(usage.started.elapsed().as_millis() as u64);
                         break;
                     }
-                    Some(Err(e)) => {
+                    Ok(Some(Err(e))) => {
                         last_error = format!("upstream stream error before first byte: {e}");
                     }
-                    None => last_error = "upstream returned empty body".to_string(),
+                    Ok(None) => last_error = "upstream returned empty body".to_string(),
+                    Err(_) => {
+                        last_error = format!("upstream no first byte within {first_byte_secs}s");
+                        log::warn!("[ai-gateway] {last_error}");
+                    }
                 }
                 if attempt == 0 {
                     log::warn!("[ai-gateway] {last_error}, retrying once");
@@ -1775,8 +1811,28 @@ async fn forward_to_ai00_salvo(
             &mut saw_done,
         );
         // 下游已断开时 send 失败，直接落到记账收尾。
+        // 空闲超时：上游超过 N 秒没有新字节即视为挂起（实测自建通道会「建预扣
+        // 后不 settle」），主动以 SSE error 终结，让引擎/UI 看到失败可重试。
+        let idle_secs = remote_idle_timeout_secs();
         if tx.send(Ok(first)).is_ok() {
-            while let Some(chunk) = stream.next().await {
+            loop {
+                let chunk = match tokio::time::timeout(
+                    std::time::Duration::from_secs(idle_secs),
+                    stream.next(),
+                )
+                .await
+                {
+                    Ok(Some(chunk)) => chunk,
+                    Ok(None) => break,
+                    Err(_) => {
+                        interrupted =
+                            Some(format!("upstream idle timeout: no data for {idle_secs}s"));
+                        log::warn!(
+                            "[ai-gateway] upstream idle for {idle_secs}s, closing stream with error"
+                        );
+                        break;
+                    }
+                };
                 match chunk {
                     Ok(bytes) => {
                         scan(
