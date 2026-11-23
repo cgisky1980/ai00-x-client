@@ -6,8 +6,8 @@ import {
   SkipForward,
   Volume2,
   VolumeX,
-  Radio,
-  AudioLines,
+  Music2,
+  Piano,
   Heart,
   ListMusic,
 } from 'lucide-react'
@@ -360,36 +360,36 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
           : 0
 
     if (empty) {
-      // 空态：第一行歌曲/纯音乐互斥选择（默认歌曲），下面保留播放按钮，
-      // 点击按选中模式启动对应电台。
+      // 空态：一条横向迷你控制条——左侧歌曲/纯音乐互斥选择(默认歌曲)，
+      // 右侧播放键。一行两端分布铺满岛宽，避免上下散乱和大片空白。
       return (
         <div
           className="music-activity music-activity--expanded music-activity--empty"
           onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
         >
-          <div className="music-activity__main">
+          <div className="music-activity__empty-bar">
             <div className="music-activity__mode-switch">
               <button
                 className={`music-activity__mode-btn${mode === 'song' ? ' is-active' : ''}`}
                 onClick={(e) => { e.stopPropagation(); setMode('song') }}
+                title={t('audio.island.radio.song', { defaultValue: '歌曲电台' })}
               >
-                <Radio size={16} />
+                <Music2 size={17} />
               </button>
               <button
                 className={`music-activity__mode-btn${mode === 'music' ? ' is-active' : ''}`}
                 onClick={(e) => { e.stopPropagation(); setMode('music') }}
+                title={t('audio.island.radio.music', { defaultValue: '纯音乐电台' })}
               >
-                <AudioLines size={16} />
+                <Piano size={17} />
               </button>
             </div>
-          </div>
-          <div className="music-activity__controls">
             <button
               className="music-activity__btn music-activity__btn--play"
               onClick={(e) => { e.stopPropagation(); void handleEmptyPlay() }}
               title={t('acestep.play', { defaultValue: '播放' })}
             >
-              <Play size={14} />
+              <Play size={15} />
             </button>
           </div>
         </div>
