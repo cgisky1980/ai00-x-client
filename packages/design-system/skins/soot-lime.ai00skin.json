@@ -2,7 +2,7 @@
   "format": 1,
   "id": "soot-lime",
   "name": "煤黑青柠",
-  "description": "煤黑底、白字，荧光青柠是唯一的强调色；亮色档改为墨黑按钮配青柠高亮。",
+  "description": "煤黑底、白字，荧光青柠是唯一的强调色；亮色档用同色相深橄榄做强调，明暗两态同一色彩家族。",
   "source": "taste-skill palette soot-pale-lime + type geist（scripts/skin-from-taste.mjs 生成，勿手改；改动请重新发牌）",
   "modes": {
     "dark": {
@@ -20,7 +20,7 @@
       "surface": "#ececec",
       "ink": "#0f0f0f",
       "muted": "#5f5f5f",
-      "accent": "#0f0f0f",
+      "accent": "#6d6e06",
       "accentInk": "#ffffff",
       "mark": "#dafa9c",
       "markInk": "#0f0f0f"

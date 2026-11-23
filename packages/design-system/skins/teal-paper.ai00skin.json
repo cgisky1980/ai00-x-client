@@ -10,8 +10,10 @@
       "surface": "#205d66",
       "ink": "#f7f9f8",
       "muted": "#c1d0d2",
-      "accent": "#f7f9f8",
-      "accentInk": "#06525c"
+      "accent": "#45e8e8",
+      "accentInk": "#06525c",
+      "mark": "#45e8e8",
+      "markInk": "#06525c"
     },
     "light": {
       "bg": "#f7f9f8",

@@ -9,7 +9,7 @@ export const builtinSkins: readonly Skin[] = [
     "format": 1,
     "id": "soot-lime",
     "name": "煤黑青柠",
-    "description": "煤黑底、白字，荧光青柠是唯一的强调色；亮色档改为墨黑按钮配青柠高亮。",
+    "description": "煤黑底、白字，荧光青柠是唯一的强调色；亮色档用同色相深橄榄做强调，明暗两态同一色彩家族。",
     "source": "taste-skill palette soot-pale-lime + type geist（scripts/skin-from-taste.mjs 生成，勿手改；改动请重新发牌）",
     "modes": {
       "dark": {
@@ -27,7 +27,7 @@ export const builtinSkins: readonly Skin[] = [
         "surface": "#ececec",
         "ink": "#0f0f0f",
         "muted": "#5f5f5f",
-        "accent": "#0f0f0f",
+        "accent": "#6d6e06",
         "accentInk": "#ffffff",
         "mark": "#dafa9c",
         "markInk": "#0f0f0f"
@@ -66,7 +66,7 @@ export const builtinSkins: readonly Skin[] = [
         "surface": "#dedfe0",
         "ink": "#18191b",
         "muted": "#5b5c5e",
-        "accent": "#18191b",
+        "accent": "#bf4306",
         "accentInk": "#eff0f1",
         "mark": "#ff4a1f",
         "markInk": "#18191b"
@@ -95,8 +95,10 @@ export const builtinSkins: readonly Skin[] = [
         "surface": "#205d66",
         "ink": "#f7f9f8",
         "muted": "#c1d0d2",
-        "accent": "#f7f9f8",
-        "accentInk": "#06525c"
+        "accent": "#45e8e8",
+        "accentInk": "#06525c",
+        "mark": "#45e8e8",
+        "markInk": "#06525c"
       },
       "light": {
         "bg": "#f7f9f8",
