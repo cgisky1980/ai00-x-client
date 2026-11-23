@@ -19,6 +19,7 @@ import { aceStepService } from '../../../acestep/services/AceStepService'
 import type { SongEntry } from '../../../acestep/types'
 import {
   parseEnhancedLrc,
+  findCurrentLineIndex,
 } from '../../../acestep/utils/lrcParser'
 import './MusicActivity.scss'
 
@@ -173,6 +174,22 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
   const lyricsLines = parsedLrc?.lines ?? []
   const hasLyrics = lyricsLines.length > 0
 
+  // ---- 当前歌词行（compact 单行歌词 + expanded 歌词行共用） ----
+  // 借鉴岛仔 Daozai：收起态保留单行歌词，展开态歌词作为独立层次。
+  // 时间用 AceStep 推来的同步时间（含其延迟校正），无歌词状态时回退到播放器时间。
+  const lyricTime = lyricsState?.currentTime ?? acestepState?.currentTime ?? 0
+  const currentLyricIndex = useMemo(
+    () => (hasLyrics ? findCurrentLineIndex(lyricsLines, lyricTime) : -1),
+    [hasLyrics, lyricsLines, lyricTime],
+  )
+  const currentLyric = currentLyricIndex >= 0
+    ? lyricsLines[currentLyricIndex]?.rawText?.trim() || ''
+    : ''
+  // 是否显示岛内歌词：AceStep 源 + 有歌词 + 用户开了歌词开关
+  const showIslandLyric =
+    activeSource === 'acestep' && hasLyrics && (lyricsState?.showLyrics ?? false)
+  const displayLyric = showIslandLyric ? currentLyric : ''
+
   // ---- AceStep command helpers ----
   const sendAceStepCommand = useCallback(
     (action: string, payload?: Record<string, unknown>) => {
@@ -275,11 +292,20 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             ))}
           </div>
         </div>
-        <Music size={14} className={`music-activity__icon ${isPlaying ? 'music-activity__icon--playing' : ''}`} />
-        {isPlaying && (
-          <span className="music-activity__mini-time">
-            {formatTime(currentTime)}
+        {displayLyric ? (
+          // 单行歌词（岛仔式收起态常驻信息）：窄胶囊内省略显示，随播放推进滚动
+          <span className="music-activity__mini-lyric" title={currentLyric}>
+            {displayLyric}
           </span>
+        ) : (
+          <>
+            <Music size={14} className={`music-activity__icon ${isPlaying ? 'music-activity__icon--playing' : ''}`} />
+            {isPlaying && (
+              <span className="music-activity__mini-time">
+                {formatTime(currentTime)}
+              </span>
+            )}
+          </>
         )}
       </div>
     )
@@ -410,6 +436,13 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
             )}
           </div>
         </div>
+        {/* 歌词行（岛仔式独立层次）：当前行居中显示，随播放推进换句淡入。
+            仅在 AceStep + 有歌词 + 用户开歌词时渲染，避免空态留白。 */}
+        {displayLyric && (
+          <div className="music-activity__lyric-line" title={currentLyric} key={currentLyricIndex}>
+            {displayLyric}
+          </div>
+        )}
         {/* Sub line: times + progress + utility cluster */}
         <div className="music-activity__sub">
           <span className="music-activity__time music-activity__time--cur">

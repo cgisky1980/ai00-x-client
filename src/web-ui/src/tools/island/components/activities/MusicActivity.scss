@@ -85,6 +85,48 @@
     z-index: 1;
   }
 
+  // 单行歌词（岛仔式收起态常驻信息）：160px 窄胶囊内省略显示
+  &__mini-lyric {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--color-text-primary);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+    z-index: 1;
+  }
+
+  // 展开态歌词行：独立层次，居中突出，换句淡入（签名动效豁免 §1.7）
+  &__lyric-line {
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-primary);
+    position: relative;
+    z-index: 1;
+    animation: musicLyricEnter 0.3s ease-out both;
+  }
+
+  @keyframes musicLyricEnter {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  // 减动效：只留文字，不做位移（规范 §1.7 边界）
+  @media (prefers-reduced-motion: reduce) {
+    &__lyric-line { animation: none; }
+  }
+  html[data-motion='reduced'] &__lyric-line { animation: none; }
+
   // ================================================================
   // Expanded — music row (双线结构)
   // ================================================================
