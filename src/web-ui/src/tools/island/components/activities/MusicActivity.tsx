@@ -512,7 +512,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
         </div>
 
         {/* 第二行：音柱背景（底边对齐进度条）+ 可拖动进度条 */}
-        <div className="music-activity__track">
+        <div className="music-activity__track" onClick={(e) => e.stopPropagation()}>
           <div className="music-activity__spectrum-bg" aria-hidden="true">
             <div className="music-activity__spectrum-bg-col music-activity__spectrum-bg-col--left">
               {expandedMirrored.map((v, i) => (
