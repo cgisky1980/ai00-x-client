@@ -87,8 +87,10 @@
   }
 
   // compact 柱基数 40px / expanded 柱基数 20px（JS 按此算 scaleY 比例）
-  .music-activity--compact & { height: 40px; }
-  .music-activity__track & { height: 20px; }
+  // compact 根元素同时带 .music-activity 和 .music-activity--compact（同一元素），
+  // 必须用复合选择器 &.music-activity--compact，写成后代会永远不匹配。
+  &.music-activity--compact .music-activity__spectrum-bg-bar { height: 40px; }
+  .music-activity__track .music-activity__spectrum-bg-bar { height: 20px; }
 
   &__mini-time {
     font-family: var(--font-family-mono);
