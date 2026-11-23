@@ -143,6 +143,16 @@ copy dist\main.zip target\release\main.zip           # 替换 exe 旁资产
    - 前端资产（main.zip/loader.zip/underlay.zip）是 Lazy 缓存，**替换后必须重启**才生效。
 4. **CDP 调试（9223）**：常用 `node test/cdp-drive.mjs targets | eval-main "<expr>" | eval-at workbench.html "<expr>"`；长表达式先写进 `test/*.txt` 再 `eval-main (Get-Content <file> -Raw)`。
 5. **本地 RWKV 预热**：工作台首次发话会上报 `agent` 上下文并自动预热主模型（~9-11s，与 DSH 编排并行）；可用 `invoke('vram_list_engines')` 看 `rwkv-llm.resident`，或日志里的 `agent context active, preloading local model`。
+6. **调试模式（窗口读取 Vite dev server，前端 HMR）**：
+   ```powershell
+   pnpm --dir src/web-ui dev     # vite：http://127.0.0.1:1422/main/（strictPort，必须常驻）
+   # 另一个进程用带 AI00_X_DEV_MODE=1 的启动脚本拉起客户端（参考 %TEMP%\ai00x-launch-dev.cmd）
+   ```
+   - `AI00_X_DEV_MODE=1` 时 `local_web_origin()`（core `server_endpoints.rs`）返回 1422，主窗口/工作台 URL 变成 `http://127.0.0.1:1422/main/<page>.html`，改前端即热更新；可选 `AI00_X_OPEN_DEVTOOLS=1` 自动开 DevTools。
+   - loader 仍由内嵌 2100 提供（与正式一致），只有主窗口/工作台走 Vite。
+   - Vite 首次启动会 "Re-optimizing dependencies" 并自动整页 reload；工作台首次打开可能白屏十几秒（模块图编译），属正常。
+   - 注意：Vite 进程必须常驻（工具会话的后台命令结束会被回收），断掉后窗口刷新即 404。
+
 
 
 ### 服务器环境（2026-08-28 起）
