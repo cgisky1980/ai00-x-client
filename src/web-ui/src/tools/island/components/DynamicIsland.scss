@@ -121,9 +121,10 @@
   50% { transform: translateX(-50%) scale(1.015); }
 }
 
-// 减动效档：停掉呼吸位移，只留颜色/发光（规范 §1.7 豁免边界）
+// 减动效档：停掉呼吸位移，只留颜色/发光（规范 §1.7 豁免边界）。
+// 显式 data-motion='full' 时不被系统偏好压掉（用户选择优先）。
 @media (prefers-reduced-motion: reduce) {
-  .dynamic-island--playing {
+  html:not([data-motion='full']) .dynamic-island--playing {
     animation: none;
   }
 }

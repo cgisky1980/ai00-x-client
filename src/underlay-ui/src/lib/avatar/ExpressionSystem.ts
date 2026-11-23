@@ -103,16 +103,24 @@ export class ExpressionSystem {
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl.replace(/\/$/, '') + '/expressions/';
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    this.reduced = mq.matches;
-    mq.addEventListener('change', (e) => {
-      this.reduced = e.matches;
+    const root = document.documentElement;
+    // 显式 data-motion 优先：full → 开表情；reduced → 关；未设才回退系统偏好。
+    // Windows「自定义动画设置」常让系统偏好误报 reduce，不能让它覆盖产品默认。
+    const resolveReduced = (): boolean => {
+      const attr = root.dataset.motion;
+      return attr === 'reduced' || (attr !== 'full' && mq.matches);
+    };
+    this.reduced = resolveReduced();
+    mq.addEventListener('change', () => {
+      this.reduced = resolveReduced();
       if (this.reduced) this.stop();
     });
-    const root = document.documentElement;
     this.lightTheme = root.dataset.themeType === 'light';
     new MutationObserver(() => {
       this.lightTheme = document.documentElement.dataset.themeType === 'light';
-    }).observe(root, { attributes: true, attributeFilter: ['data-theme-type'] });
+      this.reduced = resolveReduced();
+      if (this.reduced) this.stop();
+    }).observe(root, { attributes: true, attributeFilter: ['data-theme-type', 'data-motion'] });
   }
 
   setHidden(hidden: boolean): void {

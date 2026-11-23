@@ -10,6 +10,7 @@ import {
   ListMusic,
 } from 'lucide-react'
 import { listen, emit } from '@tauri-apps/api/event'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { useAudioPlaybackStore } from '../../../vrm/store/audioPlaybackStore'
 import { useAudioPlayback } from '../../../vrm/hooks/useAudioPlayback'
 import { useAudioSpectrum, sampleSpectrum } from '../../../vrm/hooks/useAudioSpectrum'
@@ -30,6 +31,8 @@ interface AceStepPlayerState {
     artist: string
     durationSeconds: number
   } | null
+  /** 真实封面路径（与 LyricsOverlay 同源，经 convertFileSrc 转成可显示 URL） */
+  coverPath: string | null
   isPlaying: boolean
   currentTime: number
   duration: number
@@ -151,6 +154,14 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     const m = Math.floor(secs / 60)
     const s = Math.floor(secs % 60)
     return `${m}:${s.toString().padStart(2, '0')}`
+  }
+
+  // 频谱柱高度：真实频谱值 + 静态钟形底噪。
+  // 暂停时频谱数据全 0，若只画 2px 就几乎看不见；加一条中间高、两端低的
+  // 固定轮廓，让「声波」始终可见（岛仔收起态也有常驻律动条）。
+  const spectrumBarHeight = (v: number, index: number, count: number, max: number) => {
+    const bell = Math.sin(((index + 0.5) / count) * Math.PI) // 0..1 钟形
+    return 3 + bell * 6 + v * max
   }
 
   // ---- VRM radio computed ----
@@ -278,7 +289,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${2 + v * 38}px` }}
+                style={{ height: `${spectrumBarHeight(v, i, mirrored.length, 34)}px` }}
               />
             ))}
           </div>
@@ -287,7 +298,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${2 + v * 38}px` }}
+                style={{ height: `${spectrumBarHeight(v, i, compactBands.length, 34)}px` }}
               />
             ))}
           </div>
@@ -369,7 +380,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${2 + v * 60}px` }}
+                style={{ height: `${spectrumBarHeight(v, i, expandedMirrored.length, 52)}px` }}
               />
             ))}
           </div>
@@ -378,7 +389,7 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
               <div
                 key={i}
                 className="music-activity__spectrum-bg-bar"
-                style={{ height: `${2 + v * 60}px` }}
+                style={{ height: `${spectrumBarHeight(v, i, expandedBgBands.length, 52)}px` }}
               />
             ))}
           </div>
@@ -388,7 +399,16 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
           <div
             className={`music-activity__art${isPlaying ? ' music-activity__art--playing' : ''}`}
           >
-            <Music size={16} />
+            {activeSource === 'acestep' && acestepState?.coverPath ? (
+              <img
+                src={convertFileSrc(acestepState.coverPath)}
+                alt=""
+                draggable={false}
+                className="music-activity__art-img"
+              />
+            ) : (
+              <Music size={18} />
+            )}
           </div>
           <div className="music-activity__info">
             <span className="music-activity__name" title={title}>

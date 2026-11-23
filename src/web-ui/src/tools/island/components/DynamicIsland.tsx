@@ -10,6 +10,7 @@ import { SfxActivity } from './activities/SfxActivity'
 import { ToolsActivity } from './activities/ToolsActivity'
 import { WindowAPI } from '@/infrastructure/windows/WindowAPI'
 import { refreshRegions } from '../../../infrastructure/overlay'
+import { IslandExpression } from './IslandExpression'
 import './DynamicIsland.scss'
 
 // 弹簧参数： stiffness 高、damping 接近临界，展开利落不晃。
@@ -31,16 +32,24 @@ export const DynamicIsland: React.FC = () => {
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hoverExpandedRef = useRef(false)
   const hoverLockedRef = useRef(false)
+  // 表情挂件：hover 状态 + 播放状态变化脉冲
+  const [hovered, setHovered] = useState(false)
+  const [playPulse, setPlayPulse] = useState(0)
+  useEffect(() => {
+    setPlayPulse((n) => n + 1)
+  }, [isPlaying])
 
-  // 减动效：系统偏好 + 应用 data-motion 双通道（对齐 motion.css 的开关）。
+  // 减动效判定：显式 data-motion 优先（full/reduced），仅未显式设置时才回退系统偏好。
+  // 关键：系统 prefers-reduced-motion 常因 Windows「自定义动画设置」误报 true，
+  // 若直接 OR 会覆盖用户明确的「完整动效」选择，导致弹簧/呼吸/表情全被关掉。
   const prefersReduced = useReducedMotion()
-  const [domReduced, setDomReduced] = useState(
-    () => document.documentElement.dataset.motion === 'reduced'
+  const [motionAttr, setMotionAttr] = useState<string | undefined>(
+    () => document.documentElement.dataset.motion
   )
   useEffect(() => {
     const root = document.documentElement
     const observer = new MutationObserver(() => {
-      setDomReduced(root.dataset.motion === 'reduced')
+      setMotionAttr(root.dataset.motion)
     })
     observer.observe(root, {
       attributes: true,
@@ -48,7 +57,9 @@ export const DynamicIsland: React.FC = () => {
     })
     return () => observer.disconnect()
   }, [])
-  const reduced = !!prefersReduced || domReduced
+  const reduced =
+    motionAttr === 'reduced' ||
+    (motionAttr !== 'full' && !!prefersReduced)
 
   // 全屏避让：前台应用全屏/最大化时收起岛为贴边细线。
   useEffect(() => {
@@ -84,6 +95,7 @@ export const DynamicIsland: React.FC = () => {
 
   // Hover to expand (compact -> expanded after 300ms)
   const onMouseEnter = useCallback(() => {
+    setHovered(true)
     if (state !== 'compact') return
     hoverTimerRef.current = setTimeout(() => {
       hoverExpandedRef.current = true
@@ -93,6 +105,7 @@ export const DynamicIsland: React.FC = () => {
   }, [state, setState])
 
   const onMouseLeave = useCallback(() => {
+    setHovered(false)
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current)
       hoverTimerRef.current = null
@@ -190,6 +203,9 @@ export const DynamicIsland: React.FC = () => {
           } as React.CSSProperties
         }
       >
+        {/* 左侧表情挂件（岛仔式岛内小伙伴，素材 MIT） */}
+        <IslandExpression playPulse={playPulse} hovered={hovered} />
+
         {/* 数据驱动的模块化行：顺序/开关来自 islandStore（持久化）。
             所有行 DOM 常驻（插件槽 #ai00-island-slot 在 tools 行内，
             运行时启动时发现一次，不能丢失）；disabled 仅加 --hidden 隐藏视觉。 */}
