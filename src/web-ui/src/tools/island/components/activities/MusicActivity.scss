@@ -101,9 +101,15 @@
   // 空态：歌曲 / 纯音乐 互斥模式选择（两个图标按钮，默认歌曲，无文字）
   // ================================================================
   &.music-activity--empty {
-    // 紧凑：内容靠上聚拢，不让两行被均分撑散
-    justify-content: flex-start;
+    // 紧凑：两行（模式卡 + 播放键）在中轴线上对齐聚拢，像一张迷你控制卡
+    align-items: center;
+    justify-content: center;
     gap: var(--size-gap-2);
+
+    .music-activity__main {
+      flex: none;
+      width: auto;
+    }
   }
 
   &__mode-switch {
