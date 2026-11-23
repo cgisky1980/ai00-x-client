@@ -21,7 +21,7 @@ export type EyeExpression =
   | 'excited' | 'scared' | 'focused' | 'worried' | 'despair' | 'furious'
   | 'bored' | 'alert' | 'blink' | 'blinkUp' | 'blinkDown'
   | 'disoriented' | 'lookUp' | 'lookDown' | 'lookLeft' | 'lookRight'
-  | 'winkLeft' | 'winkRight'
+  | 'winkLeft' | 'winkRight' | 'love'
 
 interface EyeParams {
   w: number
@@ -39,6 +39,8 @@ interface EyeParams {
   /** 中心椭圆遮罩（兴奋月牙眼）*/
   maskRx: number
   maskRy: number
+  /** 爱心眼（两颗心形代替圆角眼） */
+  heart?: boolean
 }
 
 type Face = { left: EyeParams; right: EyeParams }
@@ -54,6 +56,7 @@ const BASE_Y = 9
 const baseEye = (): EyeParams => ({
   w: 16, h: 18, r: 5, dx: 0, dy: 0,
   topCut: 0, bottomCut: 0, topSlopeL: 0, topSlopeR: 0, maskRx: 0, maskRy: 0,
+  heart: false,
 })
 
 /** 表情 →  Face 几何。参照 RobotEye re_gen_* 与 IrisOLED 位图 bbox 换算到 56×35。 */
@@ -63,6 +66,9 @@ function buildFace(expr: EyeExpression): Face {
   const both = (fn: (e: EyeParams) => void) => { fn(L); fn(R) }
 
   switch (expr) {
+    case 'love': // 双爱心眼
+      both((e) => { e.heart = true })
+      break
     case 'happy': // 眯眼笑：底部切掉一半
       both((e) => { e.bottomCut = 9 })
       break
@@ -158,10 +164,20 @@ const Eye: React.FC<{ p: EyeParams; x: number; mask: string; ink: string }> = ({
   const slopeL = p.topSlopeL
   const slopeR = p.topSlopeR
   const common = Math.min(slopeL, slopeR)
+  const cx = ex + p.w / 2
+  const cy = ey + p.h / 2
   return (
     <g className="eye">
-      {/* 眼球 */}
+      {/* 爱心眼：两颗心形代替圆角眼（BoopFace love 思想，独立 path） */}
+      {p.heart ? (
+        <path
+          d={`M ${cx},${cy + 7} C ${cx - 9},${cy - 1} ${cx - 6},${cy - 9} ${cx},${cy - 4} C ${cx + 6},${cy - 9} ${cx + 9},${cy - 1} ${cx},${cy + 7} Z`}
+          fill={ink}
+          className="eye__ball"
+        />
+      ) : (
       <rect x={ex} y={ey} width={p.w} height={p.h} rx={p.r} fill={ink} className="eye__ball" />
+      )}
       {/* 顶部水平切口 */}
       {p.topCut > 0 && (
         <rect x={ex} y={ey} width={p.w} height={Math.min(p.topCut, p.h)} fill={mask} className="eye__mask" />
@@ -198,11 +214,11 @@ interface IslandEyesProps {
 // 表情轮播序列——覆盖更多表情，让用户能看到丰富的动画
 const IDLE_SEQUENCE: EyeExpression[] = [
   'normal', 'happy', 'focused', 'sleepy', 'normal', 'lookLeft', 'winkLeft',
-  'normal', 'worried', 'lookRight', 'bored', 'normal', 'sad',
+  'normal', 'love', 'normal', 'worried', 'lookRight', 'bored', 'normal', 'sad',
 ]
 const PLAY_SEQUENCE: EyeExpression[] = [
   'happy', 'excited', 'happy', 'winkLeft', 'surprised', 'happy', 'winkRight',
-  'excited', 'scared', 'happy', 'angry', 'normal', 'happy',
+  'love', 'excited', 'scared', 'happy', 'angry', 'normal', 'happy',
 ]
 
 const isMotionFull = () => document.documentElement.getAttribute('data-motion') === 'full'
@@ -213,8 +229,10 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
   const [motionFull, setMotionFull] = useState(isMotionFull)
   const exprTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
+  const loveRef = useRef(false)
 
   const face = useMemo(() => buildFace(expression ?? autoExpr), [expression, autoExpr])
+  loveRef.current = (expression ?? autoExpr) === 'love'
 
   // 响应 data-motion 变化
   useEffect(() => {
@@ -256,17 +274,14 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
       blinkNext: now0 + rand(1800, 3600),
       blinkAnim: null as null | { start: number; dur: number },
       blinkV: 1,
-      wanderX: 0, wanderY: 0,
-      wanderTargetX: 0, wanderTargetY: 0,
-      wanderNext: now0 + rand(1150, 3050),
+      // 游移相位：多重正弦叠加，完全连续无跳变（离散随机目标会「动-停-动」顿挫）
+      wanderPhaseX: rand(0, Math.PI * 2),
+      wanderPhaseY: rand(0, Math.PI * 2),
       bob: 0, bobStart: 0,
-      last: now0,
     }
 
     let raf = 0
     const tick = (now: number) => {
-      const dt = Math.min(66, now - s.last); s.last = now
-
       // 眨眼：1→0.08→1，时长 150-220ms，间隔 1900-4500ms（闭到 8%）
       if (s.blinkAnim) {
         const t = Math.min(1, (now - s.blinkAnim.start) / s.blinkAnim.dur)
@@ -279,27 +294,34 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
         s.blinkAnim = { start: now, dur: rand(150, 220) }
       }
 
-      // 游移注视：随机目标 + lerp 平滑（幅度 ±1.5-3px / ±0.8-2px）
-      if (now >= s.wanderNext) {
-        s.wanderTargetX = rand(-3, 3)
-        s.wanderTargetY = rand(-2, 2)
-        s.wanderNext = now + rand(1150, 3050)
-      }
-      const k = 1 - Math.pow(1 - 0.16, dt / 16.67)
-      s.wanderX += (s.wanderTargetX - s.wanderX) * k
-      s.wanderY += (s.wanderTargetY - s.wanderY) * k
+      // 游移注视：多重正弦叠加（3 个不通约频率），连续运动永不停止、无目标跳变。
+      // X: 3.0·sin(0.7t) + 1.2·sin(1.9t+p) + 0.6·sin(3.7t)  幅度约 ±4.8px
+      // Y: 2.0·cos(0.9t) + 0.8·sin(2.3t+p)                  幅度约 ±2.8px
+      const t = (now - now0) / 1000
+      const wanderX = 3.0 * Math.sin(t * 0.7 + s.wanderPhaseX)
+        + 1.2 * Math.sin(t * 1.9 + s.wanderPhaseX * 1.7)
+        + 0.6 * Math.sin(t * 3.7)
+      const wanderY = 2.0 * Math.cos(t * 0.9 + s.wanderPhaseY)
+        + 0.8 * Math.sin(t * 2.3 + s.wanderPhaseY * 1.3)
 
       // 情绪切换过冲回弹：settle = 1 - e^(-5.2t)·cos(8.6t)
       const bobT = (now - s.bobStart) / 620
       s.bob = bobT >= 0 && bobT < 1 ? (1 - Math.exp(-5.2 * bobT) * Math.cos(8.6 * bobT)) * 2.5 : 0
 
-      // 应用到两只眼：游移 + bob 用 translate，眨眼用以眼中心为原点的 scaleY
+      // 心跳 lub-dub：760ms 周期双峰（爱心表情时明显，其余不影响）
+      const beatT = ((now - now0) % 760) / 760
+      const bell = (x: number, c: number, w: number) => Math.exp(-((x - c) ** 2) / (2 * w * w))
+      const pulse = Math.max(bell(beatT, 0.12, 0.09), 0.6 * bell(beatT, 0.40, 0.11))
+      const heartScale = loveRef.current ? 1 + 0.16 * pulse : 1
+
+      // 应用到两只眼：游移 + bob 用 translate，眨眼/心跳用以眼中心为原点的 scale
       eyes.forEach((g, i) => {
         const ex = i === 0 ? BASE_X_L : BASE_X_R
         const cy = BASE_Y + 9 // 眼球垂直中心
-        const sy = Math.max(0.08, s.blinkV)
+        const sy = Math.max(0.08, s.blinkV) * heartScale
+        const sx = heartScale
         g.style.transformBox = 'view-box'
-        g.style.transform = `translate(${s.wanderX.toFixed(2)}px, ${(s.wanderY + s.bob).toFixed(2)}px) translate(${ex + 8}px, ${cy}px) scale(1, ${sy.toFixed(3)}) translate(${-ex - 8}px, ${-cy}px)`
+        g.style.transform = `translate(${wanderX.toFixed(2)}px, ${(wanderY + s.bob).toFixed(2)}px) translate(${ex + 8}px, ${cy}px) scale(${sx.toFixed(3)}, ${sy.toFixed(3)}) translate(${-ex - 8}px, ${-cy}px)`
       })
       raf = requestAnimationFrame(tick)
     }
