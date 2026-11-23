@@ -43,6 +43,13 @@
   --color-text-secondary: oklch(0.82 0 0);
   --color-text-muted: oklch(0.66 0 0);
 
+  // 岛专用亮色 token：主题 primary 在浅色主题下是深色，直接叠黑底会看不清。
+  // 用「主题色相 + 白色」混出两套亮色，都呼应主题但在黑底上清晰，且彼此区分：
+  // - --island-wave   音浪/背景装饰：淡青白，柔和（38% primary）
+  // - --island-accent 按钮/进度/强调：浓青亮色，醒目（68% primary）
+  --island-wave: color-mix(in oklch, var(--color-primary) 38%, white);
+  --island-accent: color-mix(in oklch, var(--color-primary) 68%, white);
+
   // Base pill shape — bg-primary (deep ink 0.27) at 96% keeps text/buttons
   // legible over bright wallpapers; the previous bg-elevated(0.45) 92% let
   // too much light through after the blur.

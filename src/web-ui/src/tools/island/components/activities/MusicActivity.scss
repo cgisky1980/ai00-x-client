@@ -28,7 +28,7 @@
     z-index: 1;
 
     &--playing {
-      color: var(--color-accent-400);
+      color: var(--island-accent);
       animation: iconSpin 3s linear infinite;
     }
   }
@@ -70,9 +70,8 @@
   &__spectrum-bg-bar {
     flex: 1; // auto-fill column width
     border-radius: 1px;
-    // 岛是恒暗胶囊，主题 accent（浅色主题下是深青）叠黑底会太暗看不见。
-    // 用主题 primary 的色相 + 大量白色混合：既呼应主题又保证在黑底上始终明亮。
-    background: color-mix(in oklch, var(--color-primary) 38%, white);
+    // 音浪用岛专用淡青(token 定义在 DynamicIsland.scss)，与按钮强调色区分开
+    background: var(--island-wave);
     transition: height 0.06s linear;
     min-height: 2px;
   }
@@ -129,8 +128,8 @@
     width: 40px;
     height: 40px;
     border-radius: var(--size-radius-full);
-    background: color-mix(in oklch, var(--color-accent-400) 14%, transparent);
-    color: var(--color-accent-400);
+    background: color-mix(in oklch, var(--island-accent) 14%, transparent);
+    color: var(--island-accent);
     flex-shrink: 0;
     // 真实封面裁切：尺寸不变（40×40），只加裁切规则
     overflow: hidden;
@@ -222,7 +221,7 @@
       flex: 1;
       min-width: 0;
       height: 3px;
-      background: color-mix(in oklch, var(--color-primary) 15%, transparent);
+      background: color-mix(in oklch, var(--island-accent) 20%, transparent);
     }
 
     &--clickable {
@@ -232,10 +231,10 @@
 
   &__progress-fill {
     height: 100%;
-    background: var(--color-accent-400);
+    background: var(--island-accent);
     border-radius: 1px;
     transition: width 0.5s linear;
-    box-shadow: 0 0 4px color-mix(in oklch, var(--color-accent-400) 50%, transparent);
+    box-shadow: 0 0 4px color-mix(in oklch, var(--island-accent) 50%, transparent);
   }
 
   // === Buttons ===
@@ -254,46 +253,46 @@
     flex-shrink: 0;
 
     &:hover {
-      background: color-mix(in oklch, var(--color-primary) 25%, transparent);
-      color: var(--color-text-primary);
+      background: color-mix(in oklch, var(--island-accent) 22%, transparent);
+      color: var(--island-accent);
     }
 
     &:active {
       transform: scale(0.9);
     }
 
-    // 主播放钮：30px 圆形，黛青 tint + glow
+    // 主播放钮：30px 圆形，浓青亮色 tint + glow（岛专用 token，黑底醒目）
     &--play {
       width: 30px;
       height: 30px;
       border-radius: var(--size-radius-full);
-      color: var(--color-accent-400);
-      background: color-mix(in oklch, var(--color-accent-400) 16%, transparent);
+      color: var(--island-accent);
+      background: color-mix(in oklch, var(--island-accent) 18%, transparent);
 
       &:hover {
-        background: color-mix(in oklch, var(--color-accent-400) 28%, transparent);
-        box-shadow: 0 0 10px color-mix(in oklch, var(--color-accent-400) 20%, transparent);
+        background: color-mix(in oklch, var(--island-accent) 30%, transparent);
+        box-shadow: 0 0 10px color-mix(in oklch, var(--island-accent) 24%, transparent);
       }
     }
 
     &--volume {
       color: var(--color-text-muted);
       &:hover {
-        background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+        background: color-mix(in oklch, var(--island-accent) 22%, transparent);
       }
     }
 
     &--expand {
       color: var(--color-text-muted);
       &:hover {
-        background: color-mix(in oklch, var(--color-primary) 25%, transparent);
-        color: var(--color-text-primary);
+        background: color-mix(in oklch, var(--island-accent) 22%, transparent);
+        color: var(--island-accent);
       }
     }
 
     &--active {
-      color: var(--color-accent-400);
-      background: color-mix(in oklch, var(--color-accent-400) 15%, transparent);
+      color: var(--island-accent);
+      background: color-mix(in oklch, var(--island-accent) 18%, transparent);
     }
 
     &:disabled {
@@ -305,6 +304,6 @@
 
 // 专辑位呼吸光晕（与岛呼吸动画同节奏）
 @keyframes artBreathe {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-accent-400) 20%, transparent); }
-  50% { box-shadow: 0 0 12px 2px color-mix(in oklch, var(--color-accent-400) 14%, transparent); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--island-accent) 20%, transparent); }
+  50% { box-shadow: 0 0 12px 2px color-mix(in oklch, var(--island-accent) 14%, transparent); }
 }
