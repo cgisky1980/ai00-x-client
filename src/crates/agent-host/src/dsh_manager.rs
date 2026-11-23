@@ -1650,8 +1650,9 @@ fn load_patch_asset(file: &str) -> Result<&'static str, String> {
 
 /// 帮手定义文件目录：`<DSH_HOME>/agent-workers/*.md`。
 /// 格式：YAML frontmatter（name/description/model/tools）+ 正文 persona。
-/// 首次运行播种默认三个（research_worker / local_code_worker / code_worker），用户可改可增；
-/// 全部非法/删空时回退内嵌默认（空编排无法派发，兜底）。
+/// 首次运行播种默认七档（research / local_code / local_reader / local_writer /
+/// local_cmd / review / code），用户可改可增；全部非法/删空时回退内嵌默认
+/// （空编排无法派发，兜底）。
 fn workers_dir() -> PathBuf {
     dsh_home().join("agent-workers")
 }
@@ -1722,6 +1723,59 @@ Review only: never modify code, never run commands. You may write exactly ONE re
 Check the diff and command evidence against the step acceptance criteria.
 Output exactly three parts: verdict (pass / reject), evidence gaps or problems (specific files and symbols), and minimal rework instructions (actionable and scoped).
 If the evidence is insufficient, reject explicitly; never approve on guesses.
+"#;
+
+// ---------------------------------------------------------------------------
+// 工具集聚焦的本地档位（2026-11-24，用户方向：计划里明确「给 RWKV 做什么、
+// 用什么工具」）。
+//
+// 真实工人 prompt 曾到 4.2k token / 16 工具，3B 在长提示上输出退化。把本地
+// 工人按工具集拆成三个窄档后，每轮只挂 2–4 件工具：工具清单与选择空间同步
+// 缩小，计划步骤的 `Implementation` 写档位即等于指定工具集。
+// ---------------------------------------------------------------------------
+
+const DEFAULT_WORKER_LOCAL_READER_MD: &str = r#"---
+name: local_reader
+description: 只读帮手：查文件、读文件、检索内容（RWKV 本地，工具仅 read/glob/grep/read_image）
+model: rwkv-local
+tools:
+  - read
+  - read_image
+  - glob
+  - grep
+---
+You are a local READ-ONLY worker dispatched by the Ai00-X orchestrator.
+Use only glob/grep to locate things and read/read_image to inspect them. Never write or modify files, never run commands, never dispatch subagents.
+Base every statement on bytes you actually read; quote paths and line numbers. If the target does not exist, say exactly which patterns you tried and stop.
+Return compact findings (<=10 lines) plus the evidence you used.
+"#;
+
+const DEFAULT_WORKER_LOCAL_WRITER_MD: &str = r#"---
+name: local_writer
+description: 写文件帮手：用 write 整段写入目标文件并 read 回读确认（RWKV 本地，工具仅 write/read）
+model: rwkv-local
+tools:
+  - read
+  - write
+---
+You are a local WRITE worker dispatched by the Ai00-X orchestrator.
+Write ONLY the files named in the assigned step. Use write (file_path + content) to create or overwrite the whole file, then read it back and confirm the bytes you wrote.
+Never run commands, never edit other files, never dispatch subagents. If the brief lacks the exact content to write, stop with `BLOCKED: <one-line reason>` instead of inventing it.
+Return one line: `DONE: <path> (<bytes>) - <read-back result>`.
+"#;
+
+const DEFAULT_WORKER_LOCAL_CMD_MD: &str = r#"---
+name: local_cmd
+description: 命令帮手：用 pwsh 运行命令/测试并读输出（RWKV 本地，工具仅 pwsh/read）
+model: rwkv-local
+tools:
+  - read
+  - pwsh
+---
+You are a local COMMAND worker dispatched by the Ai00-X orchestrator.
+Run only the commands the step asks for via pwsh (description + command required); read the output yourself and report exit codes.
+Never modify files by hand, never dispatch subagents. Anything expected to run over 2 minutes goes to the background (run_in_background: true) and is reported with its job id.
+Return compact evidence: command, exit code, key output lines (<=5), and the verdict.
 "#;
 
 const DEFAULT_WORKER_CODE_MD: &str = r#"---
@@ -1985,6 +2039,9 @@ async fn ensure_workers_seeded() -> Vec<WorkerDef> {
     for (file, content) in [
         ("research_worker.md", DEFAULT_WORKER_RESEARCH_MD),
         ("local_code_worker.md", DEFAULT_WORKER_LOCAL_CODE_MD),
+        ("local_reader.md", DEFAULT_WORKER_LOCAL_READER_MD),
+        ("local_writer.md", DEFAULT_WORKER_LOCAL_WRITER_MD),
+        ("local_cmd.md", DEFAULT_WORKER_LOCAL_CMD_MD),
         ("review_worker.md", DEFAULT_WORKER_REVIEW_MD),
         ("code_worker.md", DEFAULT_WORKER_CODE_MD),
     ] {
@@ -2028,6 +2085,9 @@ fn fallback_worker_defs() -> Vec<WorkerDef> {
     [
         ("research_worker.md", DEFAULT_WORKER_RESEARCH_MD),
         ("local_code_worker.md", DEFAULT_WORKER_LOCAL_CODE_MD),
+        ("local_reader.md", DEFAULT_WORKER_LOCAL_READER_MD),
+        ("local_writer.md", DEFAULT_WORKER_LOCAL_WRITER_MD),
+        ("local_cmd.md", DEFAULT_WORKER_LOCAL_CMD_MD),
         ("review_worker.md", DEFAULT_WORKER_REVIEW_MD),
         ("code_worker.md", DEFAULT_WORKER_CODE_MD),
     ]

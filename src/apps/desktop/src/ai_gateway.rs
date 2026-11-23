@@ -2165,10 +2165,13 @@ fn tools_block(tools: &[Value]) -> String {
         .iter()
         .filter_map(|tool| {
             let f = tool.get("function")?;
+            // 属性 schema 压缩：属性级 description 对 3B 的工具选择没有增量
+            // 信息，却把真实工人 prompt 撑到 15k+ 字符（2026-11-24 实测：本地
+            // 工人在 4.2k token 提示上输出退化）。只保留类型/枚举/数组元素。
             let arguments = f
                 .get("parameters")
                 .and_then(|p| p.get("properties"))
-                .cloned()
+                .map(compact_properties)
                 .unwrap_or_else(|| json!({}));
             // required 必须进清单：3B 只看 properties 时会输出 {} 或漏掉必填键
             //（2026-11-23 能力测试：glob/read 多例空参数）。
@@ -2179,7 +2182,9 @@ fn tools_block(tools: &[Value]) -> String {
                 .unwrap_or_else(|| json!([]));
             Some(json!({
                 "name": f.get("name").cloned().unwrap_or(Value::Null),
-                "description": f.get("description").cloned().unwrap_or(json!("")),
+                "description": compact_description(
+                    f.get("description").and_then(|d| d.as_str()).unwrap_or("")
+                ),
                 "required": required,
                 "arguments": arguments,
             }))
@@ -2191,10 +2196,71 @@ fn tools_block(tools: &[Value]) -> String {
     // NOTE(2026-11-23)：曾在这里补一句「read 只读文本、read_image 只读图片」
     // 的自然语言分界，实测反而让 3B 拼出 `greplines`/`globAll`/`readcode`
     // 这类粘连工具名（工具清单块只该是 JSON + 固定指令），已回退。
+    // 观测：本地请求的工具面（档位拆分后应显著缩小；排查 3B 退化时先看这里）。
+    log::debug!(
+        "[ai-gateway] tools block: {} tool(s) [{}]",
+        tools.len(),
+        tools
+            .iter()
+            .filter_map(|tool| tool
+                .get("function")
+                .and_then(|f| f.get("name"))
+                .and_then(|n| n.as_str()))
+            .collect::<Vec<_>>()
+            .join(",")
+    );
     format!(
         "Tools:\n{}\nReturn only a JSON function call.",
         serde_json::to_string(&defs).unwrap_or_default()
     )
+}
+
+/// 工具描述限长：只留首句（≤120 字符）。工具选择靠名字 + 首句语义；保留
+/// 整段说明在真实工人 prompt 里是纯负担（dsh-tool-fs 的 read 描述带整段
+/// 编辑规范）。
+fn compact_description(text: &str) -> String {
+    const MAX: usize = 120;
+    let first = text.split(['.', '。', '\n']).next().unwrap_or("").trim();
+    let first = if first.is_empty() { text.trim() } else { first };
+    if first.chars().count() <= MAX {
+        first.to_string()
+    } else {
+        let mut out: String = first.chars().take(MAX).collect();
+        out.push('…');
+        out
+    }
+}
+
+/// 属性 schema 压缩（递归）：只保留 type / enum / items，丢掉 description。
+fn compact_properties(props: &Value) -> Value {
+    let Some(map) = props.as_object() else {
+        return props.clone();
+    };
+    let mut out = serde_json::Map::new();
+    for (key, schema) in map {
+        out.insert(key.clone(), compact_schema(schema));
+    }
+    Value::Object(out)
+}
+
+fn compact_schema(schema: &Value) -> Value {
+    let Some(obj) = schema.as_object() else {
+        return schema.clone();
+    };
+    let mut out = serde_json::Map::new();
+    for key in ["type", "enum", "items"] {
+        if let Some(value) = obj.get(key) {
+            out.insert(
+                key.to_string(),
+                if key == "items" {
+                    compact_schema(value)
+                } else {
+                    value.clone()
+                },
+            );
+        }
+    }
+    Value::Object(out)
 }
 
 /// 最后一条 user 消息（brief）里点名的工具名——few-shot 选例的第一优先级。
@@ -3108,6 +3174,7 @@ fn normalize_tool_arguments(name: &str, arguments: &str) -> String {
         if let Some(Value::String(path)) = obj.get("file_path").cloned() {
             let cleaned = clean_path_value(&path);
             let cleaned = rebase_absolute_path(&cleaned);
+            let cleaned = collapse_doubled_extension(&cleaned);
             if cleaned != path {
                 obj.insert("file_path".to_string(), Value::String(cleaned));
             }
@@ -3329,6 +3396,22 @@ fn rebase_absolute_path(path: &str) -> String {
         Some(name) if !name.is_empty() => name.to_string(),
         _ => path.to_string(),
     }
+}
+
+/// 重复扩展名折叠：3B 会把 brief 里的 `probe.js` 再补一个 `.js` 写成
+/// `probe.js.js`（实测 2026-11-24，档位拆分后第一个真实写步骤）。验收按
+/// brief 的路径找文件 → ENOENT → 白升级云端；这里确定性折掉重复的那一段。
+fn collapse_doubled_extension(path: &str) -> String {
+    const EXTS: [&str; 10] = [
+        ".js", ".ts", ".md", ".txt", ".json", ".py", ".html", ".css", ".yaml", ".yml",
+    ];
+    let lower = path.to_ascii_lowercase();
+    for ext in EXTS {
+        if lower.ends_with(&format!("{ext}{ext}")) {
+            return path[..path.len() - ext.len()].to_string();
+        }
+    }
+    path.to_string()
 }
 
 /// 路径值去噪：取最后一个引号片段（模型常把提示前缀 `": "` 或多余引号抄进值里），
