@@ -8,6 +8,8 @@ import {
   Volume2,
   VolumeX,
   ListMusic,
+  Radio,
+  AudioLines,
 } from 'lucide-react'
 import { listen, emit } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -186,6 +188,21 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
     },
     [],
   )
+
+  // ---- 空态一键电台 ----
+  // 歌曲电台：跨窗口命令给权威端（overlay webview 的 musicSourceRadioBridge）处理，
+  // 桥接内部会 requestActive('acestep') 做 BGM 仲裁。
+  const startSongRadio = useCallback(() => {
+    emit('music-source://radio-command', { action: 'start' }).catch((e) =>
+      console.warn('[MusicActivity] start song radio failed:', e),
+    )
+  }, [])
+
+  // 纯音乐电台：VRM 生成式电台，风格随机；先抢 BGM 仲裁再启动。
+  const startMusicRadio = useCallback(async () => {
+    await useBgmPlayerStore.getState().requestActive('vrm-radio').catch(() => {})
+    await audio.startRadio('random')
+  }, [audio])
 
   // ---- Unified volume toggle (acts on active source) ----
   const handleVolumeToggle = () => {
@@ -376,7 +393,9 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
         {/* Main line: album art + info + playback cluster */}
         <div className="music-activity__main">
           <div
-            className={`music-activity__art${isPlaying ? ' music-activity__art--playing' : ''}`}
+            className={`music-activity__art${isPlaying ? ' music-activity__art--playing' : ''}${empty ? ' music-activity__art--clickable' : ''}`}
+            onClick={empty ? (e) => { e.stopPropagation(); onOpenWindow() } : undefined}
+            title={empty ? t('audio.island.music.browseSongs', { defaultValue: '打开曲库' }) : undefined}
           >
             {coverUrl ? (
               <img src={coverUrl} alt="" draggable={false} className="music-activity__art-img" />
@@ -411,13 +430,22 @@ export const MusicActivity: React.FC<MusicActivityProps> = ({ onOpenWindow }) =>
                 {isPlaying ? <Pause size={14} /> : <Play size={14} />}
               </button>
             ) : (
-              <button
-                className="music-activity__btn music-activity__btn--play"
-                onClick={(e) => { e.stopPropagation(); onOpenWindow() }}
-                title={t('audio.island.music.browseSongs', { defaultValue: '点击展开选歌' })}
-              >
-                <ListMusic size={14} />
-              </button>
+              <>
+                <button
+                  className="music-activity__btn music-activity__btn--radio"
+                  onClick={(e) => { e.stopPropagation(); startSongRadio() }}
+                  title={t('audio.island.radio.song', { defaultValue: '歌曲电台' })}
+                >
+                  <Radio size={14} />
+                </button>
+                <button
+                  className="music-activity__btn music-activity__btn--radio music-activity__btn--play"
+                  onClick={(e) => { e.stopPropagation(); void startMusicRadio() }}
+                  title={t('audio.island.radio.music', { defaultValue: '纯音乐电台' })}
+                >
+                  <AudioLines size={14} />
+                </button>
+              </>
             )}
             {canSkip && (
               <button
