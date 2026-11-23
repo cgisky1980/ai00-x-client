@@ -2456,10 +2456,14 @@ fn looks_like_content(span: &str) -> bool {
     let has_shape = trimmed
         .chars()
         .any(|c| c.is_whitespace() || "(){}[]:=;<>'\"".contains(c));
-    let looks_like_path = !trimmed.contains(char::is_whitespace)
-        && trimmed
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "./\\_-".contains(c));
+    // 含路径分隔符的裸串一律按路径处理（Windows 盘符路径含冒号，旧判定会把它
+    // 当成「正文」——实测 2026-11-24 fewshot content 回显了任务目录绝对路径）。
+    let has_path_sep = trimmed.contains('\\') || trimmed.contains('/');
+    let looks_like_path = has_path_sep
+        || (!trimmed.contains(char::is_whitespace)
+            && trimmed
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "./\\_-".contains(c)));
     has_shape && !looks_like_path
 }
 
