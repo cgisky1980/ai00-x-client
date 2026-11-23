@@ -209,11 +209,10 @@ const isMotionFull = () => document.documentElement.getAttribute('data-motion') 
 
 export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = false }) => {
   const [autoExpr, setAutoExpr] = useState<EyeExpression>('normal')
-  const [blink, setBlink] = useState(false)
   const seqIdx = useRef(0)
   const [motionFull, setMotionFull] = useState(isMotionFull)
-  const blinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const exprTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const svgRef = useRef<SVGSVGElement | null>(null)
 
   const face = useMemo(() => buildFace(expression ?? autoExpr), [expression, autoExpr])
 
@@ -239,31 +238,96 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
     return () => { if (exprTimer.current) clearTimeout(exprTimer.current) }
   }, [motionFull, playing, expression])
 
-  // 自动眨眼：闭 160ms（RobotEye 200/100 简化）；播放时略频繁
+  // 微动作引擎（借鉴 BoopFace MIT 的灵动感算法，独立 RAF 实现）：
+  // 随机化眨眼 + 随机游移注视 + 情绪过冲回弹，直接写 SVG DOM 不走 React 重渲染。
   useEffect(() => {
-    if (!motionFull) { setBlink(false); return }
-    const schedule = () => {
-      blinkTimer.current = setTimeout(() => {
-        setBlink(true)
-        blinkTimer.current = setTimeout(() => { setBlink(false); schedule() }, 150)
-      }, (playing ? 2200 : 3200) + Math.random() * 2500)
+    const svg = svgRef.current
+    if (!svg) return
+    const eyes = svg.querySelectorAll<SVGGElement>('.eye')
+    if (eyes.length < 2) return
+    if (!motionFull) {
+      eyes.forEach((e) => { e.style.transform = '' })
+      return
     }
-    schedule()
-    return () => { if (blinkTimer.current) clearTimeout(blinkTimer.current) }
+
+    const rand = (a: number, b: number) => a + Math.random() * (b - a)
+    const now0 = performance.now()
+    const s = {
+      blinkNext: now0 + rand(1800, 3600),
+      blinkAnim: null as null | { start: number; dur: number },
+      blinkV: 1,
+      wanderX: 0, wanderY: 0,
+      wanderTargetX: 0, wanderTargetY: 0,
+      wanderNext: now0 + rand(1150, 3050),
+      bob: 0, bobStart: 0,
+      last: now0,
+    }
+
+    let raf = 0
+    const tick = (now: number) => {
+      const dt = Math.min(66, now - s.last); s.last = now
+
+      // 眨眼：1→0.08→1，时长 150-220ms，间隔 1900-4500ms（闭到 8%）
+      if (s.blinkAnim) {
+        const t = Math.min(1, (now - s.blinkAnim.start) / s.blinkAnim.dur)
+        s.blinkV = t < 0.5 ? 1 - 0.92 * (t * 2) : 0.08 + 0.92 * ((t - 0.5) * 2)
+        if (t >= 1) {
+          s.blinkAnim = null; s.blinkV = 1
+          s.blinkNext = now + rand(1900, playing ? 3200 : 4500)
+        }
+      } else if (now >= s.blinkNext) {
+        s.blinkAnim = { start: now, dur: rand(150, 220) }
+      }
+
+      // 游移注视：随机目标 + lerp 平滑（幅度 ±1.5-3px / ±0.8-2px）
+      if (now >= s.wanderNext) {
+        s.wanderTargetX = rand(-3, 3)
+        s.wanderTargetY = rand(-2, 2)
+        s.wanderNext = now + rand(1150, 3050)
+      }
+      const k = 1 - Math.pow(1 - 0.16, dt / 16.67)
+      s.wanderX += (s.wanderTargetX - s.wanderX) * k
+      s.wanderY += (s.wanderTargetY - s.wanderY) * k
+
+      // 情绪切换过冲回弹：settle = 1 - e^(-5.2t)·cos(8.6t)
+      const bobT = (now - s.bobStart) / 620
+      s.bob = bobT >= 0 && bobT < 1 ? (1 - Math.exp(-5.2 * bobT) * Math.cos(8.6 * bobT)) * 2.5 : 0
+
+      // 应用到两只眼：游移 + bob 用 translate，眨眼用以眼中心为原点的 scaleY
+      eyes.forEach((g, i) => {
+        const ex = i === 0 ? BASE_X_L : BASE_X_R
+        const cy = BASE_Y + 9 // 眼球垂直中心
+        const sy = Math.max(0.08, s.blinkV)
+        g.style.transformBox = 'view-box'
+        g.style.transform = `translate(${s.wanderX.toFixed(2)}px, ${(s.wanderY + s.bob).toFixed(2)}px) translate(${ex + 8}px, ${cy}px) scale(1, ${sy.toFixed(3)}) translate(${-ex - 8}px, ${-cy}px)`
+      })
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+
+    // 表情切换时触发一次过冲（对惊讶/愤怒等强化"劲"）
+    const onExpr = () => { s.bobStart = performance.now() }
+    window.addEventListener('island-expression-change', onExpr)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('island-expression-change', onExpr)
+      eyes.forEach((e) => { e.style.transform = '' })
+    }
   }, [motionFull, playing])
 
-  const shown: Face = blink && motionFull
-    ? { left: { ...face.left, h: 2.5, r: 1.25, dy: 8, topCut: 0, bottomCut: 0, topSlopeL: 0, topSlopeR: 0, maskRx: 0 },
-        right: { ...face.right, h: 2.5, r: 1.25, dy: 8, topCut: 0, bottomCut: 0, topSlopeL: 0, topSlopeR: 0, maskRx: 0 } }
-    : face
+  // 表情切换广播（给微动作引擎的过冲用）
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('island-expression-change'))
+  }, [autoExpr, expression])
 
   const mask = 'var(--color-bg-primary)'
   const ink = 'var(--color-text-primary)'
 
   return (
-    <svg className="island-eyes" viewBox={`0 0 ${VB_W} ${VB_H}`} width={68} height={42} aria-hidden="true">
-      <Eye p={shown.left} x={BASE_X_L} mask={mask} ink={ink} />
-      <Eye p={shown.right} x={BASE_X_R} mask={mask} ink={ink} />
+    <svg ref={svgRef} className="island-eyes" viewBox={`0 0 ${VB_W} ${VB_H}`} width={68} height={42} aria-hidden="true">
+      <Eye p={face.left} x={BASE_X_L} mask={mask} ink={ink} />
+      <Eye p={face.right} x={BASE_X_R} mask={mask} ink={ink} />
     </svg>
   )
 }
