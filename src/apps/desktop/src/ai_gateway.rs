@@ -1922,9 +1922,22 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
         if let Some(tool_defs) = tools.filter(|defs| !defs.is_empty()) {
             let hint = hinted_tool(tool_defs, messages);
             let path_hint = hinted_path(messages);
+            let content_hint = hinted_content(messages);
             let focus = focus_tool(tool_defs, messages);
-            if let Some(fewshot) = tool_fewshot_block(tool_defs, hint, path_hint.as_deref(), focus)
-            {
+            // 观测：few-shot 的路径/正文回声是否命中（3B 会逐字照抄示例值）。
+            log::debug!(
+                "[ai-gateway] fewshot hints: path={:?} content={:?} focus={:?}",
+                path_hint,
+                content_hint,
+                focus
+            );
+            if let Some(fewshot) = tool_fewshot_block(
+                tool_defs,
+                hint,
+                path_hint.as_deref(),
+                content_hint.as_deref(),
+                focus,
+            ) {
                 prompt.push_str(&fewshot);
             }
         }
@@ -2379,6 +2392,77 @@ fn focus_tool<'a>(tools: &'a [Value], messages: &[Value]) -> Option<&'a str> {
     None
 }
 
+/// 最后一条 brief 里「要写入的正文」——few-shot 的 write 示例正文回声。
+///
+/// 血案（2026-11-24）：brief 要求正文恰好一行 `console.log('local ok')`，
+/// 但 few-shot 的 write 示例 content 恒为 "hello"，3B 逐字模仿成
+/// `console.log('local ok', 'hello')`——示例里的 hello 直接污染了真实内容。
+/// 把 brief 中反引号/双引号包起来的**正文片段**（非文件名、含空格或标点、
+/// ≤120 字符）作为示例正文，模型照抄的就是目标内容。
+fn hinted_content(messages: &[Value]) -> Option<String> {
+    let last_user = messages
+        .iter()
+        .rev()
+        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))?;
+    let text = message_text(last_user)?;
+    let mut best: Option<String> = None;
+    for quote in ['`', '"'] {
+        let mut rest = text.as_str();
+        while let Some(start) = rest.find(quote) {
+            let after = &rest[start + quote.len_utf8()..];
+            let Some(end) = after.find(quote) else {
+                break;
+            };
+            let span = after[..end].trim();
+            if looks_like_content(span) && best.as_ref().is_none_or(|b| span.len() > b.len()) {
+                best = Some(span.to_string());
+            }
+            rest = &after[end + quote.len_utf8()..];
+        }
+        if best.is_some() {
+            return best;
+        }
+    }
+    None
+}
+
+/// 片段是否像「文件正文」而不是文件名/路径：1..=120 字符，且含空白或标点
+/// （`console.log('local ok')`、`local capability ok`），排除 `probe.js`、
+/// `src/main.rs` 这类裸路径。
+fn looks_like_content(span: &str) -> bool {
+    let trimmed = span.trim();
+    if trimmed.is_empty() || trimmed.chars().count() > 120 || trimmed.contains('\n') {
+        return false;
+    }
+    // 验收命令常以引号/反引号出现（`node -e "…process.exit(1)"`），不是正文。
+    let lower = trimmed.to_ascii_lowercase();
+    let command_like = [
+        "node ",
+        "pwsh ",
+        "powershell",
+        "cargo ",
+        "pnpm ",
+        "npm ",
+        "npx ",
+        "git ",
+        "python ",
+    ]
+    .iter()
+    .any(|prefix| lower.starts_with(prefix))
+        || trimmed.contains("process.exit(");
+    if command_like {
+        return false;
+    }
+    let has_shape = trimmed
+        .chars()
+        .any(|c| c.is_whitespace() || "(){}[]:=;<>'\"".contains(c));
+    let looks_like_path = !trimmed.contains(char::is_whitespace)
+        && trimmed
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "./\\_-".contains(c));
+    has_shape && !looks_like_path
+}
+
 /// 一轮对话式 few-shot（2026-11-11 prompt_lab 实验：对话轮示例是 3B 工具
 /// 调用 JSON 合法性的决定性变量——零样本会多闭合括号，而把示例写进
 /// System 文本完全无效）。示例从当次工具表合成（优先首个能合成出非空
@@ -2388,6 +2472,7 @@ fn tool_fewshot_block(
     tools: &[Value],
     hint: Option<&str>,
     path_hint: Option<&str>,
+    content_hint: Option<&str>,
     focus: Option<&str>,
 ) -> Option<String> {
     // 优先选能合成出非空参数的工具做示例：空参数（{}）示例会让模型在需要
@@ -2469,12 +2554,12 @@ fn tool_fewshot_block(
                 // 参数绑定能力——复读 schema 结构或塌陷重复（p2/p4/p6 实测），
                 // 真实值则连工具选择都纠正（p5 错选 vs p7 全对）。
                 let value = match ty {
-                    "string" => json!(sample_string_arg(name, key, path_hint)),
+                    "string" => json!(sample_string_arg(name, key, path_hint, content_hint)),
                     "number" | "integer" => json!(1),
                     "boolean" => json!(true),
                     // 数组参数（queries / urls）：给一个元素的真实示例，
                     // 否则模型会把 schema 结构塞进数组或干脆漏掉该键。
-                    "array" => json!([sample_string_arg(name, key, path_hint)]),
+                    "array" => json!([sample_string_arg(name, key, path_hint, content_hint)]),
                     _ => continue,
                 };
                 args.insert(key.clone(), value);
@@ -2513,13 +2598,25 @@ fn tool_fewshot_block(
 /// few-shot 字符串参数示例值（按工具+参数名挑最贴近真实用法的样例）。
 /// `path_hint` = brief 里点名的文件名：路径类参数优先用它，避免模型照抄
 /// 示例里的固定文件名。
-fn sample_string_arg(tool: &str, key: &str, path_hint: Option<&str>) -> String {
+/// `content_hint` = brief 里引号包起来的正文：write 的 content 优先用它
+/// （3B 会把示例正文逐字抄进真实写入内容）。
+fn sample_string_arg(
+    tool: &str,
+    key: &str,
+    path_hint: Option<&str>,
+    content_hint: Option<&str>,
+) -> String {
     // 检索类：pattern 的示例必须是能直接用的真实表达式（旧值恒为 "hello"，
     // 3B 会把 "hello" 当 glob 模式照抄，搜不到目标文件）。
     match (tool, key) {
         ("glob", "pattern") => return "**/*.md".to_string(),
         ("grep", "pattern") => return "TODO".to_string(),
         ("grep", "include") | ("grep", "glob") => return "*.rs".to_string(),
+        ("write", "content") => {
+            return content_hint
+                .map(str::to_string)
+                .unwrap_or_else(|| "Hello from the local worker.".to_string());
+        }
         _ => {}
     }
     if key.contains("path") {
@@ -4334,7 +4431,7 @@ mod tests {
                 }}
             }}),
         ];
-        let block = tool_fewshot_block(&tools, Some("ai00_research_collect"), None, None)
+        let block = tool_fewshot_block(&tools, Some("ai00_research_collect"), None, None, None)
             .unwrap_or_default();
         assert!(
             block.contains("\"name\": \"ai00_research_collect\""),
