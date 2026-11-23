@@ -439,7 +439,7 @@ export const LyricsOverlay: React.FC = () => {
                 className="lyrics-overlay__lines-track"
                 style={{
                   transform: `translateY(${
-                    (LYRIC_VIEWPORT_ROWS / 2 - 0.5 - currentLineIndex) * LYRIC_ROW_HEIGHT
+                    (LYRIC_VIEWPORT_ROWS / 2 - 0.5 - currentLineIndex) * LYRIC_ROW_HEIGHT * overlayScale
                   }px)`,
                 }}
               >

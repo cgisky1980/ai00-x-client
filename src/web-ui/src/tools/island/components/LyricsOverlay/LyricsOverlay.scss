@@ -398,3 +398,18 @@
     animation: lyricFxEnterBlur 0.5s ease-out;
   }
 }
+
+// 全局 reduced-motion 钳制（*{transition-duration:.01ms!important}）会把滚动
+// 过渡压成 0，导致换行瞬间跳。用户显式开启 full 动效时恢复歌词滚动过渡。
+html[data-motion='full'] {
+  .lyrics-overlay__lines-track {
+    transition-duration: 0.4s !important;
+  }
+  .lyrics-overlay__line--current,
+  .lyrics-overlay__line-inner {
+    animation-duration: 0.5s !important;
+  }
+  .lyrics-overlay__line-inner {
+    animation-duration: 2.6s !important;
+  }
+}
