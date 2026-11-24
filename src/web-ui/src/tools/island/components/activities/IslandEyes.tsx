@@ -164,7 +164,7 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
     loveRef.current = expression === 'love'
   }, [expression])
 
-  // 鼠标跟随（bbot 饱和衰减：reach=容器较大边×2.2，mag=t(2-t)）
+  // 鼠标跟随：按全局坐标离岛中心的远近驱动眼球+瞳孔水平位移（sqrt 饱和曲线）
   // 岛窗口鼠标穿透（set_ignore_cursor_events），网页收不到 pointermove，
   // 所以监听 Rust overlay 线程 emit 的全局鼠标坐标（每 2 帧 ~30Hz）。
   useEffect(() => {
@@ -209,7 +209,7 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
     let blinkV = 0
     let wanderAt = now0 + rand(700, 2600)
     let wanderTo = { x: 0, y: 0 }
-    let wander = { x: 0, y: 0 }
+    const wander = { x: 0, y: 0 }
 
     let raf = 0
     const tick = (now: number) => {
@@ -228,12 +228,14 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
           const box = svg.getBoundingClientRect()
           const cx = box.left + box.width / 2, cy = box.top + box.height / 2
           const dx = pointer.current.x - cx, dy = pointer.current.y - cy
-          const dist = Math.hypot(dx, dy) || 1
-          const reach = Math.max(box.width, box.height) * 2.2
-          const t = Math.min(1, dist / reach)
-          const mag = t * (2 - t) // 饱和衰减
-          gx.to = Math.max(-1.15, Math.min(1.15, (dx / dist) * mag * 1.1 + idleGaze.x))
-          gy.to = Math.max(-1.15, Math.min(1.15, (dy / dist) * mag * 1.1 + idleGaze.y))
+          // 距离映射：左右位移为主。屏幕像素距离归一化到 GAZE_REACH 后饱和，
+          // sqrt 曲线让近处就有明显反应、远处平滑到顶（比原来线性*大reach生动）。
+          const GAZE_REACH = 520
+          const nx = Math.max(-1, Math.min(1, dx / GAZE_REACH))
+          const ny = Math.max(-1, Math.min(1, dy / GAZE_REACH))
+          const ease = (v: number) => Math.sign(v) * Math.sqrt(Math.abs(v))
+          gx.to = Math.max(-1, Math.min(1, ease(nx) + idleGaze.x))
+          gy.to = Math.max(-0.65, Math.min(0.65, ease(ny) * 0.7 + idleGaze.y))
         } else {
           if (now >= wanderAt) {
             wanderTo = Math.random() < 0.3 ? { x: 0, y: 0 } : { x: rand(-0.9, 0.9), y: rand(-0.6, 0.6) }
@@ -290,8 +292,8 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
         const cx = (side < 0 ? CX_L : CX_R) * (1 + (gap - 1) * 0.35)
         const skew = side > 0 ? s.lidSkew.x : 0
         const ss = scale * (side > 0 ? 1 + s.scaleSkew.x : 1)
-        // 球面式注视：两眼朝同一方向小幅平移（bbot 球面投影的平面近似）
-        const gxPx = gx.x * 2.2, gyPx = gy.x * 2.2
+        // 球面式注视：两眼朝同一方向平移（幅度加大到接近 viewBox 安全边界，更生动）
+        const gxPx = gx.x * 2.6, gyPx = gy.x * 1.8
         // 用 SVG presentation attribute 而非 CSS transform（CSS 在 SVG 上坐标系行为不同，
         // 会导致眼睛跑出 viewBox）。顺序：先位移到眼位再缩放，瞳孔/眼睑都以眼中心为原点。
         g.setAttribute('transform', `translate(${(cx + gxPx).toFixed(2)} ${(CY + gyPx).toFixed(2)}) scale(${ss.toFixed(3)} ${(ss * squash).toFixed(3)})`)
@@ -306,11 +308,11 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
           const lidB = Math.max(0, Math.min(1, s.lidB.x))
           lids[i].bottom!.setAttribute('transform', `rotate(${spin.toFixed(2)}) translate(0 ${(R - lidB * SPAN).toFixed(2)})`)
         }
-        // 黑瞳视差：随注视反向微移（bbot pupil travel），让眼神有焦点
+        // 黑瞳视差：随注视移动（瞳孔在眼球内空间更大，加大幅度强化"看向鼠标"）
         if (lids[i].pupil) {
           lids[i].pupil!.setAttribute(
             'transform',
-            `translate(${(gx.x * 3.2).toFixed(2)} ${(gy.x * 3.2).toFixed(2)})`
+            `translate(${(gx.x * 5.2).toFixed(2)} ${(gy.x * 4.2).toFixed(2)})`
           )
         }
       })
