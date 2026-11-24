@@ -905,7 +905,12 @@ async fn local_rwkv_sse(
     let prompt = openai_messages_to_rwkv_prompt(&messages, tools.as_deref());
     let is_instruction_format = prompt.starts_with("Instruction: ");
 
-    let stop = rwkv_stop_sequences(is_instruction_format, has_tools);
+    let mut stop = rwkv_stop_sequences(is_instruction_format, has_tools);
+    for s in client_stop_sequences(&body) {
+        if !stop.contains(&s) {
+            stop.push(s);
+        }
+    }
     let local_session = local_session_key(&messages);
     log::debug!(
         "[ai-gateway] local prompt ({} chars) head: {:?}",
@@ -2852,6 +2857,28 @@ fn rwkv_stop_sequences(is_instruction_format: bool, has_tools: bool) -> Vec<Stri
         stop.push("\n```".to_string());
     }
     stop
+}
+
+/// 客户端 `stop`（OpenAI 兼容：string 或 string[]）→ 追加到内置停止串。
+/// 约束：跳过空串、单条 ≤64 字符、最多 8 条（去重）。此前本地分支完全忽略
+/// 客户端 stop，agent 传 `\nUser:` 之类的停止串也不生效，会白生成一段。
+fn client_stop_sequences(body: &Value) -> Vec<String> {
+    let candidates: Vec<&str> = match body.get("stop") {
+        Some(Value::String(s)) => vec![s.as_str()],
+        Some(Value::Array(a)) => a.iter().filter_map(|v| v.as_str()).collect(),
+        _ => Vec::new(),
+    };
+    let mut out: Vec<String> = Vec::new();
+    for s in candidates {
+        let s = s.trim();
+        if s.is_empty() || s.chars().count() > 64 || out.len() >= 8 {
+            continue;
+        }
+        if !out.iter().any(|x| x == s) {
+            out.push(s.to_string());
+        }
+    }
+    out
 }
 
 fn sanitize(content: &str) -> String {
