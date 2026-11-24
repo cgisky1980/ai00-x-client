@@ -64,6 +64,27 @@ fn batch_prefill_width() -> usize {
 /// ~0.2s/条）。工具轮这类短请求保持串行；长 prompt 才值得并批。
 const BATCH_PREFILL_MIN_TOKENS: usize = 512;
 
+/// 并批的长度带宽（批内最长 ≤ 最短 × 该倍数，按最大成员数挑带）。
+///
+/// 长 prompt 与短 prompt 混在一起并批时，短行要按最长行补齐：实测
+/// 1×7237 + 3×839 token 并批把 9.7k token 的活干成 28.9k 行 token，总墙钟
+/// 与串行持平（6.4s vs 6.3s），3 个短请求却被拖到与长请求同刻完成。按 2×
+/// 分带后短 3 条并批 ~0.6s 全完、长请求走串行 4.8s，总墙钟 5.4s（-14%），
+/// 短请求（多为工具轮/编排探针）不再被长文挡路。
+const BATCH_LENGTH_SPREAD: usize = 2;
+
+/// 并批长度带宽（`AI00X_BATCH_SPREAD=0` 关闭分带，恢复长短混批的旧行为；
+/// 读一次即缓存，A/B 须重启进程换档，与 `AI00X_BATCH_PREFILL` 同口径）。
+fn batch_length_spread() -> usize {
+    static N: OnceLock<usize> = OnceLock::new();
+    *N.get_or_init(|| {
+        std::env::var("AI00X_BATCH_SPREAD")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(BATCH_LENGTH_SPREAD)
+    })
+}
+
 /// prefill 分块长度：限制单次 seq 缓冲大小（块大小固定避免重建）。
 ///
 /// 分块是串行推进的，每块一次 `forward_seq_with_state`；块越小调用开销占比越高，
@@ -1770,28 +1791,57 @@ fn form_batch_prefill(
     if width < 2 {
         return None;
     }
-    let candidates = queue
+    let cand_lens: Vec<usize> = queue
         .iter()
         .filter(|t| t.resume_state.is_none() && t.prefill_cursor == 0 && t.input_tokens.len() > 1)
-        .count();
-    if candidates < 2 {
+        .map(|t| t.input_tokens.len())
+        .collect();
+    if cand_lens.len() < 2 {
         return None;
     }
-    // 全是短 prompt 时并批不划算（见 `BATCH_PREFILL_MIN_TOKENS`）；长短混合时
-    // 长 prompt 撑起整轮，短行按同一 pad_to 补齐的开销可以忽略。
-    let max_len = queue
+    // 按长度分带（见 `BATCH_LENGTH_SPREAD`）：以每个候选长度作锚，统计
+    // [锚/SPREAD, 锚×SPREAD] 内的成员数，取成员最多（并列取较短锚，优先放行
+    // 工具轮这类短请求）的带；只并批带内任务，带外的走串行。
+    // `AI00X_BATCH_SPREAD=0` = 不分带（全体候选一条带，旧行为，供 A/B）。
+    let spread = batch_length_spread();
+    let (band_count, band_lo, band_hi) = match spread {
+        0 => (cand_lens.len(), 0, usize::MAX),
+        _ => {
+            let (count, anchor) = cand_lens
+                .iter()
+                .map(|&a| {
+                    let lo = a / spread;
+                    (
+                        cand_lens
+                            .iter()
+                            .filter(|&&l| l >= lo && l <= a * spread)
+                            .count(),
+                        a,
+                    )
+                })
+                .min_by(|x, y| y.0.cmp(&x.0).then(x.1.cmp(&y.1)))?;
+            (count, anchor / spread, anchor * spread)
+        }
+    };
+    if band_count < 2 {
+        return None;
+    }
+    // 带内最长仍是短 prompt 时并批不划算（见 `BATCH_PREFILL_MIN_TOKENS`）。
+    let band_max = cand_lens
         .iter()
-        .filter(|t| t.resume_state.is_none() && t.prefill_cursor == 0)
-        .map(|t| t.input_tokens.len())
+        .copied()
+        .filter(|&l| l >= band_lo && l <= band_hi)
         .max()
         .unwrap_or(0);
-    if max_len < BATCH_PREFILL_MIN_TOKENS {
+    if band_max < BATCH_PREFILL_MIN_TOKENS {
         return None;
     }
-    let mut chosen: Vec<InferenceTask> = Vec::with_capacity(width.min(candidates));
+    let mut chosen: Vec<InferenceTask> = Vec::with_capacity(width.min(band_count));
     let mut rest: VecDeque<InferenceTask> = VecDeque::with_capacity(queue.len());
     for t in queue.drain(..) {
+        let in_band = t.input_tokens.len() >= band_lo && t.input_tokens.len() <= band_hi;
         if chosen.len() < width
+            && in_band
             && t.resume_state.is_none()
             && t.prefill_cursor == 0
             && t.input_tokens.len() > 1
