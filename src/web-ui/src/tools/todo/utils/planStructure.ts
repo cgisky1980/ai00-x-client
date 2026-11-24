@@ -233,7 +233,8 @@ export function parsePlanSteps(md: string | null): PlanStep[] {
     }
     if (!current) continue;
 
-    const prop = /^\s*-\s*([^:：]{1,24})[:：]\s*(.*)$/.exec(raw);
+    // 属性行允许 `- Depends on: …` 与 `Depends on: …` 两种写法
+    const prop = /^\s*(?:-\s*)?([^:：]{1,24})[:：]\s*(.*)$/.exec(raw);
     if (!prop) continue;
     const field = FIELD_ALIASES[prop[1].trim().toLowerCase()];
     if (!field) continue;

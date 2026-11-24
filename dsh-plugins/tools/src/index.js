@@ -211,7 +211,7 @@ export function weakAcceptance(markdown) {
       continue;
     }
     const item = /^\s*-\s+\[[ xX]\]\s+(.*)$/.exec(line);
-    const stepProp = /^\s*-\s*(?:Acceptance|验收)\s*[:：]\s*(.*)$/i.exec(line);
+    const stepProp = /^\s*(?:-\s*)?(?:Acceptance|验收)\s*[:：]\s*(.*)$/i.exec(line);
     const text = item ? item[1] : stepProp ? stepProp[1] : "";
     if (!text) continue;
     const cmd = extractCmd(text);
@@ -240,7 +240,7 @@ export function unrunnableCmds(markdown) {
       continue;
     }
     const item = /^\s*-\s+\[[ xX]\]\s+(.*)$/.exec(line);
-    const stepProp = /^\s*-\s*(?:Acceptance|验收)\s*[:：]\s*(.*)$/i.exec(line);
+    const stepProp = /^\s*(?:-\s*)?(?:Acceptance|验收)\s*[:：]\s*(.*)$/i.exec(line);
     const text = item ? item[1] : stepProp ? stepProp[1] : "";
     if (!text || !/\{cmd:/.test(text)) continue;
     if (extractCmd(text)) continue;
@@ -764,7 +764,10 @@ function parsePlanSteps(markdown) {
       continue;
     }
     if (!current) continue;
-    const prop = /^\s*-\s*([^:：]{1,24})[:：]\s*(.*)$/.exec(line);
+    // 属性行允许两种写法：`- Depends on: …` 与 `Depends on: …`
+    // （2026-11-24 真机：编排者写成无短横线版本，旧解析拿不到 Acceptance 的
+    // {cmd}，命令 0/0、步骤永远 needs-review 且无法勾选）。
+    const prop = /^\s*(?:-\s*)?([^:：]{1,24})[:：]\s*(.*)$/.exec(line);
     const field = prop ? FIELD_ALIASES[prop[1].trim().toLowerCase()] : undefined;
     if (!field) {
       // 「验收:」换行写子项（`- Acceptance:` 后每个 `- … {cmd: …}` 一行）是最自然的

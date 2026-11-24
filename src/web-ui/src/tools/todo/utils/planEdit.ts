@@ -8,7 +8,7 @@
 import { parsePlanSteps, type PlanStep } from './planStructure';
 
 const STEP_HEAD = /^(\s*-\s+\[[ xX]\]\s+)(T[0-9A-Za-z_-]+)(\s+)(.*)$/;
-const ACCEPT_PROP = /^(\s*-\s*(?:验收|acceptance)\s*[:：]\s*)(.*)$/i;
+const ACCEPT_PROP = /^(\s*(?:-\s*)?(?:验收|acceptance)\s*[:：]\s*)(.*)$/i;
 const CMD_SUFFIX = /\s*\{cmd:\s*.+?\}\s*$/;
 
 /** 步骤块的 [start, end) 行区间。 */
