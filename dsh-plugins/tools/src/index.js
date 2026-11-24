@@ -1268,7 +1268,7 @@ export function sanitizeComposedSection(raw, heading) {
 
 /** 提示词回声标记：命中即从该处截断（本地 3B 实测会复述 system/user 指令）。 */
 const PROMPT_ECHO_RE =
-  /(?:You are a careful writer|Write the body of|###\s*Instruction|Output only (?:the )?body|No headings, no quotes|Stop after that paragraph|Based on the provided text|Answer based on|one short paragraph)/i;
+  /(?:You are a careful writer|Write the body of|###\s*Instruction|Output only (?:the )?body|No headings, no quotes|Stop after that paragraph|Based on the provided text|Answer based on|one short paragraph|Only the paragraph)/i;
 
 /** 角色井号标记与越狱式续写（本地 3B 会把训练数据里的对话续出来）。 */
 const CONTINUATION_RE =
@@ -1401,17 +1401,21 @@ function parseCompletionText(raw) {
  * 这里同时兼容 SSE 与普通 JSON 两种形态。
  */
 async function composeLocalSection({ baseURL, token, heading, topic, language, topP, signal }) {
-  // 长度不是验收标准：只说「短段落 / 3–4 句」，不给数字目标（模型会为了凑数
-  // 超写或掉句）。合格与否看内容，非空即可落盘。
+  // 长度不是验收标准：只说「一个短段落」，不给句数/字数目标。
+  //
+  // 2026-11-24 A/B（真实网关，5 节 × 4 轮 = 20 样本/变体）：旧的「You are a
+  // careful writer…3-4 short sentences…Stop after that paragraph」12/20 通过
+  // （空输出 4、语言跑偏 3、复读 1，另有 10–14s 的长尾）；换成这条 20 token
+  // 的短提示后 19/20（仅 1 次空输出），生成也更短更快。短提示留给 3B 复述的
+  // 素材更少，回声/续写概率随之下降。
   const messages = [
     {
       role: "system",
-      content:
-        "You are a careful writer. Output only the body text: one short paragraph in 3-4 short sentences. No headings, no quotes, no lists, no numbers or product names, no commentary. Stop after that paragraph.",
+      content: `Write one short paragraph of plain prose in ${language}. No headings, lists, quotes, numbers or commentary. Only the paragraph.`,
     },
     {
       role: "user",
-      content: `Write the body of the section "${heading}" in ${language}. Topic: ${topic}.`,
+      content: `Section: "${heading}". Topic: ${topic}.`,
     },
   ];
   const body = { model: "rwkv-local", messages, stream: false, max_tokens: 220 };
