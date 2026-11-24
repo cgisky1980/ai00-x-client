@@ -3488,10 +3488,29 @@ function defineTools(ctx, api, env = {}) {
   // 契约规则 9 的第三步。以前交给 local_cmd 写 node 一行命令，本地 3B 生成
   // 的拼接脚本实测直接返回乱码（12:34 任务），还得让云端重做一次。拼接是
   // 纯确定性操作，交给宿主：读文件 → 按序拼 → 写交付物 → 删分节 → 回报标题。
+  //
+  // 删分节是不可逆的：章节步骤的验收命令读 `section-*.md`，一旦先装配再验
+  // 章节，这些步骤就永远失败（2026-11-24 真机踩到，任务卡死只能重跑）。
+  // 因此删分节前先读计划：引用这些分节、但还没勾选的步骤存在时直接拒绝。
+  async function unverifiedSectionSteps(cwd, sections, signal) {
+    const taskId = taskIdFromCwd(cwd);
+    if (!taskId) return [];
+    const plan = await api
+      .get(`/plan?taskId=${encodeURIComponent(taskId)}`, signal)
+      .catch(() => null);
+    const markdown = typeof plan?.markdown === "string" ? plan.markdown : "";
+    if (!markdown.trim()) return [];
+    const norm = (p) => String(p ?? "").replace(/\\/g, "/").replace(/^\.\//, "");
+    const wanted = new Set(sections.map(norm));
+    return parsePlanSteps(markdown)
+      .filter((step) => !step.done && step.paths.some((p) => wanted.has(norm(p))))
+      .map((step) => step.id);
+  }
+
   ctx.tools.register({
     name: "ai00_assemble",
     description:
-      "Concatenate section files into the final document in the given order, then delete the section files. Deterministic host-side assembly for rule 9 — never write a node one-liner for this. Returns {ok:true, path, bytes, headings} or {ok:false, reason} when a section file is missing/empty.",
+      "Concatenate section files into the final document in the given order, then delete the section files. Deterministic host-side assembly for rule 9 — never write a node one-liner for this. Refuses to delete sections while the plan has un-ticked steps that reference them (verify + tick those steps first, or pass keep_sections:true). Returns {ok:true, path, bytes, headings} or {ok:false, reason} when a section file is missing/empty or the section steps are not verified.",
     parameters: {
       type: "object",
       properties: {
@@ -3551,6 +3570,15 @@ function defineTools(ctx, api, env = {}) {
       };
       const target = inside(output);
       if (!target) return { ok: false, reason: `output escapes the working directory: ${output}` };
+      if (args?.keep_sections !== true) {
+        const blocked = await unverifiedSectionSteps(cwd, sections, exec.signal);
+        if (blocked.length) {
+          return {
+            ok: false,
+            reason: `refused: section step(s) not verified/ticked yet: ${blocked.join(", ")} — run ai00_task_verify and tick them BEFORE assembling (assembly deletes the section files); or pass keep_sections:true`,
+          };
+        }
+      }
       let content = "";
       const headings = [];
       for (const rel of sections) {
