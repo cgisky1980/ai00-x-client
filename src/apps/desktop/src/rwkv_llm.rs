@@ -1524,16 +1524,14 @@ fn join_decode_group(
         return Ok(false);
     }
 
-    // 转入解码组：状态迁入 row 行（兜底路径直接换 State，批量路径走行灌入）
+    // 转入解码组：状态迁入 row 行（兜底路径直接换 State，批量路径设备内拷贝）
     if engine.use_batch_decode {
-        let st = engine
-            .model
-            .state_back(&engine.prefill_state)
-            .map_err(|e| format!("state_back failed: {}", e))?;
+        // 全程设备内拷贝（替代 state_back + state_slot_load 的 2×21.6MB PCIe 往返，
+        // rwkv-rsv `examples/app_path_probe` 实测 35ms → ~1ms/请求）。
         engine
             .model
-            .state_slot_load(&engine.decode_state, row, &st)
-            .map_err(|e| format!("state_slot_load failed: {}", e))?;
+            .state_slot_from_state(&engine.decode_state, row, &engine.prefill_state)
+            .map_err(|e| format!("state_slot_from_state failed: {}", e))?;
     } else {
         std::mem::swap(&mut engine.prefill_state, &mut engine.slot_states[row]);
     }
