@@ -1299,12 +1299,19 @@ const AI00_TOOL_NAMES: &[&str] = &[
     "ai00_text_summarize",
     "ai00_local_compose",
     "ai00_assemble",
+    "ai00_polish",
 ];
 
 /// 任务场景（`workbench-task`）额外不挂载的引擎工具 —— 依据实测 schema 成本：
 /// `pwsh` 1887 字符、`tool-goal` 三件套 1731 字符（≈470 / 430 tokens），而编排者
 /// 按契约从不执行命令、也不建目标。
-const WORKBENCH_TASK_DROPPED_PLUGIN_IDS: &[&str] = &["tool-pwsh", "tool-goal"];
+///
+/// `tool-subagent-control` 也摘掉（2026-11-24）：它提供 wait_agent / send_message /
+/// interrupt_agent / list_agents，而工作台交付编排者用不到——子代理派发与完成
+/// 通知由引擎负责。实测编排者反复调 `wait_agent` 后停住 2–3 分钟，并且在契约
+/// 明令禁止后仍会调用（模型看到工具就想用）；直接不挂载比写规则更可靠。
+const WORKBENCH_TASK_DROPPED_PLUGIN_IDS: &[&str] =
+    &["tool-pwsh", "tool-goal", "tool-subagent-control"];
 
 /// 快速问答保留的业务工具：正文提取（query 模式即搜索）+ 桌面通知。
 /// 契约是「不写计划、不派子代理、不落文件」，其余业务工具都不挂。

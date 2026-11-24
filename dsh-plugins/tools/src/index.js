@@ -34,7 +34,7 @@
 
 import { exec, execFile } from "node:child_process";
 import { statSync } from "node:fs";
-import { mkdir, stat, readFile, readdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, rename, stat, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 
 const name = "ai00-x-tools";
@@ -1179,6 +1179,30 @@ export function looksRepetitive(text) {
   return /(.{2,6})\1{2,}/u.test(value);
 }
 
+/** 网关回包解析：同时兼容 OpenAI SSE 与普通 JSON。 */
+function parseCompletionText(raw) {
+  if (raw.trimStart().startsWith("data:")) {
+    let out = "";
+    for (const line of raw.split("\n")) {
+      const data = line.trim().replace(/^data:\s*/, "");
+      if (!data || data === "[DONE]") continue;
+      try {
+        const chunk = JSON.parse(data);
+        out += chunk?.choices?.[0]?.delta?.content ?? chunk?.text ?? "";
+      } catch {
+        // 非 JSON 行（心跳/错误尾）忽略
+      }
+    }
+    return out;
+  }
+  try {
+    const value = JSON.parse(raw);
+    return value?.choices?.[0]?.message?.content ?? value?.text ?? "";
+  } catch {
+    return raw;
+  }
+}
+
 /**
  * 用本地 RWKV 生成一段正文（纯文本，无工具）。网关以 OpenAI SSE 回包，
  * 这里同时兼容 SSE 与普通 JSON 两种形态。
@@ -1208,27 +1232,61 @@ async function composeLocalSection({ baseURL, token, heading, topic, language, s
     signal,
   });
   if (!response.ok) throw new Error(`local model HTTP ${response.status}`);
-  const raw = await response.text();
-  if (raw.trimStart().startsWith("data:")) {
-    let out = "";
-    for (const line of raw.split("\n")) {
-      const data = line.trim().replace(/^data:\s*/, "");
-      if (!data || data === "[DONE]") continue;
-      try {
-        const chunk = JSON.parse(data);
-        out += chunk?.choices?.[0]?.delta?.content ?? chunk?.text ?? "";
-      } catch {
-        // 非 JSON 行（心跳/错误尾）忽略
-      }
-    }
-    return out;
+  return parseCompletionText(await response.text());
+}
+
+/** 文档里的 `## ` 标题序列（润色前后必须一致）。 */
+function documentHeadings(text) {
+  return String(text ?? "")
+    .split("\n")
+    .filter((line) => line.startsWith("## "))
+    .map((line) => line.slice(3).trim());
+}
+
+/** 润色输出校验：标题序列必须原样保留，否则拒绝写入（原稿不动）。 */
+function validatePolishedDocument(source, output) {
+  const before = documentHeadings(source);
+  if (before.length === 0) return "source document has no ## headings";
+  const after = documentHeadings(output);
+  if (after.join("|") !== before.join("|")) {
+    return `headings changed (${after.join(" | ") || "none"})`;
   }
-  try {
-    const value = JSON.parse(raw);
-    return value?.choices?.[0]?.message?.content ?? value?.text ?? "";
-  } catch {
-    return raw;
-  }
+  return null;
+}
+
+/** 云端润色：模型只返回正文文本，宿主校验后原子写回。 */
+async function polishRemoteDocument({ baseURL, token, content, language, signal }) {
+  const messages = [
+    {
+      role: "system",
+      content:
+        "You are an expert editor. Rewrite the document for grammar, clarity and flow. Keep every '## ' heading exactly as given, in the same order, and keep the same facts. Return ONLY the full revised Markdown document — no commentary, no code fences.",
+    },
+    {
+      role: "user",
+      content: `Language: ${language || "the document language"}\n\n${content}`,
+    },
+  ];
+  const response = await fetch(`${baseURL}/ai00-internal/llm/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-ai00-internal-token": token,
+      "x-ai00-plugin-id": PLUGIN_ID,
+    },
+    body: JSON.stringify({
+      model: "ai00-api",
+      messages,
+      stream: false,
+      temperature: 0.2,
+      max_tokens: 4096,
+    }),
+    signal,
+  });
+  if (!response.ok) throw new Error(`remote model HTTP ${response.status}`);
+  let text = parseCompletionText(await response.text()).trim();
+  text = text.replace(/^```(?:markdown|md)?\s*\n/i, "").replace(/\n```\s*$/, "").trim();
+  return text;
 }
 
 function defineTools(ctx, api, env = {}) {
@@ -3298,6 +3356,98 @@ function defineTools(ctx, api, env = {}) {
       };
     },
   });
+
+  // ---- ai00_polish：云端润色，模型只产出文本，宿主校验后原子写回 ----
+  //
+  // 2026-11-24 实测：让 cloud code_worker 直接改文件，worker 退化后把
+  // report.md 写成 0 字节（原稿被截断）。润色与 compose 同理：模型只负责
+  // 返回文本，标题序列校验通过后宿主才原子写回；失败时原稿一字不动。
+  ctx.tools.register({
+    name: "ai00_polish",
+    description:
+      "Polish an assembled document with the cloud model: the model returns only the revised Markdown, the host verifies that every '## ' heading is preserved, then writes atomically. Never dispatch a code_worker to rewrite a document. Returns {ok:true, path, bytes, headings} or {ok:false, reason} — on failure the file is left untouched.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "Relative path of the document, e.g. report.md.",
+        },
+        language: {
+          type: "string",
+          description: "Document language (optional; defaults to the document's own language).",
+        },
+      },
+      required: ["file_path"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean" },
+          path: { type: "string" },
+          bytes: { type: "integer" },
+          headings: { type: "array", items: { type: "string" } },
+          reason: { type: "string" },
+        },
+        required: ["ok"],
+        additionalProperties: false,
+      },
+      render: (_args, value) =>
+        text(
+          value?.ok
+            ? `polished ${value.path} (${value.bytes} bytes, ${value.headings?.length ?? 0} headings)`
+            : `polish failed: ${value?.reason ?? "unknown"}`
+        ),
+    },
+    async execute(args, exec) {
+      const filePath = String(args?.file_path ?? "").trim();
+      if (!filePath) return { ok: false, reason: "file_path is required" };
+      let cwd = "";
+      try {
+        cwd = await ctx.workingDirectory.ensure(exec.agent, exec.signal);
+      } catch {
+        cwd = "";
+      }
+      if (!cwd) return { ok: false, reason: "no working directory for this session" };
+      const target = resolve(cwd, filePath);
+      if (target !== cwd && !target.startsWith(cwd.endsWith(sep) ? cwd : `${cwd}${sep}`)) {
+        return { ok: false, reason: `file_path escapes the working directory: ${filePath}` };
+      }
+      let source = "";
+      try {
+        source = await readFile(target, "utf8");
+      } catch {
+        return { ok: false, reason: `missing document: ${filePath}` };
+      }
+      if (!source.trim()) return { ok: false, reason: "document is empty" };
+      let polished = "";
+      try {
+        polished = await polishRemoteDocument({
+          baseURL: env.baseURL ?? DEFAULT_BASE_URL,
+          token: env.token ?? "",
+          content: source,
+          language: String(args?.language ?? "").trim(),
+          signal: exec.signal,
+        });
+      } catch (error) {
+        return { ok: false, reason: `remote polish failed: ${error?.message ?? error}` };
+      }
+      const invalid = validatePolishedDocument(source, polished);
+      if (invalid) return { ok: false, reason: invalid };
+      const content = `${polished.trimEnd()}\n`;
+      const tmp = `${target}.tmp`;
+      await writeFile(tmp, content, "utf8");
+      await rename(tmp, target);
+      return {
+        ok: true,
+        path: filePath,
+        bytes: Buffer.byteLength(content, "utf8"),
+        headings: documentHeadings(content),
+      };
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -3324,6 +3474,7 @@ const TOOL_NAMES = [
   "ai00_text_summarize",
   "ai00_local_compose",
   "ai00_assemble",
+  "ai00_polish",
 ];
 
 function apply(ctx, config) {
