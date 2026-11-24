@@ -1170,6 +1170,16 @@ export function sanitizeComposedSection(raw, heading) {
 }
 
 /**
+ * 明显退化检测：本地 3B 偶发单字/短语复读（`必必必必`、`关于关于关于`）。
+ * 这是内容质量门，不是长度门——只拦复读噪声，不评价长短。
+ */
+export function looksRepetitive(text) {
+  const value = String(text ?? "");
+  if (/(.)\1{3,}/u.test(value)) return true;
+  return /(.{2,6})\1{2,}/u.test(value);
+}
+
+/**
  * 用本地 RWKV 生成一段正文（纯文本，无工具）。网关以 OpenAI SSE 回包，
  * 这里同时兼容 SSE 与普通 JSON 两种形态。
  */
@@ -3171,6 +3181,9 @@ function defineTools(ctx, api, env = {}) {
       // 和云端润色负责。
       if (chars < 20) {
         return { ok: false, reason: `empty local output (${chars} chars)` };
+      }
+      if (looksRepetitive(clean)) {
+        return { ok: false, reason: "repetitive local output (degenerate loop)" };
       }
       const content = `${clean.startsWith("#") ? clean : `## ${heading}\n\n${clean}`}\n`;
       await mkdir(dirname(target), { recursive: true });
