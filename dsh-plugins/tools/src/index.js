@@ -1375,27 +1375,39 @@ export function looksRepetitive(text) {
   return /(.{2,6})\1{2,}/u.test(value);
 }
 
-/** 网关回包解析：同时兼容 OpenAI SSE 与普通 JSON。 */
-function parseCompletionText(raw) {
+/**
+ * 网关回包解析：兼容 OpenAI SSE 与普通 JSON，并取出 finish_reason。
+ *
+ * `finish_reason === "length"` = 撞到 max_tokens 被截断：compose 会换采样重试，
+ * polish 直接拒绝写回（半截文档比原稿更糟）。
+ */
+function parseCompletion(raw) {
   if (raw.trimStart().startsWith("data:")) {
     let out = "";
+    let finishReason = "";
     for (const line of raw.split("\n")) {
       const data = line.trim().replace(/^data:\s*/, "");
       if (!data || data === "[DONE]") continue;
       try {
         const chunk = JSON.parse(data);
-        out += chunk?.choices?.[0]?.delta?.content ?? chunk?.text ?? "";
+        const choice = chunk?.choices?.[0];
+        out += choice?.delta?.content ?? chunk?.text ?? "";
+        if (choice?.finish_reason) finishReason = choice.finish_reason;
       } catch {
         // 非 JSON 行（心跳/错误尾）忽略
       }
     }
-    return out;
+    return { text: out, finishReason };
   }
   try {
     const value = JSON.parse(raw);
-    return value?.choices?.[0]?.message?.content ?? value?.text ?? "";
+    const choice = value?.choices?.[0];
+    return {
+      text: choice?.message?.content ?? value?.text ?? "",
+      finishReason: choice?.finish_reason ?? "",
+    };
   } catch {
-    return raw;
+    return { text: raw, finishReason: "" };
   }
 }
 
@@ -1441,7 +1453,7 @@ async function composeLocalSection({ baseURL, token, heading, topic, language, t
     signal,
   });
   if (!response.ok) throw new Error(`local model HTTP ${response.status}`);
-  return parseCompletionText(await response.text());
+  return parseCompletion(await response.text());
 }
 
 /** 文档里的 `## ` 标题序列（润色前后必须一致）。 */
@@ -1493,9 +1505,10 @@ async function polishRemoteDocument({ baseURL, token, content, language, signal 
     signal,
   });
   if (!response.ok) throw new Error(`remote model HTTP ${response.status}`);
-  let text = parseCompletionText(await response.text()).trim();
+  const parsed = parseCompletion(await response.text());
+  let text = parsed.text.trim();
   text = text.replace(/^```(?:markdown|md)?\s*\n/i, "").replace(/\n```\s*$/, "").trim();
-  return text;
+  return { text, finishReason: parsed.finishReason };
 }
 
 function defineTools(ctx, api, env = {}) {
@@ -3437,9 +3450,9 @@ function defineTools(ctx, api, env = {}) {
       // 先按默认采样试一次，不合格再换 top_p=0.5 重试一次（与网关草稿门同配方）；
       // 仍不合格才把这一节交给编排者升级云端。长度不作为合格条件。
       for (const topP of [undefined, 0.5]) {
-        let body = "";
+        let completion = { text: "", finishReason: "" };
         try {
-          body = await composeLocalSection({
+          completion = await composeLocalSection({
             baseURL: env.baseURL ?? DEFAULT_BASE_URL,
             token: env.token ?? "",
             heading,
@@ -3451,7 +3464,11 @@ function defineTools(ctx, api, env = {}) {
         } catch (error) {
           return { ok: false, reason: `local model call failed: ${error?.message ?? error}` };
         }
-        clean = sanitizeComposedSection(body, heading);
+        if (completion.finishReason === "length") {
+          reason = "truncated local output (hit max_tokens)";
+          continue;
+        }
+        clean = sanitizeComposedSection(completion.text, heading);
         const chars = [...clean].length;
         if (chars < 20) {
           reason = `empty local output (${chars} chars)`;
@@ -3678,9 +3695,9 @@ function defineTools(ctx, api, env = {}) {
         return { ok: false, reason: `missing document: ${filePath}` };
       }
       if (!source.trim()) return { ok: false, reason: "document is empty" };
-      let polished = "";
+      let result = { text: "", finishReason: "" };
       try {
-        polished = await polishRemoteDocument({
+        result = await polishRemoteDocument({
           baseURL: env.baseURL ?? DEFAULT_BASE_URL,
           token: env.token ?? "",
           content: source,
@@ -3690,6 +3707,10 @@ function defineTools(ctx, api, env = {}) {
       } catch (error) {
         return { ok: false, reason: `remote polish failed: ${error?.message ?? error}` };
       }
+      if (result.finishReason === "length") {
+        return { ok: false, reason: "polish output truncated (hit max_tokens); draft left untouched" };
+      }
+      const polished = result.text;
       const invalid = validatePolishedDocument(source, polished);
       if (invalid) return { ok: false, reason: invalid };
       const content = `${polished.trimEnd()}\n`;
