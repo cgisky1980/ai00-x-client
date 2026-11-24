@@ -17,6 +17,8 @@
  * - ai00_plan_write    — 写卡片计划文档 MD（策窗口热刷新可见）
  * - ai00_web_extract   — web 有效信息提取（全本地闭环：搜索→并发抓取→本地并发筛选）
  * - ai00_text_summarize— 长文总结（全本地闭环：≤6000 单次 / >6000 map-reduce 并发）
+ * - ai00_local_compose — 本地模型只写正文、宿主确定性落盘（章节扩写，先写后落盘）
+ * - ai00_assemble      — 按序拼接分节文件为最终交付物并清理分节（确定性归约）
  * - ai00_research_collect — 一次调用完成「多查询检索 → 抓取 → 筛选 → 落盘来源汇编」
  *
  * 本插件只做协议薄壳：业务逻辑在宿主侧（D7 决策）。
@@ -32,8 +34,8 @@
 
 import { exec, execFile } from "node:child_process";
 import { statSync } from "node:fs";
-import { stat, readFile, readdir, writeFile } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { mkdir, stat, readFile, readdir, unlink, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 
 const name = "ai00-x-tools";
 const inject = ["tools", "workingDirectory"];
@@ -1125,7 +1127,103 @@ export function mergeResearchSources(prev, next) {
   return `${header}\n\n${body}\n`;
 }
 
-function defineTools(ctx, api) {
+/**
+ * 本地章节扩写的「正文清洗」：宿主统一补 `## heading`，模型只负责正文。
+ *
+ * 3B 在纯文本模式（无工具 schema）下段落质量明显好于把整段塞进 write 的
+ * JSON 参数；但段尾偶尔续写对话角色（实测英文段落尾部出现 `**User1:**`）
+ * 或自带标题/围栏。这里按确定性规则剥掉这些噪声，剩下正文原样落盘。
+ */
+export function sanitizeComposedSection(raw, heading) {
+  let body = String(raw ?? "").replace(/\r\n/g, "\n").trim();
+  body = body.replace(/^```[a-zA-Z]*\s*\n/, "").replace(/\n```\s*$/, "").trim();
+  const lines = body.split("\n");
+  while (lines.length && /^#{1,6}\s/.test(lines[0].trim())) lines.shift();
+  body = lines.join("\n").trim();
+  // 角色/续写标记：本地小模型常在段中/段尾幻想下一轮对话（`**User1:**`、
+  // 行内 `User/user:`、`UserAI prompts:` 都实测出现过）。普通英文 "system:"
+  // 不误伤：非加粗形态只在句首/换行/句末标点之后才算标记。
+  let cut = body.length;
+  const bold = /\*{1,2}\s*(user|assistant|human|system)\s*\d*\s*:\s*\*{0,2}/i.exec(body);
+  if (bold) {
+    cut = bold.index;
+  } else {
+    const inline =
+      /(^|[\n。．.!?！？;；])\s*(user|assistant|human|system)\s*([/／]\s*(user|assistant|human|system))?\s*(ai)?\s*(prompts?)?\s*[:：]/i.exec(
+        body
+      );
+    if (inline) {
+      cut = inline.index + (inline[1]?.length ?? 0);
+    } else {
+      const tag = /<\|[^|>]*\|>/.exec(body);
+      if (tag) cut = tag.index;
+    }
+  }
+  body = body.slice(0, cut).replace(/[\s\-—–:：,，;；/／]+$/, "").trim();
+  if (
+    (body.startsWith('"') && body.endsWith('"')) ||
+    (body.startsWith("“") && body.endsWith("”"))
+  ) {
+    body = body.slice(1, -1).trim();
+  }
+  return body;
+}
+
+/**
+ * 用本地 RWKV 生成一段正文（纯文本，无工具）。网关以 OpenAI SSE 回包，
+ * 这里同时兼容 SSE 与普通 JSON 两种形态。
+ */
+async function composeLocalSection({ baseURL, token, heading, topic, language, signal }) {
+  // 3B 的稳定写作边界是「短段落」：中文超过 ~100 字会开始复读/掉句（实测
+  // top_p 0.1 直接退化，top_p 0.3 的 60-90 字目标最稳）。按输出语言给长度单位，
+  // 不要把中文的 60–90「字」说成 60–90 words（约 150 字，越界）。
+  const cjk = /(中文|汉语|chinese|zh)/i.test(language);
+  const target = cjk ? "60-90 个汉字" : "60-90 words";
+  const messages = [
+    {
+      role: "system",
+      content: `You are a careful writer. Output only the body text: one short paragraph of ${target} in 3-4 short sentences. No headings, no quotes, no lists, no numbers or product names, no commentary. Stop after that paragraph.`,
+    },
+    {
+      role: "user",
+      content: `Write the body of the section "${heading}" in ${language}. Topic: ${topic}.`,
+    },
+  ];
+  const response = await fetch(`${baseURL}/ai00-internal/llm/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-ai00-internal-token": token,
+      "x-ai00-plugin-id": PLUGIN_ID,
+    },
+    body: JSON.stringify({ model: "rwkv-local", messages, stream: false, max_tokens: 220 }),
+    signal,
+  });
+  if (!response.ok) throw new Error(`local model HTTP ${response.status}`);
+  const raw = await response.text();
+  if (raw.trimStart().startsWith("data:")) {
+    let out = "";
+    for (const line of raw.split("\n")) {
+      const data = line.trim().replace(/^data:\s*/, "");
+      if (!data || data === "[DONE]") continue;
+      try {
+        const chunk = JSON.parse(data);
+        out += chunk?.choices?.[0]?.delta?.content ?? chunk?.text ?? "";
+      } catch {
+        // 非 JSON 行（心跳/错误尾）忽略
+      }
+    }
+    return out;
+  }
+  try {
+    const value = JSON.parse(raw);
+    return value?.choices?.[0]?.message?.content ?? value?.text ?? "";
+  } catch {
+    return raw;
+  }
+}
+
+function defineTools(ctx, api, env = {}) {
   /**
    * taskId 解析：模型漏传/传错时以会话工作目录为准。
    *
@@ -2978,6 +3076,221 @@ function defineTools(ctx, api) {
       return api.post("/text/summarize", body, exec.signal);
     },
   });
+
+  // ---- ai00_local_compose：本地模型先写正文，宿主确定性落盘 ----
+  //
+  // 2026-11-24：章节扩写不再让 3B 把整段正文塞进 write 的参数 JSON（长正文
+  // 的 JSON 转义/嵌套稳定失败），改为「模型只生成纯文本 → 宿主补标题写文件」。
+  // 本地纯文本探针 66 prompt token / 2s 即产出通顺英文段落，而同一模型在
+  // 工具轮里连续 3 次参数损坏（arguments 非对象 / 乱码复读）。
+  ctx.tools.register({
+    name: "ai00_local_compose",
+    description:
+      "Write ONE document section with the local RWKV model and save it deterministically: the model returns only the body text, the host prepends the '## heading' and writes the file. Use one call per section (up to 4 parallel calls per round) for long documents (rule 9). Returns {ok:true, path, bytes, preview} on success, or {ok:false, reason} when the local output is empty/too short — escalate that section alone to the cloud code_worker.",
+    parameters: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "Relative path of the section file, e.g. section-2.md.",
+        },
+        heading: {
+          type: "string",
+          description: "Section heading text WITHOUT the leading '##'.",
+        },
+        topic: {
+          type: "string",
+          description:
+            "One sentence describing what the section must cover, in the document's language.",
+        },
+        language: {
+          type: "string",
+          description:
+            "Language of the body text, matching the user's request (e.g. English, 中文). Never force Chinese.",
+        },
+        min_chars: {
+          type: "integer",
+          description:
+            "Minimum acceptable body length in characters (default 80). Shorter output counts as a failed compose.",
+        },
+      },
+      required: ["file_path", "heading", "topic", "language"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean" },
+          path: { type: "string" },
+          bytes: { type: "integer" },
+          preview: { type: "string" },
+          reason: { type: "string" },
+        },
+        required: ["ok"],
+        additionalProperties: false,
+      },
+      render: (_args, value) =>
+        text(
+          value?.ok
+            ? `composed ${value.path} (${value.bytes} bytes)`
+            : `compose failed: ${value?.reason ?? "empty output"}`
+        ),
+    },
+    isConcurrencySafe: () => true,
+    async execute(args, exec) {
+      const filePath = String(args?.file_path ?? "").trim();
+      const heading = String(args?.heading ?? "")
+        .trim()
+        .replace(/^#{1,6}\s*/, "");
+      const topic = String(args?.topic ?? "").trim();
+      const language = String(args?.language ?? "").trim() || "English";
+      const minChars = Number(args?.min_chars) > 0 ? Number(args.min_chars) : 80;
+      if (!filePath || !heading || !topic) {
+        return { ok: false, reason: "file_path, heading and topic are required" };
+      }
+      let cwd = "";
+      try {
+        cwd = await ctx.workingDirectory.ensure(exec.agent, exec.signal);
+      } catch {
+        cwd = "";
+      }
+      if (!cwd) return { ok: false, reason: "no working directory for this session" };
+      const target = resolve(cwd, filePath);
+      if (target !== cwd && !target.startsWith(cwd.endsWith(sep) ? cwd : `${cwd}${sep}`)) {
+        return { ok: false, reason: `file_path escapes the working directory: ${filePath}` };
+      }
+      let body = "";
+      try {
+        body = await composeLocalSection({
+          baseURL: env.baseURL ?? DEFAULT_BASE_URL,
+          token: env.token ?? "",
+          heading,
+          topic,
+          language,
+          signal: exec.signal,
+        });
+      } catch (error) {
+        return { ok: false, reason: `local model call failed: ${error?.message ?? error}` };
+      }
+      const clean = sanitizeComposedSection(body, heading);
+      const chars = [...clean].length;
+      if (chars < minChars) {
+        return { ok: false, reason: `local output too short (${chars} < ${minChars} chars)` };
+      }
+      const content = `${clean.startsWith("#") ? clean : `## ${heading}\n\n${clean}`}\n`;
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, content, "utf8");
+      return {
+        ok: true,
+        path: filePath,
+        bytes: Buffer.byteLength(content, "utf8"),
+        preview: content.slice(0, 200),
+      };
+    },
+  });
+
+  // ---- ai00_assemble：分节文件按序拼接为交付物（确定性归约）----
+  //
+  // 契约规则 9 的第三步。以前交给 local_cmd 写 node 一行命令，本地 3B 生成
+  // 的拼接脚本实测直接返回乱码（12:34 任务），还得让云端重做一次。拼接是
+  // 纯确定性操作，交给宿主：读文件 → 按序拼 → 写交付物 → 删分节 → 回报标题。
+  ctx.tools.register({
+    name: "ai00_assemble",
+    description:
+      "Concatenate section files into the final document in the given order, then delete the section files. Deterministic host-side assembly for rule 9 — never write a node one-liner for this. Returns {ok:true, path, bytes, headings} or {ok:false, reason} when a section file is missing/empty.",
+    parameters: {
+      type: "object",
+      properties: {
+        output: {
+          type: "string",
+          description: "Relative path of the final deliverable, e.g. report.md.",
+        },
+        sections: {
+          type: "array",
+          items: { type: "string" },
+          description: "Section file paths in document order, e.g. ['section-1.md', ...].",
+        },
+        keep_sections: {
+          type: "boolean",
+          description: "Keep the section files after assembly (default false: delete them).",
+        },
+      },
+      required: ["output", "sections"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean" },
+          path: { type: "string" },
+          bytes: { type: "integer" },
+          headings: { type: "array", items: { type: "string" } },
+          reason: { type: "string" },
+        },
+        required: ["ok"],
+        additionalProperties: false,
+      },
+      render: (_args, value) =>
+        text(
+          value?.ok
+            ? `assembled ${value.path} (${value.bytes} bytes, ${value.headings?.length ?? 0} headings)`
+            : `assemble failed: ${value?.reason ?? "unknown"}`
+        ),
+    },
+    async execute(args, exec) {
+      const output = String(args?.output ?? "").trim();
+      const sections = Array.isArray(args?.sections) ? args.sections.map(String) : [];
+      if (!output || sections.length === 0) {
+        return { ok: false, reason: "output and sections are required" };
+      }
+      let cwd = "";
+      try {
+        cwd = await ctx.workingDirectory.ensure(exec.agent, exec.signal);
+      } catch {
+        cwd = "";
+      }
+      if (!cwd) return { ok: false, reason: "no working directory for this session" };
+      const inside = (rel) => {
+        const abs = resolve(cwd, rel);
+        return abs === cwd || abs.startsWith(cwd.endsWith(sep) ? cwd : `${cwd}${sep}`) ? abs : null;
+      };
+      const target = inside(output);
+      if (!target) return { ok: false, reason: `output escapes the working directory: ${output}` };
+      let content = "";
+      const headings = [];
+      for (const rel of sections) {
+        const file = inside(rel);
+        if (!file) return { ok: false, reason: `section escapes the working directory: ${rel}` };
+        let body = "";
+        try {
+          body = await readFile(file, "utf8");
+        } catch {
+          return { ok: false, reason: `missing section file: ${rel}` };
+        }
+        if (!body.trim()) return { ok: false, reason: `empty section file: ${rel}` };
+        content += `${body.trimEnd()}\n\n`;
+        const heading = body.split("\n").find((line) => line.startsWith("## "));
+        if (heading) headings.push(heading.slice(3).trim());
+      }
+      await mkdir(dirname(target), { recursive: true });
+      const finalText = `${content.trimEnd()}\n`;
+      await writeFile(target, finalText, "utf8");
+      if (args?.keep_sections !== true) {
+        for (const rel of sections) {
+          const file = inside(rel);
+          if (file) await unlink(file).catch(() => {});
+        }
+      }
+      return {
+        ok: true,
+        path: output,
+        bytes: Buffer.byteLength(finalText, "utf8"),
+        headings,
+      };
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -3002,6 +3315,8 @@ const TOOL_NAMES = [
   "ai00_web_extract",
   "ai00_research_collect",
   "ai00_text_summarize",
+  "ai00_local_compose",
+  "ai00_assemble",
 ];
 
 function apply(ctx, config) {
@@ -3054,7 +3369,7 @@ function apply(ctx, config) {
   }
 
   const api = makeClient(baseURL, token);
-  defineTools(ctx, api);
+  defineTools(ctx, api, { baseURL, token });
   ctx.logger.info(`${name}: registered business tools -> ${baseURL}`);
 }
 

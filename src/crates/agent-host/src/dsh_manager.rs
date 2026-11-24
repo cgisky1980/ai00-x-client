@@ -1297,6 +1297,8 @@ const AI00_TOOL_NAMES: &[&str] = &[
     "ai00_web_extract",
     "ai00_research_collect",
     "ai00_text_summarize",
+    "ai00_local_compose",
+    "ai00_assemble",
 ];
 
 /// 任务场景（`workbench-task`）额外不挂载的引擎工具 —— 依据实测 schema 成本：
