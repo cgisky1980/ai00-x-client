@@ -954,6 +954,7 @@ async fn local_rwkv_sse(
     let model_name = MODEL_RWKV.to_string();
     let stream_inline_text = !has_tools && !rounds_exhausted;
     // 熔断轮判定"证据 vs 失败"用的历史（含本回合所有工具结果）
+    let task_path_hint = hinted_path(&messages);
     let messages_for_evidence = messages;
 
     tokio::spawn(async move {
@@ -1029,6 +1030,8 @@ async fn local_rwkv_sse(
             let arguments = normalize_tool_arguments(&name, &arguments);
             // 破损 JSON 按必填键抢救（多写编造键/引号错位在 3B 上很常见）
             let arguments = salvage_if_invalid(&name, arguments, tools.as_deref());
+            // 路径写坏（Users / section?2.md）时按 brief 点名文件覆盖
+            let arguments = apply_write_path_hint(&name, arguments, task_path_hint.as_deref());
             if let Some(reason) = write_rejection(&name, &arguments) {
                 // 空写会整文件覆盖 → 清空既有交付物；超长写会让 3B 退化。
                 // 强制本地路径（rwkv-local）也必须拦，工人正是走这条路。
@@ -1331,6 +1334,7 @@ async fn local_tool_round(
         .cloned()
         .unwrap_or_default();
     let tools = body.get("tools").and_then(|v| v.as_array()).cloned();
+    let task_path_hint = hinted_path(&messages);
     let tool_names: Vec<String> = tools
         .as_deref()
         .unwrap_or(&[])
@@ -1432,6 +1436,8 @@ async fn local_tool_round(
         let arguments = normalize_tool_arguments(&name, &arguments);
         // 破损 JSON 按必填键抢救（见 salvage_if_invalid）
         let arguments = salvage_if_invalid(&name, arguments, tools.as_deref());
+        // 路径写坏（Users / section?2.md）时按 brief 点名文件覆盖
+        let arguments = apply_write_path_hint(&name, arguments, task_path_hint.as_deref());
         // 空内容 write 会把已有文件截成 0 字节：实测 T2/T3 的本地工人在"追加"
         // 失败后都发出了 {"content":"","file_path":"report.md"}，直接把刚写好的
         // 报告清空（2026-11-21 会话 87c876ca / caeffa9d）。拒绝执行，按 BLOCKED 收尾。
@@ -1923,6 +1929,22 @@ fn clamp_prompt_body(body: &str) -> String {
 
 /// OpenAI 格式消息（role/content/tool_calls/tool_call_id）→ RWKV World/Instruction 格式。
 fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -> String {
+    // 本地工人不需要引擎注入的 `working_directory`（人设已要求相对路径）。
+    // 它的 schema 每轮都进 prefill，还会挤进 few-shot 示例；实测合成探针
+    // （2 工具 read/write）4/4 成功，而真实工人（多出 working_directory）
+    // 写出空内容——先摘掉这件噪声工具，让真实工人与探针同面。
+    let filtered_tools: Option<Vec<Value>> = tools.map(|defs| {
+        defs.iter()
+            .filter(|tool| {
+                tool.get("function")
+                    .and_then(|f| f.get("name"))
+                    .and_then(|n| n.as_str())
+                    != Some("working_directory")
+            })
+            .cloned()
+            .collect()
+    });
+    let tools = filtered_tools.as_deref();
     let has_tools = tools.is_some_and(|t| !t.is_empty());
 
     // 单轮抽取任务（恰好 system+user，无工具）→ 官方 Instruction 格式
@@ -2022,6 +2044,22 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
                     // 不补前缀的话 3B 会把结果当用户指令——实测随后去调不存在的
                     // `read_file` 想读回 sources.md，白烧工具轮直到熔断。
                     let body = sanitize(&content);
+                    // 引擎注入的运行时上下文 / 工作目录变更 / 给父代理的收尾说明：
+                    // 对本地 3B 全是噪声（实测真实工人 4.2k 字符提示上自由写作退化，
+                    // 只留任务 brief 的合成探针 4/4 成功）。本地路径直接剔除。
+                    let trimmed = body.trim_start();
+                    if trimmed.starts_with("<system-reminder>")
+                        || trimmed.starts_with("The working directory changed")
+                    {
+                        continue;
+                    }
+                    let body = match body.find("Your final answer is delivered automatically") {
+                        Some(i) => body[..i].trim_end().to_string(),
+                        None => body,
+                    };
+                    if body.trim().is_empty() {
+                        continue;
+                    }
                     let body = if previous_had_tool_calls {
                         // 紧随工具调用的 user 正文 = 引擎并回的工具结果 → 同样截断
                         let body = clamp_prompt_body(&body);
@@ -2332,22 +2370,30 @@ fn compact_schema(schema: &Value) -> Value {
     Value::Object(out)
 }
 
-/// 最后一条 user 消息（brief）里点名的工具名——few-shot 选例的第一优先级。
+/// 所有 user 消息文本。引擎会把运行时上下文（`<system-reminder>`）与任务
+/// brief 放进同一个 user 消息的不同文本块，也可能把 reminder 作为单独一条
+/// user 消息排在 brief 之后——按「最后一条 user」取会拿到 reminder，导致
+/// few-shot 的路径/工具提示全部失效（实测 path=None）。
+fn user_texts(messages: &[Value]) -> Vec<String> {
+    messages
+        .iter()
+        .filter(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))
+        .filter_map(message_text)
+        .collect()
+}
+
+/// 最后一条 user brief 里点名的工具名——few-shot 选例的第一优先级。
 ///
 /// 编排者的 brief 会明确写「用 `ai00_research_collect` 一次完成」，被点名的
 /// 那件才是本轮真正要调的工具；不点名时返回 None，退回到默认优先级。
 fn hinted_tool<'a>(tools: &'a [Value], messages: &[Value]) -> Option<&'a str> {
-    let last_user = messages
-        .iter()
-        .rev()
-        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))?;
-    let text = message_text(last_user)?;
+    let texts = user_texts(messages);
     tools.iter().find_map(|tool| {
         let name = tool
             .get("function")
             .and_then(|f| f.get("name"))
             .and_then(|n| n.as_str())?;
-        (name.starts_with("ai00_") && text.contains(name)).then_some(name)
+        (name.starts_with("ai00_") && texts.iter().any(|t| t.contains(name))).then_some(name)
     })
 }
 
@@ -2359,13 +2405,16 @@ fn hinted_tool<'a>(tools: &'a [Value], messages: &[Value]) -> Option<&'a str> {
 /// 模型照抄的也是正确目标。
 fn hinted_path(messages: &[Value]) -> Option<String> {
     const EXTS: [&str; 8] = [".txt", ".md", ".json", ".csv", ".py", ".js", ".ts", ".html"];
-    let last_user = messages
-        .iter()
-        .rev()
-        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))?;
-    let text = message_text(last_user)?;
-    text.split(|c: char| c.is_whitespace() || "，。；：“”‘’（）()[]{}<>\"'`、,;:".contains(c))
-        .find_map(|token| {
+    // 取「出现次数最多」的文件名，平票取最后一次出现：分节 brief 里骨架名
+    // 只出现一次（`guide.skeleton.md`），真正的输出文件在任务句 + 示例里
+    // 至少出现两次；只看第一个会把 write 目标误判成骨架。
+    let mut counts: Vec<(String, usize, usize)> = Vec::new();
+    let mut index = 0usize;
+    for text in user_texts(messages) {
+        for token in text
+            .split(|c: char| c.is_whitespace() || "，。；：“”‘’（）()[]{}<>\"'`、,;:".contains(c))
+        {
+            index += 1;
             let token = token.trim_matches(|c: char| {
                 !(c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
             });
@@ -2374,9 +2423,24 @@ fn hinted_path(messages: &[Value]) -> Option<String> {
                 && token.len() <= 64
                 && !token.contains('/')
                 && !token.contains('\\')
+                && !matches!(token, "AGENTS.local.md" | "CLAUDE.local.md")
                 && EXTS.iter().any(|ext| lower.ends_with(ext));
-            looks_like_file.then(|| token.to_string())
-        })
+            if !looks_like_file {
+                continue;
+            }
+            match counts.iter_mut().find(|(name, _, _)| name == token) {
+                Some((_, count, last)) => {
+                    *count += 1;
+                    *last = index;
+                }
+                None => counts.push((token.to_string(), 1, index)),
+            }
+        }
+    }
+    counts
+        .into_iter()
+        .max_by_key(|(_, count, last)| (*count, *last))
+        .map(|(name, _, _)| name)
 }
 
 /// 最后一条 brief 的任务意图 → 最可能被调用的工具名（须在 tools 表内）。
@@ -2385,11 +2449,7 @@ fn hinted_path(messages: &[Value]) -> Option<String> {
 /// 顺序不能只按工具表顺序。关键词优先级从具体到宽泛：图片 → 写入 → 检索 →
 /// 找文件 → 读文本；都不命中返回 None（保持原顺序）。
 fn focus_tool<'a>(tools: &'a [Value], messages: &[Value]) -> Option<&'a str> {
-    let last_user = messages
-        .iter()
-        .rev()
-        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))?;
-    let text = message_text(last_user)?.to_ascii_lowercase();
+    let text = user_texts(messages).join("\n").to_ascii_lowercase();
     let available = |name: &str| {
         tools.iter().any(|tool| {
             tool.get("function")
@@ -2456,24 +2516,22 @@ fn focus_tool<'a>(tools: &'a [Value], messages: &[Value]) -> Option<&'a str> {
 /// 把 brief 中反引号/双引号包起来的**正文片段**（非文件名、含空格或标点、
 /// ≤120 字符）作为示例正文，模型照抄的就是目标内容。
 fn hinted_content(messages: &[Value]) -> Option<String> {
-    let last_user = messages
-        .iter()
-        .rev()
-        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))?;
-    let text = message_text(last_user)?;
+    let texts = user_texts(messages);
     let mut best: Option<String> = None;
-    for quote in ['`', '"'] {
-        let mut rest = text.as_str();
-        while let Some(start) = rest.find(quote) {
-            let after = &rest[start + quote.len_utf8()..];
-            let Some(end) = after.find(quote) else {
-                break;
-            };
-            let span = after[..end].trim();
-            if looks_like_content(span) && best.as_ref().is_none_or(|b| span.len() > b.len()) {
-                best = Some(span.to_string());
+    for text in texts.iter().rev() {
+        for quote in ['`', '"'] {
+            let mut rest = text.as_str();
+            while let Some(start) = rest.find(quote) {
+                let after = &rest[start + quote.len_utf8()..];
+                let Some(end) = after.find(quote) else {
+                    break;
+                };
+                let span = after[..end].trim();
+                if looks_like_content(span) && best.as_ref().is_none_or(|b| span.len() > b.len()) {
+                    best = Some(span.to_string());
+                }
+                rest = &after[end + quote.len_utf8()..];
             }
-            rest = &after[end + quote.len_utf8()..];
         }
         if best.is_some() {
             return best;
@@ -3303,6 +3361,38 @@ fn write_rejection(name: &str, arguments: &str) -> Option<String> {
     None
 }
 
+/// 本地写手一步只写一个文件：模型把路径写坏时（`Users` / `section?2.md` /
+/// 绝对路径被重排）用 brief 里点名的文件名确定性覆盖。只在 basename 不匹配
+/// 时动手，避免误改模型给出的合法同名路径。
+fn apply_write_path_hint(name: &str, arguments: String, hint: Option<&str>) -> String {
+    if name != "write" {
+        return arguments;
+    }
+    let Some(hint) = hint else {
+        return arguments;
+    };
+    let Ok(mut value) = serde_json::from_str::<Value>(&arguments) else {
+        return arguments;
+    };
+    let Some(obj) = value.as_object_mut() else {
+        return arguments;
+    };
+    let current = obj
+        .get("file_path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let same = std::path::Path::new(&current)
+        .file_name()
+        .and_then(|n| n.to_str())
+        == Some(hint);
+    if same {
+        return arguments;
+    }
+    obj.insert("file_path".to_string(), Value::String(hint.to_string()));
+    serde_json::to_string(&value).unwrap_or(arguments)
+}
+
 /// 工具参数归一：3B 本地模型常见两类"参数漂移"，这里确定性修掉，
 /// 免得每一轮都因参数名不对被判失败（实测：`path`/`file_path` 混用、
 /// `content` 里又嵌了一层 `{"content":…,"file_path":…}`）。
@@ -3741,6 +3831,41 @@ fn sse_usage(model: &str, input_tokens: usize, output_tokens: usize) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// 引擎的 system-reminder / 目录变更也是 user 角色，排在 brief 之后；
+    /// 取最后一个文件名时必须跳过它们，并在骨架名与输出名之间选输出名。
+    #[test]
+    fn hinted_path_ignores_engine_noise_and_prefers_output_file() {
+        let brief = "The skeleton file `guide.skeleton.md` holds the outline. \
+                     请用 write 创建文件 section-2.md。示例：\
+                     write({\"file_path\":\"section-2.md\",\"content\":\"## 骨架……\"})";
+        let messages = vec![
+            json!({"role": "user", "content": brief}),
+            json!({"role": "user", "content": "<system-reminder>cwd</system-reminder>"}),
+        ];
+        assert_eq!(hinted_path(&messages).as_deref(), Some("section-2.md"));
+    }
+
+    /// 3B 把路径写成 `Users` / `section?2.md` 时，按 brief 点名文件覆盖；
+    /// 已正确或非 write 的调用不动。
+    #[test]
+    fn write_path_hint_overrides_mangled_paths() {
+        let mangled = r#"{"file_path":"Users","content":"body"}"#;
+        let fixed = apply_write_path_hint("write", mangled.to_string(), Some("section-2.md"));
+        assert!(fixed.contains("\"file_path\":\"section-2.md\""), "{fixed}");
+
+        let good = r#"{"file_path":"section-2.md","content":"body"}"#;
+        assert_eq!(
+            apply_write_path_hint("write", good.to_string(), Some("section-2.md")),
+            good
+        );
+
+        let read = r#"{"file_path":"Users"}"#;
+        assert_eq!(
+            apply_write_path_hint("read", read.to_string(), Some("section-2.md")),
+            read
+        );
+    }
 
     #[test]
     fn parses_real_usage_from_sse() {

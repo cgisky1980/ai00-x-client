@@ -2105,6 +2105,14 @@ fn fallback_worker_defs() -> Vec<WorkerDef> {
 /// 行结构与映射表见 patches/<引擎版本>/INTENT.md。
 const WORKER_LEAF_RULES: &str = "You are a leaf worker, not an orchestrator.\n直接执行当前派发任务：不要制定或更新主计划，不要再次派发子代理，也不要等待用户或父代理确认。\n禁止调用任何委派类工具（code_worker / local_code_worker / research_worker / review_worker / subagent）：它们即使出现在工具清单里也只会被引擎以 depth 错误拒绝，调用即浪费一轮。\n工作目录里的 AGENTS.local.md、计划文档、验收命令是写给编排者的，不适用于你：不要读、不要引用，也不要因为它提到了你没有的工具就停下。\n只使用你工具清单里真实存在的工具；清单里没有的工具（例如 web_search / web_fetch / ai00_search）一律不要调用，需要联网检索时用 ai00_web_extract（query=搜索并取每页要点，url=取单页正文）或 ai00_research_collect（一次采集落盘）。\n联网一律走这两件工具：禁止 curl、Invoke-WebRequest、自写抓取脚本，也禁止端口/代理/配置探测——引擎沙箱里直连 https 会 TLS 失败，探索这些只会白烧十几轮。\n长文件分节写：先用 write 写骨架，再逐节用 edit 追加，单步生成别超过 3000 字。\n落文件优先用 write（参数 `file_path` + `content`，一次写整段）：新建文件只能用 write；只有修改**已存在**文件才用 edit，且 old_string 必须是文件里真实出现的原文——不确定就不要用 edit。命令执行用 pwsh（参数必须同时给 `description` 与 `command`）。路径一律写**相对工作目录的相对路径**（如 `hello.txt`），不要写绝对路径、不要把目录名重复拼接。\n读文件报 not found 时不要原样重试：先用 glob（如 `*.txt`）确认真实文件名，再按结果读或写。\n所有工具必须经工具调用通道，禁止在正文模拟“[工具] …”，也不要输出任何形如 {\"arguments\":…,\"name\":…} 的工具调用 JSON。缺少必要工具或权限时明确报告阻塞；不要用“我将……”或“准备……”代替实际完成。\n收尾自检：任务要求落文件时，必须先用工具确认产物真实存在（读取该文件或跑验收命令），再在收尾里写明产物路径与验证结果；做不到就写 BLOCKED 加一句原因。没有工具证据的“已完成”按失败处理。\n任务达成即收尾，禁止重复写同一个文件：已经 write 成功、且 read 回读确认过的文件，不许再 write/edit（实测重复写白烧 4 轮工具预算）。收尾只输出一行 `DONE: <产物路径与验证结果>`。";
 
+/// 本地小模型（3B/7B）的叶子规则压缩版。
+///
+/// 完整版 ~1.6k 字符：会话级规则（联网、edit、长文分节、路径规范）对 3B 是
+/// 纯噪声，实测真实工人提示 4.2k 字符时自由写作退化；合成探针（只有任务
+/// brief）同一任务 4/4 成功。这里只留本地工人真正会做的事：write 一次、
+/// read 回读、一行收尾；其余行为由 preset 工具面（只有 read/write）兜住。
+const LOCAL_WORKER_LEAF_RULES: &str = "You are a leaf local worker. Do not dispatch subagents, do not run commands, do not read AGENTS.local.md or the plan.\nUse only the tools you are given. Call the tool directly in the tool-call channel; never write a tool call as plain text.\nTo create a file: call write once with exactly two keys — file_path (relative, exactly as given in the brief) and content (the whole file). If the brief gives no content, reply exactly: BLOCKED: <one-line reason>.\nAfter writing, call read on the same path to confirm the bytes, then reply one line: DONE: <path> (<bytes>).";
+
 fn build_worker_rows(defs: &[WorkerDef]) -> String {
     let mut rows = String::new();
     for (index, def) in defs.iter().enumerate() {
@@ -2125,12 +2133,26 @@ fn build_worker_rows(defs: &[WorkerDef]) -> String {
         rows.push_str(
             "          - id: persona\n            name: '@deepseek-ai/dsh-persona'\n            config:\n              prefix: |-\n",
         );
-        for line in WORKER_LEAF_RULES.lines().chain(def.persona.lines()) {
+        let leaf_rules = if def.model == "rwkv-local" {
+            LOCAL_WORKER_LEAF_RULES
+        } else {
+            WORKER_LEAF_RULES
+        };
+        for line in leaf_rules.lines().chain(def.persona.lines()) {
             if line.trim().is_empty() {
                 rows.push('\n');
             } else {
                 rows.push_str(&format!("                {line}\n"));
             }
+        }
+        // 本地小模型只吃「自己的任务」：引擎默认系统提示词（harness 身份、
+        // read/present 使用规范、运行时上下文）实测把 3B 工人提示撑到 9.5k
+        // 字符，工人在 400 字任务上直接退化。complete: true 让人设成为唯一
+        // 系统提示词；运行时上下文（CWD/沙箱说明）也一并抑制——本地人设
+        // 已要求相对路径，不需要这段。云端工人保留完整提示词。
+        if def.model == "rwkv-local" {
+            rows.push_str("              complete: true\n");
+            rows.push_str("              includeRuntimeContext: false\n");
         }
         rows.push_str(
             "          - id: agent-instructions\n            name: '@deepseek-ai/dsh-agent-instructions'\n            config:\n              maxBytes: 65536\n              localInstructionFileCandidates: []\n",
@@ -3448,6 +3470,26 @@ mod tests {
         let rows = build_worker_rows(&[local]);
         assert!(rows.contains("write: true"), "{rows}");
         assert!(rows.contains("edit: false"), "{rows}");
+    }
+
+    /// 本地工人的系统提示词只保留人设：引擎默认提示词（harness 身份 +
+    /// read/present 规范 + 运行时上下文）实测把 3B 工人提示撑到 9.5k 字符，
+    /// 400 字任务直接退化。云端工人必须保留完整提示词。
+    #[test]
+    fn local_worker_persona_replaces_engine_prompt() {
+        let local_md = "---\nname: local_x\ndescription: d\nmodel: rwkv-local\ntools:\n  - read\n  - write\n---\nBody.";
+        let local = parse_worker_md("local_x.md", local_md).expect("must parse");
+        let rows = build_worker_rows(&[local]);
+        assert!(rows.contains("              complete: true\n"), "{rows}");
+        assert!(
+            rows.contains("              includeRuntimeContext: false\n"),
+            "{rows}"
+        );
+
+        let cloud_md = "---\nname: cloud_x\ndescription: d\nmodel: ai00-api\ntools:\n  - read\n  - write\n---\nBody.";
+        let cloud = parse_worker_md("cloud_x.md", cloud_md).expect("must parse");
+        let rows = build_worker_rows(&[cloud]);
+        assert!(!rows.contains("complete: true"), "{rows}");
     }
 
     /// 工人叶子规则 + deny 口径：
