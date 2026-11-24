@@ -1174,15 +1174,13 @@ export function sanitizeComposedSection(raw, heading) {
  * 这里同时兼容 SSE 与普通 JSON 两种形态。
  */
 async function composeLocalSection({ baseURL, token, heading, topic, language, signal }) {
-  // 3B 的稳定写作边界是「短段落」：中文超过 ~100 字会开始复读/掉句（实测
-  // top_p 0.1 直接退化，top_p 0.3 的 60-90 字目标最稳）。按输出语言给长度单位，
-  // 不要把中文的 60–90「字」说成 60–90 words（约 150 字，越界）。
-  const cjk = /(中文|汉语|chinese|zh)/i.test(language);
-  const target = cjk ? "60-90 个汉字" : "60-90 words";
+  // 长度不是验收标准：只说「短段落 / 3–4 句」，不给数字目标（模型会为了凑数
+  // 超写或掉句）。合格与否看内容，非空即可落盘。
   const messages = [
     {
       role: "system",
-      content: `You are a careful writer. Output only the body text: one short paragraph of ${target} in 3-4 short sentences. No headings, no quotes, no lists, no numbers or product names, no commentary. Stop after that paragraph.`,
+      content:
+        "You are a careful writer. Output only the body text: one short paragraph in 3-4 short sentences. No headings, no quotes, no lists, no numbers or product names, no commentary. Stop after that paragraph.",
     },
     {
       role: "user",
@@ -3086,7 +3084,7 @@ function defineTools(ctx, api, env = {}) {
   ctx.tools.register({
     name: "ai00_local_compose",
     description:
-      "Write ONE document section with the local RWKV model and save it deterministically: the model returns only the body text, the host prepends the '## heading' and writes the file. Use one call per section (up to 4 parallel calls per round) for long documents (rule 9). Returns {ok:true, path, bytes, preview} on success, or {ok:false, reason} when the local output is empty/too short — escalate that section alone to the cloud code_worker.",
+      "Write ONE document section with the local RWKV model and save it deterministically: the model returns only the body text, the host prepends the '## heading' and writes the file. Use one call per section (up to 4 parallel calls per round) for long documents (rule 9). Returns {ok:true, path, bytes, preview} on success, or {ok:false, reason} when the local output is empty — escalate that section alone to the cloud code_worker. Length is not checked; the content is what matters.",
     parameters: {
       type: "object",
       properties: {
@@ -3107,11 +3105,6 @@ function defineTools(ctx, api, env = {}) {
           type: "string",
           description:
             "Language of the body text, matching the user's request (e.g. English, 中文). Never force Chinese.",
-        },
-        min_chars: {
-          type: "integer",
-          description:
-            "Minimum acceptable body length in characters (default 80). Shorter output counts as a failed compose.",
         },
       },
       required: ["file_path", "heading", "topic", "language"],
@@ -3145,7 +3138,6 @@ function defineTools(ctx, api, env = {}) {
         .replace(/^#{1,6}\s*/, "");
       const topic = String(args?.topic ?? "").trim();
       const language = String(args?.language ?? "").trim() || "English";
-      const minChars = Number(args?.min_chars) > 0 ? Number(args.min_chars) : 80;
       if (!filePath || !heading || !topic) {
         return { ok: false, reason: "file_path, heading and topic are required" };
       }
@@ -3175,8 +3167,10 @@ function defineTools(ctx, api, env = {}) {
       }
       const clean = sanitizeComposedSection(body, heading);
       const chars = [...clean].length;
-      if (chars < minChars) {
-        return { ok: false, reason: `local output too short (${chars} < ${minChars} chars)` };
+      // 只拦「空/近似空」：长度不是验收标准（用户明确），内容对不对由内容断言
+      // 和云端润色负责。
+      if (chars < 20) {
+        return { ok: false, reason: `empty local output (${chars} chars)` };
       }
       const content = `${clean.startsWith("#") ? clean : `## ${heading}\n\n${clean}`}\n`;
       await mkdir(dirname(target), { recursive: true });
