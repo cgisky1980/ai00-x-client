@@ -140,6 +140,8 @@ struct InferenceTask {
     finish_pending: bool,
     /// 进入 prefill 队列的时刻（用于观测 prefill 耗时，含排队等待）。
     queued_at: std::time::Instant,
+    /// 提交时的取消代次（`rwkv_chat_stream_cancel` 递增）；落后即取消。
+    cancel_epoch: u64,
 }
 
 struct InferenceTaskParams {
@@ -158,6 +160,8 @@ struct InferenceTaskParams {
     /// Without this, presence_penalty and frequency_penalty have no memory and are ineffective.
     model_text: String,
     tx: mpsc::UnboundedSender<InferenceEvent>,
+    /// 提交时的取消代次（空闲卸载/取消按键会让旧任务退出，不再白跑 GPU）。
+    cancel_epoch: u64,
 }
 
 enum PoolRequest {
@@ -670,6 +674,82 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
         let Some(engine) = engine.as_mut() else {
             continue;
         };
+
+        // 取消扫描：epoch 落后（用户点停止 / 上层 cancel）或事件通道已关闭
+        // （HTTP 客户端断开）的任务立即退出——否则它们会继续占着槽位把
+        // max_tokens 跑完，白白拖慢其它请求。
+        let epoch_now = cancel_epoch().load(Ordering::Relaxed);
+        let is_cancelled = |epoch: u64, tx: &mpsc::UnboundedSender<InferenceEvent>| {
+            epoch < epoch_now || tx.is_closed()
+        };
+        let mut kept_pending = Vec::with_capacity(pending.len());
+        for p in pending.drain(..) {
+            if is_cancelled(p.cancel_epoch, &p.tx) {
+                let _ = p.tx.send(InferenceEvent::Error("cancelled".to_string()));
+            } else {
+                kept_pending.push(p);
+            }
+        }
+        pending = kept_pending;
+        {
+            let mut kept: VecDeque<InferenceTask> = VecDeque::with_capacity(prefill_queue.len());
+            while let Some(t) = prefill_queue.pop_front() {
+                if is_cancelled(t.cancel_epoch, &t.tx) {
+                    log::debug!(
+                        "[rwkv] cancel prefill task ({}; epoch {} vs {})",
+                        if t.tx.is_closed() {
+                            "通道已关闭"
+                        } else {
+                            "epoch 落后"
+                        },
+                        t.cancel_epoch,
+                        epoch_now
+                    );
+                    let _ = t.tx.send(InferenceEvent::Error("cancelled".to_string()));
+                } else {
+                    kept.push_back(t);
+                }
+            }
+            prefill_queue = kept;
+        }
+        // 批量组整体取消：组内都是同一代任务，摘行会破坏行↔任务映射，直接整组退出。
+        if batch_prefill.as_ref().is_some_and(|g| {
+            g.tasks
+                .iter()
+                .any(|bt| is_cancelled(bt.task.cancel_epoch, &bt.task.tx))
+        }) {
+            let group = batch_prefill.take().expect("组存在");
+            for bt in group.tasks {
+                let _ = bt
+                    .task
+                    .tx
+                    .send(InferenceEvent::Error("cancelled".to_string()));
+            }
+        }
+        // 解码组：摘掉取消行后紧凑前缀（后续 decode_step 仍要求无空洞）。
+        let mut cancelled_rows = false;
+        for (i, slot) in tasks.iter_mut().enumerate() {
+            if let Some(t) = slot.as_ref() {
+                if is_cancelled(t.cancel_epoch, &t.tx) {
+                    log::debug!(
+                        "[rwkv] cancel decode row {i} ({}; epoch {} vs {})",
+                        if t.tx.is_closed() {
+                            "通道已关闭"
+                        } else {
+                            "epoch 落后"
+                        },
+                        t.cancel_epoch,
+                        epoch_now
+                    );
+                    let t = slot.take().expect("checked some");
+                    let _ = t.tx.send(InferenceEvent::Error("cancelled".to_string()));
+                    cancelled_rows = true;
+                }
+            }
+        }
+        if cancelled_rows {
+            compact_tasks(&mut tasks, engine);
+        }
 
         // 调度 pending → prefill 队列（活跃任务总数 ≤ slot_count；批量组里的行
         // 虽然不在队列里，但同样占着活跃额度，必须计入）
@@ -1234,7 +1314,7 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
     let decode_state = model
         .create_batch_state(slot_count)
         .map_err(|e| format!("failed to create batch decode state: {}", e))?;
-    let prefill_state = model
+    let mut prefill_state = model
         .create_state()
         .map_err(|e| format!("failed to create prefill state: {}", e))?;
     let hist_buf = model
@@ -1278,6 +1358,24 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
     let classify_state = model
         .create_state()
         .map_err(|e| format!("failed to create classify state: {}", e))?;
+
+    // 预热 seq/prefill 的 int8 张量核：首个真实请求若是并发突发，NVRTC 首次编译
+    // 会直接砸在关键路径上（实测首组 +0.5~1s）。用 64 token 哑前向把 r/k/v、
+    // ffn key/value 的 IMMA 变体编好——显存只占 T=64 的 seq 缓冲（~30MB），
+    // 不碰批量缓冲（那是 1.8GB 级，留给真实首组按需分配）。
+    match model
+        .forward_seq_with_state(&mut prefill_state, &vec![0u32; 64])
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+    {
+        Ok(()) => {
+            if let Err(e) = model.reset_state_of(&prefill_state) {
+                log::warn!("[rwkv] prefill warmup reset failed: {e}");
+            }
+            log::info!("[rwkv] seq/prefill int8 内核预热完成（T=64）");
+        }
+        Err(e) => log::warn!("[rwkv] prefill warmup skipped: {e}"),
+    }
 
     let info = model.info();
     log::info!(
@@ -1469,6 +1567,7 @@ fn prepare_task(
         hit_stop: None,
         finish_pending: false,
         queued_at: std::time::Instant::now(),
+        cancel_epoch: params.cancel_epoch,
     })
 }
 
@@ -2328,6 +2427,7 @@ pub async fn pool_infer(
         is_vrm,
         model_text,
         tx,
+        cancel_epoch: cancel_epoch().load(Ordering::Relaxed),
     };
     pool.tx
         .send(PoolRequest::Submit(params))
