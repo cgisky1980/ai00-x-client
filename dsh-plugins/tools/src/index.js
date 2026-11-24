@@ -1247,7 +1247,7 @@ const PROMPT_ECHO_RE =
 
 /** 角色井号标记与越狱式续写（本地 3B 会把训练数据里的对话续出来）。 */
 const CONTINUATION_RE =
-  /\b(?:User|Human|Assistant)\s*#+\s*(?:User|Human|Assistant)\b|\bI want you to (?:be|act|help)\b/i;
+  /\b(?:User|Human|Assistant)\s*#+\s*(?:User|Human|Assistant)\b|\bI want you to (?:be|act|help)\b|\bIn this task, you will\b|\bYour task is to\b|\bINST\s*RUCTIONS?\b/i;
 
 /** 推理/答案说明元行（正文之前常见）：整行剥掉，正文本身保留。 */
 const META_LINE_RE =
