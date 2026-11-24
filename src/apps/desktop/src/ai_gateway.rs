@@ -912,6 +912,10 @@ async fn local_rwkv_sse(
         prompt.chars().count(),
         prompt.chars().take(120).collect::<String>()
     );
+    log::debug!(
+        "[ai-gateway] local t={:.0}ms pre-pool",
+        usage.started.elapsed().as_secs_f64() * 1e3
+    );
 
     let mut rx = match pool_infer(
         prompt.clone(),
@@ -946,6 +950,11 @@ async fn local_rwkv_sse(
         }
     };
 
+    log::debug!(
+        "[ai-gateway] local t={:.0}ms pool-ready",
+        usage.started.elapsed().as_secs_f64() * 1e3
+    );
+
     // 流式桥接：InferenceEvent → OpenAI SSE chunks
     // 带工具时输出全缓冲（结束才判定 tool-call / 纯文本）：边流 text-delta 边
     // 补发 tool_call_delta 会让 text 块和 tool-call 块并存，污染 dsh 上下文。
@@ -971,6 +980,10 @@ async fn local_rwkv_sse(
                 InferenceEvent::Token(t) => {
                     if ttft_ms.is_none() {
                         ttft_ms = Some(usage.started.elapsed().as_millis() as u64);
+                        log::debug!(
+                            "[ai-gateway] local first-token t={}ms",
+                            ttft_ms.unwrap_or(0)
+                        );
                     }
                     full_text.push_str(&t);
                     if stream_inline_text {

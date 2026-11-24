@@ -123,11 +123,26 @@ pub struct AiUsageRecord {
 }
 
 /// 用量文件读-改-写串行化：整月文件重写如果并发，会互相覆盖丢记录
-/// （并行子代理同时回传用量即可复现）。锁只保护这一次文件操作，不阻塞 AI 主链路。
+/// （并行子代理同时回传用量即可复现）。
 static USAGE_WRITE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// 追加一条记录（失败仅告警，不阻塞 AI 调用主链路）。
+///
+/// 写盘是「读整月文件 → 解析 → 追加 → 整份重写 → rename」：1.5MB 月文件约十几毫秒，
+/// 月底涨到 5MB 级后要几十毫秒。此前调用方 `await` 它（本地 SSE 在 `[DONE]` 之前、
+/// 非流式在响应返回之前），每条请求的收尾都被这段磁盘 I/O 拖住。这里改为后台任务：
+/// 调用方立即返回，记录按提交顺序由写锁串行落盘。
 pub async fn record_usage(rec: AiUsageRecord) {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => {
+            handle.spawn(async move { record_usage_now(rec).await });
+        }
+        // 没有 tokio 上下文（同步调用点）时保持原语义，直接写。
+        Err(_) => record_usage_now(rec).await,
+    }
+}
+
+async fn record_usage_now(rec: AiUsageRecord) {
     let _guard = USAGE_WRITE_LOCK.lock().await;
     let path = month_file(rec.at);
     let mut list: Vec<Value> = match fs::read_to_string(&path).await {

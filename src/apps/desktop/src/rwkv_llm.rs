@@ -605,10 +605,20 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
                         exit_pool = true;
                         break 'keep_alive_wait;
                     }
+                    // 有新工作立刻回主循环调度：此前这里会继续睡到 deadline，
+                    // 空闲后的首条请求最坏白等 500ms（实测小请求 e2e 里 ~500ms
+                    // 就耗在这段；prefill 本身只有 200ms）。
+                    if !pending.is_empty()
+                        || !prefill_queue.is_empty()
+                        || tasks.iter().any(|s| s.is_some())
+                    {
+                        break 'keep_alive_wait;
+                    }
                     if std::time::Instant::now() >= deadline {
                         break 'keep_alive_wait;
                     }
-                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    // 轮询粒度只影响唤醒延迟（空闲期 100 次/秒的空转可忽略）。
+                    std::thread::sleep(std::time::Duration::from_millis(10));
                 }
                 // 等待结束：检查 keep_alive 是否到期（到期则卸载释放 VRAM）
                 let last_used = LLM_LAST_USED_MS.load(Ordering::Relaxed);
