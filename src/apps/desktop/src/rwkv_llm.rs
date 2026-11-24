@@ -59,6 +59,11 @@ fn batch_prefill_width() -> usize {
     })
 }
 
+/// 组批的最短 prompt（token）：批内每行都按 `PREFILL_CHUNK` 补齐，短 prompt
+/// 并批是拿 15× 的补齐算力换一次 launch（实测 4×51 token：并批 1.14s vs 串行
+/// ~0.2s/条）。工具轮这类短请求保持串行；长 prompt 才值得并批。
+const BATCH_PREFILL_MIN_TOKENS: usize = 512;
+
 /// prefill 分块长度：限制单次 seq 缓冲大小（块大小固定避免重建）。
 ///
 /// 分块是串行推进的，每块一次 `forward_seq_with_state`；块越小调用开销占比越高，
@@ -731,7 +736,23 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
         }
 
         // 解码组推进一步（批量前向 + GPU 采样），并回收已补喂完成的任务。
-        if tasks[0].is_some() {
+        // 批量 prefill 组进行中时，**流式**任务每轮多推几步：否则「一轮 prefill
+        // 才一步 decode」会把 token 间隔拉到 ~0.7s（8 路两波实测：第一波 8 token
+        // 用了 5.5s）。非流式任务整段缓冲，多推只会拖慢下一波，保持单步。
+        let streaming_active = tasks
+            .iter()
+            .take_while(|s| s.is_some())
+            .flatten()
+            .any(|t| t.is_streaming);
+        let decode_steps = if batch_prefill.is_some() && streaming_active {
+            3
+        } else {
+            1
+        };
+        for _ in 0..decode_steps {
+            if tasks[0].is_none() {
+                break;
+            }
             let n_active = tasks.iter().take_while(|s| s.is_some()).count();
             // 本轮开始时已处于「待补喂」状态的行：喂完即回写缓存 + 发 Done。
             let finalize_rows: Vec<usize> = (0..n_active)
@@ -744,14 +765,14 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
                         let _ = t.tx.send(InferenceEvent::Error(e.clone()));
                     }
                 }
-            } else {
-                for row in finalize_rows {
-                    if let Some(mut t) = tasks[row].take() {
-                        finalize_task(&mut t, engine, Some(row));
-                    }
-                }
-                compact_tasks(&mut tasks[..n_active], engine);
+                break;
             }
+            for row in finalize_rows {
+                if let Some(mut t) = tasks[row].take() {
+                    finalize_task(&mut t, engine, Some(row));
+                }
+            }
+            compact_tasks(&mut tasks[..n_active], engine);
         }
     }
 
@@ -1609,6 +1630,17 @@ fn form_batch_prefill(
         .filter(|t| t.resume_state.is_none() && t.prefill_cursor == 0 && t.input_tokens.len() > 1)
         .count();
     if candidates < 2 {
+        return None;
+    }
+    // 全是短 prompt 时并批不划算（见 `BATCH_PREFILL_MIN_TOKENS`）；长短混合时
+    // 长 prompt 撑起整轮，短行按同一 pad_to 补齐的开销可以忽略。
+    let max_len = queue
+        .iter()
+        .filter(|t| t.resume_state.is_none() && t.prefill_cursor == 0)
+        .map(|t| t.input_tokens.len())
+        .max()
+        .unwrap_or(0);
+    if max_len < BATCH_PREFILL_MIN_TOKENS {
         return None;
     }
     let mut chosen: Vec<InferenceTask> = Vec::with_capacity(width.min(candidates));
