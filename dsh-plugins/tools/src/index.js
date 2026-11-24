@@ -309,11 +309,36 @@ function isStatusOnlyRewrite(prev, next) {
   return norm(prev) === norm(next);
 }
 
+/**
+ * 计划步骤行。步骤 id 必须以数字开头（契约写的是 `T1`）——旧正则 `T[0-9A-Za-z_-]+`
+ * 会把验收段里「The article is written in English…」整行当成步骤 `The`，
+ * 于是勾选该验收项被误拦（要求先给 `The` 跑 ai00_task_verify），任务卡死收不了尾
+ * （2026-11-24 英文端到端实测）。
+ */
+const STEP_LINE_RE = /^\s*-\s+\[([ xX])\]\s+(T\d[0-9A-Za-z_-]*)\s/;
+
+/** 行号是否位于 `## Steps` / `## 步骤` 段内（标题行之后、下一个 `## ` 之前）。 */
+function inStepsSection(lines, index) {
+  let inSteps = false;
+  for (let i = 0; i < index && i < lines.length; i += 1) {
+    if (/^##\s/.test(lines[i])) {
+      inSteps = /^##\s*(步骤|Steps?)\s*$/i.test(lines[i].trim());
+    }
+  }
+  return inSteps;
+}
+
 /** 步骤 id → 是否已勾选（用于比较重写前后的勾选变化）。 */
 function tickedSteps(markdown) {
   const map = new Map();
+  let inSteps = false;
   for (const line of String(markdown ?? "").split("\n")) {
-    const head = /^\s*-\s+\[([ xX])\]\s+(T[0-9A-Za-z_-]+)\s/.exec(line);
+    if (/^##\s/.test(line)) {
+      inSteps = /^##\s*(步骤|Steps?)\s*$/i.test(line.trim());
+      continue;
+    }
+    if (!inSteps) continue;
+    const head = STEP_LINE_RE.exec(line);
     if (head) map.set(head[2], head[1].toLowerCase() === "x");
   }
   return map;
@@ -355,12 +380,18 @@ function carryOverEvidence(prevMd, nextMd) {
   if (typeof prevMd !== "string" || typeof nextMd !== "string") return nextMd;
   const prevLines = prevMd.split("\n");
   const kept = new Map();
+  let inSteps = false;
   prevLines.forEach((line, i) => {
-    const head = /^\s*-\s+\[[ xX]\]\s+(T[0-9A-Za-z_-]+)\s/.exec(line);
+    if (/^##\s/.test(line)) {
+      inSteps = /^##\s*(步骤|Steps?)\s*$/i.test(line.trim());
+      return;
+    }
+    if (!inSteps) return;
+    const head = STEP_LINE_RE.exec(line);
     if (!head) return;
     const block = stepBlock(prevLines, i).split("\n");
     const evidence = block.filter((l) => /^\s*-\s*(验证|verification|证据|evidence)\s*[:：]/i.test(l));
-    if (evidence.length) kept.set(head[1], evidence);
+    if (evidence.length) kept.set(head[2], evidence);
   });
   if (!kept.size) return nextMd;
 
@@ -425,7 +456,7 @@ function stepBlock(lines, startIndex) {
   const out = [];
   for (let i = startIndex + 1; i < lines.length; i++) {
     if (/^##\s/.test(lines[i])) break;
-    if (/^\s*-\s+\[[ xX]\]\s+T[0-9A-Za-z_-]+\s/.test(lines[i])) break;
+    if (STEP_LINE_RE.test(lines[i])) break;
     out.push(lines[i]);
   }
   return out.join("\n");
@@ -699,7 +730,7 @@ function parsePlanSteps(markdown) {
   /** 最近一个字段：用于识别「验收:」下面换行缩进的子项写法。 */
   let currentField = null;
   for (const line of lines) {
-    const head = /^\s*-\s+\[([ xX])\]\s+(T[0-9A-Za-z_-]+)\s+(.*)$/.exec(line);
+    const head = /^\s*-\s+\[([ xX])\]\s+(T\d[0-9A-Za-z_-]*)\s+(.*)$/.exec(line);
     if (head) {
       current = {
         id: head[2],
@@ -841,7 +872,7 @@ function upsertStepEvidence(markdown, stepId, verdict, evidence) {
       start = i;
       continue;
     }
-    if (start >= 0 && /^\s*-\s+\[[ xX]\]\s+T[0-9A-Za-z_-]+\s/.test(line)) {
+    if (start >= 0 && STEP_LINE_RE.test(line)) {
       end = i;
       break;
     }
@@ -2882,9 +2913,11 @@ function defineTools(ctx, api, env = {}) {
         }
         // 勾选**步骤**前必须有该步的验证证据（ai00_task_verify 会写回「- 验证: passed」）。
         // 没证据就勾选＝假进度：用户看到「已完成」，但没有任何命令或证据支撑。
-        const stepHead = /^\s*-\s+\[[ xX]\]\s+(T[0-9A-Za-z_-]+)\s/.exec(original);
+        // 只在 `## Steps` 段内判断步骤，并认数字开头 id——否则验收行
+        // 「The article is written in English…」会被当成步骤 `The` 而永远勾不上。
+        const stepHead = inStepsSection(lines, index) ? STEP_LINE_RE.exec(original) : null;
         if (checked && stepHead) {
-          const stepId = stepHead[1];
+          const stepId = stepHead[2];
           const evidence = usableEvidence(stepBlock(lines, index));
           if (!evidence.ok) {
             return {
