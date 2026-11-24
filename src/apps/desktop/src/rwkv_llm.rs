@@ -1592,6 +1592,14 @@ const SESSION_STATE_CAP: usize = 8;
 /// 8 足以覆盖 `{"name": "` 与回放渲染 `{"name":"` 的 token 化差异。
 const SESSION_CACHE_BACKTRACK: usize = 8;
 
+/// 未缓存后缀超过该长度才刷新会话缓存（见 `prefill_step`）。
+///
+/// 刷新缓存要「回退快照」：head 前向到 len-8 + `state_back` + tail 前向，
+/// 两次前向 ~240ms；而短后缀（≤128 token）直接一次前向就够（~150ms）。
+/// 不刷新只是让下一轮多喂这一小段（缓存前缀仍是严格前缀，命中不受影响），
+/// 后缀随回合累积超过门限后的一次刷新把差值补回。
+const SESSION_CACHE_REFRESH_MIN: usize = 128;
+
 /// 写入会话缓存并做容量淘汰。
 ///
 /// 每条缓存用「来源 key + 自增序号」作 HashMap 键：查找是内容寻址的（遍历
@@ -1641,39 +1649,43 @@ fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<boo
     // 再喂 tail 拿 logits——下一轮只 prefill K + 增量，稳定命中。
     if end == task.input_tokens.len() {
         if let Some(sid) = task.session_id.clone() {
-            let back = SESSION_CACHE_BACKTRACK.min(chunk.len().saturating_sub(1));
-            if back > 0 {
-                let (head, tail) = chunk.split_at(chunk.len() - back);
-                let t_head = std::time::Instant::now();
-                if !head.is_empty() {
-                    engine
+            // 短后缀不刷新缓存（见 `SESSION_CACHE_REFRESH_MIN`）：省掉 head 前向
+            // 与 state_back，直接走下面的一次前向。
+            if task.input_tokens.len() > SESSION_CACHE_REFRESH_MIN {
+                let back = SESSION_CACHE_BACKTRACK.min(chunk.len().saturating_sub(1));
+                if back > 0 {
+                    let (head, tail) = chunk.split_at(chunk.len() - back);
+                    let t_head = std::time::Instant::now();
+                    if !head.is_empty() {
+                        engine
+                            .model
+                            .forward_seq_with_state(&mut engine.prefill_state, head)
+                            .map_err(|e| format!("prefill failed: {}", e))?;
+                    }
+                    log::debug!(
+                        "[rwkv] prof prefill head {}ms (T={})",
+                        t_head.elapsed().as_millis(),
+                        head.len()
+                    );
+                    if let Ok(st) = engine.model.state_back(&engine.prefill_state) {
+                        let keep = task.input_tokens.len() - back;
+                        let mut tokens = task.base_tokens.clone();
+                        tokens.extend_from_slice(&task.input_tokens[..keep]);
+                        cache_session_state(engine, sid, tokens, st);
+                    }
+                    let logits = engine
                         .model
-                        .forward_seq_with_state(&mut engine.prefill_state, head)
+                        .forward_seq_with_state(&mut engine.prefill_state, tail)
                         .map_err(|e| format!("prefill failed: {}", e))?;
+                    log::debug!(
+                        "[rwkv] prof prefill tail {}ms (T={})",
+                        t_head.elapsed().as_millis(),
+                        tail.len()
+                    );
+                    task.prefill_cursor = end;
+                    task.prefill_logits = Some(logits);
+                    return Ok(true);
                 }
-                log::debug!(
-                    "[rwkv] prof prefill head {}ms (T={})",
-                    t_head.elapsed().as_millis(),
-                    head.len()
-                );
-                if let Ok(st) = engine.model.state_back(&engine.prefill_state) {
-                    let keep = task.input_tokens.len() - back;
-                    let mut tokens = task.base_tokens.clone();
-                    tokens.extend_from_slice(&task.input_tokens[..keep]);
-                    cache_session_state(engine, sid, tokens, st);
-                }
-                let logits = engine
-                    .model
-                    .forward_seq_with_state(&mut engine.prefill_state, tail)
-                    .map_err(|e| format!("prefill failed: {}", e))?;
-                log::debug!(
-                    "[rwkv] prof prefill tail {}ms (T={})",
-                    t_head.elapsed().as_millis(),
-                    tail.len()
-                );
-                task.prefill_cursor = end;
-                task.prefill_logits = Some(logits);
-                return Ok(true);
             }
         }
     }
