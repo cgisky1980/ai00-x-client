@@ -183,6 +183,24 @@ const LENGTH_ONLY_CMD =
 const CONTENT_SIGNAL_CMD =
   /(includes\(|startsWith\(|endsWith\(|\.match\(|\.test\(|indexOf\(|\bgrep\b|\bfindstr\b|Select-String|\brg\b|contains\(|\bassert\b|[=!]==?\s*['"`])/i;
 
+/**
+ * 大段连续字符的 `{N}` 量词（`[A-Za-z]{20}`、`[\s\S]{200}`）——长度判据的变体。
+ *
+ * 2026-11-24 端到端实测：编排者写了
+ * `/## Overview[\s\S]*## Benefits[\s\S]*[A-Za-z]{20}/` 当验收命令——要求文档里
+ * 出现「连续 20 个字母」，正常英文散文永远不可能满足（单词间有空格），
+ * 验证恒失败，模型又花 5 分钟排查、改判据、重新等批准。`{N≥10}` 一律在
+ * 写计划时拦下；`\d{4}`（年份）这类 N<10 不受影响。
+ */
+function hasRunLength(cmd) {
+  const re = /\[[^\]]*\]\s*\{\s*(\d+)\s*(?:,\s*\d*)?\s*\}/g;
+  let m;
+  while ((m = re.exec(String(cmd ?? "")))) {
+    if (Number(m[1]) >= 10) return true;
+  }
+  return false;
+}
+
 /** 计划里所有「只量长度」的验收条目（含步骤级 `Acceptance:` 与 `## 验收`）。 */
 export function weakAcceptance(markdown) {
   const out = [];
@@ -198,8 +216,8 @@ export function weakAcceptance(markdown) {
     if (!text) continue;
     const cmd = extractCmd(text);
     if (!cmd) continue;
-    if (!LENGTH_ONLY_CMD.test(cmd)) continue;
-    if (CONTENT_SIGNAL_CMD.test(cmd)) continue;
+    const lengthOnly = LENGTH_ONLY_CMD.test(cmd) && !CONTENT_SIGNAL_CMD.test(cmd);
+    if (!lengthOnly && !hasRunLength(cmd)) continue;
     out.push({ where: item ? section || "## Acceptance" : "step", text: text.trim(), cmd });
   }
   return out;
@@ -1204,9 +1222,16 @@ export function sanitizeComposedSection(raw, heading) {
   let cut = body.length;
   const echo = PROMPT_ECHO_RE.exec(body);
   if (echo) cut = echo.index;
+  // 代码围栏：正文段落不该出现 ```（实测 `text1✿UserCode:```python` 漏网），
+  // 从围栏处截断，前面的正文保留；截断后太短会被质量门按空输出处理。
+  const fence = body.indexOf("```");
+  if (fence >= 0 && fence < cut) cut = fence;
   // 训练数据续写（实测 `User# User\n**I want you to be our coding buddy…`）
   const continuation = CONTINUATION_RE.exec(body);
   if (continuation && continuation.index < cut) cut = continuation.index;
+  // 角色词粘连（`UserCode:`、`UserAccount:` —— User 后接大写单词再冒号）
+  const roleWord = /\b(?:user|human|assistant)(?:[A-Z][a-z]+)?\s*[:：]/.exec(body);
+  if (roleWord && roleWord.index < cut) cut = roleWord.index;
   const bold = /\*{1,2}\s*(user|assistant|human|system)\s*\d*\s*:\s*\*{0,2}/i.exec(body);
   if (bold && bold.index < cut) {
     cut = bold.index;
@@ -1302,6 +1327,7 @@ function looksDegenerate(text, language) {
   if (/(?:textContent|span\s+end|start\s+end)\s*=/i.test(value)) return true;
   if (PROMPT_ECHO_RE.test(value)) return true; // 提示词回声
   if (CONTINUATION_RE.test(value)) return true; // 训练数据续写
+  if (value.includes("```")) return true; // 代码围栏（正文里不该出现）
   if (/<think/i.test(value)) return true;
   if (languageMismatch(value, language)) return true; // 语言跑偏（英文请求吐中文）
   return junkRatio(value) > 0.12;
@@ -2907,7 +2933,7 @@ function defineTools(ctx, api, env = {}) {
       if (weak.length) {
         throw new Error(
           [
-            `refused: ${weak.length} acceptance check(s) only measure length/size — filler text would pass and real defects (missing section, wrong file name, mojibake) would slip through:`,
+            `refused: ${weak.length} acceptance check(s) only measure length/size or long character runs — filler text would pass and real defects (missing section, wrong file name, mojibake) would slip through:`,
             ...weak.slice(0, 4).map((w) => `  - ${w.cmd}`),
             'Rewrite each with a content assertion (required heading/table/citation), e.g. node -e "const s=require(\'fs\').readFileSync(\'report.md\',\'utf8\');if(!s.includes(\'## 结论\'))process.exit(1)". Nothing was written.',
           ].join("\n")
