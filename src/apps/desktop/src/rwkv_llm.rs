@@ -1613,6 +1613,7 @@ fn cache_session_state(engine: &mut PoolEngine, sid: String, tokens: Vec<u32>, s
 /// prefill 推进一步（一块）。返回 true 表示 prefill 已完成（末块 logits 存入任务）。
 /// 首块前把起步状态（会话缓存态 / 零初始态）装入 `prefill_state`。
 fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<bool, String> {
+    let t_step = std::time::Instant::now();
     if task.prefill_cursor == 0 {
         let start = task
             .resume_state
@@ -1622,6 +1623,11 @@ fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<boo
             .model
             .state_load(&engine.prefill_state, &start)
             .map_err(|e| format!("failed to load prefill state: {}", e))?;
+        log::debug!(
+            "[rwkv] prof prefill state_load {}ms (input={})",
+            t_step.elapsed().as_millis(),
+            task.input_tokens.len()
+        );
     }
     let end = (task.prefill_cursor + PREFILL_CHUNK).min(task.input_tokens.len());
     let chunk = task.input_tokens[task.prefill_cursor..end].to_vec();
@@ -1638,12 +1644,18 @@ fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<boo
             let back = SESSION_CACHE_BACKTRACK.min(chunk.len().saturating_sub(1));
             if back > 0 {
                 let (head, tail) = chunk.split_at(chunk.len() - back);
+                let t_head = std::time::Instant::now();
                 if !head.is_empty() {
                     engine
                         .model
                         .forward_seq_with_state(&mut engine.prefill_state, head)
                         .map_err(|e| format!("prefill failed: {}", e))?;
                 }
+                log::debug!(
+                    "[rwkv] prof prefill head {}ms (T={})",
+                    t_head.elapsed().as_millis(),
+                    head.len()
+                );
                 if let Ok(st) = engine.model.state_back(&engine.prefill_state) {
                     let keep = task.input_tokens.len() - back;
                     let mut tokens = task.base_tokens.clone();
@@ -1654,6 +1666,11 @@ fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<boo
                     .model
                     .forward_seq_with_state(&mut engine.prefill_state, tail)
                     .map_err(|e| format!("prefill failed: {}", e))?;
+                log::debug!(
+                    "[rwkv] prof prefill tail {}ms (T={})",
+                    t_head.elapsed().as_millis(),
+                    tail.len()
+                );
                 task.prefill_cursor = end;
                 task.prefill_logits = Some(logits);
                 return Ok(true);
@@ -1661,10 +1678,17 @@ fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<boo
         }
     }
 
+    let t_fwd = std::time::Instant::now();
     let logits = engine
         .model
         .forward_seq_with_state(&mut engine.prefill_state, &chunk)
         .map_err(|e| format!("prefill failed: {}", e))?;
+    log::debug!(
+        "[rwkv] prof prefill fwd {}ms (T={}, total_step={}ms)",
+        t_fwd.elapsed().as_millis(),
+        chunk.len(),
+        t_step.elapsed().as_millis()
+    );
     task.prefill_cursor = end;
     if end < task.input_tokens.len() {
         return Ok(false);
