@@ -961,6 +961,7 @@ async fn local_rwkv_sse(
         let mut full_text = String::new();
         let mut input_tokens = 0usize;
         let mut output_tokens = 0usize;
+        let mut cached_tokens = 0usize;
         // 流式正文已发出的字符数（stop 安全回看：见 STREAM_STOP_LOOKBACK）
         let mut emitted_chars = 0usize;
         // 首 token 到达即记 TTFT（本地路径的一次性观测指标）
@@ -997,11 +998,13 @@ async fn local_rwkv_sse(
                     text,
                     input_tokens: it,
                     output_tokens: ot,
+                    cached_tokens: ct,
                     ..
                 } => {
                     full_text = text;
                     input_tokens = it;
                     output_tokens = ot;
+                    cached_tokens = ct;
                     break;
                 }
                 InferenceEvent::Error(e) => {
@@ -1105,7 +1108,9 @@ async fn local_rwkv_sse(
                 Some(GatewayTokenUsage {
                     prompt: u32::try_from(input_tokens).unwrap_or(u32::MAX),
                     completion: u32::try_from(output_tokens).unwrap_or(u32::MAX),
-                    cached_prompt: None,
+                    // 本地前缀缓存复用的 token 数（0 = 全量 prefill），
+                    // 供 usage 分析缓存命中率；远端路径由 SSE 响应自带。
+                    cached_prompt: Some(u32::try_from(cached_tokens).unwrap_or(u32::MAX)),
                 }),
                 ttft_ms,
             )
@@ -1393,6 +1398,7 @@ async fn local_tool_round(
     let mut hit_len = false;
     let mut input_tokens = 0usize;
     let mut output_tokens = 0usize;
+    let mut cached_tokens = 0usize;
     while let Some(event) = rx.recv().await {
         match event {
             InferenceEvent::Token(t) => full_text.push_str(&t),
@@ -1401,11 +1407,13 @@ async fn local_tool_round(
                 stop_sequence,
                 input_tokens: it,
                 output_tokens: ot,
+                cached_tokens: ct,
                 ..
             } => {
                 full_text = text;
                 input_tokens = it;
                 output_tokens = ot;
+                cached_tokens = ct;
                 // stop_sequence 为 None = 因 max_tokens 收尾（截断），供质量门判定
                 hit_len = stop_sequence.is_none();
                 break;
@@ -1415,7 +1423,7 @@ async fn local_tool_round(
     }
     // 观测：本地工具轮端到端（prompt 构建 → 首 token → 收尾），含 prefill + 解码
     log::info!(
-        "[ai-gateway] local tool round: prompt={prompt_chars} chars in={input_tokens} tok out={output_tokens} tok total={:.2}s",
+        "[ai-gateway] local tool round: prompt={prompt_chars} chars in={input_tokens} tok (cached {cached_tokens}) out={output_tokens} tok total={:.2}s",
         started.elapsed().as_secs_f64()
     );
     usage
@@ -1425,7 +1433,7 @@ async fn local_tool_round(
             Some(GatewayTokenUsage {
                 prompt: u32::try_from(input_tokens).unwrap_or(u32::MAX),
                 completion: u32::try_from(output_tokens).unwrap_or(u32::MAX),
-                cached_prompt: None,
+                cached_prompt: Some(u32::try_from(cached_tokens).unwrap_or(u32::MAX)),
             }),
             None,
         )

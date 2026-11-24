@@ -964,6 +964,7 @@ async fn summarize_once(
                 input_tokens: it,
                 output_tokens: ot,
                 stop_sequence,
+                ..
             } => {
                 text = t;
                 input_tokens = it;

@@ -58,6 +58,9 @@ pub enum InferenceEvent {
         text: String,
         input_tokens: usize,
         output_tokens: usize,
+        /// 会话前缀缓存复用的 token 数（0 = 零状态全量 prefill）。
+        /// 记进 ai_usage 的 cachedPromptTokens，用于验证缓存命中率。
+        cached_tokens: usize,
         stop_sequence: Option<String>,
     },
     Error(String),
@@ -81,6 +84,8 @@ struct InferenceTask {
     prefill_logits: Option<Vec<f32>>,
     /// 会话缓存命中的起步状态（prefill 起点；None = 零初始状态）。
     resume_state: Option<Vec<f32>>,
+    /// 命中前缀缓存复用的 token 数（0 = 全量 prefill），回传 usage 用。
+    cached_tokens: usize,
     session_id: Option<String>,
     max_tokens: usize,
     top_p: f32,
@@ -1284,6 +1289,7 @@ fn prepare_task(
     let mut input_tokens = prompt_tokens.clone();
     let mut base_tokens: Vec<u32> = Vec::new();
     let mut resume_state: Option<Vec<f32>> = None;
+    let mut cached_tokens = 0usize;
 
     // 会话缓存只做**前缀延长**复用：RWKV 的 RNN 状态不可回退，prompt 一旦与
     // 缓存分叉就只能整段重算（拿旧状态喂分叉后的后缀会输出错乱，2026-11 的
@@ -1301,25 +1307,26 @@ fn prepare_task(
             prompt_tokens.len()
         );
         let mut best: Option<(usize, Vec<u32>, Vec<f32>)> = None;
-        for (_key, (cached_tokens, cached_state)) in engine.session_states.iter() {
+        for (_key, (cached_toks, cached_state)) in engine.session_states.iter() {
             let Some(skip) =
-                ai00_x_core::util::prompt_cache::cache_extension(&prompt_tokens, cached_tokens)
+                ai00_x_core::util::prompt_cache::cache_extension(&prompt_tokens, cached_toks)
             else {
                 continue;
             };
             if best.as_ref().map(|(b, _, _)| skip > *b).unwrap_or(true) {
-                best = Some((skip, cached_tokens.clone(), cached_state.clone()));
+                best = Some((skip, cached_toks.clone(), cached_state.clone()));
             }
         }
-        if let Some((skip, cached_tokens, cached_state)) = best {
+        if let Some((skip, cached_prefix, cached_state)) = best {
             log::info!(
                 "[rwkv] session cache hit: reuse {skip} of {} tokens, prefill {}",
                 prompt_tokens.len(),
                 prompt_tokens.len() - skip
             );
-            base_tokens = cached_tokens;
+            base_tokens = cached_prefix;
             input_tokens = prompt_tokens[skip..].to_vec();
             resume_state = Some(cached_state);
+            cached_tokens = skip;
         }
     }
 
@@ -1349,6 +1356,7 @@ fn prepare_task(
         prefill_cursor: 0,
         prefill_logits: None,
         resume_state,
+        cached_tokens,
         session_id: params.session_id,
         max_tokens: if params.max_tokens == 0 {
             1
@@ -1386,10 +1394,12 @@ fn prepare_task(
     })
 }
 
-/// 会话状态缓存上限：每个条目是一份完整 RNN 状态（3B/7B 各几十 MB）；
-/// 网关按「回合指纹」使用缓存，key 数量会比聊天场景多，必须限量。
+/// 会话状态缓存上限：每个条目是一份完整 RNN 状态（3B 实测 ~12MB/行，
+/// host 内存副本；7B 约翻倍）。网关按「回合指纹」使用缓存，key 数量会比聊天
+/// 场景多，必须限量但不必抠太小——agent 工作流里 4 路 compose 并行 + 工具轮
+/// 会同时需要多个前缀，4 条容易互相淘汰。8 条在 3B 上只多占 ~50MB host 内存。
 /// 超额按插入顺序淘汰（近似 LRU；命中不重排，够用且实现简单）。
-const SESSION_STATE_CAP: usize = 4;
+const SESSION_STATE_CAP: usize = 8;
 
 /// 缓存前缀相对 prompt 末尾的回退 token 数（BPE 边界失配防护，见 prefill_step）。
 /// 8 足以覆盖 `{"name": "` 与回放渲染 `{"name":"` 的 token 化差异。
@@ -1691,6 +1701,7 @@ fn finalize_task(task: &mut InferenceTask, engine: &mut PoolEngine, _row: Option
         text,
         input_tokens: task.prompt_tokens.len(),
         output_tokens: task.acc_ids.len(),
+        cached_tokens: task.cached_tokens,
         stop_sequence: task.hit_stop.clone(),
     });
 }
@@ -2945,6 +2956,7 @@ pub async fn rwkv_chat_stream(
                 input_tokens: it,
                 output_tokens: ot,
                 stop_sequence,
+                ..
             } => {
                 text = t;
                 input_tokens = it;
