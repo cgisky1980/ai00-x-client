@@ -38,6 +38,27 @@ macro_rules! debug_print {
 }
 
 const MAX_SLOTS: usize = 16;
+/// 批量 prefill 的最大批宽：队列里凑够 ≥2 个「无缓存命中」任务即按行并批。
+///
+/// 并发墙钟：串行 prefill 的 4 路 ~5k token 请求是 4×1.8s ≈ 7.5s，并批后 ≈5.3s
+/// （rwkv-rsv `batch_prefill_probe`，3B int8/CUDA，含完成行暂存开销）。批宽
+/// 2/4/8 的加速比都在 1.4× 附近，取 4 覆盖工作台 4 路 compose，也不至于让
+/// `SeqBuffers`（bt = 批宽 × 768）挤占解码显存。
+const BATCH_PREFILL_WIDTH: usize = 4;
+
+/// 批量 prefill 批宽（`AI00X_BATCH_PREFILL=0` 关闭并批，走原串行路径；默认 4）。
+/// 读一次即缓存：同一进程内两臂语义不同，A/B 须重启进程换档。
+fn batch_prefill_width() -> usize {
+    static N: OnceLock<usize> = OnceLock::new();
+    *N.get_or_init(|| {
+        std::env::var("AI00X_BATCH_PREFILL")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(BATCH_PREFILL_WIDTH)
+            .min(MAX_SLOTS)
+    })
+}
+
 /// prefill 分块长度：限制单次 seq 缓冲大小（块大小固定避免重建）。
 ///
 /// 分块是串行推进的，每块一次 `forward_seq_with_state`；块越小调用开销占比越高，
@@ -475,6 +496,27 @@ struct PoolEngine {
     session_order: VecDeque<String>,
     /// 专用分类状态（智能路由 prefill 用，与生成槽位隔离；仅主模型兼容回退时使用）。
     classify_state: State,
+    /// 批量 prefill 状态池：`(宽度, 活动态, 暂存态)`，宽度变化时重建（懒创建）。
+    /// 暂存态接「先喂完的行」的终态：拷过去后该行继续喂占位 token 不污染真状态。
+    batch_prefill_states: Option<(usize, State, State)>,
+}
+
+/// 批量 prefill 组内的单行任务（行号 = 在 `BatchPrefillGroup::tasks` 里的下标）。
+struct BatchPrefillTask {
+    task: InferenceTask,
+    /// `input_tokens` 已喂游标（恒 ≤ len-1：末 token 留给解码组首步采样）。
+    cursor: usize,
+    /// 会话缓存的快照点（= len-1-back，与串行路径 `prefill_step` 的 head/tail
+    /// 拆分同口径）；None = 不写缓存（短 prompt / 无 session_id）。
+    cache_point: Option<usize>,
+}
+
+/// 进行中的批量 prefill 组：cache-miss 任务按行并行推进，每轮每行喂 ≤ `PREFILL_CHUNK`。
+struct BatchPrefillGroup {
+    tasks: Vec<BatchPrefillTask>,
+    /// 终态已拷到暂存态的行（之后只喂占位，不再读其结果）。
+    parked: Vec<bool>,
+    started_at: std::time::Instant,
 }
 
 /// 常驻路由小模型（0.1B，仅做 R0-R3 分类）。生命周期与主引擎完全独立：
@@ -501,6 +543,8 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
     let mut tasks: Vec<Option<InferenceTask>> = (0..MAX_SLOTS).map(|_| None).collect();
     // prefill 队列：串行推进（prefill_state 独占），每轮喂一块。
     let mut prefill_queue: VecDeque<InferenceTask> = VecDeque::new();
+    // 批量 prefill 组：队列里 cache-miss 任务凑够 ≥2 时并批（与串行路径二选一）。
+    let mut batch_prefill: Option<BatchPrefillGroup> = None;
     let mut pending: Vec<InferenceTaskParams> = Vec::new();
     // 采样种子基数：每任务递增（GPU 采样器以 seed 哈希随机数）。
     let mut seed_counter: u32 = 1;
@@ -511,6 +555,7 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
         let idle = (engine.is_some() || router_mini.is_some())
             && tasks.iter().all(|s| s.is_none())
             && prefill_queue.is_empty()
+            && batch_prefill.is_none()
             && pending.is_empty();
         LLM_BUSY.store(!idle, Ordering::SeqCst);
         if idle {
@@ -601,6 +646,7 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
             while let Ok(req) = pool_rx.try_recv() {
                 let busy = !pending.is_empty()
                     || !prefill_queue.is_empty()
+                    || batch_prefill.is_some()
                     || tasks.iter().any(|s| s.is_some());
                 if !handle_request(
                     req,
@@ -620,9 +666,12 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
             continue;
         };
 
-        // 调度 pending → prefill 队列（活跃任务总数 ≤ slot_count）
+        // 调度 pending → prefill 队列（活跃任务总数 ≤ slot_count；批量组里的行
+        // 虽然不在队列里，但同样占着活跃额度，必须计入）
         while !pending.is_empty() {
-            let active = tasks.iter().filter(|s| s.is_some()).count() + prefill_queue.len();
+            let active = tasks.iter().filter(|s| s.is_some()).count()
+                + prefill_queue.len()
+                + batch_prefill.as_ref().map(|g| g.tasks.len()).unwrap_or(0);
             if active >= engine.slot_count {
                 break;
             }
@@ -638,40 +687,47 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
             }
         }
 
-        // prefill 一步：串行推进队首任务一块（其余任务的解码不受阻塞）。
-        if let Some(task) = prefill_queue.front_mut() {
-            match prefill_step(task, engine) {
+        // prefill 一步：缓存命中任务先走串行（后缀短，别让它等整轮组批）；
+        // 否则有批量组就推进一轮；再否则凑批；最后退回串行。
+        if prefill_queue
+            .front()
+            .is_some_and(|t| t.resume_state.is_some())
+        {
+            serial_prefill_step(&mut prefill_queue, engine, &mut tasks);
+        } else if let Some(group) = batch_prefill.as_mut() {
+            match batch_prefill_step(group, engine) {
                 Ok(true) => {
-                    // 观测：prefill 完成（含排队等待）——本地工具轮的主要延迟来源
+                    let group = batch_prefill.take().expect("组存在");
                     log::debug!(
-                        "[rwkv] prefill done: prompt={} tok input={} tok in {:.2}s",
-                        task.prompt_tokens.len(),
-                        task.input_tokens.len(),
-                        task.queued_at.elapsed().as_secs_f64()
+                        "[rwkv] batch prefill done: {} rows in {:.2}s",
+                        group.tasks.len(),
+                        group.started_at.elapsed().as_secs_f64()
                     );
-                    // 队首 prefill 完成 → 转入解码组（活跃数 ≤ slot_count 保证有空行）
-                    let mut task = prefill_queue.pop_front().expect("队首存在");
-                    let row = tasks
-                        .iter()
-                        .position(|s| s.is_none())
-                        .expect("活跃数 ≤ slot_count 保证有空行");
-                    match join_decode_group(&mut task, engine, row) {
-                        Ok(true) => tasks[row] = Some(task),
-                        // 首 token 即结束（stop / max_tokens=1）：已在 join 内收尾
-                        Ok(false) => {}
-                        Err(e) => {
-                            log::error!("[rwkv] join decode group failed: {}", e);
-                            let _ = task.tx.send(InferenceEvent::Error(e));
-                        }
-                    }
+                    join_batch_prefill(group, engine, &mut tasks);
                 }
                 Ok(false) => {}
                 Err(e) => {
-                    let task = prefill_queue.pop_front().expect("队首存在");
-                    log::error!("[rwkv] prefill error: {}", e);
-                    let _ = task.tx.send(InferenceEvent::Error(e));
+                    let group = batch_prefill.take().expect("组存在");
+                    log::error!("[rwkv] batch prefill error: {}", e);
+                    for bt in group.tasks {
+                        let _ = bt.task.tx.send(InferenceEvent::Error(e.clone()));
+                    }
                 }
             }
+        } else if let Some(mut group) = form_batch_prefill(&mut prefill_queue, engine) {
+            log::debug!(
+                "[rwkv] batch prefill start: {} rows, tokens {:?}",
+                group.tasks.len(),
+                group
+                    .tasks
+                    .iter()
+                    .map(|t| t.task.input_tokens.len())
+                    .collect::<Vec<_>>()
+            );
+            group.started_at = std::time::Instant::now();
+            batch_prefill = Some(group);
+        } else {
+            serial_prefill_step(&mut prefill_queue, engine, &mut tasks);
         }
 
         // 解码组推进一步（批量前向 + GPU 采样），并回收已补喂完成的任务。
@@ -1225,6 +1281,7 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
         session_states: HashMap::new(),
         session_order: VecDeque::new(),
         classify_state,
+        batch_prefill_states: None,
     })
 }
 
@@ -1484,6 +1541,312 @@ fn prefill_step(task: &mut InferenceTask, engine: &mut PoolEngine) -> Result<boo
     }
     task.prefill_logits = Some(logits);
     Ok(true)
+}
+
+/// 串行 prefill 一步（队首任务一块，其余任务的解码不受阻塞）；完成即转入解码组。
+fn serial_prefill_step(
+    queue: &mut VecDeque<InferenceTask>,
+    engine: &mut PoolEngine,
+    tasks: &mut [Option<InferenceTask>],
+) {
+    let Some(task) = queue.front_mut() else {
+        return;
+    };
+    match prefill_step(task, engine) {
+        Ok(true) => {
+            // 观测：prefill 完成（含排队等待）——本地工具轮的主要延迟来源
+            log::debug!(
+                "[rwkv] prefill done: prompt={} tok input={} tok in {:.2}s",
+                task.prompt_tokens.len(),
+                task.input_tokens.len(),
+                task.queued_at.elapsed().as_secs_f64()
+            );
+            // 队首 prefill 完成 → 转入解码组（活跃数 ≤ slot_count 保证有空行）
+            let mut task = queue.pop_front().expect("队首存在");
+            let row = tasks
+                .iter()
+                .position(|s| s.is_none())
+                .expect("活跃数 ≤ slot_count 保证有空行");
+            match join_decode_group(&mut task, engine, row) {
+                Ok(true) => tasks[row] = Some(task),
+                // 首 token 即结束（stop / max_tokens=1）：已在 join 内收尾
+                Ok(false) => {}
+                Err(e) => {
+                    log::error!("[rwkv] join decode group failed: {}", e);
+                    let _ = task.tx.send(InferenceEvent::Error(e));
+                }
+            }
+        }
+        Ok(false) => {}
+        Err(e) => {
+            let task = queue.pop_front().expect("队首存在");
+            log::error!("[rwkv] prefill error: {}", e);
+            let _ = task.tx.send(InferenceEvent::Error(e));
+        }
+    }
+}
+
+/// 从队列挑 cache-miss 任务组批（≥2 行才值得，且批宽 ≤ slot_count）。
+///
+/// 只收「零起点、至少 2 个 token、无缓存命中」的任务：
+/// · 缓存命中任务的后缀通常很短，走串行 `prefill_step`（且其起步态是恢复态，
+///   批量路径没有对应入口）；
+/// · 1-token 的任务没有可喂块（末 token 要留给解码组首步）；
+/// · 已串行推进过的任务（`prefill_cursor > 0`）状态在 `prefill_state` 里，不并批。
+fn form_batch_prefill(
+    queue: &mut VecDeque<InferenceTask>,
+    engine: &mut PoolEngine,
+) -> Option<BatchPrefillGroup> {
+    if !engine.use_batch_decode {
+        return None;
+    }
+    let width = batch_prefill_width().min(engine.slot_count);
+    if width < 2 {
+        return None;
+    }
+    let candidates = queue
+        .iter()
+        .filter(|t| t.resume_state.is_none() && t.prefill_cursor == 0 && t.input_tokens.len() > 1)
+        .count();
+    if candidates < 2 {
+        return None;
+    }
+    let mut chosen: Vec<InferenceTask> = Vec::with_capacity(width.min(candidates));
+    let mut rest: VecDeque<InferenceTask> = VecDeque::with_capacity(queue.len());
+    for t in queue.drain(..) {
+        if chosen.len() < width
+            && t.resume_state.is_none()
+            && t.prefill_cursor == 0
+            && t.input_tokens.len() > 1
+        {
+            chosen.push(t);
+        } else {
+            rest.push_back(t);
+        }
+    }
+    *queue = rest;
+    let n = chosen.len();
+    let tasks: Vec<BatchPrefillTask> = chosen
+        .into_iter()
+        .map(|task| {
+            // 会话缓存快照点：与串行路径同口径「prompt 末尾回退 K 个 token」。
+            // 批量路径从整个输入的尾部回退（串行只从末块回退），最多早缓存几个
+            // token——仍然是下一轮 prompt 的严格前缀，不影响命中。
+            let to_feed = task.input_tokens.len() - 1;
+            let back = SESSION_CACHE_BACKTRACK.min(to_feed);
+            let cache_point = if task.session_id.is_some() && to_feed > back {
+                Some(to_feed - back)
+            } else {
+                None
+            };
+            BatchPrefillTask {
+                task,
+                cursor: 0,
+                cache_point,
+            }
+        })
+        .collect();
+
+    // 宽度变化时重建状态池；每次组批前清零（行 = 零态起步）。
+    // 失败时把任务原样放回队首（FIFO 近似：它们是最早的 cache-miss 任务），
+    // 绝不能吞掉任务——那会让调用方永远等不到 Done/Error。
+    let restore = |queue: &mut VecDeque<InferenceTask>, tasks: Vec<BatchPrefillTask>| {
+        for bt in tasks.into_iter().rev() {
+            queue.push_front(bt.task);
+        }
+    };
+    let need_new = engine
+        .batch_prefill_states
+        .as_ref()
+        .is_none_or(|(w, _, _)| *w != n);
+    if need_new {
+        engine.batch_prefill_states = None;
+        match (
+            engine.model.create_batch_state(n),
+            engine.model.create_batch_state(n),
+        ) {
+            (Ok(s), Ok(p)) => engine.batch_prefill_states = Some((n, s, p)),
+            (r, _) => {
+                if let Err(e) = r {
+                    log::warn!("[rwkv] batch prefill state alloc failed: {e}");
+                }
+                restore(queue, tasks);
+                return None;
+            }
+        }
+    }
+    let Some((_, state, _)) = engine.batch_prefill_states.as_ref() else {
+        restore(queue, tasks);
+        return None;
+    };
+    if let Err(e) = engine.model.reset_state_of(state) {
+        log::warn!("[rwkv] batch prefill state reset failed: {e}");
+        restore(queue, tasks);
+        return None;
+    }
+    Some(BatchPrefillGroup {
+        tasks,
+        parked: vec![false; n],
+        started_at: std::time::Instant::now(),
+    })
+}
+
+/// 批量 prefill 推进一步（一轮）。返回 true = 所有行都已喂完（等待入组）。
+///
+/// 每轮对每行喂 ≤ `PREFILL_CHUNK` 个 token；喂到缓存快照点的行先把状态下载
+/// 进会话缓存，喂完（`cursor == len-1`）的行把终态设备内拷到暂存态后停喂——
+/// 之后该行只喂占位 token，不会污染真状态。
+fn batch_prefill_step(
+    group: &mut BatchPrefillGroup,
+    engine: &mut PoolEngine,
+) -> Result<bool, String> {
+    let width = group.tasks.len();
+    // ① 缓存快照 + 终态暂存（状态与游标一致：都在上一轮 forward 之后）
+    let mut snapshots: Vec<(usize, usize, Vec<f32>)> = Vec::new();
+    {
+        let PoolEngine {
+            model,
+            batch_prefill_states,
+            ..
+        } = engine;
+        let (w, state, parked_state) = batch_prefill_states
+            .as_mut()
+            .ok_or_else(|| "batch prefill: 状态池缺失".to_string())?;
+        if *w != width {
+            return Err(format!("batch prefill: 状态宽度 {w} != 任务数 {width}"));
+        }
+        for i in 0..width {
+            let bt = &mut group.tasks[i];
+            let to_feed = bt.task.input_tokens.len() - 1;
+            if let Some(point) = bt.cache_point {
+                if bt.cursor == point {
+                    let row = model
+                        .state_slot_back(state, i)
+                        .map_err(|e| format!("batch prefill snapshot: {e}"))?;
+                    snapshots.push((i, point, row));
+                    bt.cache_point = None;
+                }
+            }
+            if !group.parked[i] && bt.cursor >= to_feed {
+                model
+                    .state_rows_copy(parked_state, state, i, i, 1)
+                    .map_err(|e| format!("batch prefill park row {i}: {e}"))?;
+                group.parked[i] = true;
+            }
+        }
+    }
+    // ② 快照入会话缓存（借用块之外，避免与状态池借用冲突）
+    for (i, point, st) in snapshots {
+        let bt = &mut group.tasks[i];
+        if let Some(sid) = bt.task.session_id.clone() {
+            let mut tokens = bt.task.base_tokens.clone();
+            tokens.extend_from_slice(&bt.task.input_tokens[..point]);
+            cache_session_state(engine, sid, tokens, st);
+        }
+    }
+    // ③ 组本轮块（停喂行给 1 个占位 token——`forward_seq_batch_chunk` 要求非空）
+    let mut batch: Vec<Vec<u32>> = Vec::with_capacity(width);
+    let mut any = false;
+    for i in 0..width {
+        let bt = &mut group.tasks[i];
+        if group.parked[i] {
+            batch.push(vec![0]);
+            continue;
+        }
+        let to_feed = bt.task.input_tokens.len() - 1;
+        let mut take = PREFILL_CHUNK.min(to_feed - bt.cursor);
+        if let Some(point) = bt.cache_point {
+            if bt.cursor < point {
+                take = take.min(point - bt.cursor);
+            }
+        }
+        if take == 0 {
+            return Err(format!(
+                "batch prefill: 行 {i} 无块可喂（游标 {}）",
+                bt.cursor
+            ));
+        }
+        batch.push(bt.task.input_tokens[bt.cursor..bt.cursor + take].to_vec());
+        bt.cursor += take;
+        any = true;
+    }
+    if !any {
+        return Ok(true);
+    }
+    {
+        let PoolEngine {
+            model,
+            batch_prefill_states,
+            ..
+        } = engine;
+        let (_, state, _) = batch_prefill_states
+            .as_mut()
+            .ok_or_else(|| "batch prefill: 状态池缺失".to_string())?;
+        model
+            .forward_seq_batch_chunk(state, &batch, PREFILL_CHUNK)
+            .map_err(|e| format!("batch prefill forward: {e}"))?;
+    }
+    Ok(false)
+}
+
+/// 批量 prefill 完成 → 行状态灌入解码组 dense 前缀的尾部。
+///
+/// 与串行 `join_decode_group` 的差异：首 token 不在主机采样，而是把**最后一个
+/// prompt token** 留给解码组首步（`decode_step` 的批量采样核），状态消费序列
+/// 与串行完全一致（prompt 全喂完，再逐个生成 token），只差一次批量采样的延迟。
+fn join_batch_prefill(
+    group: BatchPrefillGroup,
+    engine: &mut PoolEngine,
+    tasks: &mut [Option<InferenceTask>],
+) {
+    let width = group.tasks.len();
+    let base = tasks.iter().take_while(|s| s.is_some()).count();
+    if base + width > tasks.len() {
+        let e = format!(
+            "batch prefill join: 空闲行不足 {base}+{width} > {}",
+            tasks.len()
+        );
+        for bt in group.tasks {
+            let _ = bt.task.tx.send(InferenceEvent::Error(e.clone()));
+        }
+        return;
+    }
+    let mut next_row = base;
+    for (k, bt) in group.tasks.into_iter().enumerate() {
+        let copy: Result<(), String> = {
+            let PoolEngine {
+                model,
+                decode_state,
+                batch_prefill_states,
+                ..
+            } = engine;
+            match batch_prefill_states.as_ref() {
+                Some((_, state, parked_state)) => {
+                    let src = if group.parked[k] { parked_state } else { state };
+                    model
+                        .state_rows_copy(decode_state, src, k, next_row, 1)
+                        .map_err(|e| e.to_string())
+                }
+                None => Err("batch prefill join: 状态池缺失".to_string()),
+            }
+        };
+        if let Err(e) = copy {
+            log::error!("[rwkv] batch prefill join row {k}: {e}");
+            let _ = bt.task.tx.send(InferenceEvent::Error(e));
+            continue;
+        }
+        let mut task = bt.task;
+        // 末 token 留给解码组首步：采样首 token 的同时推进状态。
+        task.feed_token = *task.input_tokens.last().expect("组批保证非空");
+        task.steps_done = 0;
+        task.prefill_cursor = task.input_tokens.len();
+        if let Err(e) = upload_hist_row(engine, next_row, &task) {
+            let _ = task.tx.send(InferenceEvent::Error(e));
+            continue;
+        }
+        tasks[next_row] = Some(task);
+        next_row += 1;
+    }
 }
 
 /// prefill 完成 → 主机采样首 token 并转入解码组（状态从 `prefill_state` 迁到
