@@ -1164,33 +1164,74 @@ export function mergeResearchSources(prev, next) {
  * 3B 在纯文本模式（无工具 schema）下段落质量明显好于把整段塞进 write 的
  * JSON 参数；但段尾偶尔续写对话角色（实测英文段落尾部出现 `**User1:**`）
  * 或自带标题/围栏。这里按确定性规则剥掉这些噪声，剩下正文原样落盘。
+ *
+ * 2026-11-24 基准实测的额外退化形态（都按内容特征处理，不看长度）：
+ * - `<think>…</think>` 思考块透传（未闭合 = 整段只有思考，返回空）；
+ * - 段首乱码符号（emoji / `⯢⯤` 方框符号 / 数学粗体字母）；
+ * - 提示词回声（`You are a careful writer…`、`### Instruction`、`Write the body of…`）；
+ * - HTML 碎片（`<span class="span10_0">` 与 `textContent=` 属性串）。
  */
 export function sanitizeComposedSection(raw, heading) {
   let body = String(raw ?? "").replace(/\r\n/g, "\n").trim();
   body = body.replace(/^```[a-zA-Z]*\s*\n/, "").replace(/\n```\s*$/, "").trim();
+  // 思考块：闭合的整块删掉（后面才是正文）；只有开头没有闭合 = 全是思考
+  body = body.replace(/<think>[\s\S]*?<\/think>/gi, " ");
+  if (/<think/i.test(body)) return "";
+  body = body.replace(/<\/?think>/gi, " ").trim();
+  // 首行样板警告（`⚠️ WARNING: …`）
+  body = body.replace(/^[⚠️\s]*WARNING\s*[:：][^\n]*\n?/i, "").trim();
   const lines = body.split("\n");
   while (lines.length && /^#{1,6}\s/.test(lines[0].trim())) lines.shift();
-  body = lines.join("\n").trim();
+  body = stripMetaLines(lines.join("\n"));
+  // 模型在正文开头重复标题（`Use Cases The device-specific …`）：去掉这次重复
+  const bare = String(heading ?? "")
+    .trim()
+    .replace(/^#{1,6}\s*/, "");
+  if (bare) {
+    const escaped = bare.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // 只有「标题 + 大写开头/中文开头」才算回声；`Limitations include …` 是正常句子
+    // （不能把大小写判断写进带 i 标志的正则——`[A-Z]` 会连小写一起匹配）
+    const head = new RegExp(`^\\s*${escaped}\\s*[:：]?\\s+`, "i").exec(body);
+    if (head) {
+      const rest = body.slice(head[0].length);
+      if (/^[A-Z"“(\\[]|^\p{Script=Han}/u.test(rest)) body = rest.trim();
+    }
+  }
   // 角色/续写标记：本地小模型常在段中/段尾幻想下一轮对话（`**User1:**`、
   // 行内 `User/user:`、`UserAI prompts:` 都实测出现过）。普通英文 "system:"
   // 不误伤：非加粗形态只在句首/换行/句末标点之后才算标记。
+  // 提示词回声（含 `Useruestion:` 这类角色后缀）一并从这里截断。
   let cut = body.length;
+  const echo = PROMPT_ECHO_RE.exec(body);
+  if (echo) cut = echo.index;
+  // 训练数据续写（实测 `User# User\n**I want you to be our coding buddy…`）
+  const continuation = CONTINUATION_RE.exec(body);
+  if (continuation && continuation.index < cut) cut = continuation.index;
   const bold = /\*{1,2}\s*(user|assistant|human|system)\s*\d*\s*:\s*\*{0,2}/i.exec(body);
-  if (bold) {
+  if (bold && bold.index < cut) {
     cut = bold.index;
   } else {
     const inline =
       /(^|[\n。．.!?！？;；])\s*(user|assistant|human|system)\s*([/／]\s*(user|assistant|human|system))?\s*(ai)?\s*(prompts?)?\s*[:：]/i.exec(
         body
       );
-    if (inline) {
+    if (inline && inline.index + (inline[1]?.length ?? 0) < cut) {
       cut = inline.index + (inline[1]?.length ?? 0);
-    } else {
+    } else if (!bold) {
       const tag = /<\|[^|>]*\|>/.exec(body);
-      if (tag) cut = tag.index;
+      if (tag && tag.index < cut) cut = tag.index;
     }
   }
-  body = body.slice(0, cut).replace(/[\s\-—–:：,，;；/／]+$/, "").trim();
+  body = body.slice(0, cut).replace(/(?:User\w*|Human|Assistant)\s*[:：]\s*$/i, "");
+  // 段尾续写标记（`…Raw:` / `…Response:` / `…Text`，实测出现在句末/围栏之后）
+  body = body
+    .replace(/([。.!?;；\s])(?:Raw|Response|Text|Hex|Base64)\s*[:：]?\s*$/i, "$1")
+    .replace(/\s+$/, "");
+  body = body.replace(/[\s\-—–:：,，;；/／]+$/, "").trim();
+  // 段尾残留符号/装饰（`⇇⇇`、`‼️#`；正常句末标点与括号不受影响）
+  body = body.replace(/[^\p{L}\p{N}.!?。！？…"”’)\]}】》%]+$/u, "").trim();
+  // 段首乱码符号（保留正常的引号/括号开头）
+  body = body.replace(/^[^\p{L}\p{N}"“'‘(\[]+/u, "").trim();
   if (
     (body.startsWith('"') && body.endsWith('"')) ||
     (body.startsWith("“") && body.endsWith("”"))
@@ -1198,6 +1239,101 @@ export function sanitizeComposedSection(raw, heading) {
     body = body.slice(1, -1).trim();
   }
   return body;
+}
+
+/** 提示词回声标记：命中即从该处截断（本地 3B 实测会复述 system/user 指令）。 */
+const PROMPT_ECHO_RE =
+  /(?:You are a careful writer|Write the body of|###\s*Instruction|Output only (?:the )?body|No headings, no quotes|Stop after that paragraph|Based on the provided text|Answer based on|one short paragraph)/i;
+
+/** 角色井号标记与越狱式续写（本地 3B 会把训练数据里的对话续出来）。 */
+const CONTINUATION_RE =
+  /\b(?:User|Human|Assistant)\s*#+\s*(?:User|Human|Assistant)\b|\bI want you to (?:be|act|help)\b/i;
+
+/** 推理/答案说明元行（正文之前常见）：整行剥掉，正文本身保留。 */
+const META_LINE_RE =
+  /(?:Based on the provided text|Answer based on|paragraph that details|one short paragraph|3-4 sentences|###?\s*instruction|^reasoning\b|\bit\s*:\s*$|^(?:answer|response|output)\s*[>》]?\s*[:：]?\s*$)/i;
+
+/**
+ * 去掉「推理/答案说明」元行与残留标记行，保留真正的正文行。
+ * 实测（2026-11-24）：英文 Overview 在正文前吐了两三行说明
+ * （`Reasoning type="..." />`、`Based on the provided text, the paragraph … is:`），
+ * 后面的正文却是可用的——整段截断会误杀，只能按行剥离。
+ */
+function stripMetaLines(text) {
+  const kept = [];
+  for (const line of String(text ?? "").split("\n")) {
+    const value = line.trim();
+    if (META_LINE_RE.test(value)) continue;
+    if (/(?:type\s*=\s*"|\/>\s*$)/.test(line)) continue; // 残留标记/自闭合标签
+    if (/^(?:hex|base64|bytes)\s*[:：]/i.test(value)) continue; // 编码转储行
+    if (/^[0-9a-f]{32,}$/i.test(value)) continue; // 裸十六进制块
+    kept.push(line);
+  }
+  return kept.join("\n").trim();
+}
+
+/** 正文字符判定：字母/数字/空白，以及常见中英标点（数学粗体字母不算）。 */
+const SAFE_PUNCT_RE = /[.,;:!?'"()[\]{}%\-–—…·、。，；：！？""''《》〈〉「」『』【】（）/\\&+*=#@~|$^_]/;
+
+function junkRatio(text) {
+  const chars = [...String(text ?? "")];
+  if (!chars.length) return 0;
+  let junk = 0;
+  for (const ch of chars) {
+    if (/[\u{1D400}-\u{1D7FF}]/u.test(ch)) {
+      junk += 1; // 数学粗体/花体字母：3B 乱码常见形态
+      continue;
+    }
+    if (/[\s\p{L}\p{N}]/u.test(ch)) continue;
+    if (SAFE_PUNCT_RE.test(ch)) continue;
+    junk += 1;
+  }
+  return junk / chars.length;
+}
+
+/**
+ * 内容质量门（不是长度门）：只拦**明确坏掉**的输出，正常长短一律放行。
+ * 命中即按单节失败处理，由编排者升级云端；compose 内部会先换采样重试一次。
+ */
+function looksDegenerate(text, language) {
+  const value = String(text ?? "");
+  if (!value.trim()) return true;
+  if (/<\/?[a-z][a-z0-9]*(\s[^<>]*)?>/i.test(value)) return true; // HTML 碎片
+  if (/(?:textContent|span\s+end|start\s+end)\s*=/i.test(value)) return true;
+  if (PROMPT_ECHO_RE.test(value)) return true; // 提示词回声
+  if (CONTINUATION_RE.test(value)) return true; // 训练数据续写
+  if (/<think/i.test(value)) return true;
+  if (languageMismatch(value, language)) return true; // 语言跑偏（英文请求吐中文）
+  return junkRatio(value) > 0.12;
+}
+
+/** 文字里 CJK / 拉丁字母的占比（只统计非空白字符）。 */
+function scriptRatios(text) {
+  const chars = [...String(text ?? "")].filter((ch) => !/\s/u.test(ch));
+  if (!chars.length) return { cjk: 0, latin: 0 };
+  let cjk = 0;
+  let latin = 0;
+  for (const ch of chars) {
+    if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(ch)) cjk += 1;
+    else if (/\p{Script=Latin}/u.test(ch)) latin += 1;
+  }
+  return { cjk: cjk / chars.length, latin: latin / chars.length };
+}
+
+/**
+ * 语言闸门：只对「明确的目标语言」生效，避免误伤小语种。
+ * 实测（2026-11-24）：英文请求下 3B 有 2/4 节整段输出中文；这种段落对英文
+ * 文档不可用，必须按单节失败处理（宿主重试 → 仍不合格升级云端）。
+ */
+function languageMismatch(text, language) {
+  const lang = String(language ?? "").toLowerCase();
+  if (!lang) return false;
+  const { cjk, latin } = scriptRatios(text);
+  if (/chinese|中文|汉语|漢語|japanese|日本語|korean|한국/.test(lang)) return cjk < 0.3;
+  if (/english|英文|英语|french|german|spanish|portuguese|italian/.test(lang)) {
+    return cjk > 0.2 || latin < 0.3;
+  }
+  return false;
 }
 
 /**
@@ -1238,7 +1374,7 @@ function parseCompletionText(raw) {
  * 用本地 RWKV 生成一段正文（纯文本，无工具）。网关以 OpenAI SSE 回包，
  * 这里同时兼容 SSE 与普通 JSON 两种形态。
  */
-async function composeLocalSection({ baseURL, token, heading, topic, language, signal }) {
+async function composeLocalSection({ baseURL, token, heading, topic, language, topP, signal }) {
   // 长度不是验收标准：只说「短段落 / 3–4 句」，不给数字目标（模型会为了凑数
   // 超写或掉句）。合格与否看内容，非空即可落盘。
   const messages = [
@@ -1252,6 +1388,9 @@ async function composeLocalSection({ baseURL, token, heading, topic, language, s
       content: `Write the body of the section "${heading}" in ${language}. Topic: ${topic}.`,
     },
   ];
+  const body = { model: "rwkv-local", messages, stream: false, max_tokens: 220 };
+  // 质量门重试时换采样（与网关草稿门同一配方：top_p 0.5 探索一次）
+  if (topP !== undefined) body.top_p = topP;
   const response = await fetch(`${baseURL}/ai00-internal/llm/v1/chat/completions`, {
     method: "POST",
     headers: {
@@ -1259,7 +1398,7 @@ async function composeLocalSection({ baseURL, token, heading, topic, language, s
       "x-ai00-internal-token": token,
       "x-ai00-plugin-id": PLUGIN_ID,
     },
-    body: JSON.stringify({ model: "rwkv-local", messages, stream: false, max_tokens: 220 }),
+    body: JSON.stringify(body),
     signal,
   });
   if (!response.ok) throw new Error(`local model HTTP ${response.status}`);
@@ -3185,7 +3324,7 @@ function defineTools(ctx, api, env = {}) {
   ctx.tools.register({
     name: "ai00_local_compose",
     description:
-      "Write ONE document section with the local RWKV model and save it deterministically: the model returns only the body text, the host prepends the '## heading' and writes the file. Use one call per section (up to 4 parallel calls per round) for long documents (rule 9). Returns {ok:true, path, bytes, preview} on success, or {ok:false, reason} when the local output is empty — escalate that section alone to the cloud code_worker. Length is not checked; the content is what matters.",
+      "Write ONE document section with the local RWKV model and save it deterministically: the model returns only the body text, the host prepends the '## heading' and writes the file. Use one call per section (up to 4 parallel calls per round) for long documents (rule 9). Returns {ok:true, path, bytes, preview} on success, or {ok:false, reason} when the local output is empty or clearly garbled (garbage symbols, prompt echo, HTML fragments) — the host already retried once with different sampling; escalate that section alone to the cloud code_worker. Length is not checked; the content is what matters.",
     parameters: {
       type: "object",
       properties: {
@@ -3253,29 +3392,46 @@ function defineTools(ctx, api, env = {}) {
       if (target !== cwd && !target.startsWith(cwd.endsWith(sep) ? cwd : `${cwd}${sep}`)) {
         return { ok: false, reason: `file_path escapes the working directory: ${filePath}` };
       }
-      let body = "";
-      try {
-        body = await composeLocalSection({
-          baseURL: env.baseURL ?? DEFAULT_BASE_URL,
-          token: env.token ?? "",
-          heading,
-          topic,
-          language,
-          signal: exec.signal,
-        });
-      } catch (error) {
-        return { ok: false, reason: `local model call failed: ${error?.message ?? error}` };
+      let clean = "";
+      let reason = "";
+      // 本地 3B 偶发整段乱码/提示词回声（2026-11-24 基准 8 次里 5 次有缺陷）：
+      // 先按默认采样试一次，不合格再换 top_p=0.5 重试一次（与网关草稿门同配方）；
+      // 仍不合格才把这一节交给编排者升级云端。长度不作为合格条件。
+      for (const topP of [undefined, 0.5]) {
+        let body = "";
+        try {
+          body = await composeLocalSection({
+            baseURL: env.baseURL ?? DEFAULT_BASE_URL,
+            token: env.token ?? "",
+            heading,
+            topic,
+            language,
+            topP,
+            signal: exec.signal,
+          });
+        } catch (error) {
+          return { ok: false, reason: `local model call failed: ${error?.message ?? error}` };
+        }
+        clean = sanitizeComposedSection(body, heading);
+        const chars = [...clean].length;
+        if (chars < 20) {
+          reason = `empty local output (${chars} chars)`;
+          continue;
+        }
+        if (looksRepetitive(clean)) {
+          reason = "repetitive local output (degenerate loop)";
+          continue;
+        }
+        if (looksDegenerate(clean, language)) {
+          reason = languageMismatch(clean, language)
+            ? `wrong-language local output (expected ${language})`
+            : "degenerate local output (garbled text or prompt echo)";
+          continue;
+        }
+        reason = "";
+        break;
       }
-      const clean = sanitizeComposedSection(body, heading);
-      const chars = [...clean].length;
-      // 只拦「空/近似空」：长度不是验收标准（用户明确），内容对不对由内容断言
-      // 和云端润色负责。
-      if (chars < 20) {
-        return { ok: false, reason: `empty local output (${chars} chars)` };
-      }
-      if (looksRepetitive(clean)) {
-        return { ok: false, reason: "repetitive local output (degenerate loop)" };
-      }
+      if (reason) return { ok: false, reason };
       const content = `${clean.startsWith("#") ? clean : `## ${heading}\n\n${clean}`}\n`;
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, content, "utf8");
