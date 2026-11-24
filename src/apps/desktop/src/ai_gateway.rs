@@ -765,6 +765,34 @@ fn local_session_key(messages: &[Value]) -> String {
     format!("gw-{:016x}", hasher.finish())
 }
 
+/// 本地 RWKV 的 prompt 预算（估算 token）。超过即交给远端，不在本地硬扛。
+///
+/// 实测（2026-11-24，3B int8，RTX 2080 Ti，应用内）：
+/// - prefill ≈1ms/token（长 prompt），6k/8k token 以上的本地调用平均延迟
+///   26s / 64s（同口径 p50 仅 ~9s）；
+/// - 3B 在 >6k token 的上下文上输出明显退化（语言漂移、复读元叙述）。
+///
+/// 超预算的请求走既有降级路径（纯本地 → 远端、混合工具轮 → 远端工具循环），
+/// 结果可用、总耗时更短。`AI00X_LOCAL_PROMPT_BUDGET` 可覆盖默认值（0 = 关闭限制）。
+const DEFAULT_LOCAL_PROMPT_TOKEN_BUDGET: usize = 6000;
+
+fn local_prompt_budget() -> usize {
+    std::env::var("AI00X_LOCAL_PROMPT_BUDGET")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .unwrap_or(DEFAULT_LOCAL_PROMPT_TOKEN_BUDGET)
+}
+
+/// 超预算时返回估算 token 数（供日志/降级原因）；未超返回 None。
+fn local_prompt_over_budget(prompt: &str) -> Option<usize> {
+    let budget = local_prompt_budget();
+    if budget == 0 {
+        return None;
+    }
+    let tokens = ai00_x_ai_adapters::providers::rwkv::request::estimate_prompt_tokens(prompt);
+    (tokens > budget).then_some(tokens)
+}
+
 /// SmartRouter 分类（失败时降级 R2 → 远程，保守）。
 async fn smart_route(session_id: &Option<String>, user_input: &str) -> RouteClass {
     let config_service = match get_global_config_service() {
@@ -804,12 +832,16 @@ fn last_user_text(body: &Value) -> String {
 // ---------------------------------------------------------------------------
 
 /// 本地 RWKV：OpenAI 请求 → RWKV prompt → pool_infer 流 → OpenAI SSE chunks。
-/// 零状态推理（session_id=None 全量 prefill，不写会话缓存）——带会话 id + 全量
-/// prompt 会命中引擎缓存按增量续写，历史被双重喂入已演化 State → 输出错乱
-/// （M1.3 §2.4 留观项转正修复）。恢复点语义 = 折叠转录，RWKV 分块 prefill
-/// 开销可忽略。
 ///
-/// 返回 `Err` = 尚未写出任何 SSE 字节的失败（引擎未就绪/推理错误）——
+/// 会话缓存：按 `local_session_key` 传 session_id，引擎做**内容寻址前缀复用**
+/// （缓存 = prompt 去尾 8 token；只有新 prompt 严格以它为前缀才复用，分叉整段
+/// 重算），所以工具轮/多轮 QA 每轮只 prefill 增量。旧「零状态全量 prefill」
+/// 已废弃（它把每轮 1–3k token 的前缀重算一遍）。
+///
+/// prompt 超 `local_prompt_budget()` 时在写任何 SSE 之前返回 `Err`，由调用方
+/// 降级远端——避免本地 3B 在长上下文上花 10–60s 产出不可用结果。
+///
+/// 返回 `Err` = 尚未写出任何 SSE 字节的失败（引擎未就绪/推理错误/超预算）——
 /// 调用方据此降级远程；一旦开始流式输出则只能走流内错误事件，返回 `Ok`。
 async fn local_rwkv_sse(
     body: Value,
@@ -903,6 +935,18 @@ async fn local_rwkv_sse(
     let frequency = if has_tools { 0.5 } else { 0.3 };
 
     let prompt = openai_messages_to_rwkv_prompt(&messages, tools.as_deref());
+    if let Some(tokens) = local_prompt_over_budget(&prompt) {
+        // 超预算不在本地硬扛：返回 Err → 调用方降级远端（route=local-fallback），
+        // 避免 10–60s 的 prefill 换一段不可用的 3B 输出。
+        log::warn!(
+            "[ai-gateway] local prompt too large (~{tokens} tok > {}), fallback to remote",
+            local_prompt_budget()
+        );
+        return Err(format!(
+            "local prompt too large (~{tokens} tokens > {} budget)",
+            local_prompt_budget()
+        ));
+    }
     let is_instruction_format = prompt.starts_with("Instruction: ");
 
     let stop = rwkv_stop_sequences(is_instruction_format, has_tools);
@@ -1324,8 +1368,10 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response, usage: G
     }
 }
 
-/// 单轮本地工具推理：折叠闭合历史段后零状态全量 prefill（不传 session_id，
-/// 不写会话缓存），非流式全缓冲——工具轮输出必须先判定类型再决定走向。
+/// 单轮本地工具推理：折叠闭合历史段后构建 prompt，带 `local_session_key`
+/// 走内容寻址前缀复用（同回合多轮只 prefill 增量）；非流式全缓冲——工具轮
+/// 输出必须先判定类型再决定走向。prompt 超预算时返回 `Err`，由
+/// `hybrid_tool_loop` 降级到远端工具循环。
 /// 采样 = 验证配方（2026-08-27 JSON 遵循度实验 6/6）：top_p 默认 0.1 近贪心
 /// + presence/frequency 0.5；`top_p_override` 供质量门重试换采样探索（0.5）。
 async fn local_tool_round(
@@ -1361,6 +1407,17 @@ async fn local_tool_round(
 
     let folded = crate::tool_session::fold_tool_segments(&messages, false);
     let prompt = openai_messages_to_rwkv_prompt(&folded, tools.as_deref());
+    if let Some(tokens) = local_prompt_over_budget(&prompt) {
+        // 工具轮同理：Err → hybrid-error-fallback（远端工具循环续跑）。
+        log::warn!(
+            "[ai-gateway] local tool round prompt too large (~{tokens} tok > {}), fallback to remote",
+            local_prompt_budget()
+        );
+        return Err(format!(
+            "local tool round prompt too large (~{tokens} tokens > {} budget)",
+            local_prompt_budget()
+        ));
+    }
     let local_session = local_session_key(&messages);
 
     // stop 序列与 local_rwkv_sse 对齐（带工具时恒为对话格式，无 Instruction 分支）
