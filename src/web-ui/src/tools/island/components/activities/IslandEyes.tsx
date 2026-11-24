@@ -294,7 +294,7 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
         const ss = scale * (side > 0 ? 1 + s.scaleSkew.x : 1)
         // 球面式注视：两眼朝同一方向平移。.island-eyes 是 overflow:visible，
         // 眼球超出 viewBox 不会被裁（外层 176px 胶囊余量充足），可大幅移动。
-        const gxPx = gx.x * 8, gyPx = gy.x * 4.5
+        const gxPx = gx.x * 12, gyPx = gy.x * 6
         // 用 SVG presentation attribute 而非 CSS transform（CSS 在 SVG 上坐标系行为不同，
         // 会导致眼睛跑出 viewBox）。顺序：先位移到眼位再缩放，瞳孔/眼睑都以眼中心为原点。
         g.setAttribute('transform', `translate(${(cx + gxPx).toFixed(2)} ${(CY + gyPx).toFixed(2)}) scale(${ss.toFixed(3)} ${(ss * squash).toFixed(3)})`)
@@ -313,7 +313,7 @@ export const IslandEyes: React.FC<IslandEyesProps> = ({ expression, playing = fa
         if (lids[i].pupil) {
           lids[i].pupil!.setAttribute(
             'transform',
-            `translate(${(gx.x * 5.2).toFixed(2)} ${(gy.x * 4.2).toFixed(2)})`
+            `translate(${(gx.x * 7).toFixed(2)} ${(gy.x * 5.5).toFixed(2)})`
           )
         }
       })
