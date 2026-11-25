@@ -448,6 +448,44 @@ const scenarios = {
   },
 
   /**
+   * 长文摘要保真（生产路径）：12k 材料埋暗号（位置随试次 15%/50%/85%），
+   * `/text/summarize` + focus 必须把暗号留在摘要里（宿主机摘录兜底，不靠注意力）。
+   */
+  async s10_summary_recall(trial) {
+    const tag = `s10-${trial}-${randomUUID().slice(0, 6)}`;
+    const code = `SM${randomUUID().slice(0, 5).toUpperCase()}`;
+    const depth = [0.15, 0.5, 0.85][trial % 3];
+    const mat = material(12000, tag);
+    const at = Math.floor(mat.length * depth);
+    const planted = `${mat.slice(0, at)}（登记暗号：${code}）${mat.slice(at)}`;
+    const root = BASE.replace("/llm/v1/chat/completions", "");
+    const t0 = performance.now();
+    const res = await fetch(`${root}/text/summarize`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-ai00-internal-token": TOKEN },
+      body: JSON.stringify({ text: planted, focus: "暗号", max_length: 300 }),
+    });
+    const raw = await res.text();
+    let summary = "";
+    try {
+      summary = JSON.parse(raw).summary ?? "";
+    } catch {}
+    const ms = Math.round(performance.now() - t0);
+    const fail = (reason) => ({
+      ok: false,
+      reason: `${reason} (depth=${depth})`,
+      snippet: summary.slice(0, 80),
+      ms,
+    });
+    if (res.status !== 200) return fail(`http ${res.status}`);
+    if (!summary.trim()) return fail("empty summary");
+    if (!summary.includes(code)) return fail("code dropped");
+    if (hasSpecialLeak(summary)) return fail("special token leak");
+    if (summary.includes("\uFFFD")) return fail("U+FFFD in summary");
+    return { ok: true, ms, note: `depth=${depth}` };
+  },
+
+  /**
    * 会话前缀缓存（推理优化）正确性：同一 sid 三轮，第 2/3 轮必须命中缓存。
    * 只钉缓存路径本身（命中数 + 输出不退化）；暗号召回仅作诊断，不参与判据。
    */
