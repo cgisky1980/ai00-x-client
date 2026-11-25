@@ -64,6 +64,21 @@ fn batch_prefill_width() -> usize {
 /// ~0.2s/条）。工具轮这类短请求保持串行；长 prompt 才值得并批。
 const BATCH_PREFILL_MIN_TOKENS: usize = 512;
 
+/// 采样种子基数（`AI00X_SEED_BASE`，默认 0）。
+///
+/// 评测/复现实验用：种子 = 基数 + 进程内请求序号；固定基数后同一批请求
+/// 跨进程重放得到同一组采样（GPU 归约顺序固定，实测可重复）。默认 0 与
+/// 旧行为等价（序号仍从 1 起）。
+fn seed_base() -> u32 {
+    static V: OnceLock<u32> = OnceLock::new();
+    *V.get_or_init(|| {
+        std::env::var("AI00X_SEED_BASE")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(0)
+    })
+}
+
 /// 并批的长度带宽（批内最长 ≤ 最短 × 该倍数，按最大成员数挑带）。
 ///
 /// 长 prompt 与短 prompt 混在一起并批时，短行要按最长行补齐：实测
@@ -795,7 +810,9 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
             }
             let params = pending.remove(0);
             let tx = params.tx.clone();
-            let seed = seed_counter;
+            // 种子 = 基数 + 序号：`AI00X_SEED_BASE` 固定后，同一批请求跨进程
+            // 重放得到同一组采样（评测 A/B 用；见 `seed_base`）。
+            let seed = seed_base().wrapping_add(seed_counter);
             seed_counter = seed_counter.wrapping_add(1);
             match prepare_task(params, engine, seed) {
                 Ok(task) => prefill_queue.push_back(task),
