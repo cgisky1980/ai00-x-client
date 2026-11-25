@@ -987,6 +987,39 @@ async fn summarize_once(
     Ok((text.trim().to_string(), hit_len))
 }
 
+/// 从最后一个句末标点处剪断（截断收尾用）。返回 None = 没有可用句末或剩余过短。
+fn trim_to_last_sentence(text: &str) -> Option<String> {
+    const ENDS: [char; 9] = ['。', '！', '？', '；', '!', '?', '.', '…', '\n'];
+    let mut end = None;
+    for (i, c) in text.char_indices() {
+        if ENDS.contains(&c) {
+            end = Some(i + c.len_utf8());
+        }
+    }
+    let cut = text[..end?].trim();
+    (cut.chars().count() >= 20).then(|| cut.to_string())
+}
+
+/// 总结结果的质量判定：直接过门；仅「max_tokens 截断」时按句末收尾再判一次。
+///
+/// 实测（2026-11-25，3k/12k 字材料）：3B 摘要经常一路写到 max_tokens 才停
+/// （单次 15s、1000 token），旧逻辑把这段**可用的**摘要整个丢弃、退化成
+/// 「原文前 N 字」——信息密度暴跌。按最后一个句末标点剪断再判门，既保留
+/// 模型摘要又不交半句。
+fn accept_summary(text: String, hit_len: bool) -> Option<String> {
+    if crate::tool_session::quality_gate(&text, hit_len).is_ok() {
+        return Some(text);
+    }
+    if hit_len {
+        if let Some(cut) = trim_to_last_sentence(&text) {
+            if crate::tool_session::quality_gate(&cut, false).is_ok() {
+                return Some(cut);
+            }
+        }
+    }
+    None
+}
+
 /// 单块摘要（map）：质量门拦截 → top_p=0.5 重试一次 → 仍不合格用原文截断降级。
 async fn summarize_chunk(
     idx: usize,
@@ -1007,8 +1040,8 @@ async fn summarize_chunk(
         )
         .await;
         if let Ok(Ok((text, hit_len))) = attempt {
-            if crate::tool_session::quality_gate(&text, hit_len).is_ok() {
-                return (text, false);
+            if let Some(summary) = accept_summary(text, hit_len) {
+                return (summary, false);
             }
             log::warn!("[text-summarize] chunk {idx}/{total} failed quality gate (top_p={top_p})");
         } else if let Ok(Err(ref e)) = attempt {
@@ -1107,14 +1140,19 @@ pub async fn summarize(
             )
             .await
             {
-                Ok(Ok((summary, hit_len)))
-                    if crate::tool_session::quality_gate(&summary, hit_len).is_ok() =>
-                {
-                    SummarizeResult {
+                Ok(Ok((summary, hit_len))) => match accept_summary(summary, hit_len) {
+                    Some(summary) => SummarizeResult {
                         summary,
                         degraded: false,
+                    },
+                    None => {
+                        log::warn!("[text-summarize] single-shot failed/degraded");
+                        SummarizeResult {
+                            summary: text.chars().take(max_length).collect(),
+                            degraded: true,
+                        }
                     }
-                }
+                },
                 _ => {
                     log::warn!("[text-summarize] single-shot failed/degraded");
                     SummarizeResult {
@@ -1157,14 +1195,19 @@ pub async fn summarize(
         )
         .await
         {
-            Ok(Ok((summary, hit_len)))
-                if crate::tool_session::quality_gate(&summary, hit_len).is_ok() =>
-            {
-                SummarizeResult {
+            Ok(Ok((summary, hit_len))) => match accept_summary(summary, hit_len) {
+                Some(summary) => SummarizeResult {
                     summary,
                     degraded: any_degraded,
+                },
+                None => {
+                    log::warn!("[text-summarize] reduce failed gate, returning joined partials");
+                    SummarizeResult {
+                        summary: joined,
+                        degraded: true,
+                    }
                 }
-            }
+            },
             _ => {
                 log::warn!("[text-summarize] reduce failed gate, returning joined partials");
                 SummarizeResult {
@@ -1189,6 +1232,37 @@ mod tests {
         assert!(ev.contains("MK10WMC0"), "{ev}");
         assert_eq!(ev.matches('。').count(), 3, "{ev}");
         assert!(focus_evidence(text, "不存在的词").is_none());
+    }
+
+    /// 截断收尾：从最后一个句末标点剪断；剩余过短或无句末标点则拒绝。
+    #[test]
+    fn trim_to_last_sentence_keeps_complete_prefix() {
+        let text = "第一句完整并且足够长可以独立成段。第二句也完整并且足够长可以独立成段。第三句被截断在中";
+        assert_eq!(
+            trim_to_last_sentence(text).as_deref(),
+            Some("第一句完整并且足够长可以独立成段。第二句也完整并且足够长可以独立成段。")
+        );
+        assert_eq!(
+            trim_to_last_sentence("没有句末标点的一长串文字没有句末标点的一长串文字"),
+            None
+        );
+        assert_eq!(trim_to_last_sentence("短。"), None);
+    }
+
+    /// max_tokens 截断的摘要按句末剪断后可被接受（不再退化成原文截断）。
+    #[test]
+    fn accept_summary_salvages_truncated_text() {
+        let text = "本地推理把长文分块喂入状态空间模型，逐块推进前缀计算。\
+                    接着它继续解释缓存命中时如何复用状态，但这一句没有收尾";
+        let salvaged = accept_summary(text.to_string(), true).expect("句末收尾后应合格");
+        assert!(salvaged.ends_with('。'), "{salvaged}");
+        // 未截断时同一段文本直接过门（门的截断判定只认 hit_len）
+        assert!(accept_summary(text.to_string(), false).is_some());
+        // 过短仍拒绝
+        assert!(accept_summary("太短".to_string(), false).is_none());
+        // 复读退化仍拒绝（剪断也救不了）
+        let rept = "同一片段反复出现同一片段反复出现同一片段反复出现同一片段反复出现。".repeat(3);
+        assert!(accept_summary(rept, true).is_none());
     }
 
     #[test]
