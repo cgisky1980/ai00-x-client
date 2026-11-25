@@ -807,6 +807,24 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
 
         // prefill 一步：缓存命中任务先走串行（后缀短，别让它等整轮组批）；
         // 否则有批量组就推进一轮；再否则凑批；最后退回串行。
+        //
+        // 命中任务若排在**尚未开喂**的 cache-miss 任务后面，先换到队首：换序不丢
+        // 状态（cursor==0），命中后缀通常只有几十 token（~0.15s），先放行能让
+        // 工具轮/续聊立刻开始解码；已开喂（cursor>0）的不换——中间态在
+        // `prefill_state` 里，换任务会丢进度（重喂代价远大于等待）。
+        if prefill_queue
+            .front()
+            .is_some_and(|t| t.resume_state.is_none() && t.prefill_cursor == 0)
+        {
+            if let Some(pos) = prefill_queue
+                .iter()
+                .position(|t| t.resume_state.is_some() && t.prefill_cursor == 0)
+            {
+                if let Some(t) = prefill_queue.remove(pos) {
+                    prefill_queue.push_front(t);
+                }
+            }
+        }
         if prefill_queue
             .front()
             .is_some_and(|t| t.resume_state.is_some())
@@ -849,15 +867,17 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
         }
 
         // 解码组推进一步（批量前向 + GPU 采样），并回收已补喂完成的任务。
-        // 批量 prefill 组进行中时，**流式**任务每轮多推几步：否则「一轮 prefill
-        // 才一步 decode」会把 token 间隔拉到 ~0.7s（8 路两波实测：第一波 8 token
-        // 用了 5.5s）。非流式任务整段缓冲，多推只会拖慢下一波，保持单步。
+        // 有 prefill 活动（批量组或串行长任务）且**流式**任务在解码时，本轮多推
+        // 几步：否则「一块 prefill 才一步 decode」会把 token 间隔拉到 ~0.5s
+        // （8 路两波实测：第一波 8 token 用了 5.5s；串行 prefill 场景同理）。
+        // 非流式任务整段缓冲，多推只会拖慢 prefill，保持单步。
         let streaming_active = tasks
             .iter()
             .take_while(|s| s.is_some())
             .flatten()
             .any(|t| t.is_streaming);
-        let decode_steps = if batch_prefill.is_some() && streaming_active {
+        let prefill_active = batch_prefill.is_some() || !prefill_queue.is_empty();
+        let decode_steps = if prefill_active && streaming_active {
             3
         } else {
             1
