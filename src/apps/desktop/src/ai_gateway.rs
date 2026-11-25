@@ -976,7 +976,7 @@ async fn local_rwkv_sse(
         let mut input_tokens = 0usize;
         let mut output_tokens = 0usize;
         let mut cached_tokens = 0usize;
-        // 流式正文已发出的字符数（stop 安全回看：见 STREAM_STOP_LOOKBACK）
+        // 流式正文已发出的字符数（stop 安全回看：见 `safe_emit_len`）
         let mut emitted_chars = 0usize;
         // 首 token 到达即记 TTFT（本地路径的一次性观测指标）
         let mut ttft_ms: Option<u64> = None;
@@ -994,10 +994,9 @@ async fn local_rwkv_sse(
                     if stream_inline_text {
                         // 引擎在 stop 命中时才截断 Done.text，但组成 stop 序列的
                         // 那几个 token 已经作为 Token 事件发出去了（实测尾巴漏出
-                        // `User:`）。这里永远留 LOOKBACK 个字符不发，等后续 token
-                        // 证明它们不是 stop 序列再补发。
-                        let total = full_text.chars().count();
-                        let ready = total.saturating_sub(STREAM_STOP_LOOKBACK);
+                        // `User:`）。这里按「可能是 stop 前缀」的最长尾部扣留不发，
+                        // 后续 token 证明它不是 stop 再补发。
+                        let ready = safe_emit_len(&full_text, &stop);
                         if ready > emitted_chars {
                             let chunk: String = full_text
                                 .chars()
@@ -2828,9 +2827,31 @@ fn spaced_json(value: &Value) -> String {
     }
 }
 
-/// 流式正文的 stop 安全回看窗口（字符）。等于最长 stop 序列
-/// `\n\nInstruction:` 的长度 + 1：尾部这么多字符永远先扣着不发。
-const STREAM_STOP_LOOKBACK: usize = 16;
+/// 流式正文当前可安全发出的字符数（stop 安全回看）。
+///
+/// 只扣住「可能正在拼成某个 stop 序列的尾部」：取所有 stop 里最长的、等于
+/// `text` 末尾的前缀长度。旧实现固定扣 16 个字符（最长 stop 长度 + 1）——中文
+/// 约 1 token/字，首屏要等 16 个 token 才发出第一段；与长 prefill 交错时
+/// （3 步解码/块）实测首字节被拖到 1.25s。改成前缀感知后，普通正文每 token
+/// 即可发出，只有真的出现 `User` / `\n\nInstruction` 这类前缀时才短暂扣留。
+fn safe_emit_len(text: &str, stops: &[String]) -> usize {
+    let tail: Vec<char> = text.chars().collect();
+    let mut hold = 0usize;
+    for stop in stops {
+        let max = stop.chars().count().min(tail.len());
+        for k in (1..=max).rev() {
+            if tail[tail.len() - k..]
+                .iter()
+                .copied()
+                .eq(stop.chars().take(k))
+            {
+                hold = hold.max(k);
+                break;
+            }
+        }
+    }
+    tail.len() - hold
+}
 
 /// 本地 RWKV 停止序列（local_rwkv_sse / hybrid 工具轮共用）：角色标记组，
 /// Instruction 格式加空行停，工具轮加围栏收尾（与 consult.ts FENCE_STOPS
@@ -3879,6 +3900,26 @@ fn sse_usage(model: &str, input_tokens: usize, output_tokens: usize) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// stop 安全回看：只扣「可能正在拼成 stop 的尾部」，普通正文立即发出。
+    #[test]
+    fn safe_emit_len_holds_only_stop_prefix_tail() {
+        let stops = vec![
+            "\n\nInstruction:".to_string(),
+            "User:".to_string(),
+            "Assistant:".to_string(),
+            "```".to_string(),
+        ];
+        // 普通正文：全部可发
+        assert_eq!(safe_emit_len("你好，世界", &stops), 5);
+        // 结尾正好是 stop 前缀 → 扣住该前缀（7 字符里扣 4）
+        assert_eq!(safe_emit_len("你好 User", &stops), 3);
+        // 前缀被下一个字符打断，但顺带命中了 ``` 的前缀（8 字符里扣 3）
+        assert_eq!(safe_emit_len("Users```", &stops), 5);
+        // 多行前缀（最长匹配优先，9 字符里扣 7）
+        assert_eq!(safe_emit_len("正文\n\nInstr", &stops), 2);
+        assert_eq!(safe_emit_len("", &stops), 0);
+    }
 
     /// 引擎的 system-reminder / 目录变更也是 user 角色，排在 brief 之后；
     /// 取最后一个文件名时必须跳过它们，并在骨架名与输出名之间选输出名。
