@@ -1263,6 +1263,24 @@ fn split_for_summary(text: &str, max_chars: usize) -> Vec<String> {
     merge_tiny_chunks(chunks, max_chars)
 }
 
+/// 语义切块 + **块数上限**：`MarkdownSplitter` 会在标题/段落边界提前断块，
+/// 标题密集的文档实际块数会显著超过目标（实测 80k 参考文档 → 48 块，按 12 路
+/// 并发要多跑 4 批，2 分钟起）。块数超限时放大单块上限重切——纯 CPU、几次
+/// 迭代即收敛；块大一点只会让单块摘要略长，代价远小于多跑一批 GPU。
+fn split_capped(text: &str, max_chars: usize) -> Vec<String> {
+    let mut limit = max_chars.max(SUMMARIZE_CHUNK_CHARS);
+    let mut chunks = split_for_summary(text, limit);
+    for _ in 0..4 {
+        if chunks.len() <= SUMMARIZE_MAX_CHUNKS || limit >= 8000 {
+            break;
+        }
+        let over = (chunks.len() as f32 / SUMMARIZE_MAX_CHUNKS as f32) * 1.05;
+        limit = ((limit as f32) * over).ceil() as usize;
+        chunks = split_for_summary(text, limit);
+    }
+    chunks
+}
+
 /// 模型摘要超长时按句末标点收到 `max_chars` 内（prompt 里的长度要求 3B 常忽略：
 /// 实测要求 300 字却输出 2478 字）。取「能完整放下的句子前缀」，一句都放不下才硬切。
 fn cap_summary_length(text: &str, max_chars: usize) -> String {
@@ -1383,7 +1401,7 @@ fn cjk_ratio(text: &str) -> f32 {
 /// 不再逐块调用模型：宿主先按块摘录，再让模型写一段话；重写失败/跑偏时直接
 /// 返回摘录（同语言、事实不丢）。
 async fn summarize_non_cjk(text: &str, focus: Option<&str>, max_length: usize) -> SummarizeResult {
-    let chunks = split_for_summary(text, chunk_chars_for(text.chars().count()));
+    let chunks = split_capped(text, chunk_chars_for(text.chars().count()));
     let mut extracts: Vec<String> = Vec::new();
     for c in &chunks {
         let e = extractive_summary(c, focus, SUMMARIZE_CHUNK_TARGET);
@@ -1487,7 +1505,40 @@ async fn reduce_points(
         }
     }
     log::warn!("[text-summarize] reduce degraded to point list");
+    if let Some(prose) = join_points(points, cjk, max_length) {
+        return (prose, true);
+    }
     (joined, true)
+}
+
+/// 归并降级时的确定性兜底：把要点按序拼成一段（去编号、分号连接、按预算截断），
+/// 比编号列表更像「一段总结」，也不依赖模型（80k 的最终归并在 3B 上常过不了门）。
+fn join_points(points: &[String], cjk: bool, max_length: usize) -> Option<String> {
+    let sep = if cjk { "；" } else { "; " };
+    let mut out = String::new();
+    for p in points {
+        let p = p.trim().trim_end_matches(['。', '.', '；', ';', ' ']);
+        if p.is_empty() {
+            continue;
+        }
+        let extra = if out.is_empty() {
+            p.chars().count()
+        } else {
+            p.chars().count() + sep.chars().count()
+        };
+        if out.chars().count() + extra > max_length {
+            break;
+        }
+        if !out.is_empty() {
+            out.push_str(sep);
+        }
+        out.push_str(p);
+    }
+    if out.is_empty() {
+        return None;
+    }
+    out.push(if cjk { '。' } else { '.' });
+    Some(out)
 }
 
 /// 长文总结主流程：≤6000 单次；>6000 切块并发 map → 合并 reduce。
@@ -1595,7 +1646,7 @@ pub async fn summarize(
     }
 
     // map：智能切块（Markdown 标题/段落/代码围栏），按批并发（每批 ≤8 路）
-    let owned = split_for_summary(text, chunk_chars_for(char_count));
+    let owned = split_capped(text, chunk_chars_for(char_count));
     let chunks: Vec<&str> = owned.iter().map(String::as_str).collect();
     let total = chunks.len();
     log::info!("[text-summarize] map-reduce: {char_count} chars -> {total} chunks");
@@ -1741,6 +1792,54 @@ mod tests {
         assert_eq!(chunk_chars_for(40_000), 1000);
         assert_eq!(chunk_chars_for(60_000), 1875);
         assert_eq!(chunk_chars_for(200_000), 4000);
+    }
+
+    /// 归并降级兜底：要点拼成一段（无编号、分号连接、预算内截断、句号收尾）。
+    #[test]
+    fn join_points_makes_one_budgeted_paragraph() {
+        let points = vec![
+            "第一点内容。".to_string(),
+            "第二点内容。".to_string(),
+            String::new(),
+            "第三点内容很长很长。".to_string(),
+        ];
+        let prose = join_points(&points, true, 40).expect("prose");
+        assert!(prose.starts_with("第一点内容；第二点内容"), "{prose}");
+        assert!(prose.ends_with('。'), "{prose}");
+        assert!(!prose.contains("1. "), "{prose}");
+        // 预算只够第一条：仍以句号收尾
+        assert_eq!(
+            join_points(&points, true, 8).as_deref(),
+            Some("第一点内容。")
+        );
+        // 全空 → None（调用方回退编号列表）
+        assert!(join_points(&[String::new()], true, 100).is_none());
+    }
+
+    /// 块数上限：标题密集的文档语义切分会超限（每章独立成块），
+    /// `split_capped` 必须放大单块上限重切，收敛到 ≤32 块且不丢内容。
+    #[test]
+    fn split_capped_enforces_max_chunks() {
+        let mut doc = String::new();
+        for i in 0..40 {
+            doc.push_str(&format!("## 章节 {i}\n\n"));
+            doc.push_str(&"段落内容，保持语义边界。".repeat(90));
+            doc.push('\n');
+        }
+        let naive = split_for_summary(&doc, chunk_chars_for(doc.chars().count()));
+        assert!(
+            naive.len() > SUMMARIZE_MAX_CHUNKS,
+            "viable test doc: {}",
+            naive.len()
+        );
+        let chunks = split_capped(&doc, chunk_chars_for(doc.chars().count()));
+        assert!(
+            chunks.len() <= SUMMARIZE_MAX_CHUNKS,
+            "chunks={}",
+            chunks.len()
+        );
+        assert!(chunks.first().is_some_and(|c| c.contains("章节 0")));
+        assert!(chunks.last().is_some_and(|c| c.contains("章节 39")));
     }
 
     /// 智能切块：Markdown 报告按标题边界起块、块不超上限；超长章节内部按语义再切。
