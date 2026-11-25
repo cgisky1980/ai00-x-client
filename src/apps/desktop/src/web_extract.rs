@@ -49,10 +49,23 @@ const SCREEN_MAX_TOKENS: usize = 320;
 
 /// 长文总结阈值：≤ 6000 字符单次总结；> 6000 切块 map-reduce。
 const SUMMARIZE_SINGLE_SHOT_CHARS: usize = 6000;
-/// map 阶段切块大小（字符）。
-const SUMMARIZE_CHUNK_CHARS: usize = 4000;
+/// map 阶段切块大小（字符）。1K 块：语义边界更细、单块摘要更聚焦
+/// （用户口径：分块不超过 1K，靠并发补吞吐）。
+const SUMMARIZE_CHUNK_CHARS: usize = 1000;
+/// 块数上限：超大文档按 32 块自适应放大块长（200k 文不至于切成 200 块把 3B
+/// 拖到数分钟）；40k 以内恒为 1K。
+const SUMMARIZE_MAX_CHUNKS: usize = 32;
 /// map 阶段每块要点目标字数。
-const SUMMARIZE_CHUNK_TARGET: usize = 150;
+const SUMMARIZE_CHUNK_TARGET: usize = 100;
+/// map 阶段单块 max_tokens（目标 100 字；3B 常写到上限，160 只约束跑偏的长尾）。
+const SUMMARIZE_CHUNK_MAX_TOKENS: usize = 160;
+/// map 并发上限。引擎 3B 16 槽，12 路留 4 槽给其他本地请求。
+/// （曾记「12 路更慢」，实为同机玩游戏的 GPU 争用，已作废；以复测为准。）
+const SUMMARIZE_MAP_CONCURRENCY: usize = 12;
+/// reduce 输入上限（要点总长超过就先分组归并，避免 3B 在超长要点列表上丢主次）。
+const SUMMARIZE_MERGE_INPUT_CHARS: usize = 2000;
+/// 单次分组归并的要点条数。
+const SUMMARIZE_MERGE_GROUP: usize = 6;
 const SUMMARIZE_DEFAULT_MAX_LENGTH: usize = 500;
 
 /// 本地筛选/摘要统一 stop 序列（与 ai_gateway local_tool_round 对齐；
@@ -1045,7 +1058,7 @@ async fn summarize_chunk(
     for top_p in [0.3, 0.5] {
         let attempt = tokio::time::timeout(
             Duration::from_secs(SCREEN_TIMEOUT_SECS),
-            summarize_once(prompt.clone(), SCREEN_MAX_TOKENS, top_p),
+            summarize_once(prompt.clone(), SUMMARIZE_CHUNK_MAX_TOKENS, top_p),
         )
         .await;
         if let Ok(Ok((text, hit_len))) = attempt {
@@ -1162,6 +1175,13 @@ fn focus_evidence(text: &str, focus: &str) -> Option<String> {
     (!out.is_empty()).then_some(out)
 }
 
+/// 文档长度 → 切块大小：40k 以内恒 1K；更长按 40 块上限放大（≤4K）。
+fn chunk_chars_for(char_count: usize) -> usize {
+    SUMMARIZE_CHUNK_CHARS
+        .max(char_count.div_ceil(SUMMARIZE_MAX_CHUNKS))
+        .min(4000)
+}
+
 /// 把过小的块并入相邻块（MarkdownSplitter 会把孤立围栏/短标题切成 <200 字的块，
 /// 单独摘要毫无意义）。合并后允许超出上限 ≤200 字。
 fn merge_tiny_chunks(chunks: Vec<String>, max_chars: usize) -> Vec<String> {
@@ -1207,12 +1227,12 @@ fn merge_tiny_chunks(chunks: Vec<String>, max_chars: usize) -> Vec<String> {
 /// 2026-11-25 实测（text-splitter 0.30.1）：4 个 `##` 章节（5.8k 字）→ 两块都从
 /// `##` 标题起；含 5k 字围栏的文档 → 围栏独立成块、代码整行切；纯文本/空行分段
 /// 的结果与 `TextSplitter` 完全一致，故统一走 Markdown 切分。
-fn split_for_summary(text: &str) -> Vec<String> {
-    let chunks: Vec<String> = text_splitter::MarkdownSplitter::new(SUMMARIZE_CHUNK_CHARS)
+fn split_for_summary(text: &str, max_chars: usize) -> Vec<String> {
+    let chunks: Vec<String> = text_splitter::MarkdownSplitter::new(max_chars)
         .chunks(text)
         .map(str::to_string)
         .collect();
-    merge_tiny_chunks(chunks, SUMMARIZE_CHUNK_CHARS)
+    merge_tiny_chunks(chunks, max_chars)
 }
 
 /// 模型摘要超长时按句末标点收到 `max_chars` 内（prompt 里的长度要求 3B 常忽略：
@@ -1335,7 +1355,7 @@ fn cjk_ratio(text: &str) -> f32 {
 /// 不再逐块调用模型：宿主先按块摘录，再让模型写一段话；重写失败/跑偏时直接
 /// 返回摘录（同语言、事实不丢）。
 async fn summarize_non_cjk(text: &str, focus: Option<&str>, max_length: usize) -> SummarizeResult {
-    let chunks = split_for_summary(text);
+    let chunks = split_for_summary(text, chunk_chars_for(text.chars().count()));
     let mut extracts: Vec<String> = Vec::new();
     for c in &chunks {
         let e = extractive_summary(c, focus, SUMMARIZE_CHUNK_TARGET);
@@ -1348,7 +1368,10 @@ async fn summarize_non_cjk(text: &str, focus: Option<&str>, max_length: usize) -
     }
     // 摘录总长压到 400 字：实测 1200 字输入时英文率 2/3、600 token 时 1/3，
     // 300–400 字 + 320 token 是 3/3（2026-11-25 探针）。
-    let joined: String = extracts.join(" ").chars().take(400).collect();
+    // 1K 切块后块数多（60k → 60 块），只取开头会漏掉全文：按步长抽样 5 段。
+    let step = (extracts.len() / 5).max(1);
+    let sampled: Vec<&str> = extracts.iter().step_by(step).map(|s| s.as_str()).collect();
+    let joined: String = sampled.join(" ").chars().take(400).collect();
     if joined.is_empty() {
         return SummarizeResult {
             summary: String::new(),
@@ -1386,6 +1409,55 @@ async fn summarize_non_cjk(text: &str, focus: Option<&str>, max_length: usize) -
     SummarizeResult {
         summary: cap_summary_length(&joined, max_length),
         degraded: true,
+    }
+}
+
+/// 一组要点 → 一段连贯总结（reduce 的一层）。
+///
+/// 失败/质量门拦截时返回序号拼接的要点原文（`degraded=true`），调用方决定是否升级。
+async fn reduce_points(
+    points: &[String],
+    focus: Option<&str>,
+    cjk: bool,
+    max_length: usize,
+) -> (String, bool) {
+    let focus_clause = match (focus, cjk) {
+        (Some(f), true) => format!("，重点关注「{f}」"),
+        (Some(f), false) => format!(", focus on \"{f}\""),
+        (None, _) => String::new(),
+    };
+    let joined = points
+        .iter()
+        .enumerate()
+        .map(|(i, s)| format!("{}. {}", i + 1, s))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let prompt = if cjk {
+        format!(
+            "Instruction: 以下是一篇长文各部分的要点，请合并成一篇连贯的总结{focus_clause}，控制在 {max_length} 字以内，不要逐条编号罗列。\n\nInput: {joined}\n\nResponse: "
+        )
+    } else {
+        format!(
+            "Instruction: Below are the key points of each part of a long text. Merge them into one coherent summary{focus_clause} in under {max_length} characters. Write plain prose, no numbered list.\n\nInput: {joined}\n\nResponse: "
+        )
+    };
+    match tokio::time::timeout(
+        Duration::from_secs(SCREEN_TIMEOUT_SECS * 2),
+        summarize_once(prompt, max_length * 2, 0.3),
+    )
+    .await
+    {
+        Ok(Ok((summary, hit_len))) => match accept_summary(summary, hit_len) {
+            Some(summary) => (cap_summary_length(&summary, max_length), false),
+            None => {
+                log::warn!("[text-summarize] reduce failed gate, returning points");
+                (joined, true)
+            }
+        },
+        _ => {
+            log::warn!("[text-summarize] reduce failed, returning points");
+            (joined, true)
+        }
     }
 }
 
@@ -1493,65 +1565,66 @@ pub async fn summarize(
         );
     }
 
-    // map：智能切块（Markdown 标题/段落/代码围栏），并发逐块摘要
-    let owned = split_for_summary(text);
+    // map：智能切块（Markdown 标题/段落/代码围栏），按批并发（每批 ≤8 路）
+    let owned = split_for_summary(text, chunk_chars_for(char_count));
     let chunks: Vec<&str> = owned.iter().map(String::as_str).collect();
     let total = chunks.len();
     log::info!("[text-summarize] map-reduce: {char_count} chars -> {total} chunks");
-    let partials: Vec<(String, bool)> = futures::future::join_all(
-        chunks
-            .iter()
-            .enumerate()
-            .map(|(i, c)| summarize_chunk(i + 1, total, c, focus, cjk)),
-    )
-    .await;
-    let any_degraded = partials.iter().any(|(_, d)| *d);
-    let joined = partials
-        .iter()
-        .enumerate()
-        .map(|(i, (s, _))| format!("{}. {}", i + 1, s))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let indexed: Vec<(usize, &str)> = chunks.iter().copied().enumerate().collect();
+    let mut mapped: Vec<(usize, String, bool)> = Vec::with_capacity(total);
+    for batch in indexed.chunks(SUMMARIZE_MAP_CONCURRENCY) {
+        let results: Vec<(String, bool)> = futures::future::join_all(
+            batch
+                .iter()
+                .map(|(i, c)| summarize_chunk(i + 1, total, c, focus, cjk)),
+        )
+        .await;
+        for ((i, _), (s, d)) in batch.iter().zip(results) {
+            mapped.push((*i, s, d));
+        }
+    }
+    mapped.sort_by_key(|(i, _, _)| *i);
+    let mut any_degraded = mapped.iter().any(|(_, _, d)| *d);
+    let mut points: Vec<String> = mapped.into_iter().map(|(_, s, _)| s).collect();
 
-    // reduce：合并各块摘要为连贯总结（明确要散文，避免默认输出编号列表）
-    let prompt = if cjk {
-        format!(
-            "Instruction: 以下是一篇长文各部分的要点，请合并成一篇连贯的总结{focus_clause}，控制在 {max_length} 字以内，不要逐条编号罗列。\n\nInput: {joined}\n\nResponse: "
+    // 层级归并：要点条数多或总长超过 reduce 输入上限时先分组 reduce，
+    // 避免 3B 在超长要点列表上丢主次（1K 切块后 30k 文就有 30 条要点）
+    let mut guard = 0;
+    while points.len() > SUMMARIZE_MERGE_GROUP
+        && points.iter().map(|s| s.chars().count() + 4).sum::<usize>() > SUMMARIZE_MERGE_INPUT_CHARS
+        && guard < 3
+    {
+        guard += 1;
+        let groups: Vec<Vec<String>> = points
+            .chunks(SUMMARIZE_MERGE_GROUP)
+            .map(|c| c.to_vec())
+            .collect();
+        let merged: Vec<(String, bool)> = futures::future::join_all(
+            groups
+                .iter()
+                .map(|g| reduce_points(g, focus, cjk, max_length)),
         )
+        .await;
+        any_degraded |= merged.iter().any(|(_, d)| *d);
+        points = merged.into_iter().map(|(s, _)| s).collect();
+        log::info!(
+            "[text-summarize] merged {} groups -> {} points",
+            groups.len(),
+            points.len()
+        );
+    }
+
+    let (summary, reduce_degraded) = reduce_points(&points, focus, cjk, max_length).await;
+    // 兜底返回的是「序号 + 要点」列表，仍要守长度契约
+    let summary = if reduce_degraded {
+        cap_summary_length(&summary, max_length)
     } else {
-        format!(
-            "Instruction: Below are the key points of each part of a long text. Merge them into one coherent summary{focus_clause} in under {max_length} characters. Write plain prose, no numbered list.\n\nInput: {joined}\n\nResponse: "
-        )
+        summary
     };
-    attach_focus(
-        match tokio::time::timeout(
-            Duration::from_secs(SCREEN_TIMEOUT_SECS * 2),
-            summarize_once(prompt, max_length * 2, 0.3),
-        )
-        .await
-        {
-            Ok(Ok((summary, hit_len))) => match accept_summary(summary, hit_len) {
-                Some(summary) => SummarizeResult {
-                    summary: cap_summary_length(&summary, max_length),
-                    degraded: any_degraded,
-                },
-                None => {
-                    log::warn!("[text-summarize] reduce failed gate, returning joined partials");
-                    SummarizeResult {
-                        summary: joined,
-                        degraded: true,
-                    }
-                }
-            },
-            _ => {
-                log::warn!("[text-summarize] reduce failed gate, returning joined partials");
-                SummarizeResult {
-                    summary: joined,
-                    degraded: true,
-                }
-            }
-        },
-    )
+    attach_focus(SummarizeResult {
+        summary,
+        degraded: any_degraded || reduce_degraded,
+    })
 }
 
 #[cfg(test)]
@@ -1632,7 +1705,16 @@ mod tests {
         assert!(ev.contains("The registered code is EN42AB."), "{ev}");
     }
 
-    /// 智能切块：Markdown 报告按标题边界切，块内不跨章节、不超上限。
+    /// 块长自适应：40k 以内恒 1K；更长按 32 块上限放大，最大 4K。
+    #[test]
+    fn chunk_chars_adapts_to_size() {
+        assert_eq!(chunk_chars_for(12_000), 1000);
+        assert_eq!(chunk_chars_for(40_000), 1000);
+        assert_eq!(chunk_chars_for(60_000), 1875);
+        assert_eq!(chunk_chars_for(200_000), 4000);
+    }
+
+    /// 智能切块：Markdown 报告按标题边界起块、块不超上限；超长章节内部按语义再切。
     #[test]
     fn split_for_summary_respects_markdown_structure() {
         let sec = "段落内容，保持语义边界。".repeat(120);
@@ -1640,17 +1722,17 @@ mod tests {
         for i in 0..4 {
             doc.push_str(&format!("## Section {i}\n\n{sec}\n\n"));
         }
-        let chunks = split_for_summary(&doc);
-        assert!(chunks.len() >= 2);
+        let chunks = split_for_summary(&doc, SUMMARIZE_CHUNK_CHARS);
+        assert!(chunks.len() >= 4, "1K 块应切出更多段：{}", chunks.len());
         for c in &chunks {
             assert!(
                 c.chars().count() <= SUMMARIZE_CHUNK_CHARS + 200,
                 "chunk too big: {}",
                 c.chars().count()
             );
-            let head: String = c.trim_start().chars().take(12).collect();
-            assert!(head.starts_with("## Section"), "{head}");
         }
+        let head: String = chunks[0].trim_start().chars().take(12).collect();
+        assert!(head.starts_with("## Section 0"), "{head}");
     }
 
     /// 孤立代码围栏（<200 字）不能单独成块，必须与相邻正文合并。
@@ -1658,7 +1740,7 @@ mod tests {
     fn split_for_summary_merges_tiny_fence_chunks() {
         let code = "fn main() {\n    println!(\"hello\");\n}\n".repeat(180);
         let doc = format!("## Code\n\n```rust\n{code}```\n\n## After\n\n尾巴段落。\n");
-        let chunks = split_for_summary(&doc);
+        let chunks = split_for_summary(&doc, SUMMARIZE_CHUNK_CHARS);
         assert!(
             chunks.iter().all(|c| c.chars().count() >= 200),
             "tiny chunk leaked: {:?}",
