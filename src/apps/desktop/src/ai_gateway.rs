@@ -929,7 +929,7 @@ async fn local_rwkv_sse(
         prompt.clone(),
         max_tokens,
         top_p,
-        0,
+        tool_top_k(has_tools),
         presence,
         frequency,
         0.996,
@@ -1076,7 +1076,7 @@ async fn local_rwkv_sse(
                     retry_prompt,
                     max_tokens.min(192),
                     top_p,
-                    0,
+                    tool_top_k(true),
                     presence,
                     frequency,
                     0.996,
@@ -1463,7 +1463,7 @@ async fn local_tool_round(
         prompt,
         max_tokens,
         top_p,
-        0,
+        tool_top_k(true),
         0.5,
         0.5,
         0.996,
@@ -3546,6 +3546,26 @@ fn apply_path_hint(name: &str, arguments: String, hint: Option<&str>) -> String 
     }
     obj.insert("file_path".to_string(), Value::String(hint.to_string()));
     serde_json::to_string(&value).unwrap_or(arguments)
+}
+
+/// 工具轮的 top-k（`AI00X_TOOL_TOPK`，默认 1 = 贪心；0 = 不限制）。
+///
+/// 本地采样恒为 temperature=1.0 + top_p（工具轮 0.1），种子逐请求递增——
+/// 同一提示的 JSON 合法性随种子漂移：同一场景 100 次会话在 38%–83% 之间
+/// 摆动。工具调用只应有一个确定答案：改贪心后 s2 连续两轮 100/100、零重试，
+/// s7（write，诊断项）也从 0–2/9 升到 4/9。故默认贪心，保留 0 档供需要
+/// 多样性的实验。
+fn tool_top_k(has_tools: bool) -> usize {
+    if !has_tools {
+        return 0;
+    }
+    static V: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *V.get_or_init(|| {
+        std::env::var("AI00X_TOOL_TOPK")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(1)
+    })
 }
 
 /// 工具轮失败一次的透明自愈重试（`AI00X_TOOL_RETRY=0` 关闭，供 A/B 与排障；
