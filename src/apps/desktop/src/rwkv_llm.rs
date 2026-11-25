@@ -743,7 +743,9 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
             }
             prefill_queue = kept;
         }
-        // 批量组整体取消：组内都是同一代任务，摘行会破坏行↔任务映射，直接整组退出。
+        // 批量组整体取消：行↔状态映射不能有空洞（状态池按宽度建），摘行会破坏
+        // 映射，整组退出。实测（2026-11-25）tx 关闭只在组完成后才被感知到——
+        // prefill 期间没有回调可探测断连，逐行取消在此阶段并无收益，故不做。
         if batch_prefill.as_ref().is_some_and(|g| {
             g.tasks
                 .iter()
