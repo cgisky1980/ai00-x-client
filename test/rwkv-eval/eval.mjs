@@ -25,6 +25,13 @@ const opt = (name, dflt) => {
 const TRIALS = Number(opt("trials", "8"));
 const ONLY = (opt("only", "") || "").split(",").filter(Boolean);
 
+// 插件薄壳的真实模块（s14 用）：按引擎上下文注册工具、execute 直接回呼宿主。
+// 顶层导入：插件文件语法错误会让整套评测立刻失败（比场景内才发现更早）。
+const { apply: applyToolsPlugin } = await import(
+  new URL("../../dsh-plugins/tools/src/index.js", import.meta.url).href
+);
+process.env.AI00_S_INTERNAL_TOKEN = TOKEN;
+
 const baseProse =
   "本地推理引擎负责把长文本分块喂入状态空间模型，逐块推进前缀计算，并在会话命中时复用已有状态。";
 
@@ -669,6 +676,60 @@ const scenarios = {
     if (hasSpecialLeak(r.content)) return fail("special token leak");
     if (r.ms > 3000) return fail(`slow path (${r.ms}ms): model was invoked`);
     return { ok: true, ms: r.ms };
+  },
+
+  /**
+   * 插件接缝（真实薄壳）：按引擎上下文加载 @ai00-x/dsh-tools，用 {path}
+   * 调 /text/summarize（cwd 由 workingDirectory.ensure 注入）。判据：摘要含
+   * 暗号；schema 不再暴露 cwd；越权路径被宿主拒绝。
+   */
+  async s14_plugin_seam(trial) {
+    const tag = `s14-${trial}-${randomUUID().slice(0, 6)}`;
+    const code = `PG${randomUUID().slice(0, 5).toUpperCase()}`;
+    const dir = join(tmpdir(), `ai00x-eval-${tag}`);
+    const tools = new Map();
+    const ctx = {
+      logger: { info: () => {}, warn: () => {} },
+      tools: { register: (def) => tools.set(def.name, def), restrict: () => {} },
+      workingDirectory: { ensure: async () => dir },
+    };
+    applyToolsPlugin(ctx, {});
+    const tool = tools.get("ai00_text_summarize");
+    if (!tool) return { ok: false, reason: "plugin did not register ai00_text_summarize" };
+    const props = tool.parameters?.properties ?? {};
+    if (!("path" in props)) return { ok: false, reason: "schema missing path" };
+    if ("cwd" in props) return { ok: false, reason: "schema still exposes cwd" };
+    try {
+      await mkdir(join(dir, "docs"), { recursive: true });
+      const mat = material(3000, tag);
+      const at = Math.floor(mat.length * 0.6);
+      await writeFile(
+        join(dir, "docs", "long.md"),
+        `${mat.slice(0, at)}（登记暗号：${code}）${mat.slice(at)}`,
+        "utf8"
+      );
+      const t0 = performance.now();
+      const r = await tool.execute(
+        { path: "docs/long.md", focus: "暗号", max_length: 300 },
+        { agent: `eval-${tag}` }
+      );
+      const ms = Math.round(performance.now() - t0);
+      const summary = String(r?.summary ?? "");
+      const fail = (reason) => ({ ok: false, reason, snippet: summary.slice(0, 80), ms });
+      if (!summary.trim()) return fail("empty summary");
+      if (!summary.includes(code)) return fail("code dropped");
+      if (hasSpecialLeak(summary)) return fail("special token leak");
+      let rejected = false;
+      try {
+        await tool.execute({ path: "../escape.md" }, { agent: `eval-${tag}` });
+      } catch (e) {
+        rejected = /escapes working directory|cannot resolve/.test(String(e?.message ?? e));
+      }
+      if (!rejected) return fail("escape path not rejected");
+      return { ok: true, ms };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   },
 
   /**
