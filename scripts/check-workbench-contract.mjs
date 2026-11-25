@@ -52,7 +52,19 @@ function readTsArray(name) {
     const quote = line[0];
     if (quote !== "'" && quote !== '`' && quote !== '"') continue;
     if (!line.endsWith(quote) || line.length < 2) continue;
-    let text = line.slice(1, -1);
+    // 2026-11-26 事故：单引号字符串里写了 `worker's`，没转义 → esbuild
+    // 变换失败、主窗口只能看到 Vite 错误遮罩；而本门禁只比文本，照样通过。
+    // 这里做一次引号完整性检查：去掉合法转义后，内容里不得再出现同类引号。
+    const inner = line.slice(1, -1);
+    if (quote !== '`') {
+      const unescaped = inner.replace(/\\./g, '');
+      if (unescaped.includes(quote)) {
+        throw new Error(
+          `${name}: unescaped ${quote} inside a ${quote}-quoted line — this breaks the TypeScript build:\n  ${line.slice(0, 160)}`,
+        );
+      }
+    }
+    let text = inner;
     text = text.replace(/\\'/g, "'").replace(/\\`/g, '`').replace(/\\\\/g, '\\');
     items.push(text);
   }
