@@ -2139,12 +2139,14 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
         if let Some(tool_defs) = tools.filter(|defs| !defs.is_empty()) {
             let hint = hinted_tool(tool_defs, messages);
             let path_hint = hinted_path(messages);
+            let file_hint = hinted_file_path(messages);
             let content_hint = hinted_content(messages);
             let focus = focus_tool(tool_defs, messages);
             // 观测：few-shot 的路径/正文回声是否命中（3B 会逐字照抄示例值）。
             log::debug!(
-                "[ai-gateway] fewshot hints: path={:?} content={:?} focus={:?}",
+                "[ai-gateway] fewshot hints: path={:?} file={:?} content={:?} focus={:?}",
                 path_hint,
+                file_hint,
                 content_hint,
                 focus
             );
@@ -2152,6 +2154,7 @@ fn openai_messages_to_rwkv_prompt(messages: &[Value], tools: Option<&[Value]>) -
                 tool_defs,
                 hint,
                 path_hint.as_deref(),
+                file_hint.as_deref(),
                 content_hint.as_deref(),
                 focus,
             ) {
@@ -2733,6 +2736,26 @@ fn focus_tool<'a>(tools: &'a [Value], messages: &[Value]) -> Option<&'a str> {
     ]) {
         return pick("write");
     }
+    // 长文总结意图优先于「按扩展名判读」：brief 要「总结/暗号/关键内容」时，
+    // 3B 会照 read 的示例整篇读入（local_reader 实测 0/6 选 summarize），
+    // 把宿主 summarize 的示例放末位才选得中。工具集没有 summarize 时继续
+    // 往下走原有规则（s2 的 grep 用例也含「暗号」，不能因此丢示例）。
+    if available("ai00_text_summarize")
+        && any(&[
+            "总结",
+            "摘要",
+            "概括",
+            "提炼",
+            "要点",
+            "关键内容",
+            "暗号",
+            "summarize",
+            "summary",
+            "summarise",
+        ])
+    {
+        return Some("ai00_text_summarize");
+    }
     if any(&["grep", "搜索", "查找内容", "匹配", "todo"]) {
         return pick("grep");
     }
@@ -2840,6 +2863,7 @@ fn tool_fewshot_block(
     tools: &[Value],
     hint: Option<&str>,
     path_hint: Option<&str>,
+    file_hint: Option<&str>,
     content_hint: Option<&str>,
     focus: Option<&str>,
 ) -> Option<String> {
@@ -2922,12 +2946,26 @@ fn tool_fewshot_block(
                 // 参数绑定能力——复读 schema 结构或塌陷重复（p2/p4/p6 实测），
                 // 真实值则连工具选择都纠正（p5 错选 vs p7 全对）。
                 let value = match ty {
-                    "string" => json!(sample_string_arg(name, key, path_hint, content_hint)),
+                    "string" => {
+                        json!(sample_string_arg(
+                            name,
+                            key,
+                            path_hint,
+                            file_hint,
+                            content_hint
+                        ))
+                    }
                     "number" | "integer" => json!(1),
                     "boolean" => json!(true),
                     // 数组参数（queries / urls）：给一个元素的真实示例，
                     // 否则模型会把 schema 结构塞进数组或干脆漏掉该键。
-                    "array" => json!([sample_string_arg(name, key, path_hint, content_hint)]),
+                    "array" => json!([sample_string_arg(
+                        name,
+                        key,
+                        path_hint,
+                        file_hint,
+                        content_hint
+                    )]),
                     _ => continue,
                 };
                 args.insert(key.clone(), value);
@@ -2972,6 +3010,7 @@ fn sample_string_arg(
     tool: &str,
     key: &str,
     path_hint: Option<&str>,
+    file_hint: Option<&str>,
     content_hint: Option<&str>,
 ) -> String {
     // 检索类：pattern 的示例必须是能直接用的真实表达式（旧值恒为 "hello"，
@@ -2985,9 +3024,21 @@ fn sample_string_arg(
                 .map(str::to_string)
                 .unwrap_or_else(|| "Hello from the local worker.".to_string());
         }
+        // 长文总结的 path 是「宿主读盘」路径：示例必须回显 brief 里的完整
+        // 路径（`C:\…\long.md`），否则 3B 照抄固定样例 "note.txt"（s15 实测 2/6）。
+        ("ai00_text_summarize", "path") => {
+            if let Some(full) = file_hint {
+                return full.to_string();
+            }
+        }
         _ => {}
     }
     if key.contains("path") {
+        if tool == "ai00_text_summarize" {
+            if let Some(full) = file_hint {
+                return full.to_string();
+            }
+        }
         if let Some(hint) = path_hint {
             return hint.to_string();
         }
@@ -3826,7 +3877,7 @@ fn tool_retry_plan(
         let args = required
             .iter()
             .map(|(key, is_array)| {
-                let value = sample_string_arg(name, key, path_hint, None);
+                let value = sample_string_arg(name, key, path_hint, None, None);
                 if *is_array {
                     format!("\"{key}\": [\"{value}\"]")
                 } else {
@@ -5353,13 +5404,49 @@ mod tests {
                 }}
             }}),
         ];
-        let block = tool_fewshot_block(&tools, Some("ai00_research_collect"), None, None, None)
-            .unwrap_or_default();
+        let block = tool_fewshot_block(
+            &tools,
+            Some("ai00_research_collect"),
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap_or_default();
         assert!(
             block.contains("\"name\": \"ai00_research_collect\""),
             "expected the hinted tool first: {block}"
         );
         // 数组参数也要有真实示例
         assert!(block.contains("\"queries\": ["));
+    }
+
+    /// 长文总结意图优先于「按 .md 判读」：summarize 在表内时 focus 必须是它
+    /// （末位示例决定 3B 的工具选择）；不在表内时退回原有规则，不丢示例。
+    #[test]
+    fn focus_prefers_summarize_for_summary_brief() {
+        let read = json!({"type": "function", "function": {
+            "name": "read",
+            "description": "Read a file",
+            "parameters": {"properties": {"file_path": {"type": "string"}}}
+        }});
+        let summarize = json!({"type": "function", "function": {
+            "name": "ai00_text_summarize",
+            "description": "Summarize a long text LOCALLY",
+            "parameters": {"properties": {
+                "path": {"type": "string"},
+                "focus": {"type": "string"}
+            }}
+        }});
+        let messages = vec![json!({
+            "role": "user",
+            "content": "从 notes-long.md 中找出登记的暗号并报告。只需要一步：调用合适的工具。"
+        })];
+        assert_eq!(
+            focus_tool(&[read.clone(), summarize.clone()], &messages),
+            Some("ai00_text_summarize")
+        );
+        // 工具集没有 summarize（编排者的只读轮）：仍按扩展名落到 read。
+        assert_eq!(focus_tool(&[read], &messages), Some("read"));
     }
 }

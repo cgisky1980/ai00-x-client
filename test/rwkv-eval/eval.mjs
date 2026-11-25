@@ -733,6 +733,92 @@ const scenarios = {
   },
 
   /**
+   * 只读工人工具选择：同时给 read 与 ai00_text_summarize（工人真实工具面），
+   * brief 指向一份长文件要事实。期望选 summarize + path 而不是整篇 read——
+   * 这是 local_reader 新能力的生产前提（整篇 read 进 3B 上下文召回只有 ~30%）。
+   */
+  async s15_reader_tool_choice(trial) {
+    const tag = `s15-${trial}-${randomUUID().slice(0, 6)}`;
+    const file = join(tmpdir(), `ai00x-eval-${tag}`, "notes-long.md");
+    const r = await chat({
+      // 工人生产模型槽就是 rwkv-local（不走 hybrid 入口）
+      model: "rwkv-local",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a local READ-ONLY worker dispatched by the Ai00-X orchestrator.\n" +
+            "Use glob/grep to locate things and read/read_image to inspect them. For a long file, or when the brief asks for a summary or specific facts, call ai00_text_summarize with `path` (relative to your working directory) and `focus` = the concrete question — the host does the chunked summary locally, so never read a long file into context first.\n" +
+            "Never write or modify files, never run commands.",
+        },
+        {
+          role: "user",
+          content: `Step T1: 从 ${file} 中找出登记的暗号并报告。文件很长，只需要一步：调用合适的工具。`,
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "read",
+            description: "读取文件",
+            parameters: {
+              type: "object",
+              properties: {
+                file_path: { type: "string" },
+                offset: { type: "number" },
+                limit: { type: "number" },
+              },
+              required: ["file_path"],
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "ai00_text_summarize",
+            description:
+              "Summarize a long text entirely LOCALLY. For a file on disk pass {path} instead of inlining the text; focus steers the summary.",
+            parameters: {
+              type: "object",
+              properties: {
+                text: { type: "string" },
+                path: { type: "string" },
+                focus: { type: "string" },
+                max_length: { type: "number" },
+              },
+            },
+          },
+        },
+      ],
+      maxTokens: 256,
+    });
+    const fail = (reason, kind) => ({
+      ok: false,
+      reason,
+      kind,
+      snippet: (r.content || "").slice(0, 80),
+      ms: r.ms,
+    });
+    if (r.status !== 200) return fail(`http ${r.status}`, "http");
+    if (!r.toolCalls.length) return fail("no tool call", "tool_call");
+    const call = r.toolCalls[0];
+    const name = call.function?.name;
+    if (name !== "ai00_text_summarize") return fail(`wrong tool: ${name}`, "tool_name");
+    let args = {};
+    try {
+      args = JSON.parse(call.function.arguments ?? "{}");
+    } catch {
+      return fail(`bad arguments: ${String(call.function.arguments).slice(0, 80)}`, "json");
+    }
+    const path = String(args.path ?? "");
+    if (!path.replace(/\\/g, "/").endsWith("notes-long.md")) {
+      return fail(`path=${path.slice(0, 120)}`, "path_value");
+    }
+    return { ok: true, ms: r.ms };
+  },
+
+  /**
    * 会话前缀缓存（推理优化）正确性：同一 sid 三轮，第 2/3 轮必须命中缓存。
    * 只钉缓存路径本身（命中数 + 输出不退化）；暗号召回仅作诊断，不参与判据。
    */
