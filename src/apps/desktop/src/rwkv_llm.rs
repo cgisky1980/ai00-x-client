@@ -2412,6 +2412,11 @@ fn strip_marker_spans(text: &str) -> String {
         out.push(chars[i]);
         i += 1;
     }
+    // 成对片段已删，剩下的孤立 `✿` 都是控制残渣（实测句尾单发 `答案：ZX17✿`）；
+    // 一起清掉，避免污染交付文本。
+    if out.contains('✿') {
+        out.retain(|c| c != '✿');
+    }
     out
 }
 
@@ -3805,14 +3810,16 @@ mod special_marker_tests {
         );
     }
 
-    /// `✿…✿` 控制样式片段成对删除；孤立 ✿ 与普通文本保留。
+    /// `✿…✿` 控制样式片段成对删除；剩下的孤立 `✿` 也是控制残渣，一并清掉
+    /// （实测句尾单发 `答案：ZX17✿`，成对规则抓不到）。
     #[test]
     fn strips_marker_spans() {
         assert_eq!(
             strip_marker_spans("摘要正文。✿reverse_i_line274✿后续句子。"),
             "摘要正文。后续句子。"
         );
-        assert_eq!(strip_marker_spans("花 ✿ 与文本"), "花 ✿ 与文本");
+        assert_eq!(strip_marker_spans("答案：ZX17✿"), "答案：ZX17");
+        assert_eq!(strip_marker_spans("✿开头残渣正文"), "开头残渣正文");
         assert_eq!(strip_marker_spans("无标记"), "无标记");
     }
 

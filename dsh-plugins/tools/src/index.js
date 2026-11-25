@@ -3396,7 +3396,7 @@ function defineTools(ctx, api, env = {}) {
   ctx.tools.register({
     name: "ai00_local_compose",
     description:
-      "Write ONE document section with the local RWKV model and save it deterministically: the model returns only the body text, the host prepends the '## heading' and writes the file. Use one call per section (up to 4 parallel calls per round) for long documents (rule 9). Returns {ok:true, path, bytes, preview} on success, or {ok:false, reason} when the local output is empty or clearly garbled (garbage symbols, prompt echo, HTML fragments) — the host already retried once with different sampling; escalate that section alone to the cloud code_worker. Length is not checked; the content is what matters.",
+      "Write ONE document section with the local RWKV model and save it deterministically: the model returns only the body text, the host prepends the '## heading' and writes the file. Use one call per section (up to 8 parallel calls per round) for long documents (rule 9). Returns {ok:true, path, bytes, preview} on success, or {ok:false, reason} when the local output is empty or clearly garbled (garbage symbols, prompt echo, HTML fragments) — the host already retried once with different sampling; escalate that section alone to the cloud code_worker. Length is not checked; the content is what matters.",
     parameters: {
       type: "object",
       properties: {
