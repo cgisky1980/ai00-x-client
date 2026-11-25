@@ -979,6 +979,7 @@ async fn local_rwkv_sse(
     let stream_inline_text = !has_tools && !rounds_exhausted;
     // 熔断轮判定"证据 vs 失败"用的历史（含本回合所有工具结果）
     let task_path_hint = hinted_path(&messages);
+    let file_hint = hinted_file_path(&messages);
     let messages_for_evidence = messages;
 
     tokio::spawn(async move {
@@ -1134,6 +1135,7 @@ async fn local_rwkv_sse(
             }
         }
         if let Some((name, arguments)) = call {
+            let arguments = apply_summary_path_hint(&name, arguments, file_hint.as_deref());
             if let Some(reason) = write_rejection(&name, &arguments) {
                 // 空写会整文件覆盖 → 清空既有交付物；超长写会让 3B 退化。
                 // 强制本地路径（rwkv-local）也必须拦，工人正是走这条路。
@@ -1309,7 +1311,10 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response, usage: G
             input_tokens,
             output_tokens,
         }) => {
-            log::info!("[ai-gateway] tool round {rounds}: local -> call {name}");
+            log::info!(
+                "[ai-gateway] tool round {rounds}: local -> call {name} args={}",
+                arguments.chars().take(120).collect::<String>()
+            );
             let (tx, rx_body) =
                 tokio::sync::mpsc::unbounded_channel::<Result<Bytes, salvo::Error>>();
             tokio::spawn(async move {
@@ -1457,6 +1462,8 @@ async fn local_tool_round(
         .unwrap_or_default();
     let tools = body.get("tools").and_then(|v| v.as_array()).cloned();
     let task_path_hint = hinted_path(&messages);
+    let file_hint = hinted_file_path(&messages);
+    log::debug!("[ai-gateway] tool round hints: path={task_path_hint:?} file={file_hint:?}");
     let tool_names: Vec<String> = tools
         .as_deref()
         .unwrap_or(&[])
@@ -1568,6 +1575,8 @@ async fn local_tool_round(
         );
         // 路径写坏（Users / section?2.md）时按 brief 点名文件覆盖
         let arguments = apply_path_hint(&name, arguments, task_path_hint.as_deref());
+        // 长文总结的 path 写坏（复读/截断/写成目录）时按 brief 点名的文件纠偏
+        let arguments = apply_summary_path_hint(&name, arguments, file_hint.as_deref());
         // 空内容 write 会把已有文件截成 0 字节：实测 T2/T3 的本地工人在"追加"
         // 失败后都发出了 {"content":"","file_path":"report.md"}，直接把刚写好的
         // 报告清空（2026-11-21 会话 87c876ca / caeffa9d）。拒绝执行，按 BLOCKED 收尾。
@@ -2533,8 +2542,16 @@ fn hinted_tool<'a>(tools: &'a [Value], messages: &[Value]) -> Option<&'a str> {
 /// `note.txt`，本地 3B 直接照抄示例值——工人把内容写进 `note.txt`，验收读
 /// `hello-cache.txt` 失败、白返工一轮。示例值改成 brief 里出现的文件名后，
 /// 模型照抄的也是正确目标。
+/// brief 里「像文件」的后缀（路径提示与摘要路径纠偏共用）。
+const FILE_EXTS: [&str; 8] = [".txt", ".md", ".json", ".csv", ".py", ".js", ".ts", ".html"];
+
+/// 名字是否以已知文件后缀结尾（不看路径分隔符）。
+fn looks_like_known_file(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    FILE_EXTS.iter().any(|ext| lower.ends_with(ext))
+}
+
 fn hinted_path(messages: &[Value]) -> Option<String> {
-    const EXTS: [&str; 8] = [".txt", ".md", ".json", ".csv", ".py", ".js", ".ts", ".html"];
     // 取「出现次数最多」的文件名，平票取最后一次出现：分节 brief 里骨架名
     // 只出现一次（`guide.skeleton.md`），真正的输出文件在任务句 + 示例里
     // 至少出现两次；只看第一个会把 write 目标误判成骨架。
@@ -2554,7 +2571,7 @@ fn hinted_path(messages: &[Value]) -> Option<String> {
                 && !token.contains('/')
                 && !token.contains('\\')
                 && !matches!(token, "AGENTS.local.md" | "CLAUDE.local.md")
-                && EXTS.iter().any(|ext| lower.ends_with(ext));
+                && FILE_EXTS.iter().any(|ext| lower.ends_with(ext));
             if !looks_like_file {
                 continue;
             }
@@ -2573,7 +2590,110 @@ fn hinted_path(messages: &[Value]) -> Option<String> {
         .map(|(name, _, _)| name)
 }
 
-/// 最后一条 brief 的任务意图 → 最可能被调用的工具名（须在 tools 表内）。
+/// brief 里点名的**带目录**文件路径（相对或绝对），出现次数最多者。
+///
+/// 与 `hinted_path`（只要裸文件名，供 write/read 的 file_path 用）互补：
+/// 长文总结的文件常在 brief 里写成 `docs/long.md` 或 `C:\ws\long.md`，
+/// 3B 抄路径会复读/截断（s12 实测），这里是纠偏的权威值来源。
+fn hinted_file_path(messages: &[Value]) -> Option<String> {
+    let mut counts: Vec<(String, usize, usize)> = Vec::new();
+    let mut index = 0usize;
+    for text in user_texts(messages) {
+        // 分隔集**不含 `:`**：Windows 盘符（`C:\…`）不能被拆掉，否则提示值
+        // 变成 `\Users\…`（无盘符），纠偏后仍然是坏路径。
+        for token in text
+            .split(|c: char| c.is_whitespace() || "，。；：“”‘’（）()[]{}<>\"'`、,;".contains(c))
+        {
+            index += 1;
+            let token = token.trim_matches(|c: char| {
+                !(c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '/' | '\\'))
+            });
+            if token.len() < 5
+                || token.len() > 260
+                || token.contains("://")
+                || !looks_like_known_file(token)
+            {
+                continue;
+            }
+            match counts.iter_mut().find(|(name, _, _)| name == token) {
+                Some((_, count, last)) => {
+                    *count += 1;
+                    *last = index;
+                }
+                None => counts.push((token.to_string(), 1, index)),
+            }
+        }
+    }
+    counts
+        .into_iter()
+        .max_by_key(|(_, count, last)| (*count, *last))
+        .map(|(name, _, _)| name)
+}
+
+/// `ai00_text_summarize` 的路径纠偏：模型把 path 写坏/写漏时改用 brief 点名的文件。
+///
+/// 只在该工具上生效，且只在「路径明显不可用」时替换：空路径、没有已知后缀
+/// （截断/复读退化）、或绝对路径在本机不存在。带合法后缀且存在的路径不动，
+/// 文本形态（`text` 非空）也不动。
+fn apply_summary_path_hint(name: &str, arguments: String, file_hint: Option<&str>) -> String {
+    log::debug!(
+        "[ai-gateway] summary path check: name={name} hint={file_hint:?} args={}",
+        arguments.chars().take(90).collect::<String>()
+    );
+    if name != "ai00_text_summarize" {
+        return arguments;
+    }
+    let Some(hint) = file_hint else {
+        return arguments;
+    };
+    let Ok(mut value) = serde_json::from_str::<Value>(&arguments) else {
+        return arguments;
+    };
+    let Some(obj) = value.as_object_mut() else {
+        return arguments;
+    };
+    // 长正文（≥200 字）说明 brief 已内联材料，不需要路径；短文本常是占位/残渣
+    // （实测 `{"text":"hello","path":…}`），仍按路径纠偏（插件也按同一阈值取路径）。
+    let text_len = obj
+        .get("text")
+        .and_then(|v| v.as_str())
+        .map(|t| t.trim().chars().count())
+        .unwrap_or(0);
+    if text_len >= 200 {
+        return arguments;
+    }
+    let current = obj
+        .get("path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let replace = if current.is_empty() || !looks_like_known_file(&current) {
+        true
+    } else {
+        let p = std::path::Path::new(&current);
+        p.is_absolute()
+            && !p.exists()
+            && std::path::Path::new(hint).exists()
+            && p.file_name() == std::path::Path::new(hint).file_name()
+    };
+    if !replace {
+        log::debug!(
+            "[ai-gateway] summary path kept: current={:?} known={} hint_exists={}",
+            current,
+            looks_like_known_file(&current),
+            std::path::Path::new(hint).exists()
+        );
+        return arguments;
+    }
+    obj.insert("path".to_string(), Value::String(hint.to_string()));
+    log::warn!(
+        "[ai-gateway] repaired ai00_text_summarize path {:?} -> {hint}",
+        current.chars().take(40).collect::<String>()
+    );
+    serde_json::to_string(&value).unwrap_or(arguments)
+}
+
 ///
 /// few-shot 末位示例几乎决定 3B 的工具选择（见 `tool_fewshot_block`），示例
 /// 顺序不能只按工具表顺序。关键词优先级从具体到宽泛：图片 → 写入 → 检索 →
@@ -4405,6 +4525,53 @@ mod tests {
             apply_path_hint("read", truncated.to_string(), Some("section-2.md")),
             r#"{"file_path":"section-2.md"}"#
         );
+    }
+
+    #[test]
+    fn summary_path_hint_repairs_mangled_paths() {
+        // brief 里带目录的路径（绝对/相对）都要能提出来
+        let messages = vec![json!({
+            "role": "user",
+            "content": "请总结文件 C:\\ws\\docs\\long.md 的关键内容，并找出暗号。参考 docs/other.md 的格式。"
+        })];
+        let hint = hinted_file_path(&messages);
+        assert_eq!(hint.as_deref(), Some("C:\\ws\\docs\\long.md"));
+        let hint = hint.as_deref();
+        let path_of = |json: &str| {
+            serde_json::from_str::<Value>(json)
+                .ok()
+                .and_then(|v| v.get("path").and_then(|p| p.as_str()).map(str::to_string))
+        };
+        // 空路径 → 补 brief 点名的文件
+        let fixed =
+            apply_summary_path_hint("ai00_text_summarize", r#"{"focus":"暗号"}"#.into(), hint);
+        assert_eq!(path_of(&fixed).as_deref(), Some("C:\\ws\\docs\\long.md"));
+        // 无后缀（复读/截断退化）→ 纠偏
+        let garbled = apply_summary_path_hint(
+            "ai00_text_summarize",
+            r#"{"path":"C:/ws/docs/long.mdf7g8h9i0"}"#.into(),
+            hint,
+        );
+        assert_eq!(path_of(&garbled).as_deref(), Some("C:\\ws\\docs\\long.md"));
+        // 合法的别的文件不动
+        let other = r#"{"path":"docs/other.md"}"#;
+        assert_eq!(
+            apply_summary_path_hint("ai00_text_summarize", other.into(), hint),
+            other
+        );
+        // 长正文形态不动（brief 已内联材料）
+        let long_text = format!(r#"{{"text":"{}"}}"#, "正文".repeat(120));
+        assert_eq!(
+            apply_summary_path_hint("ai00_text_summarize", long_text.clone(), hint),
+            long_text
+        );
+        // 短文本是占位残渣 → 仍纠偏路径
+        let stub = r#"{"text":"hello"}"#;
+        let fixed = apply_summary_path_hint("ai00_text_summarize", stub.into(), hint);
+        assert_eq!(path_of(&fixed).as_deref(), Some("C:\\ws\\docs\\long.md"));
+        // 其它工具不动
+        let read = r#"{"file_path":"Users"}"#;
+        assert_eq!(apply_summary_path_hint("read", read.into(), hint), read);
     }
 
     #[test]

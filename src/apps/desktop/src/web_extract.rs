@@ -1469,24 +1469,25 @@ async fn reduce_points(
             "Instruction: Below are the key points of each part of a long text. Merge them into one coherent summary{focus_clause} in under {max_length} characters. Write plain prose, no numbered list.\n\nInput: {joined}\n\nResponse: "
         )
     };
-    match tokio::time::timeout(
-        Duration::from_secs(SCREEN_TIMEOUT_SECS * 2),
-        summarize_once(prompt, max_length * 2, 0.3),
-    )
-    .await
-    {
-        Ok(Ok((summary, hit_len))) => match accept_summary(summary, hit_len) {
-            Some(summary) => (cap_summary_length(&summary, max_length), false),
-            None => {
-                log::warn!("[text-summarize] reduce failed gate, returning points");
-                (joined, true)
+    // 质量门重试换采样：80k 文档的最终归并在 top_p=0.3 下偶发退化（复读/过短），
+    // 单次失败就降级成要点列表太亏——换 0.5 再来一次（块级 map 已是同一策略）。
+    for top_p in [0.3, 0.5] {
+        let attempt = tokio::time::timeout(
+            Duration::from_secs(SCREEN_TIMEOUT_SECS * 2),
+            summarize_once(prompt.clone(), max_length * 2, top_p),
+        )
+        .await;
+        if let Ok(Ok((summary, hit_len))) = attempt {
+            if let Some(summary) = accept_summary(summary, hit_len) {
+                return (cap_summary_length(&summary, max_length), false);
             }
-        },
-        _ => {
-            log::warn!("[text-summarize] reduce failed, returning points");
-            (joined, true)
+            log::warn!("[text-summarize] reduce failed gate (top_p={top_p})");
+        } else {
+            log::warn!("[text-summarize] reduce failed (top_p={top_p})");
         }
     }
+    log::warn!("[text-summarize] reduce degraded to point list");
+    (joined, true)
 }
 
 /// 长文总结主流程：≤6000 单次；>6000 切块并发 map → 合并 reduce。

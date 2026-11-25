@@ -609,12 +609,15 @@ const scenarios = {
       return fail(
         inlined
           ? `inlined text (${inlined.length} chars) instead of path`
-          : `missing path (args: ${String(call.function.arguments ?? "").slice(0, 80)})`,
+          : `missing path (args: ${String(call.function.arguments ?? "").slice(0, 160)})`,
         "path_arg"
       );
     }
     if (!String(args.path).replace(/\\/g, "/").endsWith("long.md")) {
-      return fail(`path wrong: ${args.path}`, "path_value");
+      return fail(
+        `path wrong: ${String(args.path).slice(0, 120)} | args: ${String(call.function.arguments ?? "").slice(0, 160)}`,
+        "path_value"
+      );
     }
     if (inlined.length > 500) return fail(`text too long (${inlined.length})`, "inline_text");
     // focus 是可选参数（模型常省略）：只作诊断，不参与判据。

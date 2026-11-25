@@ -213,7 +213,7 @@ async fn sha256_file(path: &Path) -> Result<String, String> {
 
 async fn fetch_remote_manifest() -> Result<ResourcesManifest, String> {
     let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(15))
+        .connect_timeout(std::time::Duration::from_secs(5))
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -223,22 +223,25 @@ async fn fetch_remote_manifest() -> Result<ResourcesManifest, String> {
         std::env::consts::OS,
         std::env::consts::ARCH
     );
-    // Tiny file: static order is fine (github direct, ghproxies, then the
-    // model-repo mirrors where a copy is also published under resources/).
+    // 顺序按「国内可达性」排：GitHub 直连在国内普遍超时，放在国内镜像之后，
+    // 避免每次启动先白等一个连接超时（2026-11-26 实测：HF 该文件 404、GitHub
+    // 超时，加载页停在「检查资源组件...」）。
     let github = format!("{RELEASE_BASE}/{manifest_file}");
-    let mut urls = vec![github.clone()];
+    let mut urls = vec![
+        format!("{MS_RESOURCE_BASE}/{manifest_file}"),
+        format!("{HF_MIRROR_RESOURCE_BASE}/{manifest_file}"),
+        format!("{HF_RESOURCE_BASE}/{manifest_file}"),
+        github.clone(),
+    ];
     for m in MIRRORS {
         urls.push(format!("{m}/{github}"));
     }
-    urls.push(format!("{MS_RESOURCE_BASE}/{manifest_file}"));
-    urls.push(format!("{HF_MIRROR_RESOURCE_BASE}/{manifest_file}"));
-    urls.push(format!("{HF_RESOURCE_BASE}/{manifest_file}"));
 
     let mut last_err = String::from("no manifest urls");
     for url in urls.drain(..) {
         match client
             .get(&url)
-            .timeout(std::time::Duration::from_secs(20))
+            .timeout(std::time::Duration::from_secs(8))
             .send()
             .await
         {
@@ -344,10 +347,32 @@ async fn entry_state(key: &str, entry: &ResourceEntry, local: &LocalState) -> St
     state
 }
 
+/// 启动期清单拉取的总体预算：多条候选 URL 逐条重试，最坏情况会把加载页
+/// 拖到「看起来卡死」（2026-11-26：HF 清单 404 + GitHub 超时，加载页停在
+/// 「检查资源组件...」）。超预算即按本地安装记录放行。
+const MANIFEST_FETCH_BUDGET_SECS: u64 = 10;
+
 #[tauri::command]
 pub async fn resources_check() -> Result<ResourcesCheckResult, String> {
-    let manifest = fetch_remote_manifest().await?;
     let local = load_local_state();
+    let manifest = match tokio::time::timeout(
+        std::time::Duration::from_secs(MANIFEST_FETCH_BUDGET_SECS),
+        fetch_remote_manifest(),
+    )
+    .await
+    {
+        Ok(Ok(manifest)) => manifest,
+        Ok(Err(e)) => {
+            log::warn!("[resources] remote manifest unavailable ({e}); local fallback");
+            return local_check(&local);
+        }
+        Err(_) => {
+            log::warn!(
+                "[resources] remote manifest timed out ({MANIFEST_FETCH_BUDGET_SECS}s); local fallback"
+            );
+            return local_check(&local);
+        }
+    };
 
     let mut statuses = Vec::new();
     let mut all_ok = true;
@@ -369,6 +394,32 @@ pub async fn resources_check() -> Result<ResourcesCheckResult, String> {
         manifest_version: manifest.manifest_version.clone(),
         statuses,
         all_ok,
+    })
+}
+
+/// 远端清单不可用时的启动放行：只凭本地安装记录判定。
+///
+/// 有记录 → 视为已装齐（离线启动不阻塞；真缺文件会在使用处报错）；
+/// 没有任何记录（首装）→ 仍然返回错误——没有清单就不知道要下载什么。
+fn local_check(local: &LocalState) -> Result<ResourcesCheckResult, String> {
+    if local.installed.is_empty() {
+        return Err("resources manifest unreachable and nothing installed locally".into());
+    }
+    let mut statuses: Vec<ResourceStatus> = local
+        .installed
+        .keys()
+        .map(|key| ResourceStatus {
+            key: key.clone(),
+            version: "local".into(),
+            size: 0,
+            state: "ok".into(),
+        })
+        .collect();
+    statuses.sort_by(|a, b| a.key.cmp(&b.key));
+    Ok(ResourcesCheckResult {
+        manifest_version: "local".into(),
+        statuses,
+        all_ok: true,
     })
 }
 

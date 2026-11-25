@@ -3368,9 +3368,10 @@ function defineTools(ctx, api, env = {}) {
       const text = String(args?.text ?? "").trim();
       const path = String(args?.path ?? "").trim();
       if (!text && !path) throw new Error("text or path is required");
-      if (text && path) throw new Error("pass text OR path, not both");
-      const body = text ? { text } : { path, cwd: "" };
-      if (!text) {
+      // 两者都给：长正文优先（brief 内联），短文本视为占位/残渣 → 以路径为准。
+      const useText = text.length >= 200 || !path;
+      const body = useText ? { text } : { path, cwd: "" };
+      if (!useText) {
         // cwd 由引擎的会话工作目录决定：3B 手抄长路径必错（同 ai00_research_collect
         // 的教训，实测把 taskId/路径抄坏），模型给的 cwd 只当兜底提示。
         try {
