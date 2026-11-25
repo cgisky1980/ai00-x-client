@@ -1195,7 +1195,7 @@ async fn local_rwkv_sse(
                 let chunk = sse_text_delta(&model_name, &text);
                 let _ = tx.send(Ok(Bytes::from(chunk)));
             }
-            let chunk = sse_usage(&model_name, input_tokens, output_tokens);
+            let chunk = sse_usage_cached(&model_name, input_tokens, output_tokens, cached_tokens);
             let _ = tx.send(Ok(Bytes::from(chunk)));
             let chunk = sse_finish(&model_name, "stop");
             let _ = tx.send(Ok(Bytes::from(chunk)));
@@ -2937,6 +2937,19 @@ fn safe_emit_len(text: &str, stops: &[String]) -> usize {
             }
         }
     }
+    // 特殊标记：词表里没有单 token 词条时模型会逐字符拼出来（实测 `<|end|` 与
+    // `</assistant>\n<user>` 都被当正文吐给用户）。尾部若正拼某个标记就先扣住，
+    // 下一 token 证明不是标记再发；生成结束仍残留时由 Done 文本（已 strip）补发。
+    const MARKERS: [&str; 5] = ["<|", "</assistant>", "</user>", "<assistant>", "<user>"];
+    for marker in MARKERS {
+        let chars: Vec<char> = marker.chars().collect();
+        for k in (1..=chars.len().min(tail.len())).rev() {
+            if tail[tail.len() - k..] == chars[..k] {
+                hold = hold.max(k);
+                break;
+            }
+        }
+    }
     tail.len() - hold
 }
 
@@ -4128,6 +4141,18 @@ fn sse_finish(model: &str, reason: &str) -> String {
 }
 
 fn sse_usage(model: &str, input_tokens: usize, output_tokens: usize) -> String {
+    sse_usage_cached(model, input_tokens, output_tokens, 0)
+}
+
+/// 带前缀缓存命中数的 usage 分片（OpenAI `prompt_tokens_details.cached_tokens`）。
+/// 本地普通路径有真实复用数时用它；评测/用量面板据此验证缓存确实命中
+/// （此前缓存数只进宿主统计，SSE 侧恒 0，无法从外部断言）。
+fn sse_usage_cached(
+    model: &str,
+    input_tokens: usize,
+    output_tokens: usize,
+    cached_tokens: usize,
+) -> String {
     format!(
         "data: {}\n\n",
         json!({
@@ -4138,6 +4163,9 @@ fn sse_usage(model: &str, input_tokens: usize, output_tokens: usize) -> String {
                 "prompt_tokens": input_tokens,
                 "completion_tokens": output_tokens,
                 "total_tokens": input_tokens + output_tokens,
+                "prompt_tokens_details": {
+                    "cached_tokens": cached_tokens,
+                },
             },
         })
     )
@@ -4196,6 +4224,16 @@ mod tests {
         // 多行前缀（最长匹配优先，9 字符里扣 7）
         assert_eq!(safe_emit_len("正文\n\nInstr", &stops), 2);
         assert_eq!(safe_emit_len("", &stops), 0);
+        // 特殊标记前缀：尾部 `<` / `<|` 各扣 1 / 2，后续打断后立即放行
+        assert_eq!(safe_emit_len("a < b", &stops), 5);
+        assert_eq!(safe_emit_len("正文<", &stops), 2);
+        assert_eq!(safe_emit_len("正文<|", &stops), 2);
+        assert_eq!(safe_emit_len("正文<|e", &stops), 4);
+        assert_eq!(safe_emit_len("正文<div>", &stops), 8);
+        // HTML 风格对话标记同样扣住前缀（s4 实测吐过 </assistant>\n<user>）
+        assert_eq!(safe_emit_len("正文</assist", &stops), 2);
+        assert_eq!(safe_emit_len("正文</assistant>", &stops), 2);
+        assert_eq!(safe_emit_len("正文<us", &stops), 2);
     }
 
     /// 引擎的 system-reminder / 目录变更也是 user 角色，排在 brief 之后；

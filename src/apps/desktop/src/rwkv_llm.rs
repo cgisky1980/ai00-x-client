@@ -533,6 +533,10 @@ struct PoolEngine {
     /// 本模型实际启用的生成槽位数（按模型规模动态核减，≤ MAX_SLOTS）。
     slot_count: usize,
     tokenizer: Tokenizer,
+    /// 词表里的 EOS 类特殊 token id（`<|end|>` / `<|endoftext|>` 等，仅收录
+    /// 单 token 编码的词条）。采样命中即收尾，绝不写进正文——实测 3B 会把
+    /// `<|end|` 当普通文本吐给用户，且继续白烧解码步（2026-11-25 s4 实录）。
+    eos_ids: Vec<u32>,
     /// 零初始状态缓存（新任务/无缓存任务重置 slot 用）。
     initial_state: Vec<f32>,
     /// session_id → (已缓存 token 序列, RNN 状态)
@@ -1416,6 +1420,17 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
     let vocab = std::fs::read_to_string(vocab_path)
         .map_err(|e| format!("failed to read vocab '{}': {}", vocab_path, e))?;
     let tokenizer = Tokenizer::new(&vocab).map_err(|e| format!("failed to parse vocab: {}", e))?;
+    // EOS 类特殊 token：词表里单 token 才收录（拆成多 token 的走 finalize 的
+    // `strip_special_markers` 兜底）。词表不含该标记时保持旧行为。
+    let mut eos_ids: Vec<u32> = Vec::new();
+    for marker in ["<|end|>", "<|endoftext|>"] {
+        if let Ok(ids) = tokenizer.encode(marker.as_bytes()) {
+            if ids.len() == 1 && !eos_ids.contains(&ids[0]) {
+                eos_ids.push(ids[0]);
+            }
+        }
+    }
+    log::info!("[rwkv] eos token ids: {eos_ids:?}");
 
     let initial_state = model
         .state_back(&state)
@@ -1466,6 +1481,7 @@ fn load_engine(model_path: &str, vocab_path: &str) -> Result<PoolEngine, String>
         slot_states,
         slot_count,
         tokenizer,
+        eos_ids,
         initial_state,
         session_states: HashMap::new(),
         session_order: VecDeque::new(),
@@ -2235,6 +2251,13 @@ fn decode_step(tasks: &mut [Option<InferenceTask>], engine: &mut PoolEngine) -> 
             // 补喂末 token（本轮只推进状态，采样结果丢弃）——下一轮回写缓存 + Done
             continue;
         }
+        // EOS 特殊 token：收尾但不入正文（不 push / 不进 hist / 不 emit）。
+        // feed_token 仍设成它，下一轮「补喂末 token」把状态推进到已结束再回收。
+        if engine.eos_ids.contains(&id) {
+            t.feed_token = id;
+            t.finish_pending = true;
+            continue;
+        }
         t.acc_ids.push(id);
         t.steps_done += 1;
         t.feed_token = id;
@@ -2243,6 +2266,27 @@ fn decode_step(tasks: &mut [Option<InferenceTask>], engine: &mut PoolEngine) -> 
         post_sample(engine, t);
     }
     Ok(())
+}
+
+/// stop 命中判定：返回第一个命中的 stop 串。
+///
+/// 角色标记（`User:` / `Assistant:` 等，均以 `:` 结尾）用 `contains`：3B 的
+/// 单个 token 可能一次吐出 `User:(请续写…` 这样的长片段，缓冲结尾不等于
+/// `User:`，旧 `ends_with` 判定把角色标记漏进正文（2026-11-25 s3/s8 实录）。
+/// 其余 stop（`\n\n`、`\n``` `）保持 `ends_with`——工具轮的闭合围栏就是这么判的，
+/// 改成 contains 会把开头围栏当结束（整轮工具调用为空）。
+fn match_stop(buffer: &str, stops: &[String]) -> Option<String> {
+    stops
+        .iter()
+        .find(|s| {
+            !s.is_empty()
+                && if s.ends_with(':') {
+                    buffer.contains(s.as_str())
+                } else {
+                    buffer.ends_with(s.as_str())
+                }
+        })
+        .cloned()
 }
 
 /// 采样后处理：stop 串判定 + 流式增量发射 + 结束判定。
@@ -2264,12 +2308,9 @@ fn post_sample(engine: &PoolEngine, task: &mut InferenceTask) {
     }
 
     if let Some(ref ss) = task.stop {
-        for stop_str in ss {
-            if !stop_str.is_empty() && task.stop_buffer.ends_with(stop_str) {
-                task.ended_by_stop = true;
-                task.hit_stop = Some(stop_str.clone());
-                break;
-            }
+        if let Some(hit) = match_stop(&task.stop_buffer, ss) {
+            task.ended_by_stop = true;
+            task.hit_stop = Some(hit);
         }
     }
 
@@ -2324,6 +2365,7 @@ fn finalize_task(task: &mut InferenceTask, engine: &mut PoolEngine, _row: Option
             text.truncate(pos);
         }
     }
+    let text = strip_special_markers(&text);
     let _ = task.tx.send(InferenceEvent::Done {
         text,
         input_tokens: task.prompt_tokens.len(),
@@ -2331,6 +2373,21 @@ fn finalize_task(task: &mut InferenceTask, engine: &mut PoolEngine, _row: Option
         cached_tokens: task.cached_tokens,
         stop_sequence: task.hit_stop.clone(),
     });
+}
+
+/// 特殊标记兜底：模型可能把 `<|end|>` 类标记拆成多 token 输出（`<` `|` `end`
+/// …），单 token EOS 判定拦不住；训练数据里的 HTML 风格对话标记（`</assistant>`、
+/// `<user>`）也会被当正文续写。最终文本从最早的标记处截断——自然正文几乎不可能
+/// 出现这些组合（实测 3B 在长文问答里会直接吐 `<|end|`、`</assistant>\n<user>`）。
+const SPECIAL_MARKERS: [&str; 5] = ["<|", "</assistant>", "</user>", "<assistant>", "<user>"];
+
+fn strip_special_markers(text: &str) -> String {
+    let cut = SPECIAL_MARKERS
+        .iter()
+        .filter_map(|m| text.find(m))
+        .min()
+        .unwrap_or(text.len());
+    text[..cut].to_string()
 }
 
 /// 把任务的惩罚历史整行同步到设备 `row` 行（入组 / 槽位迁移时用）。
@@ -3684,5 +3741,75 @@ mod router_mini_tests {
         assert!(check_router_head(Some(&head), 3)
             .unwrap_err()
             .contains("mismatch"));
+    }
+}
+
+#[cfg(test)]
+mod special_marker_tests {
+    use super::*;
+
+    /// 正常文本必须原样返回（含单独的 `<`，不误伤数学/代码文本）。
+    #[test]
+    fn keeps_plain_text() {
+        assert_eq!(
+            strip_special_markers("普通正文，含 a < b。"),
+            "普通正文，含 a < b。"
+        );
+        assert_eq!(strip_special_markers(""), "");
+    }
+
+    /// 单 token EOS 已由 `decode_step` 拦截；这里兜「拆成多 token」的泄漏。
+    #[test]
+    fn cuts_at_special_marker() {
+        assert_eq!(strip_special_markers("正文<|end|>"), "正文");
+        assert_eq!(strip_special_markers("正文<|endoftext|>尾巴"), "正文");
+    }
+
+    /// 标记在开头 → 空串（不能把标记本身当正文）。
+    #[test]
+    fn marker_at_start_yields_empty() {
+        assert_eq!(strip_special_markers("<|end|>正文"), "");
+    }
+
+    /// 合法尖括号组合 `<x>` / `<<` 不受影响（只认特殊标记本身）。
+    #[test]
+    fn does_not_cut_regular_angle_brackets() {
+        assert_eq!(
+            strip_special_markers("见 <div> 与 << 移位"),
+            "见 <div> 与 << 移位"
+        );
+    }
+
+    /// 训练数据风格的对话标记：与 `<|` 同类处理（实测 s4 吐过
+    /// `</assistant>\n<user>`，被当成正文续写）。
+    #[test]
+    fn cuts_html_style_role_markers() {
+        assert_eq!(
+            strip_special_markers("本地推理\n</assistant>\n<user>\n你是资料问答助手"),
+            "本地推理\n"
+        );
+        assert_eq!(strip_special_markers("正文<user>继续"), "正文");
+        assert_eq!(strip_special_markers("正文<assistant>继续"), "正文");
+    }
+
+    /// 角色标记 stop：嵌入在 token 中间（后面还跟正文）也必须命中。
+    #[test]
+    fn stop_role_marker_hits_when_embedded() {
+        let stops = vec!["\n\nUser:".to_string(), "User:".to_string()];
+        assert_eq!(
+            match_stop("正文\n\nUser:(请续写第3版", &stops).as_deref(),
+            Some("User:")
+        );
+        assert_eq!(match_stop("正文\n\nUser", &stops), None);
+        assert_eq!(match_stop("正文里的 Users 很多", &stops), None);
+    }
+
+    /// 非角色 stop（围栏 / 空行）仍只认结尾：开头围栏不能被当结束。
+    #[test]
+    fn stop_non_role_only_matches_suffix() {
+        let stops = vec!["\n```".to_string(), "\n\n".to_string()];
+        assert_eq!(match_stop("\n```json", &stops), None);
+        assert_eq!(match_stop("正文\n```", &stops).as_deref(), Some("\n```"));
+        assert_eq!(match_stop("正文\n\n", &stops).as_deref(), Some("\n\n"));
     }
 }

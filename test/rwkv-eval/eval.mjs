@@ -70,10 +70,12 @@ function parseSse(raw) {
   return { content, toolCalls, usage, error, finish };
 }
 
-async function chat({ messages, maxTokens = 64, tools, stop, stream = false, sid }) {
+async function chat({ messages, maxTokens = 64, tools, stop, stream = false, sid, topK }) {
   const body = { model: "rwkv-local", messages, max_tokens: maxTokens, stream, temperature: 0 };
   if (tools) body.tools = tools;
   if (stop) body.stop = stop;
+  // 请求体 top_k 覆盖本地采样档（同进程配对 A/B 用，见 ai_gateway local_top_k）。
+  if (Number.isFinite(topK)) body.top_k = topK;
   const t0 = performance.now();
   const res = await fetch(BASE, {
     method: "POST",
@@ -91,6 +93,52 @@ function noLeak(text) {
 
 function hasReplacement(text) {
   return text.includes("\uFFFD");
+}
+
+/** 特殊标记泄漏：`<|…|>` 与训练数据里的 HTML 风格对话标记。 */
+function hasSpecialLeak(text) {
+  return /<\/?(assistant|user)>|<\|/.test(text);
+}
+
+/** 编辑距离（诊断用：量化「近似命中」，不参与通过判据）。 */
+function levenshtein(a, b) {
+  const dp = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j];
+      dp[j] = Math.min(
+        dp[j] + 1,
+        dp[j - 1] + 1,
+        prev + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+      prev = tmp;
+    }
+  }
+  return dp[b.length];
+}
+
+/** 输出里与暗号最接近窗口的编辑距离（0 = 精确出现）。 */
+function minWindowEdit(code, text) {
+  const t = text.trim();
+  let best = code.length;
+  for (let len = Math.max(1, code.length - 3); len <= code.length + 3; len++) {
+    for (let i = 0; i + len <= t.length; i++) {
+      best = Math.min(best, levenshtein(code, t.slice(i, i + len)));
+      if (best === 0) return 0;
+    }
+  }
+  return best;
+}
+
+/** usage 里的前缀缓存命中数（本地路径读 prompt_tokens_details.cached_tokens）。 */
+function cachedOf(usage) {
+  return (
+    usage?.prompt_tokens_details?.cached_tokens ??
+    usage?.cached_prompt ??
+    0
+  );
 }
 
 const writeTools = [
@@ -187,6 +235,7 @@ const scenarios = {
     if (r.error) return fail(`gateway error: ${String(r.error.message).slice(0, 80)}`);
     if (!r.content.trim()) return fail("empty content");
     if (!noLeak(r.content)) return fail("role marker leak");
+    if (hasSpecialLeak(r.content)) return fail("special token leak");
     if (hasReplacement(r.content)) return fail("U+FFFD in content");
     if (r.content.trim().length < 8) return fail("too short");
     return { ok: true, ms: r.ms };
@@ -336,11 +385,18 @@ const scenarios = {
       ],
       maxTokens: 32,
     });
-    const fail = (reason) => ({ ok: false, reason, snippet: r.content.slice(0, 80), ms: r.ms });
+    const fail = (reason) => ({
+      ok: false,
+      reason,
+      needs: minWindowEdit(code, r.content),
+      snippet: r.content.slice(0, 80),
+      ms: r.ms,
+    });
     if (r.status !== 200) return fail(`http ${r.status}`);
     if (r.error) return fail("gateway error");
+    if (hasSpecialLeak(r.content)) return fail("special token leak");
     if (!r.content.includes(code)) return fail("code not recalled");
-    return { ok: true, ms: r.ms };
+    return { ok: true, needs: 0, ms: r.ms };
   },
 
   /** stop 边界：自定义 stop 不得泄漏到正文。 */
@@ -390,6 +446,123 @@ const scenarios = {
       ? { ok: false, reason: failed.map((c) => `${c.name}=${c.got}`).join(", ") }
       : { ok: true };
   },
+
+  /**
+   * 会话前缀缓存（推理优化）正确性：同一 sid 三轮，第 2/3 轮必须命中缓存。
+   * 只钉缓存路径本身（命中数 + 输出不退化）；暗号召回仅作诊断，不参与判据。
+   */
+  async s8_session_cache(trial) {
+    const tag = `s8-${trial}-${randomUUID().slice(0, 6)}`;
+    const sid = `ev-${tag}`;
+    const code = `SC${String(trial).padStart(2, "0")}${randomUUID().slice(0, 3).toUpperCase()}`;
+    const mat = material(3800, tag);
+    const at = Math.floor(mat.length * 0.5);
+    const planted = `${mat.slice(0, at)}（登记暗号：${code}）${mat.slice(at)}`;
+    // 起始就带一条 assistant（多轮 System 格式）：单轮 system+user 会走
+    // Instruction 格式，与后续轮次的 prompt 头不同，缓存不可能命中。
+    const messages = [
+      { role: "system", content: `你是资料问答助手 ${tag}。只回答被问的信息。` },
+      { role: "user", content: `${planted}\n\n请记住材料里登记的暗号。` },
+      { role: "assistant", content: "好的，我记住了。" },
+      { role: "user", content: "材料里登记的暗号是什么？只输出暗号本身。" },
+    ];
+    const nextAsks = ["用一句话说明你刚才回答了什么。"];
+    const cached = [];
+    const turnMs = [];
+    for (let i = 0; i < 3; i++) {
+      const r = await chat({ messages, maxTokens: 32, sid });
+      const where = `turn${i + 1}`;
+      if (r.status !== 200) return { ok: false, reason: `${where}: http ${r.status}`, ms: r.ms };
+      if (r.error) return { ok: false, reason: `${where}: gateway error`, ms: r.ms };
+      if (!r.content.trim()) return { ok: false, reason: `${where}: empty content`, ms: r.ms };
+      if (!noLeak(r.content))
+        return { ok: false, reason: `${where}: role marker leak`, snippet: r.content.slice(0, 80), ms: r.ms };
+      if (hasSpecialLeak(r.content))
+        return {
+          ok: false,
+          reason: `${where}: special token leak`,
+          snippet: r.content.slice(0, 80),
+          ms: r.ms,
+        };
+      cached.push(cachedOf(r.usage));
+      turnMs.push(r.ms);
+      messages.push({ role: "assistant", content: r.content.trim() });
+      if (nextAsks[i]) messages.push({ role: "user", content: nextAsks[i] });
+    }
+    if (!(cached[1] > 0) || !(cached[2] > 0)) {
+      return {
+        ok: false,
+        reason: `cache miss on follow-up: cached=${cached.join("/")}`,
+        ms: turnMs.reduce((a, b) => a + b, 0),
+      };
+    }
+    const recalled = messages.some(
+      (m) => m.role === "assistant" && m.content.includes(code)
+    );
+    return {
+      ok: true,
+      ms: turnMs.reduce((a, b) => a + b, 0),
+      note: `cached=${cached.join("/")} recall=${recalled ? "hit" : "miss"}`,
+    };
+  },
+
+  /**
+   * 并发隔离：4 路长材料同时推理，各自暗号不得串台（批量 prefill / 并发解码
+   * 的状态隔离）。召回只作诊断——判据只钉「不串台 + 输出可用」。
+   */
+  async s9_parallel_isolated(trial) {
+    const lanes = Array.from({ length: 4 }, (_, lane) => {
+      const tag = `s9-${trial}-${lane}-${randomUUID().slice(0, 6)}`;
+      const code = `P${lane}${String(trial).padStart(2, "0")}${randomUUID().slice(0, 3).toUpperCase()}`;
+      const mat = material(3000, tag);
+      const at = Math.floor(mat.length * 0.9);
+      const planted = `${mat.slice(0, at)}（登记暗号：${code}）${mat.slice(at)}`;
+      return {
+        lane,
+        code,
+        messages: [
+          { role: "system", content: `你是资料问答助手 ${tag}。只回答被问的信息。` },
+          { role: "user", content: `${planted}\n\n问题：材料里登记的暗号是什么？只输出暗号本身。` },
+        ],
+      };
+    });
+    const results = await Promise.all(
+      lanes.map((l) => chat({ messages: l.messages, maxTokens: 32 }))
+    );
+    for (let i = 0; i < lanes.length; i++) {
+      const r = results[i];
+      const where = `lane${lanes[i].lane}`;
+      if (r.status !== 200) return { ok: false, reason: `${where}: http ${r.status}`, ms: r.ms };
+      if (r.error) return { ok: false, reason: `${where}: gateway error`, ms: r.ms };
+      if (!r.content.trim()) return { ok: false, reason: `${where}: empty content`, ms: r.ms };
+      if (!noLeak(r.content))
+        return { ok: false, reason: `${where}: role marker leak`, snippet: r.content.slice(0, 80), ms: r.ms };
+      if (hasSpecialLeak(r.content))
+        return {
+          ok: false,
+          reason: `${where}: special token leak`,
+          snippet: r.content.slice(0, 80),
+          ms: r.ms,
+        };
+      for (const other of lanes) {
+        if (other.lane === lanes[i].lane) continue;
+        if (r.content.includes(other.code)) {
+          return {
+            ok: false,
+            reason: `${where}: cross-talk with lane${other.lane}`,
+            snippet: r.content.slice(0, 80),
+            ms: r.ms,
+          };
+        }
+      }
+    }
+    const hits = lanes.filter((l, i) => results[i].content.includes(l.code)).length;
+    return {
+      ok: true,
+      ms: Math.max(...results.map((r) => r.ms)),
+      note: `recall=${hits}/4`,
+    };
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -417,7 +590,7 @@ for (const name of picked) {
     failures: rows
       .map((r, i) => ({ i, ...r }))
       .filter((r) => !r.ok)
-      .map((r) => ({ trial: r.i, reason: r.reason, snippet: r.snippet })),
+      .map((r) => ({ trial: r.i, reason: r.reason, needs: r.needs, snippet: r.snippet })),
     ms: rows.filter((r) => r.ms).map((r) => r.ms),
   };
 }
