@@ -1272,10 +1272,14 @@ fn worker_denied_tools(worker: &str) -> Vec<&'static str> {
     // TLS 失败，worker 花 9 步试代理/找 node，整轮跑到 22 分钟）。
     // 本地 local_code_worker 仍 deny：3B 会把搜索当"万能工具"滥用（实测十连搜）。
     let keeps_search = matches!(worker, "research_worker" | "code_worker");
+    // 只读帮手保留长文总结：3B 整篇 `read` 长文件的召回只有 ~30%（§8 实测），
+    // 宿主 map-reduce 才是可靠的事实通道；这是只读工具，不违反叶子边界。
+    let keeps_summarize = worker == "local_reader";
     AI00_TOOL_NAMES
         .iter()
         .copied()
         .filter(|name| !(keeps_search && WORKER_KEPT_TOOLS.contains(name)))
+        .filter(|name| !(keeps_summarize && *name == "ai00_text_summarize"))
         .collect()
 }
 
@@ -1745,7 +1749,7 @@ If the evidence is insufficient, reject explicitly; never approve on guesses.
 
 const DEFAULT_WORKER_LOCAL_READER_MD: &str = r#"---
 name: local_reader
-description: 只读帮手：查文件、读文件、检索内容（RWKV 本地，工具仅 read/glob/grep/read_image）
+description: 只读帮手：查文件、读文件、长文总结/检索内容（RWKV 本地，工具 read/glob/grep/read_image + ai00_text_summarize）
 model: rwkv-local
 tools:
   - read
@@ -1754,8 +1758,9 @@ tools:
   - grep
 ---
 You are a local READ-ONLY worker dispatched by the Ai00-X orchestrator.
-Use only glob/grep to locate things and read/read_image to inspect them. Never write or modify files, never run commands, never dispatch subagents.
-Base every statement on bytes you actually read; quote paths and line numbers. If the target does not exist, say exactly which patterns you tried and stop.
+Use glob/grep to locate things and read/read_image to inspect them. For a long file, or when the brief asks for a summary or specific facts, call ai00_text_summarize with `path` (relative to your working directory) and `focus` = the concrete question — the host does the chunked summary locally, so never read a long file into context first.
+Never write or modify files, never run commands, never dispatch subagents.
+Base every statement on bytes you actually read or on a summary you obtained; quote paths and line numbers. If the target does not exist, say exactly which patterns you tried and stop.
 Return compact findings (<=10 lines) plus the evidence you used.
 "#;
 
@@ -1909,7 +1914,7 @@ fn normalize_worker_body(body: &str) -> String {
 /// 播种只补缺不升级的话，老用户的 `agent-workers/*.md` 会永远停在旧默认
 /// （2026-11-21 实测：磁盘上 research_worker 仍是 `model: rwkv-local` +
 /// 已失效的 `web_fetch/web_search`，与代码默认值相差一整代）。
-const WORKER_SEED_VERSION: u32 = 5;
+const WORKER_SEED_VERSION: u32 = 7;
 
 fn seed_version_path(dir: &Path) -> std::path::PathBuf {
     dir.join(".seed-version")
@@ -1937,6 +1942,17 @@ fn migrate_worker_md(file_name: &str, content: &str) -> String {
         })
         .map(str::to_string)
         .collect();
+    if file_name == "local_reader.md" {
+        // 描述会作为 local_reader 工具说明给编排者看：「工具仅 …」会把新能力
+        // 说没，改成与实际可见工具一致（frontmatter 的 model/tools 仍保留）。
+        const OLD_DESC: &str = "description: 只读帮手：查文件、读文件、检索内容（RWKV 本地，工具仅 read/glob/grep/read_image）";
+        const NEW_DESC: &str = "description: 只读帮手：查文件、读文件、长文总结/检索内容（RWKV 本地，工具 read/glob/grep/read_image + ai00_text_summarize）";
+        for line in lines.iter_mut() {
+            if line.trim() == OLD_DESC {
+                *line = NEW_DESC.to_string();
+            }
+        }
+    }
     if file_name == "review_worker.md" && !lines.iter().any(|line| line.trim() == "- write") {
         // frontmatter 结束行（第二个 `---`）之前插入工具行
         let mut dashes = 0;
@@ -1970,7 +1986,7 @@ fn migrate_worker_md(file_name: &str, content: &str) -> String {
 /// `ai00_research_collect` 落 sources.md；review 写「never modify files」而它现在
 /// 要落一份 review.md。用户改过的 persona 不会命中标记句，因此自定义内容不会被覆盖。
 fn refresh_legacy_default_body(file_name: &str, content: String) -> String {
-    let legacy: [(&str, &str, &str); 3] = [
+    let legacy: [(&str, &str, &str); 4] = [
         (
             "research_worker.md",
             "Read-only investigation only (read files / search / verify online). Never modify files or run commands.",
@@ -1985,6 +2001,11 @@ fn refresh_legacy_default_body(file_name: &str, content: String) -> String {
             "review_worker.md",
             "Read-only review: never modify files or run commands.",
             DEFAULT_WORKER_REVIEW_MD,
+        ),
+        (
+            "local_reader.md",
+            "Use only glob/grep to locate things and read/read_image to inspect them.",
+            DEFAULT_WORKER_LOCAL_READER_MD,
         ),
     ];
     for (file, marker, default_md) in legacy {
@@ -2013,6 +2034,7 @@ fn migrate_seeded_workers(dir: &Path) {
     for file in [
         "research_worker.md",
         "local_code_worker.md",
+        "local_reader.md",
         "review_worker.md",
         "code_worker.md",
     ] {
@@ -3528,6 +3550,38 @@ mod tests {
         assert!(!deny_block.contains("web_search"), "{deny_block}");
         assert!(!deny_block.contains("code_worker"), "{deny_block}");
         assert!(!deny_block.contains("ask_user_question"), "{deny_block}");
+    }
+
+    /// 只读帮手保留长文总结（宿主 map-reduce 是可靠事实通道），其它工人仍 deny。
+    #[test]
+    fn local_reader_keeps_summarize_tool() {
+        let local = worker_denied_tools("local_reader");
+        assert!(!local.contains(&"ai00_text_summarize"), "{local:?}");
+        assert!(local.contains(&"ai00_plan_write"), "{local:?}");
+        for worker in [
+            "research_worker",
+            "code_worker",
+            "local_writer",
+            "local_cmd",
+        ] {
+            assert!(
+                worker_denied_tools(worker).contains(&"ai00_text_summarize"),
+                "{worker} must deny summarize"
+            );
+        }
+    }
+
+    /// 播种迁移：旧 local_reader 默认正文换成新默认（含长文总结引导）；
+    /// 用户改过的正文不命中标记句，保持原样。
+    #[test]
+    fn migrates_local_reader_default_body() {
+        let old = "---\nname: local_reader\ndescription: 只读帮手：查文件、读文件、检索内容（RWKV 本地，工具仅 read/glob/grep/read_image）\nmodel: rwkv-local\ntools:\n  - read\n---\nYou are a local READ-ONLY worker dispatched by the Ai00-X orchestrator.\nUse only glob/grep to locate things and read/read_image to inspect them. Never write or modify files.\n";
+        let migrated = migrate_worker_md("local_reader.md", old);
+        assert!(migrated.contains("ai00_text_summarize"), "{migrated}");
+        assert!(migrated.contains("长文总结/检索内容"), "{migrated}");
+        assert!(migrated.contains("model: rwkv-local"), "{migrated}");
+        let custom = "---\nname: local_reader\ndescription: d\nmodel: rwkv-local\ntools:\n  - read\n---\nMy custom persona.";
+        assert_eq!(migrate_worker_md("local_reader.md", custom), custom);
     }
 
     /// 会话清理：只删「裸 UUID」子会话且按年龄过滤；父会话与新鲜子会话必须保留。
