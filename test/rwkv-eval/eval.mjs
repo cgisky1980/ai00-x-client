@@ -215,11 +215,12 @@ const scenarios = {
       },
     ];
     const c = cases[trial % cases.length];
+    // 非ce 只进 user 行（system 保持干净：随机 hex 会干扰 3B 的工具选择）。
     const tag = `s2-${trial}-${randomUUID().slice(0, 6)}`;
     const r = await chat({
       messages: [
-        { role: "system", content: `你是资料检索助手 ${tag}。只需要一步：调用合适的工具。` },
-        { role: "user", content: c.ask },
+        { role: "system", content: "你是资料检索助手。只需要一步：调用合适的工具。" },
+        { role: "user", content: `（任务标签 ${tag}）${c.ask}` },
       ],
       tools: readTools,
       maxTokens: 128,

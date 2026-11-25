@@ -912,6 +912,9 @@ async fn local_rwkv_sse(
         }
     }
     let local_session = local_session_key(&messages);
+    // 自愈重试复用同一会话键（重试提示是首轮提示的严格前缀延长 → 缓存命中，
+    // 重试只多付几十 token 的 prefill）。
+    let retry_session = local_session.clone();
     log::debug!(
         "[ai-gateway] local prompt ({} chars) head: {:?}",
         prompt.chars().count(),
@@ -1045,18 +1048,85 @@ async fn local_rwkv_sse(
         // 尝试提取工具调用（```json {...} ``` 协议）
         // usage 分片放在 finish 之前、两条分支都发：工具轮以前完全没有 usage，
         // 引擎侧 deriveTurnTokenUsage 拿不到数字 → 本地模型的对话回合用量条全空。
-        if let Some((name, arguments)) = tool_call_from_text(&text, has_tools) {
-            let name = normalize_tool_name(&name, &tool_names);
-            let arguments = normalize_tool_arguments(&name, &arguments);
-            // 破损 JSON 按必填键抢救（多写编造键/引号错位在 3B 上很常见）
-            let arguments = salvage_if_invalid(
-                &name,
-                arguments,
-                tools.as_deref(),
-                task_path_hint.as_deref(),
-            );
-            // 路径写坏（Users / section?2.md）时按 brief 点名文件覆盖
-            let arguments = apply_path_hint(&name, arguments, task_path_hint.as_deref());
+        let mut call = extract_repaired_call(
+            &text,
+            has_tools,
+            &tool_names,
+            tools.as_deref(),
+            task_path_hint.as_deref(),
+        );
+        // 一次性自愈：想调工具但调用不可用（参数解析不了 / 包络残缺）时，
+        // 用「单工具 + 明确示例」的严格提示重问一次（实测失败救回 36%）。
+        let invalid_args = |c: &Option<(String, String)>| {
+            c.as_ref()
+                .is_some_and(|(_, a)| serde_json::from_str::<Value>(a).is_err())
+        };
+        if has_tools
+            && !rounds_exhausted
+            && tool_retry_enabled()
+            && !tx.is_closed()
+            && (invalid_args(&call) || (call.is_none() && looks_like_tool_call_text(&text)))
+        {
+            if let Some(tool_defs) = tools.as_deref() {
+                let (messages_retry, narrowed) =
+                    tool_retry_plan(&messages_for_evidence, tool_defs, task_path_hint.as_deref());
+                let retry_prompt = openai_messages_to_rwkv_prompt(&messages_retry, Some(&narrowed));
+                log::info!("[ai-gateway] tool-call retry (first attempt unusable)");
+                if let Ok(mut rx_retry) = pool_infer(
+                    retry_prompt,
+                    max_tokens.min(192),
+                    top_p,
+                    0,
+                    presence,
+                    frequency,
+                    0.996,
+                    Some(stop.clone()),
+                    Some(retry_session.clone()),
+                    false,
+                    false,
+                    String::new(),
+                )
+                .await
+                {
+                    let mut retry_text = String::new();
+                    while let Some(event) = rx_retry.recv().await {
+                        match event {
+                            InferenceEvent::Token(t) => retry_text.push_str(&t),
+                            InferenceEvent::Done {
+                                text: t,
+                                input_tokens: it,
+                                output_tokens: ot,
+                                cached_tokens: ct,
+                                ..
+                            } => {
+                                retry_text = t;
+                                input_tokens = input_tokens.saturating_add(it);
+                                output_tokens = output_tokens.saturating_add(ot);
+                                cached_tokens = cached_tokens.saturating_add(ct);
+                                break;
+                            }
+                            InferenceEvent::Error(e) => {
+                                log::warn!("[ai-gateway] tool-call retry failed: {e}");
+                                break;
+                            }
+                        }
+                    }
+                    if let Some(recovered) = extract_repaired_call(
+                        &retry_text,
+                        true,
+                        &tool_names,
+                        tools.as_deref(),
+                        task_path_hint.as_deref(),
+                    ) {
+                        if serde_json::from_str::<Value>(&recovered.1).is_ok() {
+                            log::info!("[ai-gateway] tool-call retry recovered: {}", recovered.0);
+                            call = Some(recovered);
+                        }
+                    }
+                }
+            }
+        }
+        if let Some((name, arguments)) = call {
             if let Some(reason) = write_rejection(&name, &arguments) {
                 // 空写会整文件覆盖 → 清空既有交付物；超长写会让 3B 退化。
                 // 强制本地路径（rwkv-local）也必须拦，工人正是走这条路。
@@ -3476,6 +3546,99 @@ fn apply_path_hint(name: &str, arguments: String, hint: Option<&str>) -> String 
     }
     obj.insert("file_path".to_string(), Value::String(hint.to_string()));
     serde_json::to_string(&value).unwrap_or(arguments)
+}
+
+/// 工具轮失败一次的透明自愈重试（`AI00X_TOOL_RETRY=0` 关闭，供 A/B 与排障；
+/// 读一次即缓存，换档须重启进程）。
+fn tool_retry_enabled() -> bool {
+    static V: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *V.get_or_init(|| {
+        std::env::var("AI00X_TOOL_RETRY")
+            .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
+            .unwrap_or(true)
+    })
+}
+
+/// 从模型文本提取并修复工具调用（名称归一 → 参数归一 → 破损抢救 → 路径纠偏）。
+///
+/// 首轮与自愈重试共用同一套修复，避免两条路径口径漂移。
+fn extract_repaired_call(
+    text: &str,
+    has_tools: bool,
+    tool_names: &[String],
+    tools: Option<&[Value]>,
+    path_hint: Option<&str>,
+) -> Option<(String, String)> {
+    let (name, arguments) = tool_call_from_text(text, has_tools)?;
+    let name = normalize_tool_name(&name, tool_names);
+    let arguments = normalize_tool_arguments(&name, &arguments);
+    let arguments = salvage_if_invalid(&name, arguments, tools, path_hint);
+    let arguments = apply_path_hint(&name, arguments, path_hint);
+    Some((name, arguments))
+}
+
+/// 工具轮失败后的「一次性自愈」计划：严格系统指令 + 收窄到意图工具。
+///
+/// 实测（2026-11-25，24 次 / read·glob·grep 三案）：常规提示首轮 10/24 合法，
+/// 失败后用「单工具 + 明确示例」重问，14 次失败救回 5 次（36%）——放在网关内
+/// 透明重试，省掉编排层一整轮工具往返（~1-2s/次）。
+fn tool_retry_plan(
+    messages: &[Value],
+    tools: &[Value],
+    path_hint: Option<&str>,
+) -> (Vec<Value>, Vec<Value>) {
+    let focus = hinted_tool(tools, messages).or_else(|| focus_tool(tools, messages));
+    let narrowed: Vec<Value> = match focus {
+        Some(name) => tools
+            .iter()
+            .filter(|t| {
+                t.get("function")
+                    .and_then(|f| f.get("name"))
+                    .and_then(|n| n.as_str())
+                    == Some(name)
+            })
+            .cloned()
+            .collect(),
+        None => Vec::new(),
+    };
+    let narrowed = if narrowed.is_empty() {
+        tools.to_vec()
+    } else {
+        narrowed
+    };
+    let example = focus.and_then(|name| {
+        let required = required_params(Some(&narrowed), name);
+        if required.is_empty() {
+            return None;
+        }
+        let args = required
+            .iter()
+            .map(|(key, is_array)| {
+                let value = sample_string_arg(name, key, path_hint, None);
+                if *is_array {
+                    format!("\"{key}\": [\"{value}\"]")
+                } else {
+                    format!("\"{key}\": \"{value}\"")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        Some(format!(
+            "{{\"name\": \"{name}\", \"arguments\": {{{args}}}}}"
+        ))
+    });
+    let strict = match example {
+        Some(ex) => format!(
+            "上一次工具调用格式无效。本次只输出一行 JSON 工具调用，形如 {ex} 。\
+             不要解释、不要代码围栏、不要多余字段。"
+        ),
+        None => "上一次工具调用格式无效。本次只输出一行 JSON 工具调用 \
+                 {\"name\": …, \"arguments\": {…}}，不要解释。"
+            .to_string(),
+    };
+    let mut messages_retry = messages.to_vec();
+    messages_retry.push(json!({"role": "system", "content": strict}));
+    (messages_retry, narrowed)
 }
 
 /// 工具参数归一：3B 本地模型常见两类"参数漂移"，这里确定性修掉，
