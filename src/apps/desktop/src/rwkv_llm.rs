@@ -2366,6 +2366,7 @@ fn finalize_task(task: &mut InferenceTask, engine: &mut PoolEngine, _row: Option
         }
     }
     let text = strip_special_markers(&text);
+    let text = strip_marker_spans(&text);
     let _ = task.tx.send(InferenceEvent::Done {
         text,
         input_tokens: task.prompt_tokens.len(),
@@ -2388,6 +2389,30 @@ fn strip_special_markers(text: &str) -> String {
         .min()
         .unwrap_or(text.len());
     text[..cut].to_string()
+}
+
+/// 去掉模型自造的 `✿…✿` 控制样式片段（内部 ≤64 字才成对删除）。
+///
+/// 实测摘要里出现 `✿reverse_i_line274✿`、`✿text0_length_XXX✿`——训练数据里的
+/// 内部标记碎片；自然文本几乎不会成对出现该符号，单独的 ✿ 保留。
+fn strip_marker_spans(text: &str) -> String {
+    const MAX_INNER: usize = 64;
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0usize;
+    while i < chars.len() {
+        if chars[i] == '✿' {
+            if let Some(off) = chars[i + 1..].iter().position(|c| *c == '✿') {
+                if off <= MAX_INNER {
+                    i += off + 2;
+                    continue;
+                }
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
 }
 
 /// 把任务的惩罚历史整行同步到设备 `row` 行（入组 / 槽位迁移时用）。
@@ -3778,6 +3803,17 @@ mod special_marker_tests {
             strip_special_markers("见 <div> 与 << 移位"),
             "见 <div> 与 << 移位"
         );
+    }
+
+    /// `✿…✿` 控制样式片段成对删除；孤立 ✿ 与普通文本保留。
+    #[test]
+    fn strips_marker_spans() {
+        assert_eq!(
+            strip_marker_spans("摘要正文。✿reverse_i_line274✿后续句子。"),
+            "摘要正文。后续句子。"
+        );
+        assert_eq!(strip_marker_spans("花 ✿ 与文本"), "花 ✿ 与文本");
+        assert_eq!(strip_marker_spans("无标记"), "无标记");
     }
 
     /// 训练数据风格的对话标记：与 `<|` 同类处理（实测 s4 吐过

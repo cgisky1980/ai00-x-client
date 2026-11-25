@@ -68,7 +68,7 @@ dashmap = { workspace = true }
 arc-swap = "1"
 futures = { workspace = true }
 htmd = { workspace = true }
-text-splitter = "0.30.1"
+text-splitter = { version = "0.30.1", features = ["markdown"] }
 async-trait = { workspace = true }
 salvo = { workspace = true }
 ai00-run = { workspace = true }

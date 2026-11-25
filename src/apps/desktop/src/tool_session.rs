@@ -81,6 +81,24 @@ pub fn quality_gate(text: &str, hit_len: bool) -> Result<(), Vec<String>> {
         problems.push("json_residue".to_string());
     }
 
+    // 乱码/表情刷屏：可读字符（字母数字/ASCII 标点/空白/CJK 标点）占比过低。
+    // 实测 3B 英文摘要吐过 268 字纯 emoji（无 CJK、无复读，旧门全部放行）。
+    let total = trimmed.chars().count();
+    if total >= 20 {
+        let readable = trimmed
+            .chars()
+            .filter(|c| {
+                c.is_alphanumeric()
+                    || c.is_ascii_punctuation()
+                    || c.is_whitespace()
+                    || "，。！？；：、（）【】“”‘’《》〈〉·—…".contains(*c)
+            })
+            .count();
+        if readable * 10 < total * 7 {
+            problems.push(format!("garbage_symbols({readable}/{total})"));
+        }
+    }
+
     if hit_len {
         let ends_sentence = trimmed
             .chars()
@@ -411,6 +429,19 @@ mod tests {
         assert!(quality_gate(text, true).is_err());
         let ended = format!("{}。", text);
         assert!(quality_gate(&ended, true).is_ok());
+    }
+
+    /// 表情/符号刷屏按乱码拒绝；正常中英文与标点不受影响。
+    #[test]
+    fn quality_gate_rejects_symbol_spam() {
+        let spam = "💖💖💖💖💖💖💹💖🻨💕👉❤❤️👉❤❤️❤️❤️👉❤️♥️♥️♥♥️♥♡️♥❤♡️♥♡♂♡♂❧❦❥★❞☆";
+        assert!(quality_gate(spam, false).is_err(), "emoji spam should fail");
+        assert!(quality_gate("普通中文正文，带标点与数字 3.5，可以正常通过。", false).is_ok());
+        assert!(quality_gate(
+            "Plain English prose with punctuation, digits 3.5 and symbols (a) [b] <c>.",
+            false
+        )
+        .is_ok());
     }
 
     #[test]

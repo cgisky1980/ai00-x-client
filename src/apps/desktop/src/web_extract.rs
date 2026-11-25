@@ -1026,13 +1026,22 @@ async fn summarize_chunk(
     total: usize,
     chunk: &str,
     focus: Option<&str>,
+    cjk: bool,
 ) -> (String, bool) {
-    let focus_clause = focus
-        .map(|f| format!("，重点关注「{f}」"))
-        .unwrap_or_default();
-    let prompt = format!(
-        "Instruction: 以下是长文的第 {idx}/{total} 部分，请总结其要点{focus_clause}，控制在 {SUMMARIZE_CHUNK_TARGET} 字以内。\n\nInput: {chunk}\n\nResponse: "
-    );
+    let focus_clause = match (focus, cjk) {
+        (Some(f), true) => format!("，重点关注「{f}」"),
+        (Some(f), false) => format!(", focus on \"{f}\""),
+        (None, _) => String::new(),
+    };
+    let prompt = if cjk {
+        format!(
+            "Instruction: 以下是长文的第 {idx}/{total} 部分，请总结其要点{focus_clause}，控制在 {SUMMARIZE_CHUNK_TARGET} 字以内。\n\nInput: {chunk}\n\nResponse: "
+        )
+    } else {
+        format!(
+            "Instruction: The following is part {idx}/{total} of a long text. Summarize its key points{focus_clause} in under {SUMMARIZE_CHUNK_TARGET} characters.\n\nInput: {chunk}\n\nResponse: "
+        )
+    };
     for top_p in [0.3, 0.5] {
         let attempt = tokio::time::timeout(
             Duration::from_secs(SCREEN_TIMEOUT_SECS),
@@ -1041,6 +1050,17 @@ async fn summarize_chunk(
         .await;
         if let Ok(Ok((text, hit_len))) = attempt {
             if let Some(summary) = accept_summary(text, hit_len) {
+                // 分块语言闸门：英文块吐中文/日文会污染后续合并（实测 chunk 0/3 英文），
+                // 该块改用它自己的同语言摘录。
+                if summary.chars().count() >= 20 && is_cjk_text(&summary) != cjk {
+                    log::warn!(
+                        "[text-summarize] chunk {idx}/{total} language mismatch -> extractive"
+                    );
+                    return (
+                        extractive_summary(chunk, focus, SUMMARIZE_CHUNK_TARGET),
+                        false,
+                    );
+                }
                 return (summary, false);
             }
             log::warn!("[text-summarize] chunk {idx}/{total} failed quality gate (top_p={top_p})");
@@ -1055,35 +1075,318 @@ async fn summarize_chunk(
     )
 }
 
+/// 文本主语言：CJK 字数 ≥ 拉丁字母数的一半 → 中文，否则英文。
+///
+/// 摘要提示词此前写死中文，实测英文 3k 字文档输出 83% 是汉字（2026-11-25 探针）：
+/// 国际用户看到的摘要直接跑偏。按正文语言选提示词，输出语言跟随原文。
+fn is_cjk_text(text: &str) -> bool {
+    let mut cjk = 0usize;
+    let mut latin = 0usize;
+    for c in text.chars().take(3000) {
+        if ('\u{4e00}'..='\u{9fff}').contains(&c) {
+            cjk += 1;
+        } else if c.is_ascii_alphabetic() {
+            latin += 1;
+        }
+    }
+    cjk * 2 >= latin.max(1)
+}
+
+/// 按中英文句末标点切句（保留终止符）。英文 `.` 只在后面是空白/引号/结尾时算
+/// 句末，避免把 `3.5` / `example.com` 切碎。
+fn split_sentences(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut it = text.char_indices().peekable();
+    while let Some((_, c)) = it.next() {
+        cur.push(c);
+        let end = match c {
+            '。' | '！' | '？' | '；' | '\n' => true,
+            '!' | '?' | ';' => true,
+            '.' => it
+                .peek()
+                .map(|(_, n)| n.is_whitespace() || matches!(n, '"' | '\'' | ')' | ']'))
+                .unwrap_or(true),
+            _ => false,
+        };
+        if end {
+            let s = cur.trim().to_string();
+            if !s.is_empty() {
+                out.push(s);
+            }
+            cur.clear();
+        }
+    }
+    let s = cur.trim().to_string();
+    if !s.is_empty() {
+        out.push(s);
+    }
+    out
+}
+
 /// focus 命中句摘录（确定性）：把「含 focus 的原文句子」补进摘要。
 ///
 /// 实测（2026-11-25，12 对 3.8k 字材料，埋入编号）：无论是否给 focus，3B 摘要
 /// 都不保留编号（0/12），且半数输出撞 500 字上限或降级为原文截断——研究/问答
 /// 链路靠摘要传递关键事实，模型注意力不可靠时只能由宿主兜底：摘要后补一段
 /// 「原文摘录」，保证被查询的事实不丢。最多 3 句 / 300 字。
+///
+/// 英文文档同样生效：旧实现只按中文标点切句，整篇英文变成一个「超长句」被
+/// MAX_CHARS 直接丢弃（实测英文探针摘录为空），现按 `split_sentences` 切。
 fn focus_evidence(text: &str, focus: &str) -> Option<String> {
     const MAX_SENTENCES: usize = 3;
     const MAX_CHARS: usize = 300;
     let needle = focus.to_lowercase();
     let mut out = String::new();
-    let mut sentences = 0usize;
-    for raw in text.split(['。', '！', '？', '\n', '；']) {
-        let sentence = raw.trim();
-        if sentence.is_empty() || !sentence.to_lowercase().contains(&needle) {
+    let mut count = 0usize;
+    for sentence in split_sentences(text) {
+        if !sentence.to_lowercase().contains(&needle) {
             continue;
         }
-        let mut piece = sentence.to_string();
-        piece.push('。');
-        if out.chars().count() + piece.chars().count() > MAX_CHARS {
+        // 英文句子之间补空格；纯 CJK 句子直接连写。
+        let sep = if !out.is_empty() && sentence.chars().any(|c| c.is_ascii_alphabetic()) {
+            " "
+        } else {
+            ""
+        };
+        if out.chars().count() + sep.len() + sentence.chars().count() > MAX_CHARS {
             break;
         }
-        out.push_str(&piece);
-        sentences += 1;
-        if sentences >= MAX_SENTENCES {
+        out.push_str(sep);
+        out.push_str(&sentence);
+        count += 1;
+        if count >= MAX_SENTENCES {
             break;
         }
     }
     (!out.is_empty()).then_some(out)
+}
+
+/// 把过小的块并入相邻块（MarkdownSplitter 会把孤立围栏/短标题切成 <200 字的块，
+/// 单独摘要毫无意义）。合并后允许超出上限 ≤200 字。
+fn merge_tiny_chunks(chunks: Vec<String>, max_chars: usize) -> Vec<String> {
+    const TINY: usize = 200;
+    let mut out: Vec<String> = Vec::new();
+    let mut carry = String::new();
+    for c in chunks {
+        let c = if carry.is_empty() {
+            c
+        } else {
+            let mut s = std::mem::take(&mut carry);
+            s.push('\n');
+            s.push_str(&c);
+            s
+        };
+        if c.chars().count() < TINY {
+            if let Some(last) = out.last_mut() {
+                if last.chars().count() + c.chars().count() < max_chars {
+                    last.push('\n');
+                    last.push_str(&c);
+                    continue;
+                }
+            }
+            carry = c;
+            continue;
+        }
+        out.push(c);
+    }
+    if !carry.is_empty() {
+        if let Some(last) = out.last_mut() {
+            last.push('\n');
+            last.push_str(&carry);
+        } else {
+            out.push(carry);
+        }
+    }
+    out
+}
+
+/// 智能切块：`MarkdownSplitter`（pulldown-cmark）按标题层级 / 段落 / 代码围栏 /
+/// 列表切分，报告类长文不会从章节中间劈开，代码块按行切而不是从行内切断。
+///
+/// 2026-11-25 实测（text-splitter 0.30.1）：4 个 `##` 章节（5.8k 字）→ 两块都从
+/// `##` 标题起；含 5k 字围栏的文档 → 围栏独立成块、代码整行切；纯文本/空行分段
+/// 的结果与 `TextSplitter` 完全一致，故统一走 Markdown 切分。
+fn split_for_summary(text: &str) -> Vec<String> {
+    let chunks: Vec<String> = text_splitter::MarkdownSplitter::new(SUMMARIZE_CHUNK_CHARS)
+        .chunks(text)
+        .map(str::to_string)
+        .collect();
+    merge_tiny_chunks(chunks, SUMMARIZE_CHUNK_CHARS)
+}
+
+/// 模型摘要超长时按句末标点收到 `max_chars` 内（prompt 里的长度要求 3B 常忽略：
+/// 实测要求 300 字却输出 2478 字）。取「能完整放下的句子前缀」，一句都放不下才硬切。
+fn cap_summary_length(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+    let mut out = String::new();
+    for s in split_sentences(text) {
+        let sep = if !out.is_empty() && s.chars().any(|c| c.is_ascii_alphabetic()) {
+            " "
+        } else {
+            ""
+        };
+        if out.chars().count() + sep.len() + s.chars().count() > max_chars {
+            // 单句就超上限（整段没有句末标点，实测英文重写吐过 704 字一句）：
+            // 硬切，否则上限形同虚设。
+            if out.is_empty() {
+                return s.chars().take(max_chars).collect();
+            }
+            break;
+        }
+        out.push_str(sep);
+        out.push_str(&s);
+    }
+    if out.is_empty() {
+        text.chars().take(max_chars).collect()
+    } else {
+        out
+    }
+}
+
+/// 确定性摘录式摘要：开头两句（导语）+ focus 命中句，保证与原文同语言。
+///
+/// 用于「模型摘要语言跑偏」的兜底。实测（2026-11-25，英文 3k/4k/12k 文：
+/// 基础指令 2/4 英文、尾部强调 1/4、chunk 0/3、reduce 0/3、翻译兜底 0/3，
+/// 另出现过 268 字纯 emoji）——3B 对长英文文档的摘要语言遵循不可靠，与其
+/// 返回中文乱码，不如退到同语言摘录：事实密度高、零推理成本、永不跑偏。
+fn extractive_summary(text: &str, focus: Option<&str>, max_chars: usize) -> String {
+    let sentences = split_sentences(text);
+    // 优先级：首句 → focus 命中句（至多 2 句）→ 第二句。不能先排两条导语再放
+    // focus 句——实测长度上限会把关键句挤掉（英文 3k 案例摘录 201 字但暗号丢失）。
+    let mut picks: Vec<usize> = Vec::new();
+    if !sentences.is_empty() {
+        picks.push(0);
+    }
+    if let Some(f) = focus {
+        let needle = f.to_lowercase();
+        let mut extra = 0usize;
+        for (i, s) in sentences.iter().enumerate() {
+            if extra >= 2 {
+                break;
+            }
+            if picks.contains(&i) || !s.to_lowercase().contains(&needle) {
+                continue;
+            }
+            picks.push(i);
+            extra += 1;
+        }
+    }
+    if sentences.len() > 1 && !picks.contains(&1) {
+        picks.push(1);
+    }
+    let mut out = String::new();
+    for i in picks {
+        let s = &sentences[i];
+        let sep = if !out.is_empty() && s.chars().any(|c| c.is_ascii_alphabetic()) {
+            " "
+        } else {
+            ""
+        };
+        if !out.is_empty() && out.chars().count() + sep.len() + s.chars().count() > max_chars {
+            break;
+        }
+        out.push_str(sep);
+        out.push_str(s);
+    }
+    out
+}
+
+/// 拉丁字母是否占字母多数（英文/西欧语近似判定）。
+///
+/// 非中文长文的「摘录 → 一段话」重写提示词固定英文；对俄语/日文等非英文文档
+/// 不能强行翻成英文——不是英文就直接返回摘录（同语言）。
+fn looks_english(text: &str) -> bool {
+    let mut ascii = 0usize;
+    let mut other = 0usize;
+    for c in text.chars().take(3000) {
+        if c.is_ascii_alphabetic() {
+            ascii += 1;
+        } else if c.is_alphabetic() {
+            other += 1;
+        }
+    }
+    ascii >= other.max(1)
+}
+
+/// CJK 字符占比（语言闸门用：重写结果必须 <5% 汉字才算英文）。
+fn cjk_ratio(text: &str) -> f32 {
+    let mut cjk = 0usize;
+    let mut total = 0usize;
+    for c in text.chars() {
+        total += 1;
+        if ('\u{4e00}'..='\u{9fff}').contains(&c) {
+            cjk += 1;
+        }
+    }
+    if total == 0 {
+        0.0
+    } else {
+        cjk as f32 / total as f32
+    }
+}
+
+/// 非中文长文：确定性摘录 → 一次「写成一段」重写。
+///
+/// 实测（2026-11-25）：3B 直接总结长英文文档 0/3~2/4 出英文（chunk 0/3、reduce
+/// 0/3），但「把这几句关键句写成一段英文」3/3 出英文、约 1 秒。故非中文长文
+/// 不再逐块调用模型：宿主先按块摘录，再让模型写一段话；重写失败/跑偏时直接
+/// 返回摘录（同语言、事实不丢）。
+async fn summarize_non_cjk(text: &str, focus: Option<&str>, max_length: usize) -> SummarizeResult {
+    let chunks = split_for_summary(text);
+    let mut extracts: Vec<String> = Vec::new();
+    for c in &chunks {
+        let e = extractive_summary(c, focus, SUMMARIZE_CHUNK_TARGET);
+        // 摘录开头的 Markdown 标记会把重写提示带偏（实测 "## Section 0 …" 输入
+        // 更容易吐中文），生成前先去掉行首 `#`。
+        let e = e.trim_start_matches('#').trim_start().to_string();
+        if !e.is_empty() {
+            extracts.push(e);
+        }
+    }
+    // 摘录总长压到 400 字：实测 1200 字输入时英文率 2/3、600 token 时 1/3，
+    // 300–400 字 + 320 token 是 3/3（2026-11-25 探针）。
+    let joined: String = extracts.join(" ").chars().take(400).collect();
+    if joined.is_empty() {
+        return SummarizeResult {
+            summary: String::new(),
+            degraded: true,
+        };
+    }
+    if !looks_english(text) {
+        log::warn!("[text-summarize] non-cjk non-english doc, returning extracts");
+        return SummarizeResult {
+            summary: cap_summary_length(&joined, max_length),
+            degraded: true,
+        };
+    }
+    let prompt = format!(
+        "System: Write one short paragraph of plain prose in English that summarizes these key sentences. No headings, lists or quotes. Only the paragraph.\n\nUser: Key sentences: {joined}\n\nAssistant: "
+    );
+    let attempt = tokio::time::timeout(
+        Duration::from_secs(SCREEN_TIMEOUT_SECS),
+        summarize_once(prompt, 320, 0.3),
+    )
+    .await;
+    if let Ok(Ok((summary, hit_len))) = attempt {
+        if let Some(summary) = accept_summary(summary, hit_len) {
+            // 英文重写必须几乎无汉字（"根据…总结出如下要点 1 Document 解释…" 这类
+            // 中英混排的 is_cjk_text 判定会放行，实测 0.13 占比漏网）。
+            if cjk_ratio(&summary) < 0.05 {
+                return SummarizeResult {
+                    summary: cap_summary_length(&summary, max_length),
+                    degraded: false,
+                };
+            }
+        }
+    }
+    log::warn!("[text-summarize] non-cjk rewrite failed, returning extracts");
+    SummarizeResult {
+        summary: cap_summary_length(&joined, max_length),
+        degraded: true,
+    }
 }
 
 /// 长文总结主流程：≤6000 单次；>6000 切块并发 map → 合并 reduce。
@@ -1106,22 +1409,36 @@ pub async fn summarize(
     let focus: Option<String> =
         focus.map(|f| f.chars().filter(|c| !c.is_control()).take(100).collect());
     let focus = focus.as_deref();
-    let focus_clause = focus
-        .map(|f| format!("，重点关注「{f}」"))
-        .unwrap_or_default();
+    let cjk = is_cjk_text(text);
+    let focus_clause = match (focus, cjk) {
+        (Some(f), true) => format!("，重点关注「{f}」"),
+        (Some(f), false) => format!(", focus on \"{f}\""),
+        (None, _) => String::new(),
+    };
     let char_count = text.chars().count();
     // 摘要后兜底：focus 命中句补录（见 `focus_evidence`）。
     // 判重只看「摘录句是否已整体出现在摘要里」——模型常写出「登记暗号」这个词
     // 却漏掉值（实测 1/12），按关键词判重会把这种漏值当成已覆盖。
     let attach_focus = |mut result: SummarizeResult| -> SummarizeResult {
+        // 语言闸门：摘要语言与原文不一致（3B 英文长文常吐中文/日文）→ 同语言摘录兜底。
+        // 摘录本身已含 focus 命中句，不再追加「原文摘录」。
+        if !result.summary.trim().is_empty()
+            && result.summary.chars().count() >= 20
+            && is_cjk_text(&result.summary) != cjk
+        {
+            log::warn!("[text-summarize] language mismatch (doc_cjk={cjk}), extractive fallback");
+            result.summary = extractive_summary(text, focus, max_length);
+            result.degraded = true;
+            return result;
+        }
         if let Some(f) = focus {
             if let Some(evidence) = focus_evidence(text, f) {
                 if !result.summary.contains(evidence.trim()) {
+                    let label = if cjk { "原文摘录：" } else { "Excerpt: " };
                     if !result.summary.is_empty() {
-                        result.summary.push_str("\n\n原文摘录：");
-                    } else {
-                        result.summary.push_str("原文摘录：");
+                        result.summary.push_str("\n\n");
                     }
+                    result.summary.push_str(label);
                     result.summary.push_str(&evidence);
                 }
             }
@@ -1129,10 +1446,22 @@ pub async fn summarize(
         result
     };
 
+    // 非中文文档全部走「摘录 → 一次重写」：3B 对英文文档的单次摘要也只有
+    // 2/4 出英文（3k 实测），且常写满 1000 token（10–15s）后被丢弃。
+    if !cjk {
+        return attach_focus(summarize_non_cjk(text, focus, max_length).await);
+    }
+
     if char_count <= SUMMARIZE_SINGLE_SHOT_CHARS {
-        let prompt = format!(
-            "Instruction: 请总结以下文本{focus_clause}，控制在 {max_length} 字以内。\n\nInput: {text}\n\nResponse: "
-        );
+        let prompt = if cjk {
+            format!(
+                "Instruction: 请总结以下文本{focus_clause}，控制在 {max_length} 字以内。\n\nInput: {text}\n\nResponse: "
+            )
+        } else {
+            format!(
+                "Instruction: Summarize the following text{focus_clause} in under {max_length} characters. Write plain prose.\n\nInput: {text}\n\nResponse: "
+            )
+        };
         return attach_focus(
             match tokio::time::timeout(
                 Duration::from_secs(SCREEN_TIMEOUT_SECS * 2),
@@ -1142,7 +1471,7 @@ pub async fn summarize(
             {
                 Ok(Ok((summary, hit_len))) => match accept_summary(summary, hit_len) {
                     Some(summary) => SummarizeResult {
-                        summary,
+                        summary: cap_summary_length(&summary, max_length),
                         degraded: false,
                     },
                     None => {
@@ -1164,16 +1493,16 @@ pub async fn summarize(
         );
     }
 
-    // map：text-splitter 按 ~4000 字符切块（语义边界），并发逐块摘要
-    let splitter = text_splitter::TextSplitter::new(SUMMARIZE_CHUNK_CHARS);
-    let chunks: Vec<&str> = splitter.chunks(text).collect();
+    // map：智能切块（Markdown 标题/段落/代码围栏），并发逐块摘要
+    let owned = split_for_summary(text);
+    let chunks: Vec<&str> = owned.iter().map(String::as_str).collect();
     let total = chunks.len();
     log::info!("[text-summarize] map-reduce: {char_count} chars -> {total} chunks");
     let partials: Vec<(String, bool)> = futures::future::join_all(
         chunks
             .iter()
             .enumerate()
-            .map(|(i, c)| summarize_chunk(i + 1, total, c, focus)),
+            .map(|(i, c)| summarize_chunk(i + 1, total, c, focus, cjk)),
     )
     .await;
     let any_degraded = partials.iter().any(|(_, d)| *d);
@@ -1184,10 +1513,16 @@ pub async fn summarize(
         .collect::<Vec<_>>()
         .join("\n");
 
-    // reduce：合并各块摘要为连贯总结
-    let prompt = format!(
-        "Instruction: 以下是一篇长文各部分的要点，请合并成一篇连贯的总结{focus_clause}，控制在 {max_length} 字以内。\n\nInput: {joined}\n\nResponse: "
-    );
+    // reduce：合并各块摘要为连贯总结（明确要散文，避免默认输出编号列表）
+    let prompt = if cjk {
+        format!(
+            "Instruction: 以下是一篇长文各部分的要点，请合并成一篇连贯的总结{focus_clause}，控制在 {max_length} 字以内，不要逐条编号罗列。\n\nInput: {joined}\n\nResponse: "
+        )
+    } else {
+        format!(
+            "Instruction: Below are the key points of each part of a long text. Merge them into one coherent summary{focus_clause} in under {max_length} characters. Write plain prose, no numbered list.\n\nInput: {joined}\n\nResponse: "
+        )
+    };
     attach_focus(
         match tokio::time::timeout(
             Duration::from_secs(SCREEN_TIMEOUT_SECS * 2),
@@ -1197,7 +1532,7 @@ pub async fn summarize(
         {
             Ok(Ok((summary, hit_len))) => match accept_summary(summary, hit_len) {
                 Some(summary) => SummarizeResult {
-                    summary,
+                    summary: cap_summary_length(&summary, max_length),
                     degraded: any_degraded,
                 },
                 None => {
@@ -1263,6 +1598,101 @@ mod tests {
         // 复读退化仍拒绝（剪断也救不了）
         let rept = "同一片段反复出现同一片段反复出现同一片段反复出现同一片段反复出现。".repeat(3);
         assert!(accept_summary(rept, true).is_none());
+    }
+
+    /// 语言判定：中文正文 → true；英文 → false；少量 CJK 混排仍按英文。
+    #[test]
+    fn detects_text_language() {
+        assert!(is_cjk_text(
+            "本地推理引擎负责把长文本分块喂入状态空间模型。"
+        ));
+        assert!(!is_cjk_text(
+            "The local inference engine splits long documents into chunks."
+        ));
+        assert!(!is_cjk_text(
+            "RWKV 3B model with 少量中文 mixed text and more English words here."
+        ));
+    }
+
+    /// 英文切句：句点后是空白才算句末；小数/域名不切。
+    #[test]
+    fn splits_english_sentences() {
+        let s = split_sentences("Latency is 3.5 ms. See example.com for details! Done?");
+        assert_eq!(s.len(), 3, "{s:?}");
+        assert_eq!(s[0], "Latency is 3.5 ms.");
+        assert_eq!(s[2], "Done?");
+    }
+
+    /// 英文 focus 摘录：旧实现按中文标点切句会整篇丢弃，现在能命中。
+    #[test]
+    fn focus_evidence_supports_english() {
+        let text = "The engine reuses cached state. The registered code is EN42AB. \
+                    Another unrelated sentence follows.";
+        let ev = focus_evidence(text, "code").expect("英文字符串应命中");
+        assert!(ev.contains("The registered code is EN42AB."), "{ev}");
+    }
+
+    /// 智能切块：Markdown 报告按标题边界切，块内不跨章节、不超上限。
+    #[test]
+    fn split_for_summary_respects_markdown_structure() {
+        let sec = "段落内容，保持语义边界。".repeat(120);
+        let mut doc = String::new();
+        for i in 0..4 {
+            doc.push_str(&format!("## Section {i}\n\n{sec}\n\n"));
+        }
+        let chunks = split_for_summary(&doc);
+        assert!(chunks.len() >= 2);
+        for c in &chunks {
+            assert!(
+                c.chars().count() <= SUMMARIZE_CHUNK_CHARS + 200,
+                "chunk too big: {}",
+                c.chars().count()
+            );
+            let head: String = c.trim_start().chars().take(12).collect();
+            assert!(head.starts_with("## Section"), "{head}");
+        }
+    }
+
+    /// 孤立代码围栏（<200 字）不能单独成块，必须与相邻正文合并。
+    #[test]
+    fn split_for_summary_merges_tiny_fence_chunks() {
+        let code = "fn main() {\n    println!(\"hello\");\n}\n".repeat(180);
+        let doc = format!("## Code\n\n```rust\n{code}```\n\n## After\n\n尾巴段落。\n");
+        let chunks = split_for_summary(&doc);
+        assert!(
+            chunks.iter().all(|c| c.chars().count() >= 200),
+            "tiny chunk leaked: {:?}",
+            chunks.iter().map(|c| c.chars().count()).collect::<Vec<_>>()
+        );
+    }
+
+    /// 长度上限：超长摘要按句末收进 max_chars；短摘要原样返回。
+    #[test]
+    fn cap_summary_length_cuts_at_sentence() {
+        let long = "这是第一句完整的摘要内容。第二句也很完整并且继续展开。第三句还在继续展开内容。";
+        let out = cap_summary_length(long, 20);
+        assert!(out.chars().count() <= 20, "{out}");
+        assert!(out.ends_with('。'), "{out}");
+        assert_eq!(cap_summary_length("很短的摘要。", 100), "很短的摘要。");
+        let en = "First sentence here. Second sentence follows.";
+        let out = cap_summary_length(en, 25);
+        assert!(out.chars().count() <= 25 && out.ends_with('.'), "{out}");
+        // 单句超上限（无句末标点）必须硬切
+        let one = "word ".repeat(200);
+        let out = cap_summary_length(&one, 50);
+        assert!(out.chars().count() <= 50, "{}", out.chars().count());
+    }
+
+    /// 摘录优先级：首句 → focus 命中句 → 第二句；上限内 focus 事实不能被导语挤掉。
+    #[test]
+    fn extractive_summary_prioritizes_focus_under_cap() {
+        let s1 = "First lead sentence that is intentionally quite long so it consumes a large part of the excerpt budget.";
+        let s2 = "Second lead sentence that is also long enough to compete for the remaining budget in the excerpt.";
+        let s3 = "The registered code is MK42XY and it must survive the excerpt cap.";
+        let text = format!("{s1} {s2} {s3} Unrelated tail.");
+        let out = extractive_summary(&text, Some("code"), 180);
+        assert!(out.contains("MK42XY"), "{out}");
+        assert!(!out.contains("Second lead"), "{out}");
     }
 
     #[test]
