@@ -1705,16 +1705,21 @@ fn remote_first_byte_timeout_secs() -> u64 {
         .unwrap_or(60)
 }
 
-/// 远端流空闲超时秒数（默认 90；`AI00X_REMOTE_IDLE_SECS` 可覆盖，测试用）。
+/// 远端流空闲超时秒数（默认 180；`AI00X_REMOTE_IDLE_SECS` 可覆盖，测试用）。
 ///
 /// 上游挂起时（实测自建 RWKV 通道「建预扣后不 settle」）不会主动断开；
 /// 没有这个超时，引擎回合会静默结束、计划卡停住且无错误可重试。
+///
+/// 默认 90 → 180（2026-11-26 实机）：云端 worker 一次大文件 write 的流在
+/// 推理后静默 90s 被我们主动切断，连续两轮 T2 因此失败（会话记录里
+/// `upstream idle timeout: no data for 90s`）。这类静默多为上游排队/抖动，
+/// 3 分钟仍无字节才判死；真正挂起时用户可用子代理卡上的「停止」立即收口。
 fn remote_idle_timeout_secs() -> u64 {
     std::env::var("AI00X_REMOTE_IDLE_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .filter(|v: &u64| *v > 0)
-        .unwrap_or(90)
+        .unwrap_or(180)
 }
 
 /// 转发到指定模型引用（OpenAI 兼容 SSE 透传）：`ai00-api` → primary 槽；

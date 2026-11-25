@@ -96,6 +96,11 @@ export interface DshSubagentCatalogEntry {
   mode: DshSubagentMode;
   /** 创建时冻结的展示标签（continuable 必有）。 */
   label?: string;
+  /**
+   * 派发时调用方给的名字（worker 工具结果回执里的正是它：
+   * `started subagent <name>`，不是会话 id）。卡片靠它把回执映射回真实子会话。
+   */
+  name?: string;
 }
 
 /** 子会话自身 turn 计时的 durable 投影（`subagentTiming`）。 */
@@ -2077,7 +2082,7 @@ export function extractSubagentCatalog(events: DshSessionEvent[]): DshSubagentCa
   for (const event of events) {
     if (event.type !== 'subagent/catalog') continue;
     const data = event.data as
-      | { childId?: unknown; childCreatedAt?: unknown; mode?: unknown; label?: unknown }
+      | { childId?: unknown; childCreatedAt?: unknown; mode?: unknown; label?: unknown; name?: unknown }
       | undefined;
     const id = typeof data?.childId === 'string' ? data.childId : '';
     if (!id) continue;
@@ -2090,6 +2095,7 @@ export function extractSubagentCatalog(events: DshSessionEvent[]): DshSubagentCa
       createdAt: typeof data?.childCreatedAt === 'number' ? data.childCreatedAt : 0,
       mode,
       ...(typeof data?.label === 'string' && data.label ? { label: data.label } : {}),
+      ...(typeof data?.name === 'string' && data.name ? { name: data.name } : {}),
     });
   }
   return [...entries.values()];

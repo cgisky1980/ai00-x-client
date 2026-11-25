@@ -55,6 +55,8 @@ export interface WorkbenchSubagentMeta {
   createdAt: number;
   mode: DshSubagentMode;
   label?: string;
+  /** 派发时调用方给的名字（worker 工具回执 `started subagent <name>` 用它反查 id）。 */
+  name?: string;
 }
 
 interface WorkbenchTaskState {
@@ -129,7 +131,13 @@ function normalizeCatalog(value: unknown): WorkbenchSubagentMeta[] {
   const rows: WorkbenchSubagentMeta[] = [];
   for (const item of value) {
     if (!item || typeof item !== 'object') continue;
-    const row = item as { id?: unknown; createdAt?: unknown; mode?: unknown; label?: unknown };
+    const row = item as {
+      id?: unknown;
+      createdAt?: unknown;
+      mode?: unknown;
+      label?: unknown;
+      name?: unknown;
+    };
     if (typeof row.id !== 'string' || !row.id) continue;
     rows.push({
       id: row.id,
@@ -139,6 +147,7 @@ function normalizeCatalog(value: unknown): WorkbenchSubagentMeta[] {
           ? row.mode
           : 'unknown',
       ...(typeof row.label === 'string' && row.label ? { label: row.label } : {}),
+      ...(typeof row.name === 'string' && row.name ? { name: row.name } : {}),
     });
   }
   return rows;
@@ -170,6 +179,7 @@ function sameCatalog(a: WorkbenchSubagentMeta[], b: WorkbenchSubagentMeta[]): bo
       (row, i) =>
         row.id === b[i].id &&
         row.label === b[i].label &&
+        row.name === b[i].name &&
         row.mode === b[i].mode &&
         row.createdAt === b[i].createdAt,
     )
@@ -374,6 +384,7 @@ export const useWorkbenchTaskStore = create<WorkbenchTaskState>((set) => ({
           createdAt: entry.createdAt || prev?.createdAt || 0,
           mode: entry.mode === 'unknown' ? (prev?.mode ?? 'unknown') : entry.mode,
           ...(entry.label ?? prev?.label ? { label: entry.label ?? prev?.label } : {}),
+          ...(entry.name ?? prev?.name ? { name: entry.name ?? prev?.name } : {}),
         });
       }
       const next = [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);

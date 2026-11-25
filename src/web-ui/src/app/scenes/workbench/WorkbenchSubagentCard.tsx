@@ -83,10 +83,19 @@ export const WorkbenchSubagentCard: React.FC<WorkbenchSubagentCardProps> = ({
   parentSessionId,
 }) => {
   const { t } = useTranslation('common');
-  const childId = useMemo(() => startedSubagentId(call.result), [call.result]);
-  const meta = useWorkbenchTaskStore(s =>
-    childId ? s.subagentCatalog[parentSessionId]?.find(row => row.id === childId) : undefined,
+  const catalog = useWorkbenchTaskStore(s => s.subagentCatalog[parentSessionId]);
+  /**
+   * 回执里的 token 是**派发名**（`started subagent rosa-html`），不是子会话 id
+   * （2026-11-26 实测：卡片拿名字当 id 去查 children/timing，永远查不到 →
+   * 状态恒「已完成」、展开也看不到过程）。目录投影同时带 id 与 name，
+   * 按 id 命中优先、其次按 name 反查，才是真正的子会话。
+   */
+  const receipt = useMemo(() => startedSubagentId(call.result), [call.result]);
+  const meta = useMemo(
+    () => catalog?.find(row => row.id === receipt) ?? catalog?.find(row => row.name === receipt),
+    [catalog, receipt],
   );
+  const childId = meta?.id ?? receipt;
   const timing = useWorkbenchTaskStore(s => (childId ? s.subagentTiming[childId] : undefined));
   const child = useWorkbenchTaskStore(s =>
     childId ? s.children[parentSessionId]?.find(row => row.sessionId === childId) : undefined,
@@ -120,7 +129,7 @@ export const WorkbenchSubagentCard: React.FC<WorkbenchSubagentCardProps> = ({
   // ---- 停止 / 继续（引擎 subagents/* 控制面；失败必须可见，不做假入口） ----
   /** continuable 才可继续；目录还没到时（meta 缺失）先按可停止处理。 */
   const continuable = meta?.mode === 'continuable';
-  const canStop = Boolean(childId) && running && (!meta || continuable);
+  const canStop = Boolean(meta) && running && (!meta || continuable);
 
   const [continueOpen, setContinueOpen] = useState(false);
   const [draft, setDraft] = useState('');
@@ -254,8 +263,8 @@ export const WorkbenchSubagentCard: React.FC<WorkbenchSubagentCardProps> = ({
       </summary>
       <div className="ai00-x-wb-subagent__body">
         {/* 过程优先：展开第一眼就是子代理自己在干什么，而不是开发者字段 */}
-        {childId ? (
-          <WorkbenchSubagentTranscript childSessionId={childId} running={running} />
+        {meta ? (
+          <WorkbenchSubagentTranscript childSessionId={meta.id} running={running} />
         ) : null}
         {prompt && (
           <details className="ai00-x-wb-subagent__brief">
@@ -263,11 +272,11 @@ export const WorkbenchSubagentCard: React.FC<WorkbenchSubagentCardProps> = ({
             <div className="ai00-x-wb-subagent__brief-text">{prompt}</div>
           </details>
         )}
-        {childId && (
+        {meta && (
           <div className="ai00-x-wb-subagent__foot">
             <span className="ai00-x-wb-subagent__foot-id">
-              {childId}
-              {meta?.mode && ` · ${meta.mode}`}
+              {meta.id}
+              {meta.mode && ` · ${meta.mode}`}
             </span>
           </div>
         )}
