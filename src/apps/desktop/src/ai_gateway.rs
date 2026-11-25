@@ -901,6 +901,13 @@ async fn local_rwkv_sse(
         .unwrap_or(if has_tools { 0.1 } else { 0.3 });
     let presence = if has_tools { 0.5 } else { 0.3 };
     let frequency = if has_tools { 0.5 } else { 0.3 };
+    // 请求显式给的 top_k 优先（Some(0) = 不限，可覆盖工具轮默认贪心）——
+    // 供评测做同进程配对 A/B，也符合 OpenAI 兼容客户端传采样参数的直觉。
+    let top_k = body
+        .get("top_k")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize)
+        .unwrap_or_else(|| local_top_k(has_tools));
 
     let prompt = openai_messages_to_rwkv_prompt(&messages, tools.as_deref());
     let is_instruction_format = prompt.starts_with("Instruction: ");
@@ -929,7 +936,7 @@ async fn local_rwkv_sse(
         prompt.clone(),
         max_tokens,
         top_p,
-        local_top_k(has_tools),
+        top_k,
         presence,
         frequency,
         0.996,
@@ -1076,7 +1083,7 @@ async fn local_rwkv_sse(
                     retry_prompt,
                     max_tokens.min(192),
                     top_p,
-                    local_top_k(true),
+                    top_k,
                     presence,
                     frequency,
                     0.996,
@@ -3548,15 +3555,17 @@ fn apply_path_hint(name: &str, arguments: String, hint: Option<&str>) -> String 
     serde_json::to_string(&value).unwrap_or(arguments)
 }
 
-/// 本地请求的 top-k：工具轮默认 1（贪心），非工具默认 0（不限制）。
+/// 本地请求的 top-k：工具轮默认 1（贪心），非工具默认 5（小核采样）。
 ///
 /// 工具轮（`AI00X_TOOL_TOPK`）：本地采样恒为 temperature=1.0 + top_p（工具轮
 /// 0.1），种子逐请求递增——同一提示的 JSON 合法性随种子漂移：同一场景 100 次
 /// 会话在 38%–83% 之间摆动。工具调用只应有一个确定答案：改贪心后 s2 连续
 /// 三轮 100/100、零重试，s7（write，诊断项）也从 0–2/9 升到 3–6/9。
 ///
-/// 非工具（`AI00X_LOCAL_TOPK`）：长文召回同样被采样噪声支配（同场景不同会话
-/// 17% vs 77%），但贪心可能让长文复读，先保留 0 档，用该环境变量做 A/B。
+/// 非工具（`AI00X_LOCAL_TOPK`）：长文召回同进程配对 A/B（n=192，同材料同
+/// 暗号）：不限制 30/192（15.6%）vs top-k=5 51/192（26.6%），McNemar
+/// p=0.0125；长文生成 8-gram 重复率 0 → 0.016、最长连续同字符 3、篇幅 -7%
+/// （无退化）。故默认 5；0/1 档仍可用环境变量选回（1=贪心会显著伤召回）。
 fn local_top_k(has_tools: bool) -> usize {
     static TOOL: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     static PLAIN: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
@@ -3572,7 +3581,7 @@ fn local_top_k(has_tools: bool) -> usize {
             std::env::var("AI00X_LOCAL_TOPK")
                 .ok()
                 .and_then(|v| v.parse::<usize>().ok())
-                .unwrap_or(0)
+                .unwrap_or(5)
         })
     }
 }
