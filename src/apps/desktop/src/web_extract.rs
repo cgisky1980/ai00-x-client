@@ -1022,6 +1022,37 @@ async fn summarize_chunk(
     )
 }
 
+/// focus 命中句摘录（确定性）：把「含 focus 的原文句子」补进摘要。
+///
+/// 实测（2026-11-25，12 对 3.8k 字材料，埋入编号）：无论是否给 focus，3B 摘要
+/// 都不保留编号（0/12），且半数输出撞 500 字上限或降级为原文截断——研究/问答
+/// 链路靠摘要传递关键事实，模型注意力不可靠时只能由宿主兜底：摘要后补一段
+/// 「原文摘录」，保证被查询的事实不丢。最多 3 句 / 300 字。
+fn focus_evidence(text: &str, focus: &str) -> Option<String> {
+    const MAX_SENTENCES: usize = 3;
+    const MAX_CHARS: usize = 300;
+    let needle = focus.to_lowercase();
+    let mut out = String::new();
+    let mut sentences = 0usize;
+    for raw in text.split(['。', '！', '？', '\n', '；']) {
+        let sentence = raw.trim();
+        if sentence.is_empty() || !sentence.to_lowercase().contains(&needle) {
+            continue;
+        }
+        let mut piece = sentence.to_string();
+        piece.push('。');
+        if out.chars().count() + piece.chars().count() > MAX_CHARS {
+            break;
+        }
+        out.push_str(&piece);
+        sentences += 1;
+        if sentences >= MAX_SENTENCES {
+            break;
+        }
+    }
+    (!out.is_empty()).then_some(out)
+}
+
 /// 长文总结主流程：≤6000 单次；>6000 切块并发 map → 合并 reduce。
 pub async fn summarize(
     text: &str,
@@ -1046,33 +1077,53 @@ pub async fn summarize(
         .map(|f| format!("，重点关注「{f}」"))
         .unwrap_or_default();
     let char_count = text.chars().count();
+    // 摘要后兜底：focus 命中句补录（见 `focus_evidence`）。
+    // 判重只看「摘录句是否已整体出现在摘要里」——模型常写出「登记暗号」这个词
+    // 却漏掉值（实测 1/12），按关键词判重会把这种漏值当成已覆盖。
+    let attach_focus = |mut result: SummarizeResult| -> SummarizeResult {
+        if let Some(f) = focus {
+            if let Some(evidence) = focus_evidence(text, f) {
+                if !result.summary.contains(evidence.trim()) {
+                    if !result.summary.is_empty() {
+                        result.summary.push_str("\n\n原文摘录：");
+                    } else {
+                        result.summary.push_str("原文摘录：");
+                    }
+                    result.summary.push_str(&evidence);
+                }
+            }
+        }
+        result
+    };
 
     if char_count <= SUMMARIZE_SINGLE_SHOT_CHARS {
         let prompt = format!(
             "Instruction: 请总结以下文本{focus_clause}，控制在 {max_length} 字以内。\n\nInput: {text}\n\nResponse: "
         );
-        return match tokio::time::timeout(
-            Duration::from_secs(SCREEN_TIMEOUT_SECS * 2),
-            summarize_once(prompt, max_length * 2, 0.3),
-        )
-        .await
-        {
-            Ok(Ok((summary, hit_len)))
-                if crate::tool_session::quality_gate(&summary, hit_len).is_ok() =>
+        return attach_focus(
+            match tokio::time::timeout(
+                Duration::from_secs(SCREEN_TIMEOUT_SECS * 2),
+                summarize_once(prompt, max_length * 2, 0.3),
+            )
+            .await
             {
-                SummarizeResult {
-                    summary,
-                    degraded: false,
+                Ok(Ok((summary, hit_len)))
+                    if crate::tool_session::quality_gate(&summary, hit_len).is_ok() =>
+                {
+                    SummarizeResult {
+                        summary,
+                        degraded: false,
+                    }
                 }
-            }
-            _ => {
-                log::warn!("[text-summarize] single-shot failed/degraded");
-                SummarizeResult {
-                    summary: text.chars().take(max_length).collect(),
-                    degraded: true,
+                _ => {
+                    log::warn!("[text-summarize] single-shot failed/degraded");
+                    SummarizeResult {
+                        summary: text.chars().take(max_length).collect(),
+                        degraded: true,
+                    }
                 }
-            }
-        };
+            },
+        );
     }
 
     // map：text-splitter 按 ~4000 字符切块（语义边界），并发逐块摘要
@@ -1099,33 +1150,46 @@ pub async fn summarize(
     let prompt = format!(
         "Instruction: 以下是一篇长文各部分的要点，请合并成一篇连贯的总结{focus_clause}，控制在 {max_length} 字以内。\n\nInput: {joined}\n\nResponse: "
     );
-    match tokio::time::timeout(
-        Duration::from_secs(SCREEN_TIMEOUT_SECS * 2),
-        summarize_once(prompt, max_length * 2, 0.3),
-    )
-    .await
-    {
-        Ok(Ok((summary, hit_len)))
-            if crate::tool_session::quality_gate(&summary, hit_len).is_ok() =>
+    attach_focus(
+        match tokio::time::timeout(
+            Duration::from_secs(SCREEN_TIMEOUT_SECS * 2),
+            summarize_once(prompt, max_length * 2, 0.3),
+        )
+        .await
         {
-            SummarizeResult {
-                summary,
-                degraded: any_degraded,
+            Ok(Ok((summary, hit_len)))
+                if crate::tool_session::quality_gate(&summary, hit_len).is_ok() =>
+            {
+                SummarizeResult {
+                    summary,
+                    degraded: any_degraded,
+                }
             }
-        }
-        _ => {
-            log::warn!("[text-summarize] reduce failed gate, returning joined partials");
-            SummarizeResult {
-                summary: joined,
-                degraded: true,
+            _ => {
+                log::warn!("[text-summarize] reduce failed gate, returning joined partials");
+                SummarizeResult {
+                    summary: joined,
+                    degraded: true,
+                }
             }
-        }
-    }
+        },
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// focus 命中句摘录：只取含关键字的句子，最多 3 句。
+    #[test]
+    fn focus_evidence_keeps_matching_sentences() {
+        let text = "第一句无关。第二句登记暗号 MK10WMC0。第三句也无关。\
+                    第四句补充暗号说明。第五句多余暗号。第六句不要。";
+        let ev = focus_evidence(text, "暗号").expect("应命中");
+        assert!(ev.contains("MK10WMC0"), "{ev}");
+        assert_eq!(ev.matches('。').count(), 3, "{ev}");
+        assert!(focus_evidence(text, "不存在的词").is_none());
+    }
 
     #[test]
     fn clean_markdown_noise_strips_images_links_and_blank_runs() {
