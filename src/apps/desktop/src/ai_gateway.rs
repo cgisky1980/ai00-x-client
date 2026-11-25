@@ -1049,9 +1049,14 @@ async fn local_rwkv_sse(
             let name = normalize_tool_name(&name, &tool_names);
             let arguments = normalize_tool_arguments(&name, &arguments);
             // 破损 JSON 按必填键抢救（多写编造键/引号错位在 3B 上很常见）
-            let arguments = salvage_if_invalid(&name, arguments, tools.as_deref());
+            let arguments = salvage_if_invalid(
+                &name,
+                arguments,
+                tools.as_deref(),
+                task_path_hint.as_deref(),
+            );
             // 路径写坏（Users / section?2.md）时按 brief 点名文件覆盖
-            let arguments = apply_write_path_hint(&name, arguments, task_path_hint.as_deref());
+            let arguments = apply_path_hint(&name, arguments, task_path_hint.as_deref());
             if let Some(reason) = write_rejection(&name, &arguments) {
                 // 空写会整文件覆盖 → 清空既有交付物；超长写会让 3B 退化。
                 // 强制本地路径（rwkv-local）也必须拦，工人正是走这条路。
@@ -1460,9 +1465,14 @@ async fn local_tool_round(
         let name = normalize_tool_name(&name, &tool_names);
         let arguments = normalize_tool_arguments(&name, &arguments);
         // 破损 JSON 按必填键抢救（见 salvage_if_invalid）
-        let arguments = salvage_if_invalid(&name, arguments, tools.as_deref());
+        let arguments = salvage_if_invalid(
+            &name,
+            arguments,
+            tools.as_deref(),
+            task_path_hint.as_deref(),
+        );
         // 路径写坏（Users / section?2.md）时按 brief 点名文件覆盖
-        let arguments = apply_write_path_hint(&name, arguments, task_path_hint.as_deref());
+        let arguments = apply_path_hint(&name, arguments, task_path_hint.as_deref());
         // 空内容 write 会把已有文件截成 0 字节：实测 T2/T3 的本地工人在"追加"
         // 失败后都发出了 {"content":"","file_path":"report.md"}，直接把刚写好的
         // 报告清空（2026-11-21 会话 87c876ca / caeffa9d）。拒绝执行，按 BLOCKED 收尾。
@@ -3433,8 +3443,8 @@ fn write_rejection(name: &str, arguments: &str) -> Option<String> {
 /// 本地写手一步只写一个文件：模型把路径写坏时（`Users` / `section?2.md` /
 /// 绝对路径被重排）用 brief 里点名的文件名确定性覆盖。只在 basename 不匹配
 /// 时动手，避免误改模型给出的合法同名路径。
-fn apply_write_path_hint(name: &str, arguments: String, hint: Option<&str>) -> String {
-    if name != "write" {
+fn apply_path_hint(name: &str, arguments: String, hint: Option<&str>) -> String {
+    if !matches!(name, "write" | "read" | "edit" | "read_image") {
         return arguments;
     }
     let Some(hint) = hint else {
@@ -3451,11 +3461,17 @@ fn apply_write_path_hint(name: &str, arguments: String, hint: Option<&str>) -> S
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let same = std::path::Path::new(&current)
+    let cur_base = std::path::Path::new(&current)
         .file_name()
         .and_then(|n| n.to_str())
-        == Some(hint);
-    if same {
+        .unwrap_or("");
+    let same = cur_base == hint;
+    // write 的输出文件就是 hint（权威值）；read/edit/read_image 只在模型把
+    // hint 写**截断**（`section-2-` 之于 `section-2.md`）时补全，不覆盖
+    // 模型明确写出的别的文件（可能是有意读源文件）。
+    let truncated = !cur_base.is_empty() && cur_base.len() >= 3 && hint.starts_with(cur_base);
+    let replace = if name == "write" { !same } else { truncated };
+    if !replace {
         return arguments;
     }
     obj.insert("file_path".to_string(), Value::String(hint.to_string()));
@@ -3466,11 +3482,23 @@ fn apply_write_path_hint(name: &str, arguments: String, hint: Option<&str>) -> S
 /// 免得每一轮都因参数名不对被判失败（实测：`path`/`file_path` 混用、
 /// `content` 里又嵌了一层 `{"content":…,"file_path":…}`）。
 fn normalize_tool_arguments(name: &str, arguments: &str) -> String {
-    let Ok(mut value) = serde_json::from_str::<Value>(arguments) else {
-        return arguments.to_string();
+    // 0) 双编码参数：3B 偶发把 arguments 再序列化一层
+    //    （`"{\"file_path\":\"a.md\"}"`，实测 2026-11-25 工具轮 1/8）→ 解开。
+    let mut owned = arguments.to_string();
+    for _ in 0..2 {
+        let Ok(Value::String(inner)) = serde_json::from_str::<Value>(&owned) else {
+            break;
+        };
+        if !inner.trim_start().starts_with('{') {
+            break;
+        }
+        owned = inner;
+    }
+    let Ok(mut value) = serde_json::from_str::<Value>(&owned) else {
+        return owned;
     };
     let Some(obj) = value.as_object_mut() else {
-        return arguments.to_string();
+        return owned;
     };
     // 1) 文件类工具：`path` → `file_path`（dsh-tool-fs 的正式参数名）
     if matches!(name, "read" | "write" | "edit" | "read_image") && !obj.contains_key("file_path") {
@@ -3541,12 +3569,17 @@ fn normalize_tool_arguments(name: &str, arguments: &str) -> String {
 /// 参数 JSON 破损时按必填键抢救（3B 常见：必填值写对，但多塞编造键、引号
 /// 错位——实测 `{"file_path": "README.md", "limit": 1, "offset""":0"""}}`）。
 /// 严格解析通过 / 工具无必填参数 / 任一必填键缺失 → 原样返回（不猜）。
-fn salvage_if_invalid(name: &str, arguments: String, tools: Option<&[Value]>) -> String {
+fn salvage_if_invalid(
+    name: &str,
+    arguments: String,
+    tools: Option<&[Value]>,
+    path_hint: Option<&str>,
+) -> String {
     if serde_json::from_str::<Value>(&arguments).is_ok() {
         return arguments;
     }
     let required = required_params(tools, name);
-    match salvage_tool_arguments(&arguments, &required) {
+    match salvage_tool_arguments(&arguments, name, &required, path_hint) {
         Some(fixed) => {
             log::warn!(
                 "[ai-gateway] salvaged broken arguments for {name}: {}",
@@ -3595,7 +3628,12 @@ fn required_params(tools: Option<&[Value]>, name: &str) -> Vec<(String, bool)> {
 /// 注意：`content` 等正文字段必须保留精确字节。真实事故（2026-11-24 实机）：
 /// 抢救时对值做了 trim，`write` 的 content 丢了尾随换行 → 计划要求以 LF 结尾
 /// 的验收命令失败 → 按「本地一次不过即升级云端」返工，白烧一轮远端。
-fn salvage_tool_arguments(raw: &str, required: &[(String, bool)]) -> Option<String> {
+fn salvage_tool_arguments(
+    raw: &str,
+    name: &str,
+    required: &[(String, bool)],
+    path_hint: Option<&str>,
+) -> Option<String> {
     if required.is_empty() {
         return None;
     }
@@ -3604,7 +3642,13 @@ fn salvage_tool_arguments(raw: &str, required: &[(String, bool)]) -> Option<Stri
         let value = if *is_array {
             extract_json_array(raw, key)?
         } else {
-            let text = extract_json_string(raw, key)?;
+            // write 的 file_path 有 brief 点名的权威值（`apply_path_hint`
+            // 在合法 JSON 上也会覆盖），提取失败时直接用它，别让整轮报废。
+            let text = match extract_json_string(raw, key) {
+                Some(t) => t,
+                None if key == "file_path" && name == "write" => path_hint?.to_string(),
+                None => return None,
+            };
             // 只有路径/模式类键去首尾空白；content 等正文保持原样。
             let text = if key.contains("path") || key == "pattern" || key == "include" {
                 text.trim().to_string()
@@ -3628,7 +3672,13 @@ fn extract_json_string(raw: &str, key: &str) -> Option<String> {
             continue;
         };
         let rest = rest.trim_start();
-        let Some(rest) = rest.strip_prefix('"') else {
+        // 3B 偶发用全角引号包值（`"file_path": “section-2.md”`，2026-11-25
+        // 工具轮实测）：接受全角开引号，闭合按对应引号判定。
+        let (rest, closer) = if let Some(r) = rest.strip_prefix('"') {
+            (r, '"')
+        } else if let Some(r) = rest.strip_prefix('“') {
+            (r, '”')
+        } else {
             continue;
         };
         let mut out = String::new();
@@ -3645,7 +3695,7 @@ fn extract_json_string(raw: &str, key: &str) -> Option<String> {
                         out.push(next);
                     }
                 }
-                '"' => break,
+                c if c == closer => break,
                 _ => out.push(c),
             }
         }
@@ -3901,6 +3951,32 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// 工具参数两类确定性修复：arguments 被再序列化一层、值用全角引号。
+    #[test]
+    fn tool_arguments_repairs_double_encoding_and_fullwidth_quotes() {
+        let raw = "\"{\\\"file_path\\\": \\\"a.md\\\"}\"";
+        assert_eq!(
+            normalize_tool_arguments("read", raw),
+            "{\"file_path\":\"a.md\"}"
+        );
+        let tools = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "read",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"file_path": {"type": "string"}},
+                    "required": ["file_path"]
+                }
+            }
+        })];
+        let broken = "{\"file_path\": “section-2.md”}";
+        assert_eq!(
+            salvage_if_invalid("read", broken.to_string(), Some(&tools), None),
+            "{\"file_path\":\"section-2.md\"}"
+        );
+    }
+
     /// stop 安全回看：只扣「可能正在拼成 stop 的尾部」，普通正文立即发出。
     #[test]
     fn safe_emit_len_holds_only_stop_prefix_tail() {
@@ -3940,19 +4016,25 @@ mod tests {
     #[test]
     fn write_path_hint_overrides_mangled_paths() {
         let mangled = r#"{"file_path":"Users","content":"body"}"#;
-        let fixed = apply_write_path_hint("write", mangled.to_string(), Some("section-2.md"));
+        let fixed = apply_path_hint("write", mangled.to_string(), Some("section-2.md"));
         assert!(fixed.contains("\"file_path\":\"section-2.md\""), "{fixed}");
 
         let good = r#"{"file_path":"section-2.md","content":"body"}"#;
         assert_eq!(
-            apply_write_path_hint("write", good.to_string(), Some("section-2.md")),
+            apply_path_hint("write", good.to_string(), Some("section-2.md")),
             good
         );
 
         let read = r#"{"file_path":"Users"}"#;
         assert_eq!(
-            apply_write_path_hint("read", read.to_string(), Some("section-2.md")),
+            apply_path_hint("read", read.to_string(), Some("section-2.md")),
             read
+        );
+        // read 只补全截断的 hint，不改写模型明确写出的别的文件
+        let truncated = r#"{"file_path":"section-2-"}"#;
+        assert_eq!(
+            apply_path_hint("read", truncated.to_string(), Some("section-2.md")),
+            r#"{"file_path":"section-2.md"}"#
         );
     }
 

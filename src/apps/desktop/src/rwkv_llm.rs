@@ -868,9 +868,9 @@ fn inference_pool_main(pool_rx: mpsc::UnboundedReceiver<PoolRequest>) {
 
         // 解码组推进一步（批量前向 + GPU 采样），并回收已补喂完成的任务。
         // 有 prefill 活动（批量组或串行长任务）且**流式**任务在解码时，本轮多推
-        // 几步：否则「一块 prefill 才一步 decode」会把 token 间隔拉到 ~0.5s
-        // （8 路两波实测：第一波 8 token 用了 5.5s；串行 prefill 场景同理）。
-        // 非流式任务整段缓冲，多推只会拖慢 prefill，保持单步。
+        // 几步：否则「一块 prefill 才一步 decode」会把 token 间隔拉到 0.5–0.9s
+        // （8 路两波实测：第一波 8 token 用了 5.5s）。非流式任务整段缓冲，多推
+        // 只会拖慢 prefill，保持单步。
         let streaming_active = tasks
             .iter()
             .take_while(|s| s.is_some())
