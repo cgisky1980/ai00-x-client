@@ -1284,6 +1284,24 @@ async fn hybrid_tool_loop(body: Value, model: &str, res: &mut Response, usage: G
         return;
     }
 
+    // 问答型工具（长文总结）已成功的下一轮：工具输出就是终答，确定性直出。
+    // 仅在工具集全为全本地闭环终答工具时生效（没有后续步骤会被短路）。
+    let messages = body
+        .get("messages")
+        .and_then(|v| v.as_array())
+        .map(|m| m.as_slice())
+        .unwrap_or(&[]);
+    if crate::tool_session::tools_all_local_final(&body) {
+        if let Some(answer) = answer_tool_completion(messages) {
+            log::info!(
+                "[ai-gateway] answer tool output is final, closing turn ({} chars)",
+                answer.chars().count()
+            );
+            stream_local_final(res, &answer, 0, 0);
+            return;
+        }
+    }
+
     match local_tool_round(&body, None, usage.with_route("hybrid-local")).await {
         Ok(ToolRoundOutcome::ToolCall {
             name,
@@ -3145,6 +3163,29 @@ fn terminal_tool_completion(messages: &[Value]) -> Option<String> {
     Some(summarize_tool_text(&text, 160))
 }
 
+/// 问答型工具：成功结果本身就是终答（摘要正文），下一轮无需模型转述。
+///
+/// 实测 3B 把摘要再讲一遍只有 2/8 合格（漏值 / 自述正则 / 英文乱码），
+/// 直接回工具输出既准确又省一轮 prefill + 解码。
+const ANSWER_TOOLS: [&str; 1] = ["ai00_text_summarize"];
+
+/// 最后一条成功工具结果若来自问答型工具，返回其完整正文（截 4000 字）。
+fn answer_tool_completion(messages: &[Value]) -> Option<String> {
+    const MAX_CHARS: usize = 4000;
+    let index = messages.len().checked_sub(1)?;
+    let text = tool_result_text_at(messages, index)?;
+    if is_failed_tool_text(&text) {
+        return None;
+    }
+    let call_id = messages[index].get("tool_call_id").and_then(|v| v.as_str());
+    let name = find_tool_call_name(messages, call_id)?;
+    if !ANSWER_TOOLS.contains(&name.as_str()) {
+        return None;
+    }
+    let answer: String = text.trim().chars().take(MAX_CHARS).collect();
+    (!answer.is_empty()).then_some(answer)
+}
+
 /// `write` 调用是否写了空内容。
 ///
 /// 实测（2026-11-21 会话 511e40de）：本地 3B 在长文退化后发出
@@ -3780,6 +3821,60 @@ fn normalize_tool_arguments(name: &str, arguments: &str) -> String {
     value.to_string()
 }
 
+/// 工具 schema 的全部参数名（嵌套参数修复用）。
+fn tool_property_names(tools: Option<&[Value]>, name: &str) -> Vec<String> {
+    tools
+        .and_then(|tools| {
+            tools.iter().find_map(|tool| {
+                let f = tool.get("function")?;
+                (f.get("name").and_then(|n| n.as_str()) == Some(name)).then_some(f)
+            })
+        })
+        .and_then(|f| f.get("parameters"))
+        .and_then(|p| p.get("properties"))
+        .and_then(|p| p.as_object())
+        .map(|props| props.keys().cloned().collect())
+        .unwrap_or_default()
+}
+
+/// 3B 会把其余参数整体嵌进某一个参数里（实测 `ai00_text_summarize` 连续产出
+/// `{"focus":{"path":"…","max_length":100}}`——`path` 在里层、顶层没有，工具
+/// 拿不到必填输入）。把「对象值里出现的已知参数」提到顶层并丢掉容器键；
+/// 形状正常（没有嵌套对象）时原样返回，不猜。
+fn flatten_nested_arguments(name: &str, arguments: String, tools: Option<&[Value]>) -> String {
+    let Ok(Value::Object(map)) = serde_json::from_str::<Value>(&arguments) else {
+        return arguments;
+    };
+    let known = tool_property_names(tools, name);
+    if known.is_empty() {
+        return arguments;
+    }
+    let mut merged = serde_json::Map::new();
+    let mut moved = 0usize;
+    for (key, value) in map {
+        if let Value::Object(inner) = &value {
+            let hits: Vec<(String, Value)> = inner
+                .iter()
+                .filter(|(k, _)| known.iter().any(|n| n == *k))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            if !hits.is_empty() {
+                for (k, v) in hits {
+                    merged.insert(k, v);
+                }
+                moved += 1;
+                continue;
+            }
+        }
+        merged.insert(key, value);
+    }
+    if moved == 0 {
+        return arguments;
+    }
+    log::warn!("[ai-gateway] flattened nested arguments for {name} ({moved} object(s))");
+    Value::Object(merged).to_string()
+}
+
 /// 参数 JSON 破损时按必填键抢救（3B 常见：必填值写对，但多塞编造键、引号
 /// 错位——实测 `{"file_path": "README.md", "limit": 1, "offset""":0"""}}`）。
 /// 严格解析通过 / 工具无必填参数 / 任一必填键缺失 → 原样返回（不猜）。
@@ -3790,7 +3885,7 @@ fn salvage_if_invalid(
     path_hint: Option<&str>,
 ) -> String {
     if serde_json::from_str::<Value>(&arguments).is_ok() {
-        return arguments;
+        return flatten_nested_arguments(name, arguments, tools);
     }
     let required = required_params(tools, name);
     match salvage_tool_arguments(&arguments, name, &required, path_hint) {
@@ -4203,6 +4298,41 @@ mod tests {
         assert_eq!(
             salvage_if_invalid("read", broken.to_string(), Some(&tools), None),
             "{\"file_path\":\"section-2.md\"}"
+        );
+    }
+
+    #[test]
+    fn nested_tool_arguments_are_flattened() {
+        // 实测：3B 把 path/max_length 嵌进 focus（其余参数整体下降一层）
+        let tools = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "ai00_text_summarize",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "path": {"type": "string"},
+                        "focus": {"type": "string"},
+                        "max_length": {"type": "number"}
+                    }
+                }
+            }
+        })];
+        let nested = r#"{"focus":{"path":"C:/ws/long.md","max_length":100}}"#.to_string();
+        let fixed = salvage_if_invalid("ai00_text_summarize", nested, Some(&tools), None);
+        let v: Value = serde_json::from_str(&fixed).unwrap_or(Value::Null);
+        assert_eq!(
+            v.get("path").and_then(|p| p.as_str()),
+            Some("C:/ws/long.md")
+        );
+        assert_eq!(v.get("max_length").and_then(|m| m.as_u64()), Some(100));
+        assert!(v.get("focus").is_none());
+        // 形状正常时不动
+        let ok = r#"{"path":"a.md","focus":"暗号"}"#.to_string();
+        assert_eq!(
+            salvage_if_invalid("ai00_text_summarize", ok.clone(), Some(&tools), None),
+            ok
         );
     }
 
@@ -4935,6 +5065,36 @@ mod tests {
         ];
         assert!(terminal_tool_completion(&ok).is_some());
         assert!(last_successful_tool_result(&ok).is_some());
+    }
+
+    #[test]
+    fn answer_tool_returns_summary_verbatim() {
+        // 问答型工具的成功结果就是终答：转述会失真（实测 2/8），必须原样直出
+        let summary = "摘要正文。".repeat(120);
+        let messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "ai00_text_summarize", "arguments": "{}"}}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": summary}),
+        ];
+        assert_eq!(
+            answer_tool_completion(&messages).as_deref(),
+            Some(summary.as_str())
+        );
+    }
+
+    #[test]
+    fn answer_tool_ignores_other_tools_and_failures() {
+        // 非问答型工具（web 提取）不短路：后续可能还要推理
+        let extract = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "ai00_web_extract", "arguments": "{}"}}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "1. Mem0"}),
+        ];
+        assert_eq!(answer_tool_completion(&extract), None);
+        // 失败结果不算终答
+        let failed = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "ai00_text_summarize", "arguments": "{}"}}]}),
+            json!({"role": "tool", "tool_call_id": "c1", "content": "Error: text is required"}),
+        ];
+        assert_eq!(answer_tool_completion(&failed), None);
     }
 
     #[test]

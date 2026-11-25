@@ -477,32 +477,108 @@ async fn text_summarize(req: &mut Request, res: &mut Response) {
     let Some(body) = parse_body(req, res).await else {
         return;
     };
-    let Some(text) = body
+    // 防滥用：单次总结上限 20 万字符（约 50 块，块间并发池内调度）
+    const TEXT_CAP: usize = 200_000;
+    let text = body
         .get("text")
         .and_then(|v| v.as_str())
         .map(str::trim)
-        .filter(|t| !t.is_empty())
-    else {
-        err(res, StatusCode::BAD_REQUEST, "missing field: text".into());
-        return;
-    };
-    // 防滥用：单次总结上限 20 万字符（约 50 块，块间并发池内调度）
-    const TEXT_CAP: usize = 200_000;
-    if text.chars().count() > TEXT_CAP {
-        err(
-            res,
-            StatusCode::BAD_REQUEST,
-            format!("text too long (>{TEXT_CAP} chars)"),
-        );
-        return;
+        .filter(|t| !t.is_empty());
+    if let Some(t) = text {
+        if t.chars().count() > TEXT_CAP {
+            err(
+                res,
+                StatusCode::BAD_REQUEST,
+                format!("text too long (>{TEXT_CAP} chars)"),
+            );
+            return;
+        }
     }
     let focus = body.get("focus").and_then(|v| v.as_str());
     let max_length = body
         .get("max_length")
         .and_then(|v| v.as_u64())
         .map(|v| v as usize);
-    let result = crate::web_extract::summarize(text, focus, max_length).await;
+    // 两种入参：text（调用方已读入正文）或 path + cwd（宿主读文件）。
+    // path 形态给本地 worker 用——3B 无法把 12k 正文稳定塞进工具参数 JSON，
+    // 传路径 + focus 只需几十 token（同 compose「先写后落盘」的教训）。
+    let text = match text {
+        Some(t) => t.to_string(),
+        None => {
+            let Some(path) = body
+                .get("path")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|p| !p.is_empty())
+            else {
+                err(
+                    res,
+                    StatusCode::BAD_REQUEST,
+                    "missing field: text (or path + cwd)".into(),
+                );
+                return;
+            };
+            let Some(cwd) = body
+                .get("cwd")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|c| !c.is_empty())
+            else {
+                err(
+                    res,
+                    StatusCode::BAD_REQUEST,
+                    "path requires cwd (pass your working directory verbatim)".into(),
+                );
+                return;
+            };
+            let target =
+                match crate::web_extract::resolve_read_target(std::path::Path::new(cwd), path) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        err(res, StatusCode::BAD_REQUEST, e);
+                        return;
+                    }
+                };
+            match read_file_capped(&target, TEXT_CAP) {
+                Ok(t) => {
+                    if t.trim().is_empty() {
+                        err(
+                            res,
+                            StatusCode::BAD_REQUEST,
+                            format!("file is empty: {path}"),
+                        );
+                        return;
+                    }
+                    t
+                }
+                Err(e) => {
+                    err(res, StatusCode::BAD_REQUEST, e);
+                    return;
+                }
+            }
+        }
+    };
+    let result = crate::web_extract::summarize(&text, focus, max_length).await;
     res.body(json!(result).to_string());
+}
+
+/// 读文件并限制字符数（超限直接报错，避免把 2MB 日志喂给总结）。
+fn read_file_capped(path: &std::path::Path, cap: usize) -> Result<String, String> {
+    const BYTES_CAP: u64 = 8 * 1024 * 1024;
+    let meta =
+        std::fs::metadata(path).map_err(|e| format!("cannot stat {}: {e}", path.display()))?;
+    if meta.len() > BYTES_CAP {
+        return Err(format!(
+            "file too large ({} bytes > {BYTES_CAP})",
+            meta.len()
+        ));
+    }
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    if text.chars().count() > cap {
+        return Err(format!("text too long (>{cap} chars)"));
+    }
+    Ok(text)
 }
 
 // ---------------------------------------------------------------------------

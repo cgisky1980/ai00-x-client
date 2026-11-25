@@ -3327,18 +3327,25 @@ function defineTools(ctx, api, env = {}) {
   ctx.tools.register({
     name: "ai00_text_summarize",
     description:
-      "Summarize a long text entirely LOCALLY (no remote model): short texts in one pass; long texts are chunked and summarized with concurrent local map-reduce. Use this for article/paper/document summarization. Optional 'focus' steers the summary (e.g. '性能数据'). Result may carry degraded=true when the local quality gate fell back to partial/raw content — mention the caveat to the user if present.",
+      "Summarize a long text entirely LOCALLY (no remote model): short texts in one pass; long texts are chunked and summarized with concurrent local map-reduce. Use this for article/paper/document summarization. For a file on disk pass {path} instead of inlining the text — the host reads it from your working directory (never copy long content into arguments). Optional 'focus' steers the summary toward a concrete question or facts (e.g. '性能数据', '暗号'); for fact extraction always pass focus. Result may carry degraded=true when the local quality gate fell back to partial/raw content — mention the caveat to the user if present.",
     parameters: {
       type: "object",
       properties: {
-        text: { type: "string", description: "Full text to summarize (up to 200k chars)." },
-        focus: { type: "string", description: "Optional aspect to focus on." },
+        text: {
+          type: "string",
+          description: "Full text to summarize (up to 200k chars). Alternative to path.",
+        },
+        path: {
+          type: "string",
+          description:
+            "Path of a text file to summarize — relative to your working directory, or absolute. Alternative to text; prefer this for long files.",
+        },
+        focus: { type: "string", description: "Optional aspect or fact to focus on." },
         max_length: {
           type: "number",
           description: "Target summary length in chars (50-4000, default 500).",
         },
       },
-      required: ["text"],
       additionalProperties: false,
     },
     output: {
@@ -3359,8 +3366,20 @@ function defineTools(ctx, api, env = {}) {
     isConcurrencySafe: () => true,
     async execute(args, exec) {
       const text = String(args?.text ?? "").trim();
-      if (!text) throw new Error("text is required");
-      const body = { text };
+      const path = String(args?.path ?? "").trim();
+      if (!text && !path) throw new Error("text or path is required");
+      if (text && path) throw new Error("pass text OR path, not both");
+      const body = text ? { text } : { path, cwd: "" };
+      if (!text) {
+        // cwd 由引擎的会话工作目录决定：3B 手抄长路径必错（同 ai00_research_collect
+        // 的教训，实测把 taskId/路径抄坏），模型给的 cwd 只当兜底提示。
+        try {
+          body.cwd = await ctx.workingDirectory.ensure(exec.agent, exec.signal);
+        } catch {
+          body.cwd = String(args?.cwd ?? "").trim();
+        }
+        if (!body.cwd) throw new Error("cannot resolve the session working directory");
+      }
       if (typeof args?.focus === "string" && args.focus.trim()) body.focus = args.focus.trim();
       if (Number.isFinite(args?.max_length)) body.max_length = args.max_length;
       return api.post("/text/summarize", body, exec.signal);

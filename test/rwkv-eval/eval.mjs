@@ -8,6 +8,9 @@
 // 依赖宿主网关（127.0.0.1:2100，模型 rwkv-local）。判据全部确定性：
 // 不靠人读，不靠模型自评。
 import { randomUUID } from "node:crypto";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const BASE = "http://127.0.0.1:2100/ai00-internal/llm/v1/chat/completions";
 const TOKEN =
@@ -70,8 +73,17 @@ function parseSse(raw) {
   return { content, toolCalls, usage, error, finish };
 }
 
-async function chat({ messages, maxTokens = 64, tools, stop, stream = false, sid, topK }) {
-  const body = { model: "rwkv-local", messages, max_tokens: maxTokens, stream, temperature: 0 };
+async function chat({
+  messages,
+  maxTokens = 64,
+  tools,
+  stop,
+  stream = false,
+  sid,
+  topK,
+  model = "rwkv-local",
+}) {
+  const body = { model, messages, max_tokens: maxTokens, stream, temperature: 0 };
   if (tools) body.tools = tools;
   if (stop) body.stop = stop;
   // 请求体 top_k 覆盖本地采样档（同进程配对 A/B 用，见 ai_gateway local_top_k）。
@@ -486,6 +498,177 @@ const scenarios = {
   },
 
   /**
+   * 路径形态长文总结（`{path, cwd, focus}`）：本地 worker 只需传路径，宿主读文件。
+   * 判据：摘要保住暗号；越权路径（../ 逃出 cwd）必须 400 拒绝。
+   */
+  async s11_summary_path(trial) {
+    const tag = `s11-${trial}-${randomUUID().slice(0, 6)}`;
+    const code = `SP${randomUUID().slice(0, 5).toUpperCase()}`;
+    const dir = join(tmpdir(), `ai00x-eval-${tag}`);
+    const root = BASE.replace("/llm/v1/chat/completions", "");
+    const post = async (payload) => {
+      const res = await fetch(`${root}/text/summarize`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-ai00-internal-token": TOKEN },
+        body: JSON.stringify(payload),
+      });
+      const raw = await res.text();
+      return { status: res.status, raw };
+    };
+    try {
+      await mkdir(join(dir, "docs"), { recursive: true });
+      const mat = material(12000, tag);
+      const at = Math.floor(mat.length * 0.5);
+      const planted = `${mat.slice(0, at)}（登记暗号：${code}）${mat.slice(at)}`;
+      await writeFile(join(dir, "docs", "long.md"), planted, "utf8");
+      const t0 = performance.now();
+      const r = await post({
+        path: "docs/long.md",
+        cwd: dir,
+        focus: "暗号",
+        max_length: 300,
+      });
+      const ms = Math.round(performance.now() - t0);
+      let summary = "";
+      try {
+        summary = JSON.parse(r.raw).summary ?? "";
+      } catch {}
+      const fail = (reason) => ({ ok: false, reason, snippet: summary.slice(0, 80), ms });
+      if (r.status !== 200) return fail(`path form: http ${r.status}`);
+      if (!summary.includes(code)) return fail("path form: code dropped");
+      if (hasSpecialLeak(summary)) return fail("path form: special token leak");
+      // 越权：../ 逃出 cwd 必须拒绝（防止把任意文件喂给模型）
+      await writeFile(join(tmpdir(), `${tag}-outside.txt`), "outside secret", "utf8");
+      const escape = await post({ path: `../${tag}-outside.txt`, cwd: dir, focus: "暗号" });
+      await rm(join(tmpdir(), `${tag}-outside.txt`), { force: true });
+      if (escape.status !== 400) return fail(`escape not rejected: http ${escape.status}`);
+      return { ok: true, ms, note: "path form + escape guard" };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+
+  /**
+   * 本地 worker 的工具参数形态：只给 ai00_text_summarize（含 path/cwd），
+   * 要求它用 path + cwd 指文件，而不是把长正文塞进 text。
+   */
+  async s12_summary_tool_args(trial) {
+    const tag = `s12-${trial}-${randomUUID().slice(0, 6)}`;
+    const dir = join(tmpdir(), `ai00x-eval-${tag}`);
+    const file = join(dir, "long.md");
+    const r = await chat({
+      // 生产路径：编排者的模型槽是 ai00-auto；工具集全为本地闭环 → hybrid 入口
+      model: "ai00-auto",
+      messages: [
+        { role: "system", content: "你是资料助手。只需要一步：调用合适的工具。" },
+        {
+          role: "user",
+          content: `（任务标签 ${tag}）请总结文件 ${file} 的关键内容，并找出其中的暗号。我的工作目录是 ${dir}。`,
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "ai00_text_summarize",
+            description:
+              "Summarize a long text entirely LOCALLY. For a file on disk pass {path} instead of inlining the text — the host reads it from your working directory. Optional focus steers the summary.",
+            parameters: {
+              type: "object",
+              properties: {
+                text: { type: "string" },
+                path: { type: "string" },
+                focus: { type: "string" },
+                max_length: { type: "number" },
+              },
+            },
+          },
+        },
+      ],
+      maxTokens: 256,
+    });
+    const fail = (reason, needs) => ({
+      ok: false,
+      reason,
+      needs,
+      snippet: r.content.slice(0, 80),
+      ms: r.ms,
+    });
+    if (r.status !== 200) return fail(`http ${r.status}`);
+    const call = r.toolCalls.find((c) => c?.function?.name === "ai00_text_summarize");
+    if (!r.toolCalls.length) return fail("no tool call", "tool_call");
+    if (!call) return fail(`wrong tool: ${r.toolCalls[0]?.function?.name}`, "tool_name");
+    let args = {};
+    try {
+      args = JSON.parse(call.function.arguments ?? "{}");
+    } catch {
+      return fail(`bad arguments json: ${String(call.function.arguments).slice(0, 60)}`, "json");
+    }
+    const inlined = String(args.text ?? "");
+    if (!args.path) {
+      return fail(
+        inlined
+          ? `inlined text (${inlined.length} chars) instead of path`
+          : `missing path (args: ${String(call.function.arguments ?? "").slice(0, 80)})`,
+        "path_arg"
+      );
+    }
+    if (!String(args.path).replace(/\\/g, "/").endsWith("long.md")) {
+      return fail(`path wrong: ${args.path}`, "path_value");
+    }
+    if (inlined.length > 500) return fail(`text too long (${inlined.length})`, "inline_text");
+    // focus 是可选参数（模型常省略）：只作诊断，不参与判据。
+    const hasFocus = Boolean(String(args.focus ?? "").trim());
+    return { ok: true, ms: r.ms, note: `focus=${hasFocus ? "hit" : "miss"}` };
+  },
+
+  /**
+   * 问答型工具直出：messages 已带 summarize 成功结果时，终答必须是摘要原文
+   * （宿主机确定性短路，不再让 3B 转述），且不花解码时间。
+   */
+  async s13_answer_tool_direct(trial) {
+    const tag = `s13-${trial}-${randomUUID().slice(0, 6)}`;
+    const code = `SD${randomUUID().slice(0, 5).toUpperCase()}`;
+    const summary = `本地摘要（${tag}）：材料讲的是分块并发推理；登记暗号 ${code}；结论是切块上限 32、每块 1K。`;
+    const r = await chat({
+      // 生产路径：编排者用 ai00-auto（hybrid 入口按工具集判定，不走 SmartRouter）
+      model: "ai00-auto",
+      messages: [
+        { role: "user", content: "请总结这份材料并告诉我暗号。" },
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: "c1",
+              type: "function",
+              function: { name: "ai00_text_summarize", arguments: '{"path":"docs/long.md"}' },
+            },
+          ],
+        },
+        { role: "tool", tool_call_id: "c1", content: summary },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "ai00_text_summarize",
+            description: "Summarize a long text LOCALLY.",
+            parameters: { type: "object", properties: { path: { type: "string" } } },
+          },
+        },
+      ],
+      maxTokens: 64,
+    });
+    const fail = (reason) => ({ ok: false, reason, snippet: r.content.slice(0, 80), ms: r.ms });
+    if (r.status !== 200) return fail(`http ${r.status}`);
+    if (r.content.trim() !== summary.trim()) return fail("summary not returned verbatim");
+    if (hasSpecialLeak(r.content)) return fail("special token leak");
+    if (r.ms > 3000) return fail(`slow path (${r.ms}ms): model was invoked`);
+    return { ok: true, ms: r.ms };
+  },
+
+  /**
    * 会话前缀缓存（推理优化）正确性：同一 sid 三轮，第 2/3 轮必须命中缓存。
    * 只钉缓存路径本身（命中数 + 输出不退化）；暗号召回仅作诊断，不参与判据。
    */
@@ -630,6 +813,7 @@ for (const name of picked) {
       .filter((r) => !r.ok)
       .map((r) => ({ trial: r.i, reason: r.reason, needs: r.needs, snippet: r.snippet })),
     ms: rows.filter((r) => r.ms).map((r) => r.ms),
+    notes: rows.map((r) => r.note).filter(Boolean),
   };
 }
 console.log(JSON.stringify(report, null, 2));

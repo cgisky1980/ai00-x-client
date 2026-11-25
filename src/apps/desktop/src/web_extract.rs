@@ -440,6 +440,34 @@ fn research_allowed_roots() -> Vec<std::path::PathBuf> {
     roots
 }
 
+/// 解析「要读取的文件」：相对路径拼 cwd，绝对路径必须落在 cwd 内（防越权）。
+///
+/// 与 `resolve_save_target` 同一安全口径：canonicalize 后前缀校验，拒绝软链逃逸。
+pub fn resolve_read_target(
+    cwd: &std::path::Path,
+    path: &str,
+) -> Result<std::path::PathBuf, String> {
+    let p = std::path::Path::new(path);
+    let candidate = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        cwd.join(p)
+    };
+    let canon = candidate
+        .canonicalize()
+        .map_err(|e| format!("cannot resolve {path}: {e}"))?;
+    let root = cwd
+        .canonicalize()
+        .map_err(|e| format!("cannot resolve cwd: {e}"))?;
+    if !canon.starts_with(&root) {
+        return Err(format!("path escapes working directory: {path}"));
+    }
+    if !canon.is_file() {
+        return Err(format!("not a file: {path}"));
+    }
+    Ok(canon)
+}
+
 /// url 直达模式：抓取指定单页 → 提正文（web_fetch 的本机替代）。
 ///
 /// 与 query 模式不同：不做搜索、不做本地筛选——调用方已明确指定页面，
