@@ -17,7 +17,7 @@ import { useTodoStore } from '../store/todoStore';
 import { useGrowthStore } from '../store/growthStore';
 import { useReminderTicker } from '../hooks/useReminderTicker';
 import { XpKinds, type FocusSession, type TodoTask } from '../api/types';
-import { connectMux, deriveSessionRunState, dshApproval, dshSession, type DshMuxFrame, type DshSessionRunState } from '@/infrastructure/api/service-api/DshAPI';
+import { connectMux, deriveSessionRunState, dshApproval, dshSession, foldEvents, type DshMuxFrame, type DshSessionRunState } from '@/infrastructure/api/service-api/DshAPI';
 import { isApprovalAllowed } from '@/shared/agent-approval-rules';
 import {
   buildRecoverPromptForTask,
@@ -31,6 +31,7 @@ import {
 } from '../utils/watchdog';
 import { buildChildStallPrompt } from '../ai/prompts';
 import { initTodoWindowSync } from '../sync/todoWindowSync';
+import { useWorkbenchTaskStore } from '@/app/scenes/tasks/workbenchTaskStore';
 import { dismissTaskNotification, goToTask, notifyTask, type NotifyAction } from '../utils/notify';
 import {
   continueTaskRun,
@@ -831,9 +832,10 @@ export const TodoOverlay: React.FC = () => {
         }
 
         // 子代理长时间无事件：worker 是子会话，主会话看门狗看不见它（主会话早已 turn/end），
-        // 于是任务显示「执行中」而实际什么也没在推进（实测 sandbox `bash sleep 45` 挂 5 分钟
-        // 以上不返回）。先请编排者自己中断重派（只有它有 interrupt_agent；宿主直接 cancel
-        // 子会话会被引擎以「owned by subagent routing」拒绝），再犯才转人工。
+        // 于是任务显示「执行中」而实际什么也没在推进。这里只发**内部提示**给编排者
+        // （带哨兵前缀，不在对话里显示气泡），并把子代理最近动作一起带上：由编排者
+        // 判断「在跑长操作」还是「真卡住」——静默时长是线索，不是裁决；真需要停止时
+        // 用它自己的 ai00_subagent_stop（宿主按派发名解析子会话 id）。
         const stuckChildren = new Set<string>();
         for (const child of items) {
           const parentSid = child.parentSessionId;
@@ -858,7 +860,7 @@ export const TodoOverlay: React.FC = () => {
               child.sessionId,
               notifyTask(
                 '子代理卡住 · 需要你',
-                `「${parentTask.title}」的子代理已经 ${childIdleMinutes} 分钟没有任何事件，已请 agent 中断仍未恢复——点开卡片看看，必要时中断任务重新规划`,
+                `「${parentTask.title}」的子代理已经 ${childIdleMinutes} 分钟没有任何事件，已请 agent 评估仍未恢复——点开卡片看看，必要时中断任务重新规划`,
                 'error',
                 [goToTask(parentTask.id, '去查看')],
               ),
@@ -867,16 +869,49 @@ export const TodoOverlay: React.FC = () => {
           }
           if (stage === 2) continue;
           childStallRef.current.set(child.sessionId, 1);
-          void dshSession
-            .prompt(parentSid, buildChildStallPrompt({ childId: child.sessionId, idleMinutes: childIdleMinutes }))
-            .then(() =>
-              notifyTask(
-                '子代理无响应 · 已请 agent 处理',
-                `「${parentTask.title}」的子代理已 ${childIdleMinutes} 分钟无事件，已提醒编排者中断并重新评估`,
-                'info',
-              ),
-            )
-            .catch(() => childStallRef.current.delete(child.sessionId)); // 消息送不到：下一轮再试
+          void (async () => {
+            // 最近动作（工具调用优先）——给编排者判断「长操作 vs 卡死」的依据
+            let lastActions = '';
+            try {
+              const { events } = await dshSession.history(child.sessionId);
+              const msgs = foldEvents(events.map(e => e.event));
+              const lines: string[] = [];
+              for (const m of [...msgs].reverse()) {
+                for (const t of [...m.toolCalls].reverse()) {
+                  lines.unshift(
+                    `${t.name}${t.isError ? ' (failed)' : t.pending ? ' (pending)' : ''}`
+                  );
+                  if (lines.length >= 4) break;
+                }
+                if (lines.length >= 4) break;
+              }
+              if (lines.length) {
+                lastActions = `last tool calls: ${lines.join(' → ')}`;
+              } else if (msgs.length) {
+                const last = msgs[msgs.length - 1];
+                lastActions = `${last.role}: ${last.text.slice(0, 160)}`;
+              }
+            } catch {
+              // 历史拉不到：提示里标注 (none recorded)，由编排者自行查看
+            }
+            const childName = useWorkbenchTaskStore
+              .getState()
+              .subagentCatalog[parentSid]?.find((row) => row.id === child.sessionId)?.name;
+            await dshSession.prompt(
+              parentSid,
+              buildChildStallPrompt({
+                childId: child.sessionId,
+                childName,
+                idleMinutes: childIdleMinutes,
+                lastActions: lastActions || undefined,
+              })
+            );
+            notifyTask(
+              '子代理无响应 · 已请 agent 评估',
+              `「${parentTask.title}」的子代理已 ${childIdleMinutes} 分钟无事件，已请编排者先查看状态与最近动作，再决定继续等或停止重派`,
+              'info'
+            );
+          })().catch(() => childStallRef.current.delete(child.sessionId)); // 消息送不到：下一轮再试
         }
         // 子代理恢复/结束 → 收起转人工提示并重置阶段（下次卡住重新走一遍）
         for (const [childId, toastId] of [...childStallToastRef.current]) {

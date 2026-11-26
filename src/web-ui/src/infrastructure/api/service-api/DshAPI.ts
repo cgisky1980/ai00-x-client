@@ -1779,6 +1779,14 @@ function readMessageUsage(data: Record<string, unknown> | undefined): DshMessage
 }
 
 /**
+ * 宿主内部提示的哨兵前缀（看门狗等自动提示）。
+ *
+ * 这类消息需要模型看到（会进引擎历史），但不属于用户发言，也不该在工作台对话里
+ * 占一条气泡——`foldEvents` 见到该前缀直接丢弃，UI 不渲染、引擎历史仍保留。
+ */
+export const INTERNAL_NOTICE_PREFIX = '[[ai00-internal]]';
+
+/**
  * 把一段会话事件（history 或实时流）折叠成 UI 消息数组。
  *
  * 处理的事件类型：
@@ -1873,6 +1881,11 @@ export function foldEvents(events: DshSessionEvent[]): DshMessage[] {
           .filter(b => b.type === 'text')
           .map(b => b.text ?? '')
           .join('');
+
+        // 宿主内部提示（看门狗等）：模型需要读，但不在用户对话里显示。
+        if (rawText.trimStart().startsWith(INTERNAL_NOTICE_PREFIX)) {
+          break;
+        }
 
         // 子代理 → 主代理的中继消息（send_message）：不是用户发言，
         // 以前直接进用户气泡（裸 uuid + 英文前缀），这里单列成一条来源记录。

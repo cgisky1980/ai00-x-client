@@ -16,6 +16,8 @@
 
 // ===== 通用消息形状（consult 的 messages 模式） =====
 
+import { INTERNAL_NOTICE_PREFIX } from '@/infrastructure/api/service-api/DshAPI';
+
 export interface AiMsg {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -87,18 +89,37 @@ export function buildWatchdogRecoverPrompt(opts?: {
 }
 
 /**
- * 子代理无响应：让编排者自己处理（它才有 `interrupt_agent`，宿主直接 cancel
- * 子会话会被引擎以「owned by subagent routing」拒绝）。
+ * 子代理无响应：给编排者的**内部**提示。
+ *
+ * 两个约束（2026-11-26 用户口径）：
+ * - 带 `INTERNAL_NOTICE_PREFIX` 哨兵：模型要看到，但不在工作台对话里显示气泡；
+ * - 只报事实 + 给检查手段，**不下裁决**：静默时长是检测器给的线索，不是结论——
+ *   编译/下载/长命令本来就可能没有事件流。由编排者查状态与最近动作后自行判断；
+ *   要停就用 `ai00_subagent_stop`（按派发名），本引擎没有 `interrupt_agent`。
  */
 export function buildChildStallPrompt(opts: {
   childId: string;
+  childName?: string;
   idleMinutes: number;
+  lastActions?: string;
 }): string {
+  const target = opts.childName
+    ? `${opts.childName} (session ${opts.childId})`
+    : opts.childId;
   return [
-    '【自动恢复：子代理无响应】',
-    `你派出的子代理 ${opts.childId} 已经 ${opts.idleMinutes} 分钟没有任何事件（可能卡在一个不会返回的命令或工具上），而主会话处于空闲状态。`,
-    '请立刻用 interrupt_agent 中断这个子代理，然后判断：它的产出是否已足够（检查工作区文件/命令结果），不够就重新派发一个范围更小、命令带超时的任务。',
-    '不要重复派发同一份任务，也不要自己直接执行命令。处理完用一两句话说明结论。',
+    `${INTERNAL_NOTICE_PREFIX} [watchdog] Subagent ${target} has produced no new events for about ${opts.idleMinutes} minutes while this session is idle. This is a detection hint, not a verdict: builds, downloads and long commands can legitimately stay silent. Do NOT stop it just because time passed.`,
+    '',
+    'Inspect before acting:',
+    '- Call ai00_subagent_list to confirm whether it is still running and what it is working on.',
+    '- Read its recent activity and check the workspace for partial artifacts.',
+    opts.lastActions
+      ? `Recent child activity:\n${opts.lastActions}`
+      : 'Recent child activity: (none recorded)',
+    '',
+    'Then decide:',
+    '- If the activity is a legitimate long operation, or artifacts are still appearing, let it continue and say in one line what you are waiting for.',
+    '- Only when there is no evidence of progress: stop it with ai00_subagent_stop {name} (name from its `started subagent <name>` receipt), then re-dispatch a narrower brief with explicit command timeouts. Never re-dispatch the same brief while the old worker may still be running, and never do the work yourself.',
+    'Reply with one or two sentences: what you found and what you decided (waiting / stopping / re-dispatching).',
   ].join('\n');
 }
 
