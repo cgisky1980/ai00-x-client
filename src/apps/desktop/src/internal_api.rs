@@ -55,6 +55,8 @@ pub const SCOPE_GIT: &str = "git";
 pub const SCOPE_XP: &str = "xp";
 pub const SCOPE_WEB_EXTRACT: &str = "web:extract";
 pub const SCOPE_TEXT_SUMMARIZE: &str = "text:summarize";
+/// 子代理控制（编排者 stop/list；只对 bundled 插件放行，不进 BASIC）。
+pub const SCOPE_SUBAGENT_CONTROL: &str = "subagent:control";
 /// R2-10：外部触发——脚本 / CI / 定时器拉起某张卡的 agent 执行。
 pub const SCOPE_TASK_TRIGGER: &str = "task:trigger";
 
@@ -70,6 +72,7 @@ pub const ALL_SCOPES: &[&str] = &[
     SCOPE_XP,
     SCOPE_WEB_EXTRACT,
     SCOPE_TEXT_SUMMARIZE,
+    SCOPE_SUBAGENT_CONTROL,
     SCOPE_TASK_TRIGGER,
 ];
 
@@ -285,6 +288,16 @@ pub fn router() -> Router {
             Router::with_path("text/summarize")
                 .hoop(no_cache)
                 .post(text_summarize),
+        )
+        .push(
+            Router::with_path("subagent/list")
+                .hoop(no_cache)
+                .post(subagent_list),
+        )
+        .push(
+            Router::with_path("subagent/stop")
+                .hoop(no_cache)
+                .post(subagent_stop),
         )
 }
 
@@ -1210,4 +1223,203 @@ async fn xp_report(req: &mut Request, res: &mut Response) {
             .insert(salvo::http::header::CONTENT_TYPE, ct);
     }
     res.body(bytes);
+}
+
+// ---------------------------------------------------------------------------
+// 子代理控制（编排者工具 `ai00_subagent_list` / `ai00_subagent_stop` 宿主侧）
+//
+// 编排者只知道派发回执里的名字（`started subagent rosa-html`），引擎 RPC 要的是
+// 子会话 UUID。宿主按父会话的 `subagentCatalog` 投影做「名字 → UUID」解析，
+// 再走 `subagents/interruptByParent`（对已结束子代理是安全 no-op）。
+// ---------------------------------------------------------------------------
+
+/// 调引擎 unary RPC —— 走宿主自己的 `/dsh-api/*` 反代（与 webview 同一条通路：
+/// 反代负责注入签名 cookie 并剥 Origin）；直连 3210 会因 Host/Origin 栅栏 401。
+async fn dsh_rpc(method: &str, args: Value) -> Result<Value, String> {
+    let url = format!("http://127.0.0.1:2100/dsh-api/{method}");
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let body = json!({
+        "type": "client-request",
+        "rpcId": format!("host-{nanos}"),
+        "method": method,
+        "payload": { "args": args },
+    });
+    let resp = ai00_x_core::util::local_http_client()
+        .post(&url)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(20))
+        .send()
+        .await
+        .map_err(|e| format!("dsh engine unreachable: {e}"))?;
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(format!("dsh rpc {method} HTTP {status}"));
+    }
+    let envelope: Value =
+        serde_json::from_str(&text).map_err(|e| format!("bad rpc response: {e}"))?;
+    let result = envelope.get("result").cloned().unwrap_or(Value::Null);
+    if result.get("ok").and_then(Value::as_bool) == Some(true) {
+        Ok(result.get("value").cloned().unwrap_or(Value::Null))
+    } else {
+        Err(result
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(Value::as_str)
+            .unwrap_or("dsh rpc failed")
+            .to_string())
+    }
+}
+
+/// 父会话的子代理目录 + 运行态（`subagentCatalog` 投影 + `session/list`）。
+async fn collect_subagents(parent: &str) -> Result<Vec<Value>, String> {
+    let projections = dsh_rpc(
+        "session/projections",
+        json!({"request": {"sessionId": parent}}),
+    )
+    .await?;
+    let catalog = projections
+        .get("values")
+        .and_then(|v| v.get("subagentCatalog"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // 会话列表的 wire 参数名是 `_request`（与其余 session 系 RPC 不同）。
+    let list = dsh_rpc("session/list", json!({"_request": {}})).await?;
+    let items = list
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut state: std::collections::HashMap<String, (bool, String)> =
+        std::collections::HashMap::new();
+    for item in &items {
+        if item.get("parentSessionId").and_then(Value::as_str) != Some(parent) {
+            continue;
+        }
+        let Some(id) = item.get("sessionId").and_then(Value::as_str) else {
+            continue;
+        };
+        let running = item
+            .get("running")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let title = item
+            .get("projections")
+            .and_then(|p| p.get("values"))
+            .and_then(|v| v.get("title"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        state.insert(id.to_string(), (running, title));
+    }
+    let mut rows = Vec::new();
+    for row in catalog {
+        let Some(id) = row.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let (running, title) = state.get(id).cloned().unwrap_or((false, String::new()));
+        rows.push(json!({
+            "name": row.get("name").cloned().unwrap_or(Value::Null),
+            "label": row.get("label").cloned().unwrap_or(Value::Null),
+            "mode": row.get("mode").cloned().unwrap_or(Value::Null),
+            "child_session_id": id,
+            "running": running,
+            "title": title,
+        }));
+    }
+    Ok(rows)
+}
+
+#[handler]
+async fn subagent_list(req: &mut Request, res: &mut Response) {
+    if !authorize(req, res, SCOPE_SUBAGENT_CONTROL) {
+        return;
+    }
+    let Some(body) = parse_body(req, res).await else {
+        return;
+    };
+    let Some(parent) = body.get("parent_session_id").and_then(Value::as_str) else {
+        err(
+            res,
+            StatusCode::BAD_REQUEST,
+            "missing field: parent_session_id".into(),
+        );
+        return;
+    };
+    match collect_subagents(parent).await {
+        Ok(rows) => {
+            res.body(json!({"ok": true, "subagents": rows}).to_string());
+        }
+        Err(e) => err(res, StatusCode::BAD_GATEWAY, e),
+    }
+}
+
+#[handler]
+async fn subagent_stop(req: &mut Request, res: &mut Response) {
+    if !authorize(req, res, SCOPE_SUBAGENT_CONTROL) {
+        return;
+    }
+    let Some(body) = parse_body(req, res).await else {
+        return;
+    };
+    let explicit = body
+        .get("child_session_id")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let name = body.get("name").and_then(Value::as_str).unwrap_or("");
+    let parent = body
+        .get("parent_session_id")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let child = if !explicit.is_empty() {
+        explicit.to_string()
+    } else {
+        if name.is_empty() || parent.is_empty() {
+            err(
+                res,
+                StatusCode::BAD_REQUEST,
+                "missing field: name + parent_session_id (or child_session_id)".into(),
+            );
+            return;
+        }
+        match collect_subagents(parent).await {
+            Ok(rows) => rows
+                .iter()
+                .find_map(|row| {
+                    let row_name = row.get("name").and_then(Value::as_str).unwrap_or("");
+                    let id = row
+                        .get("child_session_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
+                    (row_name == name).then(|| id.to_string())
+                })
+                .unwrap_or_default(),
+            Err(e) => {
+                err(res, StatusCode::BAD_GATEWAY, e);
+                return;
+            }
+        }
+    };
+    if child.is_empty() {
+        err(
+            res,
+            StatusCode::NOT_FOUND,
+            format!("no subagent named {name:?} in this parent session"),
+        );
+        return;
+    }
+    // 引擎只注册 `subagents/interruptByUser`（参数 childSessionId；对已结束的子代理
+    // 是安全 no-op）。`subagents/interruptByParent` 在本版本不存在（404）。
+    let args = json!({ "childSessionId": child });
+    match dsh_rpc("subagents/interruptByUser", args).await {
+        Ok(value) => {
+            res.body(json!({"ok": true, "child_session_id": child, "result": value}).to_string());
+        }
+        Err(e) => err(res, StatusCode::BAD_GATEWAY, e),
+    }
 }

@@ -1267,11 +1267,14 @@ const WORKER_KEPT_TOOLS: &[&str] = &["ai00_web_extract", "ai00_research_collect"
 /// 是让该 preset 不挂对应插件行（见 `WORKBENCH_DROPPED_PLUGIN_IDS` /
 /// `WORKBENCH_QUICK_DROPPED_PLUGIN_IDS`）。
 fn worker_denied_tools(worker: &str) -> Vec<&'static str> {
-    // 检索工具留给 research_worker 与云端 code_worker：后者要查证/补资料，
-    // 缺了它只能自造爬虫（2026-11-21 实测：curl/Invoke-WebRequest 在引擎沙箱里
-    // TLS 失败，worker 花 9 步试代理/找 node，整轮跑到 22 分钟）。
-    // 本地 local_code_worker 仍 deny：3B 会把搜索当"万能工具"滥用（实测十连搜）。
-    let keeps_search = matches!(worker, "research_worker" | "code_worker");
+    // 检索工具只留给 research_worker（2026-11-26 收紧）：云端 code_worker 曾有
+    // 检索权限，T2「材料已给全、只写文件」的 brief 让它先跑了约 20 次
+    // ai00_web_extract，13 分钟没写出文件，最终三轮都撞上游 90s 空闲超时。
+    // 研究与写作必须分步：要查证就让编排者先派 research_worker，写作 brief 里
+    // 内嵌事实（契约规则 2 已同步写死）。缺检索时 worker 无法再自造爬虫——
+    // 2026-11-21 实测 curl/Invoke-WebRequest 在沙箱里 TLS 失败，那种退路更糟。
+    // 本地 local_code_worker 也 deny：3B 会把搜索当"万能工具"滥用（实测十连搜）。
+    let keeps_search = worker == "research_worker";
     // 只读帮手保留长文总结：3B 整篇 `read` 长文件的召回只有 ~30%（§8 实测），
     // 宿主 map-reduce 才是可靠的事实通道；这是只读工具，不违反叶子边界。
     let keeps_summarize = worker == "local_reader";
@@ -1304,6 +1307,10 @@ const AI00_TOOL_NAMES: &[&str] = &[
     "ai00_local_compose",
     "ai00_assemble",
     "ai00_polish",
+    // 编排者的子代理控制面（宿主按 name 反查 childSessionId → 引擎 interruptByParent）：
+    // 2026-11-26 实机踩到「首派 worker 卡住 → 编排者无停止手段又派两份 → 三写同一文件」。
+    "ai00_subagent_list",
+    "ai00_subagent_stop",
 ];
 
 /// 任务场景（`workbench-task`）额外不挂载的引擎工具 —— 依据实测 schema 成本：
@@ -1715,7 +1722,7 @@ tools:
 You are a local code worker dispatched by the Ai00-X orchestrator.
 Implement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.
 Always use real tool calls; never simulate tools in text. Run the given acceptance commands before finishing.
-Use ai00_web_extract for web lookup: `query` searches the web and returns distilled per-page summaries, `url` returns one page body.
+Never research: the brief carries the material; if a needed fact is missing, state exactly what is missing instead of searching.
 Never write a tool call as JSON or prose text; if a needed tool is unavailable, state exactly what is missing.
 Return compact evidence only: changed files, commands with exit codes, remaining risks/exceptions. No long narratives.
 "#;
@@ -1808,7 +1815,7 @@ tools:
 ---
 You are a code worker dispatched by the Ai00-X orchestrator.
 Implement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.
-Web lookup uses ai00_web_extract (query = search + per-page summaries, url = page body) or ai00_research_collect — never curl, Invoke-WebRequest or hand-written fetchers.
+Never research or re-verify facts yourself: the brief must already carry the material. If it does not, reply exactly "BLOCKED: the brief lacks the facts I must write" instead of searching.
 Write long files in sections: write a skeleton first, then append section by section with edit.
 Report: what changed, how it was verified, and remaining risks.
 "#;
@@ -1914,7 +1921,7 @@ fn normalize_worker_body(body: &str) -> String {
 /// 播种只补缺不升级的话，老用户的 `agent-workers/*.md` 会永远停在旧默认
 /// （2026-11-21 实测：磁盘上 research_worker 仍是 `model: rwkv-local` +
 /// 已失效的 `web_fetch/web_search`，与代码默认值相差一整代）。
-const WORKER_SEED_VERSION: u32 = 7;
+const WORKER_SEED_VERSION: u32 = 9;
 
 fn seed_version_path(dir: &Path) -> std::path::PathBuf {
     dir.join(".seed-version")
@@ -1986,7 +1993,7 @@ fn migrate_worker_md(file_name: &str, content: &str) -> String {
 /// `ai00_research_collect` 落 sources.md；review 写「never modify files」而它现在
 /// 要落一份 review.md。用户改过的 persona 不会命中标记句，因此自定义内容不会被覆盖。
 fn refresh_legacy_default_body(file_name: &str, content: String) -> String {
-    let legacy: [(&str, &str, &str); 4] = [
+    let legacy: [(&str, &str, &str); 7] = [
         (
             "research_worker.md",
             "Read-only investigation only (read files / search / verify online). Never modify files or run commands.",
@@ -2006,6 +2013,25 @@ fn refresh_legacy_default_body(file_name: &str, content: String) -> String {
             "local_reader.md",
             "Use only glob/grep to locate things and read/read_image to inspect them.",
             DEFAULT_WORKER_LOCAL_READER_MD,
+        ),
+        // 2026-11-26：检索权限从 code_worker 收回（写作步骤不得自行联网），
+        // 旧默认正文里的联网指引一并换代；用户改过的正文不命中标记句，保持原样。
+        (
+            "code_worker.md",
+            "Web lookup uses ai00_web_extract (query = search + per-page summaries, url = page body) or ai00_research_collect — never curl, Invoke-WebRequest or hand-written fetchers.",
+            DEFAULT_WORKER_CODE_MD,
+        ),
+        (
+            "local_code_worker.md",
+            "Use ai00_web_extract for web lookup: `query` searches the web and returns distilled per-page summaries, `url` returns one page body.",
+            DEFAULT_WORKER_LOCAL_CODE_MD,
+        ),
+        // 2026-11-21 播种的 code_worker 三行旧正文（没有联网句，上一条标记匹配不到）：
+        // 用整段连续文本当标记，避免误伤用户自定义正文。
+        (
+            "code_worker.md",
+            "You are a code worker dispatched by the Ai00-X orchestrator.\nImplement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.\nReport: what changed, how it was verified, and remaining risks.",
+            DEFAULT_WORKER_CODE_MD,
         ),
     ];
     for (file, marker, default_md) in legacy {
@@ -2510,7 +2536,12 @@ pub async fn start() -> Result<(), String> {
     // 健康等待：0.1.5 鉴权链——stdout 捕获 token → GET /?token= 换签名 cookie
     // （无 Origin + cookie = 信任栅栏放行）→ POST /api/settings/describe 探活
     // （host.describe 已在 0.1.5 移除）。
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    //
+    // 预算 60s → 180s（2026-11-26 实测）：机器同时跑 cargo 构建时，引擎从 spawn
+    // 到打印 launch token 用了 84s，60s 判死留下 Failed 态 + 无 cookie 的引擎
+    // （UI 全部 401「打开没反应」）。启动慢 ≠ 坏，给足 3 分钟；真崩溃由监控 task
+    // 退避重启兜底。
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
     let mut warned_no_token = false;
     loop {
         if tokio::time::Instant::now() >= deadline {
@@ -3378,12 +3409,18 @@ mod tests {
         assert_eq!(twice.matches("- write").count(), 1, "{twice}");
     }
 
+    /// 检索工具只属于 research_worker：写作/执行工人不得自己联网
+    /// （2026-11-26 实机：T2 写作 brief 要求「自查 4 个 URL」，code_worker 跑了
+    /// 约 20 次 web_extract 才动笔，13 分钟无产物）。
     #[test]
-    fn code_worker_keeps_search_tools() {
-        let denied = worker_denied_tools("code_worker");
-        assert!(!denied.contains(&"ai00_web_extract"));
-        assert!(!denied.contains(&"ai00_research_collect"));
-        // 本地写码工人仍然 deny（3B 滥用）
+    fn only_research_worker_keeps_search_tools() {
+        let research = worker_denied_tools("research_worker");
+        assert!(!research.contains(&"ai00_web_extract"));
+        assert!(!research.contains(&"ai00_research_collect"));
+        let code = worker_denied_tools("code_worker");
+        assert!(code.contains(&"ai00_web_extract"), "{code:?}");
+        assert!(code.contains(&"ai00_research_collect"), "{code:?}");
+        // 本地写码工人同样 deny（3B 滥用）
         let local = worker_denied_tools("local_code_worker");
         assert!(local.contains(&"ai00_web_extract"));
     }
@@ -3582,6 +3619,24 @@ mod tests {
         assert!(migrated.contains("model: rwkv-local"), "{migrated}");
         let custom = "---\nname: local_reader\ndescription: d\nmodel: rwkv-local\ntools:\n  - read\n---\nMy custom persona.";
         assert_eq!(migrate_worker_md("local_reader.md", custom), custom);
+    }
+
+    /// 2026-11-21 播种的三行旧 code_worker 正文也要升级到当前默认
+    /// （含「禁止自行研究」与分节写入指引）；自定义正文不命中整段标记，保持原样。
+    #[test]
+    fn migrates_legacy_code_worker_body() {
+        let old = "---\nname: code_worker\ndescription: d\nmodel: ai00-api\ntools:\n  - read\n---\nYou are a code worker dispatched by the Ai00-X orchestrator.\nImplement only the assigned task; do not expand scope; never commit manually. Read what you need yourself.\nReport: what changed, how it was verified, and remaining risks.\n";
+        let migrated = migrate_worker_md("code_worker.md", old);
+        assert!(
+            migrated.contains("Never research or re-verify facts yourself"),
+            "{migrated}"
+        );
+        assert!(
+            migrated.contains("Write long files in sections"),
+            "{migrated}"
+        );
+        let custom = "---\nname: code_worker\ndescription: d\nmodel: ai00-api\ntools:\n  - read\n---\nMy own persona.";
+        assert_eq!(migrate_worker_md("code_worker.md", custom), custom);
     }
 
     /// 会话清理：只删「裸 UUID」子会话且按年龄过滤；父会话与新鲜子会话必须保留。

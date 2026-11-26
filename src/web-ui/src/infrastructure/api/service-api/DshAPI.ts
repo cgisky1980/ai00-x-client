@@ -1032,16 +1032,17 @@ export const dshSession = {
 };
 
 // ---------------------------------------------------------------------------
-// 子代理控制面（引擎 0.2.2 的 subagents/* rpc，签名取自 dsh-subagent typert host）
+// 子代理控制面（引擎 0.2.x 的 subagents/* rpc，签名取自 dsh-subagent typert host）
 //
-// - 只对 continuable 子代理有效（后台派发的默认形态）。
-// - prompt 需要父会话在引擎侧仍 live，否则回 `subagent/parent-unavailable`；
-//   interrupt 对「不存在/空闲/已完成」是安全 no-op，可以无条件给出口。
+// - `subagents/interruptByUser` 只收 `{childSessionId}`（对已结束子代理是安全
+//   no-op）。旧写法 `subagents/interruptByParent` 在本引擎版本**不存在**（404），
+//   子代理卡上的「停止」曾经因此永久失败——2026-11-26 实机修。
+// - `subagents/prompt` 只收 `{request: {requestId, childSessionId, delivery, content}}`。
 // ---------------------------------------------------------------------------
 
 /** 继续：给 continuable 子代理排队一条用户消息（目标下一回合）。 */
 export function subagentPrompt(
-  parentSessionId: string,
+  _parentSessionId: string,
   childSessionId: string,
   text: string,
 ): Promise<{ messageId: string }> {
@@ -1050,9 +1051,7 @@ export function subagentPrompt(
   return rpc<{ messageId: string }>('subagents/prompt', {
     request: {
       requestId: createDshRequestId(),
-      parentSessionId,
       childSessionId,
-      mode: 'continuable',
       delivery: 'queue',
       content: [{ type: 'text', text: content }],
     },
@@ -1085,16 +1084,12 @@ export async function drainSessionQueue(sessionId: string): Promise<number> {
   return removed;
 }
 
-/** 停止：以父会话身份中断 continuable 子代理（已结束的子代理为无操作）。 */
+/** 停止：中断 continuable 子代理（已结束的子代理为无操作）。 */
 export function subagentInterrupt(
-  parentSessionId: string,
+  _parentSessionId: string,
   childSessionId: string,
 ): Promise<{ accepted: true }> {
-  return rpc<{ accepted: true }>('subagents/interruptByParent', {
-    childSessionId,
-    parentSessionId,
-    mode: 'continuable',
-  });
+  return rpc<{ accepted: true }>('subagents/interruptByUser', { childSessionId });
 }
 
 // ---------------------------------------------------------------------------

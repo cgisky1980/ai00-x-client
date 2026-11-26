@@ -3745,6 +3745,105 @@ function defineTools(ctx, api, env = {}) {
       };
     },
   });
+
+  // ---- ai00_subagent_list / ai00_subagent_stop：编排者的子代理控制面 ----
+  //
+  // 引擎的 worker 回执只有名字（`started subagent rosa-html`），RPC 要的是子会话
+  // UUID；宿主按父会话 `subagentCatalog` 做「名字 → UUID」解析。不挂引擎的
+  // tool-subagent-control（wait_agent 会让编排者停 2–3 分钟），只暴露看状态与停止。
+  // 2026-11-26 实机：T2 首派 worker 跑了 13 分钟，编排者没有停止手段又派了两次，
+  // 三个 worker 同时写同一个 report.html。
+  const parentSessionId = (args, exec) =>
+    String(args?.parent_session_id ?? "").trim() ||
+    String(exec?.agent?.sessionId ?? "").trim();
+
+  ctx.tools.register({
+    name: "ai00_subagent_list",
+    description:
+      "List the subagents dispatched from THIS session (name, label, child session id, running). Use it before re-dispatching a step that produced no artifact: if the previous worker is still running, stop it first instead of writing the same deliverable twice.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean" },
+          subagents: { type: "array", items: { type: "object" } },
+          reason: { type: "string" },
+        },
+        required: ["ok"],
+        additionalProperties: false,
+      },
+      render: (_args, value) =>
+        text(
+          value?.ok
+            ? `subagents: ${
+                (value.subagents ?? [])
+                  .map((s) => `${s.name}${s.running ? " (running)" : ""}`)
+                  .join(", ") || "none"
+              }`
+            : `subagent list failed: ${value?.reason ?? "unknown"}`
+        ),
+    },
+    async execute(args, exec) {
+      const parent = parentSessionId(args, exec);
+      if (!parent) return { ok: false, reason: "cannot resolve parent session" };
+      try {
+        const res = await api.post("/subagent/list", { parent_session_id: parent }, exec.signal);
+        return { ok: true, subagents: Array.isArray(res?.subagents) ? res.subagents : [] };
+      } catch (error) {
+        return { ok: false, reason: String(error?.message ?? error) };
+      }
+    },
+  });
+
+  ctx.tools.register({
+    name: "ai00_subagent_stop",
+    description:
+      "Stop a subagent dispatched from THIS session by its dispatch name (the token in the `started subagent <name>` receipt). Safe no-op for an already finished child. Use it before re-dispatching a step whose previous worker is still running, so two workers never write the same file.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Dispatch name from `started subagent <name>`." },
+        parent_session_id: { type: "string" },
+      },
+      required: ["name"],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean" },
+          child_session_id: { type: "string" },
+          reason: { type: "string" },
+        },
+        required: ["ok"],
+        additionalProperties: false,
+      },
+      render: (_args, value) =>
+        text(
+          value?.ok
+            ? `stopped ${value.child_session_id}`
+            : `stop failed: ${value?.reason ?? "unknown"}`
+        ),
+    },
+    async execute(args, exec) {
+      const name = String(args?.name ?? "").trim();
+      const parent = parentSessionId(args, exec);
+      if (!name) return { ok: false, reason: "name is required" };
+      if (!parent) return { ok: false, reason: "cannot resolve parent session" };
+      try {
+        const res = await api.post(
+          "/subagent/stop",
+          { parent_session_id: parent, name },
+          exec.signal
+        );
+        return { ok: true, child_session_id: String(res?.child_session_id ?? "") };
+      } catch (error) {
+        return { ok: false, reason: String(error?.message ?? error) };
+      }
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -3771,6 +3870,8 @@ const TOOL_NAMES = [
   "ai00_text_summarize",
   "ai00_local_compose",
   "ai00_assemble",
+  "ai00_subagent_list",
+  "ai00_subagent_stop",
   "ai00_polish",
 ];
 
