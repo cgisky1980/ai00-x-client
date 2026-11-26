@@ -1984,6 +1984,13 @@ function defineTools(ctx, api, env = {}) {
             `files outside plan scope: ${value.extras.join(", ")} — worker scratch; mention them to the user (delete or add to the plan)`
           );
         }
+        // 验收口径提示：最常见的「假失败」是内容已在、只差一个同义词/字面词。
+        // 这种情况改词（或放宽计划里的断言）比整步重派便宜得多。
+        if (value.verdict === "failed" && (value.commands ?? []).some((c) => !c.ok)) {
+          lines.push(
+            "hint: if a failing check is only a missing keyword/phrase while the content is already there, fix the wording (ai00_polish or a small edit) instead of re-dispatching the step; rewrite over-strict checks in the plan (synonyms in ONE alternation, and no `来源`/`http` literals for offline files)."
+          );
+        }
         if ((value.reviewNotes ?? []).length) {
           lines.push(
             `review record: ${value.reviewNotes.join(", ")} — expected output of review_worker; keep it (list it under Deliverables if the user should see it)`
@@ -3540,7 +3547,14 @@ function defineTools(ctx, api, env = {}) {
     const norm = (p) => String(p ?? "").replace(/\\/g, "/").replace(/^\.\//, "");
     const wanted = new Set(sections.map(norm));
     return parsePlanSteps(markdown)
-      .filter((step) => !step.done && step.paths.some((p) => wanted.has(norm(p))))
+      .filter(
+        (step) =>
+          !step.done &&
+          // 装配/润色步骤本身就会引用分节文件，不能被当成「还没验完的分节步骤」：
+          // 2026-11-26 实机 assemble 被自己的 T6 挡住（refused: T6 not verified）。
+          !/assemble|polish/i.test(step.implementation ?? "") &&
+          step.paths.some((p) => wanted.has(norm(p)))
+      )
       .map((step) => step.id);
   }
 
@@ -3755,7 +3769,8 @@ function defineTools(ctx, api, env = {}) {
   // 三个 worker 同时写同一个 report.html。
   const parentSessionId = (args, exec) =>
     String(args?.parent_session_id ?? "").trim() ||
-    String(exec?.agent?.sessionId ?? "").trim();
+    // 本引擎 0.2.x 的 Agent 接口只有 `id`（sessionId 是旧命名）。
+    String(exec?.agent?.id ?? exec?.agent?.sessionId ?? "").trim();
 
   ctx.tools.register({
     name: "ai00_subagent_list",
